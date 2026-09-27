@@ -27,101 +27,56 @@ StreamerSongList ──(Centrifugo WS + 15s poll)──► Backend ──WebSock
 6. **Fall back**: no article, or nothing survived → topic-pack facts, with no model call.
 7. **Broadcast** `new_song` immediately and `facts_ready` when done; the overlay drops batches for songs that already ended.
 
-## Non-obvious constraints — read before changing these
+## Design decisions
 
-**The StreamerSongList API needs a token for everything.** The platform was
-rebuilt in August 2026. There are no public read endpoints any more — even
-`GET /queue` returns `401 missing authorization header`. `SSL_ACCESS_TOKEN`
-is mandatory and the process refuses to start without it. It is a Streamer
-Access Token (Settings → Access); `SSL_TOKEN_KIND` switches the header scheme
-to `User` or `Bearer` for the other token types.
+Each of these was learned from real use. Read them before changing the pipeline.
 
-**Realtime is Centrifugo, not Socket.IO.** The old Socket.IO v2 client, its
-`join-room` / `queue-update` events, and the `socket.io-client` pin are all
-gone. `centrifugo-client.ts` reads the *unidirectional* endpoint
-(`/connection/uni_websocket`): connect, send the channel list once, read
-frames. The public channels `streamer:{id}` and `streamer:{id}-queue` need no
-auth. Every queue event is handled the same way — refetch `GET /queue` — so a
-renamed or unrecognised event costs one poll interval, not correctness.
+**Accuracy comes from the source, not from a second model.** There is no LLM
+verification pass. Having the same small model grade its own output added
+latency and dropped good facts at random. Instead the prompt frames the job as
+restating a source, and `screenClaims` checks every sentence against that
+source by string comparison: names, years, platforms, award and sales language.
 
-**Use the `playing` slot, not `items[0]`.** The queue response is now
-`{ items, playing, total }` with a real now-playing state. `items[0]` is the
-*next* song. We fall back to `items[0]` only when `playing` is null, for
-streamers who leave `promoteQueueToPlaying` off. Old field names moved too:
-`list` → `items`, `comment` → `note`.
+**No source, no model call.** Asked for "general video game music facts"
+without a reference, a 3B model states confident errors (Final Fantasy VII
+credited to the wrong composer) and nothing can check them. Songs with no
+article get facts from the queue entry plus the hand-verified topic pack.
 
-**Do not use ts-node-dev.** It cannot resolve extensionless TS imports on
-Node 24+. Everything runs compiled: `tsc` then `node dist/backend/server.js`.
-`dev:backend` and `start-overlay.sh` both do this.
+**Partial results are never padded.** Four facts about the right song beat
+four plus one unrelated one.
 
-**Wikipedia search never returns "no result".** `list=search` always hands
-back a best fuzzy match, so a song with no article does not fail — it grounds
-on something unrelated and the model writes five *faithful* facts about the
-wrong work. Live, one of the streamer's own compositions grounded on "The Last
-of Us season 1". Screening cannot catch this class: the facts do match the
-reference; the reference is what's wrong. `isRelevantArticle` is the guard,
-and it must stay in front of every grounding lookup.
+**Wikipedia search never says "no result".** It returns a best fuzzy match,
+so a song with no article grounds on something merely similar and the model
+writes faithful facts about the wrong work. Screening can't catch that, which
+is why `isRelevantArticle` guards every lookup: it compares token sequences,
+respects installment numbers ("Final Fantasy X" is not "Final Fantasy"),
+rejects titles that merely contain the subject, and reads Wikipedia's
+disambiguators ("(video game)", "(band)", "(Debussy)").
 
-Two related rules in `fact-verifier.ts`: requests must NOT pass `origin=*` (a
-browser-CORS parameter that buys nothing from Node and forces the strictest
-anonymous rate-limit bucket — it is how we hit 429s in testing), and a 429
-must never be cached as "this game has no article". Grounding is cached per
-*game*, not per song, because a set usually works through one soundtrack.
+**Song lists put the game in the artist field.** Titles are usually track
+names. `resolveGameAndTrack` is the one place that encodes this. If every song
+suddenly falls back to curated facts, check it first.
 
-**Song lists often put the game in the `artist` field.** Titles are frequently track names
-("Sunshine Coastline"), and the game ("Ys VIII: Lacrimosa of Dana") is in
-`artist` — the opposite of how the field names read. `resolveGameAndTrack`
-encodes this and is the single place to change it. Getting it backwards is
-silent, not loud: Wikipedia finds nothing for a bare track name, grounding
-returns empty, and every song quietly falls through to curated facts. If the
-overlay suddenly goes generic for everything, check this first.
+**Only a real "no article" is cached.** A timeout or rate limit means the
+lookup never happened, so it is not remembered. Real misses expire after ten
+minutes. Grounding is cached per game, since a set often works through one
+soundtrack.
 
-**Accuracy is the prompt's job, not a verifier's.** There is deliberately no
-LLM verification pass. Asking the same small model to grade its own output
-added latency, dropped song-specific facts on a coin flip, and pushed the
-overlay toward generic curated filler. Instead:
+**Prompts are written for a 3B model.** What moves a model that small is
+mechanical: the source before the task, the game named explicitly, a
+replacement for each forbidden guess ("if the source names no composer, write
+about something else"), and low temperature. "Be accurate" does nothing.
 
-- the prompt is framed as *restating a source*, not recalling trivia, with the
-  reference first and every rule a test the model can apply to its own
-  sentence ("does this name appear in the SOURCE?");
-- `screenClaims` does the only checking, and every check is a string
-  comparison against that reference — years and platform names must appear in
-  it, so wrong-console and wrong-year claims die deterministically;
-- decoding runs at `OLLAMA_TEMPERATURE=0.2`, because restating a source is a
-  copying task and high temperature is what makes a small model wander off it.
+**StreamerSongList.** Every endpoint needs `SSL_ACCESS_TOKEN`. Use the queue's
+`playing` slot; `items[0]` is the *next* song and is only a fallback for
+streamers who don't use now-playing. Realtime events arrive through
+Centrifugo's unidirectional WebSocket, and every event is handled the same
+way, by refetching the queue, so an unrecognised event costs at most one poll
+interval.
 
-There are exactly three outcomes, and the middle one is the load-bearing rule:
-
-| Grounding | What runs |
-|---|---|
-| Article found | Model writes from it — song-specific facts |
-| No article | `CURATED_FACTS` directly, **no model call** |
-| Generation failed / nothing survived | `CURATED_FACTS` |
-
-**Never ask the model for "general video game music facts."** That was tried;
-with no reference there is nothing for screening to check, and it produced
-confident errors (it credited Final Fantasy VII to Yoko Shimomura). Hand-written
-facts beat invented ones, so the no-reference path skips inference entirely.
-
-Also: **partial results are never padded** from `CURATED_FACTS` — four
-song-specific facts beat four plus one about Tetris. Keep the pool comfortably
-larger than `FACTS_PER_SONG` so unknown songs don't all show the same bubbles.
-Covered by tests in `fact-verifier.test.ts`.
-
-**OBS animations: `transform` and `opacity` only.** OBS renders the browser
-source off-screen with hardware acceleration disabled. Animating `box-shadow`,
-`filter`, `width`, etc. spikes CPU and drops frames.
-
-**`llama3.2` (3B) is the intended model — write prompts for it.** It had been
-ignoring the grounding reference even when the reference contained the answer
-(it invented three different wrong composers for Ys VIII across runs). The
-levers that move a model this small are concrete and mechanical, not
-rhetorical: put the reference *before* the task, name the game explicitly
-(`resolveGameAndTrack` reads it off the entry), tell it what to write
-*instead of* a guess rather than only forbidding the guess, and keep
-temperature low. Vague instructions like "be accurate" or "don't hallucinate"
-do nothing at this size. Prefer sharpening the prompt over adding a checking
-layer.
+**OBS.** Browser sources render without GPU acceleration: animate only
+`transform` and `opacity`. Load the overlay as a Local File, because a URL
+source that fails at OBS startup never retries.
 
 ## Overlay
 
@@ -129,3 +84,4 @@ layer.
 - `appearAtSecond` is treated as *spacing* from batch arrival, not an offset from song start; a batch that lands 40 s in still shows every bubble.
 - A `song` identity guard discards facts for a song that is no longer current.
 - Style flushes use a forced reflow, not `requestAnimationFrame`, because rAF is paused while OBS isn't rendering the source.
+- Banner and bubble timers are tracked separately, so a fact batch arriving right after a song change can't cancel the banner's fade-out.

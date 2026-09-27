@@ -61,6 +61,8 @@ describe("SongListClient", () => {
     (CentrifugoStream as unknown as jest.Mock).mockClear();
   });
 
+  afterEach(() => client.disconnect());
+
   it("should initialize with no current song", () => {
     expect(client.getCurrentSong()).toBeNull();
   });

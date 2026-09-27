@@ -86,7 +86,7 @@ describe("screenClaims", () => {
   const NO_CONTEXT = "";
 
   it("drops fabricated award claims", () => {
-    // The exact failure seen on stream: the model invented a Tokyo Game Award.
+    // A real failure: the model invented a Tokyo Game Award.
     const r = screenClaims(
       ["This piece won Best Original Soundtrack at the 2016 Tokyo Game Awards."],
       NO_CONTEXT
@@ -115,7 +115,7 @@ describe("screenClaims", () => {
     expect(r.rejected).toHaveLength(2);
   });
 
-  it("drops meta-commentary that would read badly on stream", () => {
+  it("drops meta-commentary about the source", () => {
     const r = screenClaims(
       [
         "Nobuo Uematsu is not credited as a composer in the provided reference material.",
@@ -215,8 +215,7 @@ describe("isRelevantArticle", () => {
   });
 
   it("rejects the unrelated article Wikipedia returns for an original song", () => {
-    // The live failure: an original song grounded on a Last of Us article and
-    // the model wrote five faithful facts about entirely the wrong work.
+    // A real failure: faithful facts about entirely the wrong work.
     expect(isRelevantArticle("Jane Composer", "The Last of Us season 1")).toBe(false);
   });
 
@@ -226,10 +225,8 @@ describe("isRelevantArticle", () => {
 });
 
 describe("isRelevantArticle — franchise siblings and false friends", () => {
-  // Every pair below was verified ACCEPTED by the previous implementation.
-  // These are the failure class CLAUDE.md says screening structurally cannot
-  // catch: the model writes perfectly faithful facts, about the wrong work.
-  // Most are core repertoire for a video-game-piano stream, not edge cases.
+  // Screening cannot catch these: the facts would match the article, and the
+  // article is the wrong one. So relevance has to reject them.
   const MUST_REJECT: Array<[string, string]> = [
     ["Final Fantasy VI", "Final Fantasy VII"],
     ["Dragon Quest II", "Dragon Quest III"],
@@ -268,9 +265,7 @@ describe("isRelevantArticle — franchise siblings and false friends", () => {
 });
 
 describe("person-name screening", () => {
-  // Composer attribution is the most visible error possible on a video game
-  // music stream, and was the documented reason this module exists — yet it
-  // was the only risky claim shape with no deterministic check at all.
+  // Composer attribution is the most visible error this overlay can make.
   const CTX =
     "the game's music was composed by falcom sound team jdk. a piano arrangement album followed.";
 
@@ -313,7 +308,7 @@ describe("person-name screening", () => {
   });
 });
 
-describe("screening micro-gaps (B4)", () => {
+describe("screening edge cases", () => {
   const CTX = "ys viii was released in 2016 for playstation vita by nihon falcom.";
 
   it("screens every year in a line, not just the first", () => {
@@ -345,7 +340,7 @@ describe("platformSupported", () => {
   });
 });
 
-describe("duplicate and length screening (B11)", () => {
+describe("duplicate and length screening", () => {
   const CTX =
     "the music was composed by falcom sound team jdk, the in-house sound staff at nihon falcom.";
 
@@ -452,8 +447,8 @@ describe("qualifierNamesAnotherArtist", () => {
   });
 });
 
-describe("isRelevantArticle — regressions from the 2026-09-13 stream", () => {
-  // Every case here was observed live, not imagined.
+describe("isRelevantArticle — title collisions seen in real song lists", () => {
+  // Each case comes from real song-list entries.
   it("does not ground a numbered installment on the un-numbered original", () => {
     // "To Zanarkand" by Final Fantasy X grounded on "Final Fantasy (video
     // game)" — i.e. FF1. "Final Fantasy" is a prefix of "Final Fantasy X",
@@ -522,7 +517,7 @@ describe("resolveGameAndTrack — series in artist, game in title", () => {
   });
 });
 
-describe("regressions from the 2026-09-17 stream", () => {
+describe("grounding — stubs, arrangements and remakes", () => {
   it("does not read an arrangement marker as the game name", () => {
     // "(Arr Arcana Shift)" was parsed as the game, so every Ys VIII
     // arrangement grounded on the bare "Ys (series)" article instead.

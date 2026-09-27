@@ -33,7 +33,7 @@ jest.mock("./config", () => ({
     anthropicApiKey: "test-key",
     ollamaBaseUrl: "http://localhost:11434",
     ollamaModel: "llama3.2",
-    ollamaTemperature: 0.2,
+    temperature: 0.2,
     // Exercise the plumbing (ids, timing, positions, caching, fallback)
     // without hitting Wikipedia; grounding and screening are covered in
     // fact-verifier.test.ts.
@@ -158,8 +158,11 @@ describe("fact-generator", () => {
     const { generateFacts, clearFactCache: clear } = require("./fact-generator");
     clear();
 
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     const song: SSLSong = { title: "Error Song", artist: "Error Artist" };
     const facts: PopUpFact[] = await generateFacts(song);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
 
     expect(facts).toHaveLength(5);
     expect(facts[0].text).toContain("Error Song");

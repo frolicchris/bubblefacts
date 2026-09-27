@@ -93,6 +93,13 @@ describe("buildStatFacts", () => {
     expect(f).toContain("Requested by kirbyfan.");
   });
 
+  it("pluralises the other requesters correctly", () => {
+    const two = buildStatFacts(entry({}, { requests: [{ id: 1, name: "a" }, { id: 2, name: "b" }] }), opts);
+    const three = buildStatFacts(entry({}, { requests: [{ id: 1, name: "a" }, { id: 2, name: "b" }, { id: 3, name: "c" }] }), opts);
+    expect(two).toContain("Requested by a and 1 other.");
+    expect(three).toContain("Requested by a and 2 others.");
+  });
+
   it("skips a boilerplate note that the originals line already states", () => {
     const f = buildStatFacts(
       entry({ comment: "Original composition", attributes: [{ name: "Jane's Originals" }] }),

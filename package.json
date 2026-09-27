@@ -7,19 +7,18 @@
     "build": "tsc -p backend/tsconfig.json",
     "start": "node dist/backend/server.js",
     "dev": "npm run build && node dist/backend/server.js",
-    "test": "jest --config jest.config.ts --forceExit",
-    "lint": "eslint frontend",
-    "typecheck": "tsc -p backend/tsconfig.json --noEmit"
+    "test": "jest --config jest.config.ts",
+    "lint": "eslint frontend && shellcheck scripts/*.sh",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit",
+    "check": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.0",

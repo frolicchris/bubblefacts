@@ -1,18 +1,11 @@
-/* ============================================================
-   SIZING — tune the overlay here.
-
-   Everything scales off --fact-font-size, so bumping that one
-   value resizes bubbles, padding, and icons together. No rebuild
-   needed: edit, save, then right-click the OBS Browser Source
-   and choose Refresh.
-
-   Sizes are in px against a 1920x1080 browser source, so they
-   scale down for viewers watching in a small window — err large.
-
-   14px = original (too small on stream)
-   24px = current default, comfortable at 1080p
-   28px+ = extra large, or for 1440p/4K canvases
-   ============================================================ */
+/* Stream Facts Overlay
+ *
+ * Sizing: everything scales off --fact-font-size. 24px suits a 1080p canvas;
+ * use 28px or more for 1440p or 4K. Edit, save, then Refresh the source in OBS.
+ *
+ * OBS renders browser sources without GPU acceleration, so animate only
+ * transform and opacity.
+ */
 :root {
   --fact-font-size: 24px;
   --toast-font-size: 21px;
@@ -251,8 +244,7 @@ html, body {
   font-size: var(--toast-font-size);
   font-weight: 700;
   letter-spacing: 0.04em;
-  /* Was `nowrap`, which on a centred, translateX(-50%) element clipped long
-     titles at BOTH ends. Constrain and wrap instead. */
+  /* Wrap long titles; nowrap on a centred element clips both ends. */
   max-width: 80vw;
   white-space: normal;
   text-align: center;
@@ -315,7 +307,6 @@ html, body {
   background: #ff4444;
   opacity: 0.6;
   z-index: 9999;
-  transition: background 0.3s ease;
 }
 
 #connection-status.connected {

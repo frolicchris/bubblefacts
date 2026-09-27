@@ -108,8 +108,8 @@ banner with the title and requester instead of fact bubbles.
 
 ## Configuration
 
-Everything is in `.env`; `.env.example` documents every option. The ones you
-will actually touch:
+Everything is in `.env`. [docs/CONFIG.md](docs/CONFIG.md) documents every
+option with its default. The ones you will actually touch:
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -120,14 +120,11 @@ will actually touch:
 | `STREAMER_DISPLAY_NAME` | `SSL_STREAMER_NAME` | How prompts and banners name you |
 | `INSTRUMENT` | *(empty)* | "piano", "guitar"… used in the prompt |
 | `FACTS_PER_SONG` | `5` | Bubbles per song |
-| `FACT_INTERVAL_SECONDS` | `15` | Gap between bubbles |
 | `FACT_VERIFICATION` | `on` | `off` skips grounding: fast and often wrong |
 
-Bubble positions are a fixed array in `backend/src/fact-generator.ts`,
-laid out with a song-queue panel top-left and a camera top-right in mind.
-Move them for your scene. Colours, fonts and animations live in
-`frontend/obs/obs-overlay.css`; animate only `transform` and `opacity`, since
-OBS renders browser sources without GPU acceleration.
+Bubble positions are a fixed array in `backend/src/fact-generator.ts`, laid
+out for a song-queue panel top-left and a camera top-right. Move them for your
+scene. Colours, fonts and animation live in `frontend/obs/obs-overlay.css`.
 
 ## How it decides what to show
 
@@ -155,13 +152,46 @@ plus one about Tetris.
 ## Development
 
 ```bash
-npm run typecheck   # tsc, the type gate
-npm test            # jest, ~1 s
-npm run lint        # eslint on the overlay JS
-npm run build       # compile backend to dist/
+npm run check       # typecheck + lint + tests, the full gate
+npm run typecheck   # tsc in strict mode with unused-code checks
+npm run lint        # eslint on the overlay, shellcheck on the scripts
+npm test            # jest, about a second
+npm run build       # compile the backend to dist/
 ```
 
 Everything runs compiled. There is no dev transpiler on purpose.
+
+## Notes and caveats
+
+- **Coverage follows Wikipedia.** Well-known games, films, pop songs and
+  classical works ground well. Obscure tracks and small indie games often have
+  no article, and those songs get entry facts and topic-pack facts instead.
+  That is by design: no article means no model call.
+- **Screening checks the model against the article, not the article against
+  reality.** A fact is only as correct as the Wikipedia text it came from.
+- **English Wikipedia only**, and one streamer per running server.
+- **Expect some sentences to be dropped.** The model is asked for two more
+  lines than are shown, and screening removes any it can't support. On a thin
+  article you may see fewer bubbles than `FACTS_PER_SONG`.
+- **The overlay finds the server on port 3000.** If you change `PORT`, change
+  it at the top of `frontend/obs/obs-overlay.js` too.
+- **Built against the StreamerSongList API as of 2026.** If they change it,
+  the song-list client is the one file to update.
+
+## How this was built
+
+This project was written with [Claude Code](https://claude.com/claude-code),
+Anthropic's AI coding agent, directed by frolicchris, a network and security
+engineer who plays piano requests on Twitch. Almost none of the code was typed
+by hand.
+
+What a person did: decided what it should do, ran it on live streams, read the
+logs afterwards, and pushed back when it was wrong. The design decisions in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) came from that loop, and the bugs
+found on stream have regression tests in `backend/src/*.test.ts`.
+
+It is shared as a useful tool, not as a claim of hand-written craft. Judge the
+code on its merits. Issues and pull requests are welcome.
 
 ## Attribution
 
@@ -173,4 +203,4 @@ courteous thing to do.
 ## License
 
 [MIT](LICENSE). Built by [frolicchris](https://twitch.tv/frolicchris) for a
-piano request stream, with a lot of help from Claude Code.
+piano request stream.
