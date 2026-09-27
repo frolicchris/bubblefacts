@@ -1,0 +1,10 @@
+{
+  "id": "film",
+  "name": "Film and TV scores",
+  "description": "Film and television composers. Small: contributions welcome.",
+  "curatedFacts": [
+    "John Williams has been nominated for more Academy Awards than any living person.",
+    "Joe Hisaishi has scored almost every Hayao Miyazaki film since Nausicaä in 1984.",
+    "Ennio Morricone wrote for more than 400 films, often composing before a frame was shot."
+  ]
+}

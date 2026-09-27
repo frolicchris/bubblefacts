@@ -83,15 +83,25 @@ facts, because the facts come from the article either way.
 
 ## Topic packs
 
-`topics/<name>.json` holds the fallback facts used when a song has no
-article, plus lines about the streamer's own compositions. Two ship:
+When a song has no article, the overlay shows hand-verified facts from the
+topic packs in `topics/`. Set `TOPIC` to the genres your channel plays:
 
-- `video-game-music` (default): game, classical, film and pop trivia
-- `general-music`: a small genre-neutral sample to copy from
+| Pack | Facts | Covers |
+|---|---|---|
+| `video-game` | 24 | Game composers, sound chips, soundtracks |
+| `classical` | 7 | Piano repertoire and composers |
+| `film` | 3 | Film and TV scores |
+| `pop` | 2 | Pop and rock |
+| `general` | 10 | Music and the piano in general, plus lines for your own compositions |
 
-Set `TOPIC=` in `.env` to pick one, or copy a file and write your own. Every
-line should be something you've personally verified. That's the entire point
-of the pool.
+```env
+TOPIC=classical,film,general   # a classical pianist
+```
+
+The default is all five. `film` and `pop` are small, so pull requests with
+verified facts are welcome. Every line should be something you've checked
+yourself; that is the entire point of the pool. To make your own pack, copy
+any file in `topics/` and add its name to `TOPIC`.
 
 ### Your own compositions
 
@@ -116,7 +126,7 @@ option with its default. The ones you will actually touch:
 | `SSL_STREAMER_NAME` | — | Your StreamerSongList channel |
 | `SSL_ACCESS_TOKEN` | — | Required on every API call |
 | `AI_PROVIDER` | `ollama` | `ollama`, `openai`, or `anthropic` |
-| `TOPIC` | `video-game-music` | Which topic pack supplies fallback facts |
+| `TOPIC` | all five packs | Which topic packs supply fallback facts |
 | `STREAMER_DISPLAY_NAME` | `SSL_STREAMER_NAME` | How prompts and banners name you |
 | `INSTRUMENT` | *(empty)* | "piano", "guitar"… used in the prompt |
 | `FACTS_PER_SONG` | `5` | Bubbles per song |

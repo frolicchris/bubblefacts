@@ -28,7 +28,7 @@ jest.mock("./config", () => ({
     sslStreamerName: "teststreamer",
     streamerDisplayName: "teststreamer",
     instrument: "",
-    topic: "video-game-music",
+    topic: "video-game,classical,film,pop,general",
     aiProvider: "anthropic",
     anthropicApiKey: "test-key",
     ollamaBaseUrl: "http://localhost:11434",

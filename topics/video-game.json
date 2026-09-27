@@ -1,22 +1,8 @@
 {
-  "id": "video-game-music",
-  "name": "Video game music (plus classical, film and pop)",
-  "description": "The default pack. Curated facts used when no reference article exists for a song. Every line is hand-verified — keep it that way.",
+  "id": "video-game",
+  "name": "Video game music",
+  "description": "Composers, sound hardware and soundtracks from games.",
   "curatedFacts": [
-    "Chopin wrote most of his music for solo piano — unusual even among Romantic composers.",
-    "Debussy's \"Clair de Lune\" is the third movement of his Suite bergamasque, written when he was 28.",
-    "Erik Satie marked his scores with instructions like \"play like a nightingale with toothache.\"",
-    "The modern piano has 88 keys; Beethoven wrote for instruments with as few as 61.",
-    "Rachmaninoff could reportedly span a thirteenth on the keyboard — about 12 inches.",
-    "Scott Joplin's \"Maple Leaf Rag\" was one of the first sheet-music releases to sell a million copies.",
-    "\"Bohemian Rhapsody\" has no chorus — unusual for a song that spent nine weeks at number one.",
-    "John Williams has been nominated for more Academy Awards than any living person.",
-    "Joe Hisaishi has scored almost every Hayao Miyazaki film since Nausicaä in 1984.",
-    "Ennio Morricone wrote for more than 400 films, often composing before a frame was shot.",
-    "A concert grand piano has around 230 strings under roughly 20 tons of combined tension.",
-    "Equal temperament — the tuning nearly all modern keyboards use — is a deliberate compromise; no interval except the octave is perfectly in tune.",
-    "The word \"improvisation\" once described most performance: Bach, Mozart and Beethoven were all celebrated improvisers.",
-    "Piano covers routinely reach audiences the originals never did — arrangement is composition too.",
     "The Legend of Zelda's overworld theme was written in a single day, after Ravel's \"Boléro\" turned out to still be under copyright.",
     "The NES sound chip had five channels: two pulse waves, a triangle, a noise channel, and one for samples.",
     "The Tetris theme most people know is \"Korobeiniki,\" a 19th-century Russian folk song.",
@@ -41,11 +27,5 @@
     "Ocarina of Time made the player perform the music: songs played on the ocarina change time, weather and place.",
     "Grant Kirkhope's Banjo-Kazooie score shifts instruments as you move between areas, without ever stopping the tune.",
     "Jun Ishikawa has scored the Kirby series since the very first game in 1992."
-  ],
-  "originalsFacts": [
-    "Sheet music for the originals is available — ask in chat.",
-    "This piece exists because someone sat down and wrote it, not because a studio commissioned it.",
-    "Original compositions on a request stream are rarer than you'd think — most request lists are all covers.",
-    "Writing for solo piano means every line has to carry itself; there's no band to hide behind."
   ]
 }

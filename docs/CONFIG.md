@@ -43,9 +43,10 @@ Performer and content
   "piano", "guitar"… With it the prompt says "playing X on piano"; without it,
   "performing X".
 
-* `TOPIC` default `video-game-music`
-  Which `topics/<name>.json` supplies fallback facts. See the README to write
-  your own.
+* `TOPIC` default `video-game,classical,film,pop,general`
+  One topic pack or a comma-separated list from `topics/`, merged. Pick the
+  genres your channel plays; keep `general`, which holds the lines used for
+  your own compositions. Together they need at least five facts.
 
 Model
 -----
