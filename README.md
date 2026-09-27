@@ -1,225 +1,296 @@
 # Stream Facts Overlay
 
-Pop-up trivia for music streams. Watches your [StreamerSongList](https://streamersonglist.com)
-queue, and when a song starts, RPG-style dialog boxes appear in OBS with a
-few true things about it.
+When you play a song from your request queue, little game-style dialog boxes
+pop up on your stream with true facts about it.
 
-![Overlay demo](docs/demo.png)
+![Three fact bubbles and a Now Playing banner over a dark background](docs/demo.png)
 
-Facts are **grounded, not recalled**: the backend finds the song's Wikipedia
-article, hands that text to a language model with instructions to restate it,
-and then checks every sentence against the article. Names, years and
-platforms the article doesn't contain get dropped. When no article exists,
-it falls back to hand-verified facts from the topic packs for the genres you
-play, instead of letting the model guess. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+It works with [StreamerSongList](https://streamersonglist.com) and OBS, and it
+was built for music streamers: video game music, classical, film scores, pop,
+and your own compositions.
 
-Runs entirely on your machine with a free local model, or against a hosted
-free tier if you'd rather not run one.
+**How it keeps the facts true.** When a song starts, the overlay looks up the
+song (or the game it's from) on Wikipedia and asks an AI model to rewrite a few
+details from that article as short captions. Before anything reaches your
+stream, it checks each caption against the article and throws out any that
+mention a name, year or console the article doesn't. If there's no article, the
+AI isn't used at all; you get hand-checked facts instead.
 
-## What you need
+It's free to run. The AI can run on your own computer, or on a free online
+service if your computer is busy enough already.
 
-- macOS or Linux for the helper scripts. On Windows the server itself runs
-  fine: skip the scripts and use `npm run build` then `npm start`.
-- Node.js 20 or newer
-- A StreamerSongList account and a **Streamer Access Token** (Settings → Access)
-- One of: [Ollama](https://ollama.com) installed locally (default), a
-  [Groq](https://console.groq.com) / OpenRouter / Gemini API key, or an
-  Anthropic API key
-- OBS Studio 28 or newer
+---
 
-## Quick start
+## Contents
+
+- [Before you start](#before-you-start)
+- [Setup](#setup)
+- [What you'll see on stream](#what-youll-see-on-stream)
+- [Making it yours](#making-it-yours)
+- [If something goes wrong](#if-something-goes-wrong)
+- [Good to know](#good-to-know)
+- [How this was built](#how-this-was-built)
+- [For developers](#for-developers)
+
+---
+
+## Before you start
+
+You'll need:
+
+| What | Why | Where to get it |
+|---|---|---|
+| **OBS Studio** 28 or newer | Shows the overlay on your stream | [obsproject.com](https://obsproject.com) |
+| **A StreamerSongList account** | The overlay reads your request queue from it | [streamersonglist.com](https://streamersonglist.com) |
+| **Node.js** 20 or newer | Runs the overlay's small server on your computer | [nodejs.org](https://nodejs.org), the "LTS" download |
+| **An AI model** | Rewrites Wikipedia text into captions | See [step 3](#3-choose-where-the-ai-runs) |
+
+The setup steps use the Terminal on a Mac (Linux works the same way). On
+Windows the overlay itself works, but the helper scripts don't; see the
+Windows note in [step 5](#5-start-the-overlay).
+
+---
+
+## Setup
+
+This takes about 15 minutes the first time.
+
+### 1. Download the overlay
+
+On the [project page](https://github.com/frolicchris/stream-facts-overlay),
+click **Code → Download ZIP** and unzip it somewhere you'll remember, such as
+your Documents folder. (If you use git: `git clone https://github.com/frolicchris/stream-facts-overlay.git`.)
+
+Then open Terminal, type `cd ` (with a space), drag the unzipped folder onto
+the Terminal window, and press Return. Now install what it needs:
 
 ```bash
-git clone https://github.com/frolicchris/stream-facts-overlay.git
-cd stream-facts-overlay
 npm install
-cp .env.example .env
 ```
 
-Edit `.env`: set `SSL_STREAMER_NAME` and `SSL_ACCESS_TOKEN`. If you're using
-Ollama, run `ollama pull llama3.2` once. Then:
+### 2. Get your StreamerSongList token
+
+The overlay needs permission to read your queue.
+
+1. Sign in at [streamersonglist.com](https://streamersonglist.com).
+2. Go to **Settings → Access** and create a **Streamer Access Token**.
+3. Copy it. You'll paste it in step 4.
+
+Treat the token like a password: keep it off your stream and out of screenshots.
+
+### 3. Choose where the AI runs
+
+Pick one. You can switch later.
+
+| Option | Cost | Good for |
+|---|---|---|
+| **Ollama** (on your computer) | Free | Privacy, and no account needed. Takes a few seconds per song on a recent Mac. |
+| **Groq** (online) | Free, with a daily limit | Computers already busy with streaming. |
+| **Anthropic Claude** (online) | A fraction of a cent per song | The best captions for the money. |
+
+- **Ollama:** install it from [ollama.com](https://ollama.com), then run
+  `ollama pull llama3.2` in Terminal once. Nothing else to set up.
+- **Groq:** create a free account at [console.groq.com](https://console.groq.com)
+  and make an API key.
+- **Anthropic:** create an account at [console.anthropic.com](https://console.anthropic.com)
+  and make an API key.
+
+OpenRouter and Google Gemini work too; see [docs/CONFIG.md](docs/CONFIG.md).
+
+### 4. Fill in your settings
+
+Your settings live in a file named `.env` in the overlay folder. Create it
+from the example and open it:
+
+```bash
+cp .env.example .env
+open -e .env
+```
+
+(Files starting with a dot are hidden in Finder. Press Cmd+Shift+. to show them.)
+
+Fill in the first two lines. Everything else has a sensible default.
+
+```env
+SSL_STREAMER_NAME=yourchannel
+SSL_ACCESS_TOKEN=paste-your-token-here
+```
+
+If you chose Groq or Anthropic, also add one of these:
+
+```env
+OPENAI_API_KEY=your-groq-key          # for Groq
+ANTHROPIC_API_KEY=your-anthropic-key  # for Anthropic
+```
+
+Save and close the file.
+
+### 5. Start the overlay
 
 ```bash
 bash scripts/start-overlay.sh
 ```
 
-The script checks your token, your model, and the port, builds if needed,
-and starts the server. Leave it running while you stream. Without the script
-(on Windows, say), run `npm run build` once and then `npm start`.
+It checks your token, your AI model and your settings, then starts. Any problem
+is printed in red with what to do about it. **Leave this window open while you
+stream**; closing it stops the overlay.
 
-### Add the overlay to OBS
+*On Windows:* run `npm run build` once, then `npm start` each time you stream.
 
-Add a **Browser Source** to the scene you stream from:
+### 6. Add it to OBS
 
-| Setting | Value |
+1. In the scene you stream from, under **Sources**, click **+** and choose
+   **Browser**. Name it "Stream Facts".
+2. Tick **Local file**, click **Browse**, and pick
+   `frontend/obs/obs-overlay.html` inside the overlay folder.
+3. Set **Width** to `1920` and **Height** to `1080`.
+4. Tick **Refresh browser when scene becomes active**. Leave Custom CSS empty.
+5. Click **OK**. Then right-click the source and choose
+   **Transform → Reset Transform**, so it fills the screen exactly.
+
+Use **Local file**, not the URL option. A local file keeps retrying until the
+overlay is running, so it doesn't matter whether you open OBS or start the
+overlay first.
+
+### 7. Check it works
+
+Play a song from your queue. A **NOW PLAYING** banner appears at the bottom,
+and a few seconds later the first fact bubble pops up.
+
+Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
+
+---
+
+## What you'll see on stream
+
+| When | On screen |
 |---|---|
-| **Local File** | checked → `frontend/obs/obs-overlay.html` in this folder |
-| Width / Height | `1920` / `1080` |
-| Custom CSS | *(empty)* |
-| Refresh browser when scene becomes active | checked |
+| A song starts | A gold **NOW PLAYING** banner for five seconds, then up to five fact bubbles, one every 15 seconds. |
+| A song with no Wikipedia article | Bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus hand-checked facts for your genres. |
+| One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
+| A **Live Learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it. It stays up until the next song, with no bubbles. |
+| The overlay can't reach its server | A small red dot in the bottom-right corner. It disappears once reconnected. |
 
-Use Local File rather than the URL. OBS loads every browser source the moment
-it starts, and if the server isn't up yet a URL source shows a blank error
-page and never retries. A local file always loads and reconnects on its own,
-so start order stops mattering.
+---
 
-Keep the source at position 0,0 and scale 1.0. The song banner sits at the
-bottom of the page, and a scaled transform clips it.
+## Making it yours
 
-To check rendering on its own, open `frontend/obs/obs-overlay.html?test=1` in
-a browser: a test bubble and banner draw without the server. To check the
-connection, run `bash scripts/check-overlay.sh`, which reports whether OBS has
-connected. A small red dot in the overlay's bottom-right corner means it can't
-reach the server; it disappears once connected.
+All of these are lines in your `.env` file. Restart the overlay after changing it.
+[docs/CONFIG.md](docs/CONFIG.md) lists every setting.
 
-## Choosing a model
+### Your genres
 
-| Provider | Cost | Setup | Notes |
-|---|---|---|---|
-| **Ollama** `llama3.2` | free | local install | Default. Private. ~8 s per song on an M-series Mac. |
-| **Groq** via `AI_PROVIDER=openai` | free tier | API key | Hosted and fast. Daily request cap. |
-| **OpenRouter / Gemini** | free tiers | API key + `OPENAI_BASE_URL` | Same code path as Groq. |
-| **Anthropic** Claude Haiku | fractions of a cent per song | API key | Best quality per dollar. |
-
-The prompts were written for a 3-billion-parameter model and work upward from
-there. A larger model mostly buys you fewer dropped sentences, not different
-facts, because the facts come from the article either way.
-
-## Where facts come from
-
-Nothing is stored between streams except what you write yourself.
-
-- **Live facts** are generated when a song starts: its Wikipedia article is
-  fetched, the model restates it, and screening filters the result. They're
-  held in the server's memory for the session so a repeat of the song is
-  instant, and they're gone when the server stops. Nothing generated is
-  written to disk or to the topic packs.
-- **Queue-entry facts** (play count, your note, the requester) come from
-  StreamerSongList each time and are never cached for your own compositions,
-  so they stay current.
-- **Topic packs** are the hand-written files in `topics/`. They are the
-  fallback, used only when a song has no usable article or generation fails.
-  The overlay only reads them.
-- **`logs/songs.log`** records which of those paths each song took, not the
-  facts themselves.
-
-## Topic packs
-
-When a song has no article, the overlay shows hand-verified facts from the
-topic packs in `topics/`. Set `TOPIC` to the genres your channel plays:
-
-| Pack | Facts | Covers |
-|---|---|---|
-| `video-game` | 24 | Game composers, sound chips, soundtracks |
-| `classical` | 7 | Piano repertoire and composers |
-| `film` | 8 | Film and TV scores |
-| `pop` | 7 | Pop and rock songs and songwriters |
-| `piano` | 4 | The instrument, plus an originals line for solo pianists (not in the default) |
-| `general` | 6 | Music in general, plus lines for your own compositions |
+When a song has no Wikipedia article, the overlay shows hand-checked facts
+from **topic packs**, one per genre. Choose the ones your channel plays:
 
 ```env
-TOPIC=classical,film,piano,general   # a classical pianist
+TOPIC=classical,film,piano,general
 ```
 
-The default is every pack except `piano`, since its originals line assumes a
-solo pianist; add it if that's you. The packs together must hold at least five facts.
-Every line in them was checked against a source, which is the point of the
-pool; please do the same in a pull request. To make your own pack, copy any
-file in `topics/` and add its name to `TOPIC`.
+| Pack | Facts | About |
+|---|---|---|
+| `video-game` | 24 | Game composers, sound chips, soundtracks |
+| `classical` | 7 | Composers and piano repertoire |
+| `film` | 8 | Film and TV scores |
+| `pop` | 7 | Pop and rock songs and songwriters |
+| `piano` | 4 | The instrument itself, plus a line for solo pianists' originals |
+| `general` | 6 | Music in general, plus lines for your own compositions |
+
+The default is every pack except `piano`. Keep `general` if you play your own
+music. Your choice needs at least five facts in total.
+
+You can write your own pack: copy any file in the `topics` folder, change the
+facts, and add its name to `TOPIC`. Please only include facts you've checked
+against a source; that's the whole point of these packs.
 
 ### Your own compositions
 
-Tag your originals in StreamerSongList with an attribute such as "Originals"
-or "Jane's Originals", or set the artist field to your channel name, your
-`STREAMER_DISPLAY_NAME`, or a credit containing `@yourchannel`. The overlay skips the
-article lookup for them (there isn't one) and builds facts from the entry
-itself: play count, your note, who requested it, plus the `originalsFacts`
-lines from your packs. Those live in `general`, so keep it in `TOPIC`, or add
-your own `originalsFacts` to a pack you use.
+The overlay recognises your originals if, in StreamerSongList, you either:
 
-### Live learns
+- tag them with an attribute named something like **Originals** or
+  **Jane's Originals**, or
+- set the artist to your channel name or your `STREAMER_DISPLAY_NAME`, or to
+  a credit that includes `@yourchannel`.
 
-A request that isn't on your song list shows a persistent **LIVE LEARN**
-banner with the title and requester instead of fact bubbles.
+It skips Wikipedia for these (there's no article) and uses what your song list
+knows about the piece instead.
 
-## Configuration
+### How it talks about you
 
-Everything is in `.env`. [docs/CONFIG.md](docs/CONFIG.md) documents every
-option with its default. The ones you will actually touch:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `SSL_STREAMER_NAME` | — | Your StreamerSongList channel |
-| `SSL_ACCESS_TOKEN` | — | Required on every API call |
-| `AI_PROVIDER` | `ollama` | `ollama`, `openai`, or `anthropic` |
-| `TOPIC` | all but `piano` | Which topic packs supply fallback facts |
-| `STREAMER_DISPLAY_NAME` | `SSL_STREAMER_NAME` | How prompts and banners name you |
-| `INSTRUMENT` | *(empty)* | "piano", "guitar"… used in the prompt |
-| `FACTS_PER_SONG` | `5` | Bubbles per song |
-| `FACT_VERIFICATION` | `on` | `off` skips grounding: fast and often wrong |
-
-Bubble positions are a fixed array in `backend/src/fact-generator.ts`, laid
-out for a song-queue panel top-left and a camera top-right. Move them for your
-scene. Colours, fonts and animation live in `frontend/obs/obs-overlay.css`.
-
-## How it decides what to show
-
-| Grounding result | What runs |
-|---|---|
-| Article found and relevant | Model restates it; every sentence is screened against it |
-| No article, or article about something else | Queue-entry facts plus topic-pack facts, **no model call** |
-| Model failed or nothing survived screening | Queue-entry facts plus topic-pack facts |
-| Your original composition | Facts from the queue entry, no lookup |
-| Live learn | Banner only |
-
-Partial results are never padded. Four facts about the right song beat four
-plus one about Tetris.
-
-## Health and logs
-
-- `curl 127.0.0.1:3000/health` reports the current song, connected overlay
-  clients, and per-session counts: `grounded`, `original`, `liveLearn`,
-  `noReference`, `nothingSurvived`, `generationFailed` and `cacheHits`.
-- `logs/overlay-<timestamp>.log` is the full server log, `logs/latest.log` a
-  symlink to it.
-- `logs/songs.log` is one tab-separated line per song: time, title, the artist
-  field (usually the game), outcome, and fact count. Good for a post-stream
-  look at what viewers saw.
-
-## Development
-
-```bash
-npm run check       # typecheck + lint + tests, the full gate
-npm run typecheck   # tsc in strict mode with unused-code checks
-npm run lint        # eslint on the overlay, shellcheck on the scripts
-npm test            # jest, about a second
-npm run build       # compile the backend to dist/
+```env
+STREAMER_DISPLAY_NAME=Jane    # instead of your channel name
+INSTRUMENT=guitar             # "Jane is playing ... on guitar"
 ```
 
-Linting the scripts needs [shellcheck](https://www.shellcheck.net). Everything
-runs compiled; there is no dev transpiler on purpose.
+### How many bubbles, and how long
 
-## Notes and caveats
+```env
+FACTS_PER_SONG=5
+FACT_INTERVAL_SECONDS=15   # time between bubbles
+FACT_DURATION_SECONDS=8    # how long each stays up
+```
 
-- **Coverage follows Wikipedia.** Well-known games, films, pop songs and
-  classical works ground well. Obscure tracks and small indie games often have
-  no article, and those songs get entry facts and topic-pack facts instead.
-  That is by design: no article means no model call.
-- **Screening checks the model against the article, not the article against
-  reality.** A fact is only as correct as the Wikipedia text it came from.
-- **English Wikipedia only**, and one streamer per running server.
-- **The server listens on 127.0.0.1 only**, because it has no authentication.
-  If OBS runs on another machine, set `HOST=0.0.0.0` on a network you trust,
-  and set `SERVER` at the top of `frontend/obs/obs-overlay.js` to the server's
-  address.
-- **Expect some sentences to be dropped.** The model is asked for two more
-  lines than are shown, and screening removes any it can't support. On a thin
-  article you may see fewer bubbles than `FACTS_PER_SONG`.
-- **The overlay finds the server at 127.0.0.1:3000.** If you change `PORT`,
-  change `SERVER` at the top of `frontend/obs/obs-overlay.js` to match; a
-  Local File source can't be given the address any other way.
-- **Built against the StreamerSongList API as of 2026.** If they change it,
-  the song-list client is the one file to update.
+Keep the interval longer than the duration, so only one bubble is on screen
+at a time.
+
+### The look
+
+Colours, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
+text bigger or smaller, change `--fact-font-size` near the top. Save the file,
+then right-click the source in OBS and choose **Refresh**.
+
+Where bubbles appear is set in `backend/src/fact-generator.ts` (the list called
+`POSITIONS`). The defaults avoid a song-queue panel in the top-left, a camera
+in the top-right, and goal widgets in the bottom-right. If they cover something
+in your scene, edit the percentages there; the start script rebuilds
+automatically.
+
+---
+
+## If something goes wrong
+
+| What you see | Likely cause | What to do |
+|---|---|---|
+| A **red dot** in the corner, no bubbles | The overlay isn't running | Run `bash scripts/start-overlay.sh` and leave the window open. |
+| Nothing at all, not even a red dot | OBS isn't loading the page | Check the source uses **Local file** pointing at `obs-overlay.html` and is visible. Then run `bash scripts/check-overlay.sh`, which tells you whether OBS is connected. |
+| "StreamerSongList rejected the token" | Wrong or expired token | Create a new token (step 2) and paste it into `.env`. |
+| "Ollama not responding" | Ollama isn't running | Open the Ollama app, or install it from [ollama.com](https://ollama.com). |
+| "Model llama3.2 missing" | The model isn't downloaded | Run `ollama pull llama3.2`. |
+| "Port 3000 is in use" | The overlay is already running somewhere | Close the other Terminal window running it. |
+| Facts are generic, never about the song | No Wikipedia article was found | For game music, put the **game's name in the artist field** in StreamerSongList. The log line starting `[Grounding]` says what was searched. |
+| Fewer bubbles than expected | Some captions failed the fact check | Normal on songs with short articles. |
+| The banner is cut off at the bottom | The source is scaled | Right-click the source → **Transform → Reset Transform**. |
+| Bubbles cover your camera or chat | Your layout differs from the default | See [The look](#the-look). |
+
+To test the overlay without the server, open `frontend/obs/obs-overlay.html`
+in a web browser and add `?test=1` to the end of the address. A sample bubble
+and banner appear. If they show in a browser but not in OBS, the problem is in
+the OBS source settings.
+
+Still stuck? [Open an issue](https://github.com/frolicchris/stream-facts-overlay/issues)
+and include the newest file from the `logs` folder, with your token removed.
+
+---
+
+## Good to know
+
+- **Nothing is saved between streams.** Facts are made fresh when a song
+  starts and kept in memory until you stop the overlay, so a repeated song
+  shows instantly. The topic packs are only ever read, never written. The log
+  file `logs/songs.log` records which way each song was handled, not the facts.
+- **Facts are only as good as Wikipedia.** The check makes sure captions match
+  the article; it can't tell whether the article is right.
+- **Well-known works do best.** Famous games, films, pop songs and classical
+  pieces have articles. Obscure tracks and small indie games often don't, so
+  they get the hand-checked facts instead.
+- **English Wikipedia only**, and one streamer per copy of the overlay.
+- **The overlay only accepts connections from your own computer**, because it
+  has no password. Running OBS on a second computer is possible; see `HOST` in
+  [docs/CONFIG.md](docs/CONFIG.md).
+- **Built for StreamerSongList as it worked in 2026.** If their service
+  changes, the overlay may need an update.
+
+---
 
 ## How this was built
 
@@ -231,19 +302,38 @@ by hand.
 What a person did: decided what it should do, ran it on live streams, read the
 logs afterwards, and pushed back when it was wrong. The design decisions in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) came from that loop, and the bugs
-found on stream have regression tests in `backend/src/*.test.ts`.
+found on stream have tests that keep them fixed.
 
 It is shared as a useful tool, not as a claim of hand-written craft. Judge the
 code on its merits. Issues and pull requests are welcome.
 
-## Attribution
+### Credits and license
 
-Facts are restated from Wikipedia, whose text is licensed
-[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). If you
-publish recordings, a line crediting Wikipedia in your description is the
-courteous thing to do.
+Facts are rewritten from Wikipedia, whose text is shared under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). If you publish
+recordings, crediting Wikipedia in your description is the courteous thing to do.
 
-## License
+The code is [MIT licensed](LICENSE). Built by
+[frolicchris](https://twitch.tv/frolicchris) for a piano request stream.
 
-[MIT](LICENSE). Built by [frolicchris](https://twitch.tv/frolicchris) for a
-piano request stream.
+---
+
+## For developers
+
+How it works, and the reasons behind the less obvious choices, are in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before changing how
+facts are found or checked.
+
+```bash
+npm run check       # everything below, the gate for a pull request
+npm run typecheck   # TypeScript in strict mode, tests included
+npm run lint        # eslint on the overlay, shellcheck on the scripts
+npm test            # jest, about a second
+npm run build       # compile the server to dist/
+```
+
+`npm run lint` needs [shellcheck](https://www.shellcheck.net). The server
+always runs compiled; there's no development transpiler on purpose.
+
+While it runs, `curl 127.0.0.1:3000/health` reports the current song, which
+overlays are connected, and how each song this session was handled.

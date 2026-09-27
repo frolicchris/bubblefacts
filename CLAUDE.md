@@ -7,7 +7,8 @@ pipeline — it records the constraints that were learned on live streams.
 
 ## Commands
 ```bash
-npm run typecheck   # tsc --noEmit — the type gate
+npm run check       # typecheck + lint + tests: run before every commit
+npm run typecheck   # tsc, including the tests
 npm test            # jest, ~1 s (transpile-only; types come from tsc)
 npm run lint        # eslint on the overlay, shellcheck on the scripts
 npm run build       # compile to dist/
@@ -24,3 +25,5 @@ bash scripts/start-overlay.sh
 - Partial results are never padded from the topic packs.
 - Topic packs (`topics/*.json`, one per genre, merged by `TOPIC`) contain only
   hand-verified lines. Don't pad a small pack with unverified facts.
+- Docs are for streamers first: plain words, numbered steps, no unexplained
+  jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.
