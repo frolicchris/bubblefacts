@@ -1,10 +1,15 @@
 {
   "id": "film",
   "name": "Film and TV scores",
-  "description": "Film and television composers. Small: contributions welcome.",
+  "description": "Film and television composers and scores.",
   "curatedFacts": [
-    "John Williams has been nominated for more Academy Awards than any living person.",
-    "Joe Hisaishi has scored almost every Hayao Miyazaki film since Nausicaä in 1984.",
-    "Ennio Morricone wrote for more than 400 films, often composing before a frame was shot."
+    "Joe Hisaishi has scored all but one of Hayao Miyazaki's films.",
+    "Joe Hisaishi's stage name is a nod to Quincy Jones.",
+    "Ennio Morricone wrote more than 400 scores for film and television.",
+    "Sergio Leone had some of Morricone's music written before filming, and held scenes longer so the music wouldn't end.",
+    "The Jaws theme is built on two alternating notes; Spielberg reportedly laughed when Williams first played it for him.",
+    "\"Hedwig's Theme\" from the first Harry Potter film opens with a solo on the celesta.",
+    "The organ in Hans Zimmer's Interstellar score was recorded at Temple Church in London.",
+    "Before sharing the Interstellar script, Christopher Nolan gave Hans Zimmer a one-page letter to write music from."
   ]
 }

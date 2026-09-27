@@ -25,7 +25,6 @@ html, body {
   height: 100%;
   background: transparent;
   overflow: hidden;
-  /* Pixel-friendly font stack — sharp at small sizes */
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -77,10 +76,9 @@ html, body {
   transform-origin: bottom center;
 }
 
-/* Controller icon (left side of bubble) */
+/* Icon, left side. The overlay script rotates it per bubble. */
 .popup-bubble::before {
-  /* Falls back to the gamepad when the JS hasn't set a rotation glyph. */
-  content: var(--bubble-icon, '\1F3AE');
+  content: var(--bubble-icon, '\266A');
   position: absolute;
   top: 0.8em;
   left: 0.7em;
@@ -106,22 +104,6 @@ html, body {
 @keyframes cursorBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
-}
-
-/* === Inner glow highlight along top edge === */
-.popup-bubble .bubble-highlight {
-  position: absolute;
-  top: 1px;
-  left: 4px;
-  right: 4px;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(140, 160, 255, 0.5) 30%,
-    rgba(140, 160, 255, 0.5) 70%,
-    transparent 100%
-  );
 }
 
 /* ============================================================
@@ -187,8 +169,7 @@ html, body {
 }
 
 /* ============================================================
-   SPARKLE PARTICLES — decorative pixel sparkles near bubbles
-   Pure CSS, drawn with box-shadow (no images needed)
+   SPARKLES — three 2px squares that blink around each bubble
    ============================================================ */
 .popup-bubble .sparkle {
   position: absolute;
@@ -280,7 +261,7 @@ html, body {
   color: #ffd700;
 }
 
-/* Animated border glow on toast */
+/* Gold highlight along the banner's top edge */
 .song-toast::after {
   content: '';
   position: absolute;
@@ -296,7 +277,7 @@ html, body {
   );
 }
 
-/* === Connection status indicator === */
+/* Connection dot: red, bottom-right, only while disconnected from the server */
 #connection-status {
   position: fixed;
   bottom: 8px;
@@ -310,5 +291,5 @@ html, body {
 }
 
 #connection-status.connected {
-  background: #00c853;
+  opacity: 0;
 }

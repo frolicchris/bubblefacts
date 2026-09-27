@@ -1,23 +1,17 @@
 {
   "id": "general",
   "name": "General music",
-  "description": "Facts about music and the piano that fit any channel, plus lines for the streamer's own compositions.",
+  "description": "Music facts that fit any channel, plus lines for the streamer's own compositions.",
   "curatedFacts": [
-    "A standard piano has 88 keys: 52 white and 36 black.",
-    "Middle C is the note that sits nearest the centre of a piano keyboard.",
-    "The modern concert pitch of A4 is 440 Hz, standardised in 1955.",
+    "Concert pitch of A = 440 Hz was adopted by the International Organization for Standardization in 1955.",
     "A symphony orchestra is usually divided into strings, woodwinds, brass and percussion.",
-    "The word 'piano' is short for pianoforte, Italian for 'soft-loud'.",
     "A metronome marks tempo in beats per minute.",
     "The circle of fifths arranges the twelve pitch classes by perfect fifths.",
     "A sonata is typically a multi-movement work for one or two instruments.",
-    "A concert grand piano has around 230 strings under roughly 20 tons of combined tension.",
     "Equal temperament — the tuning nearly all modern keyboards use — is a deliberate compromise; no interval except the octave is perfectly in tune."
   ],
   "originalsFacts": [
-    "Sheet music for the originals is available — ask in chat.",
     "This piece exists because someone sat down and wrote it, not because a studio commissioned it.",
-    "Original compositions on a request stream are rarer than you'd think — most request lists are all covers.",
-    "Writing for solo piano means every line has to carry itself; there's no band to hide behind."
+    "Original compositions on a request stream are rarer than you'd think — most request lists are all covers."
   ]
 }

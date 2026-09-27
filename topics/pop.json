@@ -1,9 +1,14 @@
 {
   "id": "pop",
   "name": "Pop and rock",
-  "description": "Pop and rock songs. Small: contributions welcome.",
+  "description": "Pop and rock songs and songwriters.",
   "curatedFacts": [
-    "\"Bohemian Rhapsody\" has no chorus — unusual for a song that spent nine weeks at number one.",
-    "Piano covers routinely reach audiences the originals never did — arrangement is composition too."
+    "\"Bohemian Rhapsody\" has no chorus: it moves through an intro, a ballad, an opera section, hard rock and a coda.",
+    "The opera section of \"Bohemian Rhapsody\" needed about 180 vocal overdubs.",
+    "\"Piano Man\" retells Billy Joel's six months as a lounge pianist at a Los Angeles bar in 1972–73.",
+    "Bernie Taupin writes Elton John's lyrics on his own; Elton then sets them to music.",
+    "Elton John and Bernie Taupin were paired in 1967 after both answered the same record-label advert.",
+    "John Lennon finished writing \"Imagine\" on a Steinway piano in a bedroom at his home in 1971.",
+    "Paul McCartney wrote \"Let It Be\" after dreaming of his late mother, Mary."
   ]
 }

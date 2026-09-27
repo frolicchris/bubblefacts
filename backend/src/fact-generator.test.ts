@@ -1,42 +1,19 @@
-import { clearFactCache } from "./fact-generator";
-import { PopUpFact, SSLSong } from "./types";
+const mockCreate = jest.fn();
+jest.mock("@anthropic-ai/sdk", () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({ messages: { create: mockCreate } })),
+}));
 
-// Mock the Anthropic SDK
-jest.mock("@anthropic-ai/sdk", () => {
-  const mock = jest.fn().mockImplementation(() => ({
-    messages: {
-      create: jest.fn().mockResolvedValue({
-        content: [
-          {
-            type: "text",
-            text: `This song topped the Billboard Hot 100 for 3 weeks.
-The music video was filmed in a single take.
-The bass line was inspired by a Motown classic.
-It was originally written for another artist.
-The recording session lasted only 4 hours.`,
-          },
-        ],
-      }),
-    },
-  }));
-  return { __esModule: true, default: mock };
-});
-
-// Mock config to avoid requiring env vars in tests
 jest.mock("./config", () => ({
   config: {
     sslStreamerName: "teststreamer",
-    streamerDisplayName: "teststreamer",
+    streamerDisplayName: "Test Streamer",
     instrument: "",
-    topic: "video-game,classical,film,pop,general",
+    topic: "video-game,classical,film,pop,piano,general",
     aiProvider: "anthropic",
     anthropicApiKey: "test-key",
-    ollamaBaseUrl: "http://localhost:11434",
-    ollamaModel: "llama3.2",
+    anthropicModel: "test-model",
     temperature: 0.2,
-    // Exercise the plumbing (ids, timing, positions, caching, fallback)
-    // without hitting Wikipedia; grounding and screening are covered in
-    // fact-verifier.test.ts.
     factVerification: false,
     factsPerSong: 5,
     factIntervalSeconds: 15,
@@ -44,127 +21,111 @@ jest.mock("./config", () => ({
   },
 }));
 
-describe("fact-generator", () => {
-  beforeEach(() => {
-    clearFactCache();
-  });
+jest.mock("./fact-verifier", () => ({
+  ...jest.requireActual("./fact-verifier"),
+  fetchGrounding: jest.fn().mockResolvedValue(""),
+}));
 
-  it("produces no facts and no grounding call for a live learn", async () => {
-    const verifier = require("./fact-verifier");
-    const groundingSpy = jest.spyOn(verifier, "fetchGrounding");
-    const { generateFacts, factStats } = require("./fact-generator");
+import { config } from "./config";
+import { clearFactCache, factStats, generateFacts } from "./fact-generator";
+import { fetchGrounding } from "./fact-verifier";
+import { SSLQueueItem, SSLSong } from "./types";
 
-    const before = factStats.liveLearn;
-    const song: SSLSong = {
-      title: "Some Song Nobody Has Charted",
-      artist: "Unknown",
-      liveLearn: true,
-      requestedBy: "viewer1",
-    };
-    const facts: PopUpFact[] = await generateFacts(song, {
-      id: 9,
-      songId: null,
-      song: { title: "", artist: "" },
-      nonlistSong: "Some Song Nobody Has Charted",
-      note: null,
-      streamerId: 1,
-      createdAt: "2026-09-24T00:00:00Z",
-      requests: [{ id: 1, name: "viewer1" }],
-    });
+const MODEL_LINES = [
+  "The soundtrack was recorded with a small string section in one weekend.",
+  "Its main melody was first sketched on an upright piano at the studio.",
+  "The composer later arranged the theme for a full orchestra.",
+  "An acoustic guitar carries the melody in the quieter second half.",
+  "The final track fades out on a sustained organ chord.",
+  "A choir joins the arrangement only in the closing minute.",
+  "The bass line was played on a fretless electric bass.",
+].join("\n");
 
-    expect(facts).toEqual([]);
-    expect(groundingSpy).not.toHaveBeenCalled();
-    expect(factStats.liveLearn).toBe(before + 1);
-    groundingSpy.mockRestore();
-  });
+const reply = (text: string) => ({ content: [{ type: "text", text }] });
+const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
 
-  it("should generate the correct number of facts", async () => {
-    const { generateFacts } = require("./fact-generator");
+function entry(song: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> = {}): SSLQueueItem {
+  return {
+    id: 1, songId: 1, nonlistSong: null, note: null, streamerId: 1, createdAt: "", requests: [],
+    song: { title: "A Song", artist: "An Artist", ...song },
+    ...rest,
+  };
+}
 
-    const song: SSLSong = { title: "Bohemian Rhapsody", artist: "Queen" };
-    const facts: PopUpFact[] = await generateFacts(song);
+beforeEach(() => {
+  clearFactCache();
+  mockCreate.mockReset().mockResolvedValue(reply(MODEL_LINES));
+  (fetchGrounding as jest.Mock).mockClear();
+  (config as { factVerification: boolean }).factVerification = false;
+});
 
+describe("generateFacts", () => {
+  it("returns FACTS_PER_SONG facts, spaced by the interval, at CSS positions", async () => {
+    const facts = await generateFacts(song);
     expect(facts).toHaveLength(5);
-  });
-
-  it("should assign unique IDs to each fact", async () => {
-    const { generateFacts } = require("./fact-generator");
-
-    const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
-    const facts: PopUpFact[] = await generateFacts(song);
-
-    const ids = facts.map((f) => f.id);
-    const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(ids.length);
-  });
-
-  it("should stagger fact appearance times", async () => {
-    const { generateFacts } = require("./fact-generator");
-
-    const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
-    const facts: PopUpFact[] = await generateFacts(song);
-
-    for (let i = 0; i < facts.length; i++) {
-      expect(facts[i].appearAtSecond).toBe(i * 15);
-    }
-  });
-
-  it("should assign positions to each fact", async () => {
-    const { generateFacts } = require("./fact-generator");
-
-    const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
-    const facts: PopUpFact[] = await generateFacts(song);
-
-    facts.forEach((fact) => {
-      expect(fact.position).toBeDefined();
-      expect(fact.position.top).toMatch(/^\d+%$/);
-      expect(fact.position.left).toMatch(/^\d+%$/);
+    facts.forEach((f, i) => {
+      expect(f.delaySeconds).toBe(i * 15);
+      expect(f.durationSeconds).toBe(8);
+      expect(f.position.top).toMatch(/^\d+%$/);
     });
   });
 
-  it("should return cached facts for the same song", async () => {
-    const { generateFacts } = require("./fact-generator");
-
-    const song: SSLSong = { title: "Same Song", artist: "Same Artist" };
-    const facts1: PopUpFact[] = await generateFacts(song);
-    const facts2: PopUpFact[] = await generateFacts(song);
-
-    expect(facts1).toEqual(facts2);
+  it("caches a song's facts", async () => {
+    const first = await generateFacts(song);
+    expect(await generateFacts(song)).toBe(first);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("should return fallback facts on AI error", async () => {
-    // Override the mock to throw an error
-    jest.resetModules();
-    jest.mock("@anthropic-ai/sdk", () => {
-      const mock = jest.fn().mockImplementation(() => ({
-        messages: {
-          create: jest.fn().mockRejectedValue(new Error("API Error")),
-        },
-      }));
-      return { __esModule: true, default: mock };
-    });
-    jest.mock("./config", () => ({
-      config: {
-        aiProvider: "anthropic",
-        anthropicApiKey: "test-key",
-        ollamaBaseUrl: "http://localhost:11434",
-        ollamaModel: "llama3.2",
-        factsPerSong: 5,
-        factIntervalSeconds: 15,
-        factDurationSeconds: 8,
-      },
-    }));
+  it("shares one generation between concurrent requests for the same song", async () => {
+    const results = await Promise.all([generateFacts(song), generateFacts(song), generateFacts(song)]);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(results[1]).toBe(results[0]);
+    expect(results[2]).toBe(results[0]);
+  });
 
-    const { generateFacts, clearFactCache: clear } = require("./fact-generator");
-    clear();
+  it("still screens the model's output when verification is off", async () => {
+    mockCreate.mockResolvedValue(reply(`Here are 5 trivia lines about Test Song:\n1. ${MODEL_LINES}`));
+    const texts = (await generateFacts(song)).map((f) => f.text);
+    expect(texts.some((t) => /^Here are/.test(t))).toBe(false);
+    expect(texts.some((t) => /^\d+\./.test(t))).toBe(false);
+  });
 
+  it("falls back to entry and curated facts when the model fails", async () => {
+    mockCreate.mockRejectedValue(new Error("API Error"));
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    const song: SSLSong = { title: "Error Song", artist: "Error Artist" };
-    const facts: PopUpFact[] = await generateFacts(song);
+    const facts = await generateFacts(song, entry({ timesPlayed: 3 }));
+    expect(facts).toHaveLength(5);
+    expect(facts[0].text).toContain("3 times");
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
 
-    expect(facts).toHaveLength(5);
-    expect(facts[0].text).toContain("Error Song");
+  it("uses no model and no lookup for a live learn, even with verification on", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const before = factStats.liveLearn;
+    const facts = await generateFacts({ ...song, liveLearn: true }, entry({}, { nonlistSong: "Test Song" }));
+    expect(facts).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(factStats.liveLearn).toBe(before + 1);
+  });
+
+  it("builds an original's facts from the song entry, with no model or lookup", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const facts = await generateFacts(
+      { title: "Laura's Wedding", artist: "Test Streamer" },
+      entry({ title: "Laura's Wedding", artist: "Test Streamer" })
+    );
+    expect(facts[0].text).toContain("original composition");
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("uses entry and curated facts, with no model call, when there is no article", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const facts = await generateFacts(song, entry({ timesPlayed: 0 }));
+    expect(fetchGrounding).toHaveBeenCalledTimes(1);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(facts[0].text).toMatch(/First time on stream/);
   });
 });

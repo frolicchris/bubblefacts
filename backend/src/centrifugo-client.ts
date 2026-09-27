@@ -47,8 +47,9 @@ export class CentrifugoStream {
     this.connected = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
-    this.ws?.removeAllListeners();
-    this.ws?.close();
+    // Keep a no-op error listener: closing a socket that is still connecting emits one.
+    this.ws?.removeAllListeners().on("error", () => undefined);
+    this.ws?.terminate();
     this.ws = null;
   }
 

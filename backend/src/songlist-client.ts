@@ -2,7 +2,7 @@ import { config } from "./config";
 import { CentrifugoStream, SSLEvent } from "./centrifugo-client";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 
-type SongChangeCallback = (current: SSLQueueItem | null, previous: SSLQueueItem | null) => void;
+type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
 /**
  * StreamerSongList client: REST for data, Centrifugo for change
@@ -32,6 +32,7 @@ export class SongListClient {
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private refetchTimer: ReturnType<typeof setTimeout> | null = null;
   private inFlight: Promise<void> | null = null;
+  private refreshAgain = false;
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
 
@@ -133,30 +134,39 @@ export class SongListClient {
     }
   }
 
-  /** Fetch the queue and apply it. Concurrent callers share one request. */
+  /**
+   * Fetch the queue and apply it, one request at a time. A refresh asked for
+   * while one is running fetches again afterwards, because the running
+   * request may have started before the change it was asked about.
+   */
   private refresh(): Promise<void> {
-    this.inFlight ??= (async () => {
-      try {
-        const queue = await this.getJSON<SSLQueueResponse>("/queue", "queue");
-        this.lastSuccessfulFetchAt = Date.now();
-        // Streamers without the now-playing feature work down the queue instead.
-        this.applyNowPlaying(queue.playing ?? queue.items?.[0] ?? null);
-      } catch (err) {
-        console.error(`[SSL] Error fetching queue: ${err instanceof Error ? err.message : err}`);
-      } finally {
-        this.inFlight = null;
-      }
+    if (this.inFlight) {
+      this.refreshAgain = true;
+      return this.inFlight;
+    }
+    this.inFlight = (async () => {
+      do {
+        this.refreshAgain = false;
+        try {
+          const queue = await this.getJSON<SSLQueueResponse>("/queue", "queue");
+          this.lastSuccessfulFetchAt = Date.now();
+          // Streamers without the now-playing feature work down the queue instead.
+          this.applyNowPlaying(queue.playing ?? queue.items?.[0] ?? null);
+        } catch (err) {
+          console.error(`[SSL] Error fetching queue: ${err instanceof Error ? err.message : err}`);
+        }
+      } while (this.refreshAgain && !this.stopped);
+      this.inFlight = null;
     })();
     return this.inFlight;
   }
 
   private applyNowPlaying(next: SSLQueueItem | null): void {
     if (SongListClient.identity(this.currentSong) === SongListClient.identity(next)) return;
-    const previous = this.currentSong;
-    this.currentSong = next;
     const label = (s: SSLQueueItem | null) => (s ? SongListClient.displayTitle(s) : "none");
-    console.log(`[SSL] Song changed: "${label(previous)}" -> "${label(next)}"`);
-    this.onSongChange?.(next, previous);
+    console.log(`[SSL] Song changed: "${label(this.currentSong)}" -> "${label(next)}"`);
+    this.currentSong = next;
+    this.onSongChange?.(next);
   }
 
   // --- Realtime and polling ----------------------------------------------

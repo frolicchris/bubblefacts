@@ -18,6 +18,8 @@ free tier if you'd rather not run one.
 
 ## What you need
 
+- macOS or Linux for the helper scripts. On Windows the server itself runs
+  fine: skip the scripts and use `npm run build` then `npm start`.
 - Node.js 20 or newer
 - A StreamerSongList account and a **Streamer Access Token** (Settings → Access)
 - One of: [Ollama](https://ollama.com) installed locally (default), a
@@ -42,7 +44,8 @@ bash scripts/start-overlay.sh
 ```
 
 The script checks your token, your model, and the port, builds if needed,
-and starts the server. Leave it running while you stream.
+and starts the server. Leave it running while you stream. Without the script
+(on Windows, say), run `npm run build` once and then `npm start`.
 
 ### Add the overlay to OBS
 
@@ -63,17 +66,18 @@ so start order stops mattering.
 Keep the source at position 0,0 and scale 1.0. The song banner sits at the
 bottom of the page, and a scaled transform clips it.
 
-To confirm it's working before you go live, open
-`http://localhost:3000/obs-overlay?test=1` in a browser: a test bubble draws
-immediately with no server round-trip. And `bash scripts/check-overlay.sh`
-tells you whether OBS has actually connected.
+To check rendering on its own, open `frontend/obs/obs-overlay.html?test=1` in
+a browser: a test bubble and banner draw without the server. To check the
+connection, run `bash scripts/check-overlay.sh`, which reports whether OBS has
+connected. A small red dot in the overlay's bottom-right corner means it can't
+reach the server; it disappears once connected.
 
 ## Choosing a model
 
 | Provider | Cost | Setup | Notes |
 |---|---|---|---|
 | **Ollama** `llama3.2` | free | local install | Default. Private. ~8 s per song on an M-series Mac. |
-| **Groq** via `AI_PROVIDER=openai` | free tier | API key | ~1 s per song. 1,000 requests/day cap. |
+| **Groq** via `AI_PROVIDER=openai` | free tier | API key | Hosted and fast. Daily request cap. |
 | **OpenRouter / Gemini** | free tiers | API key + `OPENAI_BASE_URL` | Same code path as Groq. |
 | **Anthropic** Claude Haiku | fractions of a cent per song | API key | Best quality per dollar. |
 
@@ -90,23 +94,25 @@ topic packs in `topics/`. Set `TOPIC` to the genres your channel plays:
 |---|---|---|
 | `video-game` | 24 | Game composers, sound chips, soundtracks |
 | `classical` | 7 | Piano repertoire and composers |
-| `film` | 3 | Film and TV scores |
-| `pop` | 2 | Pop and rock |
-| `general` | 10 | Music and the piano in general, plus lines for your own compositions |
+| `film` | 8 | Film and TV scores |
+| `pop` | 7 | Pop and rock songs and songwriters |
+| `piano` | 4 | The instrument, plus an originals line for solo pianists |
+| `general` | 6 | Music in general, plus lines for your own compositions |
 
 ```env
-TOPIC=classical,film,general   # a classical pianist
+TOPIC=classical,film,piano,general   # a classical pianist
 ```
 
-The default is all five. `film` and `pop` are small, so pull requests with
-verified facts are welcome. Every line should be something you've checked
-yourself; that is the entire point of the pool. To make your own pack, copy
-any file in `topics/` and add its name to `TOPIC`.
+The default is all six. The packs together must hold at least five facts.
+Every line in them was checked against a source, which is the point of the
+pool; please do the same in a pull request. To make your own pack, copy any
+file in `topics/` and add its name to `TOPIC`.
 
 ### Your own compositions
 
-Tag your originals in StreamerSongList with an attribute containing the word
-"original", or put your name in the artist field. The overlay skips the
+Tag your originals in StreamerSongList with an attribute such as "Originals"
+or "Jane's Originals", or set the artist field to your channel name, your
+`STREAMER_DISPLAY_NAME`, or a credit containing `@yourchannel`. The overlay skips the
 article lookup for them (there isn't one) and builds facts from the entry
 itself: play count, your note, who requested it, plus the `originalsFacts`
 lines from your packs. Those live in `general`, so keep it in `TOPIC`, or add
@@ -127,7 +133,7 @@ option with its default. The ones you will actually touch:
 | `SSL_STREAMER_NAME` | — | Your StreamerSongList channel |
 | `SSL_ACCESS_TOKEN` | — | Required on every API call |
 | `AI_PROVIDER` | `ollama` | `ollama`, `openai`, or `anthropic` |
-| `TOPIC` | all five packs | Which topic packs supply fallback facts |
+| `TOPIC` | all six packs | Which topic packs supply fallback facts |
 | `STREAMER_DISPLAY_NAME` | `SSL_STREAMER_NAME` | How prompts and banners name you |
 | `INSTRUMENT` | *(empty)* | "piano", "guitar"… used in the prompt |
 | `FACTS_PER_SONG` | `5` | Bubbles per song |
@@ -142,8 +148,8 @@ scene. Colours, fonts and animation live in `frontend/obs/obs-overlay.css`.
 | Grounding result | What runs |
 |---|---|
 | Article found and relevant | Model restates it; every sentence is screened against it |
-| No article, or article about something else | Topic-pack facts directly, **no model call** |
-| Model failed or nothing survived screening | Topic-pack facts |
+| No article, or article about something else | Queue-entry facts plus topic-pack facts, **no model call** |
+| Model failed or nothing survived screening | Queue-entry facts plus topic-pack facts |
 | Your original composition | Facts from the queue entry, no lookup |
 | Live learn | Banner only |
 
@@ -152,13 +158,14 @@ plus one about Tetris.
 
 ## Health and logs
 
-- `curl localhost:3000/health` reports the current song, connected overlay
-  clients, and a per-outcome count (grounded, curated, original, live learn)
-  for this session.
+- `curl 127.0.0.1:3000/health` reports the current song, connected overlay
+  clients, and per-session counts: `grounded`, `original`, `liveLearn`,
+  `noReference`, `nothingSurvived`, `generationFailed` and `cacheHits`.
 - `logs/overlay-<timestamp>.log` is the full server log, `logs/latest.log` a
   symlink to it.
-- `logs/songs.log` is one line per song: time, title, game, outcome, fact
-  count. Good for a post-stream look at what viewers saw.
+- `logs/songs.log` is one tab-separated line per song: time, title, the artist
+  field (usually the game), outcome, and fact count. Good for a post-stream
+  look at what viewers saw.
 
 ## Development
 
@@ -170,7 +177,8 @@ npm test            # jest, about a second
 npm run build       # compile the backend to dist/
 ```
 
-Everything runs compiled. There is no dev transpiler on purpose.
+Linting the scripts needs [shellcheck](https://www.shellcheck.net). Everything
+runs compiled; there is no dev transpiler on purpose.
 
 ## Notes and caveats
 
@@ -181,11 +189,13 @@ Everything runs compiled. There is no dev transpiler on purpose.
 - **Screening checks the model against the article, not the article against
   reality.** A fact is only as correct as the Wikipedia text it came from.
 - **English Wikipedia only**, and one streamer per running server.
+- **The server listens on 127.0.0.1 only**, because it has no authentication.
+  Set `HOST` if OBS runs on another machine, and only on a network you trust.
 - **Expect some sentences to be dropped.** The model is asked for two more
   lines than are shown, and screening removes any it can't support. On a thin
   article you may see fewer bubbles than `FACTS_PER_SONG`.
-- **The overlay finds the server on port 3000.** If you change `PORT`, change
-  it at the top of `frontend/obs/obs-overlay.js` too.
+- **The overlay finds the server at 127.0.0.1:3000.** If you change `PORT`,
+  change it at the top of `frontend/obs/obs-overlay.js` too.
 - **Built against the StreamerSongList API as of 2026.** If they change it,
   the song-list client is the one file to update.
 

@@ -6,6 +6,8 @@
 # If nothing is connected, it waits while you refresh the Browser Source in OBS.
 
 set -uo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+PORT="${PORT:-$(grep -E '^PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -dc '0-9')}"
 PORT="${PORT:-3000}"
 WAIT_SECONDS=45
 
@@ -26,7 +28,7 @@ ok "Server responding on port $PORT"
 if [ "$(clients)" -gt 0 ] 2>/dev/null; then
   ok "An overlay is connected:"
   curl -s "http://127.0.0.1:$PORT/health" |
-    python3 -c 'import sys,json; [print("     ", c["addr"], c["ua"][:70]) for c in json.load(sys.stdin)["clients"]]'
+    node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>JSON.parse(s).clients.forEach((c)=>console.log("     ",c.addr,c.ua.slice(0,70))))'
   echo "  A browser tab counts too; OBS's user agent contains \"OBS/\"."
   exit 0
 fi
@@ -52,6 +54,7 @@ cat <<'TIPS'
   4. OBS's browser process crashed. Quit OBS fully and reopen it.
 
   To separate a rendering problem from a connection problem, open
-  frontend/obs/obs-overlay.html?test=1 : it draws a bubble without the server.
+  frontend/obs/obs-overlay.html?test=1 in a browser: it draws a bubble
+  without the server.
 TIPS
 exit 1

@@ -11,15 +11,17 @@
  *  Add a Browser Source in OBS with "Local File" ticked, pointing at this
  *  folder's obs-overlay.html, 1920x1080. See README.md.
  *
- *  Append ?test=1 to draw a fixed test bubble without the server.
- *  Styling lives in obs-overlay.css; bubble positions come from the server.
+ *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
+ *  without the server. A red dot bottom-right means the server isn't
+ *  reachable. Styling lives in obs-overlay.css; positions come from the server.
  */
 (function () {
   "use strict";
 
+  // The server listens on the loopback address; change PORT to match .env.
   const PORT = 3000;
   const WS_URL = location.protocol === "file:"
-    ? "ws://localhost:" + PORT + "/ws"
+    ? "ws://127.0.0.1:" + PORT + "/ws"
     : (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
 
   const TOAST_MS = 5000;
@@ -27,7 +29,7 @@
   const POP_IN_MS = 500;
   const HIDE_FALLBACK_MS = 1000;
   const MAX_RECONNECT_MS = 30000;
-  const ICONS = ["🎮", "🎵", "⭐", "🔥", "❤️", "🏆", "⚡", "🌟"];
+  const ICONS = ["♪", "🎵", "⭐", "🎶", "✨", "🌟", "💡", "🎼"];
 
   const container = document.getElementById("bubble-container");
   const statusDot = document.getElementById("connection-status");
@@ -136,17 +138,14 @@
 
   /**
    * Batches can arrive long after their song started, or after it ended.
-   * Drop batches for a song that is no longer current, and treat
-   * appearAtSecond as spacing from arrival so no fact is skipped.
+   * Drop a batch for a song that is no longer current. Delays count from
+   * arrival, so a late batch still shows every fact.
    */
   function showFacts(song, facts) {
     if (!facts || !facts.length || songKey(song) !== currentSongKey) return;
     // A reconnect can resend the batch; replace rather than stack.
     clearBubbles();
-    const first = Math.min(...facts.map((f) => f.appearAtSecond));
-    facts.forEach((fact) => {
-      bubbleTimers.push(setTimeout(() => showBubble(fact), (fact.appearAtSecond - first) * 1000));
-    });
+    facts.forEach((fact) => bubbleTimers.push(setTimeout(() => showBubble(fact), fact.delaySeconds * 1000)));
   }
 
   // --- Connection ---

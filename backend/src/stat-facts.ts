@@ -8,18 +8,27 @@ import { SSLQueueItem } from "./types";
 
 /** Notes that add nothing beyond the "original composition" line. */
 const GENERIC_NOTE = /^(original(\s+composition)?|improvised(\s+piece)?|own\s+composition)\.?$/i;
-const ORIGINALS_ATTRIBUTE = /original/i;
+/** "Originals" or "Jane's Originals", but not "Original Soundtrack". */
+const ORIGINALS_ATTRIBUTE = /\boriginals\b|^\s*original\s*$/i;
 const MAX_NOTE_CHARS = 120;
 const STALE_AFTER_DAYS = 14;
 const DAY_MS = 86_400_000;
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
-/** Tagged with an "original" attribute, or credited to the streamer. */
-export function isOriginal(entry: SSLQueueItem | null, streamerName: string): boolean {
+/**
+ * Tagged as an original, or credited to the streamer: the artist field is
+ * one of their names, or contains "@name". A bare name inside a longer
+ * credit doesn't count; streamer "Joe" doesn't own "Joe Hisaishi".
+ */
+export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean {
   if (!entry) return false;
   if (entry.song?.attributes?.some((a) => a?.name && ORIGINALS_ATTRIBUTE.test(a.name))) return true;
-  return (entry.song?.artist ?? "").toLowerCase().includes(streamerName.toLowerCase());
+  const artist = (entry.song?.artist ?? "").trim().toLowerCase();
+  return names.some((n) => {
+    const name = n.trim().toLowerCase();
+    return Boolean(name) && (artist === name || new RegExp(`@${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(artist));
+  });
 }
 
 /** Drop a leading "Artist:" that repeats the artist field. */

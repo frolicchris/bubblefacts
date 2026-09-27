@@ -1,7 +1,6 @@
 // Mock config before importing anything that uses it
 jest.mock("./config", () => ({
   config: {
-    sslEnv: "production",
     sslStreamerName: "teststreamer",
     sslPlatform: "twitch",
     sslApiBase: "https://api.streamersonglist.com",
@@ -20,6 +19,7 @@ jest.mock("./centrifugo-client", () => ({
   CentrifugoStream: jest.fn().mockImplementation(() => ({
     start: startMock,
     stop: stopMock,
+    isConnected: () => true,
   })),
 }));
 
@@ -173,5 +173,22 @@ describe("SongListClient", () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 404, statusText: "Not Found" });
 
     await expect(client.connect()).rejects.toThrow("Failed to fetch streamer info");
+  });
+
+  it("fetches again when a change is announced while a fetch is running", async () => {
+    let release: (v: unknown) => void = () => undefined;
+    const slow = new Promise((resolve) => (release = resolve));
+    mockFetch
+      .mockReturnValueOnce(slow)
+      .mockResolvedValueOnce(ok({ items: [], playing: entry(2, "Song B"), total: 0 }));
+
+    const refresh = (client as unknown as { refresh(): Promise<void> }).refresh.bind(client);
+    const first = refresh();
+    const second = refresh();
+    release(ok({ items: [], playing: entry(1, "Song A"), total: 0 }));
+    await Promise.all([first, second]);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(client.getCurrentSong()?.song.title).toBe("Song B");
   });
 });

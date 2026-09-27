@@ -12,9 +12,12 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
 
-# Read KEY from .env, without surrounding quotes.
+# Read KEY from .env the way dotenv does: quotes removed, or an unquoted
+# value cut at "#" with trailing spaces trimmed.
 env_get() {
-  grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+  grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- |
+    sed -E -e "/^[\"']/!s/#.*$//" -e 's/[[:space:]]+$//' \
+      -e "s/^\"(.*)\"[[:space:]]*(#.*)?$/\1/" -e "s/^'(.*)'[[:space:]]*(#.*)?$/\1/"
 }
 
 echo
@@ -70,7 +73,7 @@ if lsof -i ":$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 ok "Port $PORT free"
 
-if [ ! -f dist/backend/server.js ] || [ -n "$(find backend/src topics -newer dist/backend/server.js -print -quit)" ]; then
+if [ ! -f dist/backend/server.js ] || [ -n "$(find backend/src -newer dist/backend/server.js -print -quit)" ]; then
   echo "  Building..."
   npm run build --silent || fail "Build failed"
 fi
@@ -83,7 +86,7 @@ ln -sfn "$(basename "$log")" logs/latest.log
 
 echo
 echo "--- Running on port $PORT (Ctrl-C to stop) ---"
-echo "  Health: http://localhost:$PORT/health"
+echo "  Health: http://127.0.0.1:$PORT/health"
 echo "  Log:    $log"
 echo
 PORT="$PORT" node dist/backend/server.js 2>&1 | tee -a "$log"

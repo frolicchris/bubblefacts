@@ -25,7 +25,6 @@ export interface SSLQueueSong {
 export interface SSLRequest {
   id: number;
   name: string;
-  source?: string;
   user?: { username: string; platform: string };
 }
 
@@ -40,8 +39,6 @@ export interface SSLQueueItem {
   streamerId: number;
   createdAt: string;
   requests: SSLRequest[] | null;
-  position?: number;
-  nowPlayingStartedAt?: string | null;
 }
 
 /** `GET /queue` */
@@ -54,15 +51,13 @@ export interface SSLQueueResponse {
 /** `GET /streamers`, only the fields used here. */
 export interface SSLStreamerInfo {
   id: number;
-  requestsActive: boolean;
   promoteQueueToPlaying?: boolean;
 }
 
-/** One bubble. `position` values are CSS percentages. */
-export interface PopUpFact {
-  id: string;
+/** One bubble. Shown `delaySeconds` after the batch arrives; `position` is CSS percentages. */
+export interface Fact {
   text: string;
-  appearAtSecond: number;
+  delaySeconds: number;
   durationSeconds: number;
   position: { top: string; left: string };
 }
@@ -71,5 +66,5 @@ export interface PopUpFact {
 export interface FactsPayload {
   type: "new_song" | "facts_ready" | "clear";
   song?: SSLSong;
-  facts?: PopUpFact[];
+  facts?: Fact[];
 }

@@ -98,7 +98,7 @@ app.use("/obs", express.static(path.resolve(__dirname, "../../frontend/obs")));
 
 app.get("/obs-overlay", (req, res) => {
   console.log(`[Server] Overlay page requested by ${req.headers["user-agent"] ?? "unknown"}`);
-  res.redirect("/obs/obs-overlay.html" + (req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""));
+  res.redirect("/obs/obs-overlay.html" + req.url.replace(/^[^?]*/, ""));
 });
 
 app.get("/health", (_req, res) => {
@@ -148,8 +148,8 @@ songList.onCurrentSongChange((current) => {
 });
 
 // Listen before connecting upstream, so a slow API never delays the overlay's socket.
-server.listen(config.port, () => {
-  console.log(`[Server] Listening on http://localhost:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
+server.listen(config.port, config.host, () => {
+  console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
   console.log(`[Server] Tracking streamer "${config.sslStreamerName}"`);
 });
 
@@ -157,5 +157,3 @@ songList
   .connect()
   .then(() => console.log("[Server] Connected to StreamerSongList"))
   .catch((err) => console.error(`[Server] StreamerSongList unavailable, retrying by poll: ${err.message}`));
-
-export { app, server };

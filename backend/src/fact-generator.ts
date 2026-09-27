@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
-import { PopUpFact, SSLQueueItem, SSLSong } from "./types";
-import { fetchGrounding, resolveGameAndTrack, screenClaims, topUp } from "./fact-verifier";
+import { Fact, SSLQueueItem, SSLSong } from "./types";
+import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 
@@ -13,6 +13,7 @@ import { topic } from "./topic";
  *   original    -> facts from the queue entry, no lookup
  *   article     -> model restates it, screening filters the result
  *   no article  -> entry facts + topic packs, no model call
+ *   failure     -> entry facts + topic packs
  */
 
 /** Ask for a few spares; screening drops some. */
@@ -52,7 +53,10 @@ export const factStats = {
   lastOutcome: "",
 };
 
-const factCache = new Map<string, PopUpFact[]>();
+/** Songs with no usable facts are retried after this long; others are kept. */
+const RETRY_MS = 10 * 60 * 1000;
+const factCache = new Map<string, { facts: Fact[]; expires: number }>();
+const inFlight = new Map<string, Promise<Fact[]>>();
 const SONGS_LOG = path.resolve(__dirname, "../../logs/songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
   grounded: "article",
@@ -63,7 +67,7 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   generationFailed: "curated",
 };
 
-/** Count the outcome and append a line to logs/songs.log (time, title, game, outcome, count). */
+/** Count the outcome and append a line to logs/songs.log: time, title, artist field, outcome, count. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
@@ -75,12 +79,10 @@ function record(song: SSLSong, outcome: Outcome, count: number): void {
   );
 }
 
-function linesToFacts(lines: string[]): PopUpFact[] {
-  const stamp = Date.now();
+function toFacts(lines: string[]): Fact[] {
   return lines.map((text, i) => ({
-    id: `fact_${stamp}_${i}_${Math.random().toString(36).slice(2, 8)}`,
     text,
-    appearAtSecond: i * config.factIntervalSeconds,
+    delaySeconds: i * config.factIntervalSeconds,
     durationSeconds: config.factDurationSeconds,
     position: POSITIONS[i % POSITIONS.length],
   }));
@@ -179,7 +181,8 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
       model: config.openaiModel,
       messages: [{ role: "user", content: prompt }],
       temperature: config.temperature,
-      max_tokens: MAX_TOKENS,
+      // Reasoning models (Groq's free gpt-oss) spend part of this on hidden reasoning.
+      max_tokens: MAX_TOKENS * 4,
     },
     config.openaiTimeoutMs,
     { Authorization: `Bearer ${config.openaiApiKey}` }
@@ -233,80 +236,88 @@ async function askModel(prompt: string): Promise<string> {
 
 // --- Pipeline ----------------------------------------------------------
 
-/** Performer credit plus curated facts, for when generation produced nothing usable. */
-function fallbackFacts(song: SSLSong): PopUpFact[] {
-  return linesToFacts([
-    `"${song.title}" is being performed live by ${config.streamerDisplayName}!`,
-    ...topUp([], config.factsPerSong - 1),
-  ]);
+/** Facts from the queue entry, topped up from the topic packs. True by construction. */
+function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
+  const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
+  return [...stats, ...curatedFacts(want - stats.length)];
 }
 
-export async function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<PopUpFact[]> {
-  const key = `${song.artist ?? ""}:::${song.title}`.toLowerCase();
-  const cached = factCache.get(key);
-  if (cached) {
-    factStats.cacheHits++;
-    return cached;
-  }
+async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ facts: Fact[]; ttlMs: number }> {
+  const want = config.factsPerSong;
+  const keep = { facts: [] as Fact[], ttlMs: Infinity };
 
   if (song.liveLearn) {
     console.log(`[FactGen] "${song.title}" is a live learn, skipping facts`);
     record(song, "liveLearn", 0);
-    return [];
+    return keep;
   }
 
-  const want = config.factsPerSong;
   try {
-    if (isOriginal(entry, config.sslStreamerName)) {
+    if (isOriginal(entry, [config.sslStreamerName, config.streamerDisplayName])) {
       const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true });
-      const facts = linesToFacts([...stats, ...topic.originalsFacts].slice(0, want));
+      const facts = toFacts([...stats, ...topic.originalsFacts].slice(0, want));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
       record(song, "original", facts.length);
-      factCache.set(key, facts);
-      return facts;
+      return { facts, ttlMs: Infinity };
     }
 
     const context = config.factVerification ? await fetchGrounding(song) : "";
-
     if (config.factVerification && !context) {
-      // Not cached: grounding may succeed once its negative cache expires.
-      const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName });
-      const lines = [...stats, ...topUp(stats, want)].slice(0, want);
-      console.log(`[FactGen] No reference for "${song.title}": ${stats.length} entry facts, ${lines.length - stats.length} curated`);
+      const lines = entryFacts(entry, want);
+      console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(song, "noReference", lines.length);
-      return linesToFacts(lines);
+      // Retried after the grounding negative cache expires.
+      return { facts: toFacts(lines), ttlMs: RETRY_MS };
     }
 
-    const prompt = context
-      ? groundedPrompt(song, context, want + OVERGENERATE)
-      : unverifiedPrompt(song, want);
+    const prompt = context ? groundedPrompt(song, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt)).split("\n").map((l) => l.trim()).filter(Boolean);
+    const { kept, rejected } = screenClaims(lines, context);
+    for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
+    const shown = kept.slice(0, want);
+    console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
-    let shown = lines.slice(0, want);
-    if (context) {
-      const { kept, rejected } = screenClaims(lines, context);
-      for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
-      shown = kept.slice(0, want);
-      console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
+    if (shown.length) {
+      record(song, "grounded", shown.length);
+      return { facts: toFacts(shown), ttlMs: Infinity };
     }
-
-    if (!shown.length) {
-      console.warn(`[FactGen] Nothing usable for "${song.title}", using curated facts`);
-      record(song, "nothingSurvived", want);
-      return fallbackFacts(song);
-    }
-
-    const facts = linesToFacts(shown);
-    factCache.set(key, facts);
-    record(song, "grounded", facts.length);
-    return facts;
+    const fallback = entryFacts(entry, want);
+    console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
+    record(song, "nothingSurvived", fallback.length);
+    return { facts: toFacts(fallback), ttlMs: RETRY_MS };
   } catch (err) {
+    const fallback = entryFacts(entry, want);
     console.error(`[FactGen] Generation failed for "${song.title}":`, err);
-    record(song, "generationFailed", want);
-    return fallbackFacts(song);
+    record(song, "generationFailed", fallback.length);
+    return { facts: toFacts(fallback), ttlMs: RETRY_MS };
   }
+}
+
+/**
+ * Facts for a song. Results are cached, and concurrent callers (several
+ * overlays, a reconnect mid-generation) share one generation.
+ */
+export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<Fact[]> {
+  const key = `${song.artist ?? ""}:::${song.title}`.toLowerCase();
+  const cached = factCache.get(key);
+  if (cached && Date.now() < cached.expires) {
+    factStats.cacheHits++;
+    return Promise.resolve(cached.facts);
+  }
+  let pending = inFlight.get(key);
+  if (!pending) {
+    pending = generate(song, entry)
+      .then(({ facts, ttlMs }) => {
+        factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        return facts;
+      })
+      .finally(() => inFlight.delete(key));
+    inFlight.set(key, pending);
+  }
+  return pending;
 }
 
 export function clearFactCache(): void {
   factCache.clear();
+  inFlight.clear();
 }

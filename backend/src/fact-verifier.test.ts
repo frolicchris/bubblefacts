@@ -3,6 +3,7 @@ jest.mock("./config", () => ({
     factsPerSong: 5,
     groundingTimeoutMs: 5000,
     groundingExtractTimeoutMs: 15000,
+    topic: "video-game,classical,film,pop,piano,general",
   },
 }));
 
@@ -16,9 +17,12 @@ import {
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
   tooSimilar,
-  topUp,
-  CURATED_FACTS,
+  curatedFacts,
+  orderExtract,
+  fetchGrounding,
+  clearGroundingCache,
 } from "./fact-verifier";
+import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
   it("treats the artist field as the game, which is how the song list is keyed", () => {
@@ -182,18 +186,17 @@ describe("screenClaims", () => {
   });
 });
 
-describe("topUp", () => {
-  it("returns the requested number of curated facts", () => {
-    expect(topUp([], 3)).toHaveLength(3);
+describe("curatedFacts", () => {
+  it("returns the requested number of distinct facts from the packs", () => {
+    const facts = curatedFacts(5);
+    expect(facts).toHaveLength(5);
+    expect(new Set(facts).size).toBe(5);
+    facts.forEach((f) => expect(topic.curatedFacts).toContain(f));
   });
 
-  it("never repeats a fact already being shown", () => {
-    const existing = [CURATED_FACTS[0]];
-    expect(topUp(existing, 5)).not.toContain(CURATED_FACTS[0]);
-  });
-
-  it("does not exceed the curated pool", () => {
-    expect(topUp([], 999).length).toBeLessThanOrEqual(CURATED_FACTS.length);
+  it("does not exceed the pool, and handles zero", () => {
+    expect(curatedFacts(9999)).toHaveLength(topic.curatedFacts.length);
+    expect(curatedFacts(0)).toEqual([]);
   });
 });
 
@@ -544,5 +547,133 @@ describe("grounding — stubs, arrangements and remakes", () => {
         `The Legend of Zelda: Ocarina of Time (${future} video game)`
       )
     ).toBe(false);
+  });
+});
+
+
+describe("screening holes found in review", () => {
+  const CTX = "Chrono Trigger's wonderful score was composed by Yasunori Mitsuda and released in 1995 for the Super Famicom. The game played at arcade speed.";
+  const dropped = (fact: string) => screenClaims([fact], CTX).kept.length === 0;
+
+  it("does not corroborate a risky word from inside a longer word", () => {
+    expect(dropped("Chrono Trigger's score won a prize for its composer.")).toBe(true);
+  });
+
+  it("catches a chart position written with a hash", () => {
+    expect(dropped("The main theme reached #1 on the Oricon charts in Japan.")).toBe(true);
+  });
+
+  it("requires every part of a name as a whole word", () => {
+    expect(dropped("Ed Mitsuda wrote several of the battle themes for the game.")).toBe(true);
+  });
+
+  it("checks accented and Mc- names", () => {
+    expect(dropped("Antonín Dvořák influenced the score of Chrono Trigger heavily.")).toBe(true);
+    expect(dropped("Paul McCartney performed on the original soundtrack album.")).toBe(true);
+  });
+
+  it("checks years before 1800", () => {
+    expect(dropped("Chrono Trigger's score quotes a melody first published in 1722.")).toBe(true);
+  });
+
+  it("accepts a lowercase arcade mention the source supports", () => {
+    expect(platformSupported("arcade", "a 1991 arcade game")).toBe(true);
+  });
+});
+
+describe("title parsing and matching found in review", () => {
+  it("reads a parenthetical game name that starts with a variant word", () => {
+    expect(splitGameAndTrack("Theme (Night in the Woods)").game).toBe("Night in the Woods");
+    expect(splitGameAndTrack("Main Theme (Live A Live)").game).toBe("Live A Live");
+    expect(splitGameAndTrack("Main Theme (Night)").game).toBe("Main Theme (Night)");
+  });
+
+  it("matches titles regardless of accents", () => {
+    expect(isRelevantArticle("Pokemon Red", "Pokémon Red and Blue")).toBe(true);
+    expect(isRelevantArticle("Okami", "Ōkami")).toBe(true);
+  });
+
+  it("does not accept a hyphen-numbered sequel", () => {
+    expect(isRelevantArticle("Final Fantasy X", "Final Fantasy X-2")).toBe(false);
+  });
+});
+
+describe("orderExtract", () => {
+  const article = [
+    "Lead paragraph. Released 1998 for N64.",
+    "== Gameplay ==\nYou jump.",
+    "== Music ==",
+    "=== Composition ===\nComposed by Koji Kondo.",
+    "=== Release ===\nA soundtrack album followed.",
+    "== Reception ==\nIt was liked.",
+  ].join("\n");
+
+  it("keeps a music section's subsections and drops unrelated sections", () => {
+    const text = orderExtract(article, 2400);
+    expect(text).toContain("Koji Kondo");
+    expect(text).toContain("soundtrack album");
+    expect(text).not.toContain("You jump");
+    expect(text).not.toContain("It was liked");
+  });
+
+  it("keeps the lead within a tight budget", () => {
+    const text = orderExtract(article, 120);
+    expect(text.length).toBeLessThanOrEqual(120);
+    expect(text).toContain("Released 1998");
+  });
+});
+
+describe("fetchGrounding", () => {
+  const LONG = "x".repeat(700);
+  let pages: Record<string, string[]>;
+  let mentions: Record<string, string>;
+  const fetchMock = jest.fn(async (url: string) => {
+    const params = new URL(url).searchParams;
+    const term = params.get("srsearch");
+    const body = term !== null
+      ? { query: { search: (pages[term] ?? []).map((title) => ({ title })) } }
+      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.` } } } };
+    return { ok: true, status: 200, json: async () => body } as Response;
+  });
+
+  beforeAll(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+  beforeEach(() => {
+    clearGroundingCache();
+    fetchMock.mockClear();
+    pages = {};
+    mentions = { "Bohemian Rhapsody": "a song by Queen", "Don't Stop Me Now": "a song by Queen" };
+  });
+
+  it("does not reuse one song's article for another song by the same artist", async () => {
+    pages = { "Bohemian Rhapsody Queen": ["Bohemian Rhapsody"], "Don't Stop Me Now Queen": ["Don't Stop Me Now"] };
+    expect(await fetchGrounding({ title: "Bohemian Rhapsody", artist: "Queen" })).toMatch(/^Bohemian Rhapsody/);
+    expect(await fetchGrounding({ title: "Don't Stop Me Now", artist: "Queen" })).toMatch(/^Don't Stop Me Now/);
+  });
+
+  it("shares an article found through the game across its tracks", async () => {
+    pages = { "Celeste video game": ["Celeste (video game)"] };
+    await fetchGrounding({ title: "First Steps", artist: "Celeste" });
+    const calls = fetchMock.mock.calls.length;
+    expect(await fetchGrounding({ title: "Resurrections", artist: "Celeste" })).toMatch(/^Celeste/);
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
+  it("does not let one song's miss block the artist's other songs", async () => {
+    expect(await fetchGrounding({ title: "Obscure B-Side", artist: "Queen" })).toBe("");
+    pages = { "Bohemian Rhapsody Queen": ["Bohemian Rhapsody"] };
+    expect(await fetchGrounding({ title: "Bohemian Rhapsody", artist: "Queen" })).toMatch(/^Bohemian Rhapsody/);
+  });
+
+  it("never grounds a game track on a generic article named like the track", async () => {
+    pages = { Overture: ["Overture"], "Overture Obscure Game": ["Overture"] };
+    expect(await fetchGrounding({ title: "Overture", artist: "Obscure Game" })).toBe("");
+  });
+
+  it("keeps the whole reference within the context budget", async () => {
+    pages = { "Celeste video game": ["Celeste (video game)"] };
+    expect((await fetchGrounding({ title: "First Steps", artist: "Celeste" })).length).toBeLessThanOrEqual(2400);
   });
 });

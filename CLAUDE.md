@@ -9,7 +9,7 @@ pipeline — it records the constraints that were learned on live streams.
 ```bash
 npm run typecheck   # tsc --noEmit — the type gate
 npm test            # jest, ~1 s (transpile-only; types come from tsc)
-npm run lint        # eslint on the overlay JS
+npm run lint        # eslint on the overlay, shellcheck on the scripts
 npm run build       # compile to dist/
 bash scripts/start-overlay.sh
 ```

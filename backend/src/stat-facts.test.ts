@@ -20,12 +20,12 @@ describe("isOriginal", () => {
     // Attribute-driven rather than a hardcoded title list, so adding a new
     // original to the song list needs no code change.
     expect(
-      isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), "janestreams")
+      isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), ["janestreams"])
     ).toBe(true);
   });
 
   it("falls back to the artist name for entries predating the tag", () => {
-    expect(isOriginal(entry({ artist: "Jane Composer  @janestreams" }), "janestreams")).toBe(
+    expect(isOriginal(entry({ artist: "Jane Composer  @janestreams" }), ["janestreams"])).toBe(
       true
     );
   });
@@ -34,9 +34,19 @@ describe("isOriginal", () => {
     expect(
       isOriginal(
         entry({ title: "Sunshine Coastline", artist: "Ys VIII", attributes: [{ name: "JRPG" }] }),
-        "janestreams"
+        ["janestreams"]
       )
     ).toBe(false);
+  });
+
+  it("matches the streamer's name exactly, not inside another artist's name", () => {
+    expect(isOriginal(entry({ artist: "Joe Hisaishi" }), ["joe"])).toBe(false);
+    expect(isOriginal(entry({ artist: "Johann Sebastian Bach" }), ["ann"])).toBe(false);
+    expect(isOriginal(entry({ artist: "Jane Composer" }), ["janestreams", "Jane Composer"])).toBe(true);
+  });
+
+  it("does not treat an Original Soundtrack tag as the streamer's own work", () => {
+    expect(isOriginal(entry({ attributes: [{ name: "Original Soundtrack" }] }), ["janestreams"])).toBe(false);
   });
 });
 

@@ -21,6 +21,16 @@ function intEnv(name: string, fallback: number, min: number, max: number): numbe
   return value;
 }
 
+function numberEnv(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`${name} must be a number from ${min} to ${max}, got "${raw}"`);
+  }
+  return value;
+}
+
 function oneOf<T extends string>(name: string, allowed: readonly T[], fallback: T): T {
   const raw = process.env[name]?.trim().toLowerCase();
   if (!raw) return fallback;
@@ -42,12 +52,14 @@ const trimSlash = (s: string) => s.replace(/\/+$/, "");
 
 export const config = {
   port: intEnv("PORT", 3000, 1, 65535),
+  // Loopback only by default: the server has no authentication.
+  host: process.env.HOST || "127.0.0.1",
 
   // Performer and content
   sslStreamerName: requireEnv("SSL_STREAMER_NAME"),
   streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || requireEnv("SSL_STREAMER_NAME"),
   instrument: (process.env.INSTRUMENT || "").trim(),
-  topic: process.env.TOPIC || "video-game,classical,film,pop,general",
+  topic: process.env.TOPIC || "video-game,classical,film,pop,piano,general",
 
   // StreamerSongList
   sslPlatform: (process.env.SSL_PLATFORM || "twitch").toLowerCase(),
@@ -63,7 +75,7 @@ export const config = {
 
   // Model
   aiProvider,
-  temperature: parseFloat(process.env.TEMPERATURE || process.env.OLLAMA_TEMPERATURE || "0.2"),
+  temperature: numberEnv("TEMPERATURE", 0.2, 0, 2),
   ollamaBaseUrl: trimSlash(process.env.OLLAMA_BASE_URL || "http://localhost:11434"),
   ollamaFallbackUrl: trimSlash(process.env.OLLAMA_FALLBACK_URL || ""),
   ollamaModel: process.env.OLLAMA_MODEL || "llama3.2",
@@ -72,13 +84,13 @@ export const config = {
   ollamaKeepAlive: process.env.OLLAMA_KEEP_ALIVE || "4h",
   openaiApiKey: aiProvider === "openai" ? requireEnv("OPENAI_API_KEY") : "",
   openaiBaseUrl: trimSlash(process.env.OPENAI_BASE_URL || "https://api.groq.com/openai/v1"),
-  openaiModel: process.env.OPENAI_MODEL || "llama-3.1-8b-instant",
+  openaiModel: process.env.OPENAI_MODEL || "openai/gpt-oss-20b",
   openaiTimeoutMs: intEnv("OPENAI_TIMEOUT_MS", 30000, 1000, 600000),
   anthropicApiKey: aiProvider === "anthropic" ? requireEnv("ANTHROPIC_API_KEY") : "",
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
 
   // Grounding
-  factVerification: (process.env.FACT_VERIFICATION || "on").toLowerCase() !== "off",
+  factVerification: oneOf("FACT_VERIFICATION", ["on", "off"] as const, "on") === "on",
   groundingTimeoutMs: intEnv("GROUNDING_TIMEOUT_MS", 5000, 500, 60000),
   // Larger: the extract call downloads the full article text.
   groundingExtractTimeoutMs: intEnv("GROUNDING_EXTRACT_TIMEOUT_MS", 15000, 1000, 120000),

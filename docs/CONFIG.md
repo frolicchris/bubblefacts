@@ -5,11 +5,14 @@ All settings live in `.env` in the project folder. Copy `.env.example` to
 start. Restart the server after changing anything; overlay styling changes in
 `frontend/obs/obs-overlay.css` only need a Refresh of the OBS source.
 
-A setting with a bad value (a typo, a number out of range) stops the server at
-startup with a message naming it, rather than running with a surprise.
+Numbers and fixed choices are validated: a typo or an out-of-range value stops
+the server at startup with a message naming it, rather than running with a
+surprise. Free-text settings such as names and URLs are used as given.
 
 StreamerSongList
 ----------------
+
+`SSL_` stands for StreamerSongList, not TLS.
 
 * `SSL_STREAMER_NAME` **required**
   Your channel name on streamersonglist.com.
@@ -43,7 +46,7 @@ Performer and content
   "piano", "guitar"… With it the prompt says "playing X on piano"; without it,
   "performing X".
 
-* `TOPIC` default `video-game,classical,film,pop,general`
+* `TOPIC` default `video-game,classical,film,pop,piano,general`
   One topic pack or a comma-separated list from `topics/`, merged. Pick the
   genres your channel plays; keep `general`, which holds the lines used for
   your own compositions. Together they need at least five facts.
@@ -55,7 +58,7 @@ Model
   `ollama`, `openai` (any OpenAI-compatible endpoint), or `anthropic`. If
   unset and an API key for one of the others is present, that one is used.
 
-* `TEMPERATURE` default `0.2`
+* `TEMPERATURE` default `0.2` (0–2)
   Applies to every provider. Keep it low: the model is restating a source,
   and higher values make it wander.
 
@@ -73,7 +76,9 @@ Model
 * `OPENAI_BASE_URL` default `https://api.groq.com/openai/v1`
   OpenRouter: `https://openrouter.ai/api/v1`.
   Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`.
-* `OPENAI_MODEL` default `llama-3.1-8b-instant`
+* `OPENAI_MODEL` default `openai/gpt-oss-20b`
+  Free on Groq's plan (1,000 requests a day as of 2026). Use the model name
+  your provider lists; OpenRouter and Gemini name models differently.
 * `OPENAI_TIMEOUT_MS` default `30000`
 
 * `ANTHROPIC_API_KEY` required when `AI_PROVIDER=anthropic`
@@ -82,10 +87,11 @@ Model
 Accuracy
 --------
 
-* `FACT_VERIFICATION` default `on`
-  `on` grounds every song in its Wikipedia article and screens the output.
-  `off` lets the model write from memory: faster, and wrong often enough to
-  notice on stream.
+* `FACT_VERIFICATION` default `on` (`on` or `off`)
+  `on` grounds every song in its Wikipedia article and screens the output
+  against it. `off` lets the model write from memory: faster, and wrong often
+  enough to notice on stream. Formatting, meta-commentary, award and chart
+  claims, length and duplicates are screened either way.
 
 * `GROUNDING_TIMEOUT_MS` default `5000`
   Wikipedia search.
@@ -111,6 +117,10 @@ the top of `frontend/obs/obs-overlay.css`.
 
 Server
 ------
+
+* `HOST` default `127.0.0.1`
+  The server has no authentication, so it listens on this machine only. Set
+  `0.0.0.0` only if OBS runs on another machine on a network you trust.
 
 * `PORT` default `3000`
   If you change it, also change `PORT` at the top of

@@ -15,7 +15,6 @@ export interface TopicPack {
   originalsFacts?: string[];
 }
 
-export const DEFAULT_TOPICS = "video-game,classical,film,pop,general";
 const TOPICS_DIR = path.resolve(__dirname, "../../topics");
 /** Fewer than this and every unknown song shows the same bubbles. */
 const MIN_CURATED = 5;
@@ -39,4 +38,4 @@ export function loadTopics(list: string): Required<Pick<TopicPack, "curatedFacts
   return { curatedFacts, originalsFacts };
 }
 
-export const topic = loadTopics(config.topic ?? DEFAULT_TOPICS);
+export const topic = loadTopics(config.topic);

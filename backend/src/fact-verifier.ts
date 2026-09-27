@@ -9,9 +9,6 @@ import { topic } from "./topic";
  * source instead of recalling from memory. Screening then drops any sentence
  * whose names, years or platforms the source does not contain. Every check
  * is a string comparison: no second model, no added latency.
- *
- * When no relevant article exists the model is not called at all; the
- * caller falls back to facts that are true by construction.
  */
 
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
@@ -28,26 +25,29 @@ const NEGATIVE_TTL_MS = 10 * 60 * 1000;
 
 const STOPWORDS = new Set(["the", "and", "of", "a", "an", "in", "on", "for", "to"]);
 
-/** Wikipedia throttled us: the article may exist, so never cache the miss. */
+/** Wikipedia throttled us: the article may exist, so the miss is never cached. */
 class RateLimited extends Error {}
-/** Timeout, DNS, 5xx: same rule. Only "asked and found nothing" is cacheable. */
-class LookupFailed extends Error {}
 
-/** Grounding keyed by game, so a soundtrack's tracks share one lookup. */
+/**
+ * Articles found through the game are shared by every track from it;
+ * articles found through the track, and misses, belong to that song only.
+ */
 const groundingCache = new Map<string, { text: string; at: number }>();
 
 // --- Title parsing -----------------------------------------------------
 
-/** A trailing parenthetical that marks a variant, not the game: "(Arr. X)", "(Act 1)". */
+/** A trailing parenthetical that marks a variant rather than naming the game. */
 const VARIANT_MARKER =
-  /^\s*(arr\b|arrange|arranged|arrangement|remix|cover|live|acoustic|piano|ost|medley|reprise|vocal|instrumental|version|ver\b|act\s*\d|day|night|part\s*\d|\d{4}|remaster)/i;
+  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b)/i;
+/** Words that are a variant only when they are the whole parenthetical: "(Night)", not "(Night in the Woods)". */
+const VARIANT_WORD = /^\s*(live|acoustic|piano|vocal|instrumental|day|night)(\s+(ver\.?|version|mix|arr\.?))?\s*$/i;
 
 /** Split "Game: Track", "Game - Track" or "Track (Game)". */
 export function splitGameAndTrack(title: string): { game: string; track: string } {
   const clean = title.trim();
 
   const paren = clean.match(/^(.+?)\s*[([]([^)\]]{2,})[)\]]\s*$/);
-  if (paren && !VARIANT_MARKER.test(paren[2])) {
+  if (paren && !VARIANT_MARKER.test(paren[2]) && !VARIANT_WORD.test(paren[2])) {
     return { game: paren[2].trim(), track: paren[1].trim() };
   }
 
@@ -98,11 +98,17 @@ const ROMAN: Record<string, string> = {
   ix: "9", x: "10", xi: "11", xii: "12", xiii: "13", xiv: "14", xv: "15",
 };
 
-/** Lowercase, drop a trailing "(qualifier)" and punctuation. Unicode-aware. */
+/**
+ * Lowercase, strip accents and a trailing "(qualifier)", drop punctuation.
+ * "X-2" becomes "x2" so a sequel's number isn't read as a separate token.
+ */
 function normalizeTitle(s: string): string {
   return s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
     .replace(/\s*\([^)]*\)\s*$/, "")
     .toLowerCase()
+    .replace(/(\p{L})-(\d)/gu, "$1$2")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -120,7 +126,7 @@ export function looksLikeArtistName(subject: string): boolean {
   if (!subject) return false;
   if (KNOWN_ARTIST.test(subject)) return true;
   return (
-    /^[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){1,2}$/.test(subject.trim()) &&
+    /^\p{Lu}[\p{Ll}'’-]+(?:\s+\p{Lu}[\p{Ll}'’-]+){1,2}$/u.test(subject.trim()) &&
     !/\b(the|of|and|a|an)\b/i.test(subject)
   );
 }
@@ -167,15 +173,14 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
     // Capitalised disambiguators are attributions ("Clair de Lune (Debussy)");
     // lowercase ones are categories and must be musical.
     const isPerformer = PERFORMER_QUALIFIER.test(qualifier);
-    const properNoun = /^[A-Z]/.test(qualifier.trim()) && !isPerformer;
+    const properNoun = /^\p{Lu}/u.test(qualifier.trim()) && !isPerformer;
     if (!MUSICAL_QUALIFIER.test(qualifier) && !(isPerformer && subjectIsArtist) && !properNoun) return false;
   }
 
-  // Installment numbers decide sequels: both carry one and they differ, or the
-  // subject has one and the article doesn't ("Final Fantasy X" vs "Final Fantasy").
+  // Installment numbers decide sequels: "Final Fantasy X" is neither
+  // "Final Fantasy" nor "Final Fantasy XII".
   const wantNums = wantTokens.filter((t) => /^\d+$/.test(t));
   const gotNums = gotTokens.filter((t) => /^\d+$/.test(t));
-  if (wantNums.length && !gotNums.length) return false;
   if (wantNums.length && !wantNums.some((n) => gotNums.includes(n))) return false;
 
   const wantSeq = wantTokens.join(" ");
@@ -198,13 +203,15 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
 
 // --- Wikipedia lookup --------------------------------------------------
 
-/** Search terms, most likely first. Pop and classical lead with the track. */
-function searchTerms(game: string, track: string): string[] {
-  const trackTerms = track && track !== game ? [`${track} ${game}`, track] : [];
-  const artist = looksLikeArtistName(game);
-  const subjectTerms = game
-    ? [...(artist ? [] : [`${game} video game`]), `${game} soundtrack`, game]
-    : [];
+/**
+ * Search terms, most likely first. A bare track name ("Overture", "Main
+ * Theme") is only worth searching when the subject is a person or band; for
+ * a game it finds a generic article.
+ */
+function searchTerms(game: string, track: string, artist: boolean): string[] {
+  const hasTrack = track && track !== game;
+  const trackTerms = hasTrack ? [`${track} ${game}`, ...(artist ? [track] : [])] : [];
+  const subjectTerms = game ? [...(artist ? [] : [`${game} video game`]), `${game} soundtrack`, game] : [];
   const terms = artist ? [...trackTerms, ...subjectTerms] : [...subjectTerms, ...trackTerms];
   return [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
 }
@@ -215,83 +222,102 @@ async function wikiGet<T>(params: string, timeoutMs: number, what: string): Prom
     headers: { "User-Agent": USER_AGENT },
   });
   if (res.status === 429) throw new RateLimited(what);
-  if (!res.ok) throw new LookupFailed(`${what} HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`${what} HTTP ${res.status}`);
   return (await res.json()) as T;
 }
 
-/** First of the top five hits that passes `accept`. */
-async function wikiSearchBest(term: string, accept: (title: string) => boolean): Promise<string | null> {
+async function wikiSearch(term: string): Promise<string[]> {
   const data = await wikiGet<{ query?: { search?: Array<{ title: string }> } }>(
     `action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(term)}`,
     config.groundingTimeoutMs,
     "search"
   );
-  const hits = data.query?.search ?? [];
-  const match = hits.find((h) => accept(h.title));
-  if (!match && hits.length) {
-    console.log(`[Grounding] No relevant match among: ${hits.map((h) => h.title).join(", ")}`);
-  }
-  return match?.title ?? null;
+  return (data.query?.search ?? []).map((h) => h.title);
 }
 
+const MUSIC_HEADING = /music|soundtrack|audio|score|style/i;
+const BACKGROUND_HEADING = /development|production|career|works|discography/i;
+
 /**
- * Article text, music sections first, then the lead (which holds the release
- * year and platform that screening checks against). The tail of a long
- * context is what a small model reads least carefully.
+ * Up to `budget` characters of article text: music sections first (with
+ * their subsections), then background, then the lead, which holds the
+ * release year and platform that screening checks against. The tail of a
+ * long context is what a small model reads least carefully.
  */
+export function orderExtract(full: string, budget: number): string {
+  const primary: string[] = [];
+  const secondary: string[] = [];
+  // A subsection inherits the bucket of the section it sits under.
+  let parent: { level: number; bucket: string[] | null } = { level: 0, bucket: null };
+  for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
+    const level = marks.length;
+    let bucket = MUSIC_HEADING.test(heading) ? primary : BACKGROUND_HEADING.test(heading) ? secondary : null;
+    if (level > parent.level && parent.bucket) bucket ??= parent.bucket;
+    else parent = { level, bucket };
+    if (bucket && body.trim()) bucket.push(`${heading}: ${body.trim()}`);
+  }
+
+  const lead = full.split(/\n==/)[0].trim().slice(0, Math.floor(budget * 0.35));
+  const rest = [...primary, ...secondary].join("\n\n").slice(0, Math.max(0, budget - lead.length - 2));
+  return [rest, lead].filter(Boolean).join("\n\n");
+}
+
+/** The article's full plain text, or null for a disambiguation page. */
 async function wikiExtract(pageTitle: string): Promise<string | null> {
-  // exsectionformat=wiki keeps the "==" headings the section regex relies on.
+  // exsectionformat=wiki keeps the "==" headings orderExtract relies on.
   const data = await wikiGet<{ query?: { pages?: Record<string, { extract?: string }> } }>(
     `action=query&prop=extracts&explaintext=1&exsectionformat=wiki&titles=${encodeURIComponent(pageTitle)}`,
     config.groundingExtractTimeoutMs,
     "extract"
   );
   const full = Object.values(data.query?.pages ?? {})[0]?.extract;
-  if (!full || /may refer to:/i.test(full.slice(0, 200))) return null;
-
-  const primary: string[] = [];
-  const secondary: string[] = [];
-  for (const [, heading, body] of full.matchAll(/\n==+\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
-    const section = `${heading}: ${body.trim()}`;
-    if (/music|soundtrack|audio|score|style/i.test(heading)) primary.push(section);
-    else if (/development|production|career|works|discography/i.test(heading)) secondary.push(section);
-  }
-
-  const lead = full.split(/\n==/)[0].trim().slice(0, Math.floor(MAX_CONTEXT_CHARS * 0.35));
-  const rest = [...primary, ...secondary].join("\n\n").slice(0, Math.max(0, MAX_CONTEXT_CHARS - lead.length - 2));
-  return [rest, lead].filter(Boolean).join("\n\n");
+  return full && !/may refer to:/i.test(full.slice(0, 200)) ? full : null;
 }
 
 /** Reference text for the song, or "" when no relevant article exists. */
 export async function fetchGrounding(song: SSLSong): Promise<string> {
   const { game, track } = resolveGameAndTrack(song);
-  const key = normalizeTitle(game);
+  const gameKey = normalizeTitle(game);
+  const songKey = `${gameKey}\0${normalizeTitle(track)}`;
 
-  const cached = key ? groundingCache.get(key) : undefined;
-  if (cached && (cached.text || Date.now() - cached.at < NEGATIVE_TTL_MS)) return cached.text;
+  for (const key of [gameKey, songKey]) {
+    const hit = key && groundingCache.get(key);
+    if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.text;
+  }
 
-  const artistLike = looksLikeArtistName(game);
-  // Accept an article about the work, or about the track as long as it isn't
-  // attributed to a different artist (song titles collide across genres).
-  const accept = (title: string) =>
-    isRelevantArticle(game, title, artistLike) ||
-    (track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game));
+  const artist = looksLikeArtistName(game);
+  // Which way an article matched decides how widely it may be shared. A
+  // track article must not be attributed to another artist, and its text
+  // must mention the game or artist: "Overture" alone is a generic article.
+  const matchedGame = (title: string) => isRelevantArticle(game, title, artist);
+  const matchedTrack = (title: string) =>
+    track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game);
 
-  const terms = searchTerms(game, track);
+  const terms = searchTerms(game, track, artist);
   let unreachable = "";
 
   for (const term of terms) {
     try {
-      const page = await wikiSearchBest(term, accept);
-      if (!page) continue;
-      const extract = await wikiExtract(page);
+      const titles = await wikiSearch(term);
+      const page = titles.find((t) => matchedGame(t) || matchedTrack(t));
+      if (!page) {
+        if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
+        continue;
+      }
+      const byGame = matchedGame(page);
+      const full = await wikiExtract(page);
+      if (!byGame && full && !normalizeTitle(full).includes(gameKey)) {
+        console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
+        continue;
+      }
+      const extract = full && orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1);
       if (!extract || extract.length < MIN_CONTEXT_CHARS) {
         console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
         continue;
       }
-      const text = `${page}\n${extract}`.slice(0, MAX_CONTEXT_CHARS);
+      const text = `${page}\n${extract}`;
       console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars)`);
-      if (key) groundingCache.set(key, { text, at: Date.now() });
+      groundingCache.set(byGame ? gameKey : songKey, { text, at: Date.now() });
       return text;
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -306,7 +332,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       (unreachable ? ` (${unreachable}, not cached)` : "") +
       ` — tried: ${terms.join(" | ")}`
   );
-  if (key && !unreachable) groundingCache.set(key, { text: "", at: Date.now() });
+  if (!unreachable) groundingCache.set(songKey, { text: "", at: Date.now() });
   return "";
 }
 
@@ -316,11 +342,16 @@ export function clearGroundingCache(): void {
 
 // --- Screening ---------------------------------------------------------
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Whole-word, whole-phrase containment. */
+const hasWord = (needle: string, haystack: string, flags = "i") =>
+  new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(needle)}([^\\p{L}\\p{N}]|$)`, flags + "u").test(haystack);
+
 /** Claims that are easy to get wrong and obvious when wrong. */
 const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /\b(won|winner|awarded|nominated)\b/i, label: "award claim" },
   { re: /\b(grammy|bafta|game award|tga)\b/i, label: "award name" },
-  { re: /\b(#\s?\d+|number one|no\.\s?\d+|topped the chart|billboard)\b/i, label: "chart position" },
+  { re: /(#\s?\d+\b|\bnumber one\b|\bno\.\s?\d+\b|\btopped the chart|\bbillboard\b)/i, label: "chart position" },
   { re: /\b\d[\d.,]*\s*(million|billion|thousand)\b/i, label: "sales/quantity figure" },
   { re: /\bsold\s+[\d,]+/i, label: "sales figure" },
   { re: /\b(certified\s+(gold|platinum))\b/i, label: "certification claim" },
@@ -334,8 +365,13 @@ const META_PATTERNS: RegExp[] = [
   /\b(is|are|was|were) not (credited|mentioned|listed|stated|confirmed)\b/i,
   /\b(does|do|did) not (appear|mention|state|specify)\b/i,
   /\b(unconfirmed|unverified|unclear from|no information)\b/i,
-  /^(note|disclaimer|caveat|here are|sure[,!])/i,
+  /^(note|disclaimer|caveat|here are|here is|sure[,!])/i,
 ];
+
+const YEAR = /\b(1\d{3}|20\d{2})\b/g;
+/** Capitalised words, including "McCartney"; two or more, or a single Mc- surname. */
+const NAME_WORD = String.raw`(?:Mc\p{Lu}\p{Ll}+|\p{Lu}[\p{Ll}'’-]+)`;
+const NAME = new RegExp(String.raw`(?<!\p{L})(?:${NAME_WORD}(?:\s+${NAME_WORD})+|Mc\p{Lu}\p{Ll}+)`, "gu");
 
 const PLATFORM_PATTERN =
   /\b(NES|SNES|Nintendo 64|N64|GameCube|Wii U|Wii|Switch|Game Boy|Nintendo DS|3DS|PlayStation|PSone|PS1|PS2|PS3|PS4|PS5|PSP|Vita|Xbox(?: 360| One| Series [SX])?|Sega Genesis|Mega Drive|Dreamcast|Saturn|Master System|Game Gear|Atari(?: 2600)?|Amiga|Commodore 64|C64|MS-?DOS|TurboGrafx-16|PC Engine|Neo Geo|Steam Deck|arcade|YM2612|SPC700|2A03|Ricoh)\b/gi;
@@ -359,12 +395,8 @@ for (const group of [
   for (const name of group) PLATFORM_ALIASES.set(name, group.filter((n) => n !== name));
 }
 
-/** Platform names that are also ordinary words; only the capital tells them apart. */
-const AMBIGUOUS_PLATFORMS = new Set(["switch", "saturn", "genesis", "vita", "arcade"]);
-
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const hasWord = (needle: string, haystack: string, flags = "i") =>
-  new RegExp(`(^|[^a-z0-9])${escapeRe(needle)}([^a-z0-9]|$)`, flags).test(haystack);
+/** Console names that are also ordinary words; only the capital tells them apart in the source. */
+const AMBIGUOUS_PLATFORMS = new Set(["switch", "saturn", "genesis", "vita"]);
 
 /** Does the reference name this platform, or another name for it? */
 export function platformSupported(platform: string, context: string): boolean {
@@ -392,16 +424,17 @@ const NAME_STOPWORDS = new Set([
 ]);
 
 /**
- * The first multi-word capitalised name in the fact that the reference does
- * not contain. Composer attribution is this overlay's most visible error.
+ * The first capitalised name in the fact that the reference doesn't contain.
+ * Each word must appear as a whole word, which tolerates "Koshiro" alone or a
+ * different romanisation of the given name, but not "Ed" inside "played".
  */
-export function unsupportedName(fact: string, ctxLower: string): string | null {
-  for (const candidate of fact.match(/\b[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+)+\b/g) ?? []) {
+export function unsupportedName(fact: string, context: string): string | null {
+  for (const candidate of fact.match(NAME) ?? []) {
     const words = candidate.split(/\s+/);
     while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
-    if (words.length < 2 || words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) continue;
-    // Every word present somewhere tolerates "Koshiro" alone or a different romanisation.
-    if (words.every((w) => ctxLower.includes(w.toLowerCase()))) continue;
+    const isName = words.length >= 2 || /^Mc/.test(words[0] ?? "");
+    if (!isName || words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) continue;
+    if (words.every((w) => hasWord(w, context))) continue;
     return words.join(" ");
   }
   return null;
@@ -433,42 +466,42 @@ export function tooSimilar(a: string, b: string): boolean {
   return shared / (ta.size + tb.size - shared) >= 0.5 || shared / Math.min(ta.size, tb.size) >= 0.7;
 }
 
-/** Why a fact should be dropped, or null to keep it. */
-function rejectReason(fact: string, ctx: string, context: string, kept: string[]): string | null {
-  if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
-  if (fact.length < 20) return "too short";
-
-  for (const { re, label } of RISKY_PATTERNS) {
-    const m = fact.match(re);
-    if (m && !ctx.includes(m[0].toLowerCase())) return label;
-  }
-
-  if (context) {
-    const year = (fact.match(/\b(1[89]\d{2}|20\d{2})\b/g) ?? []).find((y) => !ctx.includes(y));
-    if (year) return `unsupported year ${year}`;
-    const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
-    if (platform) return `unsupported platform "${platform}"`;
-    const name = unsupportedName(fact, ctx);
-    if (name) return `unsupported name "${name}"`;
-  }
-
-  if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
-  if (kept.some((k) => tooSimilar(k, fact))) return "near-duplicate of an earlier fact";
-  return null;
-}
-
 export interface ScreenResult {
   kept: string[];
   rejected: Array<{ text: string; reason: string }>;
 }
 
-/** Keep only facts the reference visibly supports. */
+/**
+ * Keep only facts the reference visibly supports. With no reference (only
+ * when FACT_VERIFICATION=off) the source checks are skipped but formatting,
+ * meta-commentary, risky claims, length and duplicates are still screened.
+ */
 export function screenClaims(facts: string[], context: string): ScreenResult {
-  const ctx = context.toLowerCase();
   const result: ScreenResult = { kept: [], rejected: [] };
+
+  const reasonToDrop = (fact: string): string | null => {
+    if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
+    if (fact.length < 20) return "too short";
+    for (const { re, label } of RISKY_PATTERNS) {
+      const m = fact.match(re);
+      if (m && !hasWord(m[0].trim(), context)) return label;
+    }
+    if (context) {
+      const year = (fact.match(YEAR) ?? []).find((y) => !hasWord(y, context));
+      if (year) return `unsupported year ${year}`;
+      const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
+      if (platform) return `unsupported platform "${platform}"`;
+      const name = unsupportedName(fact, context);
+      if (name) return `unsupported name "${name}"`;
+    }
+    if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
+    if (result.kept.some((k) => tooSimilar(k, fact))) return "near-duplicate of an earlier fact";
+    return null;
+  };
+
   for (const raw of facts) {
     const fact = stripPrefix(raw);
-    const reason = rejectReason(fact, ctx, context, result.kept);
+    const reason = reasonToDrop(fact);
     if (reason) result.rejected.push({ text: fact, reason });
     else result.kept.push(fact);
   }
@@ -477,16 +510,12 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
 
 // --- Curated pool ------------------------------------------------------
 
-/** Hand-verified fallback facts, merged from the topic packs listed in TOPIC. */
-export const CURATED_FACTS: string[] = topic.curatedFacts;
-
-/** Up to `want` curated facts, shuffled, skipping any already shown. */
-export function topUp(existing: string[], want: number): string[] {
-  const have = new Set(existing.map((f) => f.toLowerCase().slice(0, 40)));
-  const pool = CURATED_FACTS.filter((f) => !have.has(f.toLowerCase().slice(0, 40)));
+/** `count` hand-verified facts from the topic packs, shuffled. */
+export function curatedFacts(count: number): string[] {
+  const pool = [...topic.curatedFacts];
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.slice(0, want);
+  return pool.slice(0, Math.max(0, count));
 }

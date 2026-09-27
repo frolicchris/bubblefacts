@@ -1,10 +1,12 @@
-jest.mock("./config", () => ({ config: { topic: "video-game,classical,film,pop,general" } }));
+jest.mock("./config", () => ({ config: { topic: "video-game,classical,film,pop,piano,general" } }));
 
-import { DEFAULT_TOPICS, loadTopics } from "./topic";
+import { loadTopics } from "./topic";
+
+const ALL = "video-game,classical,film,pop,piano,general";
 
 describe("loadTopics", () => {
   it("merges every pack named in the list", () => {
-    const all = loadTopics(DEFAULT_TOPICS);
+    const all = loadTopics(ALL);
     const game = loadTopics("video-game");
     expect(all.curatedFacts.length).toBeGreaterThan(game.curatedFacts.length);
     expect(all.curatedFacts).toEqual(expect.arrayContaining(game.curatedFacts));
@@ -20,7 +22,7 @@ describe("loadTopics", () => {
   });
 
   it("rejects a pool too small to vary between songs", () => {
-    expect(() => loadTopics("pop")).toThrow(/2 curated facts/);
+    expect(() => loadTopics("piano")).toThrow(/4 curated facts/);
   });
 
   it("names the available packs when one is unknown", () => {
