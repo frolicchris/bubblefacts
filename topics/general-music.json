@@ -1,0 +1,19 @@
+{
+  "id": "general-music",
+  "name": "General music",
+  "description": "A small genre-neutral sample pack. Copy this file to make your own topic.",
+  "curatedFacts": [
+    "A standard piano has 88 keys: 52 white and 36 black.",
+    "Middle C is the note that sits nearest the centre of a piano keyboard.",
+    "The modern concert pitch of A4 is 440 Hz, standardised in 1955.",
+    "A symphony orchestra is usually divided into strings, woodwinds, brass and percussion.",
+    "The word 'piano' is short for pianoforte, Italian for 'soft-loud'.",
+    "A metronome marks tempo in beats per minute.",
+    "The circle of fifths arranges the twelve pitch classes by perfect fifths.",
+    "A sonata is typically a multi-movement work for one or two instruments."
+  ],
+  "originalsFacts": [
+    "This piece exists because someone sat down and wrote it, not because a studio commissioned it.",
+    "Original compositions on a request stream are rarer than you'd think — most request lists are all covers."
+  ]
+}

@@ -1,0 +1,553 @@
+jest.mock("./config", () => ({
+  config: {
+    factsPerSong: 5,
+    groundingTimeoutMs: 5000,
+    groundingExtractTimeoutMs: 15000,
+  },
+}));
+
+import {
+  screenClaims,
+  splitGameAndTrack,
+  resolveGameAndTrack,
+  isRelevantArticle,
+  unsupportedName,
+  platformSupported,
+  looksLikeArtistName,
+  qualifierNamesAnotherArtist,
+  tooSimilar,
+  topUp,
+  CURATED_FACTS,
+} from "./fact-verifier";
+
+describe("resolveGameAndTrack", () => {
+  it("treats the artist field as the game, which is how the song list is keyed", () => {
+    expect(
+      resolveGameAndTrack({ title: "Sunshine Coastline", artist: "Ys VIII: Lacrimosa of Dana" })
+    ).toEqual({ game: "Ys VIII: Lacrimosa of Dana", track: "Sunshine Coastline" });
+  });
+
+  it("falls back to parsing the title when there is no artist", () => {
+    expect(resolveGameAndTrack({ title: "Chrono Trigger - Corridors of Time", artist: "" })).toEqual({
+      game: "Chrono Trigger",
+      track: "Corridors of Time",
+    });
+  });
+
+  it("falls back to parsing the title when the artist is Unknown", () => {
+    expect(
+      resolveGameAndTrack({ title: "Celeste: Reach for the Summit", artist: "Unknown" }).game
+    ).toBe("Celeste");
+  });
+
+  it("does not use the artist when it merely repeats the title", () => {
+    expect(resolveGameAndTrack({ title: "Megalovania", artist: "Megalovania" })).toEqual({
+      game: "Megalovania",
+      track: "Megalovania",
+    });
+  });
+});
+
+describe("splitGameAndTrack", () => {
+  it("splits 'Game: Track'", () => {
+    expect(splitGameAndTrack("Ys VIII Lacrimosa of Dana: Sunshine Coastline")).toEqual({
+      game: "Ys VIII Lacrimosa of Dana",
+      track: "Sunshine Coastline",
+    });
+  });
+
+  it("splits 'Game - Track'", () => {
+    expect(splitGameAndTrack("Chrono Trigger - Corridors of Time")).toEqual({
+      game: "Chrono Trigger",
+      track: "Corridors of Time",
+    });
+  });
+
+  it("treats a parenthetical as the game", () => {
+    expect(splitGameAndTrack("One-Winged Angel (Final Fantasy VII)")).toEqual({
+      game: "Final Fantasy VII",
+      track: "One-Winged Angel",
+    });
+  });
+
+  it("uses the whole title for both when there is no separator", () => {
+    expect(splitGameAndTrack("Megalovania")).toEqual({
+      game: "Megalovania",
+      track: "Megalovania",
+    });
+  });
+
+  it("does not split on a hyphenated word", () => {
+    expect(splitGameAndTrack("Well-Worn Dirt Road").game).toBe("Well-Worn Dirt Road");
+  });
+});
+
+describe("screenClaims", () => {
+  const NO_CONTEXT = "";
+
+  it("drops fabricated award claims", () => {
+    // The exact failure seen on stream: the model invented a Tokyo Game Award.
+    const r = screenClaims(
+      ["This piece won Best Original Soundtrack at the 2016 Tokyo Game Awards."],
+      NO_CONTEXT
+    );
+    expect(r.kept).toHaveLength(0);
+    expect(r.rejected[0].reason).toMatch(/award/);
+  });
+
+  it("keeps an award claim the reference actually corroborates", () => {
+    const r = screenClaims(
+      ["The soundtrack won an award for its orchestration."],
+      "The soundtrack won an award for its orchestration in 2017."
+    );
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it("drops chart positions and sales figures", () => {
+    const r = screenClaims(
+      [
+        "The single topped the Billboard chart for three weeks.",
+        "The soundtrack sold 2 million copies worldwide.",
+      ],
+      NO_CONTEXT
+    );
+    expect(r.kept).toHaveLength(0);
+    expect(r.rejected).toHaveLength(2);
+  });
+
+  it("drops meta-commentary that would read badly on stream", () => {
+    const r = screenClaims(
+      [
+        "Nobuo Uematsu is not credited as a composer in the provided reference material.",
+        "I couldn't confirm whether he worked on this title.",
+      ],
+      NO_CONTEXT
+    );
+    expect(r.kept).toHaveLength(0);
+    expect(r.rejected.every((x) => x.reason === "meta-commentary")).toBe(true);
+  });
+
+  it("strips label prefixes rather than rejecting the fact", () => {
+    const r = screenClaims(
+      ["Fact: The score uses a live string section throughout the game."],
+      NO_CONTEXT
+    );
+    expect(r.kept[0]).toBe("The score uses a live string section throughout the game.");
+  });
+
+  it("drops fragments left too short after prefix stripping", () => {
+    const r = screenClaims(["Fact:", "3. ok"], NO_CONTEXT);
+    expect(r.kept).toHaveLength(0);
+  });
+
+  it("keeps ordinary grounded facts", () => {
+    const fact = "The soundtrack was performed by a live orchestra in Tokyo.";
+    const r = screenClaims([fact], "Recording used a live orchestra in Tokyo.");
+    expect(r.kept).toEqual([fact]);
+  });
+
+  describe("with a reference to check against", () => {
+    const CTX = "The game's music was composed by Falcom Sound Team jdk and released in 2016.";
+
+    it("drops a year the reference does not contain", () => {
+      const r = screenClaims(["The soundtrack was recorded back in 1998 by the team."], CTX);
+      expect(r.kept).toHaveLength(0);
+      expect(r.rejected[0].reason).toMatch(/unsupported year 1998/);
+    });
+
+    it("keeps a year the reference does contain", () => {
+      const fact = "Falcom Sound Team jdk wrote the score, which arrived in 2016.";
+      expect(screenClaims([fact], CTX).kept).toEqual([fact]);
+    });
+
+    it("drops a platform the reference does not mention", () => {
+      const r = screenClaims(["The score was squeezed onto the SNES sound chip."], CTX);
+      expect(r.kept).toHaveLength(0);
+      expect(r.rejected[0].reason).toMatch(/unsupported platform/);
+    });
+
+    it("keeps a platform the reference does mention", () => {
+      const fact = "The PlayStation 4 version keeps the original arrangements intact.";
+      const ctx = `${CTX} A PlayStation 4 port followed.`;
+      expect(screenClaims([fact], ctx).kept).toEqual([fact]);
+    });
+  });
+
+  it("does not screen years or platforms when there is no reference", () => {
+    // Without a reference the prompt asks for general, well-known facts, which
+    // legitimately contain years and console names. Screening them here would
+    // reject everything and blank the overlay.
+    const fact = "The NES sound chip had five channels, including a triangle wave.";
+    expect(screenClaims([fact], NO_CONTEXT).kept).toEqual([fact]);
+  });
+});
+
+describe("topUp", () => {
+  it("returns the requested number of curated facts", () => {
+    expect(topUp([], 3)).toHaveLength(3);
+  });
+
+  it("never repeats a fact already being shown", () => {
+    const existing = [CURATED_FACTS[0]];
+    expect(topUp(existing, 5)).not.toContain(CURATED_FACTS[0]);
+  });
+
+  it("does not exceed the curated pool", () => {
+    expect(topUp([], 999).length).toBeLessThanOrEqual(CURATED_FACTS.length);
+  });
+});
+
+describe("isRelevantArticle", () => {
+  it("accepts an exact match", () => {
+    expect(isRelevantArticle("Chrono Trigger", "Chrono Trigger")).toBe(true);
+  });
+
+  it("accepts a disambiguated title", () => {
+    expect(isRelevantArticle("Celeste", "Celeste (video game)")).toBe(true);
+  });
+
+  it("accepts a subtitle the search term omitted", () => {
+    expect(isRelevantArticle("Ys VIII", "Ys VIII: Lacrimosa of Dana")).toBe(true);
+  });
+
+  it("ignores punctuation differences", () => {
+    expect(isRelevantArticle("Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana")).toBe(true);
+  });
+
+  it("rejects the unrelated article Wikipedia returns for an original song", () => {
+    // The live failure: an original song grounded on a Last of Us article and
+    // the model wrote five faithful facts about entirely the wrong work.
+    expect(isRelevantArticle("Jane Composer", "The Last of Us season 1")).toBe(false);
+  });
+
+  it("rejects a match sharing only one incidental word", () => {
+    expect(isRelevantArticle("Final Fantasy VII", "Final Destination")).toBe(false);
+  });
+});
+
+describe("isRelevantArticle — franchise siblings and false friends", () => {
+  // Every pair below was verified ACCEPTED by the previous implementation.
+  // These are the failure class CLAUDE.md says screening structurally cannot
+  // catch: the model writes perfectly faithful facts, about the wrong work.
+  // Most are core repertoire for a video-game-piano stream, not edge cases.
+  const MUST_REJECT: Array<[string, string]> = [
+    ["Final Fantasy VI", "Final Fantasy VII"],
+    ["Dragon Quest II", "Dragon Quest III"],
+    ["Kingdom Hearts II", "Kingdom Hearts III"],
+    ["Persona 5", "Persona 4"],
+    ["Mega Man 2", "Mega Man 11"],
+    ["Sonic the Hedgehog 2", "Sonic the Hedgehog 3"],
+    ["Chrono Trigger", "Chrono Cross"],
+    ["Ys", "System Shock"],
+    // Wikipedia's own parenthetical is the disambiguator; stripping it was
+    // what let these through.
+    ["Journey", "Journey (band)"],
+    ["Braid", "Braid (hairstyle)"],
+    ["Celeste", "Celeste (band)"],
+  ];
+
+  it.each(MUST_REJECT)("rejects %s -> %s", (subject, page) => {
+    expect(isRelevantArticle(subject, page)).toBe(false);
+  });
+
+  const MUST_ACCEPT: Array<[string, string]> = [
+    ["Chrono Trigger", "Chrono Trigger"],
+    ["Celeste", "Celeste (video game)"],
+    ["Journey", "Journey (2012 video game)"],
+    ["Ys VIII", "Ys VIII: Lacrimosa of Dana"],
+    ["Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana"],
+    ["Undertale", "Undertale"],
+    // Roman and arabic numerals must compare equal, or a legitimate match
+    // is rejected for a cosmetic difference.
+    ["Final Fantasy VI", "Final Fantasy 6"],
+  ];
+
+  it.each(MUST_ACCEPT)("accepts %s -> %s", (subject, page) => {
+    expect(isRelevantArticle(subject, page)).toBe(true);
+  });
+});
+
+describe("person-name screening", () => {
+  // Composer attribution is the most visible error possible on a video game
+  // music stream, and was the documented reason this module exists — yet it
+  // was the only risky claim shape with no deterministic check at all.
+  const CTX =
+    "the game's music was composed by falcom sound team jdk. a piano arrangement album followed.";
+
+  it("drops a fabricated composer the reference never names", () => {
+    const r = screenClaims(
+      ["The Ys VIII score was written by Yuzo Koshiro and Nobuo Uematsu."],
+      CTX
+    );
+    expect(r.kept).toHaveLength(0);
+    expect(r.rejected[0].reason).toMatch(/unsupported name/);
+  });
+
+  it("drops a fabricated composer even in an otherwise clean sentence", () => {
+    const r = screenClaims(
+      ["Composer Koji Kondo wrote the battle themes in a single afternoon."],
+      CTX
+    );
+    expect(r.kept).toHaveLength(0);
+  });
+
+  it("keeps a name the reference does contain", () => {
+    const fact = "The score is credited to Falcom Sound Team jdk, the in-house staff.";
+    expect(screenClaims([fact], CTX).kept).toEqual([fact]);
+  });
+
+  it("does not mistake a sentence-initial phrase for a name", () => {
+    const fact = "The Piano Arrangement album collects the main themes for solo piano.";
+    expect(screenClaims([fact], CTX).kept).toEqual([fact]);
+  });
+
+  it("does not screen names when there is no reference to check against", () => {
+    // Ungrounded facts are hand-written curated ones; screening them here
+    // would reject correct content and blank the overlay.
+    const fact = "Nobuo Uematsu wrote the music for the first nine Final Fantasy games.";
+    expect(screenClaims([fact], "").kept).toEqual([fact]);
+  });
+
+  it("accepts a surname-only reference mention", () => {
+    expect(unsupportedName("Music by Yuzo Koshiro.", "koshiro composed it; yuzo is credited")).toBeNull();
+  });
+});
+
+describe("screening micro-gaps (B4)", () => {
+  const CTX = "ys viii was released in 2016 for playstation vita by nihon falcom.";
+
+  it("screens every year in a line, not just the first", () => {
+    // "2016" corroborated the whole sentence and carried 2021 in with it.
+    const r = screenClaims(["Ys VIII arrived in 2016 and was remastered in 2021."], CTX);
+    expect(r.kept).toHaveLength(0);
+    expect(r.rejected[0].reason).toMatch(/unsupported year 2021/);
+  });
+});
+
+describe("platformSupported", () => {
+  it("does not accept NES on the strength of an unrelated word", () => {
+    expect(platformSupported("NES", "the game was praised for its kindness")).toBe(false);
+    expect(platformSupported("NES", "released on the sega genesis")).toBe(false);
+  });
+
+  it("does not accept Switch inside ordinary prose", () => {
+    expect(platformSupported("Switch", "you can switch between party members")).toBe(false);
+  });
+
+  it("accepts an alias for the same hardware", () => {
+    expect(platformSupported("N64", "ported to the nintendo 64 in 1998")).toBe(true);
+    expect(platformSupported("Mega Drive", "released for the sega genesis")).toBe(true);
+    expect(platformSupported("SNES", "a super famicom exclusive")).toBe(true);
+  });
+
+  it("accepts a direct mention", () => {
+    expect(platformSupported("PlayStation 4", "a playstation 4 port followed")).toBe(true);
+  });
+});
+
+describe("duplicate and length screening (B11)", () => {
+  const CTX =
+    "the music was composed by falcom sound team jdk, the in-house sound staff at nihon falcom.";
+
+  it("keeps only one of several restatements of the same source sentence", () => {
+    const r = screenClaims(
+      [
+        "The music was composed by Falcom Sound Team jdk.",
+        "Falcom Sound Team jdk composed the music for the game.",
+        "The game's music comes from Falcom Sound Team jdk.",
+      ],
+      CTX
+    );
+    expect(r.kept).toHaveLength(1);
+    expect(r.rejected.every((x) => x.reason === "near-duplicate of an earlier fact")).toBe(true);
+  });
+
+  it("rejects a fact too long for the bubble", () => {
+    const long = "Falcom Sound Team jdk composed the music, " + "and it is very good ".repeat(12);
+    const r = screenClaims([long], CTX);
+    expect(r.kept).toHaveLength(0);
+    expect(r.rejected[0].reason).toMatch(/too long/);
+  });
+
+  it("does not treat two genuinely different facts as duplicates", () => {
+    expect(
+      tooSimilar(
+        "Falcom Sound Team jdk composed the music.",
+        "The game shipped for PlayStation Vita in Japan."
+      )
+    ).toBe(false);
+  });
+});
+
+describe("non-video-game repertoire", () => {
+  // The setlist is not only game music: pop, film and musical soundtracks,
+  // classical, and the streamer's own compositions all appear. A relevance guard
+  // tuned only for games rejects their articles outright.
+  it("accepts a classical work's own article", () => {
+    expect(isRelevantArticle("Clair de Lune", "Clair de Lune (Debussy)")).toBe(true);
+    expect(isRelevantArticle("Suite bergamasque", "Suite bergamasque")).toBe(true);
+  });
+
+  it("accepts a pop song's article", () => {
+    expect(isRelevantArticle("Bohemian Rhapsody", "Bohemian Rhapsody")).toBe(true);
+    expect(isRelevantArticle("Yesterday", "Yesterday (Beatles song)")).toBe(true);
+  });
+
+  it("accepts a film score article", () => {
+    expect(isRelevantArticle("Schindler's List", "Schindler's List (soundtrack)")).toBe(true);
+  });
+
+  it("still rejects a same-name article about something unmusical", () => {
+    expect(isRelevantArticle("Yesterday", "Yesterday (2019 film)")).toBe(true); // film is musical-adjacent
+    expect(isRelevantArticle("Braid", "Braid (hairstyle)")).toBe(false);
+  });
+
+  it("admits a performer article only when the subject is a performer", () => {
+    // "Journey" the game must not ground on "Journey (band)"...
+    expect(isRelevantArticle("Journey", "Journey (band)", false)).toBe(false);
+    // ...but a song list entry whose subject IS the band legitimately does.
+    expect(isRelevantArticle("Journey", "Journey (band)", true)).toBe(true);
+  });
+});
+
+describe("looksLikeArtistName", () => {
+  it("recognises well-known composers and artists", () => {
+    expect(looksLikeArtistName("Chopin")).toBe(true);
+    expect(looksLikeArtistName("Joe Hisaishi")).toBe(true);
+    expect(looksLikeArtistName("The Beatles")).toBe(true);
+  });
+
+  it("recognises an ordinary personal name", () => {
+    expect(looksLikeArtistName("Jane Composer")).toBe(true);
+  });
+
+  it("does not treat a game title as a person", () => {
+    expect(looksLikeArtistName("Ys VIII: Lacrimosa of Dana")).toBe(false);
+    expect(looksLikeArtistName("The Legend of Zelda")).toBe(false);
+  });
+});
+
+describe("qualifierNamesAnotherArtist", () => {
+  it("rejects a same-titled work by a different artist", () => {
+    // Live regression: "Clair de Lune" matched "Clair de Lune (Flight
+    // Facilities song)" — a 2012 electronic track, not Debussy — because the
+    // track name matched exactly. Titles collide across genres constantly.
+    expect(
+      qualifierNamesAnotherArtist("Clair de Lune (Flight Facilities song)", "Claude Debussy")
+    ).toBe(true);
+  });
+
+  it("accepts a work attributed to the subject", () => {
+    expect(qualifierNamesAnotherArtist("Clair de Lune (Debussy)", "Claude Debussy")).toBe(false);
+    expect(qualifierNamesAnotherArtist("Yesterday (Beatles song)", "The Beatles")).toBe(false);
+  });
+
+  it("ignores a bare category qualifier that names nobody", () => {
+    expect(qualifierNamesAnotherArtist("Bohemian Rhapsody (song)", "Queen")).toBe(false);
+    expect(qualifierNamesAnotherArtist("Celeste (video game)", "Celeste")).toBe(false);
+  });
+
+  it("is a no-op when there is no qualifier at all", () => {
+    expect(qualifierNamesAnotherArtist("Bohemian Rhapsody", "Queen")).toBe(false);
+  });
+});
+
+describe("isRelevantArticle — regressions from the 2026-09-13 stream", () => {
+  // Every case here was observed live, not imagined.
+  it("does not ground a numbered installment on the un-numbered original", () => {
+    // "To Zanarkand" by Final Fantasy X grounded on "Final Fantasy (video
+    // game)" — i.e. FF1. "Final Fantasy" is a prefix of "Final Fantasy X",
+    // so prefix matching alone accepted a truncation that dropped the
+    // installment. Same shape as the franchise-sibling bug, parent/child.
+    expect(isRelevantArticle("Final Fantasy X", "Final Fantasy (video game)")).toBe(false);
+    expect(isRelevantArticle("Marvel vs Capcom 2", "Marvel vs. Capcom")).toBe(false);
+  });
+
+  it("still allows a series subject to match one of its installments", () => {
+    // The reverse direction is legitimate: the song list often names the
+    // series, and any installment's article is a fair reference.
+    expect(isRelevantArticle("Animal Crossing", "Animal Crossing: New Leaf")).toBe(true);
+    expect(isRelevantArticle("Ys", "Ys I")).toBe(true);
+  });
+
+  it("does not follow a name into a different medium", () => {
+    // "Super Mario 64: Dire Dire Docks" grounded on "The Super Mario Galaxy
+    // Movie (soundtrack)" — the film, not the game.
+    expect(
+      isRelevantArticle("Super Mario", "The Super Mario Galaxy Movie (soundtrack)")
+    ).toBe(false);
+  });
+
+  it("matches two-letter titles, which were being filtered out entirely", () => {
+    // significantTokens dropped tokens under three characters, so "Ys" — a
+    // whole series and core repertoire — reduced to an empty token list and
+    // could never match anything. Every Ys track in the set missed grounding.
+    expect(isRelevantArticle("Ys", "Ys (series)")).toBe(true);
+    expect(isRelevantArticle("Ys", "Ys II: The Final Chapter")).toBe(true);
+    // ...without becoming a substring free-for-all.
+    expect(isRelevantArticle("Ys", "System Shock")).toBe(false);
+  });
+});
+
+describe("resolveGameAndTrack — series in artist, game in title", () => {
+  it("prefers the more specific game named in the title", () => {
+    // Live: artist "Super Mario" grounded a Super Mario 64 track on the
+    // Super Mario Galaxy soundtrack; artist "Animal Crossing" put a New
+    // Horizons track on New Leaf.
+    expect(
+      resolveGameAndTrack({ title: "Super Mario 64: Dire Dire Docks", artist: "Super Mario" })
+    ).toEqual({ game: "Super Mario 64", track: "Dire Dire Docks" });
+    expect(
+      resolveGameAndTrack({ title: "Animal Crossing New Horizons: 5 PM", artist: "Animal Crossing" })
+        .game
+    ).toBe("Animal Crossing New Horizons");
+  });
+
+  it("strips a title prefix that just repeats the artist", () => {
+    expect(resolveGameAndTrack({ title: "Billy Joel: Piano Man", artist: "Billy Joel" })).toEqual({
+      game: "Billy Joel",
+      track: "Piano Man",
+    });
+  });
+
+  it("keeps the artist when the title names something unrelated", () => {
+    expect(
+      resolveGameAndTrack({ title: "Sunshine Coastline", artist: "Ys VIII: Lacrimosa of Dana" }).game
+    ).toBe("Ys VIII: Lacrimosa of Dana");
+  });
+
+  it("accepts a truncated article when the installment number survives", () => {
+    expect(isRelevantArticle("Ys II The Final Chapter", "Ys II")).toBe(true);
+    expect(isRelevantArticle("Final Fantasy X", "Final Fantasy (video game)")).toBe(false);
+  });
+});
+
+describe("regressions from the 2026-09-17 stream", () => {
+  it("does not read an arrangement marker as the game name", () => {
+    // "(Arr Arcana Shift)" was parsed as the game, so every Ys VIII
+    // arrangement grounded on the bare "Ys (series)" article instead.
+    expect(
+      splitGameAndTrack("Ys VIII Lacrimosa of Dana: Iclucian Dance (Arr Arcana Shift)").game
+    ).toBe("Ys VIII Lacrimosa of Dana");
+    expect(splitGameAndTrack("Sonic Mania: Studiopolis Zone (Act 1)").game).toBe("Sonic Mania");
+    expect(splitGameAndTrack("Floaroma Town (Day)").game).toBe("Floaroma Town (Day)");
+  });
+
+  it("still reads a real game name in parentheses", () => {
+    expect(splitGameAndTrack("One-Winged Angel (Final Fantasy VII)").game).toBe(
+      "Final Fantasy VII"
+    );
+  });
+
+  it("rejects an article for a work that has not been released yet", () => {
+    // "Song of Storms" grounded on the 2026 Ocarina REMAKE and the overlay
+    // announced an "upcoming" game under a 1998 track.
+    const future = new Date().getFullYear() + 1;
+    expect(
+      isRelevantArticle(
+        "The Legend of Zelda: Ocarina of Time",
+        `The Legend of Zelda: Ocarina of Time (${future} video game)`
+      )
+    ).toBe(false);
+  });
+});

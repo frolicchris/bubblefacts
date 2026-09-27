@@ -1,0 +1,323 @@
+/* ============================================================
+   SIZING — tune the overlay here.
+
+   Everything scales off --fact-font-size, so bumping that one
+   value resizes bubbles, padding, and icons together. No rebuild
+   needed: edit, save, then right-click the OBS Browser Source
+   and choose Refresh.
+
+   Sizes are in px against a 1920x1080 browser source, so they
+   scale down for viewers watching in a small window — err large.
+
+   14px = original (too small on stream)
+   24px = current default, comfortable at 1080p
+   28px+ = extra large, or for 1440p/4K canvases
+   ============================================================ */
+:root {
+  --fact-font-size: 24px;
+  --toast-font-size: 21px;
+  --bubble-max-width: 560px;
+  --bubble-min-width: 300px;
+}
+
+/* === Reset & Base — Transparent for OBS Browser Source === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  /* Pixel-friendly font stack — sharp at small sizes */
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+#bubble-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ============================================================
+   VIDEO GAME DIALOG BOX — RPG text bubble style
+   Inspired by classic SNES/PS1 RPG dialog boxes
+   ============================================================ */
+.popup-bubble {
+  position: absolute;
+  max-width: var(--bubble-max-width);
+  min-width: var(--bubble-min-width);
+  /* Padding scales with the font so the icon gutter stays proportional. */
+  padding: 0.85em 1.05em 0.85em 2.6em;
+  /* Dark blue RPG dialog background */
+  background: linear-gradient(
+    135deg,
+    rgba(10, 10, 60, 0.94) 0%,
+    rgba(20, 20, 90, 0.94) 50%,
+    rgba(10, 10, 60, 0.94) 100%
+  );
+  /* Double border — outer glow + inner pixel border */
+  border: 3px solid #5b6ee1;
+  border-radius: 6px;
+  outline: 2px solid rgba(91, 110, 225, 0.3);
+  outline-offset: 2px;
+  color: #f2f2f2;
+  font-size: var(--fact-font-size);
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+  letter-spacing: 0.01em;
+  /* Heavier shadow: larger text sits over more varied video content. */
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+  z-index: 1001;
+
+  /* Start hidden for animation */
+  opacity: 0;
+  transform: scale(0);
+  transform-origin: bottom center;
+}
+
+/* Controller icon (left side of bubble) */
+.popup-bubble::before {
+  /* Falls back to the gamepad when the JS hasn't set a rotation glyph. */
+  content: var(--bubble-icon, '\1F3AE');
+  position: absolute;
+  top: 0.8em;
+  left: 0.7em;
+  font-size: 1.1em;
+  line-height: 1;
+  filter: grayscale(0.2);
+}
+
+/* Blinking cursor indicator (bottom-right, like RPG "press A") */
+.popup-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid #5b6ee1;
+  animation: cursorBlink 0.8s step-end infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* === Inner glow highlight along top edge === */
+.popup-bubble .bubble-highlight {
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  right: 4px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(140, 160, 255, 0.5) 30%,
+    rgba(140, 160, 255, 0.5) 70%,
+    transparent 100%
+  );
+}
+
+/* ============================================================
+   ANIMATIONS — using only transform + opacity for OBS perf
+   ============================================================ */
+
+/* Pop-in: quick scale with a "level up" bounce feel */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0) translateY(10px);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.08) translateY(-2px);
+  }
+  60% {
+    transform: scale(0.97) translateY(1px);
+  }
+  80% {
+    transform: scale(1.02) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Pop-out: fade down like a defeated enemy */
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(1.03) translateY(-2px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(12px);
+  }
+}
+
+/* Idle float: gentle hover like a floating item pickup */
+@keyframes gameFloat {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1) translateY(-4px); }
+}
+
+/* === Animation States === */
+.popup-bubble.visible {
+  animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.popup-bubble.hiding {
+  animation: popOut 0.35s ease-in forwards;
+}
+
+.popup-bubble.idle {
+  animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+             gameFloat 2.5s ease-in-out 0.5s infinite;
+}
+
+/* ============================================================
+   SPARKLE PARTICLES — decorative pixel sparkles near bubbles
+   Pure CSS, drawn with box-shadow (no images needed)
+   ============================================================ */
+.popup-bubble .sparkle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #fff;
+  border-radius: 0;
+  opacity: 0;
+}
+
+.popup-bubble .sparkle-1 {
+  top: -6px;
+  right: 20px;
+  animation: sparkle 1.5s ease-in-out 0.3s infinite;
+}
+
+.popup-bubble .sparkle-2 {
+  top: 4px;
+  right: -6px;
+  animation: sparkle 1.5s ease-in-out 0.8s infinite;
+}
+
+.popup-bubble .sparkle-3 {
+  bottom: -4px;
+  left: 30px;
+  animation: sparkle 1.5s ease-in-out 1.2s infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1.5); }
+}
+
+/* ============================================================
+   SONG TOAST — "NOW PLAYING" bar (bottom of screen)
+   Styled like an achievement notification / XP bar
+   ============================================================ */
+.song-toast {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    rgba(10, 10, 50, 0.92) 0%,
+    rgba(20, 20, 80, 0.92) 50%,
+    rgba(10, 10, 50, 0.92) 100%
+  );
+  color: #ffd700; /* Gold — like achievement text */
+  padding: 0.7em 1.6em 0.7em 1.2em;
+  border-radius: 4px;
+  border: 2px solid #5b6ee1;
+  font-size: var(--toast-font-size);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  /* Was `nowrap`, which on a centred, translateX(-50%) element clipped long
+     titles at BOTH ends. Constrain and wrap instead. */
+  max-width: 80vw;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.35;
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 1002;
+  pointer-events: none;
+}
+
+/* "NOW PLAYING" prefix styling */
+.song-toast .toast-label {
+  color: #8ca0ff;
+  font-weight: 400;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-right: 8px;
+}
+
+.song-toast.visible {
+  opacity: 1;
+}
+
+/* Live Learn: off-list request, no facts follow. Gold border, same dark
+   background, persistent until the next song. No new animation. */
+.song-toast.live-learn {
+  border-color: #ffd700;
+}
+
+.song-toast.live-learn .toast-label {
+  color: #ffd700;
+}
+
+/* Animated border glow on toast */
+.song-toast::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 215, 0, 0.6),
+    transparent
+  );
+}
+
+/* === Connection status indicator === */
+#connection-status {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff4444;
+  opacity: 0.6;
+  z-index: 9999;
+  transition: background 0.3s ease;
+}
+
+#connection-status.connected {
+  background: #00c853;
+}

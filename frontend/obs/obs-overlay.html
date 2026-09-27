@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Up Facts — OBS Overlay</title>
+  <link rel="stylesheet" href="obs-overlay.css">
+</head>
+<body>
+  <!--
+    OBS Browser Source Overlay
+    =========================
+    Add this as a Browser Source in OBS:
+    - URL: http://localhost:3000/obs-overlay
+    - Width: 1920
+    - Height: 1080
+    - Check "Refresh browser when scene becomes active"
+
+    Connects to the backend via WebSocket to receive real-time
+    Pop Up Video-style facts about the currently playing song.
+  -->
+  <div id="bubble-container"></div>
+  <div id="connection-status"></div>
+  <script src="obs-overlay.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "name": "stream-facts-overlay",
+  "version": "1.0.0",
+  "description": "OBS overlay that pops up verified trivia about the song your StreamerSongList queue says you are playing. Grounded in Wikipedia, written by a local or hosted LLM, screened deterministically.",
+  "private": false,
+  "scripts": {
+    "build": "tsc -p backend/tsconfig.json",
+    "start": "node dist/backend/server.js",
+    "dev": "npm run build && node dist/backend/server.js",
+    "test": "jest --config jest.config.ts --forceExit",
+    "lint": "eslint frontend",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.13.0",
+    "@types/ws": "^8.5.13",
+    "eslint": "^9.19.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/frolicchris/stream-facts-overlay"
+  },
+  "keywords": [
+    "twitch",
+    "obs",
+    "overlay",
+    "streamersonglist",
+    "trivia",
+    "ollama",
+    "browser-source"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
