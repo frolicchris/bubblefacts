@@ -20,6 +20,7 @@ bash scripts/start-overlay.sh
 - OBS animations: `transform` and `opacity` only.
 - There is deliberately **no LLM verification pass**. Accuracy comes from
   grounding + deterministic screening. Sharpen the prompt before adding layers.
-- Never ask the model for facts without a reference. No article → topic pack.
-- Partial results are never padded from the topic pack.
-- Topic packs (`topics/*.json`) contain only hand-verified lines.
+- Never ask the model for facts without a reference. No article → topic packs.
+- Partial results are never padded from the topic packs.
+- Topic packs (`topics/*.json`, one per genre, merged by `TOPIC`) contain only
+  hand-verified lines. Don't pad a small pack with unverified facts.

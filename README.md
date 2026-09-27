@@ -10,8 +10,8 @@ Facts are **grounded, not recalled**: the backend finds the song's Wikipedia
 article, hands that text to a language model with instructions to restate it,
 and then checks every sentence against the article. Names, years and
 platforms the article doesn't contain get dropped. When no article exists,
-it falls back to hand-verified facts from a topic pack instead of letting the
-model guess. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+it falls back to hand-verified facts from the topic packs for the genres you
+play, instead of letting the model guess. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Runs entirely on your machine with a free local model, or against a hosted
 free tier if you'd rather not run one.
@@ -108,8 +108,9 @@ any file in `topics/` and add its name to `TOPIC`.
 Tag your originals in StreamerSongList with an attribute containing the word
 "original", or put your name in the artist field. The overlay skips the
 article lookup for them (there isn't one) and builds facts from the entry
-itself: play count, your note, who requested it, plus the pack's
-`originalsFacts`.
+itself: play count, your note, who requested it, plus the `originalsFacts`
+lines from your packs. Those live in `general`, so keep it in `TOPIC`, or add
+your own `originalsFacts` to a pack you use.
 
 ### Live learns
 

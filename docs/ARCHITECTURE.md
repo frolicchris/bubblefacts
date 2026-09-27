@@ -13,7 +13,7 @@ StreamerSongList ──(Centrifugo WS + 15s poll)──► Backend ──WebSock
 | `backend/src/fact-generator.ts` | Prompts, providers (Ollama / OpenAI-compatible / Anthropic), cache, pipeline |
 | `backend/src/fact-verifier.ts` | Wikipedia grounding, article-relevance guard, deterministic screening |
 | `backend/src/stat-facts.ts` | Facts built from the queue entry itself (play count, note, requester) |
-| `backend/src/topic.ts` | Loads `topics/<TOPIC>.json` |
+| `backend/src/topic.ts` | Loads and merges the topic packs listed in `TOPIC` |
 | `backend/src/server.ts` | Express + WebSocket server, `/health` |
 | `frontend/obs/` | The OBS browser-source overlay (plain HTML/CSS/JS, no build step) |
 
@@ -40,7 +40,10 @@ source by string comparison: names, years, platforms, award and sales language.
 **No source, no model call.** Asked for "general video game music facts"
 without a reference, a 3B model states confident errors (Final Fantasy VII
 credited to the wrong composer) and nothing can check them. Songs with no
-article get facts from the queue entry plus the hand-verified topic pack.
+article get facts from the queue entry plus the hand-verified topic packs.
+Packs are split by genre (`video-game`, `classical`, `film`, `pop`,
+`general`) so a channel only draws fallback facts from music it plays; a
+Tetris fact under a Chopin nocturne is a non-sequitur.
 
 **Partial results are never padded.** Four facts about the right song beat
 four plus one unrelated one.

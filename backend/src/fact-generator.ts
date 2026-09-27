@@ -12,7 +12,7 @@ import { topic } from "./topic";
  *   live learn  -> no facts (the overlay shows a banner)
  *   original    -> facts from the queue entry, no lookup
  *   article     -> model restates it, screening filters the result
- *   no article  -> entry facts + topic pack, no model call
+ *   no article  -> entry facts + topic packs, no model call
  */
 
 /** Ask for a few spares; screening drops some. */

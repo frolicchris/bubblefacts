@@ -477,7 +477,7 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
 
 // --- Curated pool ------------------------------------------------------
 
-/** Hand-verified fallback facts from the selected topic pack. */
+/** Hand-verified fallback facts, merged from the topic packs listed in TOPIC. */
 export const CURATED_FACTS: string[] = topic.curatedFacts;
 
 /** Up to `want` curated facts, shuffled, skipping any already shown. */
