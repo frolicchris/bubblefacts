@@ -23,6 +23,7 @@ service if your computer is busy enough already.
 
 ## Contents
 
+- [Quick links](#quick-links)
 - [Before you start](#before-you-start)
 - [Setup](#setup)
 - [What you'll see on stream](#what-youll-see-on-stream)
@@ -34,16 +35,56 @@ service if your computer is busy enough already.
 
 ---
 
+## Quick links
+
+Everything you might need to download or sign up for, in one place.
+
+**The overlay**
+
+- [Download the overlay (ZIP)](https://github.com/frolicchris/stream-facts-overlay/archive/refs/heads/main.zip)
+- [Report a problem or ask a question](https://github.com/frolicchris/stream-facts-overlay/issues)
+
+**Required**
+
+| Tool | Download | Help |
+|---|---|---|
+| OBS Studio | [obsproject.com/download](https://obsproject.com/download) | [Browser source guide](https://obsproject.com/kb/browser-source) |
+| Node.js (choose the LTS version) | [nodejs.org/en/download](https://nodejs.org/en/download) | |
+| StreamerSongList | [streamersonglist.com](https://streamersonglist.com) | Your token is under **Settings → Access** once signed in. |
+
+**The AI: pick one**
+
+| Option | Get started | Notes |
+|---|---|---|
+| Ollama, on your computer (free) | [Mac](https://ollama.com/download/mac) · [Windows](https://ollama.com/download/windows) · [Linux](https://ollama.com/download/linux) | Then get the model: [llama3.2](https://ollama.com/library/llama3.2), with `ollama pull llama3.2`. [Ollama FAQ](https://docs.ollama.com/faq). |
+| Groq (free, with a daily limit) | [Create an API key](https://console.groq.com/keys) | [Free plan limits](https://console.groq.com/docs/rate-limits) |
+| Anthropic Claude (paid, cheap) | [Create an API key](https://platform.claude.com/settings/keys) | |
+| OpenRouter | [Create an API key](https://openrouter.ai/keys) | See `OPENAI_BASE_URL` in [docs/CONFIG.md](docs/CONFIG.md). |
+| Google Gemini | [Create an API key](https://aistudio.google.com/apikey) | See `OPENAI_BASE_URL` in [docs/CONFIG.md](docs/CONFIG.md). |
+
+**Handy, not required**
+
+| Tool | What it's for |
+|---|---|
+| [Terminal user guide (Mac)](https://support.apple.com/guide/terminal/welcome/mac) | If you haven't used Terminal before. |
+| [Homebrew](https://brew.sh) | Installs developer tools on a Mac with one command. |
+| [Git](https://git-scm.com/downloads) | Download and update the overlay with `git` instead of a ZIP. |
+| [ShellCheck](https://www.shellcheck.net) | Only for developers running `npm run lint`. |
+
+---
+
 ## Before you start
 
 You'll need:
 
 | What | Why | Where to get it |
 |---|---|---|
-| **OBS Studio** 28 or newer | Shows the overlay on your stream | [obsproject.com](https://obsproject.com) |
+| **OBS Studio** 28 or newer | Shows the overlay on your stream | [obsproject.com/download](https://obsproject.com/download) |
 | **A StreamerSongList account** | The overlay reads your request queue from it | [streamersonglist.com](https://streamersonglist.com) |
-| **Node.js** 20 or newer | Runs the overlay's small server on your computer | [nodejs.org](https://nodejs.org), the "LTS" download |
+| **Node.js** 20 or newer | Runs the overlay's small server on your computer | [nodejs.org/en/download](https://nodejs.org/en/download), the "LTS" version |
 | **An AI model** | Rewrites Wikipedia text into captions | See [step 3](#3-choose-where-the-ai-runs) |
+
+All the download links are also in [Quick links](#quick-links).
 
 The setup steps use the Terminal on a Mac (Linux works the same way). On
 Windows the overlay itself works, but the helper scripts don't; see the
@@ -57,8 +98,9 @@ This takes about 15 minutes the first time.
 
 ### 1. Download the overlay
 
-On the [project page](https://github.com/frolicchris/stream-facts-overlay),
-click **Code → Download ZIP** and unzip it somewhere you'll remember, such as
+[Download the ZIP](https://github.com/frolicchris/stream-facts-overlay/archive/refs/heads/main.zip)
+(or, on the [project page](https://github.com/frolicchris/stream-facts-overlay),
+click **Code → Download ZIP**) and unzip it somewhere you'll remember, such as
 your Documents folder. (If you use git: `git clone https://github.com/frolicchris/stream-facts-overlay.git`.)
 
 Then open Terminal, type `cd ` (with a space), drag the unzipped folder onto
@@ -88,12 +130,13 @@ Pick one. You can switch later.
 | **Groq** (online) | Free, with a daily limit | Computers already busy with streaming. |
 | **Anthropic Claude** (online) | A fraction of a cent per song | The best captions for the money. |
 
-- **Ollama:** install it from [ollama.com](https://ollama.com), then run
-  `ollama pull llama3.2` in Terminal once. Nothing else to set up.
-- **Groq:** create a free account at [console.groq.com](https://console.groq.com)
-  and make an API key.
-- **Anthropic:** create an account at [console.anthropic.com](https://console.anthropic.com)
-  and make an API key.
+- **Ollama:** download it for [Mac](https://ollama.com/download/mac),
+  [Windows](https://ollama.com/download/windows) or
+  [Linux](https://ollama.com/download/linux) and open it once. Then run
+  `ollama pull llama3.2` in Terminal to download the model (about 2 GB).
+  Nothing else to set up.
+- **Groq:** sign up and [create an API key](https://console.groq.com/keys).
+- **Anthropic:** sign up and [create an API key](https://platform.claude.com/settings/keys).
 
 OpenRouter and Google Gemini work too; see [docs/CONFIG.md](docs/CONFIG.md).
 
@@ -254,7 +297,7 @@ automatically.
 | A **red dot** in the corner, no bubbles | The overlay isn't running | Run `bash scripts/start-overlay.sh` and leave the window open. |
 | Nothing at all, not even a red dot | OBS isn't loading the page | Check the source uses **Local file** pointing at `obs-overlay.html` and is visible. Then run `bash scripts/check-overlay.sh`, which tells you whether OBS is connected. |
 | "StreamerSongList rejected the token" | Wrong or expired token | Create a new token (step 2) and paste it into `.env`. |
-| "Ollama not responding" | Ollama isn't running | Open the Ollama app, or install it from [ollama.com](https://ollama.com). |
+| "Ollama not responding" | Ollama isn't running | Open the Ollama app, or [download it](https://ollama.com/download). |
 | "Model llama3.2 missing" | The model isn't downloaded | Run `ollama pull llama3.2`. |
 | "Port 3000 is in use" | The overlay is already running somewhere | Close the other Terminal window running it. |
 | Facts are generic, never about the song | No Wikipedia article was found | For game music, put the **game's name in the artist field** in StreamerSongList. The log line starting `[Grounding]` says what was searched. |

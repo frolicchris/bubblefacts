@@ -83,7 +83,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 
 | Setting | Default | What it does |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | *none* | Your key from console.anthropic.com. Setting it switches the overlay to Claude. |
+| `ANTHROPIC_API_KEY` | *none* | Your key from [platform.claude.com](https://platform.claude.com/settings/keys). Setting it switches the overlay to Claude. |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Which Claude model to use. |
 
 ---
