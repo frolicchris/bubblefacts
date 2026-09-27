@@ -59,7 +59,7 @@ export const config = {
   sslStreamerName: requireEnv("SSL_STREAMER_NAME"),
   streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || requireEnv("SSL_STREAMER_NAME"),
   instrument: (process.env.INSTRUMENT || "").trim(),
-  topic: process.env.TOPIC || "video-game,classical,film,pop,piano,general",
+  topic: process.env.TOPIC || "video-game,classical,film,pop,general",
 
   // StreamerSongList
   sslPlatform: (process.env.SSL_PLATFORM || "twitch").toLowerCase(),

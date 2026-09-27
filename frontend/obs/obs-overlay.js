@@ -18,11 +18,10 @@
 (function () {
   "use strict";
 
-  // The server listens on the loopback address; change PORT to match .env.
-  const PORT = 3000;
-  const WS_URL = location.protocol === "file:"
-    ? "ws://127.0.0.1:" + PORT + "/ws"
-    : (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+  // Where the server is when OBS loads this page as a Local File. Change it
+  // if you change PORT, or if the server runs on another machine (HOST).
+  const SERVER = "127.0.0.1:3000";
+  const WS_URL = "ws://" + (location.protocol === "file:" ? SERVER : location.host) + "/ws";
 
   const TOAST_MS = 5000;
   const TOAST_FADE_MS = 600;

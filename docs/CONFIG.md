@@ -46,10 +46,11 @@ Performer and content
   "piano", "guitar"… With it the prompt says "playing X on piano"; without it,
   "performing X".
 
-* `TOPIC` default `video-game,classical,film,pop,piano,general`
+* `TOPIC` default `video-game,classical,film,pop,general`
   One topic pack or a comma-separated list from `topics/`, merged. Pick the
   genres your channel plays; keep `general`, which holds the lines used for
-  your own compositions. Together they need at least five facts.
+  your own compositions, and add `piano` if you're a solo pianist. Together
+  they need at least five facts. Packs are only read, never written.
 
 Model
 -----
@@ -123,6 +124,7 @@ Server
   `0.0.0.0` only if OBS runs on another machine on a network you trust.
 
 * `PORT` default `3000`
-  If you change it, also change `PORT` at the top of
-  `frontend/obs/obs-overlay.js`, which the Local File overlay uses to find the
-  server.
+
+The overlay can't read `.env`. If you change `HOST` or `PORT`, set `SERVER`
+at the top of `frontend/obs/obs-overlay.js` to the matching address, for
+example `"192.168.1.20:3001"`.

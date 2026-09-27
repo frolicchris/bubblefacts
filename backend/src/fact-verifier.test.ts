@@ -582,10 +582,14 @@ describe("screening holes found in review", () => {
 });
 
 describe("title parsing and matching found in review", () => {
-  it("reads a parenthetical game name that starts with a variant word", () => {
+  it("reads arrangement parentheticals as variants, not game names", () => {
+    for (const title of ["Terra (Piano Collections)", "Tifa's Theme (Acoustic Cover)", "Aerith (Live at Budokan)", "Main Theme (Night)"]) {
+      expect(splitGameAndTrack(title).game).toBe(title);
+    }
+  });
+
+  it("still reads a game name that merely starts with Day or Night", () => {
     expect(splitGameAndTrack("Theme (Night in the Woods)").game).toBe("Night in the Woods");
-    expect(splitGameAndTrack("Main Theme (Live A Live)").game).toBe("Live A Live");
-    expect(splitGameAndTrack("Main Theme (Night)").game).toBe("Main Theme (Night)");
   });
 
   it("matches titles regardless of accents", () => {
@@ -665,6 +669,13 @@ describe("fetchGrounding", () => {
     expect(await fetchGrounding({ title: "Obscure B-Side", artist: "Queen" })).toBe("");
     pages = { "Bohemian Rhapsody Queen": ["Bohemian Rhapsody"] };
     expect(await fetchGrounding({ title: "Bohemian Rhapsody", artist: "Queen" })).toMatch(/^Bohemian Rhapsody/);
+  });
+
+  it("remembers a game's miss for all its tracks", async () => {
+    expect(await fetchGrounding({ title: "Track One", artist: "The Tiny Game 2" })).toBe("");
+    const calls = fetchMock.mock.calls.length;
+    expect(await fetchGrounding({ title: "Track Two", artist: "The Tiny Game 2" })).toBe("");
+    expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
   it("never grounds a game track on a generic article named like the track", async () => {

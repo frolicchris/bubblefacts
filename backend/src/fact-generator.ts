@@ -19,6 +19,8 @@ import { topic } from "./topic";
 /** Ask for a few spares; screening drops some. */
 const OVERGENERATE = 2;
 const MAX_TOKENS = 512;
+/** Hosted reasoning models, such as Groq's free gpt-oss, spend part of their budget thinking. */
+const HOSTED_MAX_TOKENS = 2048;
 
 /**
  * Bubble slots as CSS percentages of a 1920x1080 overlay. Laid out to avoid a
@@ -181,8 +183,7 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
       model: config.openaiModel,
       messages: [{ role: "user", content: prompt }],
       temperature: config.temperature,
-      // Reasoning models (Groq's free gpt-oss) spend part of this on hidden reasoning.
-      max_tokens: MAX_TOKENS * 4,
+      max_tokens: HOSTED_MAX_TOKENS,
     },
     config.openaiTimeoutMs,
     { Authorization: `Bearer ${config.openaiApiKey}` }
@@ -190,8 +191,8 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-/** Primary Ollama host, then the fallback host if one is configured. */
-async function askOllama(prompt: string): Promise<string> {
+/** Primary Ollama host, then the fallback host if one is configured. Returns the text and the host that answered. */
+async function askOllama(prompt: string): Promise<[string, string]> {
   const hosts = [config.ollamaBaseUrl, config.ollamaFallbackUrl].filter(Boolean);
   let lastError: unknown;
   for (const host of hosts) {
@@ -207,8 +208,7 @@ async function askOllama(prompt: string): Promise<string> {
         },
         config.ollamaTimeoutMs
       );
-      factStats.lastEndpoint = host;
-      return data.response;
+      return [data.response, host];
     } catch (err) {
       lastError = err;
       console.warn(`[FactGen] Ollama at ${host} failed: ${err instanceof Error ? err.message : err}`);
@@ -220,17 +220,19 @@ async function askOllama(prompt: string): Promise<string> {
 async function askModel(prompt: string): Promise<string> {
   const started = Date.now();
   let text: string;
+  let endpoint: string;
   if (config.aiProvider === "anthropic") {
     text = await askAnthropic(prompt);
-    factStats.lastEndpoint = `anthropic (${config.anthropicModel})`;
+    endpoint = `anthropic (${config.anthropicModel})`;
   } else if (config.aiProvider === "openai") {
     text = await askOpenAICompatible(prompt);
-    factStats.lastEndpoint = `${config.openaiBaseUrl} (${config.openaiModel})`;
+    endpoint = `${config.openaiBaseUrl} (${config.openaiModel})`;
   } else {
-    text = await askOllama(prompt);
+    [text, endpoint] = await askOllama(prompt);
   }
+  factStats.lastEndpoint = endpoint;
   factStats.lastDurationMs = Date.now() - started;
-  console.log(`[FactGen] ${factStats.lastEndpoint} answered in ${(factStats.lastDurationMs / 1000).toFixed(1)}s`);
+  console.log(`[FactGen] ${endpoint} answered in ${(factStats.lastDurationMs / 1000).toFixed(1)}s`);
   return text;
 }
 
@@ -258,7 +260,8 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
       const facts = toFacts([...stats, ...topic.originalsFacts].slice(0, want));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
       record(song, "original", facts.length);
-      return { facts, ttlMs: Infinity };
+      // Not cached: requester and play count change, and this path is free.
+      return { facts, ttlMs: 0 };
     }
 
     const context = config.factVerification ? await fetchGrounding(song) : "";

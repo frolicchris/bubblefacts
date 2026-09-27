@@ -1,3 +1,4 @@
+import { escapeRe } from "./text";
 import { SSLQueueItem } from "./types";
 
 /**
@@ -27,7 +28,7 @@ export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean
   const artist = (entry.song?.artist ?? "").trim().toLowerCase();
   return names.some((n) => {
     const name = n.trim().toLowerCase();
-    return Boolean(name) && (artist === name || new RegExp(`@${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(artist));
+    return Boolean(name) && (artist === name || new RegExp(`@${escapeRe(name)}\\b`).test(artist));
   });
 }
 
@@ -52,7 +53,7 @@ export function buildStatFacts(
 ): string[] {
   if (!entry) return [];
   const facts: string[] = [];
-  const song = entry.song ?? ({} as SSLQueueItem["song"]);
+  const song = entry.song;
   const display = cleanTitle(entry.nonlistSong || song.title || "", song.artist);
   const who = opts.streamerName;
 

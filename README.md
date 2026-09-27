@@ -85,6 +85,24 @@ The prompts were written for a 3-billion-parameter model and work upward from
 there. A larger model mostly buys you fewer dropped sentences, not different
 facts, because the facts come from the article either way.
 
+## Where facts come from
+
+Nothing is stored between streams except what you write yourself.
+
+- **Live facts** are generated when a song starts: its Wikipedia article is
+  fetched, the model restates it, and screening filters the result. They're
+  held in the server's memory for the session so a repeat of the song is
+  instant, and they're gone when the server stops. Nothing generated is
+  written to disk or to the topic packs.
+- **Queue-entry facts** (play count, your note, the requester) come from
+  StreamerSongList each time and are never cached for your own compositions,
+  so they stay current.
+- **Topic packs** are the hand-written files in `topics/`. They are the
+  fallback, used only when a song has no usable article or generation fails.
+  The overlay only reads them.
+- **`logs/songs.log`** records which of those paths each song took, not the
+  facts themselves.
+
 ## Topic packs
 
 When a song has no article, the overlay shows hand-verified facts from the
@@ -96,14 +114,15 @@ topic packs in `topics/`. Set `TOPIC` to the genres your channel plays:
 | `classical` | 7 | Piano repertoire and composers |
 | `film` | 8 | Film and TV scores |
 | `pop` | 7 | Pop and rock songs and songwriters |
-| `piano` | 4 | The instrument, plus an originals line for solo pianists |
+| `piano` | 4 | The instrument, plus an originals line for solo pianists (not in the default) |
 | `general` | 6 | Music in general, plus lines for your own compositions |
 
 ```env
 TOPIC=classical,film,piano,general   # a classical pianist
 ```
 
-The default is all six. The packs together must hold at least five facts.
+The default is every pack except `piano`, since its originals line assumes a
+solo pianist; add it if that's you. The packs together must hold at least five facts.
 Every line in them was checked against a source, which is the point of the
 pool; please do the same in a pull request. To make your own pack, copy any
 file in `topics/` and add its name to `TOPIC`.
@@ -133,7 +152,7 @@ option with its default. The ones you will actually touch:
 | `SSL_STREAMER_NAME` | — | Your StreamerSongList channel |
 | `SSL_ACCESS_TOKEN` | — | Required on every API call |
 | `AI_PROVIDER` | `ollama` | `ollama`, `openai`, or `anthropic` |
-| `TOPIC` | all six packs | Which topic packs supply fallback facts |
+| `TOPIC` | all but `piano` | Which topic packs supply fallback facts |
 | `STREAMER_DISPLAY_NAME` | `SSL_STREAMER_NAME` | How prompts and banners name you |
 | `INSTRUMENT` | *(empty)* | "piano", "guitar"… used in the prompt |
 | `FACTS_PER_SONG` | `5` | Bubbles per song |
@@ -190,12 +209,15 @@ runs compiled; there is no dev transpiler on purpose.
   reality.** A fact is only as correct as the Wikipedia text it came from.
 - **English Wikipedia only**, and one streamer per running server.
 - **The server listens on 127.0.0.1 only**, because it has no authentication.
-  Set `HOST` if OBS runs on another machine, and only on a network you trust.
+  If OBS runs on another machine, set `HOST=0.0.0.0` on a network you trust,
+  and set `SERVER` at the top of `frontend/obs/obs-overlay.js` to the server's
+  address.
 - **Expect some sentences to be dropped.** The model is asked for two more
   lines than are shown, and screening removes any it can't support. On a thin
   article you may see fewer bubbles than `FACTS_PER_SONG`.
 - **The overlay finds the server at 127.0.0.1:3000.** If you change `PORT`,
-  change it at the top of `frontend/obs/obs-overlay.js` too.
+  change `SERVER` at the top of `frontend/obs/obs-overlay.js` to match; a
+  Local File source can't be given the address any other way.
 - **Built against the StreamerSongList API as of 2026.** If they change it,
   the song-list client is the one file to update.
 

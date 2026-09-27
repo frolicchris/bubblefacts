@@ -121,6 +121,13 @@ describe("generateFacts", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("rebuilds an original's facts each time, so requester and play count stay current", async () => {
+    const original = { title: "Laura's Wedding", artist: "Test Streamer" };
+    await generateFacts(original, entry({ ...original, timesPlayed: 1 }));
+    const later = await generateFacts(original, entry({ ...original, timesPlayed: 2 }));
+    expect(later.some((f) => f.text.includes("2 times"))).toBe(true);
+  });
+
   it("uses entry and curated facts, with no model call, when there is no article", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     const facts = await generateFacts(song, entry({ timesPlayed: 0 }));

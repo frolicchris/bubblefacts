@@ -27,6 +27,8 @@ StreamerSongList ──(Centrifugo WS + 15s poll)──► Backend ──WebSock
 6. **Fall back**: no article, or nothing survived → topic-pack facts, with no model call.
 7. **Broadcast** `new_song` immediately and `facts_ready` when done; the overlay drops batches for songs that already ended.
 
+Generated facts live in memory for the session (repeat songs are instant) and are never written to disk. Topic packs are read-only fallbacks.
+
 ## Design decisions
 
 Each of these was learned from real use. Read them before changing the pipeline.
@@ -62,10 +64,11 @@ suddenly falls back to curated facts, check it first.
 
 **Only a real "no article" is cached.** A timeout or rate limit means the
 lookup never happened, so it is not remembered. Real misses expire after ten
-minutes and belong to that song only. An article found through the game is
-shared by every track from it, since a set often works through one
-soundtrack; an article found through the track belongs to that song, so one
-Queen song's article is never reused for another. A track article is only
+minutes. For a game, both hits and misses are shared by all its tracks, since
+a set often works through one soundtrack. For an artist, each song keeps its
+own, so one Queen song's article is never reused for another. Telling the two
+apart is a heuristic (a known name, or "Firstname Lastname"); when it mistakes
+a game for an artist, the only cost is extra lookups. A track article is only
 accepted if its text mentions the game or artist: "Overture" on its own is a
 generic article, not a soundtrack reference.
 
@@ -77,9 +80,9 @@ about something else"), and low temperature. "Be accurate" does nothing.
 **StreamerSongList.** Every endpoint needs `SSL_ACCESS_TOKEN`. Use the queue's
 `playing` slot; `items[0]` is the *next* song and is only a fallback for
 streamers who don't use now-playing. Realtime events arrive through
-Centrifugo's unidirectional WebSocket, and every event is handled the same
-way, by refetching the queue, so an unrecognised event costs at most one poll
-interval. A change announced while a fetch is running triggers one more fetch,
+Centrifugo's unidirectional WebSocket. Queue-related events all trigger the
+same action, a refetch of the queue, so a missed or renamed event costs at most
+one poll interval. A change announced while a fetch is running triggers one more fetch,
 since the running one may predate it.
 
 **OBS.** Browser sources render without GPU acceleration: animate only
@@ -88,7 +91,7 @@ source that fails at OBS startup never retries.
 
 ## Overlay
 
-- Connects to `ws://localhost:3000/ws`. Under `file://` (the recommended OBS Local File setup) the URL is hard-coded, so the page renders and reconnects regardless of whether the server was up when OBS launched.
+- Connects to `ws://127.0.0.1:3000/ws` (the `SERVER` constant). Under `file://` (the recommended OBS Local File setup) the URL is hard-coded, so the page renders and reconnects regardless of whether the server was up when OBS launched.
 - Each fact's `delaySeconds` counts from the batch's arrival, not from song start, so a batch that lands 40 s in still shows every bubble.
 - Concurrent requests for one song (several overlays, a reconnect mid-generation) share a single generation.
 - A `song` identity guard discards facts for a song that is no longer current.

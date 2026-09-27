@@ -1,6 +1,7 @@
 import { config } from "./config";
 import { SSLSong } from "./types";
 import { topic } from "./topic";
+import { escapeRe } from "./text";
 
 /**
  * Grounding and screening.
@@ -38,9 +39,9 @@ const groundingCache = new Map<string, { text: string; at: number }>();
 
 /** A trailing parenthetical that marks a variant rather than naming the game. */
 const VARIANT_MARKER =
-  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b)/i;
-/** Words that are a variant only when they are the whole parenthetical: "(Night)", not "(Night in the Woods)". */
-const VARIANT_WORD = /^\s*(live|acoustic|piano|vocal|instrumental|day|night)(\s+(ver\.?|version|mix|arr\.?))?\s*$/i;
+  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b|live\b|acoustic\b|piano\b|vocal\b|instrumental\b)/i;
+/** "(Day)" and "(Night)" are variants only on their own; "(Night in the Woods)" is a game. */
+const VARIANT_WORD = /^\s*(day|night)\s*$/i;
 
 /** Split "Game: Track", "Game - Track" or "Track (Game)". */
 export function splitGameAndTrack(title: string): { game: string; track: string } {
@@ -280,12 +281,15 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   const gameKey = normalizeTitle(game);
   const songKey = `${gameKey}\0${normalizeTitle(track)}`;
 
-  for (const key of [gameKey, songKey]) {
+  // A game's tracks share one lookup. An artist's songs never share: each may
+  // have its own article. The artist test is a heuristic, and guessing
+  // "artist" for a game only costs extra lookups, never wrong facts.
+  const artist = looksLikeArtistName(game);
+  for (const key of artist ? [songKey] : [gameKey, songKey]) {
     const hit = key && groundingCache.get(key);
     if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.text;
   }
 
-  const artist = looksLikeArtistName(game);
   // Which way an article matched decides how widely it may be shared. A
   // track article must not be attributed to another artist, and its text
   // must mention the game or artist: "Overture" alone is a generic article.
@@ -317,7 +321,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       }
       const text = `${page}\n${extract}`;
       console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars)`);
-      groundingCache.set(byGame ? gameKey : songKey, { text, at: Date.now() });
+      groundingCache.set(byGame && !artist ? gameKey : songKey, { text, at: Date.now() });
       return text;
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -332,7 +336,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       (unreachable ? ` (${unreachable}, not cached)` : "") +
       ` — tried: ${terms.join(" | ")}`
   );
-  if (!unreachable) groundingCache.set(songKey, { text: "", at: Date.now() });
+  if (!unreachable) groundingCache.set(artist ? songKey : gameKey, { text: "", at: Date.now() });
   return "";
 }
 
@@ -342,7 +346,6 @@ export function clearGroundingCache(): void {
 
 // --- Screening ---------------------------------------------------------
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Whole-word, whole-phrase containment. */
 const hasWord = (needle: string, haystack: string, flags = "i") =>
   new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(needle)}([^\\p{L}\\p{N}]|$)`, flags + "u").test(haystack);
