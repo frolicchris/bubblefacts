@@ -14,9 +14,24 @@ welcome, whatever their experience, background or identity.
 sharing someone's private information, or deliberately disrupting
 discussions.
 
-If someone breaks these rules, their comments may be removed and they may be
-blocked from the project. To report a problem privately, join the
-[Discord server](https://discord.gg/rgm4zTMEr) and send frolicchris a direct message.
+## Reporting a problem
+
+If someone breaks these rules, or makes you uncomfortable, email
+**chris@frolic.org**. You don't need to join Discord or post anything publicly
+to report.
+
+- Your report stays confidential. Your name won't be shared with the person
+  you report.
+- You'll get a reply within a week, usually much sooner.
+- If the problem is with the maintainer, or you'd rather not contact them,
+  report it to GitHub instead through
+  [Report abuse](https://github.com/contact/report-abuse).
+
+## What happens next
+
+Depending on how serious it is, the response may be a private word, a public
+warning, removing comments, or blocking someone from the project temporarily
+or permanently. Harassment and threats lead straight to a block.
 
 This is based on the spirit of the
 [Contributor Covenant](https://www.contributor-covenant.org).
