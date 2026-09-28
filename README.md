@@ -48,7 +48,7 @@ Everything you might need to download or sign up for, in one place.
 
 - [Download the latest version (ZIP)](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip)
 - [All versions and what changed](https://github.com/frolicchris/stream-facts-overlay/releases)
-- [Ask a setup question](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a), or chat on [Discord](https://discord.gg/rgm4zTMEr)
+- [Ask a setup question](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a), or chat on [Discord](https://discord.gg/gXdVKc6KWx)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose)
 
 **Required**
@@ -351,7 +351,7 @@ and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
 Still stuck? [Ask in Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a)
-or on [Discord](https://discord.gg/rgm4zTMEr), or if it looks like a bug, [open an issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
+or on [Discord](https://discord.gg/gXdVKc6KWx), or if it looks like a bug, [open an issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
 Include the relevant lines from the newest file in the `logs` folder, with
 your token removed.
 
