@@ -23,7 +23,8 @@ bash scripts/start-overlay.sh
   grounding + deterministic screening. Sharpen the prompt before adding layers.
 - Never ask the model for facts without a reference. No article → topic packs.
 - Partial results are never padded from the topic packs.
-- Topic packs (`topics/*.json`, one per genre, merged by `TOPIC`) contain only
-  hand-verified lines. Don't pad a small pack with unverified facts.
+- The packs in `topics/` are examples, not maintained content. Don't add to,
+  expand, or "improve" them, and don't accept pull requests that do. Streamers
+  keep their own packs.
 - Docs are for streamers first: plain words, numbered steps, no unexplained
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.

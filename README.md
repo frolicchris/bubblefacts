@@ -228,16 +228,17 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 All of these are lines in your `.env` file. Restart the overlay after changing it.
 [docs/CONFIG.md](docs/CONFIG.md) lists every setting.
 
-### Your genres
+### Your backup facts
 
-When a song has no Wikipedia article, the overlay shows hand-checked facts
-from **topic packs**, one per genre. Choose the ones your channel plays:
+When a song has no Wikipedia article, the overlay shows facts from **topic
+packs**: small files in the `topics` folder, each a list of facts you've
+chosen. These facts go straight to your stream without being checked by the
+overlay, so only include ones you've checked yourself.
 
-```env
-TOPIC=classical,film,piano,general
-```
+The overlay comes with a few **example packs** so it works straight away and
+so you can see the format:
 
-| Pack | Facts | About |
+| Example | Facts | About |
 |---|---|---|
 | `video-game` | 24 | Game composers, sound chips, soundtracks |
 | `classical` | 7 | Composers and piano repertoire |
@@ -246,12 +247,24 @@ TOPIC=classical,film,piano,general
 | `piano` | 4 | The instrument itself, plus a line for solo pianists' originals |
 | `general` | 6 | Music in general, plus lines for your own compositions |
 
-The default is every pack except `piano`. Keep `general` if you play your own
-music. Your choice needs at least five facts in total.
+They're examples, not a maintained collection: they won't be expanded or
+updated, and changes to them aren't accepted into the project. Use them as
+they are, trim them, or replace them with your own.
 
-You can write your own pack: copy any file in the `topics` folder, change the
-facts, and add its name to `TOPIC`. Please only include facts you've checked
-against a source; that's the whole point of these packs.
+To choose which packs to use, list them in `.env`:
+
+```env
+TOPIC=classical,film,piano,general
+```
+
+The default is every example except `piano`. Keep `general`, or a pack of
+your own with lines for your originals, if you play your own music. Your
+choice needs at least five facts in total.
+
+**To make your own pack,** copy any file in `topics`, give it a name that's
+yours (such as `my-facts.json`), change the facts, and add that name to
+`TOPIC`. A name of your own means a future update can't overwrite it. Keep it
+short: a couple of dozen facts you're sure of beat a long list you aren't.
 
 ### Your own compositions
 
@@ -306,8 +319,8 @@ with what changed in each.
 1. Stop the overlay (Ctrl-C in its window).
 2. [Download the latest version](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip) and unzip it.
 3. Copy your `.env` file from the old folder into the new one. (Press
-   Cmd+Shift+. in Finder to see it.) If you edited the look or wrote your own
-   topic pack, copy those files over too.
+   Cmd+Shift+. in Finder to see it.) Copy your own topic pack too, and the
+   CSS file if you changed the look.
 4. In Terminal, go to the new folder and run `npm install`, then start it as
    usual with `bash scripts/start-overlay.sh`.
 5. In OBS, point the Browser source's **Local file** at `obs-overlay.html` in
@@ -397,7 +410,7 @@ The code is [MIT licensed](LICENSE). Built by
 How it works, and the reasons behind the less obvious choices, are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before changing how
 facts are found or checked. [CONTRIBUTING.md](CONTRIBUTING.md) covers pull
-requests and adding topic-pack facts.
+requests.
 
 ```bash
 npm run check       # everything below; also runs automatically on every push and pull request

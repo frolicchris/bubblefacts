@@ -13,7 +13,7 @@ the relevant section before changing it.
 | **Grounding** | Finding the song's Wikipedia article and pulling out the useful text. |
 | **Reference** | That article text, handed to the AI as its only source. |
 | **Screening** | Checking each caption the AI wrote against the reference, and dropping those it doesn't support. |
-| **Topic pack** | A file of hand-checked facts for one genre, in `topics/`. Used when there's no reference. |
+| **Topic pack** | A streamer's own file of facts, in `topics/`. Used when there's no reference. The ones shipped are examples, not maintained content. |
 | **Entry facts** | Facts built from the queue entry itself: "played 12 times", "requested by X". |
 
 ## The pieces
@@ -80,8 +80,13 @@ costs nothing.
 Asked for "general video game music facts" with nothing to go on, a small
 model states confident errors, such as crediting Final Fantasy VII to the
 wrong composer, and there's nothing to check them against. Hand-checked
-topic-pack facts are better than invented ones. That's also why the packs
-are split by genre: a Tetris fact under a Chopin nocturne is a non-sequitur.
+facts the streamer has chosen are better than invented ones. Packs can be
+split by genre so a channel only draws on music it plays: a Tetris fact under
+a Chopin nocturne is a non-sequitur.
+
+Topic-pack facts are the one thing shown without screening, since there's no
+reference to check them against. That's why the project ships them only as
+examples and leaves each streamer responsible for their own.
 
 For the same reason, a short result is never padded. Four facts about the
 right song beat four plus one unrelated one.

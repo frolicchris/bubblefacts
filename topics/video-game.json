@@ -1,7 +1,7 @@
 {
   "id": "video-game",
   "name": "Video game music",
-  "description": "Composers, sound hardware and soundtracks from games.",
+  "description": "Example pack. Composers, sound hardware and soundtracks from games.",
   "curatedFacts": [
     "Koji Kondo wrote The Legend of Zelda's overworld theme within a day, after learning Ravel's \"Boléro\" wasn't yet public domain in Japan.",
     "The NES sound chip had five channels: two pulse waves, a triangle, a noise channel, and one for samples.",

@@ -40,10 +40,10 @@ which one. Names and web addresses are used as written, so double-check those.
 |---|---|---|
 | `STREAMER_DISPLAY_NAME` | your channel name | The name used when talking about you: "performed live by Jane". |
 | `INSTRUMENT` | *none* | Your instrument, such as `piano` or `guitar`. With it, the AI is told you're "playing *the song* on piano"; without it, just "performing" it. |
-| `TOPIC` | `video-game,classical,film,pop,general` | Which packs of hand-checked facts to use when a song has no Wikipedia article. List the genres you play, separated by commas. Add `piano` if you're a solo pianist, and keep `general` if you play your own compositions. Together they need at least five facts. The packs are only ever read, never changed. |
+| `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it. Keep `general`, or your own pack with originals lines, if you play your own compositions. Together they need at least five facts. The overlay only reads these files. |
 
-The packs are `video-game`, `classical`, `film`, `pop`, `piano` and `general`,
-plus any you add to the `topics` folder.
+The example packs are `video-game`, `classical`, `film`, `pop`, `piano` and
+`general`. They aren't maintained; copy one to start your own.
 
 ---
 

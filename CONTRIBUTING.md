@@ -1,35 +1,26 @@
 # Contributing
 
-Thanks for helping. There are three useful ways to contribute, and none of
-them needs you to write code.
+Thanks for helping. The most useful contributions are reports of wrong facts
+and bugs, and neither needs you to write code.
 
 ## Report a wrong fact
 
-If a bubble showed something untrue, or a fact about the wrong song,
+If a bubble generated from Wikipedia showed something untrue, or a fact about
+the wrong song,
 [open a "A fact is wrong" issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
 Accuracy is the point of this project, so these reports matter most. Include
 the lines starting with `[Grounding]` and `[Screen]` from your log if you can;
 they show which Wikipedia article was used.
 
-## Add facts to a topic pack
+## Topic packs are examples
 
-The topic packs in `topics/` are the hand-checked facts shown when a song has
-no Wikipedia article. `film` and `pop` are the smallest and most in need of
-help.
+The packs in `topics/` are examples that show the format and make the overlay
+work on first run. They aren't maintained, and pull requests that add to or
+change them won't be accepted. Streamers keep their own packs on their own
+machine; the README explains how.
 
-Every fact must:
-
-- **be checked against a source you can link**, such as the Wikipedia article
-  about the song, composer or game. Put the link in your pull request;
-- be one sentence, under 160 characters, readable at a glance;
-- be a fact, not an opinion ("arrangement is composition too" is an opinion);
-- avoid awards, chart positions and sales figures. The overlay rejects those
-  claims from the AI because they're so often wrong, so the packs don't use
-  them either.
-
-To add a whole new genre, copy an existing file in `topics/`, change the
-`id`, `name`, `description` and facts, and mention it in the README's topic
-pack table.
+Improvements to how packs are *loaded or used* are welcome like any other code
+change.
 
 ## Change the code
 

@@ -6,6 +6,8 @@ body:
     attributes:
       value: |
         Accuracy is the point of this project, so these reports are especially useful.
+
+        This form is for facts generated from Wikipedia. Facts from the example topic packs aren't maintained; edit your own copy instead.
   - type: input
     id: song
     attributes:
@@ -33,7 +35,6 @@ body:
       options:
         - It's about a different song, game or artist
         - It's about the right song, but it's wrong
-        - It came from a topic pack (a general fact, not about this song)
         - Not sure
     validations:
       required: true

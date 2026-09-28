@@ -1,7 +1,7 @@
 {
   "id": "piano",
   "name": "Piano",
-  "description": "Facts about the instrument, plus originals lines for solo pianists.",
+  "description": "Example pack. Facts about the instrument, plus originals lines for solo pianists.",
   "curatedFacts": [
     "A standard piano has 88 keys: 52 white and 36 black.",
     "Middle C is the C nearest the middle of the piano keyboard.",
