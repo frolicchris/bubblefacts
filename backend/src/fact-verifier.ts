@@ -115,7 +115,7 @@ function normalizeTitle(s: string): string {
     .trim();
 }
 
-/** Content words plus every numeral, roman numerals normalised to arabic. */
+/** Content words plus every numeral, roman numerals normalized to arabic. */
 function significantTokens(s: string): string[] {
   const words = s.split(" ").filter((t) => t && !STOPWORDS.has(t));
   const kept = words.filter((t) => t.length >= 2 || /\d/.test(t) || t in ROMAN);
@@ -171,7 +171,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
     const year = /\b(20\d{2})\b/.exec(qualifier)?.[1];
     if (year && Number(year) > new Date().getFullYear()) return false;
 
-    // Capitalised disambiguators are attributions ("Clair de Lune (Debussy)");
+    // Capitalized disambiguators are attributions ("Clair de Lune (Debussy)");
     // lowercase ones are categories and must be musical.
     const isPerformer = PERFORMER_QUALIFIER.test(qualifier);
     const properNoun = /^\p{Lu}/u.test(qualifier.trim()) && !isPerformer;
@@ -372,7 +372,7 @@ const META_PATTERNS: RegExp[] = [
 ];
 
 const YEAR = /\b(1\d{3}|20\d{2})\b/g;
-/** Capitalised words, including "McCartney"; two or more, or a single Mc- surname. */
+/** Capitalized words, including "McCartney"; two or more, or a single Mc- surname. */
 const NAME_WORD = String.raw`(?:Mc\p{Lu}\p{Ll}+|\p{Lu}[\p{Ll}'’-]+)`;
 const NAME = new RegExp(String.raw`(?<!\p{L})(?:${NAME_WORD}(?:\s+${NAME_WORD})+|Mc\p{Lu}\p{Ll}+)`, "gu");
 
@@ -410,7 +410,7 @@ export function platformSupported(platform: string, context: string): boolean {
   return direct || (PLATFORM_ALIASES.get(p) ?? []).some((a) => hasWord(a, context));
 }
 
-/** Leading words that make a capitalised run look like a name when it isn't one. */
+/** Leading words that make a capitalized run look like a name when it isn't one. */
 const NAME_STOPWORDS = new Set([
   "the", "a", "an", "this", "that", "these", "those", "it", "its", "in", "on",
   "at", "for", "to", "of", "and", "but", "or", "so", "when", "while", "after",
@@ -427,9 +427,9 @@ const NAME_STOPWORDS = new Set([
 ]);
 
 /**
- * The first capitalised name in the fact that the reference doesn't contain.
+ * The first capitalized name in the fact that the reference doesn't contain.
  * Each word must appear as a whole word, which tolerates "Koshiro" alone or a
- * different romanisation of the given name, but not "Ed" inside "played".
+ * different romanization of the given name, but not "Ed" inside "played".
  */
 export function unsupportedName(fact: string, context: string): string | null {
   for (const candidate of fact.match(NAME) ?? []) {

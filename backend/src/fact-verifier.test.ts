@@ -409,13 +409,13 @@ describe("non-video-game repertoire", () => {
 });
 
 describe("looksLikeArtistName", () => {
-  it("recognises well-known composers and artists", () => {
+  it("recognizes well-known composers and artists", () => {
     expect(looksLikeArtistName("Chopin")).toBe(true);
     expect(looksLikeArtistName("Joe Hisaishi")).toBe(true);
     expect(looksLikeArtistName("The Beatles")).toBe(true);
   });
 
-  it("recognises an ordinary personal name", () => {
+  it("recognizes an ordinary personal name", () => {
     expect(looksLikeArtistName("Jane Composer")).toBe(true);
   });
 

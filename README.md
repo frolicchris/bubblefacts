@@ -191,10 +191,10 @@ stream**; closing it stops the overlay.
 
 1. In the scene you stream from, under **Sources**, click **+** and choose
    **Browser**. Name it "Stream Facts".
-2. Tick **Local file**, click **Browse**, and pick
+2. Check **Local file**, click **Browse**, and pick
    `frontend/obs/obs-overlay.html` inside the overlay folder.
 3. Set **Width** to `1920` and **Height** to `1080`.
-4. Tick **Refresh browser when scene becomes active**. Leave Custom CSS empty.
+4. Check **Refresh browser when scene becomes active**. Leave Custom CSS empty.
 5. Click **OK**. Then right-click the source and choose
    **Transform → Reset Transform**, so it fills the screen exactly.
 
@@ -235,7 +235,7 @@ packs**: small files in the `topics` folder, each a list of facts you've
 chosen. These facts go straight to your stream without being checked by the
 overlay, so only include ones you've checked yourself.
 
-The overlay comes with a few **example packs** so it works straight away and
+The overlay comes with a few **example packs** so it works right away and
 so you can see the format:
 
 | Example | Facts | About |
@@ -268,7 +268,7 @@ short: a couple of dozen facts you're sure of beat a long list you aren't.
 
 ### Your own compositions
 
-The overlay recognises your originals if, in StreamerSongList, you either:
+The overlay recognizes your originals if, in StreamerSongList, you either:
 
 - tag them with an attribute named something like **Originals** or
   **Jane's Originals**, or
@@ -298,7 +298,7 @@ at a time.
 
 ### The look
 
-Colours, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
+Colors, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
 text bigger or smaller, change `--fact-font-size` near the top. Save the file,
 then right-click the source in OBS and choose **Refresh**.
 
@@ -385,7 +385,7 @@ leader who plays piano requests on Twitch. Almost none of the code was typed
 by hand.
 
 What a person did: decided what it should do, ran it on live streams, read the
-logs afterwards, and pushed back when it was wrong. The design decisions in
+logs afterward, and pushed back when it was wrong. The design decisions in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) came from that loop, and the bugs
 found on stream have tests that keep them fixed.
 

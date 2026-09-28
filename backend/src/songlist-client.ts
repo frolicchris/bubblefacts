@@ -136,7 +136,7 @@ export class SongListClient {
 
   /**
    * Fetch the queue and apply it, one request at a time. A refresh asked for
-   * while one is running fetches again afterwards, because the running
+   * while one is running fetches again afterward, because the running
    * request may have started before the change it was asked about.
    */
   private refresh(): Promise<void> {

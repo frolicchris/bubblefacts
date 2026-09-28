@@ -5,4 +5,4 @@
 ## Checklist
 
 - [ ] `npm run check` passes.
-- [ ] Docs are updated if behaviour or settings changed.
+- [ ] Docs are updated if behavior or settings changed.

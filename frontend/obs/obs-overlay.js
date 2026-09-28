@@ -14,7 +14,7 @@
  * Setup
  * -----
  *
- *  Add a Browser Source in OBS with "Local File" ticked, pointing at this
+ *  Add a Browser Source in OBS with "Local File" checked, pointing at this
  *  folder's obs-overlay.html, 1920x1080. See README.md.
  *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble

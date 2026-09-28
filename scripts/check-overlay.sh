@@ -50,7 +50,7 @@ cat <<'TIPS'
   2. macOS Local Network permission is off for OBS
      (System Settings > Privacy & Security > Local Network).
   3. The source is hidden, or in a scene that isn't live, with
-     "Shutdown source when not visible" ticked.
+     "Shutdown source when not visible" checked.
   4. OBS's browser process crashed. Quit OBS fully and reopen it.
 
   To separate a rendering problem from a connection problem, open

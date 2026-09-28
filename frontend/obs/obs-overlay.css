@@ -225,7 +225,7 @@ html, body {
   font-size: var(--toast-font-size);
   font-weight: 700;
   letter-spacing: 0.04em;
-  /* Wrap long titles; nowrap on a centred element clips both ends. */
+  /* Wrap long titles; nowrap on a centered element clips both ends. */
   max-width: 80vw;
   white-space: normal;
   text-align: center;

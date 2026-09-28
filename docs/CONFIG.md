@@ -65,7 +65,7 @@ The overlay chooses automatically: Anthropic if you've set
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Where Ollama is running. |
 | `OLLAMA_FALLBACK_URL` | *none* | A second computer running Ollama, tried if the first fails. |
 | `OLLAMA_MODEL` | `llama3.2` | Which model to use. Download it first with `ollama pull`. |
-| `OLLAMA_TIMEOUT_MS` | `90000` | How long to wait for an answer. Raise it for a slow computer; a computer that's switched off fails straight away regardless. |
+| `OLLAMA_TIMEOUT_MS` | `90000` | How long to wait for an answer. Raise it for a slow computer; a computer that's turned off fails right away regardless. |
 | `OLLAMA_KEEP_ALIVE` | `4h` | How long Ollama keeps the model loaded between songs. Its own default of five minutes is shorter than the gap between most songs, which would make every song wait for the model to reload. |
 
 ### Groq, OpenRouter, Gemini and similar services
@@ -108,7 +108,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Keep this shorter than the interval so bubbles don't overlap. |
 
 Where bubbles appear is not a setting. It's the `POSITIONS` list in
-`backend/src/fact-generator.ts`. Text size, colours and animation are at the
+`backend/src/fact-generator.ts`. Text size, colors and animation are at the
 top of `frontend/obs/obs-overlay.css`.
 
 ---

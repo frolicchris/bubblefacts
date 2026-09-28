@@ -33,7 +33,7 @@ change.
 4. Run `npm run check`. It type-checks, lints and tests everything in about
    ten seconds, and it's the same check that runs automatically on every pull
    request.
-5. Update the docs if you changed behaviour or a setting. The README is written
+5. Update the docs if you changed behavior or a setting. The README is written
    for streamers, not programmers: plain words, no unexplained jargon.
 
 For anything bigger than a small fix, open an issue first so we can agree on

@@ -39,7 +39,7 @@ StreamerSongList ──(live events + a check every 15 s)──► Server ──
 
 1. **Find what's playing.** The queue has a "now playing" slot; if the
    streamer doesn't use it, the top of the queue is used instead.
-2. **Tell the overlay.** It shows the NOW PLAYING banner straight away, before
+2. **Tell the overlay.** It shows the NOW PLAYING banner right away, before
    any facts exist.
 3. **Handle the special cases.** A Live Learn (a request that isn't on the
    song list) gets a banner and no facts. The streamer's own composition gets
@@ -146,7 +146,7 @@ now; the first item in `items` is the *next* song and is only a fallback.
 Live updates come through a one-way WebSocket, and every queue-related event
 does the same thing: re-read the queue. So a missed or renamed event costs at
 most one 15-second check. If an update arrives while a read is already
-running, the queue is read once more afterwards, since the running read may
+running, the queue is read once more afterward, since the running read may
 be from before the change.
 
 ### OBS details

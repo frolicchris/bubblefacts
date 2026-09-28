@@ -25,7 +25,7 @@ const HOSTED_MAX_TOKENS = 2048;
 /**
  * Bubble slots as CSS percentages of a 1920x1080 overlay. Laid out to avoid a
  * song-queue panel top-left, a camera top-right, goal widgets bottom-right and
- * the song banner bottom-centre. `left` is the bubble's left edge; keep it
+ * the song banner bottom-center. `left` is the bubble's left edge; keep it
  * under ~66% so a 560px bubble stays on screen. Edit for your own scene.
  */
 const POSITIONS = [
