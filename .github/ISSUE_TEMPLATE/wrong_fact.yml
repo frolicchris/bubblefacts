@@ -1,0 +1,45 @@
+name: A fact is wrong
+description: A bubble showed something untrue, or about the wrong song.
+labels: [wrong fact]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Accuracy is the point of this project, so these reports are especially useful.
+  - type: input
+    id: song
+    attributes:
+      label: Song
+      description: The title and artist as they appear in your StreamerSongList queue.
+      placeholder: "Sunshine Coastline — Ys VIII: Lacrimosa of Dana"
+    validations:
+      required: true
+  - type: textarea
+    id: shown
+    attributes:
+      label: The fact that was shown
+      description: Copy it exactly if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: What's actually true, and your source
+      description: A link to where the correct information is, if you have one.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of mistake?
+      options:
+        - It's about a different song, game or artist
+        - It's about the right song, but it's wrong
+        - It came from a topic pack (a general fact, not about this song)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines (optional)
+      description: The lines starting with `[Grounding]` and `[Screen]` for that song, from the newest file in the `logs` folder. They show which article was used.
+      render: text

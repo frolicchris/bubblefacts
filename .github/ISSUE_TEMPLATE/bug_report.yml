@@ -1,0 +1,49 @@
+name: Something isn't working
+description: The overlay crashes, shows nothing, or behaves wrongly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. **Never paste your StreamerSongList token or an API key here.** If you share a log, check it first.
+
+        If a fact on screen is wrong, use the "A fact is wrong" form instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen?
+      description: The steps that lead to the problem, if you know them.
+  - type: input
+    id: version
+    attributes:
+      label: Overlay version
+      description: Shown on the releases page you downloaded from, for example 1.0.0.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Computer
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: dropdown
+    id: ai
+    attributes:
+      label: Where the AI runs
+      options: [Ollama on my computer, Groq, Anthropic, OpenRouter, Gemini, Other or not sure]
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: The relevant lines from the newest file in the `logs` folder. Remove your token first.
+      render: text

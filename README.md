@@ -1,5 +1,9 @@
 # Stream Facts Overlay
 
+[![Check](https://github.com/frolicchris/stream-facts-overlay/actions/workflows/check.yml/badge.svg)](https://github.com/frolicchris/stream-facts-overlay/actions/workflows/check.yml)
+[![Latest release](https://img.shields.io/github/v/release/frolicchris/stream-facts-overlay)](https://github.com/frolicchris/stream-facts-overlay/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 When you play a song from your request queue, little game-style dialog boxes
 pop up on your stream with true facts about it.
 
@@ -44,7 +48,8 @@ Everything you might need to download or sign up for, in one place.
 
 - [Download the latest version (ZIP)](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip)
 - [All versions and what changed](https://github.com/frolicchris/stream-facts-overlay/releases)
-- [Report a problem or ask a question](https://github.com/frolicchris/stream-facts-overlay/issues)
+- [Ask a setup question](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a)
+- [Report a problem or a wrong fact](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose)
 
 **Required**
 
@@ -332,8 +337,10 @@ in a web browser and add `?test=1` to the end of the address. A sample bubble
 and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
-Still stuck? [Open an issue](https://github.com/frolicchris/stream-facts-overlay/issues)
-and include the newest file from the `logs` folder, with your token removed.
+Still stuck? [Ask in Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a),
+or if it looks like a bug, [open an issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
+Include the relevant lines from the newest file in the `logs` folder, with
+your token removed.
 
 ---
 
@@ -370,7 +377,9 @@ logs afterwards, and pushed back when it was wrong. The design decisions in
 found on stream have tests that keep them fixed.
 
 It is shared as a useful tool, not as a claim of hand-written craft. Judge the
-code on its merits. Issues and pull requests are welcome.
+code on its merits. Issues and pull requests are welcome; see
+[CONTRIBUTING.md](CONTRIBUTING.md). Found a wrong fact? That's the most useful
+report of all.
 
 ### Credits and license
 
@@ -387,10 +396,11 @@ The code is [MIT licensed](LICENSE). Built by
 
 How it works, and the reasons behind the less obvious choices, are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before changing how
-facts are found or checked.
+facts are found or checked. [CONTRIBUTING.md](CONTRIBUTING.md) covers pull
+requests and adding topic-pack facts.
 
 ```bash
-npm run check       # everything below, the gate for a pull request
+npm run check       # everything below; also runs automatically on every push and pull request
 npm run typecheck   # TypeScript in strict mode, tests included
 npm run lint        # eslint on the overlay, shellcheck on the scripts
 npm test            # jest, about a second
