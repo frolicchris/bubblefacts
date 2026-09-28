@@ -28,6 +28,7 @@ service if your computer is busy enough already.
 - [Setup](#setup)
 - [What you'll see on stream](#what-youll-see-on-stream)
 - [Making it yours](#making-it-yours)
+- [Updating to a new version](#updating-to-a-new-version)
 - [If something goes wrong](#if-something-goes-wrong)
 - [Good to know](#good-to-know)
 - [How this was built](#how-this-was-built)
@@ -41,7 +42,8 @@ Everything you might need to download or sign up for, in one place.
 
 **The overlay**
 
-- [Download the overlay (ZIP)](https://github.com/frolicchris/stream-facts-overlay/archive/refs/heads/main.zip)
+- [Download the latest version (ZIP)](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip)
+- [All versions and what changed](https://github.com/frolicchris/stream-facts-overlay/releases)
 - [Report a problem or ask a question](https://github.com/frolicchris/stream-facts-overlay/issues)
 
 **Required**
@@ -98,13 +100,13 @@ This takes about 15 minutes the first time.
 
 ### 1. Download the overlay
 
-[Download the ZIP](https://github.com/frolicchris/stream-facts-overlay/archive/refs/heads/main.zip)
-(or, on the [project page](https://github.com/frolicchris/stream-facts-overlay),
-click **Code → Download ZIP**) and unzip it somewhere you'll remember, such as
-your Documents folder. (If you use git: `git clone https://github.com/frolicchris/stream-facts-overlay.git`.)
+[Download the latest version](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip) and unzip it somewhere you'll remember,
+such as your Documents folder. You'll get a folder called
+`stream-facts-overlay`. (If you use git:
+`git clone https://github.com/frolicchris/stream-facts-overlay.git`.)
 
-Then open Terminal, type `cd ` (with a space), drag the unzipped folder onto
-the Terminal window, and press Return. Now install what it needs:
+Then open Terminal, type `cd ` (with a space), drag the `stream-facts-overlay`
+folder onto the Terminal window, and press Return. Now install what it needs:
 
 ```bash
 npm install
@@ -287,6 +289,26 @@ Where bubbles appear is set in `backend/src/fact-generator.ts` (the list called
 in the top-right, and goal widgets in the bottom-right. If they cover something
 in your scene, edit the percentages there; the start script rebuilds
 automatically.
+
+---
+
+## Updating to a new version
+
+New versions are listed on the
+[releases page](https://github.com/frolicchris/stream-facts-overlay/releases),
+with what changed in each.
+
+1. Stop the overlay (Ctrl-C in its window).
+2. [Download the latest version](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip) and unzip it.
+3. Copy your `.env` file from the old folder into the new one. (Press
+   Cmd+Shift+. in Finder to see it.) If you edited the look or wrote your own
+   topic pack, copy those files over too.
+4. In Terminal, go to the new folder and run `npm install`, then start it as
+   usual with `bash scripts/start-overlay.sh`.
+5. In OBS, point the Browser source's **Local file** at `obs-overlay.html` in
+   the new folder, if you put it somewhere different.
+
+If you used git instead: `git pull`, then `npm install`.
 
 ---
 
