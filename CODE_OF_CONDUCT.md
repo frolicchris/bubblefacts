@@ -15,8 +15,8 @@ sharing someone's private information, or deliberately disrupting
 discussions.
 
 If someone breaks these rules, their comments may be removed and they may be
-blocked from the project. To report a problem privately, contact the
-maintainer through [twitch.tv/frolicchris](https://twitch.tv/frolicchris).
+blocked from the project. To report a problem privately, join the
+[Discord server](https://discord.gg/rgm4zTMEr) and send frolicchris a direct message.
 
 This is based on the spirit of the
 [Contributor Covenant](https://www.contributor-covenant.org).

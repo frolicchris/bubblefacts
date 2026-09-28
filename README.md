@@ -48,7 +48,7 @@ Everything you might need to download or sign up for, in one place.
 
 - [Download the latest version (ZIP)](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip)
 - [All versions and what changed](https://github.com/frolicchris/stream-facts-overlay/releases)
-- [Ask a setup question](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a)
+- [Ask a setup question](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a), or chat on [Discord](https://discord.gg/rgm4zTMEr)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose)
 
 **Required**
@@ -350,8 +350,8 @@ in a web browser and add `?test=1` to the end of the address. A sample bubble
 and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
-Still stuck? [Ask in Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a),
-or if it looks like a bug, [open an issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
+Still stuck? [Ask in Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a)
+or on [Discord](https://discord.gg/rgm4zTMEr), or if it looks like a bug, [open an issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
 Include the relevant lines from the newest file in the `logs` folder, with
 your token removed.
 
@@ -381,7 +381,7 @@ your token removed.
 
 This project was written with [Claude Code](https://claude.com/claude-code),
 Anthropic's AI coding agent, directed by frolicchris, a network and security
-engineer who plays piano requests on Twitch. Almost none of the code was typed
+leader who plays piano requests on Twitch. Almost none of the code was typed
 by hand.
 
 What a person did: decided what it should do, ran it on live streams, read the

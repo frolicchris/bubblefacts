@@ -3,6 +3,9 @@ contact_links:
   - name: Setup question or help getting started
     url: https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a
     about: Ask in Discussions. Other streamers can help, and the answer helps the next person.
+  - name: Chat on Discord
+    url: https://discord.gg/rgm4zTMEr
+    about: Quick questions, or just to say hi. The frolicchris community server.
   - name: Security problem
     url: https://github.com/frolicchris/stream-facts-overlay/security/advisories/new
     about: Report it privately, not in a public issue.

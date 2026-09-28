@@ -5,6 +5,12 @@
  *
  *  <https://github.com/frolicchris/stream-facts-overlay>
  *
+ * Help
+ * ----
+ *
+ *  Questions, bug reports and wrong facts: open an issue or ask in
+ *  Discussions on the page above, or chat on Discord at <https://discord.gg/rgm4zTMEr>.
+ *
  * Setup
  * -----
  *

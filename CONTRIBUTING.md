@@ -43,6 +43,7 @@ the approach before you spend time on it.
 
 Setup questions are welcome in
 [Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions),
-where the answer can help the next person too.
+where the answer can help the next person too, or on
+[Discord](https://discord.gg/rgm4zTMEr) for a quick chat.
 
 By taking part, you agree to the [code of conduct](CODE_OF_CONDUCT.md).
