@@ -1,0 +1,101 @@
+name: Smoke test
+
+# Installs a published release the way a musician would, on each system, and
+# checks the installed app: its server starts and serves the overlay, and the
+# built-in AI loads (GPU if there is one, then processor-only). Run it from
+# Actions > Smoke test > Run workflow before telling testers about a release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test, such as v2.0.0-beta.2 (empty means the newest release, betas included)
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  MODEL_URL: https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+  MODEL_SHA256: 6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff
+
+jobs:
+  smoke:
+    name: Smoke test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows, os: windows-latest, asset: "*-windows-x64.exe" }
+          - { name: linux-deb, os: ubuntu-24.04, asset: "*_amd64.deb" }
+          - { name: mac-arm64, os: macos-14, asset: "*-mac-arm64.dmg" }
+    env:
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+      - name: Pick the release
+        run: |
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then
+            tag=$(gh api "repos/$GITHUB_REPOSITORY/releases" -q '[.[] | select(.draft|not)][0].tag_name')
+          fi
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "Testing $tag"
+      - name: Download the installer
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer
+      - name: Cache the AI model
+        uses: actions/cache@v4
+        with:
+          path: model.gguf
+          key: model-${{ env.MODEL_SHA256 }}
+      - name: Download the AI model
+        run: |
+          [ -f model.gguf ] || curl -sSL -o model.gguf "$MODEL_URL"
+          echo "$MODEL_SHA256  model.gguf" | shasum -a 256 -c -
+
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem installer/*.exe | Select-Object -First 1
+          Start-Process -Wait -FilePath $exe.FullName -ArgumentList "/S"
+          $dir = Join-Path $env:LOCALAPPDATA "Programs\BubbleFacts"
+          if (-not (Test-Path "$dir\BubbleFacts.exe")) { throw "Not installed where expected: $dir" }
+          "APP_EXE=$dir\BubbleFacts.exe" | Out-File -Append $env:GITHUB_ENV
+          "APP_RESOURCES=$dir\resources" | Out-File -Append $env:GITHUB_ENV
+      - name: Install (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ./installer/*.deb
+          res=$(dpkg -L bubblefacts | grep -m1 '/resources/app.asar$' | xargs dirname)
+          exe=$(dirname "$res")/bubblefacts
+          [ -x "$exe" ] || { dpkg -L bubblefacts | head -40; exit 1; }
+          echo "APP_EXE=$exe" >> "$GITHUB_ENV"
+          echo "APP_RESOURCES=$res" >> "$GITHUB_ENV"
+      - name: Install (Mac)
+        if: runner.os == 'macOS'
+        run: |
+          hdiutil attach -nobrowse -readonly -mountpoint /tmp/bf installer/*.dmg
+          cp -R /tmp/bf/BubbleFacts.app "$HOME/Applications/" 2>/dev/null || { mkdir -p "$HOME/Applications"; cp -R /tmp/bf/BubbleFacts.app "$HOME/Applications/"; }
+          echo "APP_EXE=$HOME/Applications/BubbleFacts.app/Contents/MacOS/BubbleFacts" >> "$GITHUB_ENV"
+          echo "APP_RESOURCES=$HOME/Applications/BubbleFacts.app/Contents/Resources" >> "$GITHUB_ENV"
+
+      - name: Run the smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # A windowed app's output only reaches the log when redirected.
+          $env:ELECTRON_RUN_AS_NODE = "1"
+          $p = Start-Process -FilePath $env:APP_EXE -ArgumentList @("scripts/smoke-packaged.mjs", "`"$env:APP_RESOURCES`"", "model.gguf") -NoNewWindow -Wait -PassThru -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          Get-Content out.txt, err.txt
+          exit $p.ExitCode
+      - name: Run the smoke test (Linux and Mac)
+        if: runner.os != 'Windows'
+        run: ELECTRON_RUN_AS_NODE=1 "$APP_EXE" scripts/smoke-packaged.mjs "$APP_RESOURCES" model.gguf

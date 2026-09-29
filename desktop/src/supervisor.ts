@@ -155,7 +155,8 @@ export class Supervisor extends EventEmitter {
    * online option. Facts keep appearing from the song list meanwhile.
    */
   private modelFailed(how: string): void {
-    if (this.env.LLAMA_GPU !== "off") {
+    // Macs ship Metal builds of the AI only, so there's no processor-only build to retry with.
+    if (this.env.LLAMA_GPU !== "off" && process.platform !== "darwin") {
       this.log(`[App] The built-in AI ${how} using the GPU; retrying on the processor.`);
       this.env = { ...this.env, LLAMA_GPU: "off" };
       this.emit("gpu-off");
@@ -164,7 +165,7 @@ export class Supervisor extends EventEmitter {
       if (!this.stopping) this.launch("Restarting");
       return;
     }
-    this.log(`[App] The built-in AI ${how} on the processor too.`);
+    this.log(`[App] The built-in AI ${how}${process.platform === "darwin" ? "" : " on the processor too"}.`);
     // The app restarts the server without the AI; it still shows song-list and backup facts.
     this.emit("builtin-failed");
   }
