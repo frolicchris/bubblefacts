@@ -233,4 +233,57 @@ describe("SongListClient", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(client.getCurrentSong()?.song.title).toBe("Song B");
   });
+
+  it("waits as long as StreamerSongList asks when it's busy, and says why", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+      headers: new Headers({ "retry-after": "30" }),
+      json: async () => ({ title: "Too Many Requests", detail: "Slow down" }),
+    });
+    await expect(client.connect()).rejects.toThrow("(Slow down)");
+    const calls = mockFetch.mock.calls.length;
+    await (client as unknown as { refresh(): Promise<void> }).refresh();
+    expect(mockFetch.mock.calls.length).toBe(calls);
+  });
+
+  it("never sends the app's Client-Id with a pasted token", async () => {
+    const cfg = config as unknown as Record<string, unknown>;
+    cfg.sslClientId = "app-id";
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValueOnce(ok({ items: [], playing: null, total: 0 }));
+      await client.connect();
+      expect(mockFetch.mock.calls[0][1].headers["Client-Id"]).toBeUndefined();
+    } finally {
+      cfg.sslClientId = "";
+    }
+  });
+
+  it("refetches on any event and on every reconnect", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValue(ok({ items: [], playing: null, total: 0 }));
+      await client.connect();
+      const [, , onPublication, onConnect] = (CentrifugoStream as unknown as jest.Mock).mock.calls.at(-1);
+      const before = mockFetch.mock.calls.length;
+      onPublication("streamer:123", { type: "some_new_event_type", data: null });
+      await jest.advanceTimersByTimeAsync(300);
+      expect(mockFetch.mock.calls.length).toBe(before + 1);
+      onConnect();
+      await jest.advanceTimersByTimeAsync(300);
+      expect(mockFetch.mock.calls.length).toBe(before + 2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("uses the newer live-learn title and artist fields", () => {
+    const live = entry(9, "", { songId: null, nonlistSong: "old field", nonlistTitle: "Aerith's Theme", nonlistArtist: "Nobuo Uematsu" });
+    expect(SongListClient.toSong(live)).toMatchObject({ title: "Aerith's Theme", artist: "Nobuo Uematsu", liveLearn: true });
+  });
 });

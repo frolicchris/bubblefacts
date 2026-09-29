@@ -116,7 +116,7 @@ app.get("/health", (_req, res) => {
   // Never having reached StreamerSongList counts too, once startup has had its chance.
   const stale = queueAgeMs === null
     ? process.uptime() * 1000 > STARTUP_GRACE_MS
-    : queueAgeMs > config.sslPollIntervalMs * 3;
+    : queueAgeMs > songList.pollIntervalMs() * 3;
   const rejected = songList.authRejected();
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;
 

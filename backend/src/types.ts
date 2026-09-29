@@ -35,6 +35,9 @@ export interface SSLQueueItem {
   song: SSLQueueSong;
   /** Typed-in title for an off-list request. */
   nonlistSong: string | null;
+  /** Newer live-learn fields; either can be null. */
+  nonlistTitle?: string | null;
+  nonlistArtist?: string | null;
   note: string | null;
   streamerId: number;
   createdAt: string;
