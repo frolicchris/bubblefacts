@@ -105,12 +105,17 @@ jobs:
       - name: Diagnose the built-in AI (Linux, only when the test failed)
         if: failure() && runner.os == 'Linux'
         run: |
+          set +e
           echo "--- libraries the AI's native files can't find"
-          find "$APP_RESOURCES/app.asar.unpacked" \( -name '*.node' -o -name '*.so' \) | while read -r f; do
-            missing=$(ldd "$f" 2>/dev/null | grep 'not found' || true)
-            [ -n "$missing" ] && echo "$f: $missing"
-          done
+          find "$APP_RESOURCES/app.asar.unpacked" \( -name '*.node' -o -name '*.so' \) -print0 | xargs -0 -n1 ldd 2>/dev/null | grep 'not found'
           echo "--- CPU"
-          grep -m1 'model name' /proc/cpuinfo; grep -m1 -o 'avx[^ ]*' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
-          echo "--- loading node-llama-cpp directly"
-          ELECTRON_RUN_AS_NODE=1 "$APP_EXE" scripts/smoke-llama-debug.mjs "$APP_RESOURCES" model.gguf; echo "exit code $?"
+          grep -m1 'model name' /proc/cpuinfo
+          grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx|avx2|avx512.*|fma|f16c|bmi2|amx.*|avx_vnni)$' | tr '\n' ' '; echo
+          echo "--- the installed app, loading node-llama-cpp directly"
+          ELECTRON_RUN_AS_NODE=1 "$APP_EXE" scripts/smoke-llama-debug.mjs "$APP_RESOURCES" model.gguf 2>&1 | tail -40
+          echo "exit status ${PIPESTATUS[0]}"
+          echo "--- the same node-llama-cpp under plain Node.js, outside the app"
+          mkdir -p /tmp/plain && cd /tmp/plain && npm init -y >/dev/null && npm install --silent node-llama-cpp@$(node -p "require('$APP_RESOURCES/app.asar.unpacked/node_modules/@node-llama-cpp/linux-x64/package.json').version" 2>/dev/null || echo latest) >/dev/null 2>&1
+          mkdir -p res/app.asar && ln -s /tmp/plain/node_modules res/app.asar/node_modules
+          node "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/plain/res "$GITHUB_WORKSPACE/model.gguf" 2>&1 | tail -40
+          echo "exit status ${PIPESTATUS[0]}"
