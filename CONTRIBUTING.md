@@ -86,6 +86,25 @@ each file, for a person to read over and publish.
 Local file from `http://absolute/<path>`, which a browser doesn't reproduce, so
 a bug there only shows up in OBS.
 
+### Release checklist
+
+Before publishing a draft release, check the packaged app, not only the source.
+The tests can't see what OBS or an installer does.
+
+1. The version in `package.json` and the `obs-overlay.js` header match the tag.
+2. The Release workflow passed for every system, and the draft has every
+   installer, `SHA256SUMS.txt` and `bubblefacts.zip`.
+3. Download one installer from the draft. Its checksum matches, and
+   `gh attestation verify FILE --repo frolicchris/bubblefacts` passes.
+4. Install it and open it. The setup screen appears and shows the new version
+   at the bottom.
+5. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
+   appears in OBS and the app says **It's on your stream!**
+6. Play one song from the queue. The Now Playing banner and facts appear.
+7. Quit from the menu bar or tray. Nothing is left running.
+8. Publish as a pre-release while in beta. The release notes say what changed
+   and link the Beta test report form.
+
 ## Questions
 
 Setup questions are welcome in

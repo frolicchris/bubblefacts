@@ -30,14 +30,13 @@ page shows what to click.
    list in OBS.
 
 A test bubble appears in OBS, and the app says **It's on your stream!** That's
-it. There's one optional step after that, **Tell us about your music**, where
-you can mark your originals and live learns and add backup facts of your own.
+it. An optional last step, **Tell us about your music**, lets you mark your
+originals and live learns and add messages of your own.
 
 No coding. No Terminal. No AI setup.
 
-The built-in fact writer downloads in the background (about 2 GB). Until it's
-ready, songs get backup facts. From the app you can pause bubbles, show a test
-bubble, and see how your songs, facts and stream are doing. The
+The built-in fact writer gets ready in the background, so you don't have to
+wait for it during setup. The
 [setup guide](https://bubblefacts.frolic.org/guide.html) walks through every
 screen.
 
@@ -51,7 +50,8 @@ stream, so its fact writer never answers from memory.
 2. The fact writer writes short captions **only from that article**.
 3. Any caption that names a person, year or console the article doesn't
    contain is dropped before it reaches your stream.
-4. No article means no AI. It shows messages you provide instead.
+4. If there's no good Wikipedia match, no AI is used. BubbleFacts shows
+   messages you provide instead.
 
 Facts are only as good as Wikipedia: the check makes sure captions match the
 article, not that the article is right. Found a wrong fact? Please
