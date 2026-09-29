@@ -67,10 +67,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: files
           merge-multiple: true
+      # The manual (command-line) setup: the README links to this name on the latest release.
+      - name: Source zip
+        run: git archive --format=zip --prefix=bubblefacts/ -o files/bubblefacts.zip "$GITHUB_REF_NAME"
       - name: Checksums
         working-directory: files
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
