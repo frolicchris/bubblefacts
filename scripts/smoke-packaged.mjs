@@ -65,25 +65,33 @@ const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.t
   await s.stop();
 }
 
-// 2. The built-in AI's native files load on this system: first as the app
-// normally starts it ("auto": GPU if there is one), then processor-only, the
-// app's fallback. Macs ship Metal builds only, so there's no processor-only
-// build to fall back to there.
+// 2. The built-in AI's native files load on this system. The app first starts
+// it with "auto" (GPU if there is one). If that crashes or fails, the app
+// retries processor-only, so on Windows and Linux "auto" failing is only a
+// warning and processor-only must work. Macs ship Metal builds only, with no
+// processor-only build, so there "auto" must work.
+async function loads(gpu) {
+  const s = start({ AI_PROVIDER: "builtin", MODEL_PATH: modelPath, LLAMA_GPU: gpu });
+  const until = Date.now() + 10 * 60_000;
+  let result;
+  while (!result && Date.now() < until) {
+    if (/Built-in model loaded/.test(s.log())) result = { ok: true, line: s.log().match(/Built-in model loaded[^\n]*/)[0] };
+    else if (/Built-in model failed to load/.test(s.log()) || s.exited()) result = { ok: false, log: s.log() };
+    else await new Promise((r) => setTimeout(r, 1000));
+  }
+  await s.stop();
+  return result ?? { ok: false, log: `timed out\n${s.log()}` };
+}
+
 if (modelPath) {
-  const modes = process.platform === "darwin" ? ["auto"] : ["auto", "off"];
-  for (const gpu of modes) {
-    const s = start({ AI_PROVIDER: "builtin", MODEL_PATH: modelPath, LLAMA_GPU: gpu });
-    await waitFor(
-      async () => {
-        if (/Built-in model failed to load/.test(s.log())) fail(`the built-in AI failed to load (LLAMA_GPU=${gpu}):\n${s.log()}`);
-        return /Built-in model loaded/.test(s.log());
-      },
-      10 * 60_000,
-      `the built-in AI to load (LLAMA_GPU=${gpu})`,
-      s
-    );
-    console.log(`PASS (LLAMA_GPU=${gpu}): ${s.log().match(/Built-in model loaded[^\n]*/)[0]}`);
-    await s.stop();
+  const auto = await loads("auto");
+  if (auto.ok) console.log(`PASS (LLAMA_GPU=auto): ${auto.line}`);
+  else if (process.platform === "darwin") fail(`the built-in AI didn't load:\n${auto.log}`);
+  else console.log(`WARN (LLAMA_GPU=auto): didn't load, so the app would retry processor-only. Log:\n${auto.log}`);
+  if (process.platform !== "darwin") {
+    const cpu = await loads("off");
+    if (!cpu.ok) fail(`the processor-only fallback didn't load either:\n${cpu.log}`);
+    console.log(`PASS (LLAMA_GPU=off, the app's fallback): ${cpu.line}`);
   }
 }
 

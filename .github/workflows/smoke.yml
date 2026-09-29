@@ -57,7 +57,8 @@ jobs:
       - name: Download the AI model
         run: |
           [ -f model.gguf ] || curl -sSL -o model.gguf "$MODEL_URL"
-          echo "$MODEL_SHA256  model.gguf" | shasum -a 256 -c -
+          # Git Bash on Windows has sha256sum; macOS has shasum.
+          if command -v sha256sum >/dev/null; then echo "$MODEL_SHA256  model.gguf" | sha256sum -c -; else echo "$MODEL_SHA256  model.gguf" | shasum -a 256 -c -; fi
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
@@ -83,7 +84,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           hdiutil attach -nobrowse -readonly -mountpoint /tmp/bf installer/*.dmg
-          cp -R /tmp/bf/BubbleFacts.app "$HOME/Applications/" 2>/dev/null || { mkdir -p "$HOME/Applications"; cp -R /tmp/bf/BubbleFacts.app "$HOME/Applications/"; }
+          mkdir -p "$HOME/Applications"
+          cp -R /tmp/bf/BubbleFacts.app "$HOME/Applications/"
           echo "APP_EXE=$HOME/Applications/BubbleFacts.app/Contents/MacOS/BubbleFacts" >> "$GITHUB_ENV"
           echo "APP_RESOURCES=$HOME/Applications/BubbleFacts.app/Contents/Resources" >> "$GITHUB_ENV"
 
