@@ -1,7 +1,7 @@
 /* BubbleFacts
  * ====================
  *
- * v2.0.0-beta.1
+ * v2.0.0-beta.2
  *
  *  <https://github.com/frolicchris/bubblefacts>
  *
@@ -31,9 +31,11 @@
   // when another program already has its port.
   const PORT_SPAN = 10;
   const [SERVER_HOST, SERVER_PORT] = SERVER.split(":");
+  // OBS serves a Local File from http://absolute/<path>, not file://.
+  const LOCAL_FILE = location.protocol === "file:" || location.hostname === "absolute";
   let portOffset = 0;
   const wsUrl = () =>
-    location.protocol === "file:"
+    LOCAL_FILE
       ? "ws://" + SERVER_HOST + ":" + (Number(SERVER_PORT) + portOffset) + "/ws"
       : (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
 
@@ -205,7 +207,7 @@
     };
     ws.onclose = () => {
       statusDot.classList.remove("connected");
-      if (!opened && location.protocol === "file:") {
+      if (!opened && LOCAL_FILE) {
         portOffset = (portOffset + 1) % (PORT_SPAN + 1);
         if (portOffset !== 0) {
           setTimeout(connect, 200);

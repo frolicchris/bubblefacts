@@ -300,6 +300,8 @@ function showWindow(): void {
   if (!win) createWindow();
   win?.show();
   win?.focus();
+  // A window hidden to the tray, then shown on another desktop Space, can stay blank on macOS until repainted.
+  win?.webContents.invalidate();
 }
 
 function updateTray(status: Status): void {

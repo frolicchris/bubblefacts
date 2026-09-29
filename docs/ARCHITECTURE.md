@@ -153,6 +153,10 @@ be from before the change.
 
 - **Animate only `transform` and `opacity`.** OBS draws browser sources without
   graphics acceleration, so animating anything else costs CPU and drops frames.
+- **OBS serves a Local File from `http://absolute/<path>`, never `file://`.**
+  The overlay treats both as "local" and connects to the fixed `SERVER`
+  address; checking only for `file:` sent it to a server named "absolute".
+  `overlay-connection.test.ts` runs the real script under both addresses.
 - **Load the overlay as a Local File.** A URL source that fails when OBS starts
   never retries; a local file always loads and keeps reconnecting on its own.
   That's also why the server's address is written into the page (the `SERVER`
