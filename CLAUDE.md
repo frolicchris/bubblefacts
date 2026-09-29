@@ -1,4 +1,4 @@
-# Stream Facts Overlay
+# BubbleFacts
 
 OBS overlay that shows verified trivia about the song a StreamerSongList
 queue says is playing. Node 20+, TypeScript backend compiled with `tsc`,

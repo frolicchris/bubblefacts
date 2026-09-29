@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # The checks don't run the desktop app, so skip downloading Electron itself.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
 jobs:
   check:
     name: Typecheck, lint and test (Node ${{ matrix.node }})

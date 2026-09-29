@@ -1,0 +1,83 @@
+name: Release
+
+# Pushing a version tag (v2.0.0, v2.0.0-beta.1) builds every installer on its
+# own system and puts them in a *draft* release with checksums, for a person to
+# read over and publish. Each file gets a build-provenance attestation, so
+# anyone can check it came from this workflow:
+#   gh attestation verify FILE --repo frolicchris/bubblefacts
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: mac-arm64, os: macos-14, args: --mac --arm64 }
+          # The AI's native files for Intel Macs only install on an Intel machine.
+          - { name: mac-x64, os: macos-15-intel, args: --mac --x64 }
+          - { name: windows-x64, os: windows-latest, args: --win --x64 }
+          # The oldest supported Ubuntu, so the Linux build runs on everything newer.
+          - { name: linux-x64, os: ubuntu-22.04, args: --linux --x64 }
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check the version matches the tag
+        shell: bash
+        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+      - run: npm test
+      - run: npm run dist -- ${{ matrix.args }}
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/BubbleFacts-*.dmg
+            release/BubbleFacts-*.exe
+            release/BubbleFacts-*.AppImage
+            release/bubblefacts_*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            release/BubbleFacts-*.dmg
+            release/BubbleFacts-*.exe
+            release/BubbleFacts-*.AppImage
+            release/bubblefacts_*.deb
+
+  release:
+    name: Draft the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Checksums
+        working-directory: files
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags="--draft --generate-notes --title ${GITHUB_REF_NAME#v}"
+          case "$GITHUB_REF_NAME" in *-*) flags="$flags --prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" files/* --repo "$GITHUB_REPOSITORY" $flags

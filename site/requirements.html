@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System requirements: BubbleFacts</title>
+  <meta name="description" content="What you need to run BubbleFacts: Mac, Windows or Linux, OBS Studio 28 or newer, 8 GB of memory and 4 GB of free space.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/requirements.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="BubbleFacts system requirements">
+  <meta property="og:description" content="What you need to run BubbleFacts: Mac, Windows or Linux, OBS Studio 28 or newer, 8 GB of memory and 4 GB of free space.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/requirements.html">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BubbleFacts system requirements">
+  <meta name="twitter:description" content="What you need to run BubbleFacts: Mac, Windows or Linux, OBS Studio 28 or newer, 8 GB of memory and 4 GB of free space.">
+  <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html" aria-current="page">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <div class="wrap">
+        <p class="eyebrow">Requirements</p>
+        <h1>System requirements</h1>
+        <p class="section-intro">If your computer can stream with OBS, it can most likely run BubbleFacts. If it can't run the built-in AI, there's a <a href="#fallback">free online option</a>. Here are the details.</p>
+
+        <div class="table-wrap">
+          <table class="req-table">
+            <caption class="visually-hidden">Minimum and recommended system requirements</caption>
+            <thead>
+              <tr><th scope="col">What</th><th scope="col">Minimum</th><th scope="col">Recommended</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Operating system</th>
+                <td>
+                  <ul>
+                    <li>macOS 13 Ventura or newer (Apple silicon or Intel)</li>
+                    <li>Windows 10 or 11, 64-bit</li>
+                    <li>Linux, 64-bit, with glibc 2.35 or newer, using the AppImage</li>
+                  </ul>
+                </td>
+                <td>
+                  <ul>
+                    <li>Any of these, kept up to date</li>
+                    <li>On Linux: Ubuntu 24.04 or newer, which is the tested version</li>
+                  </ul>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">OBS Studio</th>
+                <td>Version 28 or newer, which has the Browser source BubbleFacts uses</td>
+                <td>The current version (OBS 32)</td>
+              </tr>
+              <tr>
+                <th scope="row">Memory (RAM)</th>
+                <td>8 GB</td>
+                <td>16 GB. The built-in AI uses about 1 to 3 GB while it writes facts. OBS and your game or music software need the rest.</td>
+              </tr>
+              <tr>
+                <th scope="row">Free disk space</th>
+                <td>4 GB: about 400 MB for the app, 2 GB for the AI model, plus room for logs</td>
+                <td>Same</td>
+              </tr>
+              <tr>
+                <th scope="row">Processor</th>
+                <td>
+                  <ul>
+                    <li>Mac: any Apple silicon Mac, or an Intel Mac from 2017 or newer</li>
+                    <li>Windows and Linux: a 64-bit processor from 2015 or newer (Intel 6th generation Core or newer, or AMD Ryzen)</li>
+                  </ul>
+                </td>
+                <td>Any Apple silicon Mac. On Windows and Linux, a newer processor writes facts faster.</td>
+              </tr>
+              <tr>
+                <th scope="row">Graphics</th>
+                <td>Not required. Without a graphics card, the AI runs on the processor.</td>
+                <td>
+                  <ul>
+                    <li>Mac: nothing to do. Macs use their built-in graphics automatically.</li>
+                    <li>Windows and Linux: a graphics card with current drivers (NVIDIA, AMD or Intel, with Vulkan support) makes facts faster.</li>
+                  </ul>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Internet</th>
+                <td>Needed to read your queue from StreamerSongList and to look songs up on Wikipedia. The built-in AI downloads once, on its own, when you first open the app, and works offline after that.</td>
+                <td>Same</td>
+              </tr>
+              <tr>
+                <th scope="row">Accounts</th>
+                <td>A <a href="https://streamersonglist.com">StreamerSongList</a> account (free). You sign in to it with the Twitch account you use there.</td>
+                <td>Optional: a Groq or Anthropic key, if you'd rather the AI ran online. You add it later in Settings, not during setup.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="speed">
+      <div class="wrap narrow">
+        <h2 id="speed">How fast are the facts?</h2>
+        <p>When a song starts, the built-in AI takes a few seconds to write its facts. Facts arrive while the song is still playing, even on slower computers.</p>
+        <div class="table-wrap">
+          <table>
+            <caption class="visually-hidden">Time to write facts for one song</caption>
+            <thead>
+              <tr><th scope="col">Computer</th><th scope="col">Time per song</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Apple M1 Pro Mac</th>
+                <td>About 5 to 8 seconds (measured)</td>
+              </tr>
+              <tr>
+                <th scope="row">Windows or Linux with a graphics card</th>
+                <td>Expected to be a few seconds (not yet measured)</td>
+              </tr>
+              <tr>
+                <th scope="row">Processor only, no graphics card</th>
+                <td>Expected to be longer (not yet measured)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="fallback">
+      <div class="wrap narrow">
+        <h2 id="fallback">If the built-in AI can't run</h2>
+        <p>Some computers, for example ones with an older processor, can't run the built-in AI. You can still use BubbleFacts:</p>
+        <ol>
+          <li>The app tries a simpler mode that uses only the processor. This happens on its own.</li>
+          <li>If that doesn't work either, the app walks you through switching to <span class="ui">Online: Groq</span>. It's free, with a daily limit, and does the AI work online.</li>
+        </ol>
+        <p>Online: Groq is also a good choice if your computer already works hard while you stream. You can switch any time in <span class="ui">Settings</span>, under <span class="ui">Who writes the facts</span>. See <a href="guide.html#ai">using an online AI</a>.</p>
+
+        <div class="note">
+          <p class="note-title">Advanced</p>
+          <p>If you already run <a href="https://ollama.com">Ollama</a>, you can point BubbleFacts at it under <span class="ui">Settings</span>, then <span class="ui">Who writes the facts</span>.</p>
+        </div>
+
+        <p>Ready? <a href="download.html">Download BubbleFacts</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
+        <li><a href="https://twitch.tv/frolicchris">Twitch</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="requirements.html" aria-current="page">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Built with <a href="https://claude.com/claude-code">Claude Code</a>. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Made by <a href="https://www.twitch.tv/frolicchris">frolicchris</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

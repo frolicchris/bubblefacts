@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Uninstall: BubbleFacts</title>
+  <meta name="description" content="How to remove BubbleFacts from Mac, Windows or Linux, including its settings and AI model.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/uninstall.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="Uninstall BubbleFacts">
+  <meta property="og:description" content="How to remove BubbleFacts from Mac, Windows or Linux, including its settings and AI model.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/uninstall.html">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Uninstall BubbleFacts">
+  <meta name="twitter:description" content="How to remove BubbleFacts from Mac, Windows or Linux, including its settings and AI model.">
+  <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <div class="wrap narrow">
+        <p class="eyebrow">Uninstall</p>
+        <h1>Uninstall</h1>
+        <p class="section-intro">Removing BubbleFacts takes three parts: take it out of OBS, remove the app, and, if you want, delete its settings and AI model.</p>
+
+        <div class="guide-step" id="obs">
+          <div class="num" aria-hidden="true">1</div>
+          <div class="body">
+            <h2>Remove it from OBS</h2>
+            <ol>
+              <li>In OBS, find the <span class="ui">BubbleFacts</span> Browser source under <span class="ui">Sources</span>.</li>
+              <li>Right-click it and choose <span class="ui">Remove</span>.</li>
+              <li>Do this in every scene where you added it.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="guide-step" id="app">
+          <div class="num" aria-hidden="true">2</div>
+          <div class="body">
+            <h2>Remove the app</h2>
+            <p>If you turned on start at login, turn it off in the app's settings first.</p>
+
+            <h3 id="mac">Mac</h3>
+            <ol>
+              <li>Click the BubbleFacts icon in the menu bar and choose <span class="ui">Quit</span>.</li>
+              <li>Open your Applications folder and drag <span class="ui">BubbleFacts</span> to the Trash.</li>
+            </ol>
+
+            <h3 id="windows">Windows</h3>
+            <ol>
+              <li>Click the BubbleFacts icon in the system tray and choose <span class="ui">Quit</span>.</li>
+              <li>Open <span class="ui">Settings</span>, then <span class="ui">Apps</span>.</li>
+              <li>Find <span class="ui">BubbleFacts</span> and choose <span class="ui">Uninstall</span>.</li>
+            </ol>
+
+            <h3 id="linux">Linux</h3>
+            <ol>
+              <li>Quit BubbleFacts from its icon in the system tray.</li>
+              <li>If you used the AppImage, delete the BubbleFacts <span class="ui">.AppImage</span> file.</li>
+              <li>If you installed the .deb, run this in a terminal:
+                <div class="copy-row cmd-row"><code class="cmd">sudo apt remove bubblefacts</code>
+                  <button type="button" class="btn btn-secondary btn-small" data-copy="sudo apt remove bubblefacts" hidden>Copy</button></div>
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="guide-step" id="data">
+          <div class="num" aria-hidden="true">3</div>
+          <div class="body">
+            <h2>Delete settings and the AI model (optional)</h2>
+            <p>Removing the app leaves your settings, your own backup facts, your encrypted sign-in, token and keys, the 2 GB AI model and the logs in a folder on your computer. That way, reinstalling picks up where you left off. To free the space and remove everything, delete this folder:</p>
+
+            <div class="table-wrap">
+              <table>
+                <caption class="visually-hidden">Where BubbleFacts keeps its settings and AI model</caption>
+                <thead>
+                  <tr><th scope="col">System</th><th scope="col">Folder</th><th scope="col">How to get there</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Mac</th>
+                    <td><code>~/Library/Application Support/BubbleFacts</code></td>
+                    <td>In Finder, choose <span class="ui">Go</span>, then <span class="ui">Go to Folder</span> (Cmd+Shift+G), and paste the folder.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Windows</th>
+                    <td><code>%APPDATA%\BubbleFacts</code></td>
+                    <td>Paste the folder into the address bar of File Explorer and press Enter.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Linux</th>
+                    <td><code>~/.config/BubbleFacts</code></td>
+                    <td>In your file manager, press Ctrl+H to show hidden folders, then open <code>.config</code>.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="note">
+              <p class="note-title">Not coming back?</p>
+              <p>If you used a token, deleting the folder removes the copy on your computer, but the token still works. To switch it off, sign in at <a href="https://streamersonglist.com">streamersonglist.com</a>, go to <span class="ui">Settings</span>, then <span class="ui">Access</span>, and delete it. Do the same for any Groq or Anthropic key on their websites.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
+        <li><a href="https://twitch.tv/frolicchris">Twitch</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="requirements.html">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html" aria-current="page">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Built with <a href="https://claude.com/claude-code">Claude Code</a>. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Made by <a href="https://www.twitch.tv/frolicchris">frolicchris</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

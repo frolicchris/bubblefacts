@@ -24,6 +24,12 @@ const QUEUE_EVENTS = new Set([
 const REFETCH_DEBOUNCE_MS = 250;
 const AUTH_SCHEME = { streamer: "Streamer", user: "User", bearer: "Bearer" } as const;
 
+/** Replaced while running when the desktop app refreshes its sign-in; OAuth tokens last an hour. */
+let accessToken = config.sslAccessToken;
+export function setAccessToken(token: string): void {
+  accessToken = token;
+}
+
 export class SongListClient {
   private streamerId: number | null = null;
   private stream: CentrifugoStream | null = null;
@@ -35,6 +41,7 @@ export class SongListClient {
   private refreshAgain = false;
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
+  private rejected = false;
 
   onCurrentSongChange(callback: SongChangeCallback): void {
     this.onSongChange = callback;
@@ -46,6 +53,11 @@ export class SongListClient {
 
   lastSuccessfulFetchAgeMs(): number | null {
     return this.lastSuccessfulFetchAt === null ? null : Date.now() - this.lastSuccessfulFetchAt;
+  }
+
+  /** StreamerSongList turned the token down on the last request: waiting won't fix it. */
+  authRejected(): boolean {
+    return this.rejected;
   }
 
   isEventStreamConnected(): boolean {
@@ -93,7 +105,7 @@ export class SongListClient {
   /** The song object broadcast to the overlay. */
   static toSong(item: SSLQueueItem): SSLSong {
     const song: SSLSong = { title: SongListClient.displayTitle(item), artist: item.song?.artist ?? "Unknown" };
-    if (SongListClient.isLiveLearn(item)) song.liveLearn = true;
+    if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
     const by = SongListClient.requesterName(item);
     if (by) song.requestedBy = by;
     return song;
@@ -107,15 +119,22 @@ export class SongListClient {
   // --- REST --------------------------------------------------------------
 
   private async getJSON<T>(path: string, what: string): Promise<T> {
-    const query = new URLSearchParams({ streamer_name: config.sslStreamerName, platform: config.sslPlatform });
+    const query = new URLSearchParams(
+      config.sslStreamerId
+        ? { streamer_id: String(config.sslStreamerId) }
+        : { streamer_name: config.sslStreamerName, platform: config.sslPlatform }
+    );
+    const headers: Record<string, string> = {
+      Authorization: `${AUTH_SCHEME[config.sslTokenKind]} ${accessToken}`,
+      Accept: "application/json",
+    };
+    if (config.sslClientId) headers["Client-Id"] = config.sslClientId;
     const res = await fetch(`${config.sslApiBase}${path}?${query}`, {
-      headers: {
-        Authorization: `${AUTH_SCHEME[config.sslTokenKind]} ${config.sslAccessToken}`,
-        Accept: "application/json",
-      },
+      headers,
       signal: AbortSignal.timeout(config.sslRequestTimeoutMs),
     });
-    if (res.status === 401 || res.status === 403) {
+    this.rejected = res.status === 401 || res.status === 403;
+    if (this.rejected) {
       throw new Error(
         `Failed to fetch ${what}: ${res.status} ${res.statusText}. Check SSL_ACCESS_TOKEN and SSL_TOKEN_KIND: ` +
           `the token must belong to ${config.sslStreamerName} (Settings > Access) or a user who administrates that channel.`

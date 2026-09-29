@@ -5,7 +5,8 @@ import { config } from "./config";
 /**
  * Topic packs (topics/<id>.json): hand-verified fallback facts for songs with
  * no article, plus lines about the streamer's own compositions. TOPIC names
- * one pack or a comma-separated list, which are merged.
+ * one pack or a comma-separated list, which are merged. A pack in the
+ * streamer's own folder (BUBBLEFACTS_TOPICS_DIR) wins over a built-in one.
  */
 export interface TopicPack {
   id: string;
@@ -20,10 +21,13 @@ const TOPICS_DIR = path.resolve(__dirname, "../../topics");
 const MIN_CURATED = 5;
 
 function readPack(id: string): TopicPack {
-  const file = path.join(TOPICS_DIR, `${id.replace(/[^a-z0-9-]/gi, "")}.json`);
-  if (!fs.existsSync(file)) {
-    const available = fs.readdirSync(TOPICS_DIR).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
-    throw new Error(`Unknown topic "${id}". Available: ${available.join(", ")}`);
+  const name = `${id.replace(/[^a-z0-9-]/gi, "")}.json`;
+  const dirs = [config.topicsDir, TOPICS_DIR].filter(Boolean);
+  const file = dirs.map((dir) => path.join(dir, name)).find((f) => fs.existsSync(f));
+  if (!file) {
+    const available = dirs.flatMap((dir) => (fs.existsSync(dir) ? fs.readdirSync(dir) : []))
+      .filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
+    throw new Error(`Unknown topic "${id}". Available: ${[...new Set(available)].join(", ")}`);
   }
   return JSON.parse(fs.readFileSync(file, "utf8")) as TopicPack;
 }

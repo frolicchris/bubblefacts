@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs><mask id="m"><rect width="64" height="64" fill="#fff"/>
+    <g fill="#000">
+      <polygon points="28,17 47.5,12.5 47.5,18.5 28,23"/>
+      <rect x="28" y="19" width="3.5" height="18"/>
+      <rect x="44" y="15" width="3.5" height="18"/>
+      <ellipse cx="24.5" cy="37" rx="6.5" ry="4.8" transform="rotate(-20 24.5 37)"/>
+      <ellipse cx="40.5" cy="33" rx="6.5" ry="4.8" transform="rotate(-20 40.5 33)"/>
+    </g></mask></defs>
+  <g mask="url(#m)" fill="#000">
+    <path d="M18 45 L10 61 L27 50 Z"/>
+    <circle cx="34" cy="29" r="26"/>
+  </g>
+</svg>

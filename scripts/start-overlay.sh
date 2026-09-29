@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stream Facts Overlay: check the setup, build if needed, and run the server.
+# BubbleFacts: check the setup, build if needed, and run the server.
 #
 #   bash scripts/start-overlay.sh
 #

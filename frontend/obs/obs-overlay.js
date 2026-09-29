@@ -1,9 +1,9 @@
-/* Stream Facts Overlay
+/* BubbleFacts
  * ====================
  *
  * v1.0.0
  *
- *  <https://github.com/frolicchris/stream-facts-overlay>
+ *  <https://github.com/frolicchris/bubblefacts>
  *
  * Help
  * ----
@@ -27,7 +27,15 @@
   // Where the server is when OBS loads this page as a Local File. Change it
   // if you change PORT, or if the server runs on another machine (HOST).
   const SERVER = "127.0.0.1:3000";
-  const WS_URL = "ws://" + (location.protocol === "file:" ? SERVER : location.host) + "/ws";
+  // As a local file, also try the next few ports: the desktop app moves to one
+  // when another program already has its port.
+  const PORT_SPAN = 10;
+  const [SERVER_HOST, SERVER_PORT] = SERVER.split(":");
+  let portOffset = 0;
+  const wsUrl = () =>
+    location.protocol === "file:"
+      ? "ws://" + SERVER_HOST + ":" + (Number(SERVER_PORT) + portOffset) + "/ws"
+      : (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
 
   const TOAST_MS = 5000;
   const TOAST_FADE_MS = 600;
@@ -170,8 +178,10 @@
   }
 
   function connect() {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(wsUrl());
+    let opened = false;
     ws.onopen = () => {
+      opened = true;
       statusDot.classList.add("connected");
       reconnectMs = 1000;
     };
@@ -186,6 +196,13 @@
     };
     ws.onclose = () => {
       statusDot.classList.remove("connected");
+      if (!opened && location.protocol === "file:") {
+        portOffset = (portOffset + 1) % (PORT_SPAN + 1);
+        if (portOffset !== 0) {
+          setTimeout(connect, 200);
+          return;
+        }
+      }
       setTimeout(connect, reconnectMs);
       reconnectMs = Math.min(reconnectMs * 2, MAX_RECONNECT_MS);
     };

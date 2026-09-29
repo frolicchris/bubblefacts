@@ -1,20 +1,24 @@
 {
-  "name": "stream-facts-overlay",
-  "version": "1.0.0",
+  "name": "bubblefacts",
+  "version": "2.0.0-beta.1",
   "description": "OBS overlay that pops up verified trivia about the song your StreamerSongList queue says you are playing. Grounded in Wikipedia, written by a local or hosted LLM, screened deterministically.",
   "private": false,
   "scripts": {
     "build": "tsc -p backend/tsconfig.json",
     "start": "node dist/backend/server.js",
     "test": "jest --config jest.config.ts",
-    "lint": "eslint frontend && shellcheck scripts/*.sh",
-    "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p backend/tsconfig.test.json",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "lint": "eslint frontend desktop/renderer && shellcheck scripts/*.sh",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p backend/tsconfig.test.json && tsc -p desktop/tsconfig.json --noEmit && tsc -p desktop/tsconfig.test.json",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "build:desktop": "tsc -p desktop/tsconfig.json",
+    "app": "npm run build && npm run build:desktop && electron .",
+    "dist": "npm run build && npm run build:desktop && electron-builder --publish never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "node-llama-cpp": "^3.22.1",
     "ws": "^8.22.0"
   },
   "devDependencies": {
@@ -22,6 +26,8 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.0",
     "@types/ws": "^8.5.13",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.19.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
@@ -31,7 +37,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/frolicchris/stream-facts-overlay"
+    "url": "https://github.com/frolicchris/bubblefacts"
   },
   "keywords": [
     "twitch",
@@ -44,5 +50,110 @@
   ],
   "engines": {
     "node": ">=20"
+  },
+  "main": "dist/desktop/main.js",
+  "productName": "BubbleFacts",
+  "author": {
+    "name": "Christopher Feyrer",
+    "email": "chris@frolic.org"
+  },
+  "homepage": "https://bubblefacts.frolic.org/",
+  "build": {
+    "appId": "org.frolic.bubblefacts",
+    "productName": "BubbleFacts",
+    "copyright": "Copyright © 2026 Christopher Feyrer (frolicchris)",
+    "extraMetadata": {
+      "name": "bubblefacts"
+    },
+    "directories": {
+      "output": "release",
+      "buildResources": "desktop/build"
+    },
+    "asar": true,
+    "files": [
+      "package.json",
+      "LICENSE",
+      "dist/backend/**/*.js",
+      "dist/desktop/**/*.js",
+      "desktop/renderer/**/*",
+      "desktop/build/*.png",
+      "frontend/obs/**/*",
+      "topics/*.json",
+      "!node_modules/node-llama-cpp/llama/gitRelease.bundle",
+      "!node_modules/node-llama-cpp/bins/**/*",
+      "node_modules/node-llama-cpp/bins/${os}-${arch}*/**/*",
+      "!node_modules/node-llama-cpp/llama/localBuilds/**/*",
+      "!node_modules/@node-llama-cpp/*/bins/**/*",
+      "node_modules/@node-llama-cpp/${os}-${arch}*/bins/**/*",
+      "!node_modules/@node-llama-cpp/*cuda*/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/node-llama-cpp/bins",
+      "node_modules/@node-llama-cpp/*"
+    ],
+    "afterPack": "desktop/scripts/after-pack.js",
+    "mac": {
+      "target": [
+        {
+          "target": "dmg"
+        }
+      ],
+      "category": "public.app-category.music",
+      "icon": "desktop/build/icon.png",
+      "identity": null,
+      "artifactName": "BubbleFacts-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "BubbleFacts"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/build/icon.png",
+      "artifactName": "BubbleFacts-${version}-windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "AudioVideo",
+      "icon": "desktop/build/icon.png",
+      "synopsis": "Fact bubbles in OBS about the song you're playing",
+      "maintainer": "Christopher Feyrer <chris@frolic.org>"
+    },
+    "appImage": {
+      "artifactName": "BubbleFacts-${version}-linux-x86_64.${ext}"
+    },
+    "deb": {
+      "artifactName": "bubblefacts_${version}_amd64.${ext}"
+    }
+  },
+  "bubblefacts": {
+    "sslClientId": ""
   }
 }

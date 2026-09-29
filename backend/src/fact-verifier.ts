@@ -14,7 +14,7 @@ import { escapeRe } from "./text";
 
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
 const USER_AGENT =
-  `stream-facts-overlay/1.0 (${process.env.WIKIPEDIA_CONTACT || "https://github.com/frolicchris/stream-facts-overlay"})`;
+  `bubblefacts/1.0 (${process.env.WIKIPEDIA_CONTACT || "https://github.com/frolicchris/bubblefacts"})`;
 
 const MAX_CONTEXT_CHARS = 2400;
 /** Shorter extracts are stubs; the entry's own data beats restating one. */
