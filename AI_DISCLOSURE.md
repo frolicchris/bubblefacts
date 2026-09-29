@@ -17,16 +17,31 @@ review. It wasn't written by hand, and it wasn't generated without oversight.
 
 - **Tool:** [Claude Code](https://claude.com/claude-code), Anthropic's AI
   coding agent, using Claude models.
-- **Extent:** almost all of the code, tests, workflows, website and
+- **Extent:** so far, almost all of the code, tests, workflows, website and
   documentation. Very little was typed by hand.
 - **Commits:** commits written with Claude Code end with a
-  `Co-Authored-By: Claude` trailer, so the history shows which changes it
-  wrote.
+  `Co-Authored-By: Claude` trailer (Claude Code's default), so the history
+  shows which changes it wrote.
+
+## Other contributors
+
+BubbleFacts is open source, so anyone can contribute, by hand or with AI
+tools. If you use an AI tool:
+
+- Say so in your pull request. The template asks.
+- Add an `Assisted-by:` trailer to your commits naming the tool, for example
+  `Assisted-by: Claude Code`. This follows the convention used by the Linux
+  kernel, Fedora and Electron.
+- Read and test the code yourself before you submit it. You're responsible
+  for your contribution, however it was written.
+
+The same review applies to every change, whoever or whatever wrote it. Forks
+are their own projects; this file only describes this repository.
 
 ## Human in the loop
 
 The maintainer, Christopher Feyrer ([@frolicchris](https://github.com/frolicchris)),
-is responsible for everything BubbleFacts ships. Before a change is merged or
+is responsible for everything this repository ships, whoever wrote it. Before a change is merged or
 released:
 
 1. **Checks.** Typecheck, lint and tests run on every pull request, on Linux,
