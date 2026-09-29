@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/frolicchris/bubblefacts?include_prereleases)](https://github.com/frolicchris/bubblefacts/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Song facts that pop up right on your stream.**
+**Fun facts about the song you're playing, right on your stream.**
 
 BubbleFacts watches your [StreamerSongList](https://streamersonglist.com)
 requests and shows short, Wikipedia-checked facts in game-inspired bubbles in
