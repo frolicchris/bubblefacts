@@ -55,6 +55,7 @@
             Game-style boxes appear on your stream while you play requests, so your chat learns something about every song.</p>
 
           <div class="download" id="download">
+            <p class="dl-note beta-note"><strong>Beta note:</strong> your Mac or Windows may ask you to confirm you want to open BubbleFacts, because this beta isn't digitally signed yet. <a href="download.html#first-launch">Here's exactly what to click.</a></p>
             <a class="btn btn-primary" id="dl-primary" href="#all-downloads">Download BubbleFacts</a>
             <p class="dl-note" id="dl-note">Free for Mac, Windows and Linux.</p>
             <p class="dl-note" id="dl-alt" hidden></p>
@@ -62,14 +63,13 @@
             <div class="dl-other" id="all-downloads">
               <h2 id="dl-other-heading">All downloads</h2>
               <ul class="dl-list">
-                <li data-os="mac"><a data-asset="mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Mac with Apple silicon</a> <span class="hint">M1 and newer, macOS 13 or newer (.dmg)</span></li>
-                <li data-os="mac"><a data-asset="mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Mac with Intel</a> <span class="hint">macOS 13 or newer (.dmg)</span></li>
+                <li data-os="mac"><a data-asset="mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Mac</a> <span class="hint">macOS 13 or newer (.dmg). <a data-asset="mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Need the Intel version?</a> <a href="download.html#which-mac">Which Mac do I have?</a></span></li>
                 <li data-os="windows"><a data-asset="windows-x64" href="https://github.com/frolicchris/bubblefacts/releases">Windows</a> <span class="hint">Windows 10 or 11, 64-bit (.exe)</span></li>
                 <li data-os="linux"><a data-asset="linux-deb" href="https://github.com/frolicchris/bubblefacts/releases">Linux, Ubuntu and Debian</a> <span class="hint">64-bit (.deb)</span></li>
                 <li><a data-asset="linux-appimage" href="https://github.com/frolicchris/bubblefacts/releases">Linux, other</a> <span class="hint">64-bit (.AppImage)</span></li>
               </ul>
               <p class="dl-note">Latest version: <a data-release-link href="https://github.com/frolicchris/bubblefacts/releases"><span data-release-version>see all releases</span></a></p>
-              <p class="dl-note"><a href="download.html">More download options</a> · <a href="download.html#which-mac">Which Mac do I have?</a> · <a href="requirements.html">System requirements</a> · <a href="changelog.html">What's new</a></p>
+              <p class="dl-note"><a href="download.html">More download options</a> · <a href="requirements.html">System requirements</a> · <a href="changelog.html">What's new</a></p>
             </div>
           </div>
         </div>
@@ -87,27 +87,27 @@
     <section class="section" aria-labelledby="steps-title">
       <div class="wrap">
         <h2 id="steps-title">How it works in 3 steps</h2>
-        <p class="section-intro">Download the app and open it. A short setup walks you through three steps. About 10 minutes the first time. No coding, no Terminal. The built-in AI downloads on its own while you set up.</p>
+        <p class="section-intro">Download the app and open it. A short setup walks you through three steps, and the last one is optional. About 10 minutes the first time. No coding, no Terminal. BubbleFacts works right away while its built-in AI downloads.</p>
         <ol class="steps three">
           <li>
             <div class="rpg">
               <span class="step-num" aria-hidden="true"></span>
-              <h3>Connect your StreamerSongList</h3>
-              <p>Click <span class="ui">Sign in with StreamerSongList</span> and sign in with the Twitch account you use there. Your channel is filled in for you. That lets the app see which song you're playing.</p>
+              <h3>Connect your songs</h3>
+              <p>Click <span class="ui">Sign in with StreamerSongList</span> and sign in with the Twitch account you use there. That lets the app see which song you're playing.</p>
             </div>
           </li>
           <li>
             <div class="rpg">
               <span class="step-num" aria-hidden="true"></span>
-              <h3>Tell it about your music</h3>
-              <p>Say whether you play your own compositions and do live learns. Then set up backup facts for songs with no Wikipedia article. The app comes with only a few examples, so add your own now or later in Settings.</p>
+              <h3>Put BubbleFacts on your stream</h3>
+              <p>Open OBS, choose the scene you normally stream from, and drag the tile from the app into your Sources list. A test bubble pops up, and the app says <span class="ui">It's on your stream!</span></p>
             </div>
           </li>
           <li>
             <div class="rpg">
               <span class="step-num" aria-hidden="true"></span>
-              <h3>Add it to OBS</h3>
-              <p>Open OBS and drag the <span class="ui">Drag this into OBS</span> tile from the app onto your Sources list. OBS adds it at the right size for your canvas.</p>
+              <h3>Tell us about your music (optional)</h3>
+              <p>Say whether you play your own compositions and do live learns, and set up backup facts for songs with no Wikipedia article. The app comes with only a few examples, so add your own now or later. Or click <span class="ui">Skip</span>.</p>
             </div>
           </li>
         </ol>
@@ -183,7 +183,7 @@
         <details id="faq-coding">
           <summary>Do I need to know coding?</summary>
           <div class="answer">
-            <p>No. You download an app, click through a three-step setup. One step is dragging a tile into OBS. If you can add a webcam to OBS, you can do this. The <a href="guide.html">setup guide</a> walks you through every click.</p>
+            <p>No. You download an app and click through a three-step setup. One step is dragging a tile into OBS. If you can add a webcam to OBS, you can do this. The <a href="guide.html">setup guide</a> walks you through every click.</p>
           </div>
         </details>
 
@@ -191,6 +191,13 @@
           <summary>Which computers does it work on?</summary>
           <div class="answer">
             <p>Macs with macOS 13 Ventura or newer (Apple silicon or Intel), Windows 10 or 11 (64-bit), and 64-bit Linux, tested on Ubuntu 24.04 and newer. You need at least 8 GB of memory and OBS Studio 28 or newer. It doesn't run on phones, tablets or Chromebooks. See the <a href="requirements.html">system requirements</a> for details.</p>
+          </div>
+        </details>
+
+        <details id="faq-same-computer">
+          <summary>Can BubbleFacts run on a different computer from OBS?</summary>
+          <div class="answer">
+            <p>Not yet. BubbleFacts needs to run on the same computer as OBS. Two-PC setups, such as a music PC plus a streaming PC, aren't supported yet.</p>
           </div>
         </details>
 
@@ -226,7 +233,7 @@
         <details id="faq-streamlabs">
           <summary>Does it work with Streamlabs Desktop?</summary>
           <div class="answer">
-            <p>Probably, but it hasn't been tested. Streamlabs Desktop is based on OBS and has Browser sources, so the <a href="guide.html#obs-by-hand">add-it-by-hand steps</a> should work. Only OBS Studio is tested.</p>
+            <p>It should, but it isn't tested yet. Dragging the tile may not work there. Instead, add a Browser source by hand: follow the <a href="guide.html#obs-by-hand">add-it-by-hand steps</a>. Only OBS Studio is tested.</p>
           </div>
         </details>
 
@@ -261,14 +268,14 @@
         <details id="faq-wrong">
           <summary>What if a fact is wrong?</summary>
           <div class="answer">
-            <p>Click <span class="ui">That fact is wrong</span> in the app. It fills in a report with the song, the fact and the Wikipedia article it came from, for you to check and send. Those reports are the most useful kind, because they show where the fact check needs to be stricter.</p>
+            <p>Click <span class="ui">Report this fact</span> in the app. It opens GitHub, where you need a free account, and fills in a report with the song, the fact and the Wikipedia article it came from, for you to check and send. Those reports are the most useful kind, because they show where the fact check needs to be stricter.</p>
           </div>
         </details>
 
         <details id="faq-help">
           <summary>Where do I get help?</summary>
           <div class="answer">
-            <p>Start with the troubleshooting table in the <a href="guide.html#troubleshooting">setup guide</a>. Then ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>, or use the app's <span class="ui">Report a problem</span> button. The <a href="support.html">help page</a> lists every option.</p>
+            <p>Start with the troubleshooting table in the <a href="guide.html#troubleshooting">setup guide</a>. Then ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>, or click <span class="ui">Report a problem</span> under <span class="ui">Help and troubleshooting</span> in the app. The <a href="support.html">help page</a> lists every option.</p>
           </div>
         </details>
       </div>

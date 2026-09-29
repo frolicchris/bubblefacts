@@ -50,14 +50,14 @@
       <div class="wrap narrow">
         <p class="eyebrow">Setup guide</p>
         <h1>Getting started</h1>
-        <p class="section-intro">This takes about 10 minutes. You'll need OBS Studio 28 or newer and a StreamerSongList account. The app's setup has three steps: connect your song list, tell it about your music, and add the overlay to OBS.</p>
+        <p class="section-intro">This takes about 10 minutes. You'll need OBS Studio 28 or newer and a StreamerSongList account. The app's setup has three steps, and the last one is optional: connect your songs, put BubbleFacts on your stream, and tell us about your music. BubbleFacts needs to run on the same computer as OBS.</p>
 
         <nav class="rpg toc" aria-label="Steps on this page">
           <ol>
             <li><a href="#install">Install the app</a></li>
-            <li><a href="#song-list">Connect your song list</a></li>
-            <li><a href="#your-music">Tell it about your music</a></li>
-            <li><a href="#obs">Add the overlay to OBS</a></li>
+            <li><a href="#song-list">Connect your songs</a></li>
+            <li><a href="#obs">Put BubbleFacts on your stream</a></li>
+            <li><a href="#your-music">Tell us about your music (optional)</a></li>
             <li><a href="#check">Check that it works</a></li>
             <li><a href="#streaming">While you stream</a></li>
           </ol>
@@ -70,7 +70,7 @@
           <div class="num" aria-hidden="true">1</div>
           <div class="body">
             <h2>Install the app</h2>
-            <p>Download the version for your computer from the <a href="download.html">download page</a>, then follow the steps for your system. Macs have two versions, one for Apple silicon and one for Intel. The download page shows <a href="download.html#which-mac">how to tell which Mac you have</a>. Not sure your computer is up to it? Check the <a href="requirements.html">system requirements</a>.</p>
+            <p>Download the version for your computer from the <a href="download.html">download page</a>, then follow the steps for your system. The Mac button gets the version for Apple silicon, which most Macs since late 2020 have. There's also an Intel version: see <a href="download.html#which-mac">which Mac do I have</a>. Not sure your computer is up to it? Check the <a href="requirements.html">system requirements</a>.</p>
 
             <div class="note">
               <p class="note-title">About the security warnings</p>
@@ -114,45 +114,99 @@
         <div class="guide-step" id="song-list">
           <div class="num" aria-hidden="true">2</div>
           <div class="body">
-            <h2>Connect your song list</h2>
-            <p>The first time you open BubbleFacts, a setup wizard starts. It has three steps. The first one connects the app to your StreamerSongList, so it can see which song you're playing.</p>
+            <h2>Connect your songs</h2>
+            <p>The first time you open BubbleFacts, a short setup starts. Its first step connects the app to your StreamerSongList, so it can see which song you're playing.</p>
             <ol>
               <li>Click the big <span class="ui">Sign in with StreamerSongList</span> button. Your web browser opens.</li>
               <li>Sign in with the Twitch account you use on StreamerSongList.</li>
-              <li>Go back to BubbleFacts. Your channel is filled in for you. Then go on to the wizard's next step.</li>
+              <li>Go back to BubbleFacts. Your channel is filled in for you, and setup moves on.</li>
             </ol>
 
-            <h3 id="song-list-token">Or connect with a token</h3>
-            <p>If you'd rather not sign in, open <span class="ui">Or connect with a token</span> under the sign-in button. It asks for two things.</p>
-            <ol>
-              <li><strong>Your channel name.</strong> Type your StreamerSongList channel name.</li>
-              <li><strong>Your Streamer Access Token.</strong> To get it:
-                <ol>
-                  <li>In your web browser, sign in at <a href="https://streamersonglist.com">streamersonglist.com</a>.</li>
-                  <li>Go to <span class="ui">Settings</span>, then <span class="ui">Access</span>.</li>
-                  <li>Create a <span class="ui">Streamer Access Token</span> and copy it.</li>
-                  <li>Back in BubbleFacts, paste it into the wizard.</li>
-                </ol>
-              </li>
-              <li>Click <span class="ui">Connect</span>. If it doesn't work, check the channel name, or create a new token and paste it again.</li>
-            </ol>
+            <div class="faq">
+              <details id="song-list-token">
+                <summary>Having trouble signing in?</summary>
+                <div class="answer">
+                  <p>You can connect with a token instead. Open <span class="ui">Having trouble signing in?</span> under the sign-in button. It asks for two things.</p>
+                  <ol>
+                    <li><strong>Your channel name.</strong> Type your StreamerSongList channel name.</li>
+                    <li><strong>Your Streamer Access Token.</strong> To get it:
+                      <ol>
+                        <li>In your web browser, sign in at <a href="https://streamersonglist.com">streamersonglist.com</a>.</li>
+                        <li>Go to <span class="ui">Settings</span>, then <span class="ui">Access</span>.</li>
+                        <li>Create a <span class="ui">Streamer Access Token</span> and copy it.</li>
+                        <li>Back in BubbleFacts, paste it in.</li>
+                      </ol>
+                    </li>
+                    <li>Click <span class="ui">Connect</span>. If it doesn't work, check the channel name, or create a new token and paste it again.</li>
+                  </ol>
+                  <p>Treat a token like a password. Keep it off your stream and out of screenshots.</p>
+                </div>
+              </details>
+            </div>
+
             <div class="note">
-              <p class="note-title">Keep your sign-in private</p>
-              <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer. If you use a token, treat it like a password. Keep it off your stream and out of screenshots.</p>
+              <p class="note-title">Your sign-in stays private</p>
+              <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer.</p>
             </div>
             <div class="note">
               <p class="note-title">The built-in AI downloads on its own</p>
-              <p>As soon as the app opens, it starts downloading its built-in AI in the background. That's Llama 3.2 3B, about 2 GB, and it's a one-time download. You don't need to wait for it: finish setup while it downloads. If your connection drops, it tries again on its own. The app's dashboard shows how far along it is, and facts start once it's done.</p>
+              <p>As soon as the app opens, it starts downloading its built-in AI in the background. That's Llama 3.2 3B, about 2 GB, and it's a one-time download. You don't need to wait for it. Until it's ready, songs get backup facts, so BubbleFacts works right away. If your connection drops, the download tries again on its own. The app's dashboard shows how far along it is.</p>
             </div>
           </div>
         </div>
 
         <!-- Step 3 -->
-        <div class="guide-step" id="your-music">
+        <div class="guide-step" id="obs">
           <div class="num" aria-hidden="true">3</div>
           <div class="body">
-            <h2>Tell it about your music</h2>
-            <p>The wizard's second step, <span class="ui">Your music</span>, asks three things. You can change all of them later in the app's <span class="ui">Settings</span>.</p>
+            <h2>Put BubbleFacts on your stream</h2>
+            <p>The second step puts BubbleFacts into OBS, on top of your scene. You do this once. BubbleFacts needs to run on the same computer as OBS.</p>
+            <ol>
+              <li>Open OBS Studio.</li>
+              <li>Choose the scene you normally stream from.</li>
+              <li>Drag the <span class="ui">Drag this into OBS</span> tile from BubbleFacts into the <span class="ui">Sources</span> list in OBS.</li>
+            </ol>
+            <p>As soon as OBS loads it, BubbleFacts puts a test bubble on your stream and says <span class="ui">It's on your stream!</span> OBS names the new source "BubbleFacts" and sizes it to fit your canvas.</p>
+            <p>Not ready yet? Click <span class="ui">I'll add it later</span>. The app's dashboard has a <span class="ui">Drag into OBS</span> tile for when you are.</p>
+            <div class="note">
+              <p class="note-title">Nothing happens when you drop it on Windows?</p>
+              <p>OBS may be running as administrator. Close OBS and open it the usual way, or add it by hand (below).</p>
+            </div>
+
+            <div class="faq">
+              <details id="obs-by-hand">
+                <summary>Add it by hand</summary>
+                <div class="answer">
+                  <ol>
+                    <li>In OBS, under <span class="ui">Sources</span>, click <span class="ui">+</span> and choose <span class="ui">Browser</span>. Name it "BubbleFacts" and click <span class="ui">OK</span>.</li>
+                    <li>In BubbleFacts, click the <span class="ui">Copy</span> button next to the location of <span class="ui">BubbleFacts.html</span>. (Later, you'll find it under <span class="ui">Help and troubleshooting</span> on the dashboard.)</li>
+                    <li>In OBS, check <span class="ui">Local file</span>. Click <span class="ui">Browse</span> and choose the file at the location you copied. (You can paste the location into the file window: on a Mac press Cmd+Shift+G first; on Windows paste it into the address bar.)</li>
+                    <li>Set <span class="ui">Width</span> and <span class="ui">Height</span> to your canvas size. That's usually:
+                      <div class="copy-row">Width <code>1920</code>
+                        <button type="button" class="btn btn-secondary btn-small" data-copy="1920" hidden>Copy</button></div>
+                      <div class="copy-row">Height <code>1080</code>
+                        <button type="button" class="btn btn-secondary btn-small" data-copy="1080" hidden>Copy</button></div>
+                      Not sure? In OBS, open <span class="ui">Settings</span>, then <span class="ui">Video</span>, and look at <span class="ui">Base (Canvas) Resolution</span>.
+                    </li>
+                    <li>Click <span class="ui">OK</span>.</li>
+                  </ol>
+                  <p class="visually-hidden" id="copy-status" aria-live="polite"></p>
+                  <p>Use <span class="ui">Local file</span>, not a URL. It doesn't matter whether you open OBS or BubbleFacts first: the overlay keeps trying until the app is running.</p>
+                </div>
+              </details>
+            </div>
+
+            <h3 id="obs-scenes">Stream from more than one scene?</h3>
+            <p>Add BubbleFacts to just one scene, for example a scene called "BubbleFacts overlay". Then, in each of your other scenes, click <span class="ui">+</span> under <span class="ui">Sources</span>, choose <span class="ui">Scene</span>, and pick "BubbleFacts overlay". That's easier than adding BubbleFacts six times, and any change happens everywhere at once.</p>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="guide-step" id="your-music">
+          <div class="num" aria-hidden="true">4</div>
+          <div class="body">
+            <h2>Tell us about your music (optional)</h2>
+            <p>Setup's last step is optional. Click <span class="ui">Skip</span> to use the defaults, or answer three things. You can change all of them later in the app's <span class="ui">Settings</span>.</p>
 
             <h3 id="your-music-originals">I play my own compositions</h3>
             <p>This is off to start with. Check it if you play your own pieces. Songs tagged "Originals" in StreamerSongList, or with you as the artist, then get facts from your song list instead of a Wikipedia lookup: that it's yours, how often you've played it, and who requested it.</p>
@@ -174,7 +228,7 @@
               <li><span class="ui">Set up my own facts later</span> (already picked for you). The app uses the examples for now. You can add your own any time in <span class="ui">Settings</span>, under <span class="ui">Backup facts</span>.</li>
               <li><span class="ui">Add my own facts now</span>. Type your facts in the box, one per line.</li>
             </ul>
-            <p>Then click <span class="ui">Next</span>.</p>
+            <p>Then click <span class="ui">Next</span>. That's the whole setup.</p>
 
             <div class="note">
               <p class="note-title">Only add facts you've checked</p>
@@ -201,42 +255,6 @@
           </div>
         </div>
 
-        <!-- Step 4 -->
-        <div class="guide-step" id="obs">
-          <div class="num" aria-hidden="true">4</div>
-          <div class="body">
-            <h2>Add the overlay to OBS</h2>
-            <p>The wizard's last step, <span class="ui">Add it to OBS</span>, puts the overlay into OBS. The overlay is a small web page that OBS shows on top of your scene. You add it once.</p>
-            <ol>
-              <li>Open OBS Studio and pick the scene you stream from.</li>
-              <li>Drag the <span class="ui">Drag this into OBS</span> tile from BubbleFacts onto the <span class="ui">Sources</span> list in OBS.</li>
-            </ol>
-            <p>OBS adds a Browser source named "BubbleFacts", at the right size for your canvas. The app's dashboard also has a small <span class="ui">Drag into OBS</span> tile, if you ever need to add it again.</p>
-            <div class="note">
-              <p class="note-title">Nothing happens when you drop it on Windows?</p>
-              <p>OBS may be running as administrator. Close OBS and open it the usual way, or add it by hand (below).</p>
-            </div>
-
-            <h3 id="obs-by-hand">Or add it by hand</h3>
-            <ol>
-              <li>In OBS, under <span class="ui">Sources</span>, click <span class="ui">+</span> and choose <span class="ui">Browser</span>. Name it "BubbleFacts" and click <span class="ui">OK</span>.</li>
-              <li>In the wizard, click the <span class="ui">Copy</span> button next to the location of <span class="ui">BubbleFacts.html</span>.</li>
-              <li>In OBS, check <span class="ui">Local file</span>. Click <span class="ui">Browse</span> and choose the file at the location you copied. (You can paste the location into the file window: on a Mac press Cmd+Shift+G first; on Windows paste it into the address bar.)</li>
-              <li>Set <span class="ui">Width</span> and <span class="ui">Height</span> to your canvas size. That's usually:
-                <div class="copy-row">Width <code>1920</code>
-                  <button type="button" class="btn btn-secondary btn-small" data-copy="1920" hidden>Copy</button></div>
-                <div class="copy-row">Height <code>1080</code>
-                  <button type="button" class="btn btn-secondary btn-small" data-copy="1080" hidden>Copy</button></div>
-                Not sure? In OBS, open <span class="ui">Settings</span>, then <span class="ui">Video</span>, and look at <span class="ui">Base (Canvas) Resolution</span>.
-              </li>
-              <li>Click <span class="ui">OK</span>.</li>
-            </ol>
-            <p class="visually-hidden" id="copy-status" aria-live="polite"></p>
-            <p>Use <span class="ui">Local file</span>, not a URL. It doesn't matter whether you open OBS or BubbleFacts first: the overlay keeps trying until the app is running.</p>
-            <p>Back in the wizard, click <span class="ui">Done</span>. That's the whole setup.</p>
-          </div>
-        </div>
-
         <!-- Step 5 -->
         <div class="guide-step" id="check">
           <div class="num" aria-hidden="true">5</div>
@@ -247,7 +265,8 @@
               <li>Play a song from your StreamerSongList queue.</li>
               <li>A gold <span class="ui">NOW PLAYING</span> banner appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up.</li>
             </ol>
-            <p>Banner but no facts yet? The built-in AI may still be downloading. The app's dashboard shows its progress. Facts start once it's done.</p>
+            <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>.</p>
+            <p>General facts instead of facts about the song? The built-in AI may still be downloading. Until it's ready, songs get backup facts. The dashboard shows its progress.</p>
             <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See the table below.</p>
           </div>
         </div>
@@ -258,12 +277,13 @@
           <div class="body">
             <h2>While you stream</h2>
             <ul>
+              <li><strong>Need the bubbles gone right now?</strong> Click <span class="ui">Pause bubbles</span> on the dashboard, or in the BubbleFacts menu in your menu bar (Mac) or system tray (Windows and Linux). Turn them back on the same way.</li>
               <li><strong>Closing the window doesn't stop it.</strong> BubbleFacts keeps running in your menu bar (Mac) or system tray (Windows and Linux), with a status light. To stop it, choose <span class="ui">Quit</span> from that menu.</li>
               <li><strong>It fixes itself.</strong> If something inside the app gets stuck, it restarts that part on its own, so you can keep playing.</li>
-              <li><strong>Wrong fact?</strong> Click <span class="ui">That fact is wrong</span> in the app. For anything else, click <span class="ui">Report a problem</span>. A report opens in your browser for you to read before you send it. See <a href="privacy.html#reports">how reports work</a>.</li>
+              <li><strong>Wrong fact?</strong> Click <span class="ui">Report this fact</span> in the app. For anything else, open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>. A report opens on GitHub in your browser for you to read before you send it. You need a free GitHub account. See <a href="privacy.html#reports">how reports work</a>.</li>
               <li><strong>New versions.</strong> When one is out, the app tells you and gives you a download link. See <a href="changelog.html">what's new</a>.</li>
               <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
-              <li><strong>Add your own backup facts.</strong> Songs with no Wikipedia article get backup facts. The ones included are only a few examples, so add your own. See <a href="#backup-facts-settings">how to add them</a>.</li>
+              <li><strong>Add your own backup facts.</strong> Songs with no Wikipedia article get backup facts. The ones included are only a few examples, so add your own. If a song had no article and you haven't added any, the dashboard suggests it. See <a href="#backup-facts-settings">how to add them</a>.</li>
             </ul>
           </div>
         </div>
@@ -337,12 +357,17 @@
               <tr>
                 <th scope="row">A small red dot in the bottom-right corner</th>
                 <td>The overlay can't reach the app</td>
-                <td>Open BubbleFacts. If it's already open, check its status light, or quit it from the menu bar or tray and open it again.</td>
+                <td>Open BubbleFacts. If it's already open, check the <span class="ui">Stream</span> light on the dashboard, or quit it from the menu bar or tray and open it again.</td>
               </tr>
               <tr>
                 <th scope="row">Nothing at all, not even a red dot</th>
                 <td>OBS isn't loading the overlay</td>
-                <td>Check the source uses <span class="ui">Local file</span>, points at the file the app shows you, and is visible (the eye icon in Sources).</td>
+                <td>Check the source is visible (the eye icon in Sources). Then drag the tile from BubbleFacts into OBS again. If you added it by hand, check it uses <span class="ui">Local file</span> and points at the file shown under <span class="ui">Help and troubleshooting</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row">No test bubble, and no "It's on your stream!"</th>
+                <td>OBS didn't load the overlay, or BubbleFacts runs on a different computer</td>
+                <td>BubbleFacts needs to run on the same computer as OBS. Try dragging the tile again, or <a href="#obs-by-hand">add it by hand</a>.</td>
               </tr>
               <tr>
                 <th scope="row">The app says StreamerSongList rejected your sign-in or token</th>
@@ -360,9 +385,9 @@
                 <td>For game music, put the game's name in the artist field in StreamerSongList. Obscure songs often have no article, so they get backup facts instead. The included ones are only a few examples: <a href="#backup-facts">add your own</a>.</td>
               </tr>
               <tr>
-                <th scope="row">The banner shows, but no fact bubbles, soon after installing</th>
+                <th scope="row">Only general facts, soon after installing</th>
                 <td>The built-in AI is still downloading</td>
-                <td>Check the progress on the app's dashboard. Facts start once it's done.</td>
+                <td>Until it's ready, songs get backup facts. Check the progress on the app's dashboard.</td>
               </tr>
               <tr>
                 <th scope="row">Fewer bubbles than expected</th>
@@ -385,6 +410,11 @@
                 <td>In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</td>
               </tr>
               <tr>
+                <th scope="row">You need the bubbles off the screen right now</th>
+                <td>Anything</td>
+                <td>Click <span class="ui">Pause bubbles</span> on the dashboard, or in the menu bar or tray menu.</td>
+              </tr>
+              <tr>
                 <th scope="row">Your stream stutters when a song starts</th>
                 <td>The built-in AI is sharing your computer with OBS</td>
                 <td>Switch to <span class="ui">Online: Groq</span> in <span class="ui">Settings</span>, under <span class="ui">Who writes the facts</span> (see <a href="#ai">Optional: use an online AI instead</a>). It's free and does the work online.</td>
@@ -397,7 +427,7 @@
             </tbody>
           </table>
         </div>
-        <p>Still stuck? Click <span class="ui">Report a problem</span> in the app, or ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>. The <a href="support.html">help page</a> lists every option.</p>
+        <p>Still stuck? In the app, open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>, or ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>. The <a href="support.html">help page</a> lists every option.</p>
       </div>
     </section>
   </main>

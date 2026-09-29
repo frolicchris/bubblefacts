@@ -10,7 +10,7 @@ download script asking GitHub's public API for the newest release.
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | All five downloads, "Which Mac do I have?", first-launch notes, an in-browser download checker (files are never uploaded), and a "For developers" section with the commands |
+| `download.html` | Beta note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Verify your download (optional)" with the in-browser checker and a "For developers" part |
 | `guide.html` | Step-by-step setup and troubleshooting |
 | `requirements.html` | System requirements, speed, fallback when the built-in AI can't run |
 | `changelog.html` | What's new in each version |
@@ -92,7 +92,7 @@ link ignores. So the pages don't use fixed links. Instead:
   GitHub's limit of 60 API requests an hour per visitor.
 - If the request fails or a file is missing, that link stays on the Releases
   page. With JavaScript off, every link goes there too, so no link is ever dead.
-- On a Mac, the main button offers Apple silicon, with Intel right below it.
+- On a Mac, the main button is Apple silicon, with a small "Need the Intel version?" link below it.
   Chrome and Edge can report an Intel Mac, and then the two swap.
 
 If the release pipeline changes the file names, update `PATTERNS` in

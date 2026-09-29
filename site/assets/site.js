@@ -26,8 +26,8 @@
   };
 
   var BUILDS = {
-    "mac-arm64": { label: "Download for Mac (Apple silicon)", note: "For macOS 13 or newer, on Macs with Apple silicon (M1 and newer). Free." },
-    "mac-x64": { label: "Download for Mac (Intel)", note: "For macOS 13 or newer, on Macs with an Intel processor. Free." },
+    "mac-arm64": { label: "Download for Mac", note: "For Macs with Apple silicon (M1 and newer), macOS 13 or newer. Free." },
+    "mac-x64": { label: "Download for Mac", note: "For Intel Macs, macOS 13 or newer. Free." },
     "windows-x64": { label: "Download for Windows", note: "For Windows 10 or 11, 64-bit. Free." },
     "linux-deb": { label: "Download for Linux (.deb)", note: "For Ubuntu, Debian and similar, 64-bit. Free. Other Linux: use the AppImage below." }
   };
@@ -267,11 +267,10 @@
     if (!alt) return;
     var other = current === "mac-arm64" ? "mac-x64" : "mac-arm64";
     alt.textContent = "";
-    alt.appendChild(document.createTextNode(other === "mac-x64" ? "Intel Mac? " : "Mac with Apple silicon? "));
     var link = document.createElement("a");
     link.setAttribute("data-asset", other);
     link.href = assetUrls[other] || RELEASES_PAGE;
-    link.textContent = other === "mac-x64" ? "Download for Intel" : "Download for Apple silicon";
+    link.textContent = other === "mac-x64" ? "Need the Intel version?" : "Need the Apple silicon version?";
     alt.appendChild(link);
     alt.appendChild(document.createTextNode(" · "));
     var help = document.createElement("a");
@@ -361,7 +360,11 @@
   function openFromHash() {
     if (!location.hash) return;
     var target = document.getElementById(location.hash.slice(1));
-    if (target && target.tagName === "DETAILS") target.open = true;
+    // Open the linked section and any collapsed sections around it.
+    for (var el = target; el; el = el.parentElement) {
+      if (el.tagName === "DETAILS") el.open = true;
+    }
+    if (target && target.scrollIntoView) target.scrollIntoView();
   }
 
   setupDownload();

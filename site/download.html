@@ -50,15 +50,29 @@
       <div class="wrap">
         <p class="eyebrow">Download</p>
         <h1>Download BubbleFacts</h1>
-        <p class="section-intro">Free for Mac, Windows and Linux. Latest version: <a data-release-link href="https://github.com/frolicchris/bubblefacts/releases"><span data-release-version>see all releases</span></a>. Before you download, check the <a href="requirements.html">system requirements</a>.</p>
+        <p class="section-intro">Free for Mac, Windows and Linux. Latest version: <a data-release-link href="https://github.com/frolicchris/bubblefacts/releases"><span data-release-version>see all releases</span></a>.</p>
+
+        <div class="note">
+          <p class="note-title">Beta note</p>
+          <p>Your Mac or Windows may ask you to confirm you want to open BubbleFacts, because this beta isn't digitally signed yet. <a href="#first-launch">Here's exactly what to click.</a></p>
+        </div>
 
         <ul class="dl-cards">
           <li class="rpg">
             <h2>Mac</h2>
-            <p class="dl-meta">macOS 13 Ventura or newer. There are two versions: pick the one for your Mac's chip. Not sure? See <a href="#which-mac">which Mac do I have</a>.</p>
-            <p><a class="btn btn-primary" data-asset="mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Download for Apple silicon</a></p>
-            <p><a class="btn btn-secondary" data-asset="mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Download for Intel</a></p>
-            <p class="dl-file"><code>BubbleFacts-…-mac-arm64.dmg</code> (Apple silicon) or <code>BubbleFacts-…-mac-x64.dmg</code> (Intel): a disk image. Open it, then drag the app into your Applications folder.</p>
+            <p class="dl-meta">macOS 13 Ventura or newer.</p>
+            <p><a class="btn btn-primary" data-asset="mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Download for Mac</a></p>
+            <p class="dl-file"><code>BubbleFacts-…-mac-arm64.dmg</code>: a disk image. Open it, then drag the app into your Applications folder.</p>
+            <p class="dl-note"><a data-asset="mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Need the Intel version?</a> (<code>BubbleFacts-…-mac-x64.dmg</code>)</p>
+            <details class="dl-help" id="which-mac">
+              <summary>Which Mac do I have?</summary>
+              <p>Most Macs sold since late 2020 have Apple silicon, and the button above is for those. To check yours:</p>
+              <ol>
+                <li>Click the Apple menu in the top-left corner of the screen.</li>
+                <li>Choose <span class="ui">About This Mac</span>.</li>
+                <li>If it says <span class="ui">Chip: Apple M…</span> (M1, M2, M3 or newer), you have Apple silicon: use the button above. If it says <span class="ui">Processor: Intel</span>, use the Intel version.</li>
+              </ol>
+            </details>
           </li>
           <li class="rpg">
             <h2>Windows</h2>
@@ -81,19 +95,8 @@
         </ul>
 
         <p>The "…" in each file name is the version number. With JavaScript off, each button opens the GitHub Releases page, where you can pick the file.</p>
-        <p><a href="https://github.com/frolicchris/bubblefacts/releases">All versions</a> · <a href="changelog.html">What's new</a> · <a href="#verify">Verify your download</a></p>
-      </div>
-    </section>
-
-    <section class="section" aria-labelledby="which-mac">
-      <div class="wrap narrow">
-        <h2 id="which-mac">Which Mac do I have?</h2>
-        <p>Most Macs sold since late 2020 have Apple silicon. To check yours:</p>
-        <ol>
-          <li>Click the Apple menu in the top-left corner of the screen.</li>
-          <li>Choose <span class="ui">About This Mac</span>.</li>
-          <li>If it says <span class="ui">Chip: Apple M…</span> (M1, M2, M3 or newer), you have Apple silicon. If it says <span class="ui">Processor: Intel</span>, you have an Intel Mac.</li>
-        </ol>
+        <p>Needs macOS 13 or newer, Windows 10 or 11, or 64-bit Linux, plus OBS Studio 28 or newer on the same computer. <a href="requirements.html">Full system requirements</a>.</p>
+        <p><a href="https://github.com/frolicchris/bubblefacts/releases">All versions</a> · <a href="changelog.html">What's new</a> · <a href="#verify">Verify your download (optional)</a></p>
       </div>
     </section>
 
@@ -123,47 +126,51 @@
       </div>
     </section>
 
-    <section class="section" aria-labelledby="verify">
-      <div class="wrap narrow">
-        <h2 id="verify">Verify your download</h2>
-        <p>This step is optional. It checks that the file you downloaded is complete and exactly the one published on GitHub.</p>
-        <div class="rpg checker" id="checker" hidden>
-          <div class="drop-zone" id="check-drop">
-            <p>Drag the file you downloaded here, or</p>
-            <input type="file" id="check-file" class="visually-hidden">
-            <label class="btn btn-secondary" for="check-file">Choose file</label>
+    <section class="section">
+      <div class="wrap narrow faq">
+        <details id="verify">
+          <summary>Verify your download (optional)</summary>
+          <div class="answer">
+              <p>This checks that the file you downloaded is complete and exactly the one published on GitHub.</p>
+              <div class="rpg checker" id="checker" hidden>
+                <div class="drop-zone" id="check-drop">
+                  <p>Drag the file you downloaded here, or</p>
+                  <input type="file" id="check-file" class="visually-hidden">
+                  <label class="btn btn-secondary" for="check-file">Choose file</label>
+                </div>
+                <p class="check-result" id="check-result" role="status" aria-live="polite"></p>
+                <p class="dl-note">Your file never leaves your computer. This page works out the file's fingerprint right here in your browser and compares it with the list on GitHub. Nothing is uploaded.</p>
+              </div>
+              <p id="check-nojs">The file checker needs JavaScript turned on. You can still check a file by hand: see <a href="#for-developers">For developers</a> below.</p>
+
+              <p>How it works: every file has a <strong>fingerprint</strong>, a long string of letters and numbers worked out from its contents. Change even one byte and the fingerprint changes. GitHub lists the fingerprint of every download, so if yours matches, your file is good.</p>
+
+              <div class="note">
+                <p class="note-title">What a match tells you</p>
+                <p>A match means the file arrived complete and unchanged from what's on the GitHub release page. It doesn't prove who made the file. App signing does that for your computer, and signing isn't set up yet.</p>
+              </div>
+
+              <h3 id="attestation">Where the files come from</h3>
+              <p>Every file is built by GitHub Actions from the public source code, with a build-provenance attestation: a signed record of how and where it was built, which anyone can check.</p>
+
+              <div class="faq">
+                <details id="for-developers">
+                  <summary>For developers</summary>
+                  <div class="answer">
+                    <p>Each release includes <a data-asset="sha256sums" href="https://github.com/frolicchris/bubblefacts/releases"><code>SHA256SUMS.txt</code></a>, the list of fingerprints. To check a file by hand, compare its line there with the output of one of these:</p>
+                    <div class="copy-row cmd-row"><code class="cmd">shasum -a 256 FILE</code>
+                      <button type="button" class="btn btn-secondary btn-small" data-copy="shasum -a 256 " hidden>Copy</button></div>
+                    <div class="copy-row cmd-row"><code class="cmd">Get-FileHash FILE</code>
+                      <button type="button" class="btn btn-secondary btn-small" data-copy="Get-FileHash " hidden>Copy</button></div>
+                    <p>The first works on Mac and Linux (or <code>sha256sum</code> on Linux), the second in Windows PowerShell. To check the build-provenance attestation, install the <a href="https://cli.github.com">GitHub CLI</a> and run:</p>
+                    <div class="copy-row cmd-row"><code class="cmd">gh attestation verify FILE --repo frolicchris/bubblefacts</code>
+                      <button type="button" class="btn btn-secondary btn-small" data-copy="gh attestation verify FILE --repo frolicchris/bubblefacts" hidden>Copy</button></div>
+                    <p class="visually-hidden" id="copy-status" aria-live="polite"></p>
+                  </div>
+                </details>
+              </div>
           </div>
-          <p class="check-result" id="check-result" role="status" aria-live="polite"></p>
-          <p class="dl-note">Your file never leaves your computer. This page works out the file's fingerprint right here in your browser and compares it with the list on GitHub. Nothing is uploaded.</p>
-        </div>
-        <p id="check-nojs">The file checker needs JavaScript turned on. You can still check a file by hand: see <a href="#for-developers">For developers</a> below.</p>
-
-        <p>How it works: every file has a <strong>fingerprint</strong>, a long string of letters and numbers worked out from its contents. Change even one byte and the fingerprint changes. GitHub lists the fingerprint of every download, so if yours matches, your file is good.</p>
-
-        <div class="note">
-          <p class="note-title">What a match tells you</p>
-          <p>A match means the file arrived complete and unchanged from what's on the GitHub release page. It doesn't prove who made the file. App signing does that for your computer, and signing isn't set up yet.</p>
-        </div>
-
-        <h3 id="attestation">Where the files come from</h3>
-        <p>Every file is built by GitHub Actions from the public source code, with a build-provenance attestation: a signed record of how and where it was built, which anyone can check.</p>
-
-        <div class="faq">
-          <details id="for-developers">
-            <summary>For developers</summary>
-            <div class="answer">
-              <p>Each release includes <a data-asset="sha256sums" href="https://github.com/frolicchris/bubblefacts/releases"><code>SHA256SUMS.txt</code></a>, the list of fingerprints. To check a file by hand, compare its line there with the output of one of these:</p>
-              <div class="copy-row cmd-row"><code class="cmd">shasum -a 256 FILE</code>
-                <button type="button" class="btn btn-secondary btn-small" data-copy="shasum -a 256 " hidden>Copy</button></div>
-              <div class="copy-row cmd-row"><code class="cmd">Get-FileHash FILE</code>
-                <button type="button" class="btn btn-secondary btn-small" data-copy="Get-FileHash " hidden>Copy</button></div>
-              <p>The first works on Mac and Linux (or <code>sha256sum</code> on Linux), the second in Windows PowerShell. To check the build-provenance attestation, install the <a href="https://cli.github.com">GitHub CLI</a> and run:</p>
-              <div class="copy-row cmd-row"><code class="cmd">gh attestation verify FILE --repo frolicchris/bubblefacts</code>
-                <button type="button" class="btn btn-secondary btn-small" data-copy="gh attestation verify FILE --repo frolicchris/bubblefacts" hidden>Copy</button></div>
-              <p class="visually-hidden" id="copy-status" aria-live="polite"></p>
-            </div>
-          </details>
-        </div>
+        </details>
       </div>
     </section>
   </main>

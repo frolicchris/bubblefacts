@@ -973,3 +973,19 @@ code.cmd {
 .check-bad {
   color: #ff8a8a;
 }
+
+.dl-help {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.dl-help summary {
+  cursor: pointer;
+  color: var(--link);
+}
+
+.dl-help ol {
+  padding-left: 1.4rem;
+  margin-top: 0.5rem;
+}
