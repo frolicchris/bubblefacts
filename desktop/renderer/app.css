@@ -93,6 +93,11 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .progress .bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--border), var(--gold)); transform-origin: left; }
 
 .howto li { margin: 10px 0; }
+.check { display: flex; gap: 10px; align-items: center; padding: 12px 14px; margin: 8px 0 4px; border-radius: 8px; background: #0e1233; }
+.check-icon { font-weight: 700; width: 1.2em; text-align: center; }
+.check.ok { background: #10301f; color: var(--ok); }
+.check.ok #obs-check-text { color: var(--text); }
+.main-controls { align-items: center; margin-bottom: 18px; }
 .drag-tile { display: flex; gap: 14px; align-items: center; padding: 16px 18px; margin: 6px 0 10px; border: 2px dashed var(--gold); border-radius: 10px; background: #1c2152; cursor: grab; user-select: none; }
 .drag-tile:hover { background: #232a66; }
 .drag-tile:active { cursor: grabbing; }
@@ -112,6 +117,7 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .lights li { display: flex; gap: 10px; align-items: flex-start; background: var(--panel); border: 1px solid #2a3170; border-radius: 8px; padding: 12px 14px; }
 .lights em { display: block; font-style: normal; color: var(--muted); font-size: 13px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; flex: none; background: #555c8f; }
+.lights li.ok, .lights li.warn, .lights li.bad { color: var(--text); }
 .lights .ok .dot { background: var(--ok); }
 .lights .warn .dot { background: var(--warn); }
 .lights .bad .dot { background: var(--bad); }

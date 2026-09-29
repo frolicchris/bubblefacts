@@ -99,7 +99,7 @@
   }
 
   $("#sign-in").addEventListener("click", async (e) => {
-    if (await doSignIn(e.currentTarget, $("#sign-in-result"))) toFactsStep();
+    if (await doSignIn(e.currentTarget, $("#sign-in-result"))) toStreamStep();
   });
 
   $("#setup-test").addEventListener("click", async () => {
@@ -110,13 +110,53 @@
     const saved = await api.saveSettings({ channel: channelInput.value.trim(), token: tokenInput.value.trim() });
     if (saved.error) return setResult(testResult, saved.error, "bad");
     state = saved;
-    toFactsStep();
+    toStreamStep();
   });
 
-  // --- Setup: step 2, backup facts ------------------------------------------------
+  // --- Setup: step 2, OBS ------------------------------------------------------------
 
-  function toFactsStep() {
+  let obsConfirmed = false;
+
+  function toStreamStep() {
     $("#connected-as").textContent = `✓ Connected to ${state.settings.channel}.`;
+    renderPaths();
+    goStep(2);
+    renderObsCheck();
+  }
+
+  const obsConnected = (s) => !!s?.health?.clients?.some((c) => /OBS\//.test(c.ua));
+
+  /** Watch for OBS to load the overlay, then put a test bubble on stream and say so. */
+  async function renderObsCheck() {
+    const box = $("#obs-check");
+    if (obsConfirmed || !obsConnected(state.status)) {
+      if (!obsConfirmed) {
+        box.className = "check waiting";
+        $(".check-icon", box).textContent = "…";
+        $("#obs-check-text").textContent = state.status?.state === "running"
+          ? "Waiting for OBS. As soon as you drop it in, a test bubble appears on your stream."
+          : "Getting BubbleFacts ready. You can add it to OBS now.";
+      }
+      return;
+    }
+    obsConfirmed = true;
+    await api.testBubble();
+    box.className = "check ok";
+    $(".check-icon", box).textContent = "✓";
+    $("#obs-check-text").textContent = "It's on your stream! You should see a test bubble in OBS now.";
+    $("#show-test-again").hidden = false;
+    const next = $("#stream-next");
+    next.className = "primary";
+    next.textContent = "Continue";
+    next.focus();
+  }
+
+  $("#show-test-again").addEventListener("click", () => api.testBubble());
+  $("#stream-next").addEventListener("click", toMusicStep);
+
+  // --- Setup: step 3, your music (optional) --------------------------------------------
+
+  function toMusicStep() {
     $("#setup-originals").checked = state.settings.originals;
     $("#setup-livelearns").checked = state.settings.liveLearns;
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
@@ -126,7 +166,7 @@
       $("#setup-myfacts").value = state.settings.myFacts.join("\n");
     }
     showFactsBox();
-    goStep(2);
+    goStep(3);
   }
 
   function showFactsBox() {
@@ -135,54 +175,40 @@
   for (const r of $$('input[name="facts-choice"]')) r.addEventListener("change", showFactsBox);
   $("#setup-originals").addEventListener("change", (e) => ($("#setup-originals-box").hidden = !e.target.checked));
 
-  $("#facts-next").addEventListener("click", async () => {
-    const now = $('input[name="facts-choice"]:checked').value === "now";
-    const myFacts = now ? $("#setup-myfacts").value.split("\n").map((l) => l.trim()).filter(Boolean) : state.settings.myFacts;
-    const originals = $("#setup-originals").checked;
-    const myOriginals = originals ? $("#setup-myoriginals").value.split("\n").map((l) => l.trim()).filter(Boolean) : state.settings.myOriginals;
-    const saved = await api.saveSettings({ myFacts, myOriginals, originals, liveLearns: $("#setup-livelearns").checked });
+  const lines = (el) => el.value.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  async function finishSetup(changes) {
+    const saved = await api.saveSettings({ ...changes, setupComplete: true });
     if (saved.error) return setResult($("#facts-result"), saved.error, "bad");
-    setResult($("#facts-result"), "");
     state = saved;
-    toObsStep();
-  });
-
-  // --- Setup: step 3, OBS ---------------------------------------------------------
-
-  function toObsStep() {
-    renderPaths();
-    renderSetupAi();
-    goStep(3);
+    show("dashboard");
+    renderStatus(state.status);
+    renderNotices();
   }
+
+  $("#music-skip").addEventListener("click", () => finishSetup({}));
+  $("#music-finish").addEventListener("click", () => {
+    const originals = $("#setup-originals").checked;
+    finishSetup({
+      originals,
+      liveLearns: $("#setup-livelearns").checked,
+      myOriginals: originals ? lines($("#setup-myoriginals")) : state.settings.myOriginals,
+      myFacts: $('input[name="facts-choice"]:checked').value === "now" ? lines($("#setup-myfacts")) : state.settings.myFacts,
+    });
+  });
 
   function downloadText(d) {
     if (!d) return "";
-    const pct = Math.floor((d.received / d.total) * 100);
-    if (d.error) return `The AI download paused (${d.error}). It tries again on its own.`;
-    if (d.phase === "checking") return "Checking the AI download...";
-    if (d.phase === "done") return "The AI is ready.";
-    return `The AI is downloading in the background: ${pct}% of 2 GB.`;
-  }
-
-  function renderSetupAi() {
-    const el = $("#setup-ai-status");
-    if (state.settings.ai !== "builtin" || state.modelReady) el.textContent = "";
-    else el.textContent = downloadText(state.modelDownload) + " You can finish now. Facts start as soon as it's done.";
+    if (d.error) return `Paused: ${d.error}. It tries again on its own.`;
+    if (d.phase === "checking") return "Almost ready";
+    if (d.phase === "done") return "Ready";
+    return `${Math.floor((d.received / d.total) * 100)}% downloaded`;
   }
 
   api.on("model-progress", (p) => {
     if (!state) return;
     state.modelDownload = p;
     if (p.phase === "done") state.modelReady = true;
-    renderSetupAi();
-    renderStatus(state.status);
-  });
-
-  $("#finish-setup").addEventListener("click", async () => {
-    const saved = await api.saveSettings({ setupComplete: true });
-    if (saved.error) return;
-    state = saved;
-    show("dashboard");
     renderStatus(state.status);
   });
 
@@ -192,51 +218,67 @@
 
   // --- Dashboard -----------------------------------------------------------
 
+  const ICONS = { ok: "✓ ", warn: "! ", bad: "✕ ", "": "" };
+
+  /** Status in words and a symbol, never color alone. */
   function light(id, kind, text) {
     const li = $("#" + id);
     li.className = kind;
-    $("em", li).textContent = text;
+    $("em", li).textContent = ICONS[kind] + text;
   }
 
   function renderStatus(status) {
-    if (!state) return;
+    if (!state || !status) return;
     const h = status.health;
-    const obs = h && h.clients.some((c) => /OBS\//.test(c.ua));
+    const obs = obsConnected(status);
     const otherClient = h && h.obsClients > 0 && !obs;
+    const downloading = state.settings.ai === "builtin" && !state.modelReady;
+    const rejected = state.signInExpired || h?.status === "unauthorized";
 
-    // Song list
-    if (!h) light("light-songlist", "", "Waiting to start");
-    else if (h.status === "unauthorized") light("light-songlist", "bad", "Your sign-in wasn't accepted");
-    else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) light("light-songlist", "ok", h.currentSong ? "Following your queue" : "Connected, nothing playing");
+    // Songs
+    if (!h) light("light-songlist", "", "Starting");
+    else if (rejected) light("light-songlist", "bad", "Sign in again");
+    else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) light("light-songlist", "ok", h.currentSong ? "Following your queue" : "Connected");
     else light("light-songlist", "warn", "Reconnecting");
 
-    // Fact writer
-    const names = { builtin: "Built-in AI", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama" };
-    const downloading = state.settings.ai === "builtin" && !state.modelReady;
-    if (downloading) light("light-ai", state.modelDownload?.error ? "warn" : "", downloadText(state.modelDownload) || "Waiting to download");
-    else if (state.builtinFailed && state.settings.ai === "builtin") light("light-ai", "bad", "Can't run here; see above");
-    else if (status.state === "running") light("light-ai", "ok", names[state.settings.ai] + (state.settings.forceCpu ? " (processor)" : ""));
-    else light("light-ai", "", names[state.settings.ai] || "");
+    // Facts
+    if (downloading) light("light-ai", state.modelDownload?.error ? "warn" : "", "Getting ready: " + (downloadText(state.modelDownload) || "starting"));
+    else if (state.builtinFailed && state.settings.ai === "builtin") light("light-ai", "bad", "Needs attention");
+    else if (status.state === "running") light("light-ai", "ok", "Ready");
+    else light("light-ai", "", "Starting");
 
-    // OBS
-    if (obs) light("light-obs", "ok", "Connected");
-    else if (otherClient) light("light-obs", "warn", "A browser is connected, not OBS");
-    else light("light-obs", status.state === "running" ? "warn" : "", "Not connected yet");
+    // Stream
+    if (state.paused) light("light-obs", "warn", "Bubbles paused");
+    else if (obs) light("light-obs", "ok", "On your stream");
+    else if (otherClient) light("light-obs", "warn", "Open in a browser, not OBS");
+    else light("light-obs", status.state === "running" ? "warn" : "", "Not in OBS yet");
 
     // Banner
     const banner = $("#status-banner");
-    let kind = "warn", title = "Starting", detail = "Getting everything ready.";
-    if (status.state === "failing") { kind = "bad"; title = "Having trouble"; detail = status.message + ". BubbleFacts keeps trying on its own. If this doesn't clear, use Report a problem."; }
-    else if (status.state === "restarting") { title = "Fixing a problem"; detail = status.message + ". Restarting automatically."; }
-    else if (state.signInExpired || h?.status === "unauthorized") { kind = "bad"; title = "Sign in again"; detail = "Your StreamerSongList sign-in ended. Click Sign in above to continue."; }
-    else if (status.state === "stopped" && downloading) { title = "Getting the AI ready"; detail = "The one-time download is running. Facts start as soon as it's done."; }
-    else if (status.state === "stopped") { title = "Not running"; detail = "Connect your song list in Settings to start."; }
-    else if (status.state === "running" && !obs) { title = "Waiting for OBS"; detail = "Add the overlay in OBS, or open OBS if it's closed. See Copy OBS file path below."; }
+    let kind = "warn", title = "Getting BubbleFacts ready", detail = "This only takes a moment.";
+    if (status.state === "failing") { kind = "bad"; title = "Something's wrong"; detail = status.message + ". BubbleFacts keeps trying on its own. If this doesn't clear, use Report a problem under Help."; }
+    else if (status.state === "restarting") { title = "Fixing a problem"; detail = status.message + ". This fixes itself in a moment."; }
+    else if (rejected) { kind = "bad"; title = "Reconnect your song list"; detail = "StreamerSongList needs you to sign in again."; }
+    else if (status.state === "stopped") { title = "Connect your songs"; detail = "Sign in with StreamerSongList in Settings to start."; }
+    else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
+    else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
     else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
-    else if (status.state === "running") { kind = "ok"; title = "Everything's working"; detail = h.currentSong ? "Facts appear for each song you play." : "Play a song from your queue and facts will pop up."; }
+    else if (status.state === "running") {
+      kind = "ok";
+      title = h.currentSong ? "Showing facts" : "Ready for your next song";
+      detail = downloading
+        ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get backup facts.`
+        : "BubbleFacts is connected and waiting.";
+    }
     banner.className = "banner " + kind;
     $("#status-title").textContent = title;
     $("#status-detail").textContent = detail;
+    $("#pause-toggle").textContent = state.paused ? "Resume bubbles" : "Pause bubbles";
+
+    // Only nudge when the example facts actually stood in for a song.
+    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length);
+
+    if (!$("#view-setup").hidden) renderObsCheck();
   }
 
   async function refreshRecent() {
@@ -254,6 +296,12 @@
     $("#now-empty").hidden = (r.facts || []).length > 0;
   }
 
+  $("#pause-toggle").addEventListener("click", () => api.setPaused(!state.paused));
+  $("#test-bubble").addEventListener("click", async () => {
+    const r = await api.testBubble();
+    setResult($("#test-result"), r && r.overlays ? "✓ Sent to OBS." : "OBS isn't showing BubbleFacts yet. Drag the tile into OBS first.", r && r.overlays ? "ok" : "bad");
+    setTimeout(() => setResult($("#test-result"), ""), 5000);
+  });
   $("#show-logs").addEventListener("click", () => api.showLogs());
   $("#remove-data").addEventListener("click", () => api.removeData());
   $("#report-problem").addEventListener("click", () => api.reportProblem());
@@ -278,7 +326,9 @@
       }
       box.appendChild(div);
     };
-    const signInNotice = (text) => add("warn", text, "Sign in", async (e) => {
+    const signInNotice = (text) => !state.signInAvailable
+      ? add("warn", text.replace("Sign in again", "Paste a new token in Settings"), "Open Settings", () => show("settings"))
+      : add("warn", text, "Sign in", async (e) => {
       const result = document.createElement("span");
       result.className = "result";
       e.currentTarget.before(result);
@@ -334,7 +384,6 @@
       else changes[el.name] = el.value.trim();
     }
     changes.topics = $$("#s-topics input").filter((b) => b.checked).map((b) => b.value);
-    const lines = (el) => el.value.split("\n").map((l) => l.trim()).filter(Boolean);
     changes.myFacts = lines($("#s-myfacts"));
     changes.myOriginals = lines($("#s-myoriginals"));
     if (changes.token) changes.tokenKind = "streamer";
@@ -375,7 +424,6 @@
   api.on("state", (s) => {
     state = s;
     renderNotices();
-    renderSetupAi();
     renderStatus(s.status);
   });
 
@@ -394,7 +442,7 @@
       $("#signin-box").hidden = !state.signInAvailable;
       $("#token-box").open = !state.signInAvailable;
       if (!state.signInAvailable) $("#token-summary").textContent = "Connect with a token";
-      if (state.settings.tokenSet) toFactsStep();
+      if (state.settings.tokenSet) toStreamStep();
       else goStep(1);
     }
   })();

@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   startDrag: () => ipcRenderer.send("start-drag"),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
   testOverlay: () => ipcRenderer.invoke("test-overlay"),
+  testBubble: () => ipcRenderer.invoke("test-bubble"),
+  setPaused: (paused: boolean) => ipcRenderer.invoke("set-paused", paused),
   showLogs: () => ipcRenderer.invoke("show-logs"),
   recent: () => ipcRenderer.invoke("recent"),
   reportProblem: () => ipcRenderer.invoke("report-problem"),

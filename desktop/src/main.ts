@@ -49,13 +49,20 @@ let refreshTimer: NodeJS.Timeout | null = null;
 let refreshing: Promise<void> | null = null;
 /** Getting the chosen model into the musician's own Ollama, so they never run "ollama pull". */
 let ollama: { pulling?: string; error?: string } | null = null;
+/** Bubbles paused from the dashboard or tray. Not saved: a restart shows bubbles again. */
+let paused = false;
 
 const supervisor = new Supervisor(path.join(ROOT, "dist/backend/server.js"), DIRS.logs);
 const overlayFile = () => path.join(DIRS.overlay, OVERLAY_FILE);
 const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
 
+/**
+ * Run as soon as the song list is connected, so the test bubble can appear
+ * during setup. While the built-in AI is still downloading, songs get backup
+ * facts; the server restarts with the AI once it's ready.
+ */
 function canStart(): boolean {
-  return settings.setupComplete && !!settings.channel && !!settings.token && (settings.ai !== "builtin" || modelReady(DIRS.models));
+  return !!settings.channel && !!settings.token;
 }
 
 /** How many backup facts a set of settings adds up to. The server needs five. */
@@ -73,7 +80,8 @@ function backupFactCount(s: Settings): number {
 
 function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelPath: modelPath(DIRS.models), logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
-  if (builtinFailed && settings.ai === "builtin") env.AI_PROVIDER = "none";
+  if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
+  if (paused) env.BUBBLEFACTS_PAUSED = "1";
   return env;
 }
 
@@ -89,6 +97,7 @@ function state() {
   return {
     settings: { ...rest, tokenSet: !!token, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
     signInAvailable: !!CLIENT_ID,
+    paused,
     ollama,
     signInExpired,
     modelDownload,
@@ -302,8 +311,9 @@ function updateTray(status: Status): void {
   tray.setToolTip(`BubbleFacts: ${label}`);
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `BubbleFacts: ${label}`, enabled: false },
+      { label: `BubbleFacts: ${label}${paused ? ", bubbles paused" : ""}`, enabled: false },
       { type: "separator" },
+      { label: paused ? "Resume bubbles" : "Pause bubbles", click: () => void setPaused(!paused) },
       { label: "Open BubbleFacts", click: showWindow },
       { label: "Quit BubbleFacts", click: () => { quitting = true; app.quit(); } },
     ])
@@ -351,7 +361,32 @@ function applyStartAtLogin(): void {
   app.setLoginItemSettings({ openAtLogin: settings.startAtLogin, args: ["--hidden"] });
 }
 
+/** Ask the running server to do something only the app may ask for. */
+async function control(pathname: string, body: unknown = {}): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/control/${pathname}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-BubbleFacts": "1" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(3_000),
+    });
+    return res.ok ? ((await res.json()) as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setPaused(next: boolean): Promise<void> {
+  paused = next;
+  await control("pause", { paused });
+  updateTray(supervisor.status);
+  send("state", state());
+}
+
 // --- Messages from the window ------------------------------------------
+
+ipcMain.handle("test-bubble", () => control("test"));
+ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());
 

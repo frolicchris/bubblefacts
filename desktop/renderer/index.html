@@ -21,23 +21,25 @@
     <!-- ====================== Setup ====================== -->
     <section id="view-setup" class="view" hidden>
       <ol class="steps" aria-label="Setup progress">
-        <li data-step="1">Connect your song list</li>
-        <li data-step="2">Your music</li>
-        <li data-step="3">Add it to OBS</li>
+        <li data-step="1">Connect your songs</li>
+        <li data-step="2">Add it to your stream</li>
+        <li data-step="3">Your music (optional)</li>
       </ol>
 
       <div class="panel step" data-step="1">
-        <h1>Connect your song list</h1>
-        <p class="lead">BubbleFacts follows your StreamerSongList queue, so it knows which song you're playing.</p>
+        <h1 tabindex="-1">Connect your songs</h1>
+        <p class="lead">BubbleFacts watches your StreamerSongList queue, so it knows what you're playing.</p>
 
         <div id="signin-box">
           <button id="sign-in" class="primary big">Sign in with StreamerSongList</button>
-          <p class="fine">Opens your browser. Sign in with the Twitch account you use on StreamerSongList, then come back here.</p>
+          <p class="fine">You'll sign in with Twitch in your browser, then come back here.</p>
           <p id="sign-in-result" class="result" role="status"></p>
         </div>
 
         <details id="token-box" class="help">
-          <summary id="token-summary">Or connect with a token</summary>
+          <summary id="token-summary">Having trouble signing in?</summary>
+          <p class="fine">You can connect with a Streamer Access Token instead. Find it at streamersonglist.com under <strong>Settings</strong>, then <strong>Access</strong>. It works like a password, so keep it off your stream.
+            <button class="link" data-open="https://www.streamersonglist.com">Open StreamerSongList</button></p>
           <label for="setup-channel">Your StreamerSongList channel name</label>
           <input id="setup-channel" type="text" autocomplete="off" spellcheck="false" placeholder="yourchannel">
           <label for="setup-token">Your Streamer Access Token</label>
@@ -45,8 +47,6 @@
             <input id="setup-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste it here">
             <button class="ghost" data-toggle-secret="setup-token">Show</button>
           </div>
-          <p class="fine">Find it at streamersonglist.com under <strong>Settings</strong>, then <strong>Access</strong>. It works like a password: keep it off your stream.
-            <button class="link" data-open="https://www.streamersonglist.com">Open StreamerSongList</button></p>
           <div class="actions">
             <button id="setup-test" class="primary">Connect</button>
             <span id="setup-test-result" class="result" role="status"></span>
@@ -55,8 +55,37 @@
       </div>
 
       <div class="panel step" data-step="2" hidden>
-        <h1>Your music</h1>
-        <p class="lead"><span id="connected-as"></span> Two quick questions, then your backup facts.</p>
+        <h1 tabindex="-1">Put BubbleFacts on your stream</h1>
+        <p class="lead"><span id="connected-as"></span> Open OBS and choose the scene you normally stream from.</p>
+        <div class="drag-tile" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
+          <img src="../build/tray@2x.png" alt="" width="40" height="40">
+          <span><strong>Drag this into your Sources list</strong><br><span class="hint">OBS adds it at the right size for your canvas.</span></span>
+        </div>
+        <div id="obs-check" class="check waiting" role="status" aria-live="polite">
+          <span class="check-icon" aria-hidden="true">…</span>
+          <span id="obs-check-text">That's it. BubbleFacts will check that it's working.</span>
+          <button class="link" id="show-test-again" hidden>Show it again</button>
+        </div>
+        <details class="help">
+          <summary>Add it by hand</summary>
+          <ol class="howto">
+            <li>Under <strong>Sources</strong>, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts".</li>
+            <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
+              <div class="pathbox"><code class="overlay-path"></code><button class="ghost" data-copy-path>Copy</button></div>
+            </li>
+            <li>Set <strong>Width</strong> and <strong>Height</strong> to your canvas size, usually 1920 and 1080. Click <strong>OK</strong>.</li>
+          </ol>
+          <p class="fine">Dropping the tile does nothing on Windows? OBS may be running as administrator. Open OBS the usual way, or use these steps.</p>
+        </details>
+        <div class="nav-buttons">
+          <button class="ghost" data-goto-step="1">Back</button>
+          <button id="stream-next" class="ghost">I'll add it later</button>
+        </div>
+      </div>
+
+      <div class="panel step" data-step="3" hidden>
+        <h1 tabindex="-1">Tell us about your music</h1>
+        <p class="lead">Optional. BubbleFacts works without this, and you can change it any time in Settings.</p>
 
         <div class="checks single">
           <label><input type="checkbox" id="setup-originals"> <span><strong>I play my own compositions</strong><br><span class="hint">Songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup.</span></span></label>
@@ -68,7 +97,7 @@
         </div>
 
         <h2 class="subhead">Backup facts</h2>
-        <p class="fine">When a song has no Wikipedia article, BubbleFacts shows backup facts instead.</p>
+        <p class="fine">When a song has no Wikipedia article, BubbleFacts shows a backup fact instead.</p>
         <p class="disclaimer"><strong>BubbleFacts comes with only a few example facts.</strong> They're short, they aren't updated, and they won't know your songs. Adding facts about the music you play makes your stream better.</p>
         <div class="choices" role="radiogroup" aria-label="Backup facts">
           <label class="choice">
@@ -92,35 +121,8 @@
         </div>
         <p id="facts-result" class="result" role="status"></p>
         <div class="nav-buttons">
-          <button class="ghost" data-goto-step="1">Back</button>
-          <button id="facts-next" class="primary">Next</button>
-        </div>
-      </div>
-
-      <div class="panel step" data-step="3" hidden>
-        <h1>Add it to OBS</h1>
-        <p class="lead">One last thing. Open OBS Studio and pick the scene you stream from.</p>
-        <div class="drag-tile" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
-          <img src="../build/tray@2x.png" alt="" width="40" height="40">
-          <span><strong>Drag this into OBS</strong><br><span class="hint">Drop it on the Sources list. OBS adds it at the right size for your canvas.</span></span>
-        </div>
-        <p class="fine">Nothing happens when you drop it on Windows? OBS may be running as administrator. Open OBS the usual way, or add it by hand below.</p>
-        <details class="help">
-          <summary>Or add it by hand</summary>
-          <ol class="howto">
-            <li>Under <strong>Sources</strong>, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts".</li>
-            <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
-              <div class="pathbox"><code class="overlay-path"></code><button class="ghost" data-copy-path>Copy</button></div>
-            </li>
-            <li>Set <strong>Width</strong> and <strong>Height</strong> to your canvas size, usually 1920 and 1080. Click <strong>OK</strong>.</li>
-          </ol>
-        </details>
-        <p>Want to see it first? <button class="link" data-test-overlay>Open a test bubble in your browser</button></p>
-        <p id="setup-ai-status" class="fine" role="status"></p>
-        <p class="fine">The built-in AI is Meta's Llama 3.2 3B, used under the <button class="link" data-open-license>Llama 3.2 Community License</button>. Built with Llama.</p>
-        <div class="nav-buttons">
-          <button class="ghost" data-goto-step="2">Back</button>
-          <button id="finish-setup" class="primary">Done</button>
+          <button class="ghost" id="music-skip">Skip</button>
+          <button id="music-finish" class="primary">Finish</button>
         </div>
       </div>
     </section>
@@ -136,10 +138,19 @@
       </div>
 
       <ul class="lights" aria-label="Status">
-        <li id="light-songlist"><span class="dot"></span><span><strong>Song list</strong><em></em></span></li>
-        <li id="light-ai"><span class="dot"></span><span><strong>Fact writer</strong><em></em></span></li>
-        <li id="light-obs"><span class="dot"></span><span><strong>OBS</strong><em></em></span></li>
+        <li id="light-songlist"><span class="dot" aria-hidden="true"></span><span><strong>Songs</strong><em></em></span></li>
+        <li id="light-ai"><span class="dot" aria-hidden="true"></span><span><strong>Facts</strong><em></em></span></li>
+        <li id="light-obs"><span class="dot" aria-hidden="true"></span><span><strong>Stream</strong><em></em></span></li>
       </ul>
+
+      <div class="toolbar main-controls">
+        <button class="primary" id="pause-toggle">Pause bubbles</button>
+        <button class="ghost" id="test-bubble">Show a test bubble</button>
+        <div class="drag-tile small" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
+          <img src="../build/tray@2x.png" alt="" width="24" height="24"><strong>Drag into OBS</strong>
+        </div>
+        <span id="test-result" class="result" role="status"></span>
+      </div>
 
       <div class="panel">
         <h2>On stream now</h2>
@@ -148,15 +159,21 @@
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
       </div>
 
-      <div class="toolbar">
-        <div class="drag-tile small" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
-          <img src="../build/tray@2x.png" alt="" width="24" height="24"><strong>Drag into OBS</strong>
-        </div>
-        <button class="ghost" data-test-overlay>Test the overlay</button>
-        <button class="ghost" data-copy-path>Copy OBS file path</button>
-        <button class="ghost" id="show-logs">Show logs</button>
-        <button class="ghost" id="report-problem">Report a problem</button>
+      <div id="nudge" class="notice info" hidden>
+        <span>We couldn't find facts for the last song, so BubbleFacts used an example fact. Add facts about the music you play.</span>
+        <button class="primary" data-view="settings">Add my facts</button>
       </div>
+
+      <details class="help">
+        <summary>Help and troubleshooting</summary>
+        <div class="toolbar">
+          <button class="ghost" data-test-overlay>Test in your browser</button>
+          <button class="ghost" data-copy-path>Copy the OBS file path</button>
+          <button class="ghost" id="show-logs">Show logs</button>
+          <button class="ghost" id="report-problem">Report a problem</button>
+        </div>
+        <p class="fine">BubbleFacts needs to run on the same computer as OBS. To show it in several scenes, add it to one scene and nest that scene inside the others.</p>
+      </details>
     </section>
 
     <!-- ====================== Settings ====================== -->
@@ -276,7 +293,7 @@
   </footer>
 
   <template id="fact-item">
-    <li class="fact"><span class="fact-text"></span><button class="link wrong">That's wrong</button></li>
+    <li class="fact"><span class="fact-text"></span><button class="link wrong" title="Opens a report on GitHub (a free account is needed)">Report this fact</button></li>
   </template>
 
   <script src="app.js"></script>
