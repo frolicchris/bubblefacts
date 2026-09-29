@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   downloadModel: () => ipcRenderer.invoke("download-model"),
   removeData: () => ipcRenderer.invoke("remove-data"),
   copy: (text: string) => ipcRenderer.invoke("copy", text),
+  startDrag: () => ipcRenderer.send("start-drag"),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
   testOverlay: () => ipcRenderer.invoke("test-overlay"),
   showLogs: () => ipcRenderer.invoke("show-logs"),

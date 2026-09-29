@@ -99,15 +99,22 @@
 
       <div class="panel step" data-step="3" hidden>
         <h1>Add it to OBS</h1>
-        <p class="lead">One last thing, in OBS Studio. It takes about a minute.</p>
-        <ol class="howto">
-          <li>In the scene you stream from, under <strong>Sources</strong>, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts".</li>
-          <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
-            <div class="pathbox"><code class="overlay-path"></code><button class="ghost" data-copy-path>Copy</button></div>
-          </li>
-          <li>Set <strong>Width</strong> to 1920 and <strong>Height</strong> to 1080. Click <strong>OK</strong>.</li>
-          <li>Right-click the new source and choose <strong>Transform</strong>, then <strong>Reset Transform</strong>.</li>
-        </ol>
+        <p class="lead">One last thing. Open OBS Studio and pick the scene you stream from.</p>
+        <div class="drag-tile" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
+          <img src="../build/tray@2x.png" alt="" width="40" height="40">
+          <span><strong>Drag this into OBS</strong><br><span class="hint">Drop it on the Sources list. OBS adds it at the right size for your canvas.</span></span>
+        </div>
+        <p class="fine">Nothing happens when you drop it on Windows? OBS may be running as administrator. Open OBS the usual way, or add it by hand below.</p>
+        <details class="help">
+          <summary>Or add it by hand</summary>
+          <ol class="howto">
+            <li>Under <strong>Sources</strong>, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts".</li>
+            <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
+              <div class="pathbox"><code class="overlay-path"></code><button class="ghost" data-copy-path>Copy</button></div>
+            </li>
+            <li>Set <strong>Width</strong> and <strong>Height</strong> to your canvas size, usually 1920 and 1080. Click <strong>OK</strong>.</li>
+          </ol>
+        </details>
         <p>Want to see it first? <button class="link" data-test-overlay>Open a test bubble in your browser</button></p>
         <p id="setup-ai-status" class="fine" role="status"></p>
         <p class="fine">The built-in AI is Meta's Llama 3.2 3B, used under the <button class="link" data-open-license>Llama 3.2 Community License</button>. Built with Llama.</p>
@@ -142,6 +149,9 @@
       </div>
 
       <div class="toolbar">
+        <div class="drag-tile small" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
+          <img src="../build/tray@2x.png" alt="" width="24" height="24"><strong>Drag into OBS</strong>
+        </div>
         <button class="ghost" data-test-overlay>Test the overlay</button>
         <button class="ghost" data-copy-path>Copy OBS file path</button>
         <button class="ghost" id="show-logs">Show logs</button>
@@ -203,6 +213,12 @@
 
         <fieldset>
           <legend>Bubbles</legend>
+          <label for="s-size">Bubble size <span class="hint">bigger is easier to read for viewers on phones</span></label>
+          <select id="s-size" name="bubbleSize">
+            <option value="standard">Standard</option>
+            <option value="large">Large</option>
+            <option value="larger">Larger</option>
+          </select>
           <div class="grid3">
             <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
             <label>Seconds between bubbles <input name="intervalSeconds" type="number" min="3" max="300"></label>

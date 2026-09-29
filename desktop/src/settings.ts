@@ -27,6 +27,8 @@ export interface Settings {
   anthropicKey: string;
   ollamaUrl: string;
   ollamaModel: string;
+  /** How big the bubbles are on stream. */
+  bubbleSize: "standard" | "large" | "larger";
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -56,6 +58,7 @@ export const DEFAULTS: Settings = {
   anthropicKey: "",
   ollamaUrl: "http://localhost:11434",
   ollamaModel: "llama3.2",
+  bubbleSize: "standard",
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
@@ -128,6 +131,7 @@ export function sanitize(s: Settings): Settings {
     ...s,
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
+    bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
     topics: s.topics.filter((t) => TOPICS.includes(t)),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
@@ -143,7 +147,7 @@ export function sanitize(s: Settings): Settings {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "channel", "token", "displayName", "instrument", "topics", "originals", "liveLearns",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
+  "bubbleSize", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
 ];
 
 /** The window's changes, keeping only editable keys whose values have the right type. */
@@ -223,3 +227,5 @@ export function writeMyPack(s: Settings, dir: string): void {
   };
   fs.writeFileSync(path.join(dir, `${MY_PACK}.json`), JSON.stringify(pack, null, 2));
 }
+
+export const BUBBLE_SCALE: Record<Settings["bubbleSize"], number> = { standard: 1, large: 1.25, larger: 1.5 };

@@ -93,6 +93,10 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .progress .bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--border), var(--gold)); transform-origin: left; }
 
 .howto li { margin: 10px 0; }
+.drag-tile { display: flex; gap: 14px; align-items: center; padding: 16px 18px; margin: 6px 0 10px; border: 2px dashed var(--gold); border-radius: 10px; background: #1c2152; cursor: grab; user-select: none; }
+.drag-tile:hover { background: #232a66; }
+.drag-tile:active { cursor: grabbing; }
+.drag-tile.small { display: inline-flex; padding: 7px 12px; margin: 0; gap: 8px; border-width: 1px; }
 .pathbox { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .pathbox code { flex: 1; overflow-wrap: anywhere; background: #0a0c22; border: 1px solid #3a4290; border-radius: 6px; padding: 8px 10px; font-size: 13px; }
 

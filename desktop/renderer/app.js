@@ -35,6 +35,13 @@
 
   // --- Shared buttons ----------------------------------------------------
 
+  // The main process starts a real file drag, which OBS turns into a Browser source.
+  document.addEventListener("dragstart", (e) => {
+    if (!e.target.closest?.("[data-drag-overlay]")) return;
+    e.preventDefault();
+    api.startDrag();
+  });
+
   document.addEventListener("click", (e) => {
     const t = e.target.closest("button");
     if (!t) return;

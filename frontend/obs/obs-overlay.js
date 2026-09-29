@@ -125,6 +125,15 @@
     bubbleTimers.push(setTimeout(remove, HIDE_FALLBACK_MS));
   }
 
+  /**
+   * Long facts stay up long enough to read: about three words a second
+   * (subtitle reading speed), plus two seconds to notice the bubble.
+   */
+  function readingSeconds(fact) {
+    const words = String(fact.text || "").split(/\s+/).filter(Boolean).length;
+    return Math.max(fact.durationSeconds, 2 + words / 3);
+  }
+
   function showBubble(fact) {
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble";
@@ -146,7 +155,7 @@
       bubble.classList.remove("visible");
       bubble.classList.add("idle");
     }, POP_IN_MS));
-    bubbleTimers.push(setTimeout(() => hideBubble(bubble), fact.durationSeconds * 1000));
+    bubbleTimers.push(setTimeout(() => hideBubble(bubble), readingSeconds(fact) * 1000));
   }
 
   /**

@@ -5,9 +5,9 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { newerRelease, testSongList } from "./checks";
 import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
-import { installOverlay } from "./overlay";
+import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { problemReportUrl, wrongFactUrl } from "./reports";
-import { DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, toServerEnv, writeMyPack } from "./settings";
+import { BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, toServerEnv, writeMyPack } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
@@ -51,7 +51,7 @@ let refreshing: Promise<void> | null = null;
 let ollama: { pulling?: string; error?: string } | null = null;
 
 const supervisor = new Supervisor(path.join(ROOT, "dist/backend/server.js"), DIRS.logs);
-const overlayFile = () => path.join(DIRS.overlay, "obs-overlay.html");
+const overlayFile = () => path.join(DIRS.overlay, OVERLAY_FILE);
 const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
 
 function canStart(): boolean {
@@ -78,7 +78,7 @@ function serverEnv(): Record<string, string> {
 }
 
 function startServer(): void {
-  installOverlay(path.join(ROOT, "frontend/obs"), DIRS.overlay, settings.port);
+  installOverlay(path.join(ROOT, "frontend/obs"), DIRS.overlay, settings.port, BUBBLE_SCALE[settings.bubbleSize]);
   writeMyPack(settings, DIRS.facts);
   if (canStart()) supervisor.restart(serverEnv());
   else supervisor.stop();
@@ -447,6 +447,8 @@ ipcMain.handle("download-model", () => {
   void ensureOllamaModel();
 });
 ipcMain.handle("copy", (_e, text: string) => clipboard.writeText(text));
+// Dragging the overlay file onto OBS's Sources list makes a Browser source at the canvas size.
+ipcMain.on("start-drag", (e) => e.sender.startDrag({ file: overlayFile(), icon: asset("tray@2x.png") }));
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
 ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
 ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
