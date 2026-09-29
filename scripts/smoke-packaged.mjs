@@ -32,7 +32,13 @@ function start(env) {
   let exited = false;
   child.stdout.on("data", (d) => (log += d));
   child.stderr.on("data", (d) => (log += d));
-  const done = new Promise((r) => child.on("exit", () => r((exited = true))));
+  const done = new Promise((r) =>
+    child.on("exit", (code, signal) => {
+      exited = true;
+      log += `\n[smoke] server exited: code=${code} signal=${signal}\n`;
+      r();
+    })
+  );
   return {
     log: () => log,
     exited: () => exited,
