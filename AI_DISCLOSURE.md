@@ -31,7 +31,7 @@ tools. If you use an AI tool:
 - Say so in your pull request. The template asks.
 - Add an `Assisted-by:` trailer to your commits naming the tool, for example
   `Assisted-by: Claude Code`. This follows the convention used by the Linux
-  kernel, Fedora and Electron.
+  kernel, Fedora and Electron (see [Sources](#sources)).
 - Read and test the code yourself before you submit it. You're responsible
   for your contribution, however it was written.
 
@@ -68,3 +68,24 @@ check works.
 
 Found a wrong fact or a problem?
 [Report it](https://github.com/frolicchris/bubblefacts/issues/new/choose).
+
+## Sources
+
+This disclosure follows these published policies:
+
+- Electron, [AI tool policy](https://github.com/electron/governance/blob/main/policy/ai.md):
+  "there must be a human in the loop," and AI help is marked with an
+  `Assisted-By:` trailer.
+- Linux kernel, [AI Coding Assistants](https://docs.kernel.org/process/coding-assistants.html):
+  an `Assisted-by:` tag, and the human who signs off takes full
+  responsibility.
+- Fedora, [AI-Assisted Contributions Policy](https://docs.fedoraproject.org/en-US/council/policy/ai-contribution-policy/):
+  contributors take responsibility for their work and disclose AI use with an
+  `Assisted-by:` trailer.
+- Rocky Linux, [AI-assisted contribution policy](https://docs.rockylinux.org/10/guides/contribute/ai-contribution-policy/),
+  modeled on Fedora's.
+- pyOpenSci, [generative AI policy](https://www.pyopensci.org/blog/generative-ai-peer-review-policy.html):
+  disclose AI use in the README, describe the human review, and have the
+  maintainer take responsibility.
+- The [AI disclosure convention](https://github.com/ggfevans/ai-disclosure)
+  for the `SPDX-AI-Disclosure` levels used above.
