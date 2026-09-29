@@ -10,7 +10,7 @@ BubbleFacts watches your [StreamerSongList](https://streamersonglist.com)
 requests and shows short, Wikipedia-checked facts in game-inspired bubbles in
 OBS while you play. The captions are written by a small AI model, and the app
 itself was written with an AI coding agent: see
-[How this was made](#how-this-was-made).
+[AI disclosure](#ai-disclosure).
 
 ![Three fact bubbles and a Now Playing banner over a dark background](docs/demo.png)
 
@@ -60,22 +60,20 @@ article, not that the article is right. Found a wrong fact? Please
 [report it](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
 It's the most useful report of all.
 
-## How this was made
+## AI disclosure
 
-BubbleFacts was written by [Claude Code](https://claude.com/claude-code),
-Anthropic's AI coding agent, from a musician's direction. Almost none of the
-code was typed by hand.
+- **Code:** AI-generated with human review. Almost all of the code was written
+  by [Claude Code](https://claude.com/claude-code), Anthropic's AI coding
+  agent. Commits it wrote carry a `Co-Authored-By: Claude` trailer.
+- **Human in the loop:** the maintainer, Christopher Feyrer
+  ([@frolicchris](https://github.com/frolicchris)), reviews, tests and
+  approves every change and release, including tests on live streams, and is
+  responsible for what ships.
+- **Captions:** written while you stream by a small AI model (Meta's
+  Llama 3.2) from the song's Wikipedia article, then checked against it.
 
-The human in the loop is Christopher Feyrer
-([@frolicchris](https://github.com/frolicchris)), who runs this repository. He
-decides what BubbleFacts should do, tests it on live streams, reports what
-goes wrong, and reviews and approves every change and release.
-
-The captions are written by a small AI model (Meta's Llama 3.2) from Wikipedia
-text.
-
-It's shared as a useful tool, not as a claim of hand-written craft. Feedback
-and fact corrections from other musicians are welcome.
+Full details are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md). Feedback and fact
+corrections are welcome.
 
 ## Help
 
