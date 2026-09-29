@@ -4,11 +4,11 @@
 [![Release](https://img.shields.io/github/v/release/frolicchris/bubblefacts?include_prereleases)](https://github.com/frolicchris/bubblefacts/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Game-style facts about the songs you play, right on your stream.**
+**Song facts that pop up right on your stream.**
 
 BubbleFacts watches your [StreamerSongList](https://streamersonglist.com)
-requests. When you play a song, short facts about it pop up in OBS as little
-dialog boxes, each one checked against the song's Wikipedia article.
+requests and shows short, Wikipedia-checked facts in game-inspired bubbles in
+OBS while you play.
 
 ![Three fact bubbles and a Now Playing banner over a dark background](docs/demo.png)
 
@@ -41,14 +41,17 @@ bubble, and see how your songs, facts and stream are doing. The
 [setup guide](https://bubblefacts.frolic.org/guide.html) walks through every
 screen.
 
-## How BubbleFacts keeps made-up facts off your stream
+## How BubbleFacts checks its facts
+
+AI can make things up. BubbleFacts is built to keep made-up facts off your
+stream, so its fact writer never answers from memory.
 
 1. When a song starts, it finds the Wikipedia article for the song, or for the
    game or film it's from.
-2. The AI writes short captions **only from that article**.
+2. The fact writer writes short captions **only from that article**.
 3. Any caption that names a person, year or console the article doesn't
    contain is dropped before it reaches your stream.
-4. No article means no AI. You get backup facts instead.
+4. No article means no AI. It shows messages you provide instead.
 
 Facts are only as good as Wikipedia: the check makes sure captions match the
 article, not that the article is right. Found a wrong fact? Please
