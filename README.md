@@ -8,7 +8,9 @@
 
 BubbleFacts watches your [StreamerSongList](https://streamersonglist.com)
 requests and shows short, Wikipedia-checked facts in game-inspired bubbles in
-OBS while you play.
+OBS while you play. The captions are written by a small AI model, and the app
+itself was written with an AI coding agent: see
+[How this was made](#how-this-was-made).
 
 ![Three fact bubbles and a Now Playing banner over a dark background](docs/demo.png)
 
@@ -58,16 +60,18 @@ article, not that the article is right. Found a wrong fact? Please
 [report it](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
 It's the most useful report of all.
 
-## Made by a music streamer
+## How this was made
 
-BubbleFacts was created and tested by
-[frolicchris](https://twitch.tv/frolicchris), a Twitch pianist who plays
-viewer requests. It grew out of a tool for his own streams: he ran it live,
-read the logs afterward, and fixed what went wrong.
+BubbleFacts was written by [Claude Code](https://claude.com/claude-code),
+Anthropic's AI coding agent, from a musician's direction. Almost none of the
+code was typed by hand. A person decided what it should do, tested it on live
+streams, and reported what went wrong.
 
-<sub>Development used [Claude Code](https://claude.com/claude-code),
-Anthropic's AI coding agent. BubbleFacts is open source under the
-[MIT license](LICENSE).</sub>
+The captions are written by a small AI model (Meta's Llama 3.2) from Wikipedia
+text.
+
+It's shared as a useful tool, not as a claim of hand-written craft. Feedback
+and fact corrections from other musicians are welcome.
 
 ## Help
 
