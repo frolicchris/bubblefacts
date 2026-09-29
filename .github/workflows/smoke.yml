@@ -100,6 +100,15 @@ jobs:
           echo "APP_EXE=$HOME/Applications/BubbleFacts.app/Contents/MacOS/BubbleFacts" >> "$GITHUB_ENV"
           echo "APP_RESOURCES=$HOME/Applications/BubbleFacts.app/Contents/Resources" >> "$GITHUB_ENV"
 
+      - name: Describe the processor
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name"
+                     powershell -NoProfile -Command "Add-Type -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern bool IsProcessorFeaturePresent(uint f);' -Name K -Namespace W; 'AVX-512 (feature 41): ' + [W.K]::IsProcessorFeaturePresent(41)" ;;
+            Linux)   grep -m1 'model name' /proc/cpuinfo; grep -m1 -o 'avx512f' /proc/cpuinfo || echo "no avx512f" ;;
+            macOS)   sysctl -n machdep.cpu.brand_string ;;
+          esac
       - name: Run the smoke test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -135,4 +144,9 @@ jobs:
           cp -R "$APP_RESOURCES/app.asar.unpacked/." /tmp/extracted/
           mkdir -p /tmp/plainres/app.asar && cp -R /tmp/extracted/. /tmp/plainres/app.asar/
           SMOKE_RUNTIME=node node "$GITHUB_WORKSPACE/scripts/smoke-packaged.mjs" /tmp/plainres "$GITHUB_WORKSPACE/model.gguf" 2>&1 | grep -E "PASS|FAIL|WARN|signal" | head -10
+          echo "exit status ${PIPESTATUS[0]}"
+          echo "--- experiment: the app's own runtime with the AVX-512 builds of the AI removed"
+          mkdir -p /tmp/noavx && cp -R "$APP_RESOURCES/." /tmp/noavx/
+          find /tmp/noavx -name 'libggml-cpu-*.so' | grep -E 'zen4|sapphirerapids|cooperlake|cannonlake|cascadelake|icelake|skylakex' | xargs rm -f
+          ELECTRON_RUN_AS_NODE=1 "$APP_EXE" "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/noavx "$GITHUB_WORKSPACE/model.gguf" 2>&1 | grep -E "\[debug\]|loaded CPU backend|load_backend" | head -8
           echo "exit status ${PIPESTATUS[0]}"
