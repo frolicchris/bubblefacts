@@ -119,3 +119,9 @@ jobs:
           mkdir -p res/app.asar && ln -s /tmp/plain/node_modules res/app.asar/node_modules
           node "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/plain/res "$GITHUB_WORKSPACE/model.gguf" 2>&1 | tail -40
           echo "exit status ${PIPESTATUS[0]}"
+          echo "--- the installed app's own server under plain Node.js (is it Electron's runtime?)"
+          cd /tmp && npx --yes @electron/asar extract "$APP_RESOURCES/app.asar" /tmp/extracted >/dev/null
+          cp -R "$APP_RESOURCES/app.asar.unpacked/." /tmp/extracted/
+          mkdir -p /tmp/plainres/app.asar && cp -R /tmp/extracted/. /tmp/plainres/app.asar/
+          SMOKE_RUNTIME=node node "$GITHUB_WORKSPACE/scripts/smoke-packaged.mjs" /tmp/plainres "$GITHUB_WORKSPACE/model.gguf" 2>&1 | grep -E "PASS|FAIL|WARN|signal" | head -10
+          echo "exit status ${PIPESTATUS[0]}"

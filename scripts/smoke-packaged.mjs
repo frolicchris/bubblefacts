@@ -16,6 +16,7 @@ const fail = (msg) => {
 };
 
 function start(env) {
+  // SMOKE_RUNTIME=node runs the server under this Node.js instead of the app's own runtime (diagnostics).
   const child = spawn(process.execPath, [server], {
     env: {
       ...process.env,
