@@ -8,6 +8,7 @@ jest.mock("./config", () => ({
   config: {
     sslStreamerName: "teststreamer",
     streamerDisplayName: "Test Streamer",
+    originals: true,
     instrument: "",
     topic: "video-game,classical,film,pop,piano,general",
     aiProvider: "anthropic",
@@ -119,6 +120,17 @@ describe("generateFacts", () => {
     expect(facts[0].text).toContain("original composition");
     expect(fetchGrounding).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("looks an original up like any other song when the streamer doesn't play originals", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (config as { originals: boolean }).originals = false;
+    try {
+      await generateFacts({ title: "Laura's Theme", artist: "Test Streamer" }, entry({ title: "Laura's Theme", artist: "Test Streamer" }));
+      expect(fetchGrounding).toHaveBeenCalled();
+    } finally {
+      (config as { originals: boolean }).originals = true;
+    }
   });
 
   it("rebuilds an original's facts each time, so requester and play count stay current", async () => {

@@ -30,7 +30,9 @@ export class CentrifugoStream {
   constructor(
     private readonly url: string,
     private readonly channels: string[],
-    private readonly onPublication: (channel: string, event: SSLEvent) => void
+    private readonly onPublication: (channel: string, event: SSLEvent) => void,
+    /** Called on every (re)connect: anything published while disconnected was missed. */
+    private readonly onConnect: () => void = () => undefined
   ) {}
 
   isConnected(): boolean {
@@ -95,6 +97,7 @@ export class CentrifugoStream {
     if (frame.connect) {
       this.connected = true;
       this.reconnectDelayMs = MIN_RECONNECT_MS;
+      this.onConnect();
       return;
     }
     if (frame.disconnect) {

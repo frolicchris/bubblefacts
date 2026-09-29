@@ -59,7 +59,7 @@ export const factStats = {
 const RETRY_MS = 10 * 60 * 1000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
 const inFlight = new Map<string, Promise<Fact[]>>();
-const SONGS_LOG = path.resolve(__dirname, "../../logs/songs.log");
+const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
   grounded: "article",
   original: "original",
@@ -76,8 +76,8 @@ function record(song: SSLSong, outcome: Outcome, count: number): void {
   if (process.env.NODE_ENV === "test") return;
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
   const line = [new Date().toISOString(), clean(song.title), clean(song.artist), SONGS_LOG_LABEL[outcome], count];
-  fs.mkdir(path.dirname(SONGS_LOG), { recursive: true }, () =>
-    fs.appendFile(SONGS_LOG, line.join("\t") + "\n", () => undefined)
+  fs.mkdir(config.logDir, { recursive: true }, () =>
+    fs.appendFile(songsLog(), line.join("\t") + "\n", () => undefined)
   );
 }
 
@@ -217,11 +217,58 @@ async function askOllama(prompt: string): Promise<[string, string]> {
   throw lastError;
 }
 
+// node-llama-cpp is an ES module. A plain import() would be compiled to require()
+// under CommonJS and fail, so the import is kept out of the compiler's reach.
+const importModule = new Function("specifier", "return import(specifier)") as (s: string) => Promise<any>;
+
+/** The loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
+let builtin: Promise<{ session: any }> | undefined;
+
+function loadBuiltin(): Promise<{ session: any }> {
+  builtin ??= (async () => {
+    const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
+    const llama = await getLlama(config.llamaGpu === "off" ? { gpu: false } : undefined);
+    const model = await llama.loadModel({ modelPath: config.modelPath });
+    const context = await model.createContext({ contextSize: 4096 });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence() });
+    console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+    return { session };
+  })().catch((err) => {
+    builtin = undefined; // Let the next song retry the load.
+    throw err;
+  });
+  return builtin;
+}
+
+/**
+ * Load the built-in model at start-up rather than on the first song, so the
+ * first song isn't slowed by loading and a load failure shows immediately.
+ * The desktop app watches for the two log lines below.
+ */
+export async function warmUpBuiltin(): Promise<void> {
+  if (config.aiProvider !== "builtin") return;
+  try {
+    await loadBuiltin();
+  } catch (err) {
+    console.error(`[FactGen] Built-in model failed to load: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/** The desktop app's built-in model. Each song starts from an empty chat history. */
+async function askBuiltin(prompt: string): Promise<string> {
+  const { session } = await loadBuiltin();
+  session.resetChatHistory();
+  return session.prompt(prompt, { temperature: config.temperature, maxTokens: MAX_TOKENS });
+}
+
 async function askModel(prompt: string): Promise<string> {
   const started = Date.now();
   let text: string;
   let endpoint: string;
-  if (config.aiProvider === "anthropic") {
+  if (config.aiProvider === "builtin") {
+    text = await askBuiltin(prompt);
+    endpoint = "built-in model";
+  } else if (config.aiProvider === "anthropic") {
     text = await askAnthropic(prompt);
     endpoint = `anthropic (${config.anthropicModel})`;
   } else if (config.aiProvider === "openai") {
@@ -255,7 +302,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   }
 
   try {
-    if (isOriginal(entry, [config.sslStreamerName, config.streamerDisplayName])) {
+    if (config.originals && isOriginal(entry, [config.sslStreamerName, config.streamerDisplayName])) {
       const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true });
       const facts = toFacts([...stats, ...topic.originalsFacts].slice(0, want));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
@@ -264,8 +311,10 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
       return { facts, ttlMs: 0 };
     }
 
-    const context = config.factVerification ? await fetchGrounding(song) : "";
-    if (config.factVerification && !context) {
+    // No AI available (the desktop app's fallback when its model can't run):
+    // song-list and hand-picked facts only, with no lookup.
+    const context = config.aiProvider === "none" ? "" : config.factVerification ? await fetchGrounding(song) : "";
+    if (config.aiProvider === "none" || (config.factVerification && !context)) {
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(song, "noReference", lines.length);

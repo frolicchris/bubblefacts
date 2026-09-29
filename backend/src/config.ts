@@ -42,7 +42,7 @@ function oneOf<T extends string>(name: string, allowed: readonly T[], fallback: 
 
 const aiProvider = oneOf(
   "AI_PROVIDER",
-  ["ollama", "openai", "anthropic"] as const,
+  ["builtin", "ollama", "openai", "anthropic", "none"] as const,
   process.env.ANTHROPIC_API_KEY ? "anthropic" : process.env.OPENAI_API_KEY ? "openai" : "ollama"
 );
 const sslHost = oneOf("SSL_ENV", ["production", "staging"] as const, "production") === "staging"
@@ -60,6 +60,12 @@ export const config = {
   streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || requireEnv("SSL_STREAMER_NAME"),
   instrument: (process.env.INSTRUMENT || "").trim(),
   topic: process.env.TOPIC || "video-game,classical,film,pop,general",
+  // Songs tagged "Originals" or credited to the streamer get facts from the song entry, not a lookup.
+  originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",
+  // Off-list requests get a LIVE LEARN banner and no facts. Off treats them as ordinary songs.
+  liveLearns: oneOf("LIVE_LEARNS", ["on", "off"] as const, "on") === "on",
+  // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.
+  topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",
 
   // StreamerSongList
   sslPlatform: (process.env.SSL_PLATFORM || "twitch").toLowerCase(),
@@ -68,6 +74,10 @@ export const config = {
     `Create a Streamer Access Token at https://${sslHost} under Settings > Access.`
   ),
   sslTokenKind: oneOf("SSL_TOKEN_KIND", ["streamer", "user", "bearer"] as const, "streamer"),
+  // The OAuth client a bearer token was issued to. StreamerSongList wants it as a Client-Id header.
+  sslClientId: process.env.SSL_CLIENT_ID || "",
+  // Look the channel up by its StreamerSongList ID rather than its name, when known (0 = by name).
+  sslStreamerId: intEnv("SSL_STREAMER_ID", 0, 0, 2147483647),
   sslApiBase: trimSlash(process.env.SSL_API_BASE || `https://api.${sslHost}`),
   sslEventsUrl: process.env.SSL_EVENTS_URL || `wss://events.${sslHost}/connection/uni_websocket`,
   sslPollIntervalMs: intEnv("SSL_POLL_INTERVAL_MS", 15000, 2000, 300000),
@@ -75,6 +85,12 @@ export const config = {
 
   // Model
   aiProvider,
+  // The desktop app's built-in model: a GGUF file it downloaded (AI_PROVIDER=builtin).
+  modelPath: aiProvider === "builtin" ? requireEnv("MODEL_PATH") : "",
+  // "off" runs the built-in model on the processor only, for computers where the GPU build fails.
+  llamaGpu: oneOf("LLAMA_GPU", ["auto", "off"] as const, "auto"),
+  // Where songs.log goes. The desktop app points this at its data folder.
+  logDir: process.env.BUBBLEFACTS_LOG_DIR || path.resolve(__dirname, "../../logs"),
   temperature: numberEnv("TEMPERATURE", 0.2, 0, 2),
   ollamaBaseUrl: trimSlash(process.env.OLLAMA_BASE_URL || "http://localhost:11434"),
   ollamaFallbackUrl: trimSlash(process.env.OLLAMA_FALLBACK_URL || ""),

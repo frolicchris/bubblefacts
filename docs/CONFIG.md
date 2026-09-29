@@ -41,9 +41,12 @@ which one. Names and web addresses are used as written, so double-check those.
 | `STREAMER_DISPLAY_NAME` | your channel name | The name used when talking about you: "performed live by Jane". |
 | `INSTRUMENT` | *none* | Your instrument, such as `piano` or `guitar`. With it, the AI is told you're "playing *the song* on piano"; without it, just "performing" it. |
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it. Keep `general`, or your own pack with originals lines, if you play your own compositions. Together they need at least five facts. The overlay only reads these files. |
+| `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
+| `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner, with no facts, for off-list requests. `off` treats them like any other song. |
 
 The example packs are `video-game`, `classical`, `film`, `pop`, `piano` and
-`general`. They aren't maintained; copy one to start your own.
+`general`. **They're only a few examples, and they aren't maintained.** Fill
+in your own facts for the music you play: copy one to start your own pack.
 
 ---
 
@@ -129,3 +132,17 @@ const SERVER = "127.0.0.1:3000";
 ```
 
 For example, `"192.168.1.20:3001"` for a server on another computer using port 3001.
+
+---
+
+## Set by the desktop app
+
+The desktop app starts the same server and passes these for you. You don't
+need them with a `.env` file.
+
+| Setting | What it does |
+|---|---|
+| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` shows backup facts only. |
+| `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
+| `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
+| `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |

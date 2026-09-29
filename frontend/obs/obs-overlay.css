@@ -1,16 +1,19 @@
-/* Stream Facts Overlay
+/* BubbleFacts
  *
- * Sizing: everything scales off --fact-font-size. 24px suits a 1080p canvas;
- * use 28px or more for 1440p or 4K. Edit, save, then Refresh the source in OBS.
+ * Sizing: everything scales with the height of the Browser source, so the
+ * bubbles look the same on a 720p, 1080p or 4K canvas: the text is 24px at
+ * 1080p. To make everything bigger, raise --bf-scale (the app's "Bubble size"
+ * setting does this), save, then Refresh the source in OBS.
  *
  * OBS renders browser sources without GPU acceleration, so animate only
  * transform and opacity.
  */
 :root {
-  --fact-font-size: 24px;
-  --toast-font-size: 21px;
-  --bubble-max-width: 560px;
-  --bubble-min-width: 300px;
+  --bf-scale: 1;
+  --fact-font-size: calc(2.222vh * var(--bf-scale));
+  --toast-font-size: calc(1.944vh * var(--bf-scale));
+  --bubble-max-width: calc(51.85vh * var(--bf-scale));
+  --bubble-min-width: calc(27.78vh * var(--bf-scale));
 }
 
 /* === Reset & Base — Transparent for OBS Browser Source === */

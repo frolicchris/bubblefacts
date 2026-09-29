@@ -7,7 +7,7 @@ and bugs, and neither needs you to write code.
 
 If a bubble generated from Wikipedia showed something untrue, or a fact about
 the wrong song,
-[open a "A fact is wrong" issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
+[open a "A fact is wrong" issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
 Accuracy is the point of this project, so these reports matter most. Include
 the lines starting with `[Grounding]` and `[Screen]` from your log if you can;
 they show which Wikipedia article was used.
@@ -42,7 +42,7 @@ the approach before you spend time on it.
 ## Questions
 
 Setup questions are welcome in
-[Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions),
+[Discussions](https://github.com/frolicchris/bubblefacts/discussions),
 where the answer can help the next person too, or on
 [Discord](https://discord.gg/gXdVKc6KWx) for a quick chat.
 

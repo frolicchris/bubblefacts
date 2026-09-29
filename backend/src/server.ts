@@ -4,8 +4,8 @@ import http from "http";
 import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { config } from "./config";
-import { SongListClient } from "./songlist-client";
-import { generateFacts, factStats } from "./fact-generator";
+import { SongListClient, setAccessToken } from "./songlist-client";
+import { generateFacts, factStats, warmUpBuiltin } from "./fact-generator";
 import { FactsPayload, SSLQueueItem } from "./types";
 
 /**
@@ -34,7 +34,17 @@ function send(ws: WebSocket, payload: FactsPayload): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
 }
 
+/** The last song and facts sent, for the desktop app's dashboard. */
+let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"] } = { song: null, facts: [] };
+
+/** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
+let paused = process.env.BUBBLEFACTS_PAUSED === "1";
+
 function broadcast(payload: FactsPayload): void {
+  if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
+  else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts };
+  else lastSent = { song: null, facts: [] };
+  if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
 }
 
@@ -59,7 +69,7 @@ wss.on("connection", (ws, req) => {
 
   // Catch a reconnecting overlay up on the current song.
   const current = songList.getCurrentSong();
-  if (!current) return;
+  if (!current || paused) return;
   const song = SongListClient.toSong(current);
   const token = generation;
   send(ws, { type: "new_song", song });
@@ -94,6 +104,44 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
 
 // --- Routes --------------------------------------------------------------
 
+/**
+ * Controls for the desktop app. The custom header makes a browser ask first
+ * (a CORS preflight, which this server never approves), so a web page can't
+ * press these buttons; only the app can.
+ */
+const control = express.Router();
+control.use((req, res, next) => (req.get("X-BubbleFacts") === "1" ? next() : res.status(403).end()));
+control.use(express.json());
+
+control.post("/test", (_req, res) => {
+  const song = { title: "BubbleFacts test", artist: "" };
+  const facts = [{
+    text: "✓ BubbleFacts is working! Facts about each song you play will pop up right here.",
+    delaySeconds: 0,
+    durationSeconds: 8,
+    position: { top: "8%", left: "33%" },
+  }];
+  // Shown even while paused: the streamer asked for it. Not recorded as "on stream now".
+  for (const ws of clients.keys()) {
+    send(ws, { type: "new_song", song });
+    send(ws, { type: "facts_ready", song, facts });
+  }
+  res.json({ overlays: clients.size });
+});
+
+control.post("/pause", (req, res) => {
+  const next = Boolean(req.body?.paused);
+  if (next !== paused) {
+    paused = next;
+    console.log(`[Server] Bubbles ${paused ? "paused" : "resumed"}`);
+    if (paused) for (const ws of clients.keys()) send(ws, { type: "clear" });
+    else void onSongChange(songList.getCurrentSong());
+  }
+  res.json({ paused });
+});
+
+app.use("/control", control);
+
 app.use("/obs", express.static(path.resolve(__dirname, "../../frontend/obs")));
 
 app.get("/obs-overlay", (req, res) => {
@@ -101,15 +149,23 @@ app.get("/obs-overlay", (req, res) => {
   res.redirect("/obs/obs-overlay.html" + req.url.replace(/^[^?]*/, ""));
 });
 
+/** How long after starting the server may go without reaching StreamerSongList before health says so. */
+const STARTUP_GRACE_MS = 30_000;
+
 app.get("/health", (_req, res) => {
   const current = songList.getCurrentSong();
   const queueAgeMs = songList.lastSuccessfulFetchAgeMs();
-  const stale = queueAgeMs !== null && queueAgeMs > config.sslPollIntervalMs * 3;
+  // Never having reached StreamerSongList counts too, once startup has had its chance.
+  const stale = queueAgeMs === null
+    ? process.uptime() * 1000 > STARTUP_GRACE_MS
+    : queueAgeMs > songList.pollIntervalMs() * 3;
+  const rejected = songList.authRejected();
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;
 
   res.json({
-    status: stale ? "degraded" : "ok",
-    degradedReason: stale ? "no successful queue fetch recently" : undefined,
+    paused,
+    status: rejected ? "unauthorized" : stale ? "degraded" : "ok",
+    degradedReason: rejected ? "StreamerSongList rejected the token" : stale ? "no successful queue fetch recently" : undefined,
     aiProvider: config.aiProvider,
     topic: config.topic,
     currentSong: current ? SongListClient.displayTitle(current) : null,
@@ -128,6 +184,11 @@ app.get("/health", (_req, res) => {
       lastEndpoint: lastEndpoint || null,
     },
   });
+});
+
+/** What the overlay is showing now. Read-only, unlike /current-facts. */
+app.get("/recent", (_req, res) => {
+  res.json(lastSent);
 });
 
 /** Facts for whatever is playing now, for testing without OBS. */
@@ -151,6 +212,19 @@ songList.onCurrentSongChange((current) => {
 server.listen(config.port, config.host, () => {
   console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
   console.log(`[Server] Tracking streamer "${config.sslStreamerName}"`);
+});
+
+void warmUpBuiltin();
+
+// Under the desktop app, the app refreshes the StreamerSongList sign-in and passes each new token here.
+type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void };
+const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
+parentPort?.on("message", ({ data }) => {
+  const msg = data as { type?: string; token?: unknown };
+  if (msg?.type === "ssl-token" && typeof msg.token === "string" && msg.token) {
+    setAccessToken(msg.token);
+    console.log("[SSL] Sign-in refreshed");
+  }
 });
 
 songList

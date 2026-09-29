@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { CentrifugoStream, SSLEvent } from "./centrifugo-client";
+import { CentrifugoStream } from "./centrifugo-client";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
@@ -10,19 +10,17 @@ type SongChangeCallback = (current: SSLQueueItem | null) => void;
  * action, a queue refetch, so no state is ever rebuilt from event payloads.
  */
 
-const QUEUE_EVENTS = new Set([
-  "now_playing_update",
-  "queue_update",
-  "queue_add",
-  "queue_remove",
-  "queue_clear",
-  "queue_reorder",
-  "play_history_add",
-]);
-
 /** Collapse a burst of events into one refetch. */
 const REFETCH_DEBOUNCE_MS = 250;
+/** While realtime events arrive, polling is only a backstop; poll less to stay under the rate limit. */
+const POLL_WITH_EVENTS_MS = 60_000;
 const AUTH_SCHEME = { streamer: "Streamer", user: "User", bearer: "Bearer" } as const;
+
+/** Replaced while running when the desktop app refreshes its sign-in; OAuth tokens last an hour. */
+let accessToken = config.sslAccessToken;
+export function setAccessToken(token: string): void {
+  accessToken = token;
+}
 
 export class SongListClient {
   private streamerId: number | null = null;
@@ -35,6 +33,9 @@ export class SongListClient {
   private refreshAgain = false;
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
+  private rejected = false;
+  /** Set from Retry-After when StreamerSongList says to slow down (429) or is down for maintenance (503). */
+  private backoffUntil = 0;
 
   onCurrentSongChange(callback: SongChangeCallback): void {
     this.onSongChange = callback;
@@ -46,6 +47,16 @@ export class SongListClient {
 
   lastSuccessfulFetchAgeMs(): number | null {
     return this.lastSuccessfulFetchAt === null ? null : Date.now() - this.lastSuccessfulFetchAt;
+  }
+
+  /** StreamerSongList turned the token down on the last request: waiting won't fix it. */
+  authRejected(): boolean {
+    return this.rejected;
+  }
+
+  /** How often the queue is polled right now; health allows three misses. */
+  pollIntervalMs(): number {
+    return this.isEventStreamConnected() ? Math.max(config.sslPollIntervalMs, POLL_WITH_EVENTS_MS) : config.sslPollIntervalMs;
   }
 
   isEventStreamConnected(): boolean {
@@ -77,12 +88,12 @@ export class SongListClient {
   // --- Song mapping ------------------------------------------------------
 
   static displayTitle(item: SSLQueueItem): string {
-    return item.nonlistSong || item.song?.title || "Unknown";
+    return item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "Unknown";
   }
 
   /** An off-list request: the API sets `nonlistSong` to the typed-in title. */
   static isLiveLearn(item: SSLQueueItem): boolean {
-    return Boolean(item.nonlistSong?.trim());
+    return Boolean(item.nonlistSong?.trim() || item.nonlistTitle?.trim());
   }
 
   static requesterName(item: SSLQueueItem): string | undefined {
@@ -92,8 +103,11 @@ export class SongListClient {
 
   /** The song object broadcast to the overlay. */
   static toSong(item: SSLQueueItem): SSLSong {
-    const song: SSLSong = { title: SongListClient.displayTitle(item), artist: item.song?.artist ?? "Unknown" };
-    if (SongListClient.isLiveLearn(item)) song.liveLearn = true;
+    const song: SSLSong = {
+      title: SongListClient.displayTitle(item),
+      artist: (SongListClient.isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || "Unknown",
+    };
+    if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
     const by = SongListClient.requesterName(item);
     if (by) song.requestedBy = by;
     return song;
@@ -107,21 +121,38 @@ export class SongListClient {
   // --- REST --------------------------------------------------------------
 
   private async getJSON<T>(path: string, what: string): Promise<T> {
-    const query = new URLSearchParams({ streamer_name: config.sslStreamerName, platform: config.sslPlatform });
+    const query = new URLSearchParams(
+      config.sslStreamerId
+        ? { streamer_id: String(config.sslStreamerId) }
+        : { streamer_name: config.sslStreamerName, platform: config.sslPlatform }
+    );
+    const headers: Record<string, string> = {
+      Authorization: `${AUTH_SCHEME[config.sslTokenKind]} ${accessToken}`,
+      Accept: "application/json",
+    };
+    // Only with the app's own sign-in: a Client-Id that doesn't match the token is rejected.
+    if (config.sslClientId && config.sslTokenKind === "bearer") headers["Client-Id"] = config.sslClientId;
     const res = await fetch(`${config.sslApiBase}${path}?${query}`, {
-      headers: {
-        Authorization: `${AUTH_SCHEME[config.sslTokenKind]} ${config.sslAccessToken}`,
-        Accept: "application/json",
-      },
+      headers,
       signal: AbortSignal.timeout(config.sslRequestTimeoutMs),
     });
-    if (res.status === 401 || res.status === 403) {
+    this.rejected = res.status === 401 || res.status === 403;
+    if (this.rejected) {
       throw new Error(
         `Failed to fetch ${what}: ${res.status} ${res.statusText}. Check SSL_ACCESS_TOKEN and SSL_TOKEN_KIND: ` +
           `the token must belong to ${config.sslStreamerName} (Settings > Access) or a user who administrates that channel.`
       );
     }
-    if (!res.ok) throw new Error(`Failed to fetch ${what}: ${res.status} ${res.statusText}`);
+    if (res.status === 429 || res.status === 503) {
+      const wait = Number(res.headers?.get("retry-after")) || (res.status === 429 ? 60 : 120);
+      this.backoffUntil = Date.now() + Math.min(wait, 600) * 1000;
+    }
+    if (!res.ok) {
+      // Errors come as application/problem+json; its "detail" says what went wrong in plain words.
+      const problem = (await Promise.resolve().then(() => res.json()).catch(() => null)) as { detail?: string } | null;
+      const detail = typeof problem?.detail === "string" ? ` (${problem.detail})` : "";
+      throw new Error(`Failed to fetch ${what}: ${res.status} ${res.statusText}${detail}`);
+    }
     return (await res.json()) as T;
   }
 
@@ -140,6 +171,7 @@ export class SongListClient {
    * request may have started before the change it was asked about.
    */
   private refresh(): Promise<void> {
+    if (Date.now() < this.backoffUntil) return Promise.resolve();
     if (this.inFlight) {
       this.refreshAgain = true;
       return this.inFlight;
@@ -176,12 +208,18 @@ export class SongListClient {
     // Both the bare and the "-queue" channel, so a category rename upstream
     // cannot silently stop notifications. The debounce absorbs duplicates.
     const channels = [`streamer:${this.streamerId}`, `streamer:${this.streamerId}-queue`];
-    this.stream = new CentrifugoStream(config.sslEventsUrl, channels, (_channel, event) => this.handleEvent(event));
+    this.stream = new CentrifugoStream(
+      config.sslEventsUrl,
+      channels,
+      () => this.handleEvent(),
+      () => this.handleEvent()
+    );
     this.stream.start();
   }
 
-  private handleEvent(event: SSLEvent): void {
-    if (!QUEUE_EVENTS.has(event.type) || this.refetchTimer) return;
+  /** Every event, and every reconnect, means "refetch": the docs send some with no data at all. */
+  private handleEvent(): void {
+    if (this.refetchTimer) return;
     this.refetchTimer = setTimeout(() => {
       this.refetchTimer = null;
       void this.refresh();
@@ -190,6 +228,7 @@ export class SongListClient {
 
   /** Self-rescheduling, so a slow response never stacks polls behind it. */
   private schedulePoll(): void {
+    const delay = Math.max(this.pollIntervalMs(), this.backoffUntil - Date.now());
     this.pollTimer = setTimeout(async () => {
       if (this.stopped) return;
       if (this.streamerId === null) {
@@ -202,6 +241,6 @@ export class SongListClient {
       }
       await this.refresh();
       if (!this.stopped) this.schedulePoll();
-    }, config.sslPollIntervalMs);
+    }, delay);
   }
 }

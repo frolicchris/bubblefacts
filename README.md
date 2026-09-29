@@ -1,7 +1,7 @@
-# Stream Facts Overlay
+# BubbleFacts
 
-[![Check](https://github.com/frolicchris/stream-facts-overlay/actions/workflows/check.yml/badge.svg)](https://github.com/frolicchris/stream-facts-overlay/actions/workflows/check.yml)
-[![Latest release](https://img.shields.io/github/v/release/frolicchris/stream-facts-overlay)](https://github.com/frolicchris/stream-facts-overlay/releases/latest)
+[![Check](https://github.com/frolicchris/bubblefacts/actions/workflows/check.yml/badge.svg)](https://github.com/frolicchris/bubblefacts/actions/workflows/check.yml)
+[![Latest release](https://img.shields.io/github/v/release/frolicchris/bubblefacts)](https://github.com/frolicchris/bubblefacts/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 When you play a song from your request queue, little game-style dialog boxes
@@ -22,6 +22,11 @@ AI isn't used at all; you get hand-checked facts instead.
 
 It's free to run. The AI can run on your own computer, or on a free online
 service if your computer is busy enough already.
+
+> **Most streamers want the app.** Download BubbleFacts for Mac, Windows or
+> Linux at **[bubblefacts.frolic.org](https://bubblefacts.frolic.org/)**. You
+> sign in, answer two questions, and add it to OBS. No Terminal needed. The
+> rest of this page is the manual setup, for people who prefer it.
 
 ---
 
@@ -46,10 +51,10 @@ Everything you might need to download or sign up for, in one place.
 
 **The overlay**
 
-- [Download the latest version (ZIP)](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip)
-- [All versions and what changed](https://github.com/frolicchris/stream-facts-overlay/releases)
-- [Ask a setup question](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a), or chat on [Discord](https://discord.gg/gXdVKc6KWx)
-- [Report a problem or a wrong fact](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose)
+- [Download the latest version (ZIP)](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip)
+- [All versions and what changed](https://github.com/frolicchris/bubblefacts/releases)
+- [Ask a setup question](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a), or chat on [Discord](https://discord.gg/gXdVKc6KWx)
+- [Report a problem or a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new/choose)
 
 **Required**
 
@@ -105,12 +110,12 @@ This takes about 15 minutes the first time.
 
 ### 1. Download the overlay
 
-[Download the latest version](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip) and unzip it somewhere you'll remember,
+[Download the latest version](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip) and unzip it somewhere you'll remember,
 such as your Documents folder. You'll get a folder called
-`stream-facts-overlay`. (If you use git:
-`git clone https://github.com/frolicchris/stream-facts-overlay.git`.)
+`bubblefacts`. (If you use git:
+`git clone https://github.com/frolicchris/bubblefacts.git`.)
 
-Then open Terminal, type `cd ` (with a space), drag the `stream-facts-overlay`
+Then open Terminal, type `cd ` (with a space), drag the `bubblefacts`
 folder onto the Terminal window, and press Return. Now install what it needs:
 
 ```bash
@@ -190,7 +195,7 @@ stream**; closing it stops the overlay.
 ### 6. Add it to OBS
 
 1. In the scene you stream from, under **Sources**, click **+** and choose
-   **Browser**. Name it "Stream Facts".
+   **Browser**. Name it "BubbleFacts".
 2. Check **Local file**, click **Browse**, and pick
    `frontend/obs/obs-overlay.html` inside the overlay folder.
 3. Set **Width** to `1920` and **Height** to `1080`.
@@ -229,6 +234,11 @@ All of these are lines in your `.env` file. Restart the overlay after changing i
 [docs/CONFIG.md](docs/CONFIG.md) lists every setting.
 
 ### Your backup facts
+
+> **The included packs are only a few examples.** They're short, they aren't
+> updated, and they won't know your songs. Fill in your own facts for the
+> music you play. In the desktop app, that's **Settings → Backup facts →
+> Your own facts**, one per line.
 
 When a song has no Wikipedia article, the overlay shows facts from **topic
 packs**: small files in the `topics` folder, each a list of facts you've
@@ -313,11 +323,11 @@ automatically.
 ## Updating to a new version
 
 New versions are listed on the
-[releases page](https://github.com/frolicchris/stream-facts-overlay/releases),
+[releases page](https://github.com/frolicchris/bubblefacts/releases),
 with what changed in each.
 
 1. Stop the overlay (Ctrl-C in its window).
-2. [Download the latest version](https://github.com/frolicchris/stream-facts-overlay/releases/latest/download/stream-facts-overlay.zip) and unzip it.
+2. [Download the latest version](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip) and unzip it.
 3. Copy your `.env` file from the old folder into the new one. (Press
    Cmd+Shift+. in Finder to see it.) Copy your own topic pack too, and the
    CSS file if you changed the look.
@@ -350,8 +360,8 @@ in a web browser and add `?test=1` to the end of the address. A sample bubble
 and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
-Still stuck? [Ask in Discussions](https://github.com/frolicchris/stream-facts-overlay/discussions/categories/q-a)
-or on [Discord](https://discord.gg/gXdVKc6KWx), or if it looks like a bug, [open an issue](https://github.com/frolicchris/stream-facts-overlay/issues/new/choose).
+Still stuck? [Ask in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
+or on [Discord](https://discord.gg/gXdVKc6KWx), or if it looks like a bug, [open an issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
 Include the relevant lines from the newest file in the `logs` folder, with
 your token removed.
 

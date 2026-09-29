@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy: BubbleFacts</title>
+  <meta name="description" content="What BubbleFacts sends where, in plain words. It runs on your computer and sends nothing to the project.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/privacy.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="BubbleFacts privacy">
+  <meta property="og:description" content="What BubbleFacts sends where, in plain words. It runs on your computer and sends nothing to the project.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/privacy.html">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BubbleFacts privacy">
+  <meta name="twitter:description" content="What BubbleFacts sends where, in plain words. It runs on your computer and sends nothing to the project.">
+  <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <div class="wrap narrow">
+        <p class="eyebrow">Privacy</p>
+        <h1>Your data, in plain words</h1>
+        <div class="rpg has-cursor" style="margin-bottom:2.5rem">
+          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to StreamerSongList and Wikipedia, and to an online AI only if you choose one. Nothing is sent to this project.</p>
+        </div>
+
+        <ul class="privacy-list">
+          <li>
+            <h2>Everything runs on your computer</h2>
+            <p>The app, the overlay and the built-in AI all run on your own computer. There's no BubbleFacts account and no BubbleFacts server.</p>
+          </li>
+          <li>
+            <h2>Your settings stay on your computer</h2>
+            <p>Your settings are saved in the app's folder on your computer. Your StreamerSongList sign-in (or token) and any API keys are encrypted using your system's keychain, the same secure storage your computer uses for its own passwords.</p>
+          </li>
+          <li>
+            <h2>StreamerSongList</h2>
+            <p>The app reads your request queue from StreamerSongList, using your sign-in (or your token, if you use one), so it knows which song you're playing. You sign in on StreamerSongList's own website, in your web browser, so BubbleFacts never sees your Twitch password.</p>
+          </li>
+          <li>
+            <h2>Wikipedia</h2>
+            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song.</p>
+          </li>
+          <li>
+            <h2>The AI</h2>
+            <p>With the built-in AI, the default, captions are written on your computer. The AI model is downloaded once, and after that nothing is sent anywhere to write captions.</p>
+            <p>If you choose an online AI (Groq or Anthropic), the song title and the Wikipedia article text are sent to that service to write the captions. Their own privacy policies apply.</p>
+          </li>
+          <li>
+            <h2>Nothing is sent to the project</h2>
+            <p>No analytics, no tracking, no usage counts. The app does check GitHub for new versions when it starts, which is how it can tell you an update is out.</p>
+          </li>
+          <li id="reports">
+            <h2>Problem reports only happen when you click</h2>
+            <p>A report is only created when you click <span class="ui">Report this fact</span> or <span class="ui">Report a problem</span>. It opens in your browser as a GitHub issue, filled in with details like the song, the fact, the Wikipedia article, the app version, your system and recent log lines. Your token is removed.</p>
+            <p>You read it and decide whether to send it. If you do, it's posted on GitHub <strong>publicly, under your own GitHub account</strong>, where anyone can see it. Edit out anything you don't want to share before you submit.</p>
+          </li>
+          <li>
+            <h2>This website</h2>
+            <p>This site has no cookies, analytics or trackers. To show the newest version and its download links, the download buttons ask GitHub's public API about the latest release. GitHub sees that request like any visit to GitHub. Nothing else is loaded from other companies. Like any website, the web host may keep basic server logs, such as IP addresses, for security.</p>
+          </li>
+        </ul>
+
+        <p>Questions? Ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>. The app is open source, so anyone can check what it does on <a href="https://github.com/frolicchris/bubblefacts">GitHub</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
+        <li><a href="https://twitch.tv/frolicchris">Twitch</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="requirements.html">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="privacy.html" aria-current="page">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Built with <a href="https://claude.com/claude-code">Claude Code</a>. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Made by <a href="https://www.twitch.tv/frolicchris">frolicchris</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

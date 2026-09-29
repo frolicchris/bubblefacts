@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>BubbleFacts</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img class="brand-mark" src="../build/tray@2x.png" alt="" width="26" height="26"><span>Bubble<span class="brand-accent">Facts</span></span></div>
+    <nav id="nav" hidden>
+      <button class="navlink" data-view="dashboard" aria-current="page">Dashboard</button>
+      <button class="navlink" data-view="settings">Settings</button>
+    </nav>
+  </header>
+
+  <div id="notices" aria-live="polite"></div>
+
+  <main>
+    <!-- ====================== Setup ====================== -->
+    <section id="view-setup" class="view" hidden>
+      <ol class="steps" aria-label="Setup progress">
+        <li data-step="1">Connect your songs</li>
+        <li data-step="2">Add it to your stream</li>
+        <li data-step="3">Your music (optional)</li>
+      </ol>
+
+      <div class="panel step" data-step="1">
+        <h1 tabindex="-1">Connect your songs</h1>
+        <p class="lead">BubbleFacts watches your StreamerSongList queue, so it knows what you're playing.</p>
+
+        <div id="signin-box">
+          <button id="sign-in" class="primary big">Sign in with StreamerSongList</button>
+          <p class="fine">You'll sign in with Twitch in your browser, then come back here.</p>
+          <p id="sign-in-result" class="result" role="status"></p>
+        </div>
+
+        <details id="token-box" class="help">
+          <summary id="token-summary">Having trouble signing in?</summary>
+          <p class="fine">You can connect with a Streamer Access Token instead. Find it at streamersonglist.com under <strong>Settings</strong>, then <strong>Access</strong>. It works like a password, so keep it off your stream.
+            <button class="link" data-open="https://www.streamersonglist.com">Open StreamerSongList</button></p>
+          <label for="setup-channel">Your StreamerSongList channel name</label>
+          <input id="setup-channel" type="text" autocomplete="off" spellcheck="false" placeholder="yourchannel">
+          <label for="setup-token">Your Streamer Access Token</label>
+          <div class="row">
+            <input id="setup-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste it here">
+            <button class="ghost" data-toggle-secret="setup-token">Show</button>
+          </div>
+          <div class="actions">
+            <button id="setup-test" class="primary">Connect</button>
+            <span id="setup-test-result" class="result" role="status"></span>
+          </div>
+        </details>
+      </div>
+
+      <div class="panel step" data-step="2" hidden>
+        <h1 tabindex="-1">Put BubbleFacts on your stream</h1>
+        <p class="lead"><span id="connected-as"></span> Open OBS and choose the scene you normally stream from.</p>
+        <div class="drag-tile" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
+          <img src="../build/tray@2x.png" alt="" width="40" height="40">
+          <span><strong>Drag this into your Sources list</strong><br><span class="hint">OBS adds it at the right size for your canvas.</span></span>
+        </div>
+        <div id="obs-check" class="check waiting" role="status" aria-live="polite">
+          <span class="check-icon" aria-hidden="true">…</span>
+          <span id="obs-check-text">That's it. BubbleFacts will check that it's working.</span>
+          <button class="link" id="show-test-again" hidden>Show it again</button>
+        </div>
+        <details class="help">
+          <summary>Add it by hand</summary>
+          <ol class="howto">
+            <li>Under <strong>Sources</strong>, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts".</li>
+            <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
+              <div class="pathbox"><code class="overlay-path"></code><button class="ghost" data-copy-path>Copy</button></div>
+            </li>
+            <li>Set <strong>Width</strong> and <strong>Height</strong> to your canvas size, usually 1920 and 1080. Click <strong>OK</strong>.</li>
+          </ol>
+          <p class="fine">Dropping the tile does nothing on Windows? OBS may be running as administrator. Open OBS the usual way, or use these steps.</p>
+        </details>
+        <div class="nav-buttons">
+          <button class="ghost" data-goto-step="1">Back</button>
+          <button id="stream-next" class="ghost">I'll add it later</button>
+        </div>
+      </div>
+
+      <div class="panel step" data-step="3" hidden>
+        <h1 tabindex="-1">Tell us about your music</h1>
+        <p class="lead">Optional. BubbleFacts works without this, and you can change it any time in Settings.</p>
+
+        <div class="checks single">
+          <label><input type="checkbox" id="setup-originals"> <span><strong>I play my own compositions</strong><br><span class="hint">Songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup.</span></span></label>
+          <div id="setup-originals-box" class="indent" hidden>
+            <label for="setup-myoriginals">About your compositions <span class="hint">optional, one per line; shown when you play them</span></label>
+            <textarea id="setup-myoriginals" rows="3" spellcheck="true" placeholder="Written during a snowstorm in 2023."></textarea>
+          </div>
+          <label><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner, with no facts, while you learn the song.</span></span></label>
+        </div>
+
+        <h2 class="subhead">Backup facts</h2>
+        <p class="fine">When a song has no Wikipedia article, BubbleFacts shows a backup fact instead.</p>
+        <p class="disclaimer"><strong>BubbleFacts comes with only a few example facts.</strong> They're short, they aren't updated, and they won't know your songs. Adding facts about the music you play makes your stream better.</p>
+        <div class="choices" role="radiogroup" aria-label="Backup facts">
+          <label class="choice">
+            <input type="radio" name="facts-choice" value="later" checked>
+            <span class="choice-body">
+              <strong>Set up my own facts later</strong>
+              <span>Use the examples for now. Add your own any time in Settings, under Backup facts.</span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="facts-choice" value="now">
+            <span class="choice-body">
+              <strong>Add my own facts now</strong>
+              <span>One per line. They go on stream exactly as you write them, so only add facts you've checked.</span>
+            </span>
+          </label>
+        </div>
+        <div id="setup-facts-box" hidden>
+          <label for="setup-myfacts">Your facts <span class="hint">one per line</span></label>
+          <textarea id="setup-myfacts" rows="6" spellcheck="true" placeholder="The Song of Storms plays in a windmill in Kakariko Village."></textarea>
+        </div>
+        <p id="facts-result" class="result" role="status"></p>
+        <div class="nav-buttons">
+          <button class="ghost" id="music-skip">Skip</button>
+          <button id="music-finish" class="primary">Finish</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Dashboard ====================== -->
+    <section id="view-dashboard" class="view" hidden>
+      <div id="status-banner" class="banner warn">
+        <span class="banner-light" aria-hidden="true"></span>
+        <div>
+          <h1 id="status-title">Starting</h1>
+          <p id="status-detail">Getting everything ready.</p>
+        </div>
+      </div>
+
+      <ul class="lights" aria-label="Status">
+        <li id="light-songlist"><span class="dot" aria-hidden="true"></span><span><strong>Songs</strong><em></em></span></li>
+        <li id="light-ai"><span class="dot" aria-hidden="true"></span><span><strong>Facts</strong><em></em></span></li>
+        <li id="light-obs"><span class="dot" aria-hidden="true"></span><span><strong>Stream</strong><em></em></span></li>
+      </ul>
+
+      <div class="toolbar main-controls">
+        <button class="primary" id="pause-toggle">Pause bubbles</button>
+        <button class="ghost" id="test-bubble">Show a test bubble</button>
+        <div class="drag-tile small" draggable="true" data-drag-overlay title="Drag onto the Sources list in OBS">
+          <img src="../build/tray@2x.png" alt="" width="24" height="24"><strong>Drag into OBS</strong>
+        </div>
+        <span id="test-result" class="result" role="status"></span>
+      </div>
+
+      <div class="panel">
+        <h2>On stream now</h2>
+        <p id="now-song" class="now-song">Nothing playing yet</p>
+        <ul id="now-facts" class="facts"></ul>
+        <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
+      </div>
+
+      <div id="nudge" class="notice info" hidden>
+        <span>We couldn't find facts for the last song, so BubbleFacts used an example fact. Add facts about the music you play.</span>
+        <button class="primary" data-view="settings">Add my facts</button>
+      </div>
+
+      <details class="help">
+        <summary>Help and troubleshooting</summary>
+        <div class="toolbar">
+          <button class="ghost" data-test-overlay>Test in your browser</button>
+          <button class="ghost" data-copy-path>Copy the OBS file path</button>
+          <button class="ghost" id="show-logs">Show logs</button>
+          <button class="ghost" id="report-problem">Report a problem</button>
+        </div>
+        <p class="fine">BubbleFacts needs to run on the same computer as OBS. To show it in several scenes, add it to one scene and nest that scene inside the others.</p>
+      </details>
+    </section>
+
+    <!-- ====================== Settings ====================== -->
+    <section id="view-settings" class="view" hidden>
+      <form id="settings-form" class="panel" novalidate>
+        <h1>Settings</h1>
+
+        <fieldset>
+          <legend>Your song list</legend>
+          <p id="s-signed-in"></p>
+          <button type="button" class="ghost" id="s-sign-in">Sign in with StreamerSongList</button>
+          <details class="help">
+            <summary>Use a token instead</summary>
+            <label for="s-channel">Channel name</label>
+            <input id="s-channel" name="channel" type="text" autocomplete="off" spellcheck="false">
+            <label for="s-token">Streamer Access Token</label>
+            <div class="row">
+              <input id="s-token" name="token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a token to use it instead of signing in.">
+              <button type="button" class="ghost" data-toggle-secret="s-token">Show</button>
+            </div>
+          </details>
+        </fieldset>
+
+        <fieldset>
+          <legend>You and your music</legend>
+          <label for="s-display">Your name on stream <span class="hint">optional; your channel name is used otherwise</span></label>
+          <input id="s-display" name="displayName" type="text">
+          <label for="s-instrument">Your instrument <span class="hint">optional; "playing this song on piano"</span></label>
+          <input id="s-instrument" name="instrument" type="text" list="instruments" placeholder="piano">
+          <label class="inline"><input name="originals" type="checkbox"> I play my own compositions</label>
+          <label class="inline"><input name="liveLearns" type="checkbox"> I do live learns</label>
+          <datalist id="instruments"><option value="piano"><option value="guitar"><option value="keyboard"><option value="violin"><option value="voice"><option value="drums"><option value="bass"><option value="harp"></datalist>
+        </fieldset>
+
+        <fieldset>
+          <legend>Backup facts</legend>
+          <p class="fine">When a song has no Wikipedia article, BubbleFacts shows backup facts instead.</p>
+          <p class="disclaimer"><strong>The packs below are only a few examples.</strong> They're short, they aren't updated, and they won't know your songs. Add your own facts for the music you play. They go on stream exactly as you write them, so only add facts you've checked.</p>
+          <div class="checks" id="s-topics">
+            <label><input type="checkbox" value="video-game"> Video game music <span class="hint">24 examples</span></label>
+            <label><input type="checkbox" value="classical"> Classical <span class="hint">7 examples</span></label>
+            <label><input type="checkbox" value="film"> Film and TV scores <span class="hint">8 examples</span></label>
+            <label><input type="checkbox" value="pop"> Pop and rock <span class="hint">7 examples</span></label>
+            <label><input type="checkbox" value="piano"> Piano <span class="hint">4 examples</span></label>
+            <label><input type="checkbox" value="general"> General music <span class="hint">6 examples</span></label>
+          </div>
+          <label for="s-myfacts">Your own facts <span class="hint">one per line</span></label>
+          <textarea id="s-myfacts" rows="5" spellcheck="true" placeholder="The Song of Storms plays in a windmill in Kakariko Village."></textarea>
+          <div id="s-originals-box">
+          <label for="s-myoriginals">About your own compositions <span class="hint">optional, one per line; shown when you play your originals</span></label>
+          <textarea id="s-myoriginals" rows="3" spellcheck="true" placeholder="Written during a snowstorm in 2023."></textarea>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Bubbles</legend>
+          <label for="s-size">Bubble size <span class="hint">bigger is easier to read for viewers on phones</span></label>
+          <select id="s-size" name="bubbleSize">
+            <option value="standard">Standard</option>
+            <option value="large">Large</option>
+            <option value="larger">Larger</option>
+          </select>
+          <div class="grid3">
+            <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
+            <label>Seconds between bubbles <input name="intervalSeconds" type="number" min="3" max="300"></label>
+            <label>Seconds each stays up <input name="durationSeconds" type="number" min="2" max="120"></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Who writes the facts</legend>
+          <div class="checks">
+            <label><input type="radio" name="ai" value="builtin"> On this computer (free)</label>
+            <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
+            <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
+            <label><input type="radio" name="ai" value="ollama"> My own Ollama (advanced)</label>
+          </div>
+          <p class="fine">The built-in AI is Meta's Llama 3.2 3B, used under the <button class="link" data-open-license>Llama 3.2 Community License</button>. Built with Llama.</p>
+          <label for="s-groq">Groq key</label>
+          <input id="s-groq" name="groqKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
+          <label for="s-anthropic">Anthropic key</label>
+          <input id="s-anthropic" name="anthropicKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
+        </fieldset>
+
+        <fieldset>
+          <legend>General</legend>
+          <label class="inline"><input name="startAtLogin" type="checkbox"> Start BubbleFacts when I log in</label>
+        </fieldset>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <label for="s-ollama-url">Ollama address</label>
+          <input id="s-ollama-url" name="ollamaUrl" type="text">
+          <label for="s-ollama-model">Ollama model</label>
+          <input id="s-ollama-model" name="ollamaModel" type="text">
+          <label for="s-port">Port <span class="hint">changes automatically if another program is using it</span></label>
+          <input id="s-port" name="port" type="number" min="1024" max="65535">
+          <p class="fine">Your settings and logs are in <code id="s-datadir"></code>.</p>
+          <p class="label">Uninstalling</p>
+          <p class="fine">Before removing the app, this deletes everything BubbleFacts saved on this computer and signs you out of StreamerSongList.</p>
+          <button type="button" class="danger" id="remove-data">Remove my BubbleFacts data</button>
+        </details>
+
+        <div class="nav-buttons">
+          <span id="settings-result" class="result" role="status"></span>
+          <button type="submit" class="primary">Save</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="about">
+    BubbleFacts <span id="about-version"></span> · made by <button class="link" data-open="https://www.twitch.tv/frolicchris">frolicchris</button> ·
+    <button class="link" data-open="https://bubblefacts.frolic.org/">Website</button> ·
+    <button class="link" data-open="https://discord.gg/gXdVKc6KWx">Discord</button> ·
+    <button class="link" data-open="https://github.com/frolicchris/bubblefacts">GitHub</button>
+  </footer>
+
+  <template id="fact-item">
+    <li class="fact"><span class="fact-text"></span><button class="link wrong" title="Opens a report on GitHub (a free account is needed)">Report this fact</button></li>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

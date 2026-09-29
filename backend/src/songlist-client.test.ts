@@ -6,6 +6,7 @@ jest.mock("./config", () => ({
     sslApiBase: "https://api.streamersonglist.com",
     sslAccessToken: "test-token",
     sslTokenKind: "streamer",
+    liveLearns: true,
     sslEventsUrl: "wss://events.streamersonglist.com/connection/uni_websocket",
     sslPollIntervalMs: 15000,
     sslRequestTimeoutMs: 5000,
@@ -27,7 +28,8 @@ jest.mock("./centrifugo-client", () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { SongListClient } from "./songlist-client";
+import { SongListClient, setAccessToken } from "./songlist-client";
+import { config } from "./config";
 import { CentrifugoStream } from "./centrifugo-client";
 
 const STREAMER = { id: 123, requestsActive: true, promoteQueueToPlaying: true };
@@ -76,6 +78,13 @@ describe("SongListClient", () => {
       liveLearn: true,
       requestedBy: "viewer1",
     });
+
+    (config as unknown as { liveLearns: boolean }).liveLearns = false;
+    try {
+      expect(SongListClient.toSong(live).liveLearn).toBeUndefined();
+    } finally {
+      (config as unknown as { liveLearns: boolean }).liveLearns = true;
+    }
 
     const listed = entry(8, "On The List");
     expect(SongListClient.isLiveLearn(listed)).toBe(false);
@@ -141,10 +150,36 @@ describe("SongListClient", () => {
     expect(url).toContain("streamer_name=teststreamer");
     expect(url).toContain("platform=twitch");
     expect(init.headers.Authorization).toBe("Streamer test-token");
+    expect(init.headers["Client-Id"]).toBeUndefined();
 
     expect(mockFetch.mock.calls[1][0]).toContain("/queue?");
 
     client.disconnect();
+  });
+
+  it("signs in with an app's OAuth token, by channel ID, and takes refreshed tokens", async () => {
+    const cfg = config as unknown as Record<string, unknown>;
+    Object.assign(cfg, { sslTokenKind: "bearer", sslClientId: "app-id", sslStreamerId: 123 });
+    setAccessToken("first");
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValueOnce(ok({ items: [], playing: null, total: 0 }));
+      await client.connect();
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toContain("streamer_id=123");
+      expect(url).not.toContain("streamer_name");
+      expect(init.headers).toMatchObject({ Authorization: "Bearer first", "Client-Id": "app-id" });
+
+      setAccessToken("second");
+      mockFetch.mockResolvedValueOnce(ok({ items: [], playing: null, total: 0 }));
+      await (client as unknown as { refresh(): Promise<void> }).refresh();
+      expect(mockFetch.mock.calls[2][1].headers.Authorization).toBe("Bearer second");
+    } finally {
+      client.disconnect();
+      Object.assign(cfg, { sslTokenKind: "streamer", sslClientId: "", sslStreamerId: 0 });
+      setAccessToken("test-token");
+    }
   });
 
   it("subscribes to the streamer's public event channels", async () => {
@@ -167,6 +202,13 @@ describe("SongListClient", () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401, statusText: "Unauthorized" });
 
     await expect(client.connect()).rejects.toThrow(/SSL_ACCESS_TOKEN/);
+    expect(client.authRejected()).toBe(true);
+
+    mockFetch
+      .mockResolvedValueOnce(ok(STREAMER))
+      .mockResolvedValueOnce(ok({ items: [], playing: null, total: 0 }));
+    await client.connect();
+    expect(client.authRejected()).toBe(false);
   });
 
   it("should throw on API error", async () => {
@@ -190,5 +232,58 @@ describe("SongListClient", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(client.getCurrentSong()?.song.title).toBe("Song B");
+  });
+
+  it("waits as long as StreamerSongList asks when it's busy, and says why", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+      headers: new Headers({ "retry-after": "30" }),
+      json: async () => ({ title: "Too Many Requests", detail: "Slow down" }),
+    });
+    await expect(client.connect()).rejects.toThrow("(Slow down)");
+    const calls = mockFetch.mock.calls.length;
+    await (client as unknown as { refresh(): Promise<void> }).refresh();
+    expect(mockFetch.mock.calls.length).toBe(calls);
+  });
+
+  it("never sends the app's Client-Id with a pasted token", async () => {
+    const cfg = config as unknown as Record<string, unknown>;
+    cfg.sslClientId = "app-id";
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValueOnce(ok({ items: [], playing: null, total: 0 }));
+      await client.connect();
+      expect(mockFetch.mock.calls[0][1].headers["Client-Id"]).toBeUndefined();
+    } finally {
+      cfg.sslClientId = "";
+    }
+  });
+
+  it("refetches on any event and on every reconnect", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValue(ok({ items: [], playing: null, total: 0 }));
+      await client.connect();
+      const [, , onPublication, onConnect] = (CentrifugoStream as unknown as jest.Mock).mock.calls.at(-1);
+      const before = mockFetch.mock.calls.length;
+      onPublication("streamer:123", { type: "some_new_event_type", data: null });
+      await jest.advanceTimersByTimeAsync(300);
+      expect(mockFetch.mock.calls.length).toBe(before + 1);
+      onConnect();
+      await jest.advanceTimersByTimeAsync(300);
+      expect(mockFetch.mock.calls.length).toBe(before + 2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("uses the newer live-learn title and artist fields", () => {
+    const live = entry(9, "", { songId: null, nonlistSong: "old field", nonlistTitle: "Aerith's Theme", nonlistArtist: "Nobuo Uematsu" });
+    expect(SongListClient.toSong(live)).toMatchObject({ title: "Aerith's Theme", artist: "Nobuo Uematsu", liveLearn: true });
   });
 });

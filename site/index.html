@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BubbleFacts: song fact bubbles for music streamers</title>
+  <meta name="description" content="Fact bubbles about the song you're playing, checked against Wikipedia. A free app for musicians who stream with OBS and StreamerSongList.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="BubbleFacts: song fact bubbles for music streamers">
+  <meta property="og:description" content="Fact bubbles about the song you're playing, checked against Wikipedia. A free app for musicians who stream with OBS and StreamerSongList.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BubbleFacts: song fact bubbles for music streamers">
+  <meta name="twitter:description" content="Fact bubbles about the song you're playing, checked against Wikipedia. A free app for musicians who stream with OBS and StreamerSongList.">
+  <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./" aria-current="page">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">Free app for music streamers</p>
+          <h1 id="hero-title">BubbleFacts</h1>
+          <p class="pitch"><strong>Fact bubbles about the song you're playing, checked against Wikipedia.</strong>
+            Game-style boxes appear on your stream while you play requests, so your chat learns something about every song.</p>
+
+          <div class="download" id="download">
+            <p class="dl-note beta-note"><strong>Beta note:</strong> your Mac or Windows may ask you to confirm you want to open BubbleFacts, because this beta isn't digitally signed yet. <a href="download.html#first-launch">Here's exactly what to click.</a></p>
+            <a class="btn btn-primary" id="dl-primary" href="#all-downloads">Download BubbleFacts</a>
+            <p class="dl-note" id="dl-note">Free for Mac, Windows and Linux.</p>
+            <p class="dl-note" id="dl-alt" hidden></p>
+
+            <div class="dl-other" id="all-downloads">
+              <h2 id="dl-other-heading">All downloads</h2>
+              <ul class="dl-list">
+                <li data-os="mac"><a data-asset="mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Mac</a> <span class="hint">macOS 13 or newer (.dmg). <a data-asset="mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Need the Intel version?</a> <a href="download.html#which-mac">Which Mac do I have?</a></span></li>
+                <li data-os="windows"><a data-asset="windows-x64" href="https://github.com/frolicchris/bubblefacts/releases">Windows</a> <span class="hint">Windows 10 or 11, 64-bit (.exe)</span></li>
+                <li data-os="linux"><a data-asset="linux-deb" href="https://github.com/frolicchris/bubblefacts/releases">Linux, Ubuntu and Debian</a> <span class="hint">64-bit (.deb)</span></li>
+                <li><a data-asset="linux-appimage" href="https://github.com/frolicchris/bubblefacts/releases">Linux, other</a> <span class="hint">64-bit (.AppImage)</span></li>
+              </ul>
+              <p class="dl-note">Latest version: <a data-release-link href="https://github.com/frolicchris/bubblefacts/releases"><span data-release-version>see all releases</span></a></p>
+              <p class="dl-note"><a href="download.html">More download options</a> · <a href="requirements.html">System requirements</a> · <a href="changelog.html">What's new</a></p>
+            </div>
+          </div>
+        </div>
+
+        <figure style="margin:0">
+          <div class="rpg hero-shot">
+            <img src="assets/demo.png" width="1600" height="900"
+              alt="An example stream screen. Three blue game-style boxes show facts about the Song of Storms from The Legend of Zelda: Ocarina of Time, such as its 1998 release on the Nintendo 64. A gold Now Playing banner at the bottom names the song.">
+          </div>
+          <figcaption class="caption">What your viewers see when you play the Song of Storms.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="steps-title">
+      <div class="wrap">
+        <h2 id="steps-title">How it works in 3 steps</h2>
+        <p class="section-intro">Download the app and open it. A short setup walks you through three steps, and the last one is optional. About 10 minutes the first time. No coding, no Terminal. BubbleFacts works right away while its built-in AI downloads.</p>
+        <ol class="steps three">
+          <li>
+            <div class="rpg">
+              <span class="step-num" aria-hidden="true"></span>
+              <h3>Connect your songs</h3>
+              <p>Click <span class="ui">Sign in with StreamerSongList</span> and sign in with the Twitch account you use there. That lets the app see which song you're playing.</p>
+            </div>
+          </li>
+          <li>
+            <div class="rpg">
+              <span class="step-num" aria-hidden="true"></span>
+              <h3>Put BubbleFacts on your stream</h3>
+              <p>Open OBS, choose the scene you normally stream from, and drag the tile from the app into your Sources list. A test bubble pops up, and the app says <span class="ui">It's on your stream!</span></p>
+            </div>
+          </li>
+          <li>
+            <div class="rpg">
+              <span class="step-num" aria-hidden="true"></span>
+              <h3>Tell us about your music (optional)</h3>
+              <p>Say whether you play your own compositions and do live learns, and set up backup facts for songs with no Wikipedia article. The app comes with only a few examples, so add your own now or later. Or click <span class="ui">Skip</span>.</p>
+            </div>
+          </li>
+        </ol>
+        <p style="margin-top:1.75rem"><a class="btn btn-secondary" href="guide.html">Read the step-by-step guide</a></p>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="true-title">
+      <div class="wrap">
+        <h2 id="true-title">Why the facts are true</h2>
+        <p class="section-intro">AI can make things up. BubbleFacts is built to keep made-up facts off your stream.</p>
+        <ul class="check-list">
+          <li><strong>It reads first.</strong> When a song starts, the app finds the song, or the game or film it's from, on Wikipedia.</li>
+          <li><strong>It writes from the article only.</strong> An AI turns a few details from that article into short captions. It is never asked to answer from memory.</li>
+          <li><strong>It checks every caption.</strong> Any caption that mentions a name, year or console the article doesn't is thrown out before it reaches your stream.</li>
+        </ul>
+        <p class="credit">No article? Then the AI isn't used at all, and you get backup facts instead. The included ones are only a few examples, so <a href="guide.html#backup-facts">add your own</a>. The facts are only as good as Wikipedia: the check makes sure a caption matches the article, not that the article is right.</p>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="see-title">
+      <div class="wrap">
+        <h2 id="see-title">What you'll see on stream</h2>
+        <div class="see-grid">
+          <div class="rpg see-card">
+            <div class="mock mock-toast" aria-hidden="true"><span class="label">&#9654; Now playing</span> Clair de Lune by Claude Debussy</div>
+            <h3>NOW PLAYING banner</h3>
+            <p>A gold banner names the song for five seconds when it starts.</p>
+          </div>
+          <div class="rpg see-card">
+            <div class="mock mock-bubble" aria-hidden="true">Debussy published Clair de Lune in 1905 as part of his Suite bergamasque.</div>
+            <h3>Fact bubbles</h3>
+            <p>Up to five game-style boxes pop up, one at a time, about 15 seconds apart.</p>
+          </div>
+          <div class="rpg see-card">
+            <div class="mock mock-toast live" aria-hidden="true"><span class="label">Live learn</span> A request from a viewer</div>
+            <h3>LIVE LEARN banner</h3>
+            <p>When you take a request that isn't on your list, a banner shows the title and who asked for it, and stays up until the next song.</p>
+          </div>
+          <div class="rpg see-card">
+            <div class="mock mock-bubble" aria-hidden="true">This piece is an original by the streamer, played 12 times on stream.</div>
+            <h3>Your own compositions</h3>
+            <p>Play one of your originals and the bubbles talk about your piece, using what your song list knows: that it's yours, how often you've played it, who requested it, and your note on it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="req-title">
+      <div class="wrap narrow">
+        <h2 id="req-title">What you need</h2>
+        <ul class="req-list">
+          <li>A Mac with macOS 13 Ventura or newer (Apple silicon or Intel), a Windows 10 or 11 PC (64-bit), or a 64-bit Linux computer (tested on Ubuntu 24.04 and newer)</li>
+          <li>At least 8 GB of memory (16 GB is better) and 4 GB of free disk space</li>
+          <li><a href="https://obsproject.com/download">OBS Studio</a> 28 or newer</li>
+          <li>A free <a href="https://streamersonglist.com">StreamerSongList</a> account</li>
+        </ul>
+        <p><a href="requirements.html">Full system requirements</a></p>
+      </div>
+    </section>
+
+    <section class="section faq" aria-labelledby="faq-title">
+      <div class="wrap narrow">
+        <h2 id="faq-title">Questions</h2>
+
+        <details id="faq-free">
+          <summary>Is it free?</summary>
+          <div class="answer">
+            <p>Yes. The app is free and open source. With the built-in AI there's nothing to pay for. If you'd rather use an online AI (optional, in Settings), Groq has a free plan with a daily limit, and Anthropic charges a fraction of a cent per song.</p>
+          </div>
+        </details>
+
+        <details id="faq-coding">
+          <summary>Do I need to know coding?</summary>
+          <div class="answer">
+            <p>No. You download an app and click through a three-step setup. One step is dragging a tile into OBS. If you can add a webcam to OBS, you can do this. The <a href="guide.html">setup guide</a> walks you through every click.</p>
+          </div>
+        </details>
+
+        <details id="faq-computers">
+          <summary>Which computers does it work on?</summary>
+          <div class="answer">
+            <p>Macs with macOS 13 Ventura or newer (Apple silicon or Intel), Windows 10 or 11 (64-bit), and 64-bit Linux, tested on Ubuntu 24.04 and newer. You need at least 8 GB of memory and OBS Studio 28 or newer. It doesn't run on phones, tablets or Chromebooks. See the <a href="requirements.html">system requirements</a> for details.</p>
+          </div>
+        </details>
+
+        <details id="faq-same-computer">
+          <summary>Can BubbleFacts run on a different computer from OBS?</summary>
+          <div class="answer">
+            <p>Not yet. BubbleFacts needs to run on the same computer as OBS. Two-PC setups, such as a music PC plus a streaming PC, aren't supported yet.</p>
+          </div>
+        </details>
+
+        <details id="faq-ai-fallback">
+          <summary>What if my computer can't run the built-in AI?</summary>
+          <div class="answer">
+            <p>You'll still be able to use BubbleFacts. If the built-in AI can't run, for example on an older processor, the app first tries a simpler mode that uses only the processor. If that doesn't work either, it walks you through switching to the free online option, Groq. You don't have to figure it out yourself.</p>
+          </div>
+        </details>
+
+        <details id="faq-performance">
+          <summary>Will it slow down my stream?</summary>
+          <div class="answer">
+            <p>BubbleFacts runs beside OBS. The boxes on screen are light, simple animations. The work happens when a song starts: the built-in AI spends a few seconds writing facts, using your graphics chip or processor.</p>
+            <p>On most computers you won't notice. If your computer has no graphics card and you notice lag, choose <span class="ui">Online: Groq</span> in the app's <span class="ui">Settings</span>, under <span class="ui">Who writes the facts</span>. It's free and does the AI work online instead.</p>
+          </div>
+        </details>
+
+        <details id="faq-offline">
+          <summary>Does it work offline?</summary>
+          <div class="answer">
+            <p>Partly. The built-in AI downloads once, on its own, when you first open the app. After that, it runs without the internet. But the app still needs the internet to read your queue from StreamerSongList and to look songs up on Wikipedia. Since you're streaming, you'll be online anyway.</p>
+          </div>
+        </details>
+
+        <details id="faq-ssl">
+          <summary>Can I use it without StreamerSongList?</summary>
+          <div class="answer">
+            <p>Not yet. BubbleFacts learns which song you're playing from your StreamerSongList queue, so you need a StreamerSongList account. It's free.</p>
+          </div>
+        </details>
+
+        <details id="faq-streamlabs">
+          <summary>Does it work with Streamlabs Desktop?</summary>
+          <div class="answer">
+            <p>It should, but it isn't tested yet. Dragging the tile may not work there. Instead, add a Browser source by hand: follow the <a href="guide.html#obs-by-hand">add-it-by-hand steps</a>. Only OBS Studio is tested.</p>
+          </div>
+        </details>
+
+        <details id="faq-ai">
+          <summary>What does the AI do?</summary>
+          <div class="answer">
+            <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never makes up facts from memory, and every caption is checked against the article before it's shown. The built-in AI is Llama 3.2, a small model made by Meta that runs on your own computer.</p>
+          </div>
+        </details>
+
+        <details id="faq-data">
+          <summary>Where does my data go?</summary>
+          <div class="answer">
+            <p>Almost nowhere. The app runs on your computer and reads your queue from StreamerSongList. It sends song titles to Wikipedia to find articles. If you pick an online AI, the song title and article text go to that service. Nothing is sent to this project. Your sign-in, token and keys are stored encrypted on your computer. The <a href="privacy.html">privacy page</a> has the details.</p>
+          </div>
+        </details>
+
+        <details id="faq-token">
+          <summary>Is my sign-in safe?</summary>
+          <div class="answer">
+            <p>You sign in to StreamerSongList in your own web browser, so BubbleFacts never sees your Twitch password. Your StreamerSongList sign-in (or token, if you use one) and any API keys are stored only on your computer, encrypted with your system's keychain, the same secure storage your computer uses for its own passwords. They're removed from problem reports before you see them. If you use a token, treat it like a password and keep it off your stream.</p>
+          </div>
+        </details>
+
+        <details id="faq-backup">
+          <summary>What happens when a song has no Wikipedia article?</summary>
+          <div class="answer">
+            <p>The app shows backup facts instead. The packs it comes with are only a few examples. They're short, they aren't updated or maintained, and they won't know your songs. Add your own during setup, in the <span class="ui">Your music</span> step, or any time in the app's <span class="ui">Settings</span>, under <span class="ui">Backup facts</span>. They go on stream exactly as you write them, so only add facts you've checked. See <a href="guide.html#backup-facts">backup facts in the setup guide</a>.</p>
+          </div>
+        </details>
+
+        <details id="faq-wrong">
+          <summary>What if a fact is wrong?</summary>
+          <div class="answer">
+            <p>Click <span class="ui">Report this fact</span> in the app. It opens GitHub, where you need a free account, and fills in a report with the song, the fact and the Wikipedia article it came from, for you to check and send. Those reports are the most useful kind, because they show where the fact check needs to be stricter.</p>
+          </div>
+        </details>
+
+        <details id="faq-help">
+          <summary>Where do I get help?</summary>
+          <div class="answer">
+            <p>Start with the troubleshooting table in the <a href="guide.html#troubleshooting">setup guide</a>. Then ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>, or click <span class="ui">Report a problem</span> under <span class="ui">Help and troubleshooting</span> in the app. The <a href="support.html">help page</a> lists every option.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="built-title">
+      <div class="wrap narrow">
+        <h2 id="built-title">Who made this</h2>
+        <p class="credit">BubbleFacts was built with <a href="https://claude.com/claude-code">Claude Code</a>, Anthropic's AI coding tool, and directed and tested by <a href="https://twitch.tv/frolicchris">frolicchris</a>, a musician and streamer who plays piano requests on Twitch. It was tested on live streams and fixed when it got things wrong.</p>
+        <p><a class="btn btn-primary" href="download.html">Get BubbleFacts</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
+        <li><a href="https://twitch.tv/frolicchris">Twitch</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="requirements.html">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Built with <a href="https://claude.com/claude-code">Claude Code</a>. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Made by <a href="https://www.twitch.tv/frolicchris">frolicchris</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

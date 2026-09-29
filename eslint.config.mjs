@@ -5,7 +5,7 @@
  */
 export default [
   {
-    files: ["frontend/**/*.js"],
+    files: ["frontend/**/*.js", "desktop/renderer/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "script",
@@ -16,6 +16,8 @@ export default [
         WebSocket: "readonly",
         setTimeout: "readonly",
         clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
       },
     },
     rules: {

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b2160"/><stop offset="1" stop-color="#0b0d1f"/></linearGradient>
+    <radialGradient id="bubble" cx="0.38" cy="0.32" r="0.8"><stop offset="0" stop-color="#8b9bff"/><stop offset="0.6" stop-color="#5b6ee1"/><stop offset="1" stop-color="#3d4bb8"/></radialGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <!-- the bubble and its tail -->
+  <path d="M336 650 L226 836 L446 724 Z" fill="#4351c4"/>
+  <circle cx="528" cy="468" r="300" fill="url(#bubble)"/>
+  <!-- shine -->
+  <path d="M338 380 A210 210 0 0 1 470 238" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="318" cy="440" r="15" fill="#fff" fill-opacity=".45"/>
+  <!-- beamed eighth notes -->
+  <g fill="#ffd700">
+    <polygon points="470,356 682,306 682,368 470,418"/>
+    <rect x="470" y="380" width="32" height="192"/>
+    <rect x="650" y="330" width="32" height="200"/>
+    <ellipse cx="426" cy="572" rx="72" ry="54" transform="rotate(-20 426 572)"/>
+    <ellipse cx="606" cy="530" rx="72" ry="54" transform="rotate(-20 606 530)"/>
+  </g>
+</svg>
