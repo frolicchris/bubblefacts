@@ -64,8 +64,12 @@ It's the most useful report of all.
 
 BubbleFacts was written by [Claude Code](https://claude.com/claude-code),
 Anthropic's AI coding agent, from a musician's direction. Almost none of the
-code was typed by hand. A person decided what it should do, tested it on live
-streams, and reported what went wrong.
+code was typed by hand.
+
+The human in the loop is Christopher Feyrer
+([@frolicchris](https://github.com/frolicchris)), who runs this repository. He
+decides what BubbleFacts should do, tests it on live streams, reports what
+goes wrong, and reviews and approves every change and release.
 
 The captions are written by a small AI model (Meta's Llama 3.2) from Wikipedia
 text.
