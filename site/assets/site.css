@@ -851,7 +851,8 @@ td {
 }
 
 code.cmd {
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   padding: 0.35em 0.6em;
 }
 

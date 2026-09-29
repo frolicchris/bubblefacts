@@ -1,7 +1,7 @@
 {
   "name": "bubblefacts",
   "version": "2.0.0-beta.1",
-  "description": "OBS overlay that pops up verified trivia about the song your StreamerSongList queue says you are playing. Grounded in Wikipedia, written by a local or hosted LLM, screened deterministically.",
+  "description": "Fact bubbles in OBS about the song your StreamerSongList queue says you are playing. Grounded in Wikipedia, written by a local or hosted LLM, screened deterministically.",
   "private": false,
   "scripts": {
     "build": "tsc -p backend/tsconfig.json",
