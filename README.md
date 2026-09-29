@@ -104,4 +104,6 @@ do.
 Built with Llama. The app's built-in AI is Meta's Llama 3.2 3B, used under the
 [Llama 3.2 Community License](https://www.llama.com/llama3_2/license/).
 
-The code is [MIT licensed](LICENSE).
+The code is [MIT licensed](LICENSE). The BubbleFacts name and logo are
+trademarks of Christopher Feyrer and aren't covered by the MIT license: forks
+are welcome, under a different name.
