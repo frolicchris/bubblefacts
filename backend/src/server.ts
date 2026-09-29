@@ -216,16 +216,19 @@ server.listen(config.port, config.host, () => {
 
 void warmUpBuiltin();
 
-// Under the desktop app, the app refreshes the StreamerSongList sign-in and passes each new token here.
-type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void };
-const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
-parentPort?.on("message", ({ data }) => {
+// Under the desktop app, the app refreshes the StreamerSongList sign-in and passes each new token here:
+// through Electron's parentPort, or Node's IPC channel when the app runs the server under Node.js (Linux).
+function onAppMessage(data: unknown): void {
   const msg = data as { type?: string; token?: unknown };
   if (msg?.type === "ssl-token" && typeof msg.token === "string" && msg.token) {
     setAccessToken(msg.token);
     console.log("[SSL] Sign-in refreshed");
   }
-});
+}
+type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void };
+const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
+parentPort?.on("message", ({ data }) => onAppMessage(data));
+if (process.send) process.on("message", onAppMessage);
 
 songList
   .connect()

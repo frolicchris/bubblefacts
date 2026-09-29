@@ -11,6 +11,9 @@ on:
       tag:
         description: Release tag to test, such as v2.0.0-beta.2 (empty means the newest release, betas included)
         required: false
+      run:
+        description: Or a Release workflow run ID, to test unpublished builds from its artifacts
+        required: false
 
 permissions:
   contents: read
@@ -27,9 +30,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: windows, os: windows-latest, asset: "*-windows-x64.exe" }
-          - { name: linux-deb, os: ubuntu-24.04, asset: "*_amd64.deb" }
-          - { name: mac-arm64, os: macos-14, asset: "*-mac-arm64.dmg" }
+          - { name: windows, os: windows-latest, asset: "*-windows-x64.exe", artifact: windows-x64 }
+          - { name: linux-deb, os: ubuntu-24.04, asset: "*_amd64.deb", artifact: linux-x64 }
+          - { name: mac-arm64, os: macos-14, asset: "*-mac-arm64.dmg", artifact: mac-arm64 }
     env:
       GH_TOKEN: ${{ github.token }}
     defaults:
@@ -42,13 +45,21 @@ jobs:
       - name: Pick the release
         run: |
           tag="${{ inputs.tag }}"
+          if [ -n "${{ inputs.run }}" ]; then tag="run ${{ inputs.run }}"; fi
           if [ -z "$tag" ]; then
             tag=$(gh api "repos/$GITHUB_REPOSITORY/releases" -q '[.[] | select(.draft|not)][0].tag_name')
           fi
           echo "TAG=$tag" >> "$GITHUB_ENV"
           echo "Testing $tag"
       - name: Download the installer
-        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer
+        run: |
+          if [ -n "${{ inputs.run }}" ]; then
+            gh run download "${{ inputs.run }}" --repo "$GITHUB_REPOSITORY" --name "${{ matrix.artifact }}" --dir all
+            mkdir -p installer && find all -name "${{ matrix.asset }}" -exec cp {} installer/ \;
+          else
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer
+          fi
+          ls -la installer
       - name: Cache the AI model
         uses: actions/cache@v4
         with:
@@ -75,7 +86,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ./installer/*.deb
-          res=$(dpkg -L bubblefacts | grep -m1 '/resources/app.asar$' | xargs dirname)
+          res=$(dpkg -L bubblefacts | grep -m1 -E '/resources$')
           exe=$(dirname "$res")/bubblefacts
           [ -x "$exe" ] || { dpkg -L bubblefacts | head -40; exit 1; }
           echo "APP_EXE=$exe" >> "$GITHUB_ENV"
@@ -107,7 +118,7 @@ jobs:
         run: |
           set +e
           echo "--- libraries the AI's native files can't find"
-          find "$APP_RESOURCES/app.asar.unpacked" \( -name '*.node' -o -name '*.so' \) -print0 | xargs -0 -n1 ldd 2>/dev/null | grep 'not found'
+          find "$APP_RESOURCES" \( -name '*.node' -o -name '*.so' \) -print0 | xargs -0 -n1 ldd 2>/dev/null | grep 'not found'
           echo "--- CPU"
           grep -m1 'model name' /proc/cpuinfo
           grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx|avx2|avx512.*|fma|f16c|bmi2|amx.*|avx_vnni)$' | tr '\n' ' '; echo

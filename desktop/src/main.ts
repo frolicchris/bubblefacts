@@ -52,7 +52,13 @@ let ollama: { pulling?: string; error?: string } | null = null;
 /** Bubbles paused from the dashboard or tray. Not saved: a restart shows bubbles again. */
 let paused = false;
 
-const supervisor = new Supervisor(path.join(ROOT, "dist/backend/server.js"), DIRS.logs);
+// Linux builds ship a standard Node.js for the fact server (see Supervisor).
+const nodeRuntime = path.join(process.resourcesPath, "runtime", "node");
+const supervisor = new Supervisor(
+  path.join(ROOT, "dist/backend/server.js"),
+  DIRS.logs,
+  process.platform === "linux" && fs.existsSync(nodeRuntime) ? nodeRuntime : null
+);
 const overlayFile = () => path.join(DIRS.overlay, OVERLAY_FILE);
 const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
 
