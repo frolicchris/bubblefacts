@@ -77,7 +77,7 @@ jobs:
         with:
           path: files
           merge-multiple: true
-      # The manual (command-line) setup: the README links to this name on the latest release.
+      # The manual (command-line) setup: docs/MANUAL-SETUP.md links to this name on the latest release.
       - name: Source zip
         run: git archive --format=zip --prefix=bubblefacts/ -o files/bubblefacts.zip "$GITHUB_REF_NAME"
       - name: Checksums

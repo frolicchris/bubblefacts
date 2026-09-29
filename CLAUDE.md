@@ -12,8 +12,11 @@ npm run typecheck   # tsc, including the tests
 npm test            # jest, ~1 s (transpile-only; types come from tsc)
 npm run lint        # eslint on the overlay, shellcheck on the scripts
 npm run build       # compile to dist/
+npm run app         # build and run the desktop app in development
+npm run dist        # build installers into release/ (on iCloud-synced folders, see CONTRIBUTING.md)
 bash scripts/start-overlay.sh
 ```
+Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
 
 ## Rules
 - Everything runs compiled (`node dist/backend/server.js`). No ts-node-dev.
@@ -26,5 +29,7 @@ bash scripts/start-overlay.sh
 - The packs in `topics/` are examples, not maintained content. Don't add to,
   expand, or "improve" them, and don't accept pull requests that do. Streamers
   keep their own packs.
+- Test the overlay in a real OBS before a release (OBS loads Local files from
+  `http://absolute/`, which a browser doesn't reproduce).
 - Docs are for streamers first: plain words, numbered steps, no unexplained
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.

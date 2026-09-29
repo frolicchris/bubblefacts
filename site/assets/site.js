@@ -65,6 +65,9 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-release-version]"), function (el) {
       if (version) el.textContent = version;
     });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-release-shown]"), function (el) {
+      if (version) el.hidden = false;
+    });
     Array.prototype.forEach.call(document.querySelectorAll("[data-release-link]"), function (el) {
       if (release.html_url) el.href = release.html_url;
     });

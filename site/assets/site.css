@@ -418,6 +418,9 @@ main {
   .steps.three {
     grid-template-columns: repeat(3, 1fr);
   }
+  .steps.two {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .steps > li {

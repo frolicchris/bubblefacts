@@ -50,7 +50,7 @@
       <div class="wrap">
         <p class="eyebrow">Requirements</p>
         <h1>System requirements</h1>
-        <p class="section-intro">If your computer can stream with OBS, it can most likely run BubbleFacts. If it can't run the built-in AI, there's a <a href="#fallback">free online option</a>. Here are the details.</p>
+        <p class="section-intro">Most computers that comfortably run OBS should work. BubbleFacts checks by itself whether its built-in fact writer can run on your computer, and switches to a lighter mode if not. There's also a <a href="#fallback">free online option</a>. Here are the details.</p>
 
         <div class="note" id="same-computer">
           <p class="note-title">Same computer as OBS</p>
@@ -97,12 +97,7 @@
               </tr>
               <tr>
                 <th scope="row">Processor</th>
-                <td>
-                  <ul>
-                    <li>Mac: any Apple silicon Mac, or an Intel Mac from 2017 or newer</li>
-                    <li>Windows and Linux: a 64-bit processor from 2015 or newer (Intel 6th generation Core or newer, or AMD Ryzen)</li>
-                  </ul>
-                </td>
+                <td>One that runs OBS comfortably. See <a href="#processor">processor details</a> below.</td>
                 <td>Any Apple silicon Mac. On Windows and Linux, a newer processor writes facts faster.</td>
               </tr>
               <tr>
@@ -174,6 +169,13 @@
           <p class="note-title">Advanced</p>
           <p>If you already run <a href="https://ollama.com">Ollama</a>, you can point BubbleFacts at it under <span class="ui">Settings</span>, then <span class="ui">Who writes the facts</span>. Install Ollama from ollama.com with its normal installer. BubbleFacts downloads the Ollama model for you the first time.</p>
         </div>
+
+        <h3 id="processor">Processor details</h3>
+        <p>For reference, these are the oldest processors BubbleFacts is expected to handle:</p>
+        <ul>
+          <li>Mac: any Apple silicon Mac, or an Intel Mac from 2017 or newer</li>
+          <li>Windows and Linux: a 64-bit processor from 2015 or newer (Intel 6th generation Core or newer, or AMD Ryzen)</li>
+        </ul>
 
         <p>Ready? <a href="download.html">Download BubbleFacts</a>.</p>
       </div>

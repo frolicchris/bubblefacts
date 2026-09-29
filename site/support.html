@@ -76,7 +76,77 @@
           <p>Please don't post it in public. <a href="https://github.com/frolicchris/bubblefacts/security/advisories/new">Report it privately on GitHub</a> instead.</p>
         </div>
 
-        <p>Also useful: <a href="requirements.html">system requirements</a>, <a href="uninstall.html">how to uninstall</a>, and the <a href="./#faq-title">questions on the home page</a>.</p>
+        <p>Also useful: <a href="requirements.html">system requirements</a>, <a href="uninstall.html">how to uninstall</a>, and the <a href="./#faq-title">short list of questions on the home page</a>.</p>
+      </div>
+    </section>
+
+    <section class="section faq" aria-labelledby="faq">
+      <div class="wrap narrow">
+        <h2 id="faq">More questions</h2>
+
+          <details id="faq-computers">
+            <summary>Which computers does it work on?</summary>
+            <div class="answer">
+              <p>Macs with macOS 13 Ventura or newer (Apple silicon or Intel), Windows 10 or 11 (64-bit), and 64-bit Linux, tested on Ubuntu 24.04 and newer. You need at least 8 GB of memory and OBS Studio 28 or newer. It doesn't run on phones, tablets or Chromebooks. See the <a href="requirements.html">system requirements</a> for details.</p>
+            </div>
+          </details>
+
+          <details id="faq-ai-fallback">
+            <summary>What if my computer can't run the built-in fact writer?</summary>
+            <div class="answer">
+              <p>You'll still be able to use BubbleFacts. If the built-in fact writer can't run, for example on an older processor, the app first tries a simpler mode that uses only the processor. If that doesn't work either, it walks you through switching to the free online option, Groq. You don't have to figure it out yourself.</p>
+            </div>
+          </details>
+
+          <details id="faq-performance">
+            <summary>Will it slow down my stream?</summary>
+            <div class="answer">
+              <p>BubbleFacts runs beside OBS. The boxes on screen are light, simple animations. The work happens when a song starts: the built-in fact writer spends a few seconds writing facts, using your graphics chip or processor.</p>
+              <p>On most computers you won't notice. If your computer has no graphics card and you notice lag, choose <span class="ui">Online: Groq</span> in the app's <span class="ui">Settings</span>, under <span class="ui">Who writes the facts</span>. It's free and writes the facts online instead.</p>
+            </div>
+          </details>
+
+          <details id="faq-offline">
+            <summary>Does it work offline?</summary>
+            <div class="answer">
+              <p>Partly. The built-in fact writer downloads once, on its own, when you first open the app. After that, it runs without the internet. But the app still needs the internet to read your queue from StreamerSongList and to look songs up on Wikipedia. Since you're streaming, you'll be online anyway.</p>
+            </div>
+          </details>
+
+          <details id="faq-ssl">
+            <summary>Can I use it without StreamerSongList?</summary>
+            <div class="answer">
+              <p>Not yet. BubbleFacts learns which song you're playing from your StreamerSongList queue, so you need a StreamerSongList account. It's free.</p>
+            </div>
+          </details>
+
+          <details id="faq-ai">
+            <summary>What does the fact writer do?</summary>
+            <div class="answer">
+              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never makes up facts from memory, and every caption is checked against the article before it's shown. The built-in fact writer is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
+            </div>
+          </details>
+
+          <details id="faq-data">
+            <summary>Where does my data go?</summary>
+            <div class="answer">
+              <p>Almost nowhere. The app runs on your computer and reads your queue from StreamerSongList. It sends song titles to Wikipedia to find articles. If you pick an online fact writer, the song title and article text go to that service. Nothing is sent to this project. Your sign-in, token and keys are stored encrypted on your computer. The <a href="privacy.html">privacy page</a> has the details.</p>
+            </div>
+          </details>
+
+          <details id="faq-wrong">
+            <summary>What if a fact is wrong?</summary>
+            <div class="answer">
+              <p>Click <span class="ui">Report this fact</span> in the app. It opens GitHub, where you need a free account, and fills in a report with the song, the fact and the Wikipedia article it came from, for you to check and send. Those reports are the most useful kind, because they show where the fact check needs to be stricter.</p>
+            </div>
+          </details>
+
+          <details id="faq-help">
+            <summary>Where else can I get help?</summary>
+            <div class="answer">
+              <p>Start with the troubleshooting table in the <a href="guide.html#troubleshooting">setup guide</a>. Then ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>, or click <span class="ui">Report a problem</span> under <span class="ui">Help and troubleshooting</span> in the app. The steps at the top of this page list every option.</p>
+            </div>
+          </details>
       </div>
     </section>
   </main>
