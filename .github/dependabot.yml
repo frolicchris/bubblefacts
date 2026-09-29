@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Keep the workflow actions current; npm security fixes are on in the repository settings.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

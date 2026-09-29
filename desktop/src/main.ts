@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -8,7 +8,7 @@ import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay } from "./overlay";
 import { problemReportUrl, wrongFactUrl } from "./reports";
 import { DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, toServerEnv, writeMyPack } from "./settings";
-import { CLIENT_ID, refresh, signIn, SignInExpired } from "./signin";
+import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
@@ -47,6 +47,8 @@ let signingIn: AbortController | null = null;
 let signInExpired = false;
 let refreshTimer: NodeJS.Timeout | null = null;
 let refreshing: Promise<void> | null = null;
+/** Getting the chosen model into the musician's own Ollama, so they never run "ollama pull". */
+let ollama: { pulling?: string; error?: string } | null = null;
 
 const supervisor = new Supervisor(path.join(ROOT, "dist/backend/server.js"), DIRS.logs);
 const overlayFile = () => path.join(DIRS.overlay, "obs-overlay.html");
@@ -87,6 +89,7 @@ function state() {
   return {
     settings: { ...rest, tokenSet: !!token, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
     signInAvailable: !!CLIENT_ID,
+    ollama,
     signInExpired,
     modelDownload,
     status: supervisor.status,
@@ -165,6 +168,36 @@ function stopModelDownload(): void {
   if (downloadRetry) clearTimeout(downloadRetry);
   downloadRetry = null;
   modelDownload = null;
+}
+
+// --- The musician's own Ollama --------------------------------------------------
+
+async function ensureOllamaModel(): Promise<void> {
+  if (settings.ai !== "ollama" || ollama?.pulling) {
+    if (settings.ai !== "ollama") ollama = null;
+    return;
+  }
+  const base = settings.ollamaUrl.replace(/\/+$/, "");
+  const model = settings.ollamaModel.trim();
+  const tell = (next: typeof ollama) => {
+    ollama = next;
+    send("state", state());
+  };
+  try {
+    const tags = (await (await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5_000) })).json()) as {
+      models?: Array<{ name?: string; model?: string }>;
+    };
+    const names = (tags.models ?? []).flatMap((m) => [m.name, m.model]).filter(Boolean) as string[];
+    if (names.some((n) => n === model || n === `${model}:latest`)) return tell(null);
+    tell({ pulling: model });
+    const res = await fetch(`${base}/api/pull`, { method: "POST", body: JSON.stringify({ model, stream: false }) });
+    if (!res.ok) throw new Error(`Ollama couldn't download "${model}" (${res.status}). Check the model name in Settings`);
+    tell(null);
+    startServer();
+  } catch (err) {
+    const offline = err instanceof TypeError || (err as Error).name === "TimeoutError";
+    tell({ error: offline ? `Ollama isn't running at ${base}. Open the Ollama app, then click Try again` : (err as Error).message });
+  }
 }
 
 // --- StreamerSongList sign-in ---------------------------------------------
@@ -347,6 +380,7 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   }
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
+  void ensureOllamaModel();
   startServer();
   return state();
 });
@@ -380,9 +414,37 @@ ipcMain.handle("sign-in", async () => {
 });
 ipcMain.handle("cancel-sign-in", () => signingIn?.abort());
 
+/** The first half of uninstalling, without hunting for hidden folders. */
+ipcMain.handle("remove-data", async () => {
+  const options = {
+    type: "warning" as const,
+    buttons: ["Remove and quit", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    message: "Remove all BubbleFacts data?",
+    detail:
+      "This signs you out of StreamerSongList and deletes your settings, the downloaded AI (about 2 GB), your own backup facts and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
+  };
+  const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+  if (response !== 0) return false;
+  quitting = true;
+  download?.abort();
+  supervisor.stop();
+  if (refreshTimer) clearTimeout(refreshTimer);
+  await revoke(settings.refreshToken);
+  settings = { ...settings, startAtLogin: false };
+  applyStartAtLogin();
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable"]) {
+    fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
+  }
+  app.quit();
+  return true;
+});
+
 ipcMain.handle("download-model", () => {
   downloadFailures = 0;
   void ensureModel();
+  void ensureOllamaModel();
 });
 ipcMain.handle("copy", (_e, text: string) => clipboard.writeText(text));
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
@@ -434,6 +496,7 @@ app.whenReady().then(async () => {
     scheduleRefresh();
   }
   void ensureModel();
+  void ensureOllamaModel();
   startServer();
   update = await newerRelease(app.getVersion());
   if (update) send("state", state());

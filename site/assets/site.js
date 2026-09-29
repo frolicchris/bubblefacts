@@ -1,6 +1,8 @@
-/* BubbleFacts website: OS-aware download button, copy buttons, FAQ links.
+/* BubbleFacts website: OS-aware download button, download checker, copy
+ * buttons, FAQ links.
  * No tracking. The only outside request is to GitHub's public API, to find
- * the newest release (betas included) and its download links.
+ * the newest release (betas included), its download links and fingerprints.
+ * The download checker hashes files in the browser; files are never uploaded.
  * Without JavaScript the page still works: every download link points at the
  * GitHub Releases page, and the main button jumps to the full list.
  */
@@ -10,7 +12,7 @@
   var REPO = "frolicchris/bubblefacts";
   var RELEASES_PAGE = "https://github.com/" + REPO + "/releases";
   var API = "https://api.github.com/repos/" + REPO + "/releases?per_page=10";
-  var CACHE_KEY = "sf-releases-v1";
+  var CACHE_KEY = "sf-releases-v2";
   var CACHE_MS = 10 * 60 * 1000;
 
   // Release file names include the version, so match them by their ending.
@@ -89,32 +91,176 @@
     } catch (e) { /* storage blocked or full */ }
   }
 
+  var releasesPromise = null;
+
+  // The release list, from the 10-minute cache or GitHub. A failed request
+  // is forgotten, so the next call tries again.
+  function getReleases() {
+    if (releasesPromise) return releasesPromise;
+    var cached = readCache();
+    if (cached) {
+      releasesPromise = Promise.resolve(cached);
+    } else if (!window.fetch) {
+      return Promise.reject(new Error("no fetch"));
+    } else {
+      releasesPromise = fetch(API, { headers: { Accept: "application/vnd.github+json" } })
+        .then(function (res) {
+          if (!res.ok) throw new Error("GitHub answered " + res.status);
+          return res.json();
+        })
+        .then(function (list) {
+          // Keep only what the page needs.
+          var slim = (list || []).map(function (r) {
+            return {
+              draft: r.draft, prerelease: r.prerelease, tag_name: r.tag_name, name: r.name,
+              html_url: r.html_url, body: r.body || "",
+              assets: (r.assets || []).map(function (a) {
+                return { name: a.name, browser_download_url: a.browser_download_url, digest: a.digest || "" };
+              })
+            };
+          });
+          writeCache(slim);
+          return slim;
+        });
+      releasesPromise.catch(function () { releasesPromise = null; });
+    }
+    return releasesPromise;
+  }
+
+  function publishedReleases(list) {
+    // Newest first. Prereleases (betas) count; drafts don't.
+    return (list || []).filter(function (r) { return !r.draft; });
+  }
+
   function loadRelease() {
     if (!document.querySelector("[data-asset], [data-release-version], [data-release-link]")) return;
-    var cached = readCache();
-    var got = cached ? Promise.resolve(cached) : (window.fetch ? fetch(API, { headers: { Accept: "application/vnd.github+json" } })
-      .then(function (res) {
-        if (!res.ok) throw new Error("GitHub answered " + res.status);
-        return res.json();
-      })
-      .then(function (list) {
-        // Keep only what the page needs.
-        var slim = (list || []).map(function (r) {
-          return {
-            draft: r.draft, tag_name: r.tag_name, name: r.name, html_url: r.html_url,
-            assets: (r.assets || []).map(function (a) { return { name: a.name, browser_download_url: a.browser_download_url }; })
-          };
-        });
-        writeCache(slim);
-        return slim;
-      }) : Promise.reject(new Error("no fetch")));
-
-    got.then(function (list) {
-      // Newest first. Prereleases (betas) count; drafts don't.
-      for (var i = 0; i < list.length; i++) {
-        if (!list[i].draft) { showRelease(list[i]); return; }
-      }
+    getReleases().then(function (list) {
+      var newest = publishedReleases(list)[0];
+      if (newest) showRelease(newest);
     }).catch(function () { /* links keep pointing at the Releases page */ });
+  }
+
+  // ---------- Download checker ----------
+
+  function versionOf(release) {
+    return String(release.tag_name || release.name || "").replace(/^v/, "");
+  }
+
+  // Fingerprints for a release: from each file's "digest" (sha256:<hex>),
+  // then from "<hex>  <file name>" lines in the release notes.
+  function fingerprints(release) {
+    var out = [];
+    var seen = {};
+    (release.assets || []).forEach(function (a) {
+      var m = /^sha256:([0-9a-f]{64})$/i.exec(a.digest || "");
+      if (m) { out.push({ name: a.name, hex: m[1].toLowerCase() }); seen[a.name] = true; }
+    });
+    String(release.body || "").split(/\r?\n/).forEach(function (line) {
+      var m = /^\s*(?:[-*]\s+)?`?([0-9a-f]{64})`?\s+\*?`?([^\s`]+)`?\s*$/i.exec(line);
+      if (m && !seen[m[2]]) { out.push({ name: m[2], hex: m[1].toLowerCase() }); seen[m[2]] = true; }
+    });
+    return out;
+  }
+
+  function findMatch(releases, fileName, hex) {
+    var i, j, list;
+    // Same name first, then any file with the same fingerprint (browsers
+    // sometimes rename downloads, for example adding "(1)").
+    for (i = 0; i < releases.length; i++) {
+      list = fingerprints(releases[i]);
+      for (j = 0; j < list.length; j++) {
+        if (list[j].name === fileName && list[j].hex === hex) return { entry: list[j], index: i };
+      }
+    }
+    for (i = 0; i < releases.length; i++) {
+      list = fingerprints(releases[i]);
+      for (j = 0; j < list.length; j++) {
+        if (list[j].hex === hex) return { entry: list[j], index: i };
+      }
+    }
+    return null;
+  }
+
+  function toHex(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var out = "";
+    for (var i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? "0" : "") + bytes[i].toString(16);
+    return out;
+  }
+
+  function setupChecker() {
+    var box = document.getElementById("checker");
+    if (!box) return;
+    var input = document.getElementById("check-file");
+    var zone = document.getElementById("check-drop");
+    var result = document.getElementById("check-result");
+    var nojs = document.getElementById("check-nojs");
+    var canHash = window.crypto && window.crypto.subtle && window.Blob && Blob.prototype.arrayBuffer && window.Promise;
+    if (!input || !zone || !result || !canHash) return;
+
+    box.hidden = false;
+    if (nojs) nojs.hidden = true;
+    var current = 0;
+
+    function say(kind, text) {
+      result.className = "check-result" + (kind ? " check-" + kind : "");
+      result.textContent = text;
+    }
+
+    function check(file) {
+      var run = ++current;
+      var GITHUB = {};
+      say("", "Checking " + file.name + "…");
+      file.arrayBuffer()
+        .then(function (buf) { return window.crypto.subtle.digest("SHA-256", buf); })
+        .then(function (digest) {
+          var hex = toHex(digest);
+          return getReleases().then(function (list) { return { hex: hex, list: list }; }, function () { throw GITHUB; });
+        })
+        .then(function (got) {
+          if (run !== current) return;
+          var releases = publishedReleases(got.list);
+          var any = releases.some(function (r) { return fingerprints(r).length > 0; });
+          if (!any) {
+            say("", "GitHub hasn't listed the fingerprints for this release yet. Try again later.");
+            return;
+          }
+          var match = findMatch(releases, file.name, got.hex);
+          if (!match) {
+            say("bad", "\u2717 This file doesn't match any BubbleFacts download. Delete it and download it again from this page.");
+          } else if (match.index === 0) {
+            say("ok", "\u2713 This is the genuine " + match.entry.name + " from GitHub.");
+          } else {
+            say("ok", "\u2713 This is the genuine " + match.entry.name + " from GitHub. It's an older version. The newest is " + versionOf(releases[0]) + ".");
+          }
+        })
+        .catch(function (err) {
+          if (run !== current) return;
+          if (err === GITHUB) say("", "Couldn't reach GitHub to check. Try again in a minute.");
+          else say("bad", "Couldn't read that file. Try choosing it again.");
+        });
+    }
+
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      if (file) check(file);
+      input.value = "";
+    });
+
+    ["dragenter", "dragover"].forEach(function (type) {
+      zone.addEventListener(type, function (e) { e.preventDefault(); zone.classList.add("is-over"); });
+    });
+    ["dragleave", "drop"].forEach(function (type) {
+      zone.addEventListener(type, function () { zone.classList.remove("is-over"); });
+    });
+    zone.addEventListener("drop", function (e) {
+      e.preventDefault();
+      var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) check(file);
+    });
+    // A file dropped next to the box shouldn't make the browser open it.
+    document.addEventListener("dragover", function (e) { e.preventDefault(); });
+    document.addEventListener("drop", function (e) { e.preventDefault(); });
   }
 
   function macAlternative(alt, current) {
@@ -220,6 +366,7 @@
 
   setupDownload();
   loadRelease();
+  setupChecker();
   setupCopy();
   openFromHash();
   window.addEventListener("hashchange", openFromHash);

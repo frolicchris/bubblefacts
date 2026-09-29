@@ -35,8 +35,10 @@ const aiName = (ai: string) =>
 export function problemReportUrl(opts: { version: string; ai: string; logLines: string[]; secrets: string[] }): string {
   const log = redact(opts.logLines.slice(-60).join("\n"), opts.secrets);
   return issueUrl("bug_report.yml", {
-    version: `${opts.version} (desktop app, ${osName()} ${os.release()}, ${process.arch})`,
+    version: opts.version,
+    install: "The desktop app",
     os: osName(),
+    osversion: `${osName()} ${os.release()}, ${process.arch}`,
     ai: aiName(opts.ai),
     log,
   });

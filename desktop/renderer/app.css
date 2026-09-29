@@ -62,6 +62,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .ghost { background: transparent; color: var(--text); border: 1px solid #3a4290; padding: 9px 14px; }
 .ghost:hover { border-color: var(--border); }
 .primary.big { font-size: 17px; padding: 14px 28px; }
+.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); padding: 9px 14px; }
+.danger:hover { background: #2a1020; }
 .link { background: none; border: 0; padding: 0; color: #9fb0ff; text-decoration: underline; }
 
 .actions { display: flex; gap: 14px; align-items: center; margin-top: 18px; }

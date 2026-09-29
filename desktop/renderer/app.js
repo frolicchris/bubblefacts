@@ -248,6 +248,7 @@
   }
 
   $("#show-logs").addEventListener("click", () => api.showLogs());
+  $("#remove-data").addEventListener("click", () => api.removeData());
   $("#report-problem").addEventListener("click", () => api.reportProblem());
 
   // --- Notices ---------------------------------------------------------------
@@ -278,6 +279,8 @@
     });
     if (state.signInExpired) signInNotice("Your StreamerSongList sign-in ended. Sign in again to keep facts coming.");
     else if (state.status?.health?.status === "unauthorized") signInNotice("StreamerSongList didn't accept your sign-in. Sign in again.");
+    if (state.settings.ai === "ollama" && state.ollama?.pulling) add("info", `Downloading "${state.ollama.pulling}" into Ollama. This can take a few minutes the first time.`);
+    if (state.settings.ai === "ollama" && state.ollama?.error) add("warn", state.ollama.error + ".", "Try again", () => api.downloadModel());
     if (state.settings.ai === "builtin" && state.modelDownload?.error) {
       add("warn", `The AI download paused: ${state.modelDownload.error}.`, "Try again", () => api.downloadModel());
     }

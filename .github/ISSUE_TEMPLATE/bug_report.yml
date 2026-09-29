@@ -1,5 +1,5 @@
 name: Something isn't working
-description: The overlay crashes, shows nothing, or behaves wrongly.
+description: The app or overlay crashes, shows nothing, or behaves wrongly.
 labels: [bug]
 body:
   - type: markdown
@@ -8,6 +8,8 @@ body:
         Thanks for reporting this. **Never paste your StreamerSongList token or an API key here.** If you share a log, check it first.
 
         If a fact on screen is wrong, use the "A fact is wrong" form instead.
+
+        **Using the app?** Click **Report a problem** on its dashboard instead: it fills in this form for you, with your version, system and log, and removes secrets.
   - type: textarea
     id: what
     attributes:
@@ -28,12 +30,29 @@ body:
     validations:
       required: true
   - type: dropdown
+    id: install
+    attributes:
+      label: How you run BubbleFacts
+      options: [The desktop app, Manual setup (command line)]
+    validations:
+      required: true
+  - type: dropdown
     id: os
     attributes:
       label: Computer
       options: [macOS, Windows, Linux]
     validations:
       required: true
+  - type: input
+    id: osversion
+    attributes:
+      label: System version
+      description: For example "macOS 15.3, Apple silicon", "Windows 11", or "Ubuntu 24.04".
+  - type: input
+    id: obs
+    attributes:
+      label: OBS version
+      description: In OBS, Help > About. For example 32.0.2.
   - type: dropdown
     id: ai
     attributes:
@@ -45,5 +64,5 @@ body:
     id: log
     attributes:
       label: Log
-      description: The relevant lines from the newest file in the `logs` folder. Remove your token first.
+      description: The app fills this in. With the manual setup, paste the relevant lines from the newest file in the `logs` folder, and remove your token first.
       render: text

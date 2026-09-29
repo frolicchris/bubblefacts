@@ -29,3 +29,23 @@ jobs:
       # shellcheck comes preinstalled on GitHub's Ubuntu runners.
       - run: npm run check
       - run: npm run build
+
+  # The desktop app ships on macOS and Windows too: run the tests there, where
+  # paths, line endings and file locking differ.
+  other-systems:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build && npm run build:desktop

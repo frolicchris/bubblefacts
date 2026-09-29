@@ -1,0 +1,68 @@
+name: Beta test report
+description: Tried a beta of the app? Tell us how each step went on your computer.
+title: "Beta test: "
+labels: [beta test, desktop app]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing. Go through setup and one or two songs on a real stream or a test scene, then fill this in. A report that says "everything worked" is just as useful as one that finds a problem.
+
+        **Never paste your StreamerSongList token or an API key here.**
+  - type: input
+    id: version
+    attributes:
+      label: BubbleFacts version
+      description: At the bottom of the app's window, for example 2.0.0-beta.1.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Computer
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: input
+    id: osversion
+    attributes:
+      label: System version and chip
+      description: For example "macOS 15.3, Apple silicon", "Windows 11, Intel", or "Ubuntu 24.04, AMD".
+    validations:
+      required: true
+  - type: input
+    id: download
+    attributes:
+      label: Which file you installed
+      description: For example BubbleFacts-2.0.0-beta.1-mac-arm64.dmg, the .exe, the .AppImage or the .deb.
+  - type: input
+    id: obs
+    attributes:
+      label: OBS version
+      description: In OBS, Help > About.
+  - type: checkboxes
+    id: worked
+    attributes:
+      label: What worked
+      description: Check each step that worked. Leave a box empty if it didn't, or if you didn't try it, and tell us which below.
+      options:
+        - label: Installing, including any security warning on first launch
+        - label: Signing in with StreamerSongList (or connecting with a token)
+        - label: The "Your music" step
+        - label: The built-in AI downloading on its own
+        - label: Adding the overlay to OBS
+        - label: Fact bubbles appearing when a song played
+        - label: The dashboard showing the song and its facts
+        - label: Closing the window, with the app still running from the menu bar or system tray
+        - label: Quitting from the menu bar or system tray, and opening it again
+  - type: textarea
+    id: notes
+    attributes:
+      label: What didn't work, or was confusing
+      description: Which step, what you expected, and what happened. Screenshots help.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (optional)
+      description: Click "Show logs" on the app's dashboard, and paste the end of today's file. Check it for anything private first.
+      render: text

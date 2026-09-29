@@ -152,3 +152,18 @@ async function whoIs(accessToken: string): Promise<Pick<SignIn, "channel" | "str
   }
   return { channel: body.username || "", streamerId: body.streamer_id };
 }
+
+/** Tell StreamerSongList to forget this sign-in. Best effort: removing the app's data goes ahead regardless. */
+export async function revoke(refreshToken: string): Promise<void> {
+  if (!CLIENT_ID || !refreshToken) return;
+  try {
+    await fetch(`${ID_BASE}/oauth2/revoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: CLIENT_ID, token: refreshToken, token_type_hint: "refresh_token" }),
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    // Offline: the token still expires on its own.
+  }
+}

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   signIn: () => ipcRenderer.invoke("sign-in"),
   cancelSignIn: () => ipcRenderer.invoke("cancel-sign-in"),
   downloadModel: () => ipcRenderer.invoke("download-model"),
+  removeData: () => ipcRenderer.invoke("remove-data"),
   copy: (text: string) => ipcRenderer.invoke("copy", text),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
   testOverlay: () => ipcRenderer.invoke("test-overlay"),
