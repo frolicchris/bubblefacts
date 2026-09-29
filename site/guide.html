@@ -94,9 +94,19 @@
             </ol>
 
             <h3 id="install-linux">Linux</h3>
-            <p><strong>Ubuntu, Debian and similar:</strong> open the BubbleFacts <span class="ui">.deb</span> file (its name ends in <code>_amd64.deb</code>) to install it with your software center. Or open a terminal in your Downloads folder and run:</p>
-            <p><code>sudo apt install ./bubblefacts_*_amd64.deb</code></p>
-            <p><strong>Other Linux:</strong> use the AppImage. Right-click the BubbleFacts <span class="ui">.AppImage</span> file, choose <span class="ui">Properties</span>, and turn on <span class="ui">Allow executing file as program</span> (the wording varies). Then double-click it. On Ubuntu 24.04 and newer, AppImages may also need <code>sudo apt install libfuse2t64</code>, which is one reason we suggest the .deb there.</p>
+            <p><strong>Ubuntu, Debian and similar:</strong> use the <span class="ui">.deb</span> file (its name ends in <code>_amd64.deb</code>).</p>
+            <ol>
+              <li>Double-click the BubbleFacts <span class="ui">.deb</span> file in your Downloads folder.</li>
+              <li>If it opens in an archive viewer instead, close that. Right-click the file, choose <span class="ui">Open With</span>, then <span class="ui">App Center</span> (Ubuntu 24.04 and newer) or <span class="ui">Software Install</span>.</li>
+              <li>Click <span class="ui">Install</span> and type your computer's password when asked.</li>
+            </ol>
+            <p><strong>Other Linux:</strong> use the AppImage.</p>
+            <ol>
+              <li>Right-click the BubbleFacts <span class="ui">.AppImage</span> file and choose <span class="ui">Properties</span>.</li>
+              <li>Turn on <span class="ui">Allow executing file as program</span> (the wording varies).</li>
+              <li>Double-click the file to open it.</li>
+            </ol>
+            <p>On Ubuntu 24.04 and newer, an AppImage may not open without an extra system part. If that happens, use the .deb instead.</p>
           </div>
         </div>
 
@@ -280,7 +290,7 @@
               <tr>
                 <th scope="row">Your own Ollama</th>
                 <td>Free</td>
-                <td>For people who already run <a href="https://ollama.com">Ollama</a>. Point BubbleFacts at it.</td>
+                <td>For people who already use <a href="https://ollama.com">Ollama</a>, installed with its normal installer from ollama.com. Point BubbleFacts at it. The app downloads the Ollama model for you the first time.</td>
               </tr>
             </tbody>
           </table>

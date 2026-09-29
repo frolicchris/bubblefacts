@@ -50,7 +50,7 @@
       <div class="wrap narrow">
         <p class="eyebrow">Uninstall</p>
         <h1>Uninstall</h1>
-        <p class="section-intro">Removing BubbleFacts takes three parts: take it out of OBS, remove the app, and, if you want, delete its settings and AI model.</p>
+        <p class="section-intro">Removing BubbleFacts takes three parts: take it out of OBS, remove your data from inside the app, and remove the app itself. No typing commands needed.</p>
 
         <div class="guide-step" id="obs">
           <div class="num" aria-hidden="true">1</div>
@@ -64,72 +64,77 @@
           </div>
         </div>
 
-        <div class="guide-step" id="app">
+        <div class="guide-step" id="data">
           <div class="num" aria-hidden="true">2</div>
           <div class="body">
-            <h2>Remove the app</h2>
-            <p>If you turned on start at login, turn it off in the app's settings first.</p>
-
-            <h3 id="mac">Mac</h3>
+            <h2>Remove your data from the app</h2>
+            <p>BubbleFacts keeps your settings, your sign-in, the 2 GB AI model, your own facts and its logs in a folder on your computer. Removing the app alone leaves them there, so a reinstall picks up where you left off. To remove them too:</p>
             <ol>
-              <li>Click the BubbleFacts icon in the menu bar and choose <span class="ui">Quit</span>.</li>
-              <li>Open your Applications folder and drag <span class="ui">BubbleFacts</span> to the Trash.</li>
+              <li>If you turned on start at login, turn it off in the app's <span class="ui">Settings</span> first.</li>
+              <li>In BubbleFacts, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>.</li>
+              <li>Click <span class="ui">Remove my BubbleFacts data</span>. It deletes your settings, sign-in, the AI model, your own facts and the logs, then quits the app.</li>
             </ol>
-
-            <h3 id="windows">Windows</h3>
-            <ol>
-              <li>Click the BubbleFacts icon in the system tray and choose <span class="ui">Quit</span>.</li>
-              <li>Open <span class="ui">Settings</span>, then <span class="ui">Apps</span>.</li>
-              <li>Find <span class="ui">BubbleFacts</span> and choose <span class="ui">Uninstall</span>.</li>
-            </ol>
-
-            <h3 id="linux">Linux</h3>
-            <ol>
-              <li>Quit BubbleFacts from its icon in the system tray.</li>
-              <li>If you used the AppImage, delete the BubbleFacts <span class="ui">.AppImage</span> file.</li>
-              <li>If you installed the .deb, run this in a terminal:
-                <div class="copy-row cmd-row"><code class="cmd">sudo apt remove bubblefacts</code>
-                  <button type="button" class="btn btn-secondary btn-small" data-copy="sudo apt remove bubblefacts" hidden>Copy</button></div>
-              </li>
-            </ol>
+            <p>Planning to reinstall and want to keep your settings? Skip this step, and just quit BubbleFacts from its icon in the menu bar (Mac) or system tray (Windows and Linux).</p>
           </div>
         </div>
 
-        <div class="guide-step" id="data">
+        <div class="guide-step" id="app">
           <div class="num" aria-hidden="true">3</div>
           <div class="body">
-            <h2>Delete settings and the AI model (optional)</h2>
-            <p>Removing the app leaves your settings, your own backup facts, your encrypted sign-in, token and keys, the 2 GB AI model and the logs in a folder on your computer. That way, reinstalling picks up where you left off. To free the space and remove everything, delete this folder:</p>
+            <h2>Remove the app</h2>
 
-            <div class="table-wrap">
-              <table>
-                <caption class="visually-hidden">Where BubbleFacts keeps its settings and AI model</caption>
-                <thead>
-                  <tr><th scope="col">System</th><th scope="col">Folder</th><th scope="col">How to get there</th></tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">Mac</th>
-                    <td><code>~/Library/Application Support/BubbleFacts</code></td>
-                    <td>In Finder, choose <span class="ui">Go</span>, then <span class="ui">Go to Folder</span> (Cmd+Shift+G), and paste the folder.</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Windows</th>
-                    <td><code>%APPDATA%\BubbleFacts</code></td>
-                    <td>Paste the folder into the address bar of File Explorer and press Enter.</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Linux</th>
-                    <td><code>~/.config/BubbleFacts</code></td>
-                    <td>In your file manager, press Ctrl+H to show hidden folders, then open <code>.config</code>.</td>
-                  </tr>
-                </tbody>
-              </table>
+            <h3 id="mac">Mac</h3>
+            <p>Open your Applications folder and drag <span class="ui">BubbleFacts</span> to the Trash.</p>
+
+            <h3 id="windows">Windows</h3>
+            <ol>
+              <li>Open <span class="ui">Settings</span>, then <span class="ui">Apps</span>, then <span class="ui">Installed apps</span>.</li>
+              <li>Find <span class="ui">BubbleFacts</span>, click it (or the <span class="ui">…</span> button next to it), and choose <span class="ui">Uninstall</span>.</li>
+            </ol>
+
+            <h3 id="linux">Linux</h3>
+            <ul>
+              <li><strong>If you installed the .deb:</strong> open <span class="ui">App Center</span>, go to <span class="ui">Manage</span> (or <span class="ui">Installed</span>), find <span class="ui">BubbleFacts</span>, and click <span class="ui">Uninstall</span>.</li>
+              <li><strong>If you used the AppImage:</strong> delete the BubbleFacts <span class="ui">.AppImage</span> file.</li>
+            </ul>
+
+            <div class="faq">
+              <details id="manual-cleanup">
+                <summary>If the app won't open</summary>
+                <div class="answer">
+                  <p>If you can't open BubbleFacts to remove your data, you can delete its folder yourself after removing the app.</p>
+                  <div class="table-wrap">
+                    <table>
+                      <caption class="visually-hidden">Where BubbleFacts keeps its settings and AI model</caption>
+                      <thead>
+                        <tr><th scope="col">System</th><th scope="col">Folder</th><th scope="col">How to get there</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row">Mac</th>
+                          <td><code>~/Library/Application Support/BubbleFacts</code></td>
+                          <td>In Finder, choose <span class="ui">Go</span>, then <span class="ui">Go to Folder</span>, paste the folder, and press Return. Drag the folder to the Trash.</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Windows</th>
+                          <td><code>%APPDATA%\BubbleFacts</code></td>
+                          <td>Paste the folder into the address bar of File Explorer and press Enter. Go up one folder and delete <span class="ui">BubbleFacts</span>.</td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Linux</th>
+                          <td><code>~/.config/BubbleFacts</code></td>
+                          <td>Open <span class="ui">Files</span> in your Home folder and press Ctrl+H to show hidden folders. Open <span class="ui">.config</span> and delete <span class="ui">BubbleFacts</span>.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </details>
             </div>
 
             <div class="note">
               <p class="note-title">Not coming back?</p>
-              <p>If you used a token, deleting the folder removes the copy on your computer, but the token still works. To switch it off, sign in at <a href="https://streamersonglist.com">streamersonglist.com</a>, go to <span class="ui">Settings</span>, then <span class="ui">Access</span>, and delete it. Do the same for any Groq or Anthropic key on their websites.</p>
+              <p>If you used a token, removing your data deletes the copy on your computer, but the token still works. To switch it off, sign in at <a href="https://streamersonglist.com">streamersonglist.com</a>, go to <span class="ui">Settings</span>, then <span class="ui">Access</span>, and delete it. Do the same for any Groq or Anthropic key on their websites.</p>
             </div>
           </div>
         </div>

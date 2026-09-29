@@ -933,3 +933,43 @@ code.cmd {
 .steps > li {
   min-width: 0;
 }
+
+/* ---------- Download checker ---------- */
+
+.checker[hidden],
+#check-nojs[hidden] {
+  display: none;
+}
+
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.drop-zone.is-over,
+.drop-zone:focus-within {
+  border-color: var(--gold);
+}
+
+.drop-zone p {
+  margin-bottom: 0.75rem;
+}
+
+.check-result {
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+}
+
+.check-result:empty {
+  display: none;
+}
+
+.check-ok {
+  color: var(--gold);
+}
+
+.check-bad {
+  color: #ff8a8a;
+}

@@ -10,7 +10,7 @@ download script asking GitHub's public API for the newest release.
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | All five downloads, "Which Mac do I have?", first-launch notes, checksum and attestation checks |
+| `download.html` | All five downloads, "Which Mac do I have?", first-launch notes, an in-browser download checker (files are never uploaded), and a "For developers" section with the commands |
 | `guide.html` | Step-by-step setup and troubleshooting |
 | `requirements.html` | System requirements, speed, fallback when the built-in AI can't run |
 | `changelog.html` | What's new in each version |
@@ -87,6 +87,7 @@ link ignores. So the pages don't use fixed links. Instead:
   It then points each link at the matching file.
 - Elements with `data-release-version` show the version number, and links with
   `data-release-link` go to that release's page.
+- The download checker on `download.html` reuses the same data. It hashes the chosen file with `crypto.subtle` in the browser and compares it with each file's `digest` (`sha256:<hex>`), or with `<hex>  <file name>` lines in the release notes. It matches by name first, then by fingerprint alone, across the fetched releases.
 - The answer is kept in `sessionStorage` for 10 minutes, to stay well under
   GitHub's limit of 60 API requests an hour per visitor.
 - If the request fails or a file is missing, that link stays on the Releases
