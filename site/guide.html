@@ -206,21 +206,30 @@
           <div class="num" aria-hidden="true">4</div>
           <div class="body">
             <h2>Add the overlay to OBS</h2>
-            <p>The wizard's last step, <span class="ui">Add it to OBS</span>, shows these steps, along with the overlay file's location. The overlay is a small web page that OBS shows on top of your scene. You add it once.</p>
+            <p>The wizard's last step, <span class="ui">Add it to OBS</span>, puts the overlay into OBS. The overlay is a small web page that OBS shows on top of your scene. You add it once.</p>
             <ol>
-              <li>In the wizard, click the <span class="ui">Copy</span> button next to the overlay file's location.</li>
-              <li>In OBS, pick the scene you stream from. Under <span class="ui">Sources</span>, click <span class="ui">+</span> and choose <span class="ui">Browser</span>. Name it "BubbleFacts" and click <span class="ui">OK</span>.</li>
-              <li>Check <span class="ui">Local file</span>. Click <span class="ui">Browse</span> and choose the file at the location you copied. (You can paste the location into the file window: on a Mac press Cmd+Shift+G first; on Windows paste it into the address bar.)</li>
-              <li>
-                <div class="copy-row">Set <span class="ui">Width</span> to <code>1920</code>
+              <li>Open OBS Studio and pick the scene you stream from.</li>
+              <li>Drag the <span class="ui">Drag this into OBS</span> tile from BubbleFacts onto the <span class="ui">Sources</span> list in OBS.</li>
+            </ol>
+            <p>OBS adds a Browser source named "BubbleFacts", at the right size for your canvas. The app's dashboard also has a small <span class="ui">Drag into OBS</span> tile, if you ever need to add it again.</p>
+            <div class="note">
+              <p class="note-title">Nothing happens when you drop it on Windows?</p>
+              <p>OBS may be running as administrator. Close OBS and open it the usual way, or add it by hand (below).</p>
+            </div>
+
+            <h3 id="obs-by-hand">Or add it by hand</h3>
+            <ol>
+              <li>In OBS, under <span class="ui">Sources</span>, click <span class="ui">+</span> and choose <span class="ui">Browser</span>. Name it "BubbleFacts" and click <span class="ui">OK</span>.</li>
+              <li>In the wizard, click the <span class="ui">Copy</span> button next to the location of <span class="ui">BubbleFacts.html</span>.</li>
+              <li>In OBS, check <span class="ui">Local file</span>. Click <span class="ui">Browse</span> and choose the file at the location you copied. (You can paste the location into the file window: on a Mac press Cmd+Shift+G first; on Windows paste it into the address bar.)</li>
+              <li>Set <span class="ui">Width</span> and <span class="ui">Height</span> to your canvas size. That's usually:
+                <div class="copy-row">Width <code>1920</code>
                   <button type="button" class="btn btn-secondary btn-small" data-copy="1920" hidden>Copy</button></div>
-              </li>
-              <li>
-                <div class="copy-row">Set <span class="ui">Height</span> to <code>1080</code>
+                <div class="copy-row">Height <code>1080</code>
                   <button type="button" class="btn btn-secondary btn-small" data-copy="1080" hidden>Copy</button></div>
+                Not sure? In OBS, open <span class="ui">Settings</span>, then <span class="ui">Video</span>, and look at <span class="ui">Base (Canvas) Resolution</span>.
               </li>
-              <li>Check <span class="ui">Refresh browser when scene becomes active</span>. Leave Custom CSS as it is, and click <span class="ui">OK</span>.</li>
-              <li>Right-click the new source and choose <span class="ui">Transform</span>, then <span class="ui">Reset Transform</span>. This makes it fill the screen exactly.</li>
+              <li>Click <span class="ui">OK</span>.</li>
             </ol>
             <p class="visually-hidden" id="copy-status" aria-live="polite"></p>
             <p>Use <span class="ui">Local file</span>, not a URL. It doesn't matter whether you open OBS or BubbleFacts first: the overlay keeps trying until the app is running.</p>
@@ -253,6 +262,7 @@
               <li><strong>It fixes itself.</strong> If something inside the app gets stuck, it restarts that part on its own, so you can keep playing.</li>
               <li><strong>Wrong fact?</strong> Click <span class="ui">That fact is wrong</span> in the app. For anything else, click <span class="ui">Report a problem</span>. A report opens in your browser for you to read before you send it. See <a href="privacy.html#reports">how reports work</a>.</li>
               <li><strong>New versions.</strong> When one is out, the app tells you and gives you a download link. See <a href="changelog.html">what's new</a>.</li>
+              <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
               <li><strong>Add your own backup facts.</strong> Songs with no Wikipedia article get backup facts. The ones included are only a few examples, so add your own. See <a href="#backup-facts-settings">how to add them</a>.</li>
             </ul>
           </div>
@@ -360,9 +370,19 @@
                 <td>That's normal for songs with short articles. It means the check is working.</td>
               </tr>
               <tr>
-                <th scope="row">The banner is cut off at the bottom</th>
-                <td>The source is scaled</td>
-                <td>Right-click the source, choose <span class="ui">Transform</span>, then <span class="ui">Reset Transform</span>.</td>
+                <th scope="row">The banner is cut off, or the bubbles sit in the wrong place</th>
+                <td>The source isn't the size of your canvas</td>
+                <td>Remove the source and drag the tile from BubbleFacts into OBS again. Or right-click the source, choose <span class="ui">Properties</span>, and set <span class="ui">Width</span> and <span class="ui">Height</span> to your canvas size (see <a href="#obs-by-hand">adding it by hand</a>).</td>
+              </tr>
+              <tr>
+                <th scope="row">The source is blank, or stops updating</th>
+                <td>An OBS Browser source setting, or an old copy of the page</td>
+                <td>Right-click the source, choose <span class="ui">Properties</span>, and click <span class="ui">Refresh cache of current page</span>. Leave <span class="ui">Shutdown source when not visible</span> and <span class="ui">Refresh browser when scene becomes active</span> off, and don't clear the Custom CSS that OBS fills in.</td>
+              </tr>
+              <tr>
+                <th scope="row">Viewers on phones say the bubbles are small</th>
+                <td>Phone screens are small</td>
+                <td>In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</td>
               </tr>
               <tr>
                 <th scope="row">Your stream stutters when a song starts</th>
