@@ -28,8 +28,43 @@
 
       <div class="panel step" data-step="1">
         <h1 tabindex="-1">Connect your songs</h1>
-        <p class="lead">BubbleFacts watches your StreamerSongList queue, so it knows what you're playing.</p>
+        <p class="lead">BubbleFacts watches your song requests, so it knows what you're playing.</p>
 
+        <p class="label" id="source-label">Where do your song requests come from?</p>
+        <div class="choices" role="radiogroup" aria-labelledby="source-label">
+          <label class="choice">
+            <input type="radio" name="setup-source" value="streamersonglist" checked>
+            <span class="choice-body">
+              <strong>StreamerSongList</strong>
+              <span>Your song list and queue at streamersonglist.com.</span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="setup-source" value="streamelements">
+            <span class="choice-body">
+              <strong>StreamElements</strong>
+              <span>Song requests through StreamElements' Media Request player.</span>
+            </span>
+          </label>
+        </div>
+
+        <div id="se-box" hidden>
+          <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.
+            <button class="link" data-open="https://streamelements.com/dashboard/account/channels">Open StreamElements</button></p>
+          <label for="setup-se-channel">Your StreamElements channel name</label>
+          <input id="setup-se-channel" type="text" autocomplete="off" spellcheck="false" placeholder="yourchannel">
+          <label for="setup-se-jwt">Your JWT token</label>
+          <div class="row">
+            <input id="setup-se-jwt" type="password" autocomplete="off" spellcheck="false" placeholder="Paste it here">
+            <button class="ghost" data-toggle-secret="setup-se-jwt">Show</button>
+          </div>
+          <div class="actions">
+            <button id="setup-se-test" class="primary">Connect</button>
+            <span id="setup-se-result" class="result" role="status"></span>
+          </div>
+        </div>
+
+        <div id="ssl-box">
         <div id="signin-box">
           <button id="sign-in" class="primary big">Sign in with StreamerSongList</button>
           <p class="fine">You'll sign in with Twitch in your browser, then come back here.</p>
@@ -52,6 +87,7 @@
             <span id="setup-test-result" class="result" role="status"></span>
           </div>
         </details>
+        </div>
       </div>
 
       <div class="panel step" data-step="2" hidden>
@@ -93,7 +129,7 @@
             <label for="setup-myoriginals">About your compositions <span class="hint">optional, one per line; shown when you play them</span></label>
             <textarea id="setup-myoriginals" rows="3" spellcheck="true" placeholder="Written during a snowstorm in 2023."></textarea>
           </div>
-          <label><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner, with no facts, while you learn the song.</span></span></label>
+          <label id="setup-livelearns-row"><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner, with no facts, while you learn the song.</span></span></label>
         </div>
 
         <h2 class="subhead">Backup facts</h2>
@@ -183,7 +219,13 @@
 
         <fieldset>
           <legend>Your song list</legend>
+          <p class="label">Where do your song requests come from?</p>
+          <div class="checks">
+            <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
+            <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
+          </div>
           <p id="s-signed-in"></p>
+          <div id="s-ssl-box">
           <button type="button" class="ghost" id="s-sign-in">Sign in with StreamerSongList</button>
           <details class="help">
             <summary>Use a token instead</summary>
@@ -195,6 +237,18 @@
               <button type="button" class="ghost" data-toggle-secret="s-token">Show</button>
             </div>
           </details>
+          </div>
+          <div id="s-se-box">
+            <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.
+              <button type="button" class="link" data-open="https://streamelements.com/dashboard/account/channels">Open StreamElements</button></p>
+            <label for="s-se-channel">StreamElements channel name</label>
+            <input id="s-se-channel" name="seChannel" type="text" autocomplete="off" spellcheck="false">
+            <label for="s-se-jwt">JWT token</label>
+            <div class="row">
+              <input id="s-se-jwt" name="seJwt" type="password" autocomplete="off" spellcheck="false" placeholder="Saved tokens stay hidden. Paste to replace.">
+              <button type="button" class="ghost" data-toggle-secret="s-se-jwt">Show</button>
+            </div>
+          </div>
         </fieldset>
 
         <fieldset>
@@ -204,7 +258,7 @@
           <label for="s-instrument">Your instrument <span class="hint">optional; "playing this song on piano"</span></label>
           <input id="s-instrument" name="instrument" type="text" list="instruments" placeholder="piano">
           <label class="inline"><input name="originals" type="checkbox"> I play my own compositions</label>
-          <label class="inline"><input name="liveLearns" type="checkbox"> I do live learns</label>
+          <label class="inline" id="s-livelearns-row"><input name="liveLearns" type="checkbox"> I do live learns</label>
           <datalist id="instruments"><option value="piano"><option value="guitar"><option value="keyboard"><option value="violin"><option value="voice"><option value="drums"><option value="bass"><option value="harp"></datalist>
         </fieldset>
 

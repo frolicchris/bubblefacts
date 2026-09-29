@@ -10,7 +10,9 @@ Anything after a `#` is a note to yourself and is ignored. After changing a
 setting, stop the overlay (Ctrl-C in its window) and start it again.
 
 **Most people only need two settings:** `SSL_STREAMER_NAME` and
-`SSL_ACCESS_TOKEN`. Everything else has a default that works.
+`SSL_ACCESS_TOKEN`. Everything else has a default that works. If your song
+requests come through StreamElements instead, see
+[Your StreamElements account](#your-streamelements-account).
 
 If a setting has a typo or an impossible value (a word where a number belongs,
 or a number that's out of range), the overlay refuses to start and tells you
@@ -31,6 +33,34 @@ which one. Names and web addresses are used as written, so double-check those.
 | `SSL_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks your queue in case it missed a change. Between 2000 and 300000. |
 | `SSL_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamerSongList before giving up on one check. |
 | `SSL_ENV`, `SSL_API_BASE`, `SSL_EVENTS_URL` | *production* | For testing against StreamerSongList's test servers. Leave them out. |
+
+---
+
+## Your StreamElements account
+
+Use these instead of the StreamerSongList settings if viewers request songs
+through StreamElements' song request player (Media Request). You then don't
+need `SSL_STREAMER_NAME` or `SSL_ACCESS_TOKEN`.
+
+To find your JWT token:
+
+1. Open your StreamElements dashboard.
+2. Open **Account**, then **Channels**.
+3. Click **Show secrets** and copy the **JWT token**. It works like a password, so keep it off your stream.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `SONG_SOURCE` | `streamersonglist` | Where song requests come from: `streamersonglist` or `streamelements`. |
+| `SE_CHANNEL` | the token's channel | Your StreamElements channel name. BubbleFacts also uses it as your name, for spotting your own compositions. |
+| `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
+| `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
+| `SE_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamElements before giving up on one check. |
+
+Good to know:
+
+- Facts only appear while the player is playing. When it's paused, the current song stays; when nothing is playing, the overlay clears.
+- StreamElements only knows each request's YouTube title, such as "Artist - Song (Official Video)". BubbleFacts reads the song and artist out of it, so a clearly titled video gets better facts than "my fav song!!".
+- There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. A request counts as your own composition when its artist is your channel name or `STREAMER_DISPLAY_NAME`.
 
 ---
 

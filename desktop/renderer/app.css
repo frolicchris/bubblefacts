@@ -149,3 +149,4 @@ textarea { resize: vertical; line-height: 1.45; }
 @media (max-width: 760px) {
   .lights, .grid3, .checks { grid-template-columns: 1fr; }
 }
+#ssl-box, #se-box { margin-top: 18px; }

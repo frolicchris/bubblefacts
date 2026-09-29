@@ -5,6 +5,8 @@ import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
+import { SongSource } from "./song-source";
+import { StreamElementsClient } from "./streamelements-client";
 import { generateFacts, factStats, warmUpBuiltin } from "./fact-generator";
 import { FactsPayload, SSLQueueItem } from "./types";
 
@@ -16,7 +18,7 @@ import { FactsPayload, SSLQueueItem } from "./types";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
-const songList = new SongListClient();
+const songList: SongSource = config.songSource === "streamelements" ? new StreamElementsClient() : new SongListClient();
 
 interface Client {
   id: number;
@@ -70,7 +72,7 @@ wss.on("connection", (ws, req) => {
   // Catch a reconnecting overlay up on the current song.
   const current = songList.getCurrentSong();
   if (!current || paused) return;
-  const song = SongListClient.toSong(current);
+  const song = songList.toSong(current);
   const token = generation;
   send(ws, { type: "new_song", song });
   generateFacts(song, current)
@@ -85,7 +87,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
     return;
   }
 
-  const song = SongListClient.toSong(current);
+  const song = songList.toSong(current);
   broadcast({ type: "new_song", song });
 
   const facts = await generateFacts(song, current);
@@ -149,13 +151,13 @@ app.get("/obs-overlay", (req, res) => {
   res.redirect("/obs/obs-overlay.html" + req.url.replace(/^[^?]*/, ""));
 });
 
-/** How long after starting the server may go without reaching StreamerSongList before health says so. */
+/** How long after starting the server may go without reaching the song source before health says so. */
 const STARTUP_GRACE_MS = 30_000;
 
 app.get("/health", (_req, res) => {
   const current = songList.getCurrentSong();
   const queueAgeMs = songList.lastSuccessfulFetchAgeMs();
-  // Never having reached StreamerSongList counts too, once startup has had its chance.
+  // Never having reached the song source counts too, once startup has had its chance.
   const stale = queueAgeMs === null
     ? process.uptime() * 1000 > STARTUP_GRACE_MS
     : queueAgeMs > songList.pollIntervalMs() * 3;
@@ -165,10 +167,11 @@ app.get("/health", (_req, res) => {
   res.json({
     paused,
     status: rejected ? "unauthorized" : stale ? "degraded" : "ok",
-    degradedReason: rejected ? "StreamerSongList rejected the token" : stale ? "no successful queue fetch recently" : undefined,
+    degradedReason: rejected ? `${songList.name} rejected the token` : stale ? "no successful queue fetch recently" : undefined,
+    songSource: songList.name,
     aiProvider: config.aiProvider,
     topic: config.topic,
-    currentSong: current ? SongListClient.displayTitle(current) : null,
+    currentSong: current ? songList.displayTitle(current) : null,
     lastQueueFetchAgeMs: queueAgeMs,
     eventsConnected: songList.isEventStreamConnected(),
     obsClients: clients.size,
@@ -198,7 +201,7 @@ app.get("/current-facts", async (_req, res) => {
     res.json({ song: null, facts: [] });
     return;
   }
-  const song = SongListClient.toSong(current);
+  const song = songList.toSong(current);
   res.json({ song, facts: await generateFacts(song, current) });
 });
 
@@ -211,7 +214,7 @@ songList.onCurrentSongChange((current) => {
 // Listen before connecting upstream, so a slow API never delays the overlay's socket.
 server.listen(config.port, config.host, () => {
   console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
-  console.log(`[Server] Tracking streamer "${config.sslStreamerName}"`);
+  console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || "(from the token)"}" on ${songList.name}`);
 });
 
 void warmUpBuiltin();
@@ -229,5 +232,5 @@ parentPort?.on("message", ({ data }) => {
 
 songList
   .connect()
-  .then(() => console.log("[Server] Connected to StreamerSongList"))
-  .catch((err) => console.error(`[Server] StreamerSongList unavailable, retrying by poll: ${err.message}`));
+  .then(() => console.log(`[Server] Connected to ${songList.name}`))
+  .catch((err) => console.error(`[Server] ${songList.name} unavailable, retrying by poll: ${err.message}`));

@@ -1,5 +1,6 @@
 import { config } from "./config";
 import { CentrifugoStream } from "./centrifugo-client";
+import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
@@ -22,7 +23,8 @@ export function setAccessToken(token: string): void {
   accessToken = token;
 }
 
-export class SongListClient {
+export class SongListClient implements SongSource {
+  readonly name = "StreamerSongList";
   private streamerId: number | null = null;
   private stream: CentrifugoStream | null = null;
   private currentSong: SSLQueueItem | null = null;
@@ -83,6 +85,14 @@ export class SongListClient {
     if (this.pollTimer) clearTimeout(this.pollTimer);
     if (this.refetchTimer) clearTimeout(this.refetchTimer);
     this.pollTimer = this.refetchTimer = null;
+  }
+
+  toSong(item: SSLQueueItem): SSLSong {
+    return SongListClient.toSong(item);
+  }
+
+  displayTitle(item: SSLQueueItem): string {
+    return SongListClient.displayTitle(item);
   }
 
   // --- Song mapping ------------------------------------------------------

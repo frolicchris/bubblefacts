@@ -72,6 +72,12 @@
     el.className = "result " + (kind || "");
   }
 
+  const onSE = () => state?.settings.songSource === "streamelements";
+  /** The channel name for the song source in use. */
+  const channelName = () => (onSE() ? state.settings.seChannel : state.settings.channel);
+  /** The song source has its token saved. */
+  const connected = () => (onSE() ? state.settings.seJwtSet : state.settings.tokenSet);
+
   // --- Setup: step 1, connect ------------------------------------------------
 
   const channelInput = $("#setup-channel");
@@ -107,8 +113,30 @@
     const r = await api.testConnection(channelInput.value, tokenInput.value, "streamer");
     if (!r.ok) return setResult(testResult, r.reason, "bad");
     setResult(testResult, "✓ Connected.", "ok");
-    const saved = await api.saveSettings({ channel: channelInput.value.trim(), token: tokenInput.value.trim() });
+    const saved = await api.saveSettings({ songSource: "streamersonglist", channel: channelInput.value.trim(), token: tokenInput.value.trim() });
     if (saved.error) return setResult(testResult, saved.error, "bad");
+    state = saved;
+    toStreamStep();
+  });
+
+  // Where the requests come from: StreamerSongList (sign in) or StreamElements (paste a token).
+  function showSourceBox() {
+    const se = $('input[name="setup-source"]:checked').value === "streamelements";
+    $("#se-box").hidden = !se;
+    $("#ssl-box").hidden = se;
+  }
+  for (const r of $$('input[name="setup-source"]')) r.addEventListener("change", showSourceBox);
+
+  $("#setup-se-test").addEventListener("click", async () => {
+    const result = $("#setup-se-result");
+    setResult(result, "Checking...");
+    const jwt = $("#setup-se-jwt").value.trim();
+    if (!jwt) return setResult(result, "Paste your JWT token first.", "bad");
+    const r = await api.testStreamElements($("#setup-se-channel").value, jwt);
+    if (!r.ok) return setResult(result, r.reason, "bad");
+    setResult(result, "✓ Connected.", "ok");
+    const saved = await api.saveSettings({ songSource: "streamelements", seChannel: r.channel, seJwt: jwt });
+    if (saved.error) return setResult(result, saved.error, "bad");
     state = saved;
     toStreamStep();
   });
@@ -118,7 +146,9 @@
   let obsConfirmed = false;
 
   function toStreamStep() {
-    $("#connected-as").textContent = `✓ Connected to ${state.settings.channel}.`;
+    $("#connected-as").textContent = onSE()
+      ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
+      : `✓ Connected to ${state.settings.channel}.`;
     renderPaths();
     goStep(2);
     renderObsCheck();
@@ -159,6 +189,8 @@
   function toMusicStep() {
     $("#setup-originals").checked = state.settings.originals;
     $("#setup-livelearns").checked = state.settings.liveLearns;
+    // Live learns are a StreamerSongList idea: StreamElements requests are always videos.
+    $("#setup-livelearns-row").hidden = onSE();
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
     $("#setup-originals-box").hidden = !state.settings.originals;
     if (state.settings.myFacts.length) {
@@ -237,8 +269,10 @@
 
     // Songs
     if (!h) light("light-songlist", "", "Starting");
-    else if (rejected) light("light-songlist", "bad", "Sign in again");
-    else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) light("light-songlist", "ok", h.currentSong ? "Following your queue" : "Connected");
+    else if (rejected) light("light-songlist", "bad", onSE() ? "Paste a new token in Settings" : "Sign in again");
+    else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) {
+      light("light-songlist", "ok", h.currentSong ? (onSE() ? "Following your song requests" : "Following your queue") : "Connected");
+    }
     else light("light-songlist", "warn", "Reconnecting");
 
     // Facts
@@ -258,8 +292,14 @@
     let kind = "warn", title = "Getting BubbleFacts ready", detail = "This only takes a moment.";
     if (status.state === "failing") { kind = "bad"; title = "Something's wrong"; detail = status.message + ". BubbleFacts keeps trying on its own. If this doesn't clear, use Report a problem under Help."; }
     else if (status.state === "restarting") { title = "Fixing a problem"; detail = status.message + ". This fixes itself in a moment."; }
-    else if (rejected) { kind = "bad"; title = "Reconnect your song list"; detail = "StreamerSongList needs you to sign in again."; }
-    else if (status.state === "stopped") { title = "Connect your songs"; detail = "Sign in with StreamerSongList in Settings to start."; }
+    else if (rejected) {
+      kind = "bad"; title = "Reconnect your song list";
+      detail = onSE() ? "StreamElements didn't accept your JWT token. Paste a new one in Settings." : "StreamerSongList needs you to sign in again.";
+    }
+    else if (status.state === "stopped") {
+      title = "Connect your songs";
+      detail = onSE() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
+    }
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
     else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
     else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
@@ -334,7 +374,11 @@
       e.currentTarget.before(result);
       if (await doSignIn(e.currentTarget, result)) renderNotices();
     });
-    if (state.signInExpired) signInNotice("Your StreamerSongList sign-in ended. Sign in again to keep facts coming.");
+    if (onSE()) {
+      if (state.signInExpired) add("warn", "BubbleFacts couldn't read your saved StreamElements token. Paste it again in Settings.", "Open Settings", () => show("settings"));
+      else if (state.status?.health?.status === "unauthorized") add("warn", "StreamElements didn't accept your JWT token. Paste a new one in Settings.", "Open Settings", () => show("settings"));
+    }
+    else if (state.signInExpired) signInNotice("Your StreamerSongList sign-in ended. Sign in again to keep facts coming.");
     else if (state.status?.health?.status === "unauthorized") signInNotice("StreamerSongList didn't accept your sign-in. Sign in again.");
     if (state.settings.ai === "ollama" && state.ollama?.pulling) add("info", `Downloading "${state.ollama.pulling}" into Ollama. This can take a few minutes the first time.`);
     if (state.settings.ai === "ollama" && state.ollama?.error) add("warn", state.ollama.error + ".", "Try again", () => api.downloadModel());
@@ -365,7 +409,10 @@
     $("#s-myoriginals").value = s.myOriginals.join("\n");
     $("#s-originals-box").hidden = !s.originals;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
-    $("#s-signed-in").textContent = signedIn ? `✓ Signed in as ${s.channel}.` : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
+    $("#s-signed-in").textContent = s.songSource === "streamelements"
+      ? (s.seJwtSet ? `✓ Connected to StreamElements${s.seChannel ? " as " + s.seChannel : ""}.` : "Not connected.")
+      : signedIn ? `✓ Signed in as ${s.channel}.` : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
+    showSettingsSource();
     $("#s-sign-in").textContent = signedIn ? "Sign in again" : "Sign in with StreamerSongList";
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) p.value = "";
@@ -389,6 +436,22 @@
     if (changes.token) changes.tokenKind = "streamer";
     if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return setResult($("#settings-result"), "Add your Groq key first.", "bad");
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return setResult($("#settings-result"), "Add your Anthropic key first.", "bad");
+    const switching = changes.songSource !== state.settings.songSource;
+    if (changes.songSource === "streamelements") {
+      delete changes.token; // The StreamerSongList fields are hidden; keep what's saved there.
+      if (!changes.seJwt && !state.settings.seJwtSet) return setResult($("#settings-result"), "Paste your StreamElements JWT token first.", "bad");
+      if (changes.seJwt || switching || changes.seChannel !== state.settings.seChannel) {
+        setResult($("#settings-result"), "Checking your StreamElements token...");
+        const r = await api.testStreamElements(changes.seChannel, changes.seJwt);
+        if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
+        changes.seChannel = r.channel;
+      }
+    } else {
+      delete changes.seJwt;
+      if (switching && !changes.token && !state.settings.tokenSet) {
+        return setResult($("#settings-result"), "Sign in with StreamerSongList first, or paste a token.", "bad");
+      }
+    }
     if (changes.token) {
       const r = await api.testConnection(changes.channel, changes.token, "streamer");
       if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
@@ -402,6 +465,16 @@
   });
 
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
+
+  function showSettingsSource() {
+    const se = form.elements.songSource.value === "streamelements";
+    $("#s-se-box").hidden = !se;
+    $("#s-ssl-box").hidden = se;
+    $("#s-livelearns-row").hidden = se;
+    // The saved connection's line only describes the source it belongs to.
+    $("#s-signed-in").hidden = se !== onSE();
+  }
+  for (const r of form.elements.songSource) r.addEventListener("change", showSettingsSource);
 
   $("#s-sign-in").addEventListener("click", async (e) => {
     if (await doSignIn(e.currentTarget, $("#settings-result"))) {
@@ -442,7 +515,10 @@
       $("#signin-box").hidden = !state.signInAvailable;
       $("#token-box").open = !state.signInAvailable;
       if (!state.signInAvailable) $("#token-summary").textContent = "Connect with a token";
-      if (state.settings.tokenSet) toStreamStep();
+      $("#setup-se-channel").value = state.settings.seChannel || "";
+      if (onSE()) $('input[name="setup-source"][value="streamelements"]').checked = true;
+      showSourceBox();
+      if (connected()) toStreamStep();
       else goStep(1);
     }
   })();

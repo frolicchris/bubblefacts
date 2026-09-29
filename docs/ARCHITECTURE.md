@@ -28,6 +28,10 @@ StreamerSongList ──(live events + a check every 15 s)──► Server ──
 |---|---|
 | `backend/src/songlist-client.ts` | Reads the queue from StreamerSongList and works out what's playing. |
 | `backend/src/centrifugo-client.ts` | Listens for StreamerSongList's live "the queue changed" events. |
+| `backend/src/song-source.ts` | What the server needs from a song source. StreamerSongList is the default; `SONG_SOURCE=streamelements` swaps in the next two files. |
+| `backend/src/streamelements-client.ts` | Reads StreamElements' song request player and works out what's playing. |
+| `backend/src/astro-client.ts` | Listens for StreamElements' live song request events. |
+| `backend/src/youtube-title.ts` | Reads a song title and artist out of a YouTube video title, for StreamElements. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results. |
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
@@ -148,6 +152,34 @@ does the same thing: re-read the queue. So a missed or renamed event costs at
 most one 15-second check. If an update arrives while a read is already
 running, the queue is read once more afterward, since the running read may
 be from before the change.
+
+### StreamElements details
+
+A second song source, for musicians who take requests through StreamElements'
+Media Request player. It hands the server a queue entry in StreamerSongList's
+shape, so nothing after "find what's playing" changes. The entry has a title,
+an artist, the requester and the length; there's no play count, note or
+live-learn flag, so the facts built from those simply don't appear.
+
+- **`/playing` isn't "now playing".** When nothing plays, it returns the next
+  song ready to play. So `/player` decides: a song counts only while its state
+  is `playing`. Paused on the same song keeps it (a streamer pausing to talk
+  shouldn't restart the bubbles); any other song while paused is only the next
+  one up, so the overlay clears.
+- **Events mean "fetch again",** exactly as with StreamerSongList. Astro, the
+  realtime service, sends play, pause, skip and queue events on the
+  `channel.songrequest` topic; every one, and every reconnect, triggers one
+  debounced fetch. Polling every 15 seconds (30 while events arrive) is the
+  safety net. 429 and 503 answers back off for as long as `Retry-After` says.
+- **Titles are YouTube titles.** `parseVideoTitle` splits "Artist - Song",
+  drops the upload's labels ("(Official Video)", "[4K]", "ft. X"), reads the
+  work from "| Game of Thrones", "(From "Frozen")" or "(... OST)", and falls
+  back to the uploader's channel, trusting it only for official ones
+  ("CiaraVEVO", "Ciara - Topic"). Game music often comes as "Track - Game";
+  the two sides swap only on a clear sign (the channel names the right side, the
+  right side is a soundtrack, or only the right side has a "Series: Subtitle").
+  A wrong guess costs a missed article and backup facts, never facts about the
+  wrong song, because article matching still checks every result.
 
 ### OBS details
 

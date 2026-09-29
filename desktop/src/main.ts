@@ -3,11 +3,14 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, testSongList } from "./checks";
+import { newerRelease, testSongList, testStreamElements } from "./checks";
 import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { problemReportUrl, wrongFactUrl } from "./reports";
-import { BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, toServerEnv, writeMyPack } from "./settings";
+import {
+  BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  toServerEnv, writeMyPack,
+} from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
@@ -28,6 +31,7 @@ const DIRS = {
 const ALLOWED_HOSTS = [
   "github.com", "streamersonglist.com", "www.streamersonglist.com", "id.streamersonglist.com", "console.groq.com", "platform.claude.com",
   "bubblefacts.frolic.org", "www.twitch.tv", "discord.gg", "obsproject.com", "huggingface.co", "www.llama.com", "ollama.com",
+  "streamelements.com",
 ];
 
 // Loaded once the app is ready: before that, Windows and Linux can't read the keychain.
@@ -62,7 +66,7 @@ const send = (channel: string, payload: unknown) => win?.webContents.send(channe
  * facts; the server restarts with the AI once it's ready.
  */
 function canStart(): boolean {
-  return !!settings.channel && !!settings.token;
+  return songSourceReady(settings);
 }
 
 /** How many backup facts a set of settings adds up to. The server needs five. */
@@ -93,9 +97,9 @@ function startServer(): void {
 }
 
 function state() {
-  const { token, refreshToken, groqKey, anthropicKey, ...rest } = settings;
+  const { token, refreshToken, seJwt, groqKey, anthropicKey, ...rest } = settings;
   return {
-    settings: { ...rest, tokenSet: !!token, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
+    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
     signInAvailable: !!CLIENT_ID,
     paused,
     ollama,
@@ -396,17 +400,22 @@ ipcMain.handle("test-connection", (_e, channel: string, token: string, kind: str
   testSongList(channel, token || settings.token, kind)
 );
 
+ipcMain.handle("test-streamelements", (_e, channel: string, jwt: string) =>
+  testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt)
+);
+
 ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
   const next: Settings = sanitize({ ...settings, ...changes });
   // Blank secret fields mean "keep the one already saved".
-  for (const key of ["token", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
+  for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
   // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
   if (backupFactCount(next) < 5) {
     return { error: "BubbleFacts needs at least 5 backup facts. Check another kind, or add more of your own." };
   }
   const aiChanged = next.ai !== settings.ai;
+  const sourceChanged = next.songSource !== settings.songSource;
   settings = next;
   if (aiChanged) builtinFailed = false;
   saveSettings(settings);
@@ -415,6 +424,8 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
     signInExpired = false;
     scheduleRefresh(); // Stops refreshing the replaced sign-in.
   }
+  // A new StreamElements token, or a switch of source, starts over; health reports if it's still refused.
+  if (changes.seJwt || sourceChanged) signInExpired = false;
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();
@@ -430,6 +441,7 @@ ipcMain.handle("sign-in", async () => {
     const s = await signIn((url) => void shell.openExternal(url), mine.signal);
     settings = {
       ...settings,
+      songSource: "streamersonglist",
       tokenKind: "oauth",
       token: s.accessToken,
       refreshToken: s.refreshToken,
@@ -460,7 +472,7 @@ ipcMain.handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of StreamerSongList and deletes your settings, the downloaded AI (about 2 GB), your own backup facts and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your own backup facts and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -522,7 +534,7 @@ app.whenReady().then(async () => {
   app.setAppUserModelId("org.frolic.bubblefacts");
   settings = loadSettings();
   // A secret the keychain could no longer read comes back blank.
-  if (settings.setupComplete && !settings.token) signInExpired = true;
+  if (settings.setupComplete && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
   pruneLogs(DIRS.logs);
   createTray();
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);

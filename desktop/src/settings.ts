@@ -5,6 +5,9 @@ import path from "path";
 /** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
 export interface Settings {
   setupComplete: boolean;
+  /** Where song requests come from. StreamerSongList is the default. */
+  songSource: "streamersonglist" | "streamelements";
+  /** StreamerSongList channel name. */
   channel: string;
   token: string;
   /** "oauth" is the app's own sign-in; the others are tokens pasted by hand. */
@@ -13,6 +16,10 @@ export interface Settings {
   /** When the signed-in access token runs out, in milliseconds since 1970. */
   tokenExpiresAt: number;
   streamerId: number;
+  /** StreamElements channel name, filled in from the token when it's tested. */
+  seChannel: string;
+  /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
+  seJwt: string;
   displayName: string;
   instrument: string;
   topics: string[];
@@ -40,12 +47,15 @@ export interface Settings {
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
+  songSource: "streamersonglist",
   channel: "",
   token: "",
   tokenKind: "streamer",
   refreshToken: "",
   tokenExpiresAt: 0,
   streamerId: 0,
+  seChannel: "",
+  seJwt: "",
   displayName: "",
   instrument: "",
   topics: ["video-game", "classical", "film", "pop", "general"],
@@ -67,7 +77,7 @@ export const DEFAULTS: Settings = {
   forceCpu: false,
 };
 
-const SECRET_KEYS = ["token", "refreshToken", "groqKey", "anthropicKey"] as const;
+const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey"] as const;
 const file = () => path.join(app.getPath("userData"), "settings.json");
 
 
@@ -129,6 +139,7 @@ export function sanitize(s: Settings): Settings {
   const lines = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
   return {
     ...s,
+    songSource: oneOf(s.songSource, ["streamersonglist", "streamelements"] as const, "streamersonglist"),
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
@@ -140,12 +151,14 @@ export function sanitize(s: Settings): Settings {
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
     port: clamp(s.port, 1024, 65525, DEFAULTS.port),
     channel: s.channel.trim(),
+    seChannel: s.seChannel.trim(),
+    seJwt: s.seJwt.trim(),
   };
 }
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "channel", "token", "displayName", "instrument", "topics", "originals", "liveLearns",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
 ];
@@ -181,9 +194,6 @@ export function toServerEnv(
   paths: { modelPath: string; logDir: string; topicsDir: string; clientId: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
-    SSL_STREAMER_NAME: s.channel,
-    SSL_ACCESS_TOKEN: s.token,
-    SSL_TOKEN_KIND: s.tokenKind === "oauth" ? "bearer" : s.tokenKind,
     TOPIC: topicList(s).join(","),
     BUBBLEFACTS_TOPICS_DIR: paths.topicsDir,
     ORIGINALS: s.originals ? "on" : "off",
@@ -196,7 +206,17 @@ export function toServerEnv(
     BUBBLEFACTS_LOG_DIR: paths.logDir,
     NODE_ENV: "production",
   };
-  if (s.tokenKind === "oauth") Object.assign(env, { SSL_CLIENT_ID: paths.clientId, SSL_STREAMER_ID: String(s.streamerId) });
+  if (s.songSource === "streamelements") {
+    Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
+    if (s.seChannel) env.SE_CHANNEL = s.seChannel;
+  } else {
+    Object.assign(env, {
+      SSL_STREAMER_NAME: s.channel,
+      SSL_ACCESS_TOKEN: s.token,
+      SSL_TOKEN_KIND: s.tokenKind === "oauth" ? "bearer" : s.tokenKind,
+    });
+    if (s.tokenKind === "oauth") Object.assign(env, { SSL_CLIENT_ID: paths.clientId, SSL_STREAMER_ID: String(s.streamerId) });
+  }
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
   if (s.instrument) env.INSTRUMENT = s.instrument;
   if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: paths.modelPath, LLAMA_GPU: s.forceCpu ? "off" : "auto" });
@@ -204,6 +224,11 @@ export function toServerEnv(
   if (s.ai === "anthropic") Object.assign(env, { AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: s.anthropicKey });
   if (s.ai === "ollama") Object.assign(env, { AI_PROVIDER: "ollama", OLLAMA_BASE_URL: s.ollamaUrl, OLLAMA_MODEL: s.ollamaModel });
   return env;
+}
+
+/** The chosen song source has what it needs to start. */
+export function songSourceReady(s: Settings): boolean {
+  return s.songSource === "streamelements" ? !!s.seJwt : !!s.channel && !!s.token;
 }
 
 /** Values that must never appear in a report. */
