@@ -22,6 +22,8 @@ jest.mock("./config", () => ({
   },
 }));
 
+jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]) }));
+
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
   fetchGrounding: jest.fn().mockResolvedValue(""),

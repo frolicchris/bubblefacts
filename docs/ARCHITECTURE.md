@@ -51,10 +51,18 @@ StreamerSongList ──(live events + a check every 15 s)──► Server ──
 6. **Screen.** Each caption is compared with the reference, word for word:
    names, years, consoles, award and sales claims, commentary about the
    source, length, and near-repeats.
-7. **Fall back if needed.** No reference, a failed AI call, or nothing that
-   passed screening all lead to the same place: entry facts plus topic-pack
-   facts. The AI is never asked to write without a reference.
-8. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
+7. **No article? Try Wikidata.** When no Wikipedia article matches, the song
+   is looked up on Wikidata. Its item must have the song's title as its label
+   and a description naming the artist or game ("2021 single by Lil Nas X"),
+   so a same-named song by someone else never matches. Each statement
+   (release year, composers, lyricists, producers, album, awards, charts)
+   fills a fixed sentence. No AI is involved, so nothing needs screening.
+   Wikidata's structured data is public domain (CC0).
+8. **Fall back if needed.** No reference, a failed AI call, or nothing that
+   passed screening all lead to the same place: entry facts plus the
+   streamer's backup facts, or nothing when they have none. The AI is never
+   asked to write without a reference.
+9. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
    counting from when the facts arrive. If the song has already changed by
    then, it throws the batch away.
 

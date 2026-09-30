@@ -5,6 +5,7 @@ import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
+import { wikidataFacts } from "./wikidata";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -39,11 +40,12 @@ const POSITIONS = [
   { top: "70%", left: "40%" },
 ];
 
-type Outcome = "grounded" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
+type Outcome = "grounded" | "wikidata" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
   grounded: 0,
+  wikidata: 0,
   original: 0,
   liveLearn: 0,
   noReference: 0,
@@ -69,6 +71,7 @@ const inFlight = new Map<string, Promise<Fact[]>>();
 const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
   grounded: "article",
+  wikidata: "wikidata",
   original: "original",
   liveLearn: "livelearn",
   noReference: "curated",
@@ -324,6 +327,14 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     // song-list and hand-picked facts only, with no lookup.
     const context = config.aiProvider === "none" ? "" : config.factVerification ? await fetchGrounding(song) : "";
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
+      // No article: plain facts from Wikidata's structured data need no AI (issue #23).
+      const data = config.factVerification ? await wikidataFacts(song) : [];
+      if (data.length) {
+        const shown = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
+        recentFacts.push(...shown);
+        record(song, "wikidata", shown.length);
+        return { facts: toFacts(shown), ttlMs: Infinity };
+      }
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(song, "noReference", lines.length);
