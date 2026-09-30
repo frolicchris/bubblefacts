@@ -14,7 +14,7 @@ import { escapeRe } from "./text";
  */
 
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
-const USER_AGENT =
+export const USER_AGENT =
   `bubblefacts/1.0 (${process.env.WIKIPEDIA_CONTACT || "https://github.com/frolicchris/bubblefacts"})`;
 
 const MAX_CONTEXT_CHARS = 2400;
@@ -108,7 +108,7 @@ const ROMAN: Record<string, string> = {
  * Lowercase, strip accents and a trailing "(qualifier)", drop punctuation.
  * "X-2" becomes "x2" so a sequel's number isn't read as a separate token.
  */
-function normalizeTitle(s: string): string {
+export function normalizeTitle(s: string): string {
   return s
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
