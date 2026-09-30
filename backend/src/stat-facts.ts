@@ -85,11 +85,5 @@ export function buildStatFacts(
     facts.push(`Requested by ${requesters[0]} and ${others} ${plural(others, "other", "others")}.`);
   }
 
-  // Last, and naming the song: on its own, "Runs about 4:29" leaves viewers asking what does.
-  const dur = song.durationSeconds ?? song.duration;
-  if (typeof dur === "number" && dur >= 30 && dur <= 3600 && display) {
-    facts.push(`"${display}" runs about ${Math.floor(dur / 60)}:${String(dur % 60).padStart(2, "0")}.`);
-  }
-
   return facts;
 }
