@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
+import { curatedFacts, fetchGrounding, normalizeTitle, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
@@ -302,6 +302,19 @@ async function askModel(prompt: string): Promise<string> {
 // --- Pipeline ----------------------------------------------------------
 
 /** Facts from the queue entry, topped up from the topic packs. True by construction. */
+/** Plain facts about the song itself: Wikidata first, then MusicBrainz. */
+async function structuredFacts(song: SSLSong): Promise<string[]> {
+  const data = await wikidataFacts(song);
+  return data.length ? data : musicbrainzFacts(song);
+}
+
+/** Whether the reference is the song's own article, rather than its artist's or game's. */
+function aboutTheSong(song: SSLSong, context: string): boolean {
+  const { game, track } = resolveGameAndTrack(song);
+  if (!track || track === game) return true;
+  return normalizeTitle(context.split("\n")[0]).includes(normalizeTitle(track));
+}
+
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
   return [...stats, ...curatedFacts(want - stats.length)];
@@ -332,8 +345,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     const context = config.aiProvider === "none" ? "" : config.factVerification ? await fetchGrounding(song) : "";
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
-      let data = config.factVerification ? await wikidataFacts(song) : [];
-      if (config.factVerification && !data.length) data = await musicbrainzFacts(song);
+      const data = config.factVerification ? await structuredFacts(song) : [];
       if (data.length) {
         const shown = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
         recentFacts.push(...shown);
@@ -347,13 +359,18 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
       return { facts: toFacts(lines), ttlMs: RETRY_MS };
     }
 
+    // An article about the artist or game, not the song itself: facts about
+    // the song come first when Wikidata or MusicBrainz has any ("describe the
+    // song, then tell about it").
+    const songFacts = context && !aboutTheSong(song, context) ? await structuredFacts(song) : [];
+
     const prompt = context ? groundedPrompt(song, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt)).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
-    const shown = fresh.slice(0, want);
+    const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].slice(0, want);
     recentFacts.push(...shown);
     recentFacts.splice(0, Math.max(0, recentFacts.length - RECENT_KEPT));
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
