@@ -86,7 +86,8 @@ describe("parseVideoTitle", () => {
   });
 
   it("keeps parts of a title that look like labels but aren't only labels", () => {
-    expect(parseVideoTitle("Queen - Bohemian Rhapsody (Live Aid 1985)", "Queen").title).toBe("Bohemian Rhapsody (Live Aid 1985)");
+    // A live bracket is dropped: the song, not the concert, is what to look up (issue #25).
+    expect(parseVideoTitle("Queen - Bohemian Rhapsody (Live Aid 1985)", "Queen").title).toBe("Bohemian Rhapsody");
     expect(parseVideoTitle("Avicii - Levels (Skrillex Remix)", "Avicii").title).toBe("Levels (Skrillex Remix)");
   });
 
@@ -111,5 +112,25 @@ describe("artistFromChannel", () => {
     ["", "", false],
   ])("%s", (channel, artist, official) => {
     expect(artistFromChannel(channel)).toEqual({ artist, official });
+  });
+});
+
+describe("the title corpus (issue #25)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { cases } = require("./fixtures/youtube-titles.json") as {
+    cases: Array<{ title: string; channel: string; artist: string; song: string; kind: string }>;
+  };
+  const results = cases.map((c) => {
+    const got = parseVideoTitle(c.title, c.channel);
+    return { ...c, got, ok: got.artist === c.artist && got.title === c.song };
+  });
+
+  it.each(results.map((r) => [`${r.title} (${r.channel || "no channel"})`, r] as const))("reads %s", (_name, r) => {
+    expect({ artist: r.got.artist, song: r.got.title }).toEqual({ artist: r.artist, song: r.song });
+  });
+
+  it("has no wrong artist where the title names one", () => {
+    const wrong = results.filter((r) => !r.ok && r.got.artist && r.got.artist !== r.artist);
+    expect(wrong.map((r) => r.title)).toEqual([]);
   });
 });

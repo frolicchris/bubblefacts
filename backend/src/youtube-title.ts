@@ -12,6 +12,10 @@
  * with confidence, the cleaned title is kept whole and the artist comes from
  * the channel, which at worst means no Wikipedia article is found and the
  * song gets backup facts; it never attributes a song to the wrong work.
+ *
+ * Several bracket, label and separator rules follow Web Scrobbler's
+ * metadata-filter (MIT, https://github.com/web-scrobbler/metadata-filter).
+ * fixtures/youtube-titles.json holds real titles; add every failure seen live.
  */
 
 export interface ParsedTitle {
@@ -40,6 +44,8 @@ const NOISE_WORDS = [
   "ukulele", "cello", "flute", "trumpet", "trombone", "clarinet", "harp", "orchestral", "band", "vocals?", "8d", "extended", "\\d+", "hours?", "loop", "animated", "with", "and", "on",
   "the", "a", "in", "high", "quality", "solo", "arr\\.?", "arranged", "arrangement", "performance",
   "premiere", "new", "vevo", "original",
+  // Spanish, Portuguese, French and German labels
+  "oficial", "officiel", "officielle", "offizielles", "letra", "vivo", "en", "ao", "legendado", "sub", "español",
 ];
 /** Also dropped when they make up a whole " - " or " | " segment: "Song - Live", "Song | Remix". */
 const VARIANT_WORDS = ["live", "remix", "edit", "radio", "mix", "demo", "session", "sessions"];
@@ -75,8 +81,23 @@ const FROM_BRACKET = /^\s*from\s+["'“”‘’]?(.+?)["'“”‘’]?\s*$/i;
 const SOUNDTRACK = /\s*\b(?:original\s+(?:game\s+|motion\s+picture\s+)?soundtrack|o\.?s\.?t\.?|soundtrack)\b\s*/gi;
 const HAS_SOUNDTRACK = /\b(?:soundtrack|o\.?s\.?t\.?)(?=$|[^\p{L}])/iu;
 
-const BRACKETS = /\s*(?:\(([^()]*)\)|\[([^[\]]*)\]|【([^【】]*)】|「([^「」]*)」)\s*/g;
-const DASH = /\s+[-–—~]\s+/;
+const BRACKETS = /\s*(?:\(([^()]*)\)|\[([^[\]]*)\]|【([^【】]*)】|「([^「」]*)」|『([^『』]*)』|｢([^｢｣]*)｣|（([^（）]*)）)\s*/g;
+/** " - ", " – ", " ~ ", and a spaced " / " or " // " (never "AC/DC"). */
+const DASH = /\s+(?:[-–—~]|\/\/?)\s+/;
+/** "(by Artist)", "(performed by Artist)". A cover credit ("cover by X") isn't one: X isn't the song's artist. */
+const BY_BRACKET = /^(?:(?:song|music|performed|written|composed|sung)\s+)?by\s+(.+)$/i;
+/** "(Spider-Man: Across the Spider-Verse)": a titled work with a subtitle names the song's source. */
+const WORK_BRACKET = /^\S.*\S:\s+\S.*\s\S/;
+/** A bracket that names a variant of the song. */
+const VARIANT_BRACKET = /^(?:live|acoustic|remix|remastered|demo|edit|session|unplugged|stripped)\b/i;
+/** Japanese quote marks around the title, with the upload's labels after: LiSA『紅蓮華』MUSiC CLiP. */
+const JAPANESE_QUOTED = /^(.+?)\s*[「『｢](.+?)[」』｣]/;
+/** Quote marks around a song title, including Japanese ones. */
+const QUOTED = /^(.+?)\s*["“「『](.+)["”」』]$/;
+/** "Sax Dragon's "Billie Jean" Solo": a possessive names the performer, the quotes the song. */
+const POSSESSIVE_QUOTED = /^(.+?)['’]s\s+["“「『](.+?)["”」』]/;
+/** "Marc Rebillet x Edeka": a collaboration, led by the first name. */
+const COLLAB = /^(.+?)\s+x\s+\S/;
 
 function tidy(s: string): string {
   return s
@@ -103,7 +124,8 @@ function fold(s: string): string {
 export function artistFromChannel(channel: string | undefined | null): { artist: string; official: boolean } {
   const name = (channel ?? "").trim();
   if (!name) return { artist: "", official: false };
-  const topic = name.match(/^(.+?)\s+-\s+topic$/i);
+  // YouTube names auto-generated channels in the viewer's language: "Ciara - Topic", "Ciara - Tema".
+  const topic = name.match(/^(.+?)\s+[-–]\s+(?:topic|tema|thema|thème|tópico|argomento|temat|onderwerp|konu|aihe|emne|тема|トピック|主题|主題|주제)$/i);
   if (topic) return { artist: topic[1].trim(), official: true };
   const vevo = name.match(/^(.+?)\s*vevo$/i);
   if (vevo) {
@@ -120,18 +142,32 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
   let source = "";
 
   // 1. Brackets: drop the upload's own labels, keep what names the song or its source.
-  let text = raw.replace(BRACKETS, (whole, a, b, c, d) => {
-    const inner: string = (a ?? b ?? c ?? d ?? "").trim();
+  let byArtist = "";
+  let work = "";
+  let text = raw.replace(BRACKETS, (whole, a, b, c, d, e, f, g) => {
+    const inner: string = (a ?? b ?? c ?? d ?? e ?? f ?? g ?? "").trim();
     if (!inner || onlyNoise(inner, NOISE_RE) || FEATURING_BRACKET.test(inner)) return " ";
     const from = inner.match(FROM_BRACKET);
     if (from) {
       source ||= withoutSoundtrack(from[1]);
       return " ";
     }
+    const by = inner.match(BY_BRACKET);
+    if (by) {
+      byArtist ||= by[1];
+      return " ";
+    }
     if (HAS_SOUNDTRACK.test(inner)) {
       // "(Soundtrack by Ramin Djawadi)" credits a composer; it doesn't name the work.
       const work = withoutSoundtrack(inner);
       if (!/^by\s/i.test(work)) source ||= work;
+      return " ";
+    }
+    // "(Live at Glastonbury 2016)", "(Acoustic Version)": a variant of the song, not its name.
+    if (VARIANT_BRACKET.test(inner)) return " ";
+    // Japanese quote brackets usually hold the song title: keep them for the quote check.
+    if (!/^[「『｢]/.test(whole.trim()) && WORK_BRACKET.test(inner)) {
+      work ||= inner;
       return " ";
     }
     return whole;
@@ -164,15 +200,27 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     confident = true;
   } else {
     title = stripFeaturing(parts[0] ?? "");
-    // 'Artist "Song"', a common uploader style without a dash.
-    const quoted = title.match(/^(.+?)\s+["“](.+)["”]$/);
+    // 'Artist "Song"' and 'Artist「Song」', common uploader styles without a dash.
+    const quoted = title.match(QUOTED) ?? title.match(POSSESSIVE_QUOTED) ?? title.match(JAPANESE_QUOTED);
+    const collab = !quoted && !channelInfo.official ? title.match(COLLAB) : null;
     if (quoted) {
       artist = tidy(stripFeaturing(quoted[1]));
       title = quoted[2];
       confident = true;
+    } else if (byArtist) {
+      artist = byArtist;
+      confident = true;
+    } else if (collab) {
+      artist = tidy(collab[1]);
     }
   }
 
+  // A titled work in brackets is the source unless an official channel names the performer.
+  if (!artist && work && !channelInfo.official) {
+    artist = work;
+    confident = true;
+    fromSource = true;
+  }
   if (!artist && (source || pipeSource)) {
     artist = withoutSoundtrack(source || pipeSource);
     confident = true;
