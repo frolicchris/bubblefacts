@@ -80,22 +80,9 @@ describe("buildStatFacts", () => {
     expect(f.some((x) => /1 time on stream/.test(x))).toBe(true);
   });
 
-  it("omits duration when the API returns null", () => {
-    // The live API leaves durationSeconds null on many entries, and a bubble
-    // reading "Runs about null" is worse than one fewer bubble.
-    const f = buildStatFacts(entry({ durationSeconds: null }), opts);
-    expect(f.some((x) => /Runs about/.test(x))).toBe(false);
-  });
-
-  it("formats a duration that is present", () => {
-    const f = buildStatFacts(entry({ durationSeconds: 184 }), opts);
-    expect(f.some((x) => x.includes("3:04"))).toBe(true);
-  });
-
-  it("drops an implausible duration rather than printing it", () => {
-    expect(buildStatFacts(entry({ durationSeconds: 99999 }), opts).some((x) => /Runs/.test(x))).toBe(
-      false
-    );
+  it("never shows the song's length, which isn't a fact about the song", () => {
+    // A tester: "Runs about 4:29" read as noise on stream.
+    expect(buildStatFacts(entry({ durationSeconds: 184 }), opts).some((x) => /3:04|runs/i.test(x))).toBe(false);
   });
 
   it("credits the requester", () => {

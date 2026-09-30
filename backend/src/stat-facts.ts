@@ -3,7 +3,7 @@ import { SSLQueueItem } from "./types";
 
 /**
  * Facts built from the queue entry itself: the streamer's note, play count,
- * last played, duration, requesters. True by construction, and the only
+ * last played, requesters. True by construction, and the only
  * song-specific facts available for originals and songs with no article.
  */
 
@@ -76,11 +76,6 @@ export function buildStatFacts(
 
   const days = song.lastPlayed ? daysSince(song.lastPlayed) : null;
   if (days !== null && days >= STALE_AFTER_DAYS) facts.push(`This one hasn't come up in ${days} days.`);
-
-  const dur = song.durationSeconds ?? song.duration;
-  if (typeof dur === "number" && dur >= 30 && dur <= 3600) {
-    facts.push(`Runs about ${Math.floor(dur / 60)}:${String(dur % 60).padStart(2, "0")}.`);
-  }
 
   const requesters = (entry.requests ?? []).map((r) => r?.name?.trim()).filter((n): n is string => Boolean(n));
   if (requesters.length === 1) {
