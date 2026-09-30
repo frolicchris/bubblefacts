@@ -5,7 +5,7 @@ import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
-import { generateFacts, factStats, warmUpBuiltin } from "./fact-generator";
+import { generateFacts, factStats, markWrong, warmUpBuiltin } from "./fact-generator";
 import { FactsPayload, SSLQueueItem } from "./types";
 
 /**
@@ -43,6 +43,7 @@ let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 function broadcast(payload: FactsPayload): void {
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts };
+  else if (payload.type === "remove_fact") lastSent = { song: lastSent.song, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
@@ -138,6 +139,19 @@ control.post("/pause", (req, res) => {
     else void onSongChange(songList.getCurrentSong());
   }
   res.json({ paused });
+});
+
+// "Wrong" in the app: take the fact off the stream now, and stop using its article for this song.
+control.post("/wrong", (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text : "";
+  const song = lastSent.song;
+  if (!song || !text || !(lastSent.facts ?? []).some((f) => f.text === text)) {
+    res.status(404).json({ removed: false });
+    return;
+  }
+  broadcast({ type: "remove_fact", song, text });
+  const article = markWrong(song);
+  res.json({ removed: true, article });
 });
 
 app.use("/control", control);

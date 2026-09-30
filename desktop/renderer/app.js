@@ -290,12 +290,22 @@
     for (const f of r.facts || []) {
       const li = $("#fact-item").content.firstElementChild.cloneNode(true);
       $(".fact-text", li).textContent = f.text;
-      $(".wrong", li).addEventListener("click", () => api.reportFact(song || "", f.text));
+      $(".wrong", li).addEventListener("click", async () => {
+        const result = await api.wrongFact(f.text);
+        if (!result || !result.removed) return;
+        state.wrong = { song: song || "", text: f.text };
+        $("#wrong-note-text").textContent = result.article
+          ? `Removed. BubbleFacts won't use the "${result.article}" article for this song again.`
+          : "Removed from your stream.";
+        $("#wrong-note").hidden = false;
+        li.remove();
+      });
       list.appendChild(li);
     }
     $("#now-empty").hidden = (r.facts || []).length > 0;
   }
 
+  $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
   $("#pause-toggle").addEventListener("click", () => api.setPaused(!state.paused));
   $("#test-bubble").addEventListener("click", async () => {
     const r = await api.testBubble();

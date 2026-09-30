@@ -88,6 +88,7 @@ function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelPath: modelPath(DIRS.models), logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
   if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
+  env.BUBBLEFACTS_DATA_DIR = DATA;
   return env;
 }
 
@@ -394,6 +395,7 @@ async function setPaused(next: boolean): Promise<void> {
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
+ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());
@@ -477,7 +479,7 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable"]) {
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();

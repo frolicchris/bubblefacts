@@ -57,3 +57,65 @@ describe("where the overlay connects", () => {
     expect(connectionsFrom("http://127.0.0.1:3005/obs/obs-overlay.html")[0]).toBe("ws://127.0.0.1:3005/ws");
   });
 });
+
+describe("taking a fact off the stream", () => {
+  /** Runs the overlay against a fake page and returns the texts of bubbles it shows. */
+  function overlay() {
+    const shown: string[] = [];
+    const hidden: string[] = [];
+    const timers: Array<() => void> = [];
+    let socket: { onmessage?: (e: { data: string }) => void; onopen?: () => void } = {};
+    const element = () => {
+      const el: Record<string, unknown> = {
+        classList: { add(c: string) { if (c === "hiding") hidden.push(String(el.text)); }, remove() {} },
+        dataset: {},
+        style: { setProperty() {} },
+        appendChild() {},
+        append(t: unknown) { if (typeof t === "string") { el.text = t; shown.push(t); } },
+        addEventListener() {},
+        remove() {},
+        offsetWidth: 0,
+      };
+      return el;
+    };
+    class FakeSocket {
+      constructor() { socket = this as typeof socket; }
+      close() {}
+    }
+    vm.runInNewContext(SCRIPT, {
+      location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
+      document: { getElementById: element, createElement: element, body: element() },
+      WebSocket: FakeSocket,
+      setTimeout: (fn: () => void) => timers.push(fn),
+      clearTimeout: () => {},
+      requestAnimationFrame: (fn: () => void) => fn(),
+      console,
+    });
+    const song = { title: "Lost Boy", artist: "The Midnight" };
+    const fact = (text: string) => ({ text, delaySeconds: 0, durationSeconds: 5, position: { top: "0%", left: "0%" } });
+    const send = (msg: object) => socket.onmessage?.({ data: JSON.stringify(msg) });
+    const run = () => { while (timers.length) timers.shift()!(); };
+    socket.onopen?.();
+    send({ type: "new_song", song });
+    return { shown, hidden, send, run, song, fact };
+  }
+
+  it("never shows a fact marked wrong before its turn", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Right."), o.fact("Wrong.")] });
+    o.send({ type: "remove_fact", song: o.song, text: "Wrong." });
+    o.run();
+    expect(o.shown).toContain("Right.");
+    expect(o.shown).not.toContain("Wrong.");
+  });
+
+  it("stays removed when the batch is sent again", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Wrong.")] });
+    o.send({ type: "remove_fact", song: o.song, text: "Wrong." });
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Wrong.")] });
+    o.run();
+    expect(o.shown).not.toContain("Wrong.");
+  });
+});
+
