@@ -627,6 +627,30 @@ describe("orderExtract", () => {
   });
 });
 
+describe("screenClaims — opinions and the music video", () => {
+  const context = "Rockstar is a song by Post Malone and 21 Savage. It was considered one of the best songs of 2017. " +
+    "It was their first number one. The music video shows Post Malone fighting ninjas. The video game Nier Automata.";
+
+  it("drops opinions even when the source quotes them (issue #21)", () => {
+    const { kept, rejected } = screenClaims(["Rockstar was considered one of the best songs of 2017."], context);
+    expect(kept).toEqual([]);
+    expect(rejected[0].reason).toBe("opinion");
+  });
+
+  it("drops lines about the music video viewers are watching (issue #20)", () => {
+    expect(screenClaims(["The music video shows Post Malone fighting ninjas."], context).kept).toEqual([]);
+    expect(screenClaims(["In the video, Post Malone fights a crowd of ninjas."], context).kept).toEqual([]);
+  });
+
+  it("keeps a plain fact, and a line about a video game", () => {
+    const { kept } = screenClaims(
+      ["Rockstar was the first number one for Post Malone and 21 Savage.", "The video game Nier Automata has a famous score."],
+      context
+    );
+    expect(kept).toHaveLength(2);
+  });
+});
+
 describe("fetchGrounding", () => {
   const LONG = "x".repeat(700);
   let pages: Record<string, string[]>;

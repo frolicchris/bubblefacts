@@ -275,8 +275,9 @@
     $("#status-detail").textContent = detail;
     $("#pause-toggle").textContent = state.paused ? "Resume bubbles" : "Pause bubbles";
 
-    // Only nudge when the example facts actually stood in for a song.
-    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length);
+    // Only nudge when the example facts actually stood in for a song. With no
+    // examples checked, showing nothing is the streamer's choice.
+    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length && state.settings.topics.length);
 
     if (!$("#view-setup").hidden) renderObsCheck();
   }

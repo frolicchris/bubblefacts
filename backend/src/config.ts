@@ -59,7 +59,8 @@ export const config = {
   sslStreamerName: requireEnv("SSL_STREAMER_NAME"),
   streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || requireEnv("SSL_STREAMER_NAME"),
   instrument: (process.env.INSTRUMENT || "").trim(),
-  topic: process.env.TOPIC || "video-game,classical,film,pop,general",
+  // Empty means no backup facts: a song with no source gets none (the desktop app's default).
+  topic: process.env.TOPIC ?? "video-game,classical,film,pop,general",
   // Songs tagged "Originals" or credited to the streamer get facts from the song entry, not a lookup.
   originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",
   // Off-list requests get a LIVE LEARN banner and no facts. Off treats them as ordinary songs.

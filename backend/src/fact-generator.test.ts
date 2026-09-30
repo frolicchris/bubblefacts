@@ -71,6 +71,14 @@ describe("generateFacts", () => {
     });
   });
 
+  it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
+    // Two songs by the same artist, both written from the artist's article.
+    const first = (await generateFacts({ title: "Song One", artist: "Same Artist" })).map((f) => f.text);
+    const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
+    expect(first).toHaveLength(5);
+    expect(second.filter((t) => first.includes(t))).toEqual([]);
+  });
+
   it("caches a song's facts", async () => {
     const first = await generateFacts(song);
     expect(await generateFacts(song)).toBe(first);
