@@ -33,6 +33,7 @@ jest.mock("./fact-verifier", () => ({
 import { config } from "./config";
 import { clearFactCache, factStats, generateFacts } from "./fact-generator";
 import { fetchGrounding } from "./fact-verifier";
+import { wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
 
 const MODEL_LINES = [
@@ -80,6 +81,15 @@ describe("generateFacts", () => {
     const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
     expect(first).toHaveLength(5);
     expect(second.filter((t) => first.includes(t))).toEqual([]);
+  });
+
+  it("puts facts about the song first when the article is only about the artist", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
+    const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
+    expect(facts[0]).toBe('"Whatever Happens" came out in 2001.');
+    expect(facts.length).toBeGreaterThan(1);
   });
 
   it("caches a song's facts", async () => {
