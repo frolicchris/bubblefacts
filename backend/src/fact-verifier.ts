@@ -387,6 +387,14 @@ const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /\b(first ever|only game|best-selling|highest-\w+)\b/i, label: "superlative" },
 ];
 
+/**
+ * Dropped even when the source says so. Critics' opinions read as facts on
+ * stream and make the real facts harder to trust (issue #21), and the music
+ * video's plot or look is what viewers are already watching (issue #20).
+ */
+const OPINION = /\b(considered|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
+const ABOUT_THE_VIDEO = /\b(music video|video clip|in the video|the video(?!\s*games?\b))\b/i;
+
 /** The model reasoning about its source instead of stating a fact. */
 const META_PATTERNS: RegExp[] = [
   /\b(reference material|the reference|source text|provided (text|reference)|according to the (text|reference))\b/i,
@@ -511,6 +519,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
   const reasonToDrop = (fact: string): string | null => {
     if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
     if (fact.length < 20) return "too short";
+    if (OPINION.test(fact)) return "opinion";
+    if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
     for (const { re, label } of RISKY_PATTERNS) {
       const m = fact.match(re);
       if (m && !hasWord(m[0].trim(), context)) return label;

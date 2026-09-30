@@ -70,7 +70,7 @@ Good to know:
 |---|---|---|
 | `STREAMER_DISPLAY_NAME` | your channel name | The name used when talking about you: "performed live by Jane". |
 | `INSTRUMENT` | *none* | Your instrument, such as `piano` or `guitar`. With it, the AI is told you're "playing *the song* on piano"; without it, just "performing" it. |
-| `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it. Keep `general`, or your own pack with originals lines, if you play your own compositions. Together they need at least five facts. The overlay only reads these files. |
+| `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no backup facts, so a song without an article gets no bubbles. The desktop app starts with none. Keep `general`, or your own pack with originals lines, if you play your own compositions. Five or more facts keep them from repeating often. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
 | `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner, with no facts, for off-list requests. `off` treats them like any other song. |
 

@@ -36,8 +36,9 @@ export function loadTopics(list: string): Required<Pick<TopicPack, "curatedFacts
   const packs = list.split(",").map((s) => s.trim()).filter(Boolean).map(readPack);
   const curatedFacts = [...new Set(packs.flatMap((p) => p.curatedFacts ?? []))];
   const originalsFacts = [...new Set(packs.flatMap((p) => p.originalsFacts ?? []))];
-  if (curatedFacts.length < MIN_CURATED) {
-    throw new Error(`TOPIC "${list}" has ${curatedFacts.length} curated facts; add packs to reach ${MIN_CURATED}`);
+  // None is fine: a song with no source then shows no backup facts (issue #18).
+  if (curatedFacts.length && curatedFacts.length < MIN_CURATED) {
+    console.warn(`[Topic] "${list}" has only ${curatedFacts.length} backup facts, so they'll repeat often`);
   }
   return { curatedFacts, originalsFacts };
 }

@@ -25,8 +25,14 @@ describe("loadTopics", () => {
     expect(loadTopics(" classical , classical,general ")).toEqual(loadTopics("classical,general"));
   });
 
-  it("rejects a pool too small to vary between songs", () => {
-    expect(() => loadTopics("piano")).toThrow(/4 curated facts/);
+  it("accepts a small pool, which the app lets a streamer choose", () => {
+    // Throwing here stopped the server when only "Piano" (4 examples) was checked.
+    expect(loadTopics("piano").curatedFacts).toHaveLength(4);
+  });
+
+  it("allows no backup facts at all", () => {
+    // Issue #18: without example packs or the streamer's own facts, a song with no source shows nothing.
+    expect(loadTopics("")).toEqual({ curatedFacts: [], originalsFacts: [] });
   });
 
   it("names the available packs when one is unknown", () => {

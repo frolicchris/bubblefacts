@@ -24,7 +24,8 @@ Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
 - OBS animations: `transform` and `opacity` only.
 - There is deliberately **no LLM verification pass**. Accuracy comes from
   grounding + deterministic screening. Sharpen the prompt before adding layers.
-- Never ask the model for facts without a reference. No article → topic packs.
+- Never ask the model for facts without a reference. No article → topic packs,
+  or nothing when the streamer has none (the app's default).
 - Partial results are never padded from the topic packs.
 - The packs in `topics/` are examples, not maintained content. Don't add to,
   expand, or "improve" them, and don't accept pull requests that do. Streamers

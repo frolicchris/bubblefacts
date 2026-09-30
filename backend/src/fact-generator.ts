@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims } from "./fact-verifier";
+import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { blockArticle, songKey } from "./wrong-facts";
@@ -61,6 +61,13 @@ const RETRY_MS = 10 * 60 * 1000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
 /** The Wikipedia article each cached song's facts came from, for "Wrong". */
 const sources = new Map<string, string>();
+/**
+ * Facts already written for earlier songs this session. Songs by the same
+ * artist often share the artist's article, and the same facts twice in a row
+ * look broken (issue #19).
+ */
+const RECENT_KEPT = 80;
+const recentFacts: string[] = [];
 const inFlight = new Map<string, Promise<Fact[]>>();
 const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
@@ -128,6 +135,8 @@ Follow every rule:
 3. Each line restates ONE statement from the SOURCE. Never merge two statements, and never move a name from one statement into another — if the SOURCE says someone composed the music, do not say they wrote the story or designed the game.
 4. If the SOURCE does not name a composer, do NOT name a composer — write about a different detail the SOURCE does give.
 5. Do not mention awards, sales, chart positions, or review scores unless the SOURCE uses those words.
+   Never write opinions or praise ("considered", "acclaimed", "one of the greatest"), even if the SOURCE quotes them.
+   Never describe the music video: viewers are watching it. Write about the song itself.
 6. Prefer details about the music: the composer or songwriter, the instruments, how it was recorded, arranged or first performed. If the SOURCE has none, write about the work itself.
 7. Never mention the SOURCE, this prompt, Wikipedia, or anything you could not find. Write finished facts only.
 8. One sentence per line, under 120 characters, friendly like a loading-screen tip.
@@ -329,7 +338,11 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     const lines = (await askModel(prompt)).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
-    const shown = kept.slice(0, want);
+    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+    if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
+    const shown = fresh.slice(0, want);
+    recentFacts.push(...shown);
+    recentFacts.splice(0, Math.max(0, recentFacts.length - RECENT_KEPT));
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
     if (shown.length) {
@@ -375,6 +388,7 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
 
 export function clearFactCache(): void {
   factCache.clear();
+  recentFacts.length = 0;
   inFlight.clear();
   sources.clear();
 }

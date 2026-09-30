@@ -58,7 +58,8 @@ export const DEFAULTS: Settings = {
   seJwt: "",
   displayName: "",
   instrument: "",
-  topics: ["video-game", "classical", "film", "pop", "general"],
+  // The example packs are opt-in: without them, a song with no source shows nothing (issue #18).
+  topics: [],
   originals: false,
   liveLearns: true,
   myFacts: [],
