@@ -1,6 +1,7 @@
 jest.mock("./config", () => ({
   config: {
     factsPerSong: 5,
+    dataDir: process.env.BUBBLEFACTS_DATA_DIR,
     groundingTimeoutMs: 5000,
     groundingExtractTimeoutMs: 15000,
     topic: "video-game,classical,film,pop,piano,general",
@@ -22,6 +23,7 @@ import {
   fetchGrounding,
   clearGroundingCache,
 } from "./fact-verifier";
+import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
@@ -529,6 +531,12 @@ describe("resolveGameAndTrack — series in artist, game in title", () => {
     expect(isRelevantArticle("Ys II The Final Chapter", "Ys II")).toBe(true);
     expect(isRelevantArticle("Final Fantasy X", "Final Fantasy (video game)")).toBe(false);
   });
+
+  it("rejects a truncated title that isn't at a subtitle break", () => {
+    // A real failure: a drum cover of "Everybody Dance Now" got facts about a PlayStation game.
+    expect(isRelevantArticle("Everybody Dance Now", "Everybody Dance (video game)")).toBe(false);
+    expect(isRelevantArticle("Ys VIII: Lacrimosa of Dana", "Ys VIII")).toBe(true);
+  });
 });
 
 describe("grounding — stubs, arrangements and remakes", () => {
@@ -692,6 +700,19 @@ describe("fetchGrounding", () => {
   it("never grounds a game track on a generic article named like the track", async () => {
     pages = { Overture: ["Overture"], "Overture Obscure Game": ["Overture"] };
     expect(await fetchGrounding({ title: "Overture", artist: "Obscure Game" })).toBe("");
+  });
+
+  it("never uses an article the streamer marked wrong for that song", async () => {
+    pages = { "Celeste video game": ["Celeste (video game)"] };
+    expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toMatch(/^Celeste/);
+    blockArticle({ title: "First Steps", artist: "Celeste" }, "Celeste (video game)");
+    // Blocked even though it's cached, and only for that song.
+    expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toBe("");
+    expect(await fetchGrounding({ title: "Resurrections", artist: "Celeste" })).toMatch(/^Celeste/);
+    // Remembered after a restart.
+    resetWrongFacts();
+    clearGroundingCache();
+    expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toBe("");
   });
 
   it("keeps the whole reference within the context budget", async () => {

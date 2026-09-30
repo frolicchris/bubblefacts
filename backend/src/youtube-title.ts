@@ -36,7 +36,8 @@ const NOISE_WORDS = [
   "hd", "hq", "uhd", "4k", "8k", "1080p", "720p", "60fps", "remaster(?:ed)?", "\\d{4}", "mv", "m/v",
   "explicit", "clean", "full", "song", "version", "ver\\.?", "cover", "piano", "guitar", "violin",
   "acoustic", "instrumental", "karaoke", "tutorial", "synthesia", "sheet", "sheets", "slowed", "reverb",
-  "sped", "up", "nightcore", "8d", "extended", "\\d+", "hours?", "loop", "animated", "with", "and", "on",
+  "sped", "up", "nightcore", "drums?", "drummer", "bass", "sax", "saxophone", "keytar", "keys", "synth",
+  "ukulele", "cello", "flute", "trumpet", "trombone", "clarinet", "harp", "orchestral", "band", "vocals?", "8d", "extended", "\\d+", "hours?", "loop", "animated", "with", "and", "on",
   "the", "a", "in", "high", "quality", "solo", "arr\\.?", "arranged", "arrangement", "performance",
   "premiere", "new", "vevo",
 ];
@@ -139,11 +140,12 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
   const pipeSplit = text.split(/\s*[|｜]\s*/).map(tidy).filter(Boolean);
   const pipes = pipeSplit.filter((p, i) => i === 0 || !labelSegment(p, pipeSplit.length));
   text = pipes[0] ?? "";
-  const pipeSource = pipes.length > 1 && !DASH.test(text) ? pipes[1] : "";
 
   // 3. " - " segments, minus any that only describe the upload ("- Official Video").
   const dashSplit = text.split(DASH).map(tidy).filter(Boolean);
   const parts = dashSplit.filter((p) => !labelSegment(p, dashSplit.length));
+  // "Song - Drum Cover | Artist": once the label is gone, the pipe names the artist.
+  const pipeSource = pipes.length > 1 && parts.length < 2 ? pipes[1] : "";
   const channelInfo = artistFromChannel(channel);
 
   let artist = "";

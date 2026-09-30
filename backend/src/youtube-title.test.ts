@@ -8,6 +8,10 @@ describe("parseVideoTitle", () => {
     // [video title, uploader channel, title, artist]
     // Official uploads
     ["Ciara - 1, 2 Step (Official Video) ft. Missy Elliott", "CiaraVEVO", "1, 2 Step", "Ciara"],
+    // Covers on an instrument: the instrument is a label, not the song
+    ["EVERYBODY DANCE NOW - DRUM COVER | C+C MUSIC FACTORY", "Some Drummer", "EVERYBODY DANCE NOW", "C+C MUSIC FACTORY"],
+    ["C+C Music Factory - Everybody Dance Now (Drum Cover)", "Some Drummer", "Everybody Dance Now", "C+C Music Factory"],
+    ["The Midnight - Lost Boy [Music Video]", "Digital Gravity", "Lost Boy", "The Midnight"],
     ["Rick Astley - Never Gonna Give You Up (Official Music Video)", "Rick Astley", "Never Gonna Give You Up", "Rick Astley"],
     ["Queen – Bohemian Rhapsody (Official Video Remastered)", "Queen Official", "Bohemian Rhapsody", "Queen"],
     ["Adele - Hello (Official Lyric Video)", "AdeleVEVO", "Hello", "Adele"],

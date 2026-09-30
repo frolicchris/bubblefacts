@@ -11,6 +11,9 @@ on:
       tag:
         description: Release tag to test, such as v2.0.0-beta.2 (empty means the newest release, betas included)
         required: false
+      run:
+        description: Or a Release workflow run ID, to test unpublished builds from its artifacts
+        required: false
 
 permissions:
   contents: read
@@ -27,9 +30,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: windows, os: windows-latest, asset: "*-windows-x64.exe" }
-          - { name: linux-deb, os: ubuntu-24.04, asset: "*_amd64.deb" }
-          - { name: mac-arm64, os: macos-14, asset: "*-mac-arm64.dmg" }
+          - { name: windows, os: windows-latest, asset: "*-windows-x64.exe", artifact: windows-x64 }
+          - { name: linux-deb, os: ubuntu-24.04, asset: "*_amd64.deb", artifact: linux-x64 }
+          - { name: mac-arm64, os: macos-14, asset: "*-mac-arm64.dmg", artifact: mac-arm64 }
     env:
       GH_TOKEN: ${{ github.token }}
     defaults:
@@ -42,13 +45,21 @@ jobs:
       - name: Pick the release
         run: |
           tag="${{ inputs.tag }}"
+          if [ -n "${{ inputs.run }}" ]; then tag="run ${{ inputs.run }}"; fi
           if [ -z "$tag" ]; then
             tag=$(gh api "repos/$GITHUB_REPOSITORY/releases" -q '[.[] | select(.draft|not)][0].tag_name')
           fi
           echo "TAG=$tag" >> "$GITHUB_ENV"
           echo "Testing $tag"
       - name: Download the installer
-        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer
+        run: |
+          if [ -n "${{ inputs.run }}" ]; then
+            gh run download "${{ inputs.run }}" --repo "$GITHUB_REPOSITORY" --name "${{ matrix.artifact }}" --dir all
+            mkdir -p installer && find all -name "${{ matrix.asset }}" -exec cp {} installer/ \;
+          else
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer
+          fi
+          ls -la installer
       - name: Cache the AI model
         uses: actions/cache@v4
         with:
@@ -75,7 +86,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ./installer/*.deb
-          res=$(dpkg -L bubblefacts | grep -m1 '/resources/app.asar$' | xargs dirname)
+          res=$(dpkg -L bubblefacts | grep -m1 -E '/resources$')
           exe=$(dirname "$res")/bubblefacts
           [ -x "$exe" ] || { dpkg -L bubblefacts | head -40; exit 1; }
           echo "APP_EXE=$exe" >> "$GITHUB_ENV"
@@ -89,6 +100,15 @@ jobs:
           echo "APP_EXE=$HOME/Applications/BubbleFacts.app/Contents/MacOS/BubbleFacts" >> "$GITHUB_ENV"
           echo "APP_RESOURCES=$HOME/Applications/BubbleFacts.app/Contents/Resources" >> "$GITHUB_ENV"
 
+      - name: Describe the processor
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name"
+                     powershell -NoProfile -Command "Add-Type -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern bool IsProcessorFeaturePresent(uint f);' -Name K -Namespace W; 'AVX-512 (feature 41): ' + [W.K]::IsProcessorFeaturePresent(41)" ;;
+            Linux)   grep -m1 'model name' /proc/cpuinfo; grep -m1 -o 'avx512f' /proc/cpuinfo || echo "no avx512f" ;;
+            macOS)   sysctl -n machdep.cpu.brand_string ;;
+          esac
       - name: Run the smoke test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -107,7 +127,7 @@ jobs:
         run: |
           set +e
           echo "--- libraries the AI's native files can't find"
-          find "$APP_RESOURCES/app.asar.unpacked" \( -name '*.node' -o -name '*.so' \) -print0 | xargs -0 -n1 ldd 2>/dev/null | grep 'not found'
+          find "$APP_RESOURCES" \( -name '*.node' -o -name '*.so' \) -print0 | xargs -0 -n1 ldd 2>/dev/null | grep 'not found'
           echo "--- CPU"
           grep -m1 'model name' /proc/cpuinfo
           grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx|avx2|avx512.*|fma|f16c|bmi2|amx.*|avx_vnni)$' | tr '\n' ' '; echo
@@ -118,4 +138,15 @@ jobs:
           mkdir -p /tmp/plain && cd /tmp/plain && npm init -y >/dev/null && npm install --silent node-llama-cpp@$(node -p "require('$APP_RESOURCES/app.asar.unpacked/node_modules/@node-llama-cpp/linux-x64/package.json').version" 2>/dev/null || echo latest) >/dev/null 2>&1
           mkdir -p res/app.asar && ln -s /tmp/plain/node_modules res/app.asar/node_modules
           node "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/plain/res "$GITHUB_WORKSPACE/model.gguf" 2>&1 | tail -40
+          echo "exit status ${PIPESTATUS[0]}"
+          echo "--- the installed app's own server under plain Node.js (is it Electron's runtime?)"
+          cd /tmp && npx --yes @electron/asar extract "$APP_RESOURCES/app.asar" /tmp/extracted >/dev/null
+          cp -R "$APP_RESOURCES/app.asar.unpacked/." /tmp/extracted/
+          mkdir -p /tmp/plainres/app.asar && cp -R /tmp/extracted/. /tmp/plainres/app.asar/
+          SMOKE_RUNTIME=node node "$GITHUB_WORKSPACE/scripts/smoke-packaged.mjs" /tmp/plainres "$GITHUB_WORKSPACE/model.gguf" 2>&1 | grep -E "PASS|FAIL|WARN|signal" | head -10
+          echo "exit status ${PIPESTATUS[0]}"
+          echo "--- experiment: the app's own runtime with the AVX-512 builds of the AI removed"
+          mkdir -p /tmp/noavx && cp -R "$APP_RESOURCES/." /tmp/noavx/
+          find /tmp/noavx -name 'libggml-cpu-*.so' | grep -E 'zen4|sapphirerapids|cooperlake|cannonlake|cascadelake|icelake|skylakex' | xargs rm -f
+          ELECTRON_RUN_AS_NODE=1 "$APP_EXE" "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/noavx "$GITHUB_WORKSPACE/model.gguf" 2>&1 | grep -E "\[debug\]|loaded CPU backend|load_backend" | head -8
           echo "exit status ${PIPESTATUS[0]}"

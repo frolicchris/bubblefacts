@@ -144,7 +144,14 @@
       "category": "AudioVideo",
       "icon": "desktop/build/icon.png",
       "synopsis": "Fact bubbles in OBS about the song you're playing",
-      "maintainer": "Christopher Feyrer <chris@frolic.org>"
+      "maintainer": "Christopher Feyrer <chris@frolic.org>",
+      "asar": false,
+      "extraResources": [
+        {
+          "from": "desktop/runtime/node",
+          "to": "runtime/node"
+        }
+      ]
     },
     "appImage": {
       "artifactName": "BubbleFacts-${version}-linux-x86_64.${ext}"

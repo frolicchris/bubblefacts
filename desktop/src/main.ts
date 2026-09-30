@@ -56,7 +56,13 @@ let ollama: { pulling?: string; error?: string } | null = null;
 /** Bubbles paused from the dashboard or tray. Not saved: a restart shows bubbles again. */
 let paused = false;
 
-const supervisor = new Supervisor(path.join(ROOT, "dist/backend/server.js"), DIRS.logs);
+// Linux builds ship a standard Node.js for the fact server (see Supervisor).
+const nodeRuntime = path.join(process.resourcesPath, "runtime", "node");
+const supervisor = new Supervisor(
+  path.join(ROOT, "dist/backend/server.js"),
+  DIRS.logs,
+  process.platform === "linux" && fs.existsSync(nodeRuntime) ? nodeRuntime : null
+);
 const overlayFile = () => path.join(DIRS.overlay, OVERLAY_FILE);
 const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
 
@@ -86,6 +92,7 @@ function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelPath: modelPath(DIRS.models), logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
   if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
+  env.BUBBLEFACTS_DATA_DIR = DATA;
   return env;
 }
 
@@ -392,6 +399,7 @@ async function setPaused(next: boolean): Promise<void> {
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
+ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());
@@ -483,7 +491,7 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable"]) {
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();

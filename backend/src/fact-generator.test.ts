@@ -7,6 +7,7 @@ jest.mock("@anthropic-ai/sdk", () => ({
 jest.mock("./config", () => ({
   config: {
     sslStreamerName: "teststreamer",
+    dataDir: process.env.BUBBLEFACTS_DATA_DIR,
     streamerDisplayName: "Test Streamer",
     originals: true,
     instrument: "",

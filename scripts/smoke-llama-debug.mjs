@@ -2,11 +2,13 @@
 // node-llama-cpp from an installed app with debug logging, processor-only,
 // and reports how far it got. Run like smoke-packaged.mjs:
 //   ELECTRON_RUN_AS_NODE=1 <app executable> scripts/smoke-llama-debug.mjs <resources dir> <model.gguf>
+import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const [resources, modelPath] = process.argv.slice(2);
-const entry = path.join(resources, "app.asar", "node_modules", "node-llama-cpp", "dist", "index.js");
+const appDir = fs.existsSync(path.join(resources, "app.asar")) ? "app.asar" : "app";
+const entry = path.join(resources, appDir, "node_modules", "node-llama-cpp", "dist", "index.js");
 const step = (s) => console.log(`[debug] ${s}`);
 
 step(`importing ${entry}`);

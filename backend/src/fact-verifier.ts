@@ -1,5 +1,6 @@
 import { config } from "./config";
 import { SSLSong } from "./types";
+import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { escapeRe } from "./text";
 
@@ -194,8 +195,15 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
 
   // The article extends the subject on a token boundary: "Celeste" -> "Celeste (video game)".
   if (gotSeq.startsWith(wantSeq + " ")) return !(MEDIUM_SHIFT.test(got) && !MEDIUM_SHIFT.test(want));
-  // The article truncates the subject: safe only if no numeral was lost.
-  if (wantSeq.startsWith(gotSeq + " ")) return wantNums.every((n) => gotNums.includes(n));
+  // The article truncates the subject: safe only at a subtitle break ("Ys VIII:
+  // Lacrimosa of Dana" -> "Ys VIII") and if no numeral was lost. "Everybody
+  // Dance Now" is not "Everybody Dance".
+  if (wantSeq.startsWith(gotSeq + " ")) {
+    const head = significantTokens(normalizeTitle(subject.split(/:|\s[-–—]\s/)[0])).join(" ");
+    // An installment number is a subtitle break too: "Ys II The Final Chapter" -> "Ys II".
+    const atBreak = head === gotSeq || /^\d+$/.test(gotTokens[gotTokens.length - 1]);
+    return atBreak && wantNums.every((n) => gotNums.includes(n));
+  }
 
   // Longer titles that merely contain the subject are about something else:
   // "Queen" -> "Long Live the Queen (video game)".
@@ -294,8 +302,12 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   // have its own article. The artist test is a heuristic, and guessing
   // "artist" for a game only costs extra lookups, never wrong facts.
   const artist = looksLikeArtistName(game);
+  // Articles the streamer marked wrong for this song are never used for it again.
+  const blocked = blockedArticles(song);
+  const usable = (title: string) => !blocked.has(title);
   for (const key of artist ? [songKey] : [gameKey, songKey]) {
     const hit = key && groundingCache.get(key);
+    if (hit && hit.text && !usable(hit.text.split("\n")[0])) continue;
     if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.text;
   }
 
@@ -316,7 +328,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   for (const term of terms) {
     try {
       const titles = await wikiSearch(term);
-      const page = titles.find((t) => matchedGame(t) || matchedTrack(t));
+      const page = titles.find((t) => usable(t) && (matchedGame(t) || matchedTrack(t)));
       if (!page) {
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
         continue;
@@ -349,7 +361,8 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       (unreachable ? ` (${unreachable}, not cached)` : "") +
       ` — tried: ${terms.join(" | ")}`
   );
-  if (!unreachable) groundingCache.set(artist ? songKey : gameKey, { text: "", at: Date.now() });
+  // A miss caused by this song's blocked articles says nothing about the game's other tracks.
+  if (!unreachable) groundingCache.set(artist || blocked.size ? songKey : gameKey, { text: "", at: Date.now() });
   return "";
 }
 

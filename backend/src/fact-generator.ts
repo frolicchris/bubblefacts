@@ -5,6 +5,7 @@ import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
+import { blockArticle, songKey } from "./wrong-facts";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -58,6 +59,8 @@ export const factStats = {
 /** Songs with no usable facts are retried after this long; others are kept. */
 const RETRY_MS = 10 * 60 * 1000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
+/** The Wikipedia article each cached song's facts came from, for "Wrong". */
+const sources = new Map<string, string>();
 const inFlight = new Map<string, Promise<Fact[]>>();
 const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
@@ -331,6 +334,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
 
     if (shown.length) {
       record(song, "grounded", shown.length);
+      sources.set(songKey(song), context.split("\n")[0]);
       return { facts: toFacts(shown), ttlMs: Infinity };
     }
     const fallback = entryFacts(entry, want);
@@ -350,7 +354,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
  * overlays, a reconnect mid-generation) share one generation.
  */
 export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<Fact[]> {
-  const key = `${song.artist ?? ""}:::${song.title}`.toLowerCase();
+  const key = songKey(song);
   const cached = factCache.get(key);
   if (cached && Date.now() < cached.expires) {
     factStats.cacheHits++;
@@ -372,4 +376,21 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
 export function clearFactCache(): void {
   factCache.clear();
   inFlight.clear();
+  sources.clear();
+}
+
+/**
+ * The streamer marked one of this song's facts wrong. The article it came
+ * from is blocked for the song, and the cached facts are dropped, so the
+ * next time it plays BubbleFacts looks again. Returns the blocked article,
+ * or null when the facts didn't come from one (backup or song-list facts).
+ */
+export function markWrong(song: SSLSong): string | null {
+  const key = songKey(song);
+  const article = sources.get(key) ?? null;
+  if (article) blockArticle(song, article);
+  factCache.delete(key);
+  sources.delete(key);
+  console.log(`[WrongFact] "${song.title}": ${article ? `won't use "${article}" again` : "not from an article"}`);
+  return article;
 }

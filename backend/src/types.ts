@@ -72,9 +72,10 @@ export interface Fact {
   position: { top: string; left: string };
 }
 
-/** Server-to-overlay WebSocket message. */
+/** Server-to-overlay WebSocket message. `remove_fact` takes one fact, by `text`, off the current song. */
 export interface FactsPayload {
-  type: "new_song" | "facts_ready" | "clear";
+  type: "new_song" | "facts_ready" | "clear" | "remove_fact";
   song?: SSLSong;
   facts?: Fact[];
+  text?: string;
 }

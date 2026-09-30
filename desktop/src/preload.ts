@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   recent: () => ipcRenderer.invoke("recent"),
   reportProblem: () => ipcRenderer.invoke("report-problem"),
   reportFact: (song: string, fact: string) => ipcRenderer.invoke("report-fact", song, fact),
+  wrongFact: (fact: string) => ipcRenderer.invoke("wrong-fact", fact),
   on: (channel: "status" | "state" | "model-progress", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },

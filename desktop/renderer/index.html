@@ -192,6 +192,7 @@
         <h2>On stream now</h2>
         <p id="now-song" class="now-song">Nothing playing yet</p>
         <ul id="now-facts" class="facts"></ul>
+        <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-report" class="link">Tell us about it</button></p>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
       </div>
 
@@ -340,14 +341,15 @@
   </main>
 
   <footer class="about">
-    BubbleFacts <span id="about-version"></span> · made by <button class="link" data-open="https://www.twitch.tv/frolicchris">frolicchris</button> ·
+    BubbleFacts <span id="about-version"></span> ·
     <button class="link" data-open="https://bubblefacts.frolic.org/">Website</button> ·
     <button class="link" data-open="https://discord.gg/gXdVKc6KWx">Discord</button> ·
-    <button class="link" data-open="https://github.com/frolicchris/bubblefacts">GitHub</button>
+    <button class="link" data-open="https://github.com/frolicchris/bubblefacts">GitHub</button><br>
+    Developed with AI assistance (Claude Code). Human in the loop: Christopher Feyrer (<button class="link" data-open="https://github.com/frolicchris">@frolicchris</button>), maintainer.
   </footer>
 
   <template id="fact-item">
-    <li class="fact"><span class="fact-text"></span><button class="link wrong" title="Opens a report on GitHub (a free account is needed)">Report this fact</button></li>
+    <li class="fact"><span class="fact-text"></span><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
   <script src="app.js"></script>

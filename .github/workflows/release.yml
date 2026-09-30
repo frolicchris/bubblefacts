@@ -46,6 +46,11 @@ jobs:
         shell: bash
         run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
       - run: npm test
+      # Linux runs the fact server under a standard Node.js (see desktop/src/supervisor.ts):
+      # ship the official one setup-node just installed.
+      - name: Bundle Node.js for the fact server (Linux)
+        if: runner.os == 'Linux'
+        run: mkdir -p desktop/runtime && cp "$(node -p 'process.execPath')" desktop/runtime/node && desktop/runtime/node --version
       - run: npm run dist -- ${{ matrix.args }}
       - uses: actions/attest-build-provenance@v4
         with:

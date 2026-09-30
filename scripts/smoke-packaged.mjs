@@ -5,10 +5,16 @@
 // the processor. This is the path the unit tests can't reach: the installed
 // files, the native AI binaries and the operating system's own libraries.
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 const [resources, modelPath] = process.argv.slice(2);
-const server = path.join(resources, "app.asar", "dist", "backend", "server.js");
+// Packed into app.asar on Windows and macOS; a plain folder on Linux, whose server runs under Node.js.
+const appDir = fs.existsSync(path.join(resources, "app.asar")) ? "app.asar" : "app";
+const server = path.join(resources, appDir, "dist", "backend", "server.js");
+// Run the server the way the app does: with its bundled Node.js if it ships one, else its own runtime.
+const bundled = path.join(resources, "runtime", "node");
+const runtime = fs.existsSync(bundled) ? bundled : process.execPath;
 const PORT = "3999";
 const fail = (msg) => {
   console.error(`FAIL: ${msg}`);
@@ -16,7 +22,8 @@ const fail = (msg) => {
 };
 
 function start(env) {
-  const child = spawn(process.execPath, [server], {
+  // SMOKE_RUNTIME=node runs the server under this Node.js instead of the app's own runtime (diagnostics).
+  const child = spawn(runtime, [server], {
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",

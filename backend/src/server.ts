@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { generateFacts, factStats, warmUpBuiltin } from "./fact-generator";
+import { generateFacts, factStats, markWrong, warmUpBuiltin } from "./fact-generator";
 import { FactsPayload, SSLQueueItem } from "./types";
 
 /**
@@ -45,6 +45,7 @@ let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 function broadcast(payload: FactsPayload): void {
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts };
+  else if (payload.type === "remove_fact") lastSent = { song: lastSent.song, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
@@ -142,6 +143,19 @@ control.post("/pause", (req, res) => {
   res.json({ paused });
 });
 
+// "Wrong" in the app: take the fact off the stream now, and stop using its article for this song.
+control.post("/wrong", (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text : "";
+  const song = lastSent.song;
+  if (!song || !text || !(lastSent.facts ?? []).some((f) => f.text === text)) {
+    res.status(404).json({ removed: false });
+    return;
+  }
+  broadcast({ type: "remove_fact", song, text });
+  const article = markWrong(song);
+  res.json({ removed: true, article });
+});
+
 app.use("/control", control);
 
 app.use("/obs", express.static(path.resolve(__dirname, "../../frontend/obs")));
@@ -219,16 +233,19 @@ server.listen(config.port, config.host, () => {
 
 void warmUpBuiltin();
 
-// Under the desktop app, the app refreshes the StreamerSongList sign-in and passes each new token here.
-type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void };
-const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
-parentPort?.on("message", ({ data }) => {
+// Under the desktop app, the app refreshes the StreamerSongList sign-in and passes each new token here:
+// through Electron's parentPort, or Node's IPC channel when the app runs the server under Node.js (Linux).
+function onAppMessage(data: unknown): void {
   const msg = data as { type?: string; token?: unknown };
   if (msg?.type === "ssl-token" && typeof msg.token === "string" && msg.token) {
     setAccessToken(msg.token);
     console.log("[SSL] Sign-in refreshed");
   }
-});
+}
+type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void };
+const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
+parentPort?.on("message", ({ data }) => onAppMessage(data));
+if (process.send) process.on("message", onAppMessage);
 
 songList
   .connect()

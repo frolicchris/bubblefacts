@@ -1,4 +1,5 @@
-import { app, utilityProcess, UtilityProcess } from "electron";
+import { app, utilityProcess } from "electron";
+import { fork } from "child_process";
 import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
@@ -47,8 +48,14 @@ const RESTART_WINDOW_MS = 10 * 60_000;
 const LOG_LINES_KEPT = 800;
 const PORT_SEARCH = 10;
 
+/** The running fact server, however it was started. */
+interface ServerProcess {
+  kill(): void;
+  send(message: { type: string; token: string }): void;
+}
+
 export class Supervisor extends EventEmitter {
-  private child: UtilityProcess | null = null;
+  private child: ServerProcess | null = null;
   private env: Record<string, string> = {};
   private stopping = false;
   private healthTimer: NodeJS.Timeout | null = null;
@@ -66,7 +73,8 @@ export class Supervisor extends EventEmitter {
   readonly lines: string[] = [];
   status: Status = { state: "stopped", health: null, message: "", restarts: 0, port: 3000 };
 
-  constructor(private readonly serverScript: string, private readonly logDir: string) {
+  /** `runtime`: a Node.js to run the server with instead of Electron's (Linux). */
+  constructor(private readonly serverScript: string, private readonly logDir: string, private readonly runtime: string | null = null) {
     super();
   }
 
@@ -88,7 +96,7 @@ export class Supervisor extends EventEmitter {
   /** Hand the running server a new StreamerSongList token, and use it for any later restart. */
   updateToken(token: string): void {
     this.env = { ...this.env, SSL_ACCESS_TOKEN: token };
-    this.child?.postMessage({ type: "ssl-token", token });
+    this.child?.send({ type: "ssl-token", token });
   }
 
   stop(): void {
@@ -115,15 +123,27 @@ export class Supervisor extends EventEmitter {
     this.launchedAt = Date.now();
     this.set(this.status.state === "failing" ? "failing" : "starting", `${verb} the fact server`);
 
-    const child = utilityProcess.fork(this.serverScript, [], {
-      env: { ...process.env, ...this.env },
-      stdio: "pipe",
-      serviceName: "BubbleFacts server",
-    });
+    const env = { ...process.env, ...this.env };
+    const output = (d: Buffer | string) => this.log(String(d));
+    let child: ServerProcess;
+    if (this.runtime) {
+      // Linux: the fact server runs under a standard Node.js shipped with the app, because the
+      // built-in AI crashes (illegal instruction) under Electron's own runtime there.
+      const proc = fork(this.serverScript, [], { execPath: this.runtime, env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
+      proc.stdout?.on("data", output);
+      proc.stderr?.on("data", output);
+      proc.on("error", (err) => this.log(`[App] Couldn't start the fact server: ${err.message}`));
+      proc.on("exit", (code) => onExit(code));
+      child = { kill: () => proc.kill(), send: (m) => void (proc.connected && proc.send(m)) };
+    } else {
+      const proc = utilityProcess.fork(this.serverScript, [], { env, stdio: "pipe", serviceName: "BubbleFacts server" });
+      proc.stdout?.on("data", output);
+      proc.stderr?.on("data", output);
+      proc.on("exit", (code) => onExit(code));
+      child = { kill: () => void proc.kill(), send: (m) => proc.postMessage(m) };
+    }
     this.child = child;
-    child.stdout?.on("data", (d) => this.log(String(d)));
-    child.stderr?.on("data", (d) => this.log(String(d)));
-    child.on("exit", (code) => {
+    const onExit = (code: number | null) => {
       if (this.child !== child) return;
       this.child = null;
       if (this.stopping) return;
@@ -131,7 +151,7 @@ export class Supervisor extends EventEmitter {
       // Only a crash between "Listening" and the model loading points at the AI; an earlier one is a setup problem.
       if (this.env.AI_PROVIDER === "builtin" && this.listening && !this.modelLoaded) return this.modelFailed("crashed while loading");
       this.scheduleRestart(`The fact server stopped unexpectedly (code ${code})`);
-    });
+    };
 
     if (!this.healthTimer) this.healthTimer = setInterval(() => void this.checkHealth(), HEALTH_EVERY_MS);
   }
