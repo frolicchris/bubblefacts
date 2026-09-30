@@ -90,6 +90,8 @@ const MUSICAL_QUALIFIER =
 /** Disambiguators for people and groups: right only when we searched for one. */
 const PERFORMER_QUALIFIER = /band|singer|musician|composer|pianist|rapper|duo|group|orchestra/i;
 /** Words marking a different kind of work under the same name. */
+/** An article's opening that describes a performer or a recording. */
+const PERFORMER_LEAD = /\b(band|singer|rapper|musician|group|duo|trio|songwriter|record(ing)? artist|vocalist|album|song|single|DJ|producer)\b/i;
 /** Disambiguators that can't be a performer. */
 const NOT_A_PERFORMER = /\((?:[^)]*\b)?(video game|game|film|television|tv series|novel|manga|anime)\)\s*$/i;
 const MEDIUM_SHIFT = /\b(movie|film|musical|discography|anime|manga|novel|list|awards|tour|concert)\b/i;
@@ -194,7 +196,11 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   const gotSeq = gotTokens.join(" ");
 
   // The article extends the subject on a token boundary: "Celeste" -> "Celeste (video game)".
-  if (gotSeq.startsWith(wantSeq + " ")) return !(MEDIUM_SHIFT.test(got) && !MEDIUM_SHIFT.test(want));
+  if (gotSeq.startsWith(wantSeq + " ")) {
+    // A possessive names another work: "Michael Jackson's This Is It" isn't about Michael Jackson's songs.
+    if (got.startsWith(want + " s ")) return false;
+    return !(MEDIUM_SHIFT.test(got) && !MEDIUM_SHIFT.test(want));
+  }
   // The article truncates the subject: safe only at a subtitle break ("Ys VIII:
   // Lacrimosa of Dana" -> "Ys VIII") and if no numeral was lost. "Everybody
   // Dance Now" is not "Everybody Dance".
@@ -320,6 +326,8 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   const matchedTrack = (title: string) =>
     track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game);
 
+  // "Lil Nas X, Jack Harlow": a song's article names its lead artist, not the whole credit.
+  const leadArtist = game.split(/\s*(?:,|&|\band\b|\bx\b|\bfeat\.?|\bft\.?)\s*/i)[0] || game;
   const terms = searchTerms(game, track, artist || !!song.performer);
   // A music video's artist may share a name with a game or film; ask for the performer.
   if (song.performer && !artist) terms.splice(terms.indexOf(game), 0, `${game} band`);
@@ -328,14 +336,23 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   for (const term of terms) {
     try {
       const titles = await wikiSearch(term);
-      const page = titles.find((t) => usable(t) && (matchedGame(t) || matchedTrack(t)));
+      // For an artist, the song's own article beats the artist's, wherever it ranks:
+      // "Industry Baby" over "Lil Nas X".
+      const page = artist || song.performer
+        ? titles.find((t) => usable(t) && matchedTrack(t)) ?? titles.find((t) => usable(t) && matchedGame(t))
+        : titles.find((t) => usable(t) && (matchedGame(t) || matchedTrack(t)));
       if (!page) {
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
         continue;
       }
       const byGame = matchedGame(page);
       const full = await wikiExtract(page);
-      if (!byGame && full && !normalizeTitle(full).includes(gameKey)) {
+      // A performer's name alone can be an everyday word: "Milestone" is about road markers.
+      if (byGame && song.performer && !/\(/.test(page) && full && !PERFORMER_LEAD.test(full.slice(0, 400))) {
+        console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
+        continue;
+      }
+      if (!byGame && full && !normalizeTitle(full).includes(normalizeTitle(leadArtist))) {
         console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
         continue;
       }

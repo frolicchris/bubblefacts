@@ -225,6 +225,11 @@ describe("isRelevantArticle", () => {
     expect(isRelevantArticle("The Midnight", "Wangan Midnight (2007 video game)")).toBe(false);
   });
 
+  it("rejects a possessive title, which names another work", () => {
+    // From a live stream: "Michael Jackson - Whatever Happens" got facts about the This Is It album.
+    expect(isRelevantArticle("Michael Jackson", "Michael Jackson's This Is It (album)", true)).toBe(false);
+  });
+
   it("accepts a band article when the subject is a performer", () => {
     expect(isRelevantArticle("The Midnight", "The Midnight (band)", true)).toBe(true);
     expect(isRelevantArticle("The Midnight", "The Midnight (band)")).toBe(false);

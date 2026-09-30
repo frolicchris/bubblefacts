@@ -12,6 +12,10 @@ describe("parseVideoTitle", () => {
     ["EVERYBODY DANCE NOW - DRUM COVER | C+C MUSIC FACTORY", "Some Drummer", "EVERYBODY DANCE NOW", "C+C MUSIC FACTORY"],
     ["C+C Music Factory - Everybody Dance Now (Drum Cover)", "Some Drummer", "Everybody Dance Now", "C+C Music Factory"],
     ["The Midnight - Lost Boy [Music Video]", "Digital Gravity", "Lost Boy", "The Midnight"],
+    // From the same stream: a label after the pipe, a show's initials, hashtags
+    ["Sunflower Seeds | Original Song (Live Performance)", "JoshuaWooMusic", "Sunflower Seeds", "JoshuaWooMusic"],
+    ["Friendos (featuring A$AP Rocky) - SNL", "Saturday Night Live", "Friendos", "Saturday Night Live"],
+    ["Lil Nas X, Jack Harlow - INDUSTRY BABY (Official Video) #shorts", "LilNasXVEVO", "INDUSTRY BABY", "Lil Nas X, Jack Harlow"],
     ["Rick Astley - Never Gonna Give You Up (Official Music Video)", "Rick Astley", "Never Gonna Give You Up", "Rick Astley"],
     ["Queen – Bohemian Rhapsody (Official Video Remastered)", "Queen Official", "Bohemian Rhapsody", "Queen"],
     ["Adele - Hello (Official Lyric Video)", "AdeleVEVO", "Hello", "Adele"],

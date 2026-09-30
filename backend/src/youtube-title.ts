@@ -39,7 +39,7 @@ const NOISE_WORDS = [
   "sped", "up", "nightcore", "drums?", "drummer", "bass", "sax", "saxophone", "keytar", "keys", "synth",
   "ukulele", "cello", "flute", "trumpet", "trombone", "clarinet", "harp", "orchestral", "band", "vocals?", "8d", "extended", "\\d+", "hours?", "loop", "animated", "with", "and", "on",
   "the", "a", "in", "high", "quality", "solo", "arr\\.?", "arranged", "arrangement", "performance",
-  "premiere", "new", "vevo",
+  "premiere", "new", "vevo", "original",
 ];
 /** Also dropped when they make up a whole " - " or " | " segment: "Song - Live", "Song | Remix". */
 const VARIANT_WORDS = ["live", "remix", "edit", "radio", "mix", "demo", "session", "sessions"];
@@ -115,7 +115,8 @@ export function artistFromChannel(channel: string | undefined | null): { artist:
 }
 
 export function parseVideoTitle(rawTitle: string, channel?: string | null): ParsedTitle {
-  const raw = (rawTitle ?? "").replace(/\s+/g, " ").trim();
+  // Hashtags describe the upload ("#saxdragon #Keytar"), never the song.
+  const raw = (rawTitle ?? "").replace(/(^|\s)#[\p{L}\p{N}_]+/gu, " ").replace(/\s+/g, " ").trim();
   let source = "";
 
   // 1. Brackets: drop the upload's own labels, keep what names the song or its source.
@@ -158,6 +159,7 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     let right = parts.slice(1).join(" - ");
     if (shouldSwap(left, right, channelInfo.artist)) [left, right] = [right, left];
     artist = withoutSoundtrack(stripFeaturing(left));
+    if (fold(artist) === initials(channelInfo.artist)) artist = channelInfo.artist;
     title = stripFeaturing(right);
     confident = true;
   } else {
@@ -203,11 +205,19 @@ function stripFeaturing(s: string): string {
  *  - the right side has a subtitle ("The Legend of Zelda: Ocarina of Time")
  *    and the left doesn't, which is how works are titled, not songs.
  */
+/** "Saturday Night Live" -> "snl". */
+function initials(name: string): string {
+  const words = name.split(/\s+/).filter(Boolean);
+  return words.length >= 2 ? words.map((w) => w[0]).join("").toLowerCase() : "";
+}
+
 function shouldSwap(left: string, right: string, channelArtist: string): boolean {
   const ch = fold(channelArtist);
   if (ch) {
     if (fold(left) === ch || fold(stripFeaturing(left)) === ch) return false;
     if (fold(right) === ch || fold(stripFeaturing(right)) === ch) return true;
+    // "Friendos - SNL" from the Saturday Night Live channel: the show's initials name the source.
+    if (fold(right) === initials(channelArtist)) return true;
   }
   if (HAS_SOUNDTRACK.test(right) && !HAS_SOUNDTRACK.test(left)) return true;
   return /\S:\s/.test(right) && !/:/.test(left);
