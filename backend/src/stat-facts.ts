@@ -3,7 +3,7 @@ import { SSLQueueItem } from "./types";
 
 /**
  * Facts built from the queue entry itself: the streamer's note, play count,
- * last played, duration, requesters. True by construction, and the only
+ * last played, requesters. True by construction, and the only
  * song-specific facts available for originals and songs with no article.
  */
 
