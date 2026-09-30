@@ -12,6 +12,14 @@ import {
   toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
+
+/**
+ * A YouTube Data API key restricted to that API, added to package.json at
+ * build time from the YOUTUBE_API_KEY secret (never committed). Used to read
+ * the exact artist and track of auto-generated uploads (issue #26).
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || (require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string } }).bubblefacts?.youtubeApiKey || "";
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
@@ -93,6 +101,7 @@ function serverEnv(): Record<string, string> {
   if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
   env.BUBBLEFACTS_DATA_DIR = DATA;
+  if (YOUTUBE_API_KEY) env.YOUTUBE_API_KEY = YOUTUBE_API_KEY;
   return env;
 }
 

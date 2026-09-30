@@ -4,6 +4,7 @@ import { SongSource } from "./song-source";
 import { SongListClient } from "./songlist-client";
 import { SSLQueueItem, SSLSong } from "./types";
 import { parseVideoTitle } from "./youtube-title";
+import { songFromYouTube, YouTubeSong } from "./youtube-metadata";
 
 /**
  * StreamElements song requests ("Media Request"): REST for data, Astro for
@@ -126,8 +127,9 @@ export class StreamElementsClient implements SongSource {
    * artist come from the YouTube title; the requester and length carry over.
    * There's no play count or note on StreamElements, so no facts use them.
    */
-  static toEntry(song: SESong): SSLQueueItem {
-    const parsed = parseVideoTitle(song.title ?? "", song.channel);
+  static toEntry(song: SESong, exact: YouTubeSong | null = null): SSLQueueItem {
+    // An auto-generated upload's own metadata beats reading its title.
+    const parsed = exact ? { ...exact, confident: true, performer: true } : parseVideoTitle(song.title ?? "", song.channel);
     const requester = song.user?.username?.trim();
     return {
       id: 0,
@@ -209,7 +211,7 @@ export class StreamElementsClient implements SongSource {
           const player = await this.getJSON<{ state?: string }>(`/songrequest/${id}/player`, "player");
           const playing = await this.getJSON<SESong>(`/songrequest/${id}/playing`, "playing song");
           this.lastSuccessfulFetchAt = Date.now();
-          this.apply(player?.state, playing);
+          await this.apply(player?.state, playing);
         } catch (err) {
           console.error(`[SE] Error fetching the song request player: ${err instanceof Error ? err.message : err}`);
         }
@@ -219,7 +221,7 @@ export class StreamElementsClient implements SongSource {
     return this.inFlight;
   }
 
-  private apply(restState: string | undefined, playing: SESong | null): void {
+  private async apply(restState: string | undefined, playing: SESong | null): Promise<void> {
     if (restState !== this.lastRestState) {
       console.log(`[SE] Player state: ${restState ?? "(none)"}${this.eventState ? ` (last event: ${this.eventState})` : ""}`);
       this.lastRestState = restState;
@@ -244,7 +246,7 @@ export class StreamElementsClient implements SongSource {
     }
     const nextKey = next && StreamElementsClient.key(next);
     if (nextKey === this.currentKey) return;
-    const entry = next && StreamElementsClient.toEntry(next);
+    const entry = next && StreamElementsClient.toEntry(next, await songFromYouTube(next.videoId));
     console.log(
       `[SE] Song changed: "${this.currentSong ? this.displayTitle(this.currentSong) : "none"}" -> ` +
         `"${entry ? this.displayTitle(entry) : "none"}"` +

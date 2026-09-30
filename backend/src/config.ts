@@ -98,6 +98,8 @@ export const config = {
     : requireEnv("SE_JWT", "Copy the JWT token from your StreamElements dashboard: Account, then Channels, then Show secrets."),
   seApiBase: trimSlash(process.env.SE_API_BASE || "https://api.streamelements.com/kappa/v2"),
   seEventsUrl: process.env.SE_EVENTS_URL || "wss://astro.streamelements.com",
+  // YouTube Data API key, for the exact artist and track of auto-generated uploads. Optional.
+  youtubeApiKey: (process.env.YOUTUBE_API_KEY || "").trim(),
   sePollIntervalMs: intEnv("SE_POLL_INTERVAL_MS", 15000, 5000, 300000),
   seRequestTimeoutMs: intEnv("SE_REQUEST_TIMEOUT_MS", 5000, 500, 60000),
 
