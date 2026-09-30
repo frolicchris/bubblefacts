@@ -116,9 +116,14 @@ export function loadSettings(): Settings {
       : typeof value === typeof fallback;
     if (ok) target[key] = value;
   }
+  // Before 2.0.0-beta.3 every install started with these example packs checked.
+  // Left unchanged, they're dropped: the examples are opt-in now (issue #18).
+  if (settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
   for (const key of SECRET_KEYS) settings[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
   return sanitize(settings);
 }
+
+const OLD_DEFAULT_TOPICS = "video-game,classical,film,pop,general";
 
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;

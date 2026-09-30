@@ -61,6 +61,13 @@ describe("loadSettings", () => {
     expect(s).toMatchObject({ setupComplete: true, channel: "jane", tokenKind: "streamer", myFacts: [], liveLearns: true });
   });
 
+  it("drops the example packs every install used to start with, but keeps a streamer's own choice", () => {
+    fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "classical", "film", "pop", "general"] }));
+    expect(loadSettings().topics).toEqual([]);
+    fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "piano"] }));
+    expect(loadSettings().topics).toEqual(["video-game", "piano"]);
+  });
+
   it("replaces values of the wrong type with the default", () => {
     fs.writeFileSync(file, JSON.stringify({ channel: 42, topics: "pop", myFacts: [1, 2], port: "3000", liveLearns: false }));
     const s = loadSettings();
