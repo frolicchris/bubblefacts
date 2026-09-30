@@ -89,6 +89,8 @@ const MUSICAL_QUALIFIER =
 /** Disambiguators for people and groups: right only when we searched for one. */
 const PERFORMER_QUALIFIER = /band|singer|musician|composer|pianist|rapper|duo|group|orchestra/i;
 /** Words marking a different kind of work under the same name. */
+/** Disambiguators that can't be a performer. */
+const NOT_A_PERFORMER = /\((?:[^)]*\b)?(video game|game|film|television|tv series|novel|manga|anime)\)\s*$/i;
 const MEDIUM_SHIFT = /\b(movie|film|musical|discography|anime|manga|novel|list|awards|tour|concert)\b/i;
 
 const KNOWN_ARTIST =
@@ -164,6 +166,9 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   const wantTokens = significantTokens(want);
   const gotTokens = significantTokens(got);
   if (!want || !got || !wantTokens.length || !gotTokens.length) return false;
+  // A leading "The" is part of a band's name: "The Midnight" is not "Midnight
+  // Club" or "Wangan Midnight", though dropping "the" would leave only "midnight".
+  if (/^the\s/.test(want) && !/^the\s/.test(got)) return false;
 
   const qualifier = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
   if (qualifier) {
@@ -199,7 +204,11 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
 
   const gotSet = new Set(gotTokens);
   const ratio = wantTokens.filter((t) => gotSet.has(t)).length / wantTokens.length;
-  return wantTokens.length >= 3 ? ratio >= 0.85 : ratio === 1;
+  if (wantTokens.length >= 3) return ratio >= 0.85;
+  // A short subject must be the whole title, in any order: "The Midnight" is
+  // not "Wangan Midnight".
+  const wantSet = new Set(wantTokens);
+  return ratio === 1 && gotTokens.every((t) => wantSet.has(t));
 }
 
 // --- Wikipedia lookup --------------------------------------------------
@@ -293,11 +302,15 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   // Which way an article matched decides how widely it may be shared. A
   // track article must not be attributed to another artist, and its text
   // must mention the game or artist: "Overture" alone is a generic article.
-  const matchedGame = (title: string) => isRelevantArticle(game, title, artist);
+  // A music video's artist is a band or singer, never a game or film of the same name.
+  const matchedGame = (title: string) =>
+    isRelevantArticle(game, title, artist || !!song.performer) && !(song.performer && NOT_A_PERFORMER.test(title));
   const matchedTrack = (title: string) =>
     track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game);
 
-  const terms = searchTerms(game, track, artist);
+  const terms = searchTerms(game, track, artist || !!song.performer);
+  // A music video's artist may share a name with a game or film; ask for the performer.
+  if (song.performer && !artist) terms.splice(terms.indexOf(game), 0, `${game} band`);
   let unreachable = "";
 
   for (const term of terms) {

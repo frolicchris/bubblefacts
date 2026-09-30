@@ -20,7 +20,15 @@ export interface ParsedTitle {
   artist: string;
   /** False when the artist is only a guess from an uploader that may be a cover channel. */
   confident: boolean;
+  /**
+   * The artist is a performer, not a game or film: the upload calls itself a
+   * music video or official audio, or comes from a VEVO or "- Topic" channel.
+   */
+  performer: boolean;
 }
+
+/** An upload that is a performer's own release, not soundtrack music. */
+const PERFORMER_UPLOAD = /\b(?:official\s+(?:music\s+)?(?:video|audio|visuali[sz]er|lyric\s+video|mv)|music\s+video|lyric\s+video)\b/i;
 
 /** Words that describe the upload, not the song. A bracket or segment made only of these is dropped. */
 const NOISE_WORDS = [
@@ -141,6 +149,7 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
   let artist = "";
   let title = "";
   let confident = false;
+  let fromSource = false;
 
   if (parts.length >= 2) {
     let left = parts[0];
@@ -163,6 +172,7 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
   if (!artist && (source || pipeSource)) {
     artist = withoutSoundtrack(source || pipeSource);
     confident = true;
+    fromSource = true;
   }
   if (!artist && channelInfo.artist) {
     artist = channelInfo.artist;
@@ -175,7 +185,8 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     title = raw;
     confident = false;
   }
-  return { title, artist: tidy(artist), confident };
+  const performer = !!artist && !fromSource && (PERFORMER_UPLOAD.test(raw) || channelInfo.official);
+  return { title, artist: tidy(artist), confident, performer };
 }
 
 function stripFeaturing(s: string): string {

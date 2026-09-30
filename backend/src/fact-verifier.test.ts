@@ -217,6 +217,17 @@ describe("isRelevantArticle", () => {
     expect(isRelevantArticle("Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana")).toBe(true);
   });
 
+  it("rejects a longer title that only shares the subject's last word", () => {
+    // A real failure: "The Midnight - Lost Boy" was grounded on a racing game.
+    expect(isRelevantArticle("The Midnight", "Wangan Midnight")).toBe(false);
+    expect(isRelevantArticle("The Midnight", "Wangan Midnight (2007 video game)")).toBe(false);
+  });
+
+  it("accepts a band article when the subject is a performer", () => {
+    expect(isRelevantArticle("The Midnight", "The Midnight (band)", true)).toBe(true);
+    expect(isRelevantArticle("The Midnight", "The Midnight (band)")).toBe(false);
+  });
+
   it("rejects the unrelated article Wikipedia returns for an original song", () => {
     // A real failure: faithful facts about entirely the wrong work.
     expect(isRelevantArticle("Jane Composer", "The Last of Us season 1")).toBe(false);
