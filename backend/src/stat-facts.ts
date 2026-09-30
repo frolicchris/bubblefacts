@@ -77,17 +77,18 @@ export function buildStatFacts(
   const days = song.lastPlayed ? daysSince(song.lastPlayed) : null;
   if (days !== null && days >= STALE_AFTER_DAYS) facts.push(`This one hasn't come up in ${days} days.`);
 
-  const dur = song.durationSeconds ?? song.duration;
-  if (typeof dur === "number" && dur >= 30 && dur <= 3600) {
-    facts.push(`Runs about ${Math.floor(dur / 60)}:${String(dur % 60).padStart(2, "0")}.`);
-  }
-
   const requesters = (entry.requests ?? []).map((r) => r?.name?.trim()).filter((n): n is string => Boolean(n));
   if (requesters.length === 1) {
     facts.push(`Requested by ${requesters[0]}.`);
   } else if (requesters.length > 1) {
     const others = requesters.length - 1;
     facts.push(`Requested by ${requesters[0]} and ${others} ${plural(others, "other", "others")}.`);
+  }
+
+  // Last, and naming the song: on its own, "Runs about 4:29" leaves viewers asking what does.
+  const dur = song.durationSeconds ?? song.duration;
+  if (typeof dur === "number" && dur >= 30 && dur <= 3600 && display) {
+    facts.push(`"${display}" runs about ${Math.floor(dur / 60)}:${String(dur % 60).padStart(2, "0")}.`);
   }
 
   return facts;

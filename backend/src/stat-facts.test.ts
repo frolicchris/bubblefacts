@@ -136,3 +136,15 @@ describe("buildStatFacts", () => {
     expect(buildStatFacts(null, opts)).toEqual([]);
   });
 });
+
+describe("the runtime fact", () => {
+  it("names the song and comes after the others", () => {
+    // saxdragon: "Runs for 4:29" first, out of nowhere, left viewers asking what does.
+    const f = buildStatFacts(
+      entry({ title: "Lost Boy", durationSeconds: 269, timesPlayed: 3 }, { requests: [{ id: 1, name: "viewer1" }] } as Partial<SSLQueueItem>),
+      { streamerName: "SaxDragon" }
+    );
+    expect(f[f.length - 1]).toBe('"Lost Boy" runs about 4:29.');
+    expect(f[0]).not.toMatch(/runs about/);
+  });
+});
