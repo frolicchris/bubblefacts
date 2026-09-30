@@ -264,6 +264,37 @@ describe("StreamElementsClient", () => {
     expect(stopMock).toHaveBeenCalled();
   });
 
+  it("keeps following songs after a pause even if the player still reports paused", async () => {
+    // A real failure (issue #16): after a pause, the REST player state stayed
+    // "paused", so no later song was followed until the player was restarted.
+    jest.useFakeTimers();
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("playing", CIARA);
+      const changes = jest.fn();
+      client.onCurrentSongChange(changes);
+      await client.connect();
+      const [, topic, , , onMessage] = (AstroStream as unknown as jest.Mock).mock.calls.at(-1);
+      expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
+
+      // Paused, and /playing briefly answers nothing: keep the song and its facts.
+      player("paused", null);
+      onMessage({ topic, event: "pause" });
+      await jest.advanceTimersByTimeAsync(300);
+      expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
+
+      // Resumed, then the next song starts, but REST still says "paused".
+      player("paused", STORMS);
+      onMessage({ topic, event: "play" });
+      onMessage({ topic, event: "song.next" });
+      await jest.advanceTimersByTimeAsync(300);
+      expect(client.getCurrentSong()?.song.artist).toBe("The Legend of Zelda: Ocarina of Time");
+      expect(changes).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("polls less often while live events arrive", () => {
     streamConnected = false;
     expect(client.pollIntervalMs()).toBe(15000);

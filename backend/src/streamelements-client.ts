@@ -56,6 +56,14 @@ export class StreamElementsClient implements SongSource {
   private stopped = false;
   private rejected = false;
   private warnedNoState = false;
+  /**
+   * What the live events last said: "playing" after play or a song change,
+   * "paused" after pause. The REST player state can stay "paused" after the
+   * streamer resumes, which left every later song unfollowed until the player
+   * was restarted, so a live event wins over it.
+   */
+  private eventState: "playing" | "paused" | null = null;
+  private lastRestState: string | undefined = "";
   /** Set from Retry-After when StreamElements says to slow down (429) or is down (503). */
   private backoffUntil = 0;
 
@@ -211,7 +219,13 @@ export class StreamElementsClient implements SongSource {
     return this.inFlight;
   }
 
-  private apply(state: string | undefined, playing: SESong | null): void {
+  private apply(restState: string | undefined, playing: SESong | null): void {
+    if (restState !== this.lastRestState) {
+      console.log(`[SE] Player state: ${restState ?? "(none)"}${this.eventState ? ` (last event: ${this.eventState})` : ""}`);
+      this.lastRestState = restState;
+    }
+    // A live event is fresher than the REST state; see eventState.
+    const state = this.eventState ?? restState;
     const song = playing?.title ? playing : null;
     const key = song && StreamElementsClient.key(song);
     let next: SESong | null;
@@ -223,7 +237,9 @@ export class StreamElementsClient implements SongSource {
     } else if (state === "playing") {
       next = song;
     } else {
-      // Paused on the same song keeps it; otherwise /playing is only the next song up.
+      // Paused keeps the song that was on, even if /playing briefly answers nothing;
+      // any other state means /playing is only the next song up.
+      if (state === "paused" && (key === null || key === this.currentKey)) return;
       next = key !== null && key === this.currentKey ? song : null;
     }
     const nextKey = next && StreamElementsClient.key(next);
@@ -248,14 +264,24 @@ export class StreamElementsClient implements SongSource {
       SONG_TOPIC,
       this.channelId,
       () => config.seJwt,
-      () => this.handleEvent(),
-      () => this.handleEvent()
+      (e) => this.handleEvent(e.event),
+      // Events may have been missed while disconnected: let the REST state decide again.
+      () => {
+        this.eventState = null;
+        this.handleEvent();
+      }
     );
     this.stream.start();
   }
 
   /** Every event (play, pause, skip, queue changes) and every reconnect means "fetch again". */
-  private handleEvent(): void {
+  private handleEvent(event = ""): void {
+    if (event) {
+      const name = event.replace(/^songrequest\./, "");
+      if (/^(play|song\.next|song\.previous|song\.skip)$/.test(name)) this.eventState = "playing";
+      else if (name === "pause") this.eventState = "paused";
+      if (!/^(volume|queue\.|history\.|song\.position|song\.voteskip|settings\.)/.test(name)) console.log(`[SE] Event: ${name}`);
+    }
     if (this.refetchTimer) return;
     this.refetchTimer = setTimeout(() => {
       this.refetchTimer = null;
