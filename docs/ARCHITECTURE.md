@@ -57,7 +57,11 @@ StreamerSongList ──(live events + a check every 15 s)──► Server ──
    so a same-named song by someone else never matches. Each statement
    (release year, composers, lyricists, producers, album, awards, charts)
    fills a fixed sentence. No AI is involved, so nothing needs screening.
-   Wikidata's structured data is public domain (CC0).
+   Wikidata's structured data is public domain (CC0). If Wikidata has
+   nothing, MusicBrainz (core data CC0, at most one request a second) gives a
+   performer's song its first year and album. For a game's track it only names
+   a composer credited on several releases naming the game, because fan covers
+   crowd the results and are even tagged "Soundtrack".
 8. **Fall back if needed.** No reference, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus the
    streamer's backup facts, or nothing when they have none. The AI is never

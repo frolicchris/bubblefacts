@@ -5,6 +5,7 @@ import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
+import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
 
 /**
@@ -327,8 +328,9 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     // song-list and hand-picked facts only, with no lookup.
     const context = config.aiProvider === "none" ? "" : config.factVerification ? await fetchGrounding(song) : "";
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
-      // No article: plain facts from Wikidata's structured data need no AI (issue #23).
-      const data = config.factVerification ? await wikidataFacts(song) : [];
+      // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
+      let data = config.factVerification ? await wikidataFacts(song) : [];
+      if (config.factVerification && !data.length) data = await musicbrainzFacts(song);
       if (data.length) {
         const shown = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
         recentFacts.push(...shown);

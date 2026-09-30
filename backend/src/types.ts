@@ -7,6 +7,11 @@ export interface SSLSong {
   /** Off-list request: the overlay shows a banner and no facts. */
   liveLearn?: boolean;
   requestedBy?: string;
+  /**
+   * The artist field names a performer, as in a music video's title, so an
+   * article about a band or singer of that name is a match.
+   */
+  performer?: boolean;
 }
 
 /** API `QueueSong`. Its id lives on the entry as `songId`. */

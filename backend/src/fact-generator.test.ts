@@ -23,6 +23,7 @@ jest.mock("./config", () => ({
 }));
 
 jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]) }));
+jest.mock("./musicbrainz", () => ({ musicbrainzFacts: jest.fn().mockResolvedValue([]) }));
 
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
