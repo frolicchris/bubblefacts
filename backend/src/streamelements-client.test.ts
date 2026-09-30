@@ -295,6 +295,24 @@ describe("StreamElementsClient", () => {
     }
   });
 
+  it("reports when StreamElements says a song is playing but none is followed", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("paused", null);
+      await client.connect();
+      const [, topic, , , onMessage] = (AstroStream as unknown as jest.Mock).mock.calls.at(-1);
+      mockFetch.mockResolvedValue(ok({ state: "paused" }));
+      onMessage({ topic, event: "play" });
+      await jest.advanceTimersByTimeAsync(300);
+      expect(client.followingProblem()).toBeNull();
+      await jest.advanceTimersByTimeAsync(31_000);
+      expect(client.followingProblem()).toMatch(/can't see which one/);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("polls less often while live events arrive", () => {
     streamConnected = false;
     expect(client.pollIntervalMs()).toBe(15000);

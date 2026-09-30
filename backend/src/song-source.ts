@@ -24,4 +24,6 @@ export interface SongSource {
   isEventStreamConnected(): boolean;
   /** The service turned the token down on the last request: waiting won't fix it. */
   authRejected(): boolean;
+  /** Why no song is followed although the service says one is playing, or null. Optional. */
+  followingProblem?(): string | null;
 }

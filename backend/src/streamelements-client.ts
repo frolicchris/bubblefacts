@@ -36,6 +36,8 @@ interface SEChannel {
 }
 
 const REFETCH_DEBOUNCE_MS = 250;
+/** How long a song may be playing, per the live events, without being followed before health says so. */
+const FOLLOW_GRACE_MS = 30_000;
 /** While realtime events arrive, polling is only a backstop. */
 const POLL_WITH_EVENTS_MS = 30_000;
 const SONG_TOPIC = "channel.songrequest";
@@ -64,6 +66,8 @@ export class StreamElementsClient implements SongSource {
    * was restarted, so a live event wins over it.
    */
   private eventState: "playing" | "paused" | null = null;
+  /** When the last play or next-song event arrived. */
+  private playingSince = 0;
   private lastRestState: string | undefined = "";
   /** Set from Retry-After when StreamElements says to slow down (429) or is down (503). */
   private backoffUntil = 0;
@@ -82,6 +86,15 @@ export class StreamElementsClient implements SongSource {
 
   authRejected(): boolean {
     return this.rejected;
+  }
+
+  /**
+   * StreamElements said a song started, but for half a minute no song has
+   * been followed (issue #16: the dashboard stayed green while nothing was).
+   */
+  followingProblem(): string | null {
+    const stuck = this.eventState === "playing" && this.currentSong === null && Date.now() - this.playingSince > FOLLOW_GRACE_MS;
+    return stuck ? "StreamElements says a song is playing, but BubbleFacts can't see which one" : null;
   }
 
   pollIntervalMs(): number {
@@ -280,7 +293,10 @@ export class StreamElementsClient implements SongSource {
   private handleEvent(event = ""): void {
     if (event) {
       const name = event.replace(/^songrequest\./, "");
-      if (/^(play|song\.next|song\.previous|song\.skip)$/.test(name)) this.eventState = "playing";
+      if (/^(play|song\.next|song\.previous|song\.skip)$/.test(name)) {
+        this.eventState = "playing";
+        this.playingSince = Date.now();
+      }
       else if (name === "pause") this.eventState = "paused";
       if (!/^(volume|queue\.|history\.|song\.position|song\.voteskip|settings\.)/.test(name)) console.log(`[SE] Event: ${name}`);
     }

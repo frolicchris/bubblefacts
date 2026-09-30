@@ -176,12 +176,13 @@ app.get("/health", (_req, res) => {
     ? process.uptime() * 1000 > STARTUP_GRACE_MS
     : queueAgeMs > songList.pollIntervalMs() * 3;
   const rejected = songList.authRejected();
+  const notFollowing = songList.followingProblem?.() ?? null;
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;
 
   res.json({
     paused,
-    status: rejected ? "unauthorized" : stale ? "degraded" : "ok",
-    degradedReason: rejected ? `${songList.name} rejected the token` : stale ? "no successful queue fetch recently" : undefined,
+    status: rejected ? "unauthorized" : stale || notFollowing ? "degraded" : "ok",
+    degradedReason: rejected ? `${songList.name} rejected the token` : stale ? "no successful queue fetch recently" : notFollowing ?? undefined,
     songSource: songList.name,
     aiProvider: config.aiProvider,
     topic: config.topic,
