@@ -52,6 +52,24 @@
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
 
+        <article class="rpg release" aria-labelledby="v2-beta3">
+          <h2 id="v2-beta3">Version 2.0.0-beta.3 <span class="tag">Coming soon</span></h2>
+          <p>StreamElements song requests, a Wrong button, and more facts for songs Wikipedia doesn't know.</p>
+          <ul>
+            <li>StreamElements works as a song source, besides StreamerSongList. Choose it in setup or in Settings and paste your JWT token. BubbleFacts reads the artist and song from each request's YouTube title.</li>
+            <li>With a YouTube key built in, BubbleFacts reads the exact artist and song of YouTube's auto-generated uploads</li>
+            <li>A <span class="ui">Wrong</span> button next to each fact under <span class="ui">On stream now</span>. One click takes the fact off your stream, and BubbleFacts never uses that Wikipedia article for that song again, even after a restart. <span class="ui">Tell us about it</span> opens a report if you'd like.</li>
+            <li>Songs with no Wikipedia article can get facts from Wikidata, then MusicBrainz. These are plain sentences filled in from their data, with no AI involved.</li>
+            <li>When only the artist's article exists, facts about the song itself come first</li>
+            <li>The example backup facts are off by default. With no backup facts, a song no source knows gets none.</li>
+            <li>Better facts: no critics' opinions, nothing about the music video, no repeats from earlier songs, and no more song length</li>
+            <li>Pausing a StreamElements song no longer stops BubbleFacts. If a song is playing but not followed, the dashboard says so, and BubbleFacts reconnects on its own.</li>
+            <li>Linux: the built-in AI no longer crashes</li>
+          </ul>
+          <p>Thanks to SaxDragon for testing StreamElements.</p>
+          <p><a href="https://github.com/frolicchris/bubblefacts/releases">Release notes on GitHub</a></p>
+        </article>
+
         <article class="rpg release" aria-labelledby="v2">
           <h2 id="v2">Version 2.0.0 <span class="tag">Coming soon</span></h2>
           <p>The desktop app, and a new name: Stream Facts is now BubbleFacts. Download it, open it, and click through setup. No Terminal needed.</p>
@@ -98,7 +116,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
     </div>
   </footer>
 </body>

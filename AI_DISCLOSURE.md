@@ -63,8 +63,10 @@ The fact captions are written while you stream by a small AI model: by
 default, Meta's Llama 3.2, running on your own computer. The model only
 rewrites details from the song's Wikipedia article, and every caption is
 checked against the article before it's shown. When there's no article, the
-AI isn't used. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the
-check works.
+AI isn't used: facts from [Wikidata](https://www.wikidata.org) or
+[MusicBrainz](https://musicbrainz.org) are fixed sentences filled in from
+their data, and backup facts go on stream exactly as written. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the check works.
 
 Found a wrong fact or a problem?
 [Report it](https://github.com/frolicchris/bubblefacts/issues/new/choose).

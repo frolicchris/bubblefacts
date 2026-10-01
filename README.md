@@ -6,9 +6,9 @@
 
 **Fun facts about the song you're playing, right on your stream.**
 
-BubbleFacts watches your [StreamerSongList](https://streamersonglist.com)
-requests and shows short, Wikipedia-checked facts in game-inspired bubbles in
-OBS while you play. The captions are written by a small AI model, and the app
+BubbleFacts watches your [StreamerSongList](https://streamersonglist.com) or
+[StreamElements](https://streamelements.com) song requests and shows short,
+Wikipedia-checked facts in game-inspired bubbles in OBS while you play. The captions are written by a small AI model, and the app
 itself was written with an AI coding agent: see
 [AI disclosure](#ai-disclosure).
 
@@ -27,7 +27,9 @@ page shows what to click.
 
 1. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
    with Twitch. (If that doesn't work, **Having trouble signing in?** lets you
-   paste a token instead.)
+   paste a token instead.) Take requests through StreamElements instead?
+   Choose **StreamElements** and paste your JWT token from the StreamElements
+   dashboard.
 2. **Add BubbleFacts to OBS.** Drag the tile from the app into the **Sources**
    list in OBS.
 
@@ -52,13 +54,17 @@ stream, so its fact writer never answers from memory.
 2. The fact writer writes short captions **only from that article**.
 3. Any caption that names a person, year or console the article doesn't
    contain is dropped before it reaches your stream.
-4. If there's no good Wikipedia match, no AI is used. BubbleFacts shows
-   messages you provide instead.
+4. If there's no good Wikipedia match, no AI is used. BubbleFacts looks the
+   song up on Wikidata, then MusicBrainz, and fills in fixed sentences from
+   what they list, such as the year and the album. If they have nothing
+   either, it shows backup facts you write yourself, or nothing.
 
 Facts are only as good as Wikipedia: the check makes sure captions match the
-article, not that the article is right. Found a wrong fact? Please
-[report it](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
-It's the most useful report of all.
+article, not that the article is right. Found a wrong fact? Click **Wrong** next to it in the app. It comes off your
+stream right away, and BubbleFacts won't use that Wikipedia article for that
+song again. **Tell us about it** then opens a
+[report](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml),
+the most useful report of all.
 
 ## AI disclosure
 
@@ -70,7 +76,9 @@ he reviews and tests every change, including on live streams, and is
 responsible for everything that's merged or released.
 
 The captions on stream are written by a small AI model (Meta's Llama 3.2)
-from the song's Wikipedia article, then checked against it.
+from the song's Wikipedia article, then checked against it. Facts from
+Wikidata and MusicBrainz are fixed sentences filled in from their data, with
+no AI involved.
 
 Contributions are welcome, with or without AI tools. If you use one, say so in
 your pull request and add an `Assisted-by:` trailer to your commits. Details
@@ -84,7 +92,7 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** fills in the details for you.
 - [Report a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
-  In the app, click **Report this fact** next to it.
+  In the app, click **Wrong** next to it, then **Tell us about it**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
   tried the beta? Tell us how each step went.
 - [Security policy](SECURITY.md): report security problems privately.
@@ -106,7 +114,9 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 Facts are rewritten from Wikipedia, whose text is shared under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). If you publish
 recordings, crediting Wikipedia in your description is the courteous thing to
-do.
+do. Facts from [Wikidata](https://www.wikidata.org) and
+[MusicBrainz](https://musicbrainz.org) use their public domain
+([CC0](https://creativecommons.org/publicdomain/zero/1.0/)) data.
 
 Built with Llama. The app's built-in AI is Meta's Llama 3.2 3B, used under the
 [Llama 3.2 Community License](https://www.llama.com/llama3_2/license/).

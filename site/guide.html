@@ -50,7 +50,7 @@
       <div class="wrap narrow">
         <p class="eyebrow">Setup guide</p>
         <h1>Getting started</h1>
-        <p class="section-intro">You'll need OBS Studio 28 or newer and a StreamerSongList account. The app's setup has three steps, and the last one is optional: connect your songs, put BubbleFacts on your stream, and tell us about your music. BubbleFacts needs to run on the same computer as OBS.</p>
+        <p class="section-intro">You'll need OBS Studio 28 or newer and a StreamerSongList or StreamElements account. The app's setup has three steps, and the last one is optional: connect your songs, put BubbleFacts on your stream, and tell us about your music. BubbleFacts needs to run on the same computer as OBS.</p>
 
         <nav class="rpg toc" aria-label="Steps on this page">
           <ol>
@@ -61,7 +61,7 @@
             <li><a href="#check">Check that it works</a></li>
             <li><a href="#streaming">While you stream</a></li>
           </ol>
-          <p style="margin-top:0.75rem">Also on this page: <a href="#backup-facts">Backup facts</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
+          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#backup-facts">Backup facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
           <p>Stuck? Jump to <a href="#troubleshooting">If something goes wrong</a>.</p>
         </nav>
 
@@ -115,7 +115,7 @@
           <div class="num" aria-hidden="true">2</div>
           <div class="body">
             <h2>Connect your songs</h2>
-            <p>The first time you open BubbleFacts, a short setup starts. Its first step connects the app to your StreamerSongList, so it can see which song you're playing.</p>
+            <p>The first time you open BubbleFacts, a short setup starts. Its first step connects the app to your song requests, so it can see which song you're playing. It asks <span class="ui">Where do your song requests come from?</span> Leave <span class="ui">StreamerSongList</span> picked, or see <a href="#song-list-se">StreamElements</a> below.</p>
             <ol>
               <li>Click the big <span class="ui">Sign in with StreamerSongList</span> button. Your web browser opens.</li>
               <li>Sign in with the Twitch account you use on StreamerSongList.</li>
@@ -144,13 +144,27 @@
               </details>
             </div>
 
+            <h3 id="song-list-se">Use StreamElements instead</h3>
+            <p>Do viewers request songs through StreamElements' Media Request player? Connect that instead. StreamElements has no sign-in button for apps like this, so you paste a token.</p>
+            <ol>
+              <li>Under <span class="ui">Where do your song requests come from?</span>, choose <span class="ui">StreamElements</span>.</li>
+              <li>In your web browser, open your StreamElements dashboard. (The <span class="ui">Open StreamElements</span> link in the app takes you there.)</li>
+              <li>Go to <span class="ui">Account</span>, then <span class="ui">Channels</span>, and click <span class="ui">Show secrets</span>.</li>
+              <li>Copy the <span class="ui">JWT token</span>.</li>
+              <li>Back in BubbleFacts, type your StreamElements channel name and paste the token.</li>
+              <li>Click <span class="ui">Connect</span>. BubbleFacts checks the token, then setup moves on.</li>
+            </ol>
+            <p>The JWT token works like a password. Keep it off your stream and out of screenshots.</p>
+            <p>StreamElements only knows each request's YouTube video title, such as "Artist - Song (Official Video)". BubbleFacts reads the artist and song out of it, so clearly titled videos get the best facts. There are no live learns with StreamElements, so that setting is hidden.</p>
+            <p>To switch later, or to paste a new token, open <span class="ui">Settings</span>, then <span class="ui">Your song list</span>, and click <span class="ui">Save</span>.</p>
+
             <div class="note">
               <p class="note-title">Your sign-in stays private</p>
               <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer.</p>
             </div>
             <div class="note">
               <p class="note-title">The built-in AI downloads on its own</p>
-              <p>As soon as the app opens, it starts downloading its built-in AI in the background. That's Llama 3.2 3B, about 2 GB, and it's a one-time download. You don't need to wait for it. Until it's ready, songs get backup facts, so BubbleFacts works right away. If your connection drops, the download tries again on its own. The app's dashboard shows how far along it is.</p>
+              <p>As soon as the app opens, it starts downloading its built-in AI in the background. That's Llama 3.2 3B, about 2 GB, and it's a one-time download. You don't need to wait for it. Until it's ready, songs only get facts that need no AI (see <a href="#backup-facts">Backup facts</a>), so BubbleFacts works right away. If your connection drops, the download tries again on its own. The app's dashboard shows how far along it is.</p>
             </div>
           </div>
         </div>
@@ -216,11 +230,12 @@
             <p>This is on to start with. When someone requests a song that isn't on your list, a <span class="ui">LIVE LEARN</span> banner shows while you learn it, with no fact bubbles. If you uncheck it, those requests are treated like any other song.</p>
 
             <h3 id="backup-facts">Backup facts</h3>
-            <p>When a song has no Wikipedia article, the AI isn't used. Instead, the app shows your backup facts: short facts you write yourself. If you have none, that song gets no bubbles, so nothing wrong goes on stream. That's the best choice for request channels, where no list could cover every song.</p>
+            <p>When a song has no Wikipedia article, the AI isn't used. BubbleFacts looks the song up on Wikidata, then on MusicBrainz, two free music databases. If one lists the song, it fills in plain sentences from that data, such as the year the song came out and its album.</p>
+            <p>If neither has the song, the app shows your backup facts: short facts you write yourself. If you have none, that song gets no backup facts, so nothing wrong goes on stream. That's the best choice for request channels, where no list could cover every song.</p>
 
             <div class="note">
-              <p class="note-title">The included facts are only a few examples</p>
-              <p>BubbleFacts comes with only a few example facts. They're short, they aren't updated or maintained, and they won't know your songs. For facts that fit your stream, add your own.</p>
+              <p class="note-title">The example packs are off</p>
+              <p>BubbleFacts comes with a few example packs, but they're off unless you check them. They're short, they aren't updated or maintained, and they won't know your songs. For facts that fit your stream, add your own.</p>
             </div>
 
             <p>Pick one of two options:</p>
@@ -228,7 +243,7 @@
               <li><span class="ui">Set up my own facts later</span> (already picked for you). Until then, a song without an article gets no bubbles. You can add your own any time in <span class="ui">Settings</span>, under <span class="ui">Backup facts</span>.</li>
               <li><span class="ui">Add my own facts now</span>. Type your facts in the box, one per line.</li>
             </ul>
-            <p>Then click <span class="ui">Next</span>. That's the whole setup.</p>
+            <p>Then click <span class="ui">Finish</span>. That's the whole setup.</p>
 
             <div class="note">
               <p class="note-title">Only add facts you've checked</p>
@@ -263,11 +278,11 @@
             <h2>Check that it works</h2>
             <ol>
               <li>Make sure BubbleFacts is open.</li>
-              <li>Play a song from your StreamerSongList queue.</li>
+              <li>Play a song from your StreamerSongList queue, or your StreamElements song requests.</li>
               <li>A gold <span class="ui">NOW PLAYING</span> banner appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up.</li>
             </ol>
             <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>.</p>
-            <p>General facts instead of facts about the song? The built-in AI may still be downloading. Until it's ready, songs get backup facts. The dashboard shows its progress.</p>
+            <p>Few or no facts at first? The built-in AI may still be downloading. Until it's ready, songs only get facts that need no AI. The dashboard shows its progress.</p>
             <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See the table below.</p>
           </div>
         </div>
@@ -281,11 +296,21 @@
               <li><strong>Need the bubbles gone right now?</strong> Click <span class="ui">Pause bubbles</span> on the dashboard, or in the BubbleFacts menu in your menu bar (Mac) or system tray (Windows and Linux). Turn them back on the same way.</li>
               <li><strong>Closing the window doesn't stop it.</strong> BubbleFacts keeps running in your menu bar (Mac) or system tray (Windows and Linux), with a status light. To stop it, choose <span class="ui">Quit</span> from that menu.</li>
               <li><strong>It fixes itself.</strong> If something inside the app gets stuck, it restarts that part on its own, so you can keep playing.</li>
-              <li><strong>Wrong fact?</strong> Click <span class="ui">Report this fact</span> in the app. For anything else, open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>. A report opens on GitHub in your browser for you to read before you send it. You need a free GitHub account. See <a href="privacy.html#reports">how reports work</a>.</li>
+              <li><strong>Wrong fact?</strong> Click <span class="ui">Wrong</span> next to it on the dashboard. See <a href="#wrong-fact">If a fact is wrong</a>.</li>
+              <li><strong>Something else wrong?</strong> Open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>. A report opens on GitHub in your browser for you to read before you send it. You need a free GitHub account. See <a href="privacy.html#reports">how reports work</a>.</li>
               <li><strong>New versions.</strong> When one is out, the app tells you and gives you a download link. See <a href="changelog.html">what's new</a>.</li>
               <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
-              <li><strong>Add your own backup facts.</strong> Songs with no Wikipedia article get backup facts. The ones included are only a few examples, so add your own. If a song had no article and you haven't added any, the dashboard suggests it. See <a href="#backup-facts-settings">how to add them</a>.</li>
+              <li><strong>Add your own backup facts.</strong> Songs that no source knows get backup facts. The example packs are only examples, so add your own. If you turned an example pack on and it stood in for a song, the dashboard suggests it. See <a href="#backup-facts-settings">how to add them</a>.</li>
             </ul>
+
+            <h3 id="wrong-fact">If a fact is wrong</h3>
+            <p>The dashboard's <span class="ui">On stream now</span> list shows the facts for the song you're playing. Each one has a <span class="ui">Wrong</span> button.</p>
+            <ol>
+              <li>Click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away, even if its bubble is showing.</li>
+              <li>If the fact came from a Wikipedia article, BubbleFacts never uses that article for that song again. It remembers this after you quit and reopen the app. A wrong fact almost always means it found the wrong article.</li>
+              <li>Optional: click <span class="ui">Tell us about it</span>. A report opens on GitHub in your browser, with the song and the fact filled in, for you to read before you send it. You need a free GitHub account.</li>
+            </ol>
+            <p>Reports of wrong facts are the most useful kind. They show where the fact check needs to be stricter.</p>
           </div>
         </div>
       </div>
@@ -376,19 +401,29 @@
                 <td>Sign in again from the app's <span class="ui">Settings</span> (or paste a new token if you use one, see <a href="#song-list-token">step 2</a>).</td>
               </tr>
               <tr>
+                <th scope="row">The app says StreamElements didn't accept your JWT token</th>
+                <td>The token was reset or pasted wrong</td>
+                <td>Get the token again (see <a href="#song-list-se">Use StreamElements instead</a>) and paste it in <span class="ui">Settings</span>, under <span class="ui">Your song list</span>. Then click <span class="ui">Save</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row">"Reconnecting to StreamElements" while a song plays</th>
+                <td>StreamElements says a song is playing, but BubbleFacts can't see which one</td>
+                <td>Nothing, usually. If it lasts about two minutes, BubbleFacts restarts its connection on its own. Your song queue isn't touched.</td>
+              </tr>
+              <tr>
                 <th scope="row">The AI download stops or fails</th>
                 <td>Not enough disk space, or the connection dropped</td>
                 <td>If the connection dropped, the app tries again on its own. If you're low on space, free up at least 4 GB. Or use <span class="ui">Online: Groq</span> for now (see <a href="#ai">Optional: use an online AI instead</a>).</td>
               </tr>
               <tr>
-                <th scope="row">Facts are general, never about the song</th>
-                <td>No Wikipedia article was found</td>
-                <td>For game music, put the game's name in the artist field in StreamerSongList. Obscure songs often have no article, so they get backup facts instead. The included ones are only a few examples: <a href="#backup-facts">add your own</a>.</td>
+                <th scope="row">No facts about the song, or none at all</th>
+                <td>No source knew the song</td>
+                <td>For game music, put the game's name in the artist field in StreamerSongList. With StreamElements, clearly titled videos ("Artist - Song") work best. Obscure songs often have no article, so they get backup facts instead, or none until you <a href="#backup-facts">add your own</a>.</td>
               </tr>
               <tr>
-                <th scope="row">Only general facts, soon after installing</th>
+                <th scope="row">Few or no facts, soon after installing</th>
                 <td>The built-in AI is still downloading</td>
-                <td>Until it's ready, songs get backup facts. Check the progress on the app's dashboard.</td>
+                <td>Until it's ready, songs only get facts that need no AI. Check the progress on the app's dashboard.</td>
               </tr>
               <tr>
                 <th scope="row">Fewer bubbles than expected</th>
@@ -452,7 +487,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
     </div>
   </footer>
 </body>

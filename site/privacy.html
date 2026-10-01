@@ -51,7 +51,7 @@
         <p class="eyebrow">Privacy</p>
         <h1>Your data, in plain words</h1>
         <div class="rpg has-cursor" style="margin-bottom:2.5rem">
-          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to StreamerSongList and Wikipedia, and to an online AI only if you choose one. Nothing is sent to this project.</p>
+          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to your song request service (StreamerSongList or StreamElements), to Wikipedia, Wikidata and MusicBrainz to look songs up, and to an online AI only if you choose one. Nothing is sent to this project.</p>
         </div>
 
         <ul class="privacy-list">
@@ -61,20 +61,28 @@
           </li>
           <li>
             <h2>Your settings stay on your computer</h2>
-            <p>Your settings are saved in the app's folder on your computer. Your StreamerSongList sign-in (or token) and any API keys are encrypted using your system's keychain, the same secure storage your computer uses for its own passwords.</p>
+            <p>Your settings are saved in the app's folder on your computer. Your StreamerSongList sign-in (or token), your StreamElements JWT token and any API keys are encrypted using your system's keychain, the same secure storage your computer uses for its own passwords.</p>
           </li>
           <li>
             <h2>StreamerSongList</h2>
             <p>The app reads your request queue from StreamerSongList, using your sign-in (or your token, if you use one), so it knows which song you're playing. You sign in on StreamerSongList's own website, in your web browser, so BubbleFacts never sees your Twitch password.</p>
           </li>
           <li>
-            <h2>Wikipedia</h2>
-            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song.</p>
+            <h2>StreamElements</h2>
+            <p>If you use StreamElements instead, the app uses your JWT token and channel name to ask StreamElements which song request is playing, and to get told when it changes. You copy the token from your StreamElements dashboard yourself.</p>
+          </li>
+          <li>
+            <h2>Wikipedia, Wikidata and MusicBrainz</h2>
+            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song. When Wikipedia has no article, the same names are sent to Wikidata, then MusicBrainz, two public music databases.</p>
+          </li>
+          <li>
+            <h2>YouTube (StreamElements only)</h2>
+            <p>StreamElements song requests are YouTube videos. When your copy of the app has a YouTube key built in, it sends each request's video ID to Google's YouTube Data API, so it can read the exact artist and song of uploads YouTube makes automatically (their channel names end in "- Topic"). Nothing else about you or your stream is sent. Google's privacy policy applies. Without a key, the app only reads the video's title.</p>
           </li>
           <li>
             <h2>The AI</h2>
-            <p>With the built-in AI, the default, captions are written on your computer. The AI model is downloaded once, and after that nothing is sent anywhere to write captions.</p>
-            <p>If you choose an online AI (Groq or Anthropic), the song title and the Wikipedia article text are sent to that service to write the captions. Their own privacy policies apply.</p>
+            <p>With the built-in AI, the default, captions are written on your computer. The AI model is downloaded once, from Hugging Face, a site that hosts AI models. After that, nothing is sent anywhere to write captions.</p>
+            <p>If you choose an online AI (Groq or Anthropic), the song title and the Wikipedia article text are sent to that service to write the captions. Their own privacy policies apply. If you choose your own Ollama, they go to the Ollama address you set.</p>
           </li>
           <li>
             <h2>Nothing is sent to the project</h2>
@@ -82,7 +90,7 @@
           </li>
           <li id="reports">
             <h2>Problem reports only happen when you click</h2>
-            <p>A report is only created when you click <span class="ui">Report this fact</span> or <span class="ui">Report a problem</span>. It opens in your browser as a GitHub issue, filled in with details like the song, the fact, the Wikipedia article, the app version, your system and recent log lines. Your token is removed.</p>
+            <p>A report is only created when you click <span class="ui">Tell us about it</span> after marking a fact <span class="ui">Wrong</span>, or <span class="ui">Report a problem</span>. It opens in your browser as a GitHub issue, filled in with details like the song, the fact, the app version, your system and recent log lines. Your token is removed. Clicking <span class="ui">Wrong</span> on its own sends nothing: BubbleFacts just remembers it on your computer.</p>
             <p>You read it and decide whether to send it. If you do, it's posted on GitHub <strong>publicly, under your own GitHub account</strong>, where anyone can see it. Edit out anything you don't want to share before you submit.</p>
           </li>
           <li>
@@ -115,7 +123,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
     </div>
   </footer>
 </body>

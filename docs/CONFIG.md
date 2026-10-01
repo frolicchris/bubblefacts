@@ -55,10 +55,12 @@ To find your JWT token:
 | `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
 | `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
 | `SE_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamElements before giving up on one check. |
+| `YOUTUBE_API_KEY` | *none* | Optional. A YouTube Data API key from Google. With it, each request's video ID is sent to Google, and for YouTube's auto-generated uploads (channels ending in "- Topic") the exact artist and song are read from the video's description instead of guessed from its title. Each lookup uses 1 unit of the key's daily quota. Restrict the key to the YouTube Data API, and keep it private. |
 
 Good to know:
 
-- Facts only appear while the player is playing. When it's paused, the current song stays; when nothing is playing, the overlay clears.
+- Facts only appear while the player is playing. When it's paused, the current song stays, and resuming carries on as normal; when nothing is playing, the overlay clears.
+- If StreamElements says a song is playing but the overlay can't see which one for 30 seconds, it reports the connection as degraded (the desktop app shows "Reconnecting to StreamElements" and, if it lasts, restarts the server).
 - StreamElements only knows each request's YouTube title, such as "Artist - Song (Official Video)". BubbleFacts reads the song and artist out of it, so a clearly titled video gets better facts than "my fav song!!".
 - There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. A request counts as your own composition when its artist is your channel name or `STREAMER_DISPLAY_NAME`.
 
@@ -125,7 +127,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 
 | Setting | Default | What it does |
 |---|---|---|
-| `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claims, no repeats). |
+| `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claims, no repeats). |
 | `GROUNDING_TIMEOUT_MS` | `5000` | How long to wait for a Wikipedia search. |
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |
 | `WIKIPEDIA_CONTACT` | this project's page | Wikipedia asks programs that use it to leave a contact. Set it to your channel or your copy of the project. |
@@ -176,3 +178,5 @@ need them with a `.env` file.
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
+| `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` goes: the Wikipedia articles marked **Wrong** in the app, per song, so they're never used for that song again. Without it, the overlay uses a `data` folder in the overlay folder. |
+| `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |

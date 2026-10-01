@@ -8,9 +8,21 @@ and bugs, and neither needs you to write code.
 If a bubble generated from Wikipedia showed something untrue, or a fact about
 the wrong song,
 [open a "A fact is wrong" issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
-Accuracy is the point of this project, so these reports matter most. Include
-the lines starting with `[Grounding]` and `[Screen]` from your log if you can;
-they show which Wikipedia article was used.
+Accuracy is the point of this project, so these reports matter most. In the
+app, click **Wrong** next to the fact, then **Tell us about it**: the report is
+filled in for you. Otherwise, include the lines starting with `[Grounding]` and
+`[Screen]` from your log if you can; they show which Wikipedia article was
+used.
+
+## YouTube titles that read wrong
+
+With StreamElements, BubbleFacts works out the artist and song from each
+request's YouTube title. Every real title that was read wrong belongs in
+`backend/src/fixtures/youtube-titles.json`, labeled by hand with the artist
+and song a person would read, the uploading channel, and where it came from
+(for example `"source": "stream 2026-09-30"`). The tests read every entry, so
+a fix can't quietly break an older title. Add the title even if you can't fix
+the rule yourself.
 
 ## Topic packs are examples
 
@@ -81,6 +93,14 @@ works in forks too.
 workflow builds every installer on its own system and puts them in a *draft*
 release with a `SHA256SUMS.txt` file and a build-provenance attestation for
 each file, for a person to read over and publish.
+
+The workflow reads the `YOUTUBE_API_KEY` repository secret, if it's set, and
+writes it into `package.json` for that build only, so StreamElements songs
+from YouTube's auto-generated uploads are read exactly. Never commit the key.
+Restrict it to the YouTube Data API in Google Cloud. Builds without it,
+including forks and local builds, read every title from the video title
+alone. To try it locally, set `YOUTUBE_API_KEY` in your environment before
+`npm run app`.
 
 **Test the overlay in a real OBS**, not only in a web browser. OBS loads a
 Local file from `http://absolute/<path>`, which a browser doesn't reproduce, so
