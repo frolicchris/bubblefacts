@@ -54,6 +54,10 @@
       api.copy(state.overlayPath);
       flash(t, "Copied");
     }
+    if ("copyCredit" in t.dataset) {
+      api.copy("Song facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, shown with BubbleFacts.");
+      flash(t, "Copied");
+    }
     if (t.dataset.toggleSecret) {
       const input = document.getElementById(t.dataset.toggleSecret);
       input.type = input.type === "password" ? "text" : "password";
