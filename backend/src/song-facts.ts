@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
-import { normalizeTitle } from "./fact-verifier";
 import { SSLSong } from "./types";
 
 /**
@@ -48,7 +47,15 @@ function load(): SongFacts[] {
   return store;
 }
 
-const key = (artist: string, title: string) => `${normalizeTitle(artist)}\0${normalizeTitle(title)}`;
+/**
+ * Identity for the streamer's own records: case, accents and punctuation
+ * don't count, but the words do, including a version in brackets. "Night
+ * Drive (Acoustic)" isn't "Night Drive (Remix)"; Wikipedia's lookup
+ * normalization, which drops brackets, is deliberately not used here.
+ */
+const ident = (s: string) =>
+  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const key = (artist: string, title: string) => `${ident(artist)}\0${ident(title)}`;
 
 function matches(entry: SongFacts, song: SSLSong): boolean {
   if (entry.songId && song.songId) return entry.songId === song.songId;

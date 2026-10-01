@@ -117,7 +117,9 @@ Facts are rewritten from Wikipedia, whose text is shared under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). If you publish
 recordings, credit the sources in your description: bare facts aren't covered by
 copyright, but wording taken from an article can be, and then the license asks
-for credit. A line that covers it (the app's Help section can copy it):
+for credit. Crediting is the safest habit (not legal advice, and a credit line
+alone doesn't settle every possible use). A line you can use (the app's Help
+section can copy it):
 `Song facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, shown with BubbleFacts.` Facts from [Wikidata](https://www.wikidata.org) and
 [MusicBrainz](https://musicbrainz.org) use their public domain
 ([CC0](https://creativecommons.org/publicdomain/zero/1.0/)) data.

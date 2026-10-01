@@ -30,14 +30,15 @@ export function creditedToStreamer(entry: SSLQueueItem | null, names: string[]):
   });
 }
 
-/** "Jane's Originals" names Jane: it counts only when Jane is the streamer ("janestreams", "Jane"). */
+/**
+ * "Jane's Originals" names Jane: it counts only when "Jane" is exactly one of
+ * the streamer's configured names. No prefix matching: "Christina's
+ * Originals" isn't Chris's.
+ */
 function tagNamesStreamer(tag: string, names: string[]): boolean {
   const owner = /^\s*(.+?)['’]s?\s+originals\b/i.exec(tag)?.[1]?.trim().toLowerCase();
   if (!owner || /^(my|our)$/.test(owner)) return true;
-  return names.some((n) => {
-    const name = n.trim().toLowerCase();
-    return Boolean(name) && (name === owner || name.startsWith(owner) || owner.startsWith(name));
-  });
+  return names.some((n) => n.trim().toLowerCase() === owner);
 }
 
 /**
@@ -85,12 +86,13 @@ export function buildStatFacts(
 
   if (opts.isOriginalSong) {
     // Only the song list's artist field names a writer; a tag alone never does.
+    // A missing or "Unknown" credit stays unknown: no writer is named or implied.
     const credit = (song.artist ?? "").trim();
-    const theirs = !credit || /^unknown$/i.test(credit) || creditedToStreamer(entry, [who, ...(opts.names ?? [])]);
-    if (theirs) {
-      facts.push(`"${display}" is an original composition by ${credit && !/^unknown$/i.test(credit) ? credit.replace(/\s*@\S+/, "") : who}.`);
+    const known = Boolean(credit) && !/^unknown$/i.test(credit);
+    if (known && creditedToStreamer(entry, [who, ...(opts.names ?? [])])) {
+      facts.push(`"${display}" is an original composition by ${credit.replace(/\s*@\S+/, "")}.`);
       facts.push("You're hearing this one straight from the person who wrote it.");
-    } else {
+    } else if (known) {
       facts.push(`"${display}" is an original, credited to ${credit}.`);
     }
   }

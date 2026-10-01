@@ -9,6 +9,8 @@
   let state = null;
   /** What the On stream now list last showed, so it redraws only on change. */
   let lastRecent = "";
+  /** The song the "Add facts" editor was opened on. */
+  let songFactsTarget = null;
   let recentTimer = null;
 
   // --- Views -------------------------------------------------------------
@@ -379,6 +381,8 @@
   $("#song-facts-open").addEventListener("click", async () => {
     const r = await api.getSongFacts();
     if (!r || !r.song) return;
+    // The edit belongs to this song, even if another one starts before you save.
+    songFactsTarget = r.song;
     const e = r.entry || {};
     $("#song-facts-title").textContent = `"${r.song.title}"`;
     $("#sf-writers").value = (e.songwriters || []).join(", ");
@@ -397,6 +401,7 @@
     e.preventDefault();
     const split = (s, re) => s.split(re).map((x) => x.trim()).filter(Boolean);
     const result = await api.saveSongFacts({
+      song: songFactsTarget,
       songwriters: split($("#sf-writers").value, /,/),
       link: $("#sf-link").value.trim(),
       facts: split($("#sf-facts").value, /\n/),
@@ -404,9 +409,14 @@
     if (result && result.saved) {
       $("#song-facts-form").hidden = true;
       lastRecent = "";
-      showWrongNote("Saved. Your facts show now and every time this song plays.", null);
+      showWrongNote(
+        result.shown
+          ? "Saved. Your facts show now and every time this song plays."
+          : `Saved for "${songFactsTarget.title}". They'll show the next time it plays.`,
+        null
+      );
     } else {
-      $("#song-facts-result").textContent = "That song already ended, so nothing was saved.";
+      $("#song-facts-result").textContent = "Couldn't save. Try again in a moment.";
     }
   });
   $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));

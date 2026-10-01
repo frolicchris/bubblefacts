@@ -7,9 +7,9 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { forgetSong, selfTest, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
-import { FactsPayload, SSLQueueItem } from "./types";
+import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -91,11 +91,14 @@ wss.on("connection", (ws, req) => {
 async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const token = ++generation;
   if (!current) {
+    setCurrentSong(null);
     broadcast({ type: "clear" });
     return;
   }
 
   const song = songList.toSong(current);
+  // Work for any other song is no longer wanted (see setCurrentSong).
+  setCurrentSong(song);
   broadcast({ type: "new_song", song });
 
   const facts = await generateFacts(song, current);
@@ -216,15 +219,31 @@ control.post("/selftest", async (req, res) => {
 const strings = (v: unknown, max: number): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 300)).slice(0, max) : [];
 
+/** The song an edit is for, exactly as the editor received it when it opened. */
+function songFrom(v: unknown): SSLSong | null {
+  const s = v as Partial<SSLSong> | null | undefined;
+  if (!s || typeof s.title !== "string" || typeof s.artist !== "string") return null;
+  return {
+    title: s.title,
+    artist: s.artist,
+    ...(typeof s.songId === "number" ? { songId: s.songId } : {}),
+    ...(typeof s.videoId === "string" ? { videoId: s.videoId } : {}),
+  };
+}
+const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
+  !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
+
 control.post("/song-facts/get", (_req, res) => {
   const song = lastSent.song;
-  res.json(song ? { song: { title: song.title, artist: song.artist }, entry: findSongFacts(song) } : { song: null, entry: null });
+  const target = song && songFrom(song);
+  res.json(target ? { song: target, entry: findSongFacts(target) } : { song: null, entry: null });
 });
 
 control.post("/song-facts", async (req, res) => {
-  const song = lastSent.song;
+  // Saved against the song the editor opened on, even if another song is playing now.
+  const song = songFrom(req.body?.song);
   if (!song) {
-    res.status(404).json({ saved: false });
+    res.status(400).json({ saved: false });
     return;
   }
   saveSongFacts({
@@ -237,13 +256,15 @@ control.post("/song-facts", async (req, res) => {
     facts: strings(req.body?.facts, 20),
   });
   forgetSong(song);
-  // Show them now, without a second NOW PLAYING banner.
+  // Show them now, without a second NOW PLAYING banner, if that song is still on.
   const current = songList.getCurrentSong();
-  if (current) {
+  const playing = current ? songFrom(songList.toSong(current)) : null;
+  const shown = sameSong(playing, song) && sameSong(songFrom(lastSent.song), song);
+  if (shown && current) {
     const facts = await generateFacts(songList.toSong(current), current);
-    broadcast({ type: "facts_ready", song, facts });
+    if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
   }
-  res.json({ saved: true });
+  res.json({ saved: true, shown });
 });
 
 app.use("/control", control);

@@ -527,13 +527,17 @@ const NAME_STOPWORDS = new Set([
  * the soundtrack" (issue from review). Writing music counts as composing.
  */
 const ROLES: Array<{ fact: RegExp; source: RegExp }> = [
-  { fact: /\b(compos\w*|scored|wr[io]te\s+the\s+(music|score|soundtrack)|written\s+the\s+(music|score|soundtrack)|music\s+(was\s+)?(written|composed)\s+by)\b/i, source: /\b(compos\w*|score[ds]?|music|soundtrack|wr[io]te|written|writer)\b/i },
+  { fact: /\b(compos\w*|scored|wr[io]te\s+the\s+(music|score|soundtrack)|written\s+the\s+(music|score|soundtrack)|music\s+(was\s+)?(written|composed)\s+by)\b/i, source: /\b(compos\w*|scored|wr[io]te|written|writer)\b/i },
   { fact: /\b(wr[io]te|written|penned|lyrics?)\b/i, source: /\b(wr[io]te|written|writ\w*|lyric\w*|penned|songwrit\w*|compos\w*)\b/i },
   { fact: /\bproduc\w*/i, source: /\bproduc\w*/i },
   { fact: /\bdirect\w*/i, source: /\bdirect\w*/i },
   { fact: /\b(performed|sang|sung|sings|vocals?|recorded)\b/i, source: /\b(perform\w*|sang|sung|sing\w*|vocal\w*|record\w*|band|singer|rapper|musician)\b/i },
   { fact: /\b(designed|developed)\b/i, source: /\b(design\w*|develop\w*)\b/i },
 ];
+/** "Adele composed", "Mia Chen and Toby Fox wrote": a capitalized name right before a credit verb. */
+const ACTIVE_NAME = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+|originally\s+)?(?:composed|wrote|produced|directed|performed|sang|recorded|designed|developed|scored|penned)\b/gu;
+/** Words between a name and its role word, at most, for the source to count as stating that role. */
+const ROLE_REACH = 6;
 /** "by Adele", "by Nobuo Uematsu": a capitalized name after "by". */
 const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|de|van|von|da|del|la|le))*)/gu;
 
@@ -541,6 +545,10 @@ const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}
 function creditedNames(fact: string): string[] {
   const names = new Set<string>();
   for (const m of fact.matchAll(BY_NAME)) names.add(m[1].trim().replace(/[.'’-]+$/, ""));
+  for (const m of fact.matchAll(ACTIVE_NAME)) {
+    const words = m[1].trim().split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
+    if (words.length) names.add(words.join(" "));
+  }
   for (const candidate of fact.match(NAME) ?? []) {
     const words = candidate.split(/\s+/);
     while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
@@ -559,17 +567,25 @@ export function unsupportedCredit(fact: string, context: string): string | null 
   if (!roles.length) return null;
   const sentences = context.split(/(?<=[.!?])\s+|\n+/);
   for (const name of creditedNames(fact)) {
-    const surname = name.split(/\s+/).pop() ?? name;
-    const about = sentences.filter((s) => hasWord(surname, s));
-    if (!about.length) continue; // unsupportedName reports names the source never has
-    if (!roles.some((r) => about.some((s) => r.source.test(s)))) return name;
+    const surname = (name.split(/\s+/).pop() ?? name).toLowerCase();
+    // The role has to be stated for this person: a role word within a few words
+    // of their name in one sentence, not just anywhere nearby.
+    const stated = sentences.some((s) => {
+      const words = s.toLowerCase().split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean);
+      const at = words.flatMap((w, i) => (w.replace(/['’]s$/, "") === surname ? [i] : []));
+      return at.length > 0 && roles.some((r) =>
+        words.some((w, j) => r.source.test(w) && at.some((i) => Math.abs(i - j) <= ROLE_REACH))
+      );
+    });
+    if (!stated) return name;
   }
   return null;
 }
 
 export function unsupportedName(fact: string, context: string): string | null {
-  // A single-word name after "by" ("composed by Adele") must be there too.
-  for (const m of fact.matchAll(BY_NAME)) {
+  // A single-word name after "by" or before a credit verb ("composed by Adele",
+  // "Adele composed") must be there too.
+  for (const m of [...fact.matchAll(BY_NAME), ...fact.matchAll(ACTIVE_NAME)]) {
     const words = m[1].trim().split(/\s+/).map((w) => w.replace(/[.'’-]+$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
     if (words.length && !words.every((w) => hasWord(w, context))) return words.join(" ");
   }

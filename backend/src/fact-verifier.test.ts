@@ -341,6 +341,16 @@ describe("credits must match the source's roles (review)", () => {
     expect(screenClaims(["The soundtrack was composed by Adele in 2019."], CTX).kept).toEqual([]);
   });
 
+  it("needs the role stated for that person, active or passive (QA follow-up #4)", () => {
+    const ctx = "John Smith directed the game and discussed its soundtrack. Mia Chen composed the music.";
+    expect(screenClaims(["John Smith composed the soundtrack."], ctx).kept).toEqual([]);
+    expect(screenClaims(["Adele composed the soundtrack."], ctx).kept).toEqual([]);
+    expect(screenClaims(["The soundtrack was composed by John Smith."], ctx).kept).toEqual([]);
+    expect(screenClaims(["Mia Chen composed the music."], ctx).kept).toHaveLength(1);
+    expect(screenClaims(["The music was composed by Mia Chen."], ctx).kept).toHaveLength(1);
+    expect(screenClaims(["John Smith directed the game."], ctx).kept).toHaveLength(1);
+  });
+
   it("keeps a credit the source does give", () => {
     expect(screenClaims(["Mia Chen composed the music for Starfall."], CTX).kept).toHaveLength(1);
     expect(screenClaims(["Starfall was directed by John Smith."], CTX).kept).toHaveLength(1);

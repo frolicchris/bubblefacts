@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, generateFacts, markWrong, SOURCE, STRUCTURED } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, STRUCTURED } from "./fact-generator";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
 import { wikidataFacts } from "./wikidata";
@@ -116,6 +116,27 @@ describe("generateFacts", () => {
     ]);
     expect(mockCreate).not.toHaveBeenCalled();
     saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", facts: [] });
+  });
+
+  it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {
+    const song = { title: "Held Song", artist: "Held Artist" };
+    let release: (v: unknown) => void = () => undefined;
+    mockCreate.mockReturnValueOnce(new Promise((r) => (release = r)));
+    const first = generateFacts(song);
+    await new Promise((r) => setImmediate(r));
+    saveSongFacts({ title: "Held Song", artist: "Held Artist", facts: ["The streamer's approved fact."] });
+    forgetSong(song);
+    release(reply(MODEL_LINES));
+    expect((await first).map((f) => f.text)).toEqual(["The streamer's approved fact."]);
+    expect((await generateFacts(song)).map((f) => f.text)).toEqual(["The streamer's approved fact."]);
+    saveSongFacts({ title: "Held Song", artist: "Held Artist", facts: [] });
+  });
+
+  it("shows the streamer's own facts for a live learn too (QA follow-up #6)", async () => {
+    saveSongFacts({ title: "Off List", artist: "Jane Composer", facts: ["Jane's own song, played off the list."] });
+    const facts = await generateFacts({ title: "Off List", artist: "Jane Composer", liveLearn: true });
+    expect(facts.map((f) => f.text)).toEqual(["Jane's own song, played off the list."]);
+    saveSongFacts({ title: "Off List", artist: "Jane Composer", facts: [] });
   });
 
   it("caches a song's facts", async () => {

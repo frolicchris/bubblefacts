@@ -293,6 +293,24 @@ export async function warmUpBuiltin(): Promise<void> {
 const BUILTIN_TIMEOUT_MS = 90_000;
 let builtinQueue: Promise<unknown> = Promise.resolve();
 
+/** A song that's no longer on stream: its queued or running AI work is dropped. */
+class Obsolete extends Error {}
+/** The song on stream now, set by the server; null when unknown (tests, the self-test). */
+let currentKey: string | null = null;
+let running: { key: string | null; stop: AbortController } | null = null;
+
+/**
+ * The server says which song is on stream. Work for any other song is no
+ * longer wanted: the running generation stops now, and queued ones are skipped
+ * when their turn comes, so skipping songs quickly can't build a backlog in
+ * front of the current one.
+ */
+export function setCurrentSong(song: SSLSong | null): void {
+  currentKey = song ? songKey(song) : null;
+  if (running?.key && running.key !== currentKey) running.stop.abort();
+}
+const obsolete = (key: string | null) => key !== null && currentKey !== null && key !== currentKey;
+
 /**
  * The desktop app's built-in model. There is one chat session, so songs take
  * turns: resetting the history and prompting happen together, inside the
@@ -300,28 +318,37 @@ let builtinQueue: Promise<unknown> = Promise.resolve();
  * song's conversation. Each turn is cut off after BUILTIN_TIMEOUT_MS; what
  * was written so far is still screened like any other output.
  */
-function askBuiltin(prompt: string): Promise<string> {
+function askBuiltin(prompt: string, key: string | null = null): Promise<string> {
   const run = async () => {
+    if (obsolete(key)) throw new Obsolete();
     const { session } = await loadBuiltin();
     session.resetChatHistory();
-    return session.prompt(prompt, {
-      temperature: config.temperature,
-      maxTokens: MAX_TOKENS,
-      signal: AbortSignal.timeout(BUILTIN_TIMEOUT_MS),
-      stopOnAbortSignal: true,
-    }) as Promise<string>;
+    const stop = new AbortController();
+    running = { key, stop };
+    try {
+      const text = (await session.prompt(prompt, {
+        temperature: config.temperature,
+        maxTokens: MAX_TOKENS,
+        signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal]),
+        stopOnAbortSignal: true,
+      })) as string;
+      if (stop.signal.aborted) throw new Obsolete();
+      return text;
+    } finally {
+      running = null;
+    }
   };
   const turn = builtinQueue.then(run, run);
   builtinQueue = turn.catch(() => undefined);
   return turn;
 }
 
-async function askModel(prompt: string): Promise<string> {
+async function askModel(prompt: string, key: string | null = null): Promise<string> {
   const started = Date.now();
   let text: string;
   let endpoint: string;
   if (config.aiProvider === "builtin") {
-    text = await askBuiltin(prompt);
+    text = await askBuiltin(prompt, key);
     endpoint = "built-in model";
   } else if (config.aiProvider === "anthropic") {
     text = await askAnthropic(prompt);
@@ -378,6 +405,17 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   const want = config.factsPerSong;
   const keep = { facts: [] as Fact[], ttlMs: Infinity };
 
+  // Facts the streamer wrote for this very song come first, exactly as written,
+  // with no lookup, even for a live learn: often another streamer's off-list original.
+  const yours = findSongFacts(song);
+  if (yours) {
+    const lines = songFactLines(yours).slice(0, want);
+    console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
+    record(song, "songFacts", lines.length);
+    // Not cached: an edit in the app applies the next time it plays.
+    return { facts: toFacts(lines, () => SOURCE.yours), ttlMs: 0 };
+  }
+
   if (song.liveLearn) {
     console.log(`[FactGen] "${song.title}" is a live learn, skipping facts`);
     record(song, "liveLearn", 0);
@@ -385,22 +423,11 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   }
 
   try {
-    // Facts the streamer wrote for this very song come first, exactly as written, with no lookup.
-    const yours = findSongFacts(song);
-    if (yours) {
-      const lines = songFactLines(yours).slice(0, want);
-      console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
-      record(song, "songFacts", lines.length);
-      // Not cached: an edit in the app applies the next time it plays.
-      return { facts: toFacts(lines, () => SOURCE.yours), ttlMs: 0 };
-    }
-
     const names = [config.sslStreamerName, config.streamerDisplayName];
     if (config.originals && isOriginal(entry, names)) {
       const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true, names });
-      // The streamer's notes about their own compositions only go with songs credited to them.
-      const credit = (entry?.song?.artist ?? "").trim();
-      const own = !credit || /^unknown$/i.test(credit) || creditedToStreamer(entry, names);
+      // The streamer's notes about their own compositions only go with songs explicitly credited to them.
+      const own = creditedToStreamer(entry, names);
       const statSet = new Set(stats);
       const facts = toFacts([...stats, ...(own ? topic.originalsFacts : [])].slice(0, want), (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
@@ -434,7 +461,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     const songFacts = context && !aboutTheSong(song, context) ? await structuredFacts(song) : [];
 
     const prompt = context ? groundedPrompt(song, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
-    const lines = (await askModel(prompt)).split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = (await askModel(prompt, songKey(song))).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
@@ -454,6 +481,11 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     record(song, "nothingSurvived", fallback.length);
     return { facts: toFacts(fallback, entrySource), ttlMs: RETRY_MS };
   } catch (err) {
+    if (err instanceof Obsolete) {
+      // Not cached: the song may come back, and then it deserves a real try.
+      console.log(`[FactGen] Dropped "${song.title}": the song changed before its facts were written`);
+      return { facts: [], ttlMs: 0 };
+    }
     const fallback = entryFacts(entry, want);
     console.error(`[FactGen] Generation failed for "${song.title}":`, err);
     record(song, "generationFailed", fallback.length);
@@ -472,18 +504,26 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
     factStats.cacheHits++;
     return Promise.resolve(cached.facts);
   }
+  const rev = revisions.get(key) ?? 0;
   let pending = inFlight.get(key);
   if (!pending) {
     pending = generate(song, entry)
       .then(({ facts, ttlMs }) => {
-        factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        // A generation started before the song's facts changed may not overwrite them.
+        if ((revisions.get(key) ?? 0) === rev) factCache.set(key, { facts, expires: Date.now() + ttlMs });
         return facts;
       })
-      .finally(() => inFlight.delete(key));
+      .finally(() => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+      });
     inFlight.set(key, pending);
   }
-  return pending;
+  // Superseded while it ran (the streamer saved facts for this song): start over.
+  return pending.then((facts) => ((revisions.get(key) ?? 0) === rev ? facts : generateFacts(song, entry)));
 }
+
+/** Bumped when a song's facts change; a generation from an older revision is discarded. */
+const revisions = new Map<string, number>();
 
 export function clearFactCache(): void {
   factCache.clear();
@@ -533,6 +573,7 @@ export async function selfTest(variant = 0): Promise<{ generated: number; kept: 
 /** Forget a song's cached facts, so its next generation starts over (after its own facts change). */
 export function forgetSong(song: SSLSong): void {
   const key = songKey(song);
+  revisions.set(key, (revisions.get(key) ?? 0) + 1);
   factCache.delete(key);
   inFlight.delete(key);
 }

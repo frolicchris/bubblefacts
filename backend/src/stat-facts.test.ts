@@ -20,7 +20,7 @@ describe("isOriginal", () => {
     // Attribute-driven rather than a hardcoded title list, so adding a new
     // original to the song list needs no code change.
     expect(
-      isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), ["janestreams"])
+      isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), ["janestreams", "Jane"])
     ).toBe(true);
   });
 
@@ -117,6 +117,14 @@ describe("buildStatFacts", () => {
       { ...opts, isOriginalSong: true, names: ["janestreams", "Jane Composer"] }
     );
     expect(f.some((x) => x.includes("by Jane Composer"))).toBe(true);
+  });
+
+  it("names no writer when the credit is missing, and doesn't match names by prefix (QA follow-up #3)", () => {
+    const unknown = entry({ title: "Untitled Jam", artist: "Unknown", attributes: [{ name: "Originals" }] });
+    expect(isOriginal(unknown, ["frolicchris", "Chris"])).toBe(true);
+    const f = buildStatFacts(unknown, { streamerName: "frolicchris", isOriginalSong: true, names: ["frolicchris", "Chris"] });
+    expect(f.join(" ")).not.toMatch(/composition by|person who wrote it|credited to/);
+    expect(isOriginal(entry({ artist: "Christina Lee", attributes: [{ name: "Christina's Originals" }] }), ["frolicchris", "Chris"])).toBe(false);
   });
 
   it("never claims another streamer's original was written by the one playing it", () => {

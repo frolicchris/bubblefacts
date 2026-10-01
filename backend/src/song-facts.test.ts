@@ -18,6 +18,13 @@ describe("song facts", () => {
     expect(findSongFacts({ title: "Evening Rain", artist: "Someone Else", songId: 7 })).toBeNull();
   });
 
+  it("keeps versions apart unless an alias joins them (QA follow-up #5)", () => {
+    saveSongFacts({ title: "Night Drive (Acoustic)", artist: "Jane", facts: ["Recorded live in one take."] });
+    expect(findSongFacts({ title: "Night Drive (Acoustic)", artist: "Jane" })).not.toBeNull();
+    expect(findSongFacts({ title: "Night Drive (Remix)", artist: "Jane" })).toBeNull();
+    expect(findSongFacts({ title: "Night Drive", artist: "Jane" })).toBeNull();
+  });
+
   it("credits a writer only when the streamer typed one in", () => {
     expect(songFactLines({ title: "Evening Rain", artist: "Jane Composer", facts: ["Written in one night."] })).toEqual([
       "Written in one night.",
