@@ -853,6 +853,30 @@ export function unsupportedCredit(fact: string, context: string): string | null 
   return null;
 }
 
+/** "Audrey Hepburn won", "Mancini received": a capitalized name right before winning something. */
+const WINNER = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+)?(?:won|received|earned|was awarded)\b/gu;
+const WON = { source: /^(won|wins|winning|awarded|received|earned|winner)$/i };
+
+/**
+ * A named winner the source doesn't name as the winner. "The song won an
+ * Academy Award" doesn't make its singer the winner (seen replaying a
+ * stream: Moon River and Audrey Hepburn). The work itself, named as the
+ * article is titled, is left to the award checks.
+ */
+export function unsupportedWinner(fact: string, context: string): string | null {
+  const article = normalizeTitle(context.split("\n")[0]);
+  const sentences = context.split(/(?<=[.!?])\s+|\n+/);
+  for (const m of fact.matchAll(WINNER)) {
+    const words = m[1].trim().split(/\s+/).map((w) => w.replace(/['’]s?$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
+    if (!words.length) continue;
+    const name = words.join(" ");
+    if (article && mentionsName(article, [normalizeTitle(name)])) continue;
+    const surname = words[words.length - 1].toLowerCase();
+    if (!sentences.some((s) => statesRole(s, surname, WON))) return name;
+  }
+  return null;
+}
+
 export function unsupportedName(fact: string, context: string): string | null {
   // A single-word name after "by" or before a credit verb ("composed by Adele",
   // "Adele composed") must be there too.
@@ -1045,6 +1069,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
       if (name) return `unsupported name "${name}"`;
       const credit = unsupportedCredit(fact, context);
       if (credit) return `unsupported credit for "${credit}"`;
+      const winner = unsupportedWinner(fact, context);
+      if (winner) return `award not given to "${winner}" in the source`;
       const quote = alteredQuote(fact, context);
       if (quote) return `quote not in the source: "${quote}"`;
     }
