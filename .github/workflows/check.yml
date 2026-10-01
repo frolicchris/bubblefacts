@@ -49,3 +49,14 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build && npm run build:desktop
+
+  # The one check main's ruleset requires, so renaming or adding a matrix entry
+  # above can't leave pull requests waiting on a check that no longer runs.
+  ci-ok:
+    name: ci-ok
+    needs: [check, other-systems]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check passed
+        run: test "${{ needs.check.result }}" = success && test "${{ needs.other-systems.result }}" = success
