@@ -1,7 +1,7 @@
 {
   "name": "bubblefacts",
   "version": "2.0.0-beta.3",
-  "description": "Fact bubbles in OBS about the song your StreamerSongList queue says you are playing. Grounded in Wikipedia, written by a local or hosted LLM, screened deterministically.",
+  "description": "Fact bubbles in OBS about the song you're playing, from StreamerSongList or StreamElements requests. Facts come from Wikipedia (rewritten by a local or hosted LLM, screened deterministically), Wikidata and MusicBrainz.",
   "private": true,
   "scripts": {
     "build": "tsc -p backend/tsconfig.json",

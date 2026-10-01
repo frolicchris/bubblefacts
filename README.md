@@ -7,8 +7,9 @@
 **Fun facts about the song you're playing, right on your stream.**
 
 BubbleFacts watches your [StreamerSongList](https://streamersonglist.com) or
-[StreamElements](https://streamelements.com) song requests and shows short,
-Wikipedia-checked facts in game-inspired bubbles in OBS while you play. The
+[StreamElements](https://streamelements.com) song requests and shows short
+facts from Wikipedia and open music databases in game-inspired bubbles in OBS
+while you play, each one checked against its source. The
 captions are written by a small AI model, and the app itself was written with
 an AI coding agent: see [AI disclosure](#ai-disclosure).
 
