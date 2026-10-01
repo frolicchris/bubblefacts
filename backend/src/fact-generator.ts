@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { artistNames, curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, tooSimilar } from "./fact-verifier";
+import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
@@ -154,7 +154,34 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
  * Written for a 3B model: the source comes first, and every rule is a test
  * the model can apply to its own sentence rather than "be accurate".
  */
+/**
+ * The same job laid out as CROSS: Context, Role, Objective, Source, Scope.
+ * Only used when PROMPT_STYLE=cross, to compare against the rule list.
+ */
+function crossPrompt(song: SSLSong, context: string, want: number): string {
+  const { game, track } = resolveGameAndTrack(song);
+  const work = track && track !== game ? `"${track}" from ${game}` : `"${track || game}"`;
+  return `CONTEXT
+A musician is playing ${work} live on a stream right now. Short captions about the song pop up on screen, one at a time, in small bubbles. The readers are the viewers in chat: music fans of every level, not experts.
+
+ROLE
+Act as a music trivia writer for live streams, who knows what makes a chat say "wait, really?".
+
+OBJECTIVE
+Write ${want} captions about ${game} or its music that chat would find surprising, funny or fascinating. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
+
+SOURCE
+Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Keep each fact with the person the text gives it to. If the text does not say something, leave it out.
+"""
+${context}
+"""
+
+SCOPE
+Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. Nothing about the music video. Never mention the text, this prompt or what you could not find.`;
+}
+
 function groundedPrompt(song: SSLSong, context: string, want: number): string {
+  if (process.env.PROMPT_STYLE === "cross") return crossPrompt(song, context, want);
   const { game, intro } = subjectLine(song);
   return `${intro}
 
@@ -165,7 +192,7 @@ SOURCE
 ${context}
 """
 
-Write exactly ${want} trivia lines about ${game} or its music.
+Write exactly ${want} trivia lines about ${game} or its music. Your readers are the stream's chat: pick what they would find surprising, funny or fascinating, the kind of thing someone repeats to a friend. Skip dry details (labels, catalog numbers, release formats) unless the SOURCE has nothing better.
 
 Follow every rule:
 1. Use ONLY the SOURCE. Every person, year, number, platform, studio, and title you write must appear in the SOURCE, spelled the same way.
@@ -175,9 +202,9 @@ Follow every rule:
 5. Do not mention awards, sales, chart positions, or review scores unless the SOURCE uses those words.
    Never write opinions or praise ("considered", "acclaimed", "one of the greatest"), even if the SOURCE quotes them.
    Never describe the music video: viewers are watching it. Write about the song itself.
-6. Prefer details about the music: the composer or songwriter, the instruments, how it was recorded, arranged or first performed. If the SOURCE has none, write about the work itself.
+6. Prefer what the people who made the music said or did. If the SOURCE says someone "said", "recalled" or was "inspired by" something, retell that in your own words and keep their name. Then who or what influenced it, how the music is built (key, tempo, chords, form), and how it was received (a chart position, award, certification or sales), when the SOURCE gives them. Then the instruments and how it was recorded, arranged or first performed.
 7. Never mention the SOURCE, this prompt, Wikipedia, or anything you could not find. Write finished facts only.
-8. One sentence per line, under 120 characters, friendly like a loading-screen tip.
+8. One sentence per line, under 120 characters, friendly like a loading-screen tip, in plain words anyone can follow.
 9. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
 }
 
@@ -506,7 +533,8 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const lines = (await askModel(prompt, songKey(song))).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
-    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+    // Music terms get a few fixed plain words, so any viewer can follow.
+    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f))).map(explainMusicTerms);
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
     // A spare takes the place of a line that only repeats the title and artist.
     const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].filter((f) => !restatesRequest(f, song)).slice(0, want);

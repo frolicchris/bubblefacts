@@ -17,7 +17,7 @@ const WIKI_API = "https://en.wikipedia.org/w/api.php";
 export const USER_AGENT =
   `bubblefacts/1.0 (${process.env.WIKIPEDIA_CONTACT || "https://github.com/frolicchris/bubblefacts"})`;
 
-const MAX_CONTEXT_CHARS = 2400;
+const MAX_CONTEXT_CHARS = 3000;
 /** Shorter extracts are stubs; the entry's own data beats restating one. */
 const MIN_CONTEXT_CHARS = 600;
 /** Longest fact that fits a bubble. */
@@ -285,7 +285,169 @@ const BACKGROUND_HEADING = /development|production|career|works|discography/i;
  * release year and platform that screening checks against. The tail of a
  * long context is what a small model reads least carefully.
  */
-export function orderExtract(full: string, budget: number): string {
+/** A creator talking about the work: "said", "recalled", "was inspired by". */
+const CREATOR_CUE =
+  /\b(said|says|stated|recalled|recalls|explained|explains|remembered|described (?:how|the|it|writing|recording)|according to|in an interview|inspired by|inspiration|influenc\w+|based (?:it )?on|modell?ed (?:it )?(?:on|after)|drew (?:on|from)|borrow\w+|homage|tribute to|was written (?:after|while|when|during|in (?:about|just|under))|wrote (?:it|the song|the piece|the track|the music) (?:after|while|when|during|in)|came up with|originally (?:titled|entitled|intended|written|called|planned|composed|named|meant)|intended|wanted|decided|felt that|took (?:only|about|just))\b/i;
+/** "Astley told the Los Angeles Times": told, then a name. */
+const TOLD_SOMEONE = /\btold (?:the |an? )?\p{Lu}/u;
+/** The sentence is about the music, not the business around it. */
+const ABOUT_MUSIC = /\b(music|songs?|tracks?|themes?|score|melody|melodies|soundtrack|compos\w+|record\w*|lyrics?|riff|chords?|album|tune|piece|arrang\w+|vocals?|piano|guitar|demo|title)\b/i;
+/** Sections where creators' comments about the music live. */
+const MAKING_HEADING = /recording|composition|production|development|conception|background|writing|music|creation|origin|inspiration/i;
+/** Sections that are other people's opinions, later uses, or lists. */
+const NOT_THE_MAKERS_HEADING =
+  /reception|review|accolade|chart|certification|track listing|personnel|credits|legacy|impact|music video|cover|version|popular culture|media|usage|use in|adaptation|sampl|reference|see also|external|release|commercial|performance/i;
+/** Critics, the press and scholars: their views aren't the makers'. */
+const CRITIC_WORDS =
+  /\b(critics?|reviewers?|magazine|publication|newspaper|journalist|correspondent|writer|musicologist|scholar|author|biograph\w+|documentary|interpreted|ranked|listed|review(?:ed|s)?|praised|called it|charts?|streamed|copies|sold)\b/i;
+const CRITIC_NAMES =
+  /\b(IGN|GameSpot|Pitchfork|Rolling Stone|Billboard|NME|Kotaku|Polygon|RPGFan|Eurogamer|Famitsu|Stereogum|MTV|NPR|BBC|USA Today|Variety|Melody Maker|[A-Z]\w+ (?:Times|News|Post|Tribune|Herald|Guardian|Telegraph))\b/;
+const CRITIC = { test: (s: string) => CRITIC_WORDS.test(s) || CRITIC_NAMES.test(s) };
+/** A sentence that leans on the one before it can't be retold on its own. */
+const LEANS_BACK = /^["“]?(?:I|We|He|She|They|It|His|Her|Their|This|These|That|Those|Hence|However|Instead|Meanwhile|Therefore|The same|A similar|Despite|Asked|When asked)\b/;
+const MAX_COLOR_SENTENCES = 5;
+const MAX_COLOR_CHARS = 900;
+
+/**
+ * The article's sentences where the people who made the music say something
+ * about it, in article order (issue #48). Articles summarize interviews in
+ * their Recording, Composition and Development sections, usually far past
+ * the lead, where a character budget never reached them.
+ *
+ * A sentence needs a cue ("said", "recalled", "inspired by"), to be about the
+ * music, and to stand on its own: someone named, no leaning on the sentence
+ * before, no quotation cut off by the sentence split. Then it's scored:
+ * naming the track or artist and sitting in a section about making the music
+ * count for it; reception and later-use sections, critics and the press, and
+ * great length count against it. It needs one point in its favor to be kept.
+ */
+/** Plainly about music: for an article on a whole game or artist, where "title" and "piece" could mean anything. */
+const PLAINLY_MUSIC = /\b(music|songs?|tracks?|soundtrack|score|melody|melodies|compos\w+|lyrics?|theme song|main theme)\b/i;
+
+export function creatorSentences(full: string, names: string[] = [], ownArticle = true): string[] {
+  const wanted = names.map((n) => normalizeTitle(n)).filter(Boolean);
+  const scored: Array<{ text: string; score: number; at: number }> = [];
+  let at = 0;
+  const sections = [["", full.split(/\n==/)[0]], ...[...full.matchAll(/\n==+\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)].map((m) => [m[1], m[2]])];
+  for (const [heading, body] of sections) {
+    const making = MAKING_HEADING.test(heading);
+    const others = NOT_THE_MAKERS_HEADING.test(heading);
+    for (const raw of body.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u)) {
+      const text = raw.trim();
+      at++;
+      if (text.length < 40 || !(CREATOR_CUE.test(text) || TOLD_SOMEONE.test(text))) continue;
+      const namesTrack = wanted.length > 0 && mentionsName(normalizeTitle(text), wanted);
+      // In an article about the whole game or artist, only what names the track, or is plainly about the music.
+      if (!namesTrack && !(ownArticle ? ABOUT_MUSIC.test(text) : PLAINLY_MUSIC.test(text) && making)) continue;
+      // Leaning on the sentence before, or cut by the split: an open quotation, a trailing colon, a stray initial.
+      if (cutOff(text)) continue;
+      // Someone has to be named.
+      if (!/\b\p{Lu}\p{L}+/u.test(text.slice(1))) continue;
+      let score = 3;
+      if (namesTrack) score += 2;
+      if (making) score += 1;
+      if (others) score -= 3;
+      if (CRITIC.test(text)) score -= 3;
+      if (text.length > 300) score -= 2;
+      if (score >= 4) scored.push({ text, score, at });
+    }
+  }
+  const best = scored.sort((a, b) => b.score - a.score || a.at - b.at).slice(0, MAX_COLOR_SENTENCES);
+  const kept: string[] = [];
+  let used = 0;
+  for (const s of best.sort((a, b) => a.at - b.at)) {
+    if (used + s.text.length > MAX_COLOR_CHARS) continue;
+    kept.push(s.text);
+    used += s.text.length + 1;
+  }
+  return kept;
+}
+
+/** How the work did, in things that can be counted: charts, awards, certifications, sales. */
+const RECEIVED_CUE =
+  /\b(number[- ]one|number \d+|No\. ?\d+|top (?:ten|five|\d+)|topped|peaked|reached|charted|won|winning|awarded|nominat\w+|Grammy|Academy Award|Oscar|BAFTA|Golden Globe|certified|platinum|gold|diamond|best[- ]selling|million|billion|inducted|Hall of Fame|National Recording Registry|first (?:video game|song|single|piece)\b.{0,40}\bto)\b/i;
+const RECEIVED_HEADING = /reception|commercial|chart|accolade|award|legacy|release|impact/i;
+const MAX_RECEIVED_SENTENCES = 3;
+const MAX_RECEIVED_CHARS = 450;
+
+/** Whether a split left the sentence unable to stand alone. */
+const brokenBySplit = (text: string) =>
+  (text.match(/["“”]/g)?.length ?? 0) % 2 === 1 || /[:;,]$/.test(text) || /\b\p{Lu}\.$/u.test(text);
+const cutOff = (text: string) => LEANS_BACK.test(text) || brokenBySplit(text);
+
+/**
+ * The article's sentences on how the work was received, as things that can be
+ * counted: chart peaks, awards, certifications and sales. They sit in the
+ * lead and in Reception, Charts and Accolades sections, which the music-first
+ * ordering skipped. Critics' opinions are left out: screening drops those.
+ */
+export function receptionSentences(full: string): string[] {
+  const sections = [["", full.split(/\n==/)[0]], ...[...full.matchAll(/\n==+\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)].map((m) => [m[1], m[2]])];
+  const kept: string[] = [];
+  let used = 0;
+  for (const [heading, body] of sections) {
+    if (heading && !RECEIVED_HEADING.test(heading)) continue;
+    for (const raw of body.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u)) {
+      const text = raw.trim();
+      // "It reached number one" is fine here: in the song's own article, "it" is the song.
+      if (text.length < 40 || text.length > 260 || !RECEIVED_CUE.test(text) || OPINION.test(text) || brokenBySplit(text)) continue;
+      if (LEANS_BACK.test(text) && !/^It\b/.test(text)) continue;
+      if (kept.length >= MAX_RECEIVED_SENTENCES || used + text.length > MAX_RECEIVED_CHARS) return kept;
+      kept.push(text);
+      used += text.length + 1;
+    }
+  }
+  return kept;
+}
+
+/** How the music is built: key, tempo, meter, harmony, form. */
+const THEORY_CUE =
+  /\b(key of|[A-G](?:[-♭♯ ](?:flat|sharp))? (?:major|minor)|in (?:a )?(?:major|minor)|tempo|beats per minute|bpm|time signature|\d\/\d time|common time|chord progression|chords?|arpeggi\w+|ostinato|leitmotifs?|modulat\w+|syncopat\w+|counterpoint|riff|scale|Dorian|Phrygian|Lydian|Mixolydian|pentatonic|octaves?|vocal range|spans|bars?\b|measures|verse[- ]chorus|bridge|coda|waltz)\b/i;
+const THEORY_HEADING = /composition|music|structure|analysis|style|lyrics|form|theme/i;
+const MAX_THEORY_SENTENCES = 3;
+const MAX_THEORY_CHARS = 450;
+
+/** The article's sentences on how the music is built, from its Composition or Structure sections. */
+export function theorySentences(full: string): string[] {
+  const kept: string[] = [];
+  let used = 0;
+  for (const [, heading, body] of full.matchAll(/\n==+\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
+    if (!THEORY_HEADING.test(heading) || NOT_THE_MAKERS_HEADING.test(heading)) continue;
+    for (const raw of body.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u)) {
+      const text = raw.trim();
+      if (text.length < 40 || text.length > 240 || !THEORY_CUE.test(text) || OPINION.test(text) || cutOff(text)) continue;
+      if (kept.length >= MAX_THEORY_SENTENCES || used + text.length > MAX_THEORY_CHARS) return kept;
+      kept.push(text);
+      used += text.length + 1;
+    }
+  }
+  return kept;
+}
+
+/** Cut text back to its last whole sentence, so the model never copies half of one. */
+function wholeSentences(text: string): string {
+  if (/[.!?]["”)]?$/.test(text)) return text;
+  const end = Math.max(text.lastIndexOf(". "), text.lastIndexOf('." '), text.lastIndexOf(".\n"));
+  // Only when little is lost: text with few sentence breaks is left as it is.
+  return end > text.length * 0.7 ? text.slice(0, end + 1) : text;
+}
+
+/**
+ * `ownArticle` is false when the article is about the whole game or the
+ * artist, not this song: then only what's plainly about the music is lifted,
+ * and no reception, which would be the game's or the artist's, not the song's.
+ */
+export function orderExtract(full: string, budget: number, names: string[] = [], ownArticle = true): string {
+  // What the makers said goes first: it's the part worth retelling, and a small model reads the top best.
+  const color = creatorSentences(full, names, ownArticle);
+  const theory = ownArticle ? theorySentences(full).filter((s) => !color.includes(s)) : [];
+  const received = ownArticle ? receptionSentences(full).filter((s) => !color.includes(s) && !theory.includes(s)) : [];
+  const colorBlock = [
+    color.length ? `From the people who made it: ${color.join(" ")}` : "",
+    theory.length ? `How the music is built: ${theory.join(" ")}` : "",
+    received.length ? `How it was received: ${received.join(" ")}` : "",
+  ].filter(Boolean).join("\n\n");
+  if (colorBlock) budget = Math.max(0, budget - colorBlock.length - 2);
   const primary: string[] = [];
   const secondary: string[] = [];
   // A subsection inherits the bucket of the section it sits under.
@@ -298,9 +460,9 @@ export function orderExtract(full: string, budget: number): string {
     if (bucket && body.trim()) bucket.push(`${heading}: ${body.trim()}`);
   }
 
-  const lead = full.split(/\n==/)[0].trim().slice(0, Math.floor(budget * 0.35));
-  const rest = [...primary, ...secondary].join("\n\n").slice(0, Math.max(0, budget - lead.length - 2));
-  return [rest, lead].filter(Boolean).join("\n\n");
+  const lead = wholeSentences(full.split(/\n==/)[0].trim().slice(0, Math.floor(budget * 0.35)));
+  const rest = wholeSentences([...primary, ...secondary].join("\n\n").slice(0, Math.max(0, budget - lead.length - 2)));
+  return [colorBlock, rest, lead].filter(Boolean).join("\n\n");
 }
 
 /** The article's full plain text, or null for a disambiguation page. */
@@ -316,6 +478,9 @@ async function wikiExtract(pageTitle: string): Promise<string | null> {
 }
 
 /** Reference text for the song, or "" when no relevant article exists. */
+/** Game tracks already found to have no article of their own. */
+const noOwnArticle = new Set<string>();
+
 export async function fetchGrounding(song: SSLSong): Promise<string> {
   const { game, track } = resolveGameAndTrack(song);
   const gameKey = normalizeTitle(game);
@@ -330,6 +495,29 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   // Articles the streamer marked wrong for this song are never used for it again.
   const blocked = blockedArticles(song);
   const usable = (title: string) => !blocked.has(title);
+  // A game's track with an article of its own ("Megalovania", "Baba Yetu") is
+  // far richer than the game's article, so it's tried first: one search per
+  // track, remembered either way (issue #48).
+  if (!artist && track && track !== game && !song.artistUncertain && !noOwnArticle.has(songKey) && !groundingCache.get(songKey)?.text) {
+    try {
+      const own = (await wikiSearch(`${track} ${game}`)).find(
+        (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game)
+      );
+      const full = own ? await wikiExtract(own) : null;
+      const extract = full && mentionsName(normalizeTitle(full), artistNames(game)) ? orderExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
+      if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
+        const text = `${own}\n${extract}`;
+        console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
+        groundingCache.set(songKey, { text, at: Date.now() });
+        return text;
+      }
+      noOwnArticle.add(songKey);
+    } catch {
+      // Throttled or unreachable: the game's article below still serves, and this is tried again next time.
+    }
+  }
+  const ownHit = groundingCache.get(songKey);
+  if (!artist && ownHit?.text && usable(ownHit.text.split("\n")[0])) return ownHit.text;
   for (const key of artist ? [songKey] : [gameKey, songKey]) {
     const hit = key && groundingCache.get(key);
     if (hit && hit.text && !usable(hit.text.split("\n")[0])) continue;
@@ -369,9 +557,8 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       const titles = await wikiSearch(term);
       // For an artist, the song's own article beats the artist's, wherever it ranks:
       // "Industry Baby" over "Lil Nas X".
-      const page = artist || song.performer
-        ? titles.find((t) => usable(t) && matchedTrack(t)) ?? titles.find((t) => usable(t) && matchedGame(t))
-        : titles.find((t) => usable(t) && (matchedGame(t) || matchedTrack(t)));
+      // The same for a game's track that has an article of its own: "Megalovania" over "Undertale".
+      const page = titles.find((t) => usable(t) && matchedTrack(t)) ?? titles.find((t) => usable(t) && matchedGame(t));
       if (!page) {
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
         continue;
@@ -393,7 +580,9 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
         console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
         continue;
       }
-      const extract = full && orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1);
+      // The song's own article, or one about the whole game or artist?
+      const ownArticle = !byGame || track === game || matchedTrack(page);
+      const extract = full && orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track], ownArticle);
       if (!extract || extract.length < MIN_CONTEXT_CHARS) {
         console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
         continue;
@@ -422,6 +611,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
 }
 
 export function clearGroundingCache(): void {
+  noOwnArticle.clear();
   groundingCache.clear();
 }
 
@@ -447,7 +637,7 @@ const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
  * stream and make the real facts harder to trust (issue #21), and the music
  * video's plot or look is what viewers are already watching (issue #20).
  */
-const OPINION = /\b(considered|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
+const OPINION = /\b(considered (?:one|to be|as|by|a|an|the|among)|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
 const ABOUT_THE_VIDEO = /\b(music video|video clip|in the video|the video(?!\s*games?\b))\b/i;
 
 /** The model reasoning about its source instead of stating a fact. */
@@ -621,8 +811,11 @@ function creditedNames(fact: string): string[] {
     const words = m[1].trim().split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
     if (words.length) names.add(words.join(" "));
   }
+  // A title in quotation marks is a work, not a person: "Take On Me" can't be given a credit.
+  const titles = [...fact.matchAll(/["“]([^"“”]+)["”]/g)].map((m) => m[1]);
   for (const candidate of fact.match(NAME) ?? []) {
-    const words = candidate.split(/\s+/);
+    if (titles.some((t) => t.includes(candidate))) continue;
+    const words = candidate.split(/\s+/).map((w) => w.replace(/['’]s?$/, ""));
     while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
     if (words.length >= 2 && !words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) names.add(words.join(" "));
   }
@@ -654,7 +847,8 @@ export function unsupportedName(fact: string, context: string): string | null {
     if (words.length && !words.every((w) => hasWord(w, context))) return words.join(" ");
   }
   for (const candidate of fact.match(NAME) ?? []) {
-    const words = candidate.split(/\s+/);
+    // "Colonel Abrams' track": the possessive isn't part of the name.
+    const words = candidate.split(/\s+/).map((w) => w.replace(/['’]s?$/, ""));
     while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
     const isName = words.length >= 2 || /^Mc/.test(words[0] ?? "");
     if (!isName || words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) continue;
@@ -670,7 +864,10 @@ function stripPrefix(fact: string): string {
     .replace(/^\s*(fact|trivia|tip|line)\s*\d*\s*[:.\-—]\s*/i, "")
     .replace(/^\s*[-*•]\s*/, "")
     .replace(/^\s*\d+\s*[.)]\s*/, "")
-    .replace(/^["'“”]|["'“”]$/g, "")
+    .trim()
+    // Quotes around the whole line go; a quoted title at the start stays whole.
+    .replace(/^["“]([^"“”]*)["”]$/, "$1")
+    .replace(/^'(.*)'$/, "$1")
     .trim();
 }
 
@@ -727,6 +924,54 @@ export function tooSimilar(a: string, b: string): boolean {
   return shared / (ta.size + tb.size - shared) >= 0.5 || shared / Math.min(ta.size, tb.size) >= 0.7;
 }
 
+const MAX_QUOTE_WORDS = 12;
+const plainQuotes = (s: string) => s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, " ").toLowerCase();
+
+/**
+ * Words in quotation marks are someone's own words, so they must be in the
+ * source exactly, and short: a quote of three or more words that the source
+ * doesn't contain, or one over twelve words, is returned. One- and two-word
+ * quotes are titles and nicknames, which the name checks cover.
+ */
+export function alteredQuote(fact: string, context: string): string | null {
+  const source = plainQuotes(context);
+  for (const m of plainQuotes(fact).matchAll(/"([^"]+)"/g)) {
+    const words = m[1].replace(/[.,!?;:]+$/, "").trim();
+    const count = words.split(" ").length;
+    if (count < 3) continue;
+    if (count > MAX_QUOTE_WORDS || !source.includes(words)) return words;
+  }
+  return null;
+}
+
+/** Music terms a viewer may not know, each with a few plain words. Fixed text: the model never explains them itself. */
+const PLAIN_WORDS: Array<[RegExp, string]> = [
+  [/\barpeggi(?:o|os|ated)\b/i, "a chord's notes played one at a time"],
+  [/\bostinato\b/i, "a short pattern repeated over and over"],
+  [/\bleitmotifs?\b/i, "a tune tied to a character or idea"],
+  [/\bcounterpoint\b/i, "two melodies at once"],
+  [/\bsyncopat(?:ed|ion)\b/i, "accents off the beat"],
+  [/\bmodulat(?:es|ed|ion)\b/i, "a change of key"],
+  [/\bpentatonic\b/i, "a five-note scale"],
+  [/\b(?:Dorian|Phrygian|Lydian|Mixolydian)\b/, "an old kind of scale"],
+  [/\bchord progression\b/i, "the order of the chords"],
+  [/\btime signature\b/i, "how the beats are counted"],
+  [/\bcoda\b/i, "a closing section"],
+  [/\bbeats per minute\b/i, "how fast it goes"],
+];
+
+/** Add a few plain words after the first music term in a caption, when they fit in the bubble (issue #48). */
+export function explainMusicTerms(fact: string): string {
+  for (const [term, plain] of PLAIN_WORDS) {
+    const m = term.exec(fact);
+    if (!m || fact.includes(plain)) continue;
+    const at = m.index + m[0].length;
+    const explained = `${fact.slice(0, at)} (${plain})${fact.slice(at)}`;
+    return explained.length <= MAX_FACT_CHARS ? explained : fact;
+  }
+  return fact;
+}
+
 export interface ScreenResult {
   kept: string[];
   rejected: Array<{ text: string; reason: string }>;
@@ -744,6 +989,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
     if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
     if (fact.length < 20) return "too short";
     if (OPINION.test(fact)) return "opinion";
+    // "He combined two words": a viewer can't tell who.
+    if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
     for (const { re, label } of RISKY_PATTERNS) {
       const m = fact.match(re);
@@ -758,6 +1005,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
       if (name) return `unsupported name "${name}"`;
       const credit = unsupportedCredit(fact, context);
       if (credit) return `unsupported credit for "${credit}"`;
+      const quote = alteredQuote(fact, context);
+      if (quote) return `quote not in the source: "${quote}"`;
     }
     if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
     if (result.kept.some((k) => tooSimilar(k, fact))) return "near-duplicate of an earlier fact";

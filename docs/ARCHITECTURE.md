@@ -64,13 +64,28 @@ StreamElements ───┴──────────────► Server 
    facts and their composition notes, with no lookup.
 5. **Ground.** Search Wikipedia for the song, game or work, reject results that
    aren't really about it or that the streamer marked **Wrong** for this song,
-   and pull out the music-related sections first.
+   and pull out the music-related sections first. A game's track with an
+   article of its own ("Megalovania") is tried before the game's article: one
+   extra search per track.
+   The reference then leads with three kinds of sentence lifted from anywhere
+   in the article (issue #48), because a character budget never reached them:
+   what the makers said (`creatorSentences`: a cue like "said", "recalled" or
+   "inspired by", about the music, someone named, critics and the press left
+   out), how the music is built (`theorySentences`: key, tempo, chords, form)
+   and how it was received (`receptionSentences`: charts, awards,
+   certifications, sales, never opinions). In an article about a whole game
+   or artist, only sentences that name the track or are plainly about music
+   are lifted, and no reception.
 6. **Write.** The AI rewrites details from the reference as short captions,
    following strict rules at a low temperature.
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
    and near-repeats of recent facts.
+   Words in quotation marks must be in the source exactly and run to twelve
+   words at most (`alteredQuote`). A caption opening with "He" or "She" is
+   dropped: a viewer can't tell who. Music terms get a few fixed plain words
+   (`explainMusicTerms`), never the model's own explanation.
    A credit needs a source sentence that ties the person to the role
    (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
    just a role word nearby; an ambiguous credit is dropped.
