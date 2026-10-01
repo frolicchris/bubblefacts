@@ -20,7 +20,7 @@ describe("isOriginal", () => {
     // Attribute-driven rather than a hardcoded title list, so adding a new
     // original to the song list needs no code change.
     expect(
-      isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), ["janestreams"])
+      isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), ["janestreams", "Jane"])
     ).toBe(true);
   });
 
@@ -80,22 +80,9 @@ describe("buildStatFacts", () => {
     expect(f.some((x) => /1 time on stream/.test(x))).toBe(true);
   });
 
-  it("omits duration when the API returns null", () => {
-    // The live API leaves durationSeconds null on many entries, and a bubble
-    // reading "Runs about null" is worse than one fewer bubble.
-    const f = buildStatFacts(entry({ durationSeconds: null }), opts);
-    expect(f.some((x) => /Runs about/.test(x))).toBe(false);
-  });
-
-  it("formats a duration that is present", () => {
-    const f = buildStatFacts(entry({ durationSeconds: 184 }), opts);
-    expect(f.some((x) => x.includes("3:04"))).toBe(true);
-  });
-
-  it("drops an implausible duration rather than printing it", () => {
-    expect(buildStatFacts(entry({ durationSeconds: 99999 }), opts).some((x) => /Runs/.test(x))).toBe(
-      false
-    );
+  it("never shows the song's length, which isn't a fact about the song", () => {
+    // A tester: "Runs about 4:29" read as noise on stream.
+    expect(buildStatFacts(entry({ durationSeconds: 184 }), opts).some((x) => /3:04|runs/i.test(x))).toBe(false);
   });
 
   it("credits the requester", () => {
@@ -112,8 +99,8 @@ describe("buildStatFacts", () => {
 
   it("skips a boilerplate note that the originals line already states", () => {
     const f = buildStatFacts(
-      entry({ comment: "Original composition", attributes: [{ name: "Jane's Originals" }] }),
-      { ...opts, isOriginalSong: true }
+      entry({ comment: "Original composition", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] }),
+      { ...opts, isOriginalSong: true, names: ["janestreams", "Jane Composer"] }
     );
     expect(f).not.toContain("Original composition");
     expect(f.some((x) => /is an original composition by/.test(x))).toBe(true);
@@ -127,9 +114,26 @@ describe("buildStatFacts", () => {
   it("credits the composer by name rather than the channel handle", () => {
     const f = buildStatFacts(
       entry({ title: "Jane Composer: Laura's Wedding", artist: "Jane Composer" }),
-      { ...opts, isOriginalSong: true }
+      { ...opts, isOriginalSong: true, names: ["janestreams", "Jane Composer"] }
     );
     expect(f.some((x) => x.includes("by Jane Composer"))).toBe(true);
+  });
+
+  it("names no writer when the credit is missing, and doesn't match names by prefix (QA follow-up #3)", () => {
+    const unknown = entry({ title: "Untitled Jam", artist: "Unknown", attributes: [{ name: "Originals" }] });
+    expect(isOriginal(unknown, ["frolicchris", "Chris"])).toBe(true);
+    const f = buildStatFacts(unknown, { streamerName: "frolicchris", isOriginalSong: true, names: ["frolicchris", "Chris"] });
+    expect(f.join(" ")).not.toMatch(/composition by|person who wrote it|credited to/);
+    expect(isOriginal(entry({ artist: "Christina Lee", attributes: [{ name: "Christina's Originals" }] }), ["frolicchris", "Chris"])).toBe(false);
+  });
+
+  it("never claims another streamer's original was written by the one playing it", () => {
+    // From review: Chris plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
+    const song = entry({ title: "Evening Rain", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] });
+    expect(isOriginal(song, ["frolicchris", "Chris"])).toBe(false);
+    const f = buildStatFacts(song, { streamerName: "frolicchris", isOriginalSong: true, names: ["frolicchris", "Chris"] });
+    expect(f.join(" ")).not.toMatch(/person who wrote it|composition by frolicchris/);
+    expect(f).toContain('"Evening Rain" is an original, credited to Jane Composer.');
   });
 
   it("returns nothing for a null entry rather than throwing", () => {

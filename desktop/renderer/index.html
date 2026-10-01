@@ -28,8 +28,43 @@
 
       <div class="panel step" data-step="1">
         <h1 tabindex="-1">Connect your songs</h1>
-        <p class="lead">BubbleFacts watches your StreamerSongList queue, so it knows what you're playing.</p>
+        <p class="lead">BubbleFacts watches your song requests, so it knows what you're playing.</p>
 
+        <p class="label" id="source-label">Where do your song requests come from?</p>
+        <div class="choices" role="radiogroup" aria-labelledby="source-label">
+          <label class="choice">
+            <input type="radio" name="setup-source" value="streamersonglist" checked>
+            <span class="choice-body">
+              <strong>StreamerSongList</strong>
+              <span>Your song list and queue at streamersonglist.com.</span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="setup-source" value="streamelements">
+            <span class="choice-body">
+              <strong>StreamElements</strong>
+              <span>Song requests through StreamElements' Media Request player.</span>
+            </span>
+          </label>
+        </div>
+
+        <div id="se-box" hidden>
+          <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.
+            <button class="link" data-open="https://streamelements.com/dashboard/account/channels">Open StreamElements</button></p>
+          <label for="setup-se-channel">Your StreamElements channel name <span class="hint">optional; your token already says which channel</span></label>
+          <input id="setup-se-channel" type="text" autocomplete="off" spellcheck="false" placeholder="yourchannel">
+          <label for="setup-se-jwt">Your JWT token</label>
+          <div class="row">
+            <input id="setup-se-jwt" type="password" autocomplete="off" spellcheck="false" placeholder="Paste it here">
+            <button class="ghost" data-toggle-secret="setup-se-jwt">Show</button>
+          </div>
+          <div class="actions">
+            <button id="setup-se-test" class="primary">Connect</button>
+            <span id="setup-se-result" class="result" role="status"></span>
+          </div>
+        </div>
+
+        <div id="ssl-box">
         <div id="signin-box">
           <button id="sign-in" class="primary big">Sign in with StreamerSongList</button>
           <p class="fine">You'll sign in with Twitch in your browser, then come back here.</p>
@@ -52,6 +87,7 @@
             <span id="setup-test-result" class="result" role="status"></span>
           </div>
         </details>
+        </div>
       </div>
 
       <div class="panel step" data-step="2" hidden>
@@ -93,18 +129,18 @@
             <label for="setup-myoriginals">About your compositions <span class="hint">optional, one per line; shown when you play them</span></label>
             <textarea id="setup-myoriginals" rows="3" spellcheck="true" placeholder="Written during a snowstorm in 2023."></textarea>
           </div>
-          <label><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner, with no facts, while you learn the song.</span></span></label>
+          <label id="setup-livelearns-row"><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner, with no facts, while you learn the song.</span></span></label>
         </div>
 
-        <h2 class="subhead">Backup facts</h2>
-        <p class="fine">When a song has no Wikipedia article, BubbleFacts shows a backup fact instead.</p>
+        <h2 class="subhead">Custom facts</h2>
+        <p class="fine">When BubbleFacts can't find a song on Wikipedia, Wikidata or MusicBrainz, it shows your custom facts: short facts you write yourself. With none, that song gets no bubbles.</p>
         <p class="disclaimer"><strong>BubbleFacts comes with only a few example facts.</strong> They're short, they aren't updated, and they won't know your songs. Adding facts about the music you play makes your stream better.</p>
-        <div class="choices" role="radiogroup" aria-label="Backup facts">
+        <div class="choices" role="radiogroup" aria-label="Custom facts">
           <label class="choice">
             <input type="radio" name="facts-choice" value="later" checked>
             <span class="choice-body">
               <strong>Set up my own facts later</strong>
-              <span>Use the examples for now. Add your own any time in Settings, under Backup facts.</span>
+              <span>For now, a song without a Wikipedia article gets no bubbles. Add your own any time in Settings, under Custom facts.</span>
             </span>
           </label>
           <label class="choice">
@@ -129,7 +165,7 @@
 
     <!-- ====================== Dashboard ====================== -->
     <section id="view-dashboard" class="view" hidden>
-      <div id="status-banner" class="banner warn">
+      <div id="status-banner" class="banner warn" role="status" aria-live="polite">
         <span class="banner-light" aria-hidden="true"></span>
         <div>
           <h1 id="status-title">Starting</h1>
@@ -153,10 +189,27 @@
       </div>
 
       <div class="panel">
-        <h2>On stream now</h2>
+        <h2 id="now-title">On stream now</h2>
         <p id="now-song" class="now-song">Nothing playing yet</p>
         <ul id="now-facts" class="facts"></ul>
+        <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
+        <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
+        <form id="song-facts-form" class="song-facts" hidden>
+          <h3>Your facts for <span id="song-facts-title"></span></h3>
+          <p class="fine">For songs no source knows, like another streamer's original. They show exactly as you write them, every time this song plays.</p>
+          <label for="sf-writers">Who wrote it? <span class="hint">optional; only if you're sure, separated by commas</span></label>
+          <input id="sf-writers" type="text" placeholder="Jane Composer">
+          <label for="sf-link">Their link <span class="hint">optional, shown with the writing credit</span></label>
+          <input id="sf-link" type="text" placeholder="twitch.tv/janecomposer">
+          <label for="sf-facts">Facts <span class="hint">one per line</span></label>
+          <textarea id="sf-facts" rows="4" spellcheck="true" placeholder="Jane wrote this on stream in one night in 2024."></textarea>
+          <div class="toolbar">
+            <button class="primary" type="submit">Save and show</button>
+            <button class="ghost" type="button" id="song-facts-cancel">Cancel</button>
+            <span id="song-facts-result" class="result" role="status"></span>
+          </div>
+        </form>
       </div>
 
       <div id="nudge" class="notice info" hidden>
@@ -169,6 +222,7 @@
         <div class="toolbar">
           <button class="ghost" data-test-overlay>Test in your browser</button>
           <button class="ghost" data-copy-path>Copy the OBS file path</button>
+          <button class="ghost" data-copy-credit title="For your stream panel or video descriptions">Copy credit line</button>
           <button class="ghost" id="show-logs">Show logs</button>
           <button class="ghost" id="report-problem">Report a problem</button>
         </div>
@@ -183,7 +237,13 @@
 
         <fieldset>
           <legend>Your song list</legend>
+          <p class="label">Where do your song requests come from?</p>
+          <div class="checks">
+            <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
+            <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
+          </div>
           <p id="s-signed-in"></p>
+          <div id="s-ssl-box">
           <button type="button" class="ghost" id="s-sign-in">Sign in with StreamerSongList</button>
           <details class="help">
             <summary>Use a token instead</summary>
@@ -195,6 +255,18 @@
               <button type="button" class="ghost" data-toggle-secret="s-token">Show</button>
             </div>
           </details>
+          </div>
+          <div id="s-se-box">
+            <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.
+              <button type="button" class="link" data-open="https://streamelements.com/dashboard/account/channels">Open StreamElements</button></p>
+            <label for="s-se-channel">StreamElements channel name</label>
+            <input id="s-se-channel" name="seChannel" type="text" autocomplete="off" spellcheck="false">
+            <label for="s-se-jwt">JWT token</label>
+            <div class="row">
+              <input id="s-se-jwt" name="seJwt" type="password" autocomplete="off" spellcheck="false" placeholder="Saved tokens stay hidden. Paste to replace.">
+              <button type="button" class="ghost" data-toggle-secret="s-se-jwt">Show</button>
+            </div>
+          </div>
         </fieldset>
 
         <fieldset>
@@ -204,14 +276,14 @@
           <label for="s-instrument">Your instrument <span class="hint">optional; "playing this song on piano"</span></label>
           <input id="s-instrument" name="instrument" type="text" list="instruments" placeholder="piano">
           <label class="inline"><input name="originals" type="checkbox"> I play my own compositions</label>
-          <label class="inline"><input name="liveLearns" type="checkbox"> I do live learns</label>
+          <label class="inline" id="s-livelearns-row"><input name="liveLearns" type="checkbox"> I do live learns</label>
           <datalist id="instruments"><option value="piano"><option value="guitar"><option value="keyboard"><option value="violin"><option value="voice"><option value="drums"><option value="bass"><option value="harp"></datalist>
         </fieldset>
 
         <fieldset>
-          <legend>Backup facts</legend>
-          <p class="fine">When a song has no Wikipedia article, BubbleFacts shows backup facts instead.</p>
-          <p class="disclaimer"><strong>The packs below are only a few examples.</strong> They're short, they aren't updated, and they won't know your songs. Add your own facts for the music you play. They go on stream exactly as you write them, so only add facts you've checked.</p>
+          <legend>Custom facts</legend>
+          <p class="fine">When a song has no Wikipedia article, BubbleFacts shows your custom facts. With none, it shows nothing for that song, which is best for request channels.</p>
+          <p class="disclaimer"><strong>The packs below are only a few examples, and they're off unless you check them.</strong> They're short, they aren't updated, and they won't know your songs. Add your own facts for the music you play. They go on stream exactly as you write them, so only add facts you've checked.</p>
           <div class="checks" id="s-topics">
             <label><input type="checkbox" value="video-game"> Video game music <span class="hint">24 examples</span></label>
             <label><input type="checkbox" value="classical"> Classical <span class="hint">7 examples</span></label>
@@ -294,7 +366,7 @@
   </footer>
 
   <template id="fact-item">
-    <li class="fact"><span class="fact-text"></span><button class="link wrong" title="Opens a report on GitHub (a free account is needed)">Report this fact</button></li>
+    <li class="fact"><span><span class="fact-text"></span> <span class="fact-source"></span></span><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
   <script src="app.js"></script>

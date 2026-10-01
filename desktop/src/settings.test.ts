@@ -17,7 +17,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { DEFAULTS, loadSettings, saveSettings, topicList, toServerEnv, writeMyPack } from "./settings";
+import { DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -42,6 +42,13 @@ describe("loadSettings", () => {
     expect(loadSettings()).toMatchObject({ channel: "jane", token: "secret-token", refreshToken: "refresh-1" });
   });
 
+  it("keeps the StreamElements token encrypted on disk too", () => {
+    saveSettings({ ...DEFAULTS, songSource: "streamelements", seChannel: "janeplays", seJwt: "eyJhbGciOi.secret-jwt" });
+    const disk = fs.readFileSync(file, "utf8");
+    expect(disk).not.toContain("secret-jwt");
+    expect(loadSettings()).toMatchObject({ songSource: "streamelements", seChannel: "janeplays", seJwt: "eyJhbGciOi.secret-jwt" });
+  });
+
   it("falls back to plain storage where there's no keychain", () => {
     keychain.available = false;
     saveSettings({ ...DEFAULTS, token: "secret-token" });
@@ -59,6 +66,16 @@ describe("loadSettings", () => {
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", tokenKind: "streamer" }));
     const s = loadSettings();
     expect(s).toMatchObject({ setupComplete: true, channel: "jane", tokenKind: "streamer", myFacts: [], liveLearns: true });
+  });
+
+  it("drops the example packs every install used to start with, but keeps a streamer's own choice", () => {
+    fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "classical", "film", "pop", "general"] }));
+    expect(loadSettings().topics).toEqual([]);
+    fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "piano"] }));
+    expect(loadSettings().topics).toEqual(["video-game", "piano"]);
+    // Saved by beta.3 or later (it has songSource): the streamer chose these, so they stay.
+    fs.writeFileSync(file, JSON.stringify({ songSource: "streamersonglist", topics: ["video-game", "classical", "film", "pop", "general"] }));
+    expect(loadSettings().topics).toEqual(["video-game", "classical", "film", "pop", "general"]);
   });
 
   it("replaces values of the wrong type with the default", () => {
@@ -96,6 +113,46 @@ describe("toServerEnv", () => {
   it("points the built-in AI at the model and honors the processor-only fallback", () => {
     const env = toServerEnv({ ...DEFAULTS, ai: "builtin", forceCpu: true }, paths);
     expect(env).toMatchObject({ AI_PROVIDER: "builtin", MODEL_PATH: "/m.gguf", LLAMA_GPU: "off" });
+  });
+});
+
+describe("StreamElements", () => {
+  it("starts the server with only the StreamElements settings", () => {
+    const env = toServerEnv({ ...DEFAULTS, songSource: "streamelements", seChannel: "janeplays", seJwt: "jwt-1", channel: "old", token: "old-token" }, paths);
+    expect(env).toMatchObject({ SONG_SOURCE: "streamelements", SE_CHANNEL: "janeplays", SE_JWT: "jwt-1" });
+    expect(env.SSL_ACCESS_TOKEN).toBeUndefined();
+    expect(env.SSL_STREAMER_NAME).toBeUndefined();
+  });
+
+  it("leaves the StreamerSongList setup as it was", () => {
+    const env = toServerEnv({ ...DEFAULTS, channel: "jane", token: "t", seJwt: "unused" }, paths);
+    expect(env).toMatchObject({ SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", SSL_TOKEN_KIND: "streamer" });
+    expect(env.SONG_SOURCE).toBeUndefined();
+    expect(env.SE_JWT).toBeUndefined();
+  });
+
+  it("is ready to start with either source connected", () => {
+    expect(songSourceReady({ ...DEFAULTS })).toBe(false);
+    expect(songSourceReady({ ...DEFAULTS, channel: "jane", token: "t" })).toBe(true);
+    expect(songSourceReady({ ...DEFAULTS, songSource: "streamelements" })).toBe(false);
+    expect(songSourceReady({ ...DEFAULTS, songSource: "streamelements", seJwt: "jwt" })).toBe(true);
+  });
+
+  it("takes the source and token from the window, with the right types only", () => {
+    expect(fromWindow({ songSource: "streamelements", seChannel: "janeplays", seJwt: "jwt", streamerId: 5 })).toEqual({
+      songSource: "streamelements",
+      seChannel: "janeplays",
+      seJwt: "jwt",
+    });
+    expect(fromWindow({ seJwt: 42, songSource: 1 })).toEqual({});
+    expect(sanitize({ ...DEFAULTS, songSource: "spotify" as never, seChannel: " jane " })).toMatchObject({
+      songSource: "streamersonglist",
+      seChannel: "jane",
+    });
+  });
+
+  it("keeps the token out of problem reports", () => {
+    expect(secretsOf({ ...DEFAULTS, seJwt: "eyJhbGciOi.secret-jwt" })).toContain("eyJhbGciOi.secret-jwt");
   });
 });
 

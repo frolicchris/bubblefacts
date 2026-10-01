@@ -1,5 +1,6 @@
 import { config } from "./config";
 import { CentrifugoStream } from "./centrifugo-client";
+import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
@@ -22,7 +23,8 @@ export function setAccessToken(token: string): void {
   accessToken = token;
 }
 
-export class SongListClient {
+export class SongListClient implements SongSource {
+  readonly name = "StreamerSongList";
   private streamerId: number | null = null;
   private stream: CentrifugoStream | null = null;
   private currentSong: SSLQueueItem | null = null;
@@ -52,6 +54,10 @@ export class SongListClient {
   /** StreamerSongList turned the token down on the last request: waiting won't fix it. */
   authRejected(): boolean {
     return this.rejected;
+  }
+
+  backingOff(): boolean {
+    return Date.now() < this.backoffUntil;
   }
 
   /** How often the queue is polled right now; health allows three misses. */
@@ -85,6 +91,14 @@ export class SongListClient {
     this.pollTimer = this.refetchTimer = null;
   }
 
+  toSong(item: SSLQueueItem): SSLSong {
+    return SongListClient.toSong(item);
+  }
+
+  displayTitle(item: SSLQueueItem): string {
+    return SongListClient.displayTitle(item);
+  }
+
   // --- Song mapping ------------------------------------------------------
 
   static displayTitle(item: SSLQueueItem): string {
@@ -110,6 +124,7 @@ export class SongListClient {
     if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
     const by = SongListClient.requesterName(item);
     if (by) song.requestedBy = by;
+    if (typeof item.songId === "number" && item.songId > 0) song.songId = item.songId;
     return song;
   }
 

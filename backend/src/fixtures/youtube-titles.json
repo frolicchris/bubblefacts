@@ -1,0 +1,389 @@
+{
+  "about": "Real YouTube song-request titles, labeled by hand with the artist and title a person would read. 'source' says where each came from; 'kind' groups them for the accuracy report. Add every live-stream failure here (issue #25).",
+  "cases": [
+    {
+      "title": "The Midnight - Lost Boy [Music Video]",
+      "channel": "Digital Gravity",
+      "artist": "The Midnight",
+      "song": "Lost Boy",
+      "kind": "artist-title",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "EVERYBODY DANCE NOW - DRUM COVER | C+C MUSIC FACTORY",
+      "channel": "",
+      "artist": "C+C MUSIC FACTORY",
+      "song": "EVERYBODY DANCE NOW",
+      "kind": "cover",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "HYPNOTIZE",
+      "channel": "stevedreez",
+      "artist": "stevedreez",
+      "song": "HYPNOTIZE",
+      "kind": "channel-only",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Dottie Peoples - He's an on time God",
+      "channel": "",
+      "artist": "Dottie Peoples",
+      "song": "He's an on time God",
+      "kind": "artist-title",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Whitney Houston - I Believe In You And Me (Official HD Video)",
+      "channel": "whitneyhoustonVEVO",
+      "artist": "Whitney Houston",
+      "song": "I Believe In You And Me",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Charlie Puth - We Don't Talk Anymore (feat. Selena Gomez) [Official Video]",
+      "channel": "Charlie Puth",
+      "artist": "Charlie Puth",
+      "song": "We Don't Talk Anymore",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Calling (Spider-Man: Across the Spider-Verse)",
+      "channel": "MetroBoominVEVO",
+      "artist": "Metro Boomin",
+      "song": "Calling",
+      "kind": "soundtrack",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Michael Jackson - Whatever Happens (Audio)",
+      "channel": "michaeljacksonVEVO",
+      "artist": "Michael Jackson",
+      "song": "Whatever Happens",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Marc Rebillet x Edeka",
+      "channel": "Hamelin Music & Marketing",
+      "artist": "Marc Rebillet",
+      "song": "Marc Rebillet x Edeka",
+      "kind": "collab",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Sunflower Seeds | Original Song (Live Performance)",
+      "channel": "JoshuaWooMusic",
+      "artist": "JoshuaWooMusic",
+      "song": "Sunflower Seeds",
+      "kind": "channel-only",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Milestone - I Care 'Bout You (Official Video)",
+      "channel": "MilestoneVEVO",
+      "artist": "Milestone",
+      "song": "I Care 'Bout You",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Lil Nas X, Jack Harlow - INDUSTRY BABY (Official Video)",
+      "channel": "LilNasXVEVO",
+      "artist": "Lil Nas X, Jack Harlow",
+      "song": "INDUSTRY BABY",
+      "kind": "multi-artist",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Sax Dragon's \"Billie Jean\" Solo | Busking in Sao Paulo #saxdragon #MichaelJackson #Paulista #Keytar",
+      "channel": "Sax Dragon",
+      "artist": "Sax Dragon",
+      "song": "Billie Jean",
+      "kind": "quoted",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Benny Sings - Kids feat. KYLE",
+      "channel": "Stones Throw",
+      "artist": "Benny Sings",
+      "song": "Kids",
+      "kind": "artist-title",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Magdalena Bay - Killshot",
+      "channel": "Magdalena Bay",
+      "artist": "Magdalena Bay",
+      "song": "Killshot",
+      "kind": "artist-title",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Friendos (featuring A$AP Rocky) - SNL",
+      "channel": "Saturday Night Live",
+      "artist": "Saturday Night Live",
+      "song": "Friendos",
+      "kind": "show",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Rap Diss - SNL",
+      "channel": "Saturday Night Live",
+      "artist": "Saturday Night Live",
+      "song": "Rap Diss",
+      "kind": "show",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "SLASHSTREET BOYS - \"More Than Monsters\"",
+      "channel": "THE MERKINS",
+      "artist": "SLASHSTREET BOYS",
+      "song": "More Than Monsters",
+      "kind": "artist-title",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Beast Reality - Merry Muthaf*#%in' Xmas (feat. Xzibit)",
+      "channel": "Goodboy Noah",
+      "artist": "Beast Reality",
+      "song": "Merry Muthaf*#%in' Xmas",
+      "kind": "artist-title",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Lil Jon featuring Kool-Aid Man - All I Really Want For Christmas (Official Music Video)",
+      "channel": "LIL JON",
+      "artist": "Lil Jon",
+      "song": "All I Really Want For Christmas",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Diamond Rio - One More Day (Official HD Video)",
+      "channel": "DiamondRioVEVO",
+      "artist": "Diamond Rio",
+      "song": "One More Day",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Jason Mraz - I Feel Like Dancing (Official Music Video)",
+      "channel": "Jason Mraz",
+      "artist": "Jason Mraz",
+      "song": "I Feel Like Dancing",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Nick Lutsko - ALL SHOOK UP (Official Video)",
+      "channel": "Nick Lutsko",
+      "artist": "Nick Lutsko",
+      "song": "ALL SHOOK UP",
+      "kind": "official",
+      "source": "stream 2026-09-30"
+    },
+    {
+      "title": "Superstition",
+      "channel": "Stevie Wonder - Topic",
+      "artist": "Stevie Wonder",
+      "song": "Superstition",
+      "kind": "topic",
+      "source": "stream 2026-09-30 (channel assumed)"
+    },
+    {
+      "title": "Never Gonna Give You Up",
+      "channel": "Rick Astley - Tema",
+      "artist": "Rick Astley",
+      "song": "Never Gonna Give You Up",
+      "kind": "topic",
+      "source": "format: localized Topic channel"
+    },
+    {
+      "title": "LiSA『紅蓮華』MUSiC CLiP",
+      "channel": "LiSA Official YouTube",
+      "artist": "LiSA",
+      "song": "紅蓮華",
+      "kind": "japanese",
+      "source": "format: Japanese quote brackets"
+    },
+    {
+      "title": "YOASOBI「アイドル」Official Music Video",
+      "channel": "Ayase / YOASOBI",
+      "artist": "YOASOBI",
+      "song": "アイドル",
+      "kind": "japanese",
+      "source": "format: Japanese quote brackets"
+    },
+    {
+      "title": "【MV】米津玄師 - Lemon",
+      "channel": "",
+      "artist": "米津玄師",
+      "song": "Lemon",
+      "kind": "japanese",
+      "source": "format: MV bracket"
+    },
+    {
+      "title": "Sweater Weather (Lyrics)",
+      "channel": "The Neighbourhood - Topic",
+      "artist": "The Neighbourhood",
+      "song": "Sweater Weather",
+      "kind": "topic",
+      "source": "format: lyrics label"
+    },
+    {
+      "title": "Daft Punk - Get Lucky (Official Audio) ft. Pharrell Williams, Nile Rodgers",
+      "channel": "Daft Punk",
+      "artist": "Daft Punk",
+      "song": "Get Lucky",
+      "kind": "official",
+      "source": "format: trailing featuring"
+    },
+    {
+      "title": "Bad Bunny - Tití Me Preguntó (Video Oficial)",
+      "channel": "Bad Bunny",
+      "artist": "Bad Bunny",
+      "song": "Tití Me Preguntó",
+      "kind": "non-english",
+      "source": "format: Spanish label"
+    },
+    {
+      "title": "Stromae - Alors on danse (Clip Officiel)",
+      "channel": "Stromae",
+      "artist": "Stromae",
+      "song": "Alors on danse",
+      "kind": "non-english",
+      "source": "format: French label"
+    },
+    {
+      "title": "Rammstein - Du Hast (Offizielles Video)",
+      "channel": "Rammstein Official",
+      "artist": "Rammstein",
+      "song": "Du Hast",
+      "kind": "non-english",
+      "source": "format: German label"
+    },
+    {
+      "title": "Luis Fonsi - Despacito (Letra)",
+      "channel": "",
+      "artist": "Luis Fonsi",
+      "song": "Despacito",
+      "kind": "non-english",
+      "source": "format: Spanish lyrics label"
+    },
+    {
+      "title": "Toto / Africa",
+      "channel": "",
+      "artist": "Toto",
+      "song": "Africa",
+      "kind": "artist-title",
+      "source": "format: slash separator"
+    },
+    {
+      "title": "AC/DC - Thunderstruck (Official Video)",
+      "channel": "acdcVEVO",
+      "artist": "AC/DC",
+      "song": "Thunderstruck",
+      "kind": "official",
+      "source": "format: slash inside a name"
+    },
+    {
+      "title": "Smooth Criminal (by Michael Jackson)",
+      "channel": "",
+      "artist": "Michael Jackson",
+      "song": "Smooth Criminal",
+      "kind": "by-artist",
+      "source": "format: (by Artist)"
+    },
+    {
+      "title": "Song of Storms (The Legend of Zelda: Ocarina of Time OST)",
+      "channel": "GilvaSunner",
+      "artist": "The Legend of Zelda: Ocarina of Time",
+      "song": "Song of Storms",
+      "kind": "game",
+      "source": "format: game OST"
+    },
+    {
+      "title": "The Legend of Zelda: Ocarina of Time - Song of Storms",
+      "channel": "",
+      "artist": "The Legend of Zelda: Ocarina of Time",
+      "song": "Song of Storms",
+      "kind": "game",
+      "source": "format: game - track"
+    },
+    {
+      "title": "Megalovania (From \"Undertale\")",
+      "channel": "",
+      "artist": "Undertale",
+      "song": "Megalovania",
+      "kind": "game",
+      "source": "format: From bracket"
+    },
+    {
+      "title": "Let It Go (From \"Frozen\")",
+      "channel": "DisneyMusicVEVO",
+      "artist": "Frozen",
+      "song": "Let It Go",
+      "kind": "soundtrack",
+      "source": "format: From bracket on an official channel"
+    },
+    {
+      "title": "Rick Astley - Never Gonna Give You Up (Official Music Video)",
+      "channel": "Rick Astley",
+      "artist": "Rick Astley",
+      "song": "Never Gonna Give You Up",
+      "kind": "official",
+      "source": "format: official video"
+    },
+    {
+      "title": "Nightcore - Angel With A Shotgun",
+      "channel": "NightcoreReality",
+      "artist": "NightcoreReality",
+      "song": "Angel With A Shotgun",
+      "kind": "nightcore",
+      "source": "format: nightcore. The real artist (The Cab) isn't in the title, so the channel stands in and the lookup safely finds nothing."
+    },
+    {
+      "title": "Coldplay - Yellow (Live at Glastonbury 2016)",
+      "channel": "Coldplay",
+      "artist": "Coldplay",
+      "song": "Yellow",
+      "kind": "live",
+      "source": "format: live"
+    },
+    {
+      "title": "Billie Eilish - bad guy (slowed + reverb)",
+      "channel": "",
+      "artist": "Billie Eilish",
+      "song": "bad guy",
+      "kind": "variant",
+      "source": "format: slowed + reverb"
+    },
+    {
+      "title": "Queen – Bohemian Rhapsody (Official Video Remastered)",
+      "channel": "Queen Official",
+      "artist": "Queen",
+      "song": "Bohemian Rhapsody",
+      "kind": "official",
+      "source": "format: en dash"
+    },
+    {
+      "title": "All Too Well (From The Vault)",
+      "channel": "Taylor Swift",
+      "artist": "Taylor Swift",
+      "song": "All Too Well (From The Vault)",
+      "kind": "label",
+      "source": "peer review: a From bracket without quotes isn't a work"
+    },
+    {
+      "title": "Lil Nas X - Old Town Road (Official Movie)",
+      "channel": "LilNasXVEVO",
+      "artist": "Lil Nas X",
+      "song": "Old Town Road",
+      "kind": "official",
+      "source": "peer review"
+    }
+  ]
+}

@@ -6,11 +6,11 @@
 
 **Fun facts about the song you're playing, right on your stream.**
 
-BubbleFacts watches your [StreamerSongList](https://streamersonglist.com)
-requests and shows short, Wikipedia-checked facts in game-inspired bubbles in
-OBS while you play. The captions are written by a small AI model, and the app
-itself was written with an AI coding agent: see
-[AI disclosure](#ai-disclosure).
+BubbleFacts watches your [StreamerSongList](https://streamersonglist.com) or
+[StreamElements](https://streamelements.com) song requests and shows short,
+Wikipedia-checked facts in game-inspired bubbles in OBS while you play. The
+captions are written by a small AI model, and the app itself was written with
+an AI coding agent: see [AI disclosure](#ai-disclosure).
 
 ![Three fact bubbles and a Now Playing banner over a dark background](docs/demo.png)
 
@@ -19,46 +19,36 @@ itself was written with an AI coding agent: see
 **[Download BubbleFacts](https://bubblefacts.frolic.org/download.html)** from
 the website. It's free, for Mac, Windows and Linux.
 
-This is a beta. The app isn't code-signed yet, so the first time you open it,
-your computer may ask you to confirm that you want to run it. The download
-page shows what to click.
+This is a beta. The app isn't signed yet, so the first time you open it, your
+computer may ask you to confirm. The
+[download page](https://bubblefacts.frolic.org/download.html#first-launch)
+shows exactly what to click.
 
 ## Get running in two steps
 
 1. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
-   with Twitch. (If that doesn't work, **Having trouble signing in?** lets you
-   paste a token instead.)
-2. **Add BubbleFacts to OBS.** Drag the tile from the app into the **Sources**
-   list in OBS.
+   with Twitch. Take requests through StreamElements instead? Choose
+   **StreamElements** and paste your JWT token from the StreamElements
+   dashboard.
+2. **Put BubbleFacts on your stream.** Drag the tile from the app into the
+   **Sources** list in OBS. A test bubble appears, and the app says
+   **It's on your stream!**
 
-A test bubble appears in OBS, and the app says **It's on your stream!** That's
-it. An optional last step, **Tell us about your music**, lets you mark your
-originals and live learns and add messages of your own.
+No coding. No Terminal. No AI setup. BubbleFacts finishes getting ready in the
+background, so you don't wait for it. Want to make it yours? An optional last
+step lets you mark your originals and live learns and add your own facts. The
+[setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
 
-No coding. No Terminal. No AI setup.
+## How the facts are checked
 
-The built-in fact writer gets ready in the background, so you don't have to
-wait for it during setup. The
-[setup guide](https://bubblefacts.frolic.org/guide.html) walks through every
-screen.
-
-## How BubbleFacts checks its facts
-
-AI can make things up. BubbleFacts is built to keep made-up facts off your
-stream, so its fact writer never answers from memory.
-
-1. When a song starts, it finds the Wikipedia article for the song, or for the
-   game or film it's from.
-2. The fact writer writes short captions **only from that article**.
-3. Any caption that names a person, year or console the article doesn't
-   contain is dropped before it reaches your stream.
-4. If there's no good Wikipedia match, no AI is used. BubbleFacts shows
-   messages you provide instead.
-
-Facts are only as good as Wikipedia: the check makes sure captions match the
-article, not that the article is right. Found a wrong fact? Please
-[report it](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
-It's the most useful report of all.
+When a song starts, BubbleFacts finds its Wikipedia article (or the game's or
+film's), and the AI writes captions **only from that article**. Every caption
+is screened: names, who did what, years, consoles, and award or chart claims
+must appear in the article, or it's dropped. That catches most mistakes, not
+every one (a caption can still mix up details the article does mention), so
+**Wrong** next to a fact in the app takes it off your stream.
+With no article, no AI is used: free music databases (Wikidata, MusicBrainz)
+fill in plain facts, or your own facts show, or nothing.
 
 ## AI disclosure
 
@@ -69,8 +59,10 @@ coding agent. The maintainer, Christopher Feyrer
 he reviews and tests every change, including on live streams, and is
 responsible for everything that's merged or released.
 
-The captions on stream are written by a small AI model (Meta's Llama 3.2)
-from the song's Wikipedia article, then checked against it.
+The captions on stream are written from the song's Wikipedia article by a
+small AI model, by default Meta's Llama 3.2 on your own computer, then
+screened against the article. Facts from Wikidata and MusicBrainz are fixed
+sentences filled in from their data, with no AI involved.
 
 Contributions are welcome, with or without AI tools. If you use one, say so in
 your pull request and add an `Assisted-by:` trailer to your commits. Details
@@ -78,24 +70,24 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 
 ## Help
 
-- [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step with pictures
+- [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step
 - [Discord](https://discord.gg/gXdVKc6KWx) for quick questions, or
   [Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
-  In the app, **Report a problem** fills in the details for you.
+  In the app, **Report a problem** under **Help and troubleshooting** fills in
+  the details for you.
 - [Report a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
-  In the app, click **Report this fact** next to it.
+  In the app, click **Wrong** next to it, then **Report it (opens GitHub)**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
   tried the beta? Tell us how each step went.
 - [Security policy](SECURITY.md): report security problems privately.
 
 ## For developers
 
-- **[Manual setup (command line)](docs/MANUAL-SETUP.md):** run the overlay
-  with Node.js and a settings file, without the app. Its backup facts are a
-  few examples you replace with your own.
-- **[Build and run the app from source](CONTRIBUTING.md#working-on-the-desktop-app)**,
-  and how to contribute.
+- **[Contributing](CONTRIBUTING.md):** how to report, build the app from
+  source, and send a change.
+- [Manual setup (command line)](docs/MANUAL-SETUP.md): run the overlay with
+  Node.js and a settings file, without the app.
 - [How it works](docs/ARCHITECTURE.md), and why. Read it before changing how
   facts are found or checked.
 - [Every setting](docs/CONFIG.md) for the command-line version.
@@ -104,9 +96,14 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 ## Credits and license
 
 Facts are rewritten from Wikipedia, whose text is shared under
-[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). If you publish
-recordings, crediting Wikipedia in your description is the courteous thing to
-do.
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Facts from
+[Wikidata](https://www.wikidata.org) and [MusicBrainz](https://musicbrainz.org)
+use their public domain ([CC0](https://creativecommons.org/publicdomain/zero/1.0/))
+data. If you publish recordings, credit the sources in your description: bare
+facts aren't covered by copyright, but wording taken from an article can be.
+**Copy credit line** in the app's Help section copies this line:
+`Song facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, shown with BubbleFacts.`
+(Not legal advice, and a credit line alone doesn't settle every possible use.)
 
 Built with Llama. The app's built-in AI is Meta's Llama 3.2 3B, used under the
 [Llama 3.2 Community License](https://www.llama.com/llama3_2/license/).

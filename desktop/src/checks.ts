@@ -25,6 +25,47 @@ export async function testSongList(channel: string, token: string, kind: string)
   }
 }
 
+export type StreamElementsResult = { ok: true; channel: string; id: string } | { ok: false; reason: string };
+
+const SE_API = "https://api.streamelements.com/kappa/v2";
+
+/**
+ * Try a StreamElements JWT token: which channel it belongs to, then whether
+ * it can read that channel's song request player. Explains failures plainly.
+ */
+export async function testStreamElements(channel: string, jwt: string): Promise<StreamElementsResult> {
+  const token = jwt.trim();
+  if (!token) return { ok: false, reason: "Paste your StreamElements JWT token." };
+  const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  const get = (path: string) => fetch(`${SE_API}${path}`, { headers, signal: AbortSignal.timeout(10_000) });
+  const refused = "StreamElements didn't accept that token. Copy the JWT token again: Account, then Channels, then Show secrets.";
+  try {
+    const me = await get("/channels/me");
+    if (me.status === 401 || me.status === 403) return { ok: false, reason: refused };
+    if (!me.ok) return { ok: false, reason: `StreamElements answered with an error (${me.status}). Try again in a minute.` };
+    const info = (await me.json()) as { _id?: string; username?: string };
+    if (!info._id) return { ok: false, reason: "StreamElements didn't say which channel that token is for. Copy the JWT token again." };
+    const name = info.username ?? "";
+    const wanted = channel.trim();
+    if (wanted && name && wanted.toLowerCase() !== name.toLowerCase()) {
+      return { ok: false, reason: `That token is for the StreamElements channel "${name}", not "${wanted}". Paste the token for "${wanted}", or change the channel name.` };
+    }
+    // The song itself, then the player's state, which is the part that needs the token. 404: no requests yet.
+    for (const part of ["playing", "player"]) {
+      const res = await get(`/songrequest/${encodeURIComponent(info._id)}/${part}`);
+      if (res.status === 401 || res.status === 403) {
+        return { ok: false, reason: "That token can't read your song requests. Copy the JWT token (not the Overlay token) from Show secrets." };
+      }
+      if (!res.ok && res.status !== 404) {
+        return { ok: false, reason: `StreamElements couldn't open your song requests (${res.status}). Check that Media Request is turned on, then try again.` };
+      }
+    }
+    return { ok: true, channel: name || wanted, id: info._id };
+  } catch {
+    return { ok: false, reason: "Couldn't reach StreamElements. Check your internet connection." };
+  }
+}
+
 /**
  * Compare versions like 2.0.0 and 2.0.0-beta.2 the semver way: a prerelease
  * comes before its release, and prerelease parts compare number by number.

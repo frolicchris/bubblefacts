@@ -15,6 +15,8 @@ export type ServerState = "stopped" | "starting" | "running" | "restarting" | "f
 
 export interface Health {
   status: string;
+  /** "StreamerSongList" or "StreamElements"; older servers leave it out. */
+  songSource?: string;
   currentSong: string | null;
   eventsConnected: boolean;
   obsClients: number;
@@ -186,7 +188,7 @@ export class Supervisor extends EventEmitter {
       return;
     }
     this.log(`[App] The built-in AI ${how}${process.platform === "darwin" ? "" : " on the processor too"}.`);
-    // The app restarts the server without the AI; it still shows song-list and backup facts.
+    // The app restarts the server without the AI; it still shows song-list and custom facts.
     this.emit("builtin-failed");
   }
 
@@ -218,7 +220,7 @@ export class Supervisor extends EventEmitter {
         // A restart can't fix a rejected sign-in; the app asks the musician to sign in again.
         this.degradedSince = null;
         this.restartTimes = [];
-        this.set("running", "StreamerSongList didn't accept your sign-in");
+        this.set("running", `${health.songSource ?? "StreamerSongList"} didn't accept your sign-in`);
         return;
       }
       if (health.status === "degraded") {
@@ -230,7 +232,7 @@ export class Supervisor extends EventEmitter {
         this.degradedSince = null;
       }
       if (this.status.state !== "running") this.restartTimes = this.restartTimes.slice(-1);
-      this.set("running", health.status === "degraded" ? "Reconnecting to StreamerSongList" : "");
+      this.set("running", health.status === "degraded" ? `Reconnecting to ${health.songSource ?? "StreamerSongList"}` : "");
     } catch {
       const loading = this.env.AI_PROVIDER === "builtin" && !this.modelLoaded;
       if (loading && Date.now() - this.launchedAt < MODEL_LOAD_GRACE_MS) {

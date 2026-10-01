@@ -31,7 +31,7 @@ Everything you might need to download or sign up for, in one place.
 
 **The overlay**
 
-- [Download the latest version (ZIP)](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip)
+- [Releases](https://github.com/frolicchris/bubblefacts/releases): from the newest one, download **bubblefacts.zip**
 - [All versions and what changed](https://github.com/frolicchris/bubblefacts/releases)
 - [Ask a setup question](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a), or chat on [Discord](https://discord.gg/gXdVKc6KWx)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new/choose)
@@ -90,7 +90,7 @@ This takes about 15 minutes the first time.
 
 ### 1. Download the overlay
 
-[Download the latest version](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip) and unzip it somewhere you'll remember,
+From the [newest release](https://github.com/frolicchris/bubblefacts/releases), download **bubblefacts.zip** and unzip it somewhere you'll remember,
 such as your Documents folder. You'll get a folder called
 `bubblefacts`. (If you use git:
 `git clone https://github.com/frolicchris/bubblefacts.git`.)
@@ -209,7 +209,7 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 | When | On screen |
 |---|---|
 | A song starts | A gold **NOW PLAYING** banner for five seconds, then up to five fact bubbles, one every 15 seconds. |
-| A song with no Wikipedia article | Bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus hand-checked facts for your genres. |
+| A song with no Wikipedia article | Plain facts from Wikidata or MusicBrainz, such as the year and the album. If they don't know it either: bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus your custom facts. |
 | One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
 | A **Live Learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it. It stays up until the next song, with no bubbles. |
 | The overlay can't reach its server | A small red dot in the bottom-right corner. It disappears once reconnected. |
@@ -221,17 +221,18 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 All of these are lines in your `.env` file. Restart the overlay after changing it.
 [CONFIG.md](CONFIG.md) lists every setting.
 
-### Your backup facts
+### Your custom facts
 
 > **The included packs are only a few examples.** They're short, they aren't
 > updated, and they won't know your songs. Fill in your own facts for the
-> music you play. In the desktop app, that's **Settings → Backup facts →
+> music you play. In the desktop app, that's **Settings → Custom facts →
 > Your own facts**, one per line.
 
-When a song has no Wikipedia article, the overlay shows facts from **topic
-packs**: small files in the `topics` folder, each a list of facts you've
-chosen. These facts go straight to your stream without being checked by the
-overlay, so only include ones you've checked yourself.
+When a song has no Wikipedia article, and Wikidata and MusicBrainz don't
+know it either, the overlay shows facts from **topic packs**: small files
+in the `topics` folder, each a list of facts you've chosen. These facts go
+straight to your stream without being checked by the overlay, so only
+include ones you've checked yourself.
 
 The overlay comes with a few **example packs** so it works right away and
 so you can see the format:
@@ -256,8 +257,9 @@ TOPIC=classical,film,piano,general
 ```
 
 The default is every example except `piano`. Keep `general`, or a pack of
-your own with lines for your originals, if you play your own music. Your
-choice needs at least five facts in total.
+your own with lines for your originals, if you play your own music. Five or
+more facts keep them from repeating often. Set `TOPIC=` (empty) for no
+custom facts at all.
 
 **To make your own pack,** copy any file in `topics`, give it a name that's
 yours (such as `my-facts.json`), change the facts, and add that name to
@@ -315,7 +317,7 @@ New versions are listed on the
 with what changed in each.
 
 1. Stop the overlay (Ctrl-C in its window).
-2. [Download the latest version](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip) and unzip it.
+2. From the [newest release](https://github.com/frolicchris/bubblefacts/releases), download **bubblefacts.zip** and unzip it.
 3. Copy your `.env` file from the old folder into the new one. (Press
    Cmd+Shift+. in Finder to see it.) Copy your own topic pack too, and the
    CSS file if you changed the look.

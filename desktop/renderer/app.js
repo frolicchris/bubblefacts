@@ -7,6 +7,10 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
   let state = null;
+  /** What the On stream now list last showed, so it redraws only on change. */
+  let lastRecent = "";
+  /** The song the "Add facts" editor was opened on. */
+  let songFactsTarget = null;
   let recentTimer = null;
 
   // --- Views -------------------------------------------------------------
@@ -52,6 +56,10 @@
       api.copy(state.overlayPath);
       flash(t, "Copied");
     }
+    if ("copyCredit" in t.dataset) {
+      api.copy("Song facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, shown with BubbleFacts.");
+      flash(t, "Copied");
+    }
     if (t.dataset.toggleSecret) {
       const input = document.getElementById(t.dataset.toggleSecret);
       input.type = input.type === "password" ? "text" : "password";
@@ -71,6 +79,12 @@
     el.textContent = text;
     el.className = "result " + (kind || "");
   }
+
+  const onSE = () => state?.settings.songSource === "streamelements";
+  /** The channel name for the song source in use. */
+  const channelName = () => (onSE() ? state.settings.seChannel : state.settings.channel);
+  /** The song source has its token saved. */
+  const connected = () => (onSE() ? state.settings.seJwtSet : state.settings.tokenSet);
 
   // --- Setup: step 1, connect ------------------------------------------------
 
@@ -107,8 +121,30 @@
     const r = await api.testConnection(channelInput.value, tokenInput.value, "streamer");
     if (!r.ok) return setResult(testResult, r.reason, "bad");
     setResult(testResult, "✓ Connected.", "ok");
-    const saved = await api.saveSettings({ channel: channelInput.value.trim(), token: tokenInput.value.trim() });
+    const saved = await api.saveSettings({ songSource: "streamersonglist", channel: channelInput.value.trim(), token: tokenInput.value.trim() });
     if (saved.error) return setResult(testResult, saved.error, "bad");
+    state = saved;
+    toStreamStep();
+  });
+
+  // Where the requests come from: StreamerSongList (sign in) or StreamElements (paste a token).
+  function showSourceBox() {
+    const se = $('input[name="setup-source"]:checked').value === "streamelements";
+    $("#se-box").hidden = !se;
+    $("#ssl-box").hidden = se;
+  }
+  for (const r of $$('input[name="setup-source"]')) r.addEventListener("change", showSourceBox);
+
+  $("#setup-se-test").addEventListener("click", async () => {
+    const result = $("#setup-se-result");
+    setResult(result, "Checking...");
+    const jwt = $("#setup-se-jwt").value.trim();
+    if (!jwt) return setResult(result, "Paste your JWT token first.", "bad");
+    const r = await api.testStreamElements($("#setup-se-channel").value, jwt);
+    if (!r.ok) return setResult(result, r.reason, "bad");
+    setResult(result, "✓ Connected.", "ok");
+    const saved = await api.saveSettings({ songSource: "streamelements", seChannel: r.channel, seJwt: jwt });
+    if (saved.error) return setResult(result, saved.error, "bad");
     state = saved;
     toStreamStep();
   });
@@ -118,7 +154,9 @@
   let obsConfirmed = false;
 
   function toStreamStep() {
-    $("#connected-as").textContent = `✓ Connected to ${state.settings.channel}.`;
+    $("#connected-as").textContent = onSE()
+      ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
+      : `✓ Connected to ${state.settings.channel}.`;
     renderPaths();
     goStep(2);
     renderObsCheck();
@@ -159,6 +197,8 @@
   function toMusicStep() {
     $("#setup-originals").checked = state.settings.originals;
     $("#setup-livelearns").checked = state.settings.liveLearns;
+    // Live learns are a StreamerSongList idea: StreamElements requests are always videos.
+    $("#setup-livelearns-row").hidden = onSE();
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
     $("#setup-originals-box").hidden = !state.settings.originals;
     if (state.settings.myFacts.length) {
@@ -237,8 +277,10 @@
 
     // Songs
     if (!h) light("light-songlist", "", "Starting");
-    else if (rejected) light("light-songlist", "bad", "Sign in again");
-    else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) light("light-songlist", "ok", h.currentSong ? "Following your queue" : "Connected");
+    else if (rejected) light("light-songlist", "bad", onSE() ? "Paste a new token in Settings" : "Sign in again");
+    else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) {
+      light("light-songlist", "ok", h.currentSong ? (onSE() ? "Following your song requests" : "Following your queue") : "Connected");
+    }
     else light("light-songlist", "warn", "Reconnecting");
 
     // Facts
@@ -258,8 +300,14 @@
     let kind = "warn", title = "Getting BubbleFacts ready", detail = "This only takes a moment.";
     if (status.state === "failing") { kind = "bad"; title = "Something's wrong"; detail = status.message + ". BubbleFacts keeps trying on its own. If this doesn't clear, use Report a problem under Help."; }
     else if (status.state === "restarting") { title = "Fixing a problem"; detail = status.message + ". This fixes itself in a moment."; }
-    else if (rejected) { kind = "bad"; title = "Reconnect your song list"; detail = "StreamerSongList needs you to sign in again."; }
-    else if (status.state === "stopped") { title = "Connect your songs"; detail = "Sign in with StreamerSongList in Settings to start."; }
+    else if (rejected) {
+      kind = "bad"; title = "Reconnect your song list";
+      detail = onSE() ? "StreamElements didn't accept your JWT token. Paste a new one in Settings." : "StreamerSongList needs you to sign in again.";
+    }
+    else if (status.state === "stopped") {
+      title = "Connect your songs";
+      detail = onSE() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
+    }
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
     else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
     else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
@@ -267,7 +315,7 @@
       kind = "ok";
       title = h.currentSong ? "Showing facts" : "Ready for your next song";
       detail = downloading
-        ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get backup facts.`
+        ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
         : "BubbleFacts is connected and waiting.";
     }
     banner.className = "banner " + kind;
@@ -275,8 +323,9 @@
     $("#status-detail").textContent = detail;
     $("#pause-toggle").textContent = state.paused ? "Resume bubbles" : "Pause bubbles";
 
-    // Only nudge when the example facts actually stood in for a song.
-    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length);
+    // Only nudge when the example facts actually stood in for a song. With no
+    // examples checked, showing nothing is the streamer's choice.
+    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length && state.settings.topics.length);
 
     if (!$("#view-setup").hidden) renderObsCheck();
   }
@@ -284,18 +333,103 @@
   async function refreshRecent() {
     const r = await api.recent();
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
+    $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
+    // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
+    const drawn = JSON.stringify([song, (r.facts || []).map((f) => f.text)]);
+    if (drawn === lastRecent) return;
+    lastRecent = drawn;
     $("#now-song").textContent = song || "Nothing playing yet";
     const list = $("#now-facts");
     list.replaceChildren();
     for (const f of r.facts || []) {
       const li = $("#fact-item").content.firstElementChild.cloneNode(true);
       $(".fact-text", li).textContent = f.text;
-      $(".wrong", li).addEventListener("click", () => api.reportFact(song || "", f.text));
+      $(".fact-source", li).textContent = f.source ? `(${f.source})` : "";
+      const wrong = $(".wrong", li);
+      wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
+      wrong.addEventListener("click", async () => {
+        const result = await api.wrongFact(f.text);
+        if (!result || !result.removed) {
+          showWrongNote("That song already ended, so there was nothing to remove.", null);
+          return;
+        }
+        // The song itself goes along, so Undo can't land on whatever plays next.
+        state.wrong = { song: song || "", text: f.text, article: result.article, songId: r.song };
+        showWrongNote(
+          result.structured
+            ? "Removed. BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+            : result.article
+              ? `Removed. BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
+              : "Removed from your stream.",
+          result.article
+        );
+        li.remove();
+      });
       list.appendChild(li);
     }
     $("#now-empty").hidden = (r.facts || []).length > 0;
+    $("#song-facts-open").hidden = !r.song || !$("#song-facts-form").hidden;
   }
 
+  function showWrongNote(text, undoable) {
+    $("#wrong-note-text").textContent = text;
+    $("#wrong-undo").hidden = !undoable;
+    $("#wrong-report").hidden = !state.wrong;
+    $("#wrong-note").hidden = false;
+  }
+
+  $("#song-facts-open").addEventListener("click", async () => {
+    const r = await api.getSongFacts();
+    if (!r || !r.song) return;
+    // The edit belongs to this song, even if another one starts before you save.
+    songFactsTarget = r.song;
+    const e = r.entry || {};
+    $("#song-facts-title").textContent = `"${r.song.title}"`;
+    $("#sf-writers").value = (e.songwriters || []).join(", ");
+    $("#sf-link").value = e.link || "";
+    $("#sf-facts").value = (e.facts || []).join("\n");
+    $("#song-facts-result").textContent = "";
+    $("#song-facts-form").hidden = false;
+    $("#song-facts-open").hidden = true;
+    $("#sf-facts").focus();
+  });
+  $("#song-facts-cancel").addEventListener("click", () => {
+    $("#song-facts-form").hidden = true;
+    lastRecent = "";
+  });
+  $("#song-facts-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const split = (s, re) => s.split(re).map((x) => x.trim()).filter(Boolean);
+    const result = await api.saveSongFacts({
+      song: songFactsTarget,
+      songwriters: split($("#sf-writers").value, /,/),
+      link: $("#sf-link").value.trim(),
+      facts: split($("#sf-facts").value, /\n/),
+    });
+    if (result && result.saved) {
+      $("#song-facts-form").hidden = true;
+      lastRecent = "";
+      showWrongNote(
+        result.shown
+          ? "Saved. Your facts show now and every time this song plays."
+          : `Saved for "${songFactsTarget.title}". They'll show the next time it plays.`,
+        null
+      );
+    } else {
+      $("#song-facts-result").textContent = "Couldn't save. Try again in a moment.";
+    }
+  });
+  $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
+  $("#wrong-undo").addEventListener("click", async () => {
+    if (!state.wrong || !state.wrong.article) return;
+    const result = await api.unwrongFact(state.wrong.article, state.wrong.songId);
+    showWrongNote(
+      result && result.restored
+        ? `Undone. BubbleFacts may use that source for "${state.wrong.song}" again; the fact stays off for now.`
+        : "Couldn't undo that. Try again in a moment.",
+      result && result.restored ? null : state.wrong.article
+    );
+  });
   $("#pause-toggle").addEventListener("click", () => api.setPaused(!state.paused));
   $("#test-bubble").addEventListener("click", async () => {
     const r = await api.testBubble();
@@ -334,7 +468,11 @@
       e.currentTarget.before(result);
       if (await doSignIn(e.currentTarget, result)) renderNotices();
     });
-    if (state.signInExpired) signInNotice("Your StreamerSongList sign-in ended. Sign in again to keep facts coming.");
+    if (onSE()) {
+      if (state.signInExpired) add("warn", "BubbleFacts couldn't read your saved StreamElements token. Paste it again in Settings.", "Open Settings", () => show("settings"));
+      else if (state.status?.health?.status === "unauthorized") add("warn", "StreamElements didn't accept your JWT token. Paste a new one in Settings.", "Open Settings", () => show("settings"));
+    }
+    else if (state.signInExpired) signInNotice("Your StreamerSongList sign-in ended. Sign in again to keep facts coming.");
     else if (state.status?.health?.status === "unauthorized") signInNotice("StreamerSongList didn't accept your sign-in. Sign in again.");
     if (state.settings.ai === "ollama" && state.ollama?.pulling) add("info", `Downloading "${state.ollama.pulling}" into Ollama. This can take a few minutes the first time.`);
     if (state.settings.ai === "ollama" && state.ollama?.error) add("warn", state.ollama.error + ".", "Try again", () => api.downloadModel());
@@ -345,7 +483,7 @@
     if (state.builtinFailed && state.settings.ai === "builtin") {
       add("warn", "The built-in AI can't run on this computer. Facts are coming from your song list for now. Switching to Groq is free and takes a minute.", "Switch to Groq", () => show("settings"));
     }
-    if (state.secretsUnprotected) add("warn", "This computer has no keychain, so your token is saved without encryption.", null);
+    if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
   }
 
   // --- Settings ----------------------------------------------------------------
@@ -365,7 +503,10 @@
     $("#s-myoriginals").value = s.myOriginals.join("\n");
     $("#s-originals-box").hidden = !s.originals;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
-    $("#s-signed-in").textContent = signedIn ? `✓ Signed in as ${s.channel}.` : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
+    $("#s-signed-in").textContent = s.songSource === "streamelements"
+      ? (s.seJwtSet ? `✓ Connected to StreamElements${s.seChannel ? " as " + s.seChannel : ""}.` : "Not connected.")
+      : signedIn ? `✓ Signed in as ${s.channel}.` : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
+    showSettingsSource();
     $("#s-sign-in").textContent = signedIn ? "Sign in again" : "Sign in with StreamerSongList";
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) p.value = "";
@@ -389,6 +530,22 @@
     if (changes.token) changes.tokenKind = "streamer";
     if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return setResult($("#settings-result"), "Add your Groq key first.", "bad");
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return setResult($("#settings-result"), "Add your Anthropic key first.", "bad");
+    const switching = changes.songSource !== state.settings.songSource;
+    if (changes.songSource === "streamelements") {
+      delete changes.token; // The StreamerSongList fields are hidden; keep what's saved there.
+      if (!changes.seJwt && !state.settings.seJwtSet) return setResult($("#settings-result"), "Paste your StreamElements JWT token first.", "bad");
+      if (changes.seJwt || switching || changes.seChannel !== state.settings.seChannel) {
+        setResult($("#settings-result"), "Checking your StreamElements token...");
+        const r = await api.testStreamElements(changes.seChannel, changes.seJwt);
+        if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
+        changes.seChannel = r.channel;
+      }
+    } else {
+      delete changes.seJwt;
+      if (switching && !changes.token && !state.settings.tokenSet) {
+        return setResult($("#settings-result"), "Sign in with StreamerSongList first, or paste a token.", "bad");
+      }
+    }
     if (changes.token) {
       const r = await api.testConnection(changes.channel, changes.token, "streamer");
       if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
@@ -402,6 +559,16 @@
   });
 
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
+
+  function showSettingsSource() {
+    const se = form.elements.songSource.value === "streamelements";
+    $("#s-se-box").hidden = !se;
+    $("#s-ssl-box").hidden = se;
+    $("#s-livelearns-row").hidden = se;
+    // The saved connection's line only describes the source it belongs to.
+    $("#s-signed-in").hidden = se !== onSE();
+  }
+  for (const r of form.elements.songSource) r.addEventListener("change", showSettingsSource);
 
   $("#s-sign-in").addEventListener("click", async (e) => {
     if (await doSignIn(e.currentTarget, $("#settings-result"))) {
@@ -442,7 +609,10 @@
       $("#signin-box").hidden = !state.signInAvailable;
       $("#token-box").open = !state.signInAvailable;
       if (!state.signInAvailable) $("#token-summary").textContent = "Connect with a token";
-      if (state.settings.tokenSet) toStreamStep();
+      $("#setup-se-channel").value = state.settings.seChannel || "";
+      if (onSE()) $('input[name="setup-source"][value="streamelements"]').checked = true;
+      showSourceBox();
+      if (connected()) toStreamStep();
       else goStep(1);
     }
   })();

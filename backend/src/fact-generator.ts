@@ -2,9 +2,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { curatedFacts, fetchGrounding, resolveGameAndTrack, screenClaims } from "./fact-verifier";
-import { buildStatFacts, isOriginal } from "./stat-facts";
+import { curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
+import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
+import { musicbrainzFacts } from "./musicbrainz";
+import { wikidataFacts } from "./wikidata";
+import { findSongFacts, songFactLines } from "./song-facts";
+import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -39,11 +43,14 @@ const POSITIONS = [
   { top: "70%", left: "40%" },
 ];
 
-type Outcome = "grounded" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
+type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
   grounded: 0,
+  wikidata: 0,
+  musicbrainz: 0,
+  songFacts: 0,
   original: 0,
   liveLearn: 0,
   noReference: 0,
@@ -58,10 +65,28 @@ export const factStats = {
 /** Songs with no usable facts are retried after this long; others are kept. */
 const RETRY_MS = 10 * 60 * 1000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
+/** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
+export const STRUCTURED = "Wikidata and MusicBrainz";
+/** The Wikidata or MusicBrainz sentences each song was given, to tell which source a wrong fact came from. */
+const structuredShown = new Map<string, Set<string>>();
+/** Which database each structured sentence came from, for the dashboard. */
+const structuredLabel = new Map<string, string>();
+/** The Wikipedia article each cached song's facts came from, for "Wrong". */
+const sources = new Map<string, string>();
+/**
+ * Facts already written for earlier songs this session. Songs by the same
+ * artist often share the artist's article, and the same facts twice in a row
+ * look broken (issue #19).
+ */
+const RECENT_KEPT = 80;
+const recentFacts: string[] = [];
 const inFlight = new Map<string, Promise<Fact[]>>();
 const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
   grounded: "article",
+  wikidata: "wikidata",
+  musicbrainz: "musicbrainz",
+  songFacts: "yours",
   original: "original",
   liveLearn: "livelearn",
   noReference: "curated",
@@ -81,9 +106,19 @@ function record(song: SSLSong, outcome: Outcome, count: number): void {
   );
 }
 
-function toFacts(lines: string[]): Fact[] {
+/** Where each kind of fact comes from, as the dashboard labels it. */
+export const SOURCE = {
+  yours: "Your facts for this song",
+  songList: "Your song list",
+  custom: "Your custom facts",
+  wikidata: "Wikidata",
+  musicbrainz: "MusicBrainz",
+} as const;
+
+function toFacts(lines: string[], sourceOf: (text: string) => string | undefined = () => undefined): Fact[] {
   return lines.map((text, i) => ({
     text,
+    source: sourceOf(text),
     delaySeconds: i * config.factIntervalSeconds,
     durationSeconds: config.factDurationSeconds,
     position: POSITIONS[i % POSITIONS.length],
@@ -125,6 +160,8 @@ Follow every rule:
 3. Each line restates ONE statement from the SOURCE. Never merge two statements, and never move a name from one statement into another — if the SOURCE says someone composed the music, do not say they wrote the story or designed the game.
 4. If the SOURCE does not name a composer, do NOT name a composer — write about a different detail the SOURCE does give.
 5. Do not mention awards, sales, chart positions, or review scores unless the SOURCE uses those words.
+   Never write opinions or praise ("considered", "acclaimed", "one of the greatest"), even if the SOURCE quotes them.
+   Never describe the music video: viewers are watching it. Write about the song itself.
 6. Prefer details about the music: the composer or songwriter, the instruments, how it was recorded, arranged or first performed. If the SOURCE has none, write about the work itself.
 7. Never mention the SOURCE, this prompt, Wikipedia, or anything you could not find. Write finished facts only.
 8. One sentence per line, under 120 characters, friendly like a loading-screen tip.
@@ -254,19 +291,66 @@ export async function warmUpBuiltin(): Promise<void> {
   }
 }
 
-/** The desktop app's built-in model. Each song starts from an empty chat history. */
-async function askBuiltin(prompt: string): Promise<string> {
-  const { session } = await loadBuiltin();
-  session.resetChatHistory();
-  return session.prompt(prompt, { temperature: config.temperature, maxTokens: MAX_TOKENS });
+/** Longest the built-in model may write for one song before it's stopped. */
+const BUILTIN_TIMEOUT_MS = 90_000;
+let builtinQueue: Promise<unknown> = Promise.resolve();
+
+/** A song that's no longer on stream: its queued or running AI work is dropped. */
+class Obsolete extends Error {}
+/** The song on stream now, set by the server; null when unknown (tests, the self-test). */
+let currentKey: string | null = null;
+let running: { key: string | null; stop: AbortController } | null = null;
+
+/**
+ * The server says which song is on stream. Work for any other song is no
+ * longer wanted: the running generation stops now, and queued ones are skipped
+ * when their turn comes, so skipping songs quickly can't build a backlog in
+ * front of the current one.
+ */
+export function setCurrentSong(song: SSLSong | null): void {
+  currentKey = song ? songKey(song) : null;
+  if (running?.key && running.key !== currentKey) running.stop.abort();
+}
+const obsolete = (key: string | null) => key !== null && currentKey !== null && key !== currentKey;
+
+/**
+ * The desktop app's built-in model. There is one chat session, so songs take
+ * turns: resetting the history and prompting happen together, inside the
+ * queue, or a song that changes mid-generation would inherit the previous
+ * song's conversation. Each turn is cut off after BUILTIN_TIMEOUT_MS; what
+ * was written so far is still screened like any other output.
+ */
+function askBuiltin(prompt: string, key: string | null = null): Promise<string> {
+  const run = async () => {
+    if (obsolete(key)) throw new Obsolete();
+    const { session } = await loadBuiltin();
+    session.resetChatHistory();
+    const stop = new AbortController();
+    running = { key, stop };
+    try {
+      const text = (await session.prompt(prompt, {
+        temperature: config.temperature,
+        maxTokens: MAX_TOKENS,
+        signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal]),
+        stopOnAbortSignal: true,
+      })) as string;
+      if (stop.signal.aborted) throw new Obsolete();
+      return text;
+    } finally {
+      running = null;
+    }
+  };
+  const turn = builtinQueue.then(run, run);
+  builtinQueue = turn.catch(() => undefined);
+  return turn;
 }
 
-async function askModel(prompt: string): Promise<string> {
+async function askModel(prompt: string, key: string | null = null): Promise<string> {
   const started = Date.now();
   let text: string;
   let endpoint: string;
   if (config.aiProvider === "builtin") {
-    text = await askBuiltin(prompt);
+    text = await askBuiltin(prompt, key);
     endpoint = "built-in model";
   } else if (config.aiProvider === "anthropic") {
     text = await askAnthropic(prompt);
@@ -285,15 +369,54 @@ async function askModel(prompt: string): Promise<string> {
 
 // --- Pipeline ----------------------------------------------------------
 
+/** Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it. */
+async function structuredFacts(song: SSLSong): Promise<string[]> {
+  if (blockedArticles(song).has(STRUCTURED)) return [];
+  const data = await wikidataFacts(song);
+  const facts = data.length ? data : await musicbrainzFacts(song);
+  structuredShown.set(songKey(song), new Set(facts));
+  for (const f of facts) structuredLabel.set(f, data.length ? SOURCE.wikidata : SOURCE.musicbrainz);
+  return facts;
+}
+
+/** Remember facts as shown, keeping only the last RECENT_KEPT. */
+function remember(shown: string[]): void {
+  recentFacts.push(...shown);
+  recentFacts.splice(0, Math.max(0, recentFacts.length - RECENT_KEPT));
+}
+
+/** Whether the reference is the song's own article, rather than its artist's or game's. */
+function aboutTheSong(song: SSLSong, context: string): boolean {
+  const { game, track } = resolveGameAndTrack(song);
+  if (!track || track === game) return true;
+  return mentionsName(normalizeTitle(context.split("\n")[0]), [normalizeTitle(track)]);
+}
+
 /** Facts from the queue entry, topped up from the topic packs. True by construction. */
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
+  for (const s of stats) statLines.add(s);
   return [...stats, ...curatedFacts(want - stats.length)];
 }
+
+/** Lines built from the song list, so the dashboard can tell them from custom facts. */
+const statLines = new Set<string>();
+const entrySource = (t: string) => (statLines.has(t) ? SOURCE.songList : SOURCE.custom);
 
 async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ facts: Fact[]; ttlMs: number }> {
   const want = config.factsPerSong;
   const keep = { facts: [] as Fact[], ttlMs: Infinity };
+
+  // Facts the streamer wrote for this very song come first, exactly as written,
+  // with no lookup, even for a live learn: often another streamer's off-list original.
+  const yours = findSongFacts(song);
+  if (yours) {
+    const lines = songFactLines(yours).slice(0, want);
+    console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
+    record(song, "songFacts", lines.length);
+    // Not cached: an edit in the app applies the next time it plays.
+    return { facts: toFacts(lines, () => SOURCE.yours), ttlMs: 0 };
+  }
 
   if (song.liveLearn) {
     console.log(`[FactGen] "${song.title}" is a live learn, skipping facts`);
@@ -302,9 +425,13 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   }
 
   try {
-    if (config.originals && isOriginal(entry, [config.sslStreamerName, config.streamerDisplayName])) {
-      const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true });
-      const facts = toFacts([...stats, ...topic.originalsFacts].slice(0, want));
+    const names = [config.sslStreamerName, config.streamerDisplayName];
+    if (config.originals && isOriginal(entry, names)) {
+      const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true, names });
+      // The streamer's notes about their own compositions only go with songs explicitly credited to them.
+      const own = creditedToStreamer(entry, names);
+      const statSet = new Set(stats);
+      const facts = toFacts([...stats, ...(own ? topic.originalsFacts : [])].slice(0, want), (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
       record(song, "original", facts.length);
       // Not cached: requester and play count change, and this path is free.
@@ -315,33 +442,56 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     // song-list and hand-picked facts only, with no lookup.
     const context = config.aiProvider === "none" ? "" : config.factVerification ? await fetchGrounding(song) : "";
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
+      // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
+      const data = config.factVerification ? await structuredFacts(song) : [];
+      const shownData = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
+      if (shownData.length) {
+        remember(shownData);
+        record(song, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
+        return { facts: toFacts(shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
+      }
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(song, "noReference", lines.length);
       // Retried after the grounding negative cache expires.
-      return { facts: toFacts(lines), ttlMs: RETRY_MS };
+      return { facts: toFacts(lines, entrySource), ttlMs: RETRY_MS };
     }
 
+    // An article about the artist or game, not the song itself: facts about
+    // the song come first when Wikidata or MusicBrainz has any ("describe the
+    // song, then tell about it").
+    const songFacts = context && !aboutTheSong(song, context) ? await structuredFacts(song) : [];
+
     const prompt = context ? groundedPrompt(song, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
-    const lines = (await askModel(prompt)).split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = (await askModel(prompt, songKey(song))).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
-    const shown = kept.slice(0, want);
+    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+    if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
+    const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].slice(0, want);
+    remember(shown);
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
     if (shown.length) {
       record(song, "grounded", shown.length);
-      return { facts: toFacts(shown), ttlMs: Infinity };
+      sources.set(songKey(song), context.split("\n")[0]);
+      const article = `Wikipedia: ${context.split("\n")[0]}`;
+      return { facts: toFacts(shown, (t) => structuredLabel.get(t) ?? article), ttlMs: Infinity };
     }
     const fallback = entryFacts(entry, want);
     console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
     record(song, "nothingSurvived", fallback.length);
-    return { facts: toFacts(fallback), ttlMs: RETRY_MS };
+    return { facts: toFacts(fallback, entrySource), ttlMs: RETRY_MS };
   } catch (err) {
+    if (err instanceof Obsolete) {
+      // Not cached: the song may come back, and then it deserves a real try.
+      console.log(`[FactGen] Dropped "${song.title}": the song changed before its facts were written`);
+      return { facts: [], ttlMs: 0 };
+    }
     const fallback = entryFacts(entry, want);
     console.error(`[FactGen] Generation failed for "${song.title}":`, err);
     record(song, "generationFailed", fallback.length);
-    return { facts: toFacts(fallback), ttlMs: RETRY_MS };
+    return { facts: toFacts(fallback, entrySource), ttlMs: RETRY_MS };
   }
 }
 
@@ -350,26 +500,91 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
  * overlays, a reconnect mid-generation) share one generation.
  */
 export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<Fact[]> {
-  const key = `${song.artist ?? ""}:::${song.title}`.toLowerCase();
+  const key = songKey(song);
   const cached = factCache.get(key);
   if (cached && Date.now() < cached.expires) {
     factStats.cacheHits++;
     return Promise.resolve(cached.facts);
   }
+  const rev = revisions.get(key) ?? 0;
   let pending = inFlight.get(key);
   if (!pending) {
     pending = generate(song, entry)
       .then(({ facts, ttlMs }) => {
-        factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        // A generation started before the song's facts changed may not overwrite them.
+        if ((revisions.get(key) ?? 0) === rev) factCache.set(key, { facts, expires: Date.now() + ttlMs });
         return facts;
       })
-      .finally(() => inFlight.delete(key));
+      .finally(() => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+      });
     inFlight.set(key, pending);
   }
-  return pending;
+  // Superseded while it ran (the streamer saved facts for this song): start over.
+  return pending.then((facts) => ((revisions.get(key) ?? 0) === rev ? facts : generateFacts(song, entry)));
 }
+
+/** Bumped when a song's facts change; a generation from an older revision is discarded. */
+const revisions = new Map<string, number>();
 
 export function clearFactCache(): void {
   factCache.clear();
+  recentFacts.length = 0;
   inFlight.clear();
+  sources.clear();
+  structuredShown.clear();
+}
+
+/**
+ * The streamer marked one of this song's facts wrong. Its source is blocked
+ * for the song: the Wikipedia article, or Wikidata and MusicBrainz when the
+ * fact came from them. The song's cached facts are dropped and forgotten as
+ * "already shown", so the next time it plays BubbleFacts looks again.
+ * Returns what was blocked, or null for custom, song-list or the streamer's own song facts.
+ */
+export function markWrong(song: SSLSong, text: string): string | null {
+  const key = songKey(song);
+  const source = structuredShown.get(key)?.has(text) ? STRUCTURED : (sources.get(key) ?? null);
+  if (source) blockArticle(song, source);
+  const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
+  for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
+  factCache.delete(key);
+  sources.delete(key);
+  structuredShown.delete(key);
+  console.log(`[WrongFact] "${song.title}": ${source ? `won't use ${source === STRUCTURED ? source : `"${source}"`} again` : "not from a lookup"}`);
+  return source;
+}
+
+/**
+ * Writes captions for a made-up song from a fixed reference and screens
+ * them, as a real song would be. The packaged-app smoke test runs two at once
+ * to check the built-in model, the screening and the turn-taking queue
+ * together (review: loading the model alone proved too little).
+ */
+export async function selfTest(variant = 0): Promise<{ generated: number; kept: string[]; ms: number }> {
+  const started = Date.now();
+  const title = variant ? "Starfall Nocturne" : "Starfall Overture";
+  const context = `${title}\n${title} is a 2019 piece of video game music composed by Mia Chen for the game Starfall. ` +
+    "It was recorded with a string quartet in Lisbon. The game was directed by John Smith and released for the Nintendo Switch.";
+  const song: SSLSong = { title, artist: "Starfall" };
+  const lines = (await askModel(groundedPrompt(song, context, 4))).split("\n").map((l) => l.trim()).filter(Boolean);
+  const { kept } = screenClaims(lines, context);
+  return { generated: lines.length, kept, ms: Date.now() - started };
+}
+
+/** Forget a song's cached facts, so its next generation starts over (after its own facts change). */
+export function forgetSong(song: SSLSong): void {
+  const key = songKey(song);
+  revisions.set(key, (revisions.get(key) ?? 0) + 1);
+  factCache.delete(key);
+  inFlight.delete(key);
+  // Its old sources too: Wrong on the new facts must not block an article from before.
+  sources.delete(key);
+  structuredShown.delete(key);
+}
+
+/** Undo "Wrong": the source may be used for the song again. */
+export function unmarkWrong(song: SSLSong, source: string): void {
+  unblockArticle(song, source);
+  console.log(`[WrongFact] "${song.title}": "${source}" allowed again`);
 }

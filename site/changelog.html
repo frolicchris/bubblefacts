@@ -52,6 +52,27 @@
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
 
+        <article class="rpg release" aria-labelledby="v2-beta3">
+          <h2 id="v2-beta3">Version 2.0.0-beta.3 <span class="tag">Beta, September 30, 2026</span></h2>
+          <p>StreamElements song requests, a Wrong button, and more facts for songs Wikipedia doesn't know.</p>
+          <ul>
+            <li>StreamElements works as a song source, besides StreamerSongList. Choose it in setup or in Settings and paste your JWT token. BubbleFacts reads the artist and song from each request's YouTube title, and reads YouTube's auto-generated uploads exactly.</li>
+            <li>A <span class="ui">Wrong</span> button next to each fact under <span class="ui">On stream now</span>. One click takes the fact off your stream, and BubbleFacts never uses that fact's source for that song again, even after a restart. <span class="ui">Undo</span> if you clicked by mistake, and <span class="ui">Report it (opens GitHub)</span> if you'd like to tell us. It replaces <span class="ui">Report this fact</span>.</li>
+            <li><span class="ui">Add facts for this song</span>: give any song its own facts, like another streamer's original. They show exactly as you write them, and a songwriter is only credited when you name one.</li>
+            <li>The dashboard says where each fact came from: Wikipedia, Wikidata, MusicBrainz, your song list or your own facts.</li>
+            <li>Songs with no Wikipedia article can get facts from Wikidata, then MusicBrainz. These are plain sentences filled in from their data, with no AI involved. Titles in Japanese, Korean, Chinese or Cyrillic are looked up as written.</li>
+            <li>Backup facts are now called <strong>custom facts</strong>. The example packs are off by default, and with no custom facts, a song no source knows gets no bubbles.</li>
+            <li>Better matching: fewer wrong articles, such as a band matched to a game with a similar name. When only the artist's article exists, facts about the song itself come first.</li>
+            <li>Stricter fact check: a caption saying who composed, wrote or directed something needs the article to say so.</li>
+            <li>Better facts: no critics' opinions, nothing about the music video, no repeats from earlier songs, and no song length.</li>
+            <li><span class="ui">Copy credit line</span> under <span class="ui">Help and troubleshooting</span>, for your stream panel or video descriptions.</li>
+            <li>Pausing a StreamElements song no longer stops BubbleFacts. If a song is playing but not followed, the dashboard says so, and BubbleFacts reconnects on its own.</li>
+            <li>Linux: the built-in AI no longer crashes, and the app warns you if your computer has no keyring to protect your saved token.</li>
+          </ul>
+          <p>Thanks to SaxDragon for testing StreamElements.</p>
+          <p><a href="https://github.com/frolicchris/bubblefacts/releases">Release notes on GitHub</a></p>
+        </article>
+
         <article class="rpg release" aria-labelledby="v2">
           <h2 id="v2">Version 2.0.0 <span class="tag">Coming soon</span></h2>
           <p>The desktop app, and a new name: Stream Facts is now BubbleFacts. Download it, open it, and click through setup. No Terminal needed.</p>
@@ -88,7 +109,7 @@
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
         <li><a href="requirements.html">System requirements</a></li>
-        <li><a href="changelog.html" aria-current="page">What's new</a></li>
+        <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
         <li><a href="support.html">Help and support</a></li>
         <li><a href="privacy.html">Privacy</a></li>
@@ -98,7 +119,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
     </div>
   </footer>
 </body>

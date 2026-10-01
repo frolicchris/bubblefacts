@@ -1,0 +1,75 @@
+import * as fs from "fs";
+import * as path from "path";
+import { config } from "./config";
+import { SSLSong } from "./types";
+
+/**
+ * Articles the streamer marked wrong, per song. When a fact is wrong, the
+ * usual cause is the wrong Wikipedia article ("The Midnight" grounded on a
+ * racing game), so the article is never used for that song again. Kept in a
+ * small JSON file so it survives restarts.
+ */
+
+type Store = Record<string, string[]>;
+
+const file = () => path.join(config.dataDir, "wrong-facts.json");
+let store: Store | null = null;
+
+/**
+ * One song, for caches and Wrong marks: its StreamerSongList song ID or
+ * YouTube video ID when it has one (so a renamed entry stays the same song),
+ * otherwise artist and title.
+ */
+export function songKey(song: SSLSong): string {
+  if (song.songId) return `ssl:${song.songId}`;
+  if (song.videoId) return `yt:${song.videoId}`;
+  return `${song.artist ?? ""}:::${song.title}`.toLowerCase();
+}
+
+function load(): Store {
+  if (store) return store;
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file(), "utf8"));
+    store = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Store) : {};
+  } catch {
+    store = {};
+  }
+  return store;
+}
+
+export function blockedArticles(song: SSLSong): Set<string> {
+  return new Set(load()[songKey(song)] ?? []);
+}
+
+export function blockArticle(song: SSLSong, article: string): void {
+  const s = load();
+  const key = songKey(song);
+  const list = s[key] ?? [];
+  if (list.includes(article)) return;
+  s[key] = [...list, article];
+  save(s);
+}
+
+function save(s: Store): void {
+  try {
+    fs.mkdirSync(config.dataDir, { recursive: true });
+    fs.writeFileSync(file(), JSON.stringify(s, null, 2) + "\n");
+  } catch (err) {
+    // Still in effect for this session; only the restart memory is lost.
+    console.warn(`[WrongFacts] Could not save ${file()}: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+export function unblockArticle(song: SSLSong, article: string): void {
+  const s = load();
+  const key = songKey(song);
+  if (!s[key]?.includes(article)) return;
+  s[key] = s[key].filter((a) => a !== article);
+  if (!s[key].length) delete s[key];
+  save(s);
+}
+
+/** For tests. */
+export function resetWrongFacts(): void {
+  store = null;
+}

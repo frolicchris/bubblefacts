@@ -1,7 +1,7 @@
 /* BubbleFacts
  * ====================
  *
- * v2.0.0-beta.2
+ * v2.0.0-beta.3
  *
  *  <https://github.com/frolicchris/bubblefacts>
  *
@@ -54,6 +54,8 @@
   let toast = null;
   const toastTimers = [];
   let currentSongKey = null;
+  /** Facts the streamer marked wrong during this song: never shown, even from a resent batch. */
+  let removed = new Set();
   let iconIndex = 0;
   let reconnectMs = 1000;
 
@@ -142,6 +144,7 @@
     bubble.style.top = fact.position.top;
     bubble.style.left = fact.position.left;
     bubble.style.setProperty("--bubble-icon", JSON.stringify(ICONS[iconIndex++ % ICONS.length]));
+    bubble.dataset.fact = fact.text;
     bubble.append(fact.text);
     for (let i = 1; i <= 3; i++) {
       const sparkle = document.createElement("span");
@@ -169,7 +172,9 @@
     if (!facts || !facts.length || songKey(song) !== currentSongKey) return;
     // A reconnect can resend the batch; replace rather than stack.
     clearBubbles();
-    facts.forEach((fact) => bubbleTimers.push(setTimeout(() => showBubble(fact), fact.delaySeconds * 1000)));
+    facts.forEach((fact) =>
+      bubbleTimers.push(setTimeout(() => removed.has(fact.text) || showBubble(fact), fact.delaySeconds * 1000))
+    );
   }
 
   // --- Connection ---
@@ -177,11 +182,17 @@
   function handle(msg) {
     if (msg.type === "new_song") {
       clearBubbles();
+      removed = new Set();
       currentSongKey = songKey(msg.song);
-      if (msg.song) showToast(msg.song);
+      if (msg.song && !msg.quiet) showToast(msg.song);
     } else if (msg.type === "facts_ready") {
       showFacts(msg.song, msg.facts);
+    } else if (msg.type === "remove_fact") {
+      if (songKey(msg.song) !== currentSongKey) return;
+      removed.add(msg.text);
+      bubbles.filter((b) => b.dataset.fact === msg.text).forEach(hideBubble);
     } else if (msg.type === "clear") {
+      removed = new Set();
       clearBubbles();
       removeToast();
       currentSongKey = null;
@@ -207,6 +218,14 @@
     };
     ws.onclose = () => {
       statusDot.classList.remove("connected");
+      // The song may change while disconnected: drop its pending bubbles and banner.
+      // A reconnect starts fresh with the current song.
+      if (opened) {
+        clearBubbles();
+        removeToast();
+        currentSongKey = null;
+        removed = new Set();
+      }
       if (!opened && LOCAL_FILE) {
         portOffset = (portOffset + 1) % (PORT_SPAN + 1);
         if (portOffset !== 0) {

@@ -45,6 +45,9 @@ const aiProvider = oneOf(
   ["builtin", "ollama", "openai", "anthropic", "none"] as const,
   process.env.ANTHROPIC_API_KEY ? "anthropic" : process.env.OPENAI_API_KEY ? "openai" : "ollama"
 );
+// Where song requests come from. StreamerSongList settings are only required when it's the source.
+const songSource = oneOf("SONG_SOURCE", ["streamersonglist", "streamelements"] as const, "streamersonglist");
+const onSSL = songSource === "streamersonglist";
 const sslHost = oneOf("SSL_ENV", ["production", "staging"] as const, "production") === "staging"
   ? "staging.streamersonglist.com"
   : "streamersonglist.com";
@@ -55,11 +58,16 @@ export const config = {
   // Loopback only by default: the server has no authentication.
   host: process.env.HOST || "127.0.0.1",
 
-  // Performer and content
-  sslStreamerName: requireEnv("SSL_STREAMER_NAME"),
-  streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || requireEnv("SSL_STREAMER_NAME"),
+  songSource,
+
+  // Performer and content. With StreamElements, the channel name stands in for the streamer's name.
+  sslStreamerName: onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "",
+  streamerDisplayName:
+    process.env.STREAMER_DISPLAY_NAME ||
+    (onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "the streamer"),
   instrument: (process.env.INSTRUMENT || "").trim(),
-  topic: process.env.TOPIC || "video-game,classical,film,pop,general",
+  // Empty means no custom facts: a song with no source gets none (the desktop app's default).
+  topic: process.env.TOPIC ?? "video-game,classical,film,pop,general",
   // Songs tagged "Originals" or credited to the streamer get facts from the song entry, not a lookup.
   originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",
   // Off-list requests get a LIVE LEARN banner and no facts. Off treats them as ordinary songs.
@@ -69,10 +77,9 @@ export const config = {
 
   // StreamerSongList
   sslPlatform: (process.env.SSL_PLATFORM || "twitch").toLowerCase(),
-  sslAccessToken: requireEnv(
-    "SSL_ACCESS_TOKEN",
-    `Create a Streamer Access Token at https://${sslHost} under Settings > Access.`
-  ),
+  sslAccessToken: onSSL
+    ? requireEnv("SSL_ACCESS_TOKEN", `Create a Streamer Access Token at https://${sslHost} under Settings > Access.`)
+    : "",
   sslTokenKind: oneOf("SSL_TOKEN_KIND", ["streamer", "user", "bearer"] as const, "streamer"),
   // The OAuth client a bearer token was issued to. StreamerSongList wants it as a Client-Id header.
   sslClientId: process.env.SSL_CLIENT_ID || "",
@@ -83,6 +90,19 @@ export const config = {
   sslPollIntervalMs: intEnv("SSL_POLL_INTERVAL_MS", 15000, 2000, 300000),
   sslRequestTimeoutMs: intEnv("SSL_REQUEST_TIMEOUT_MS", 5000, 500, 60000),
 
+  // StreamElements (SONG_SOURCE=streamelements): its song request player, "Media Request".
+  // SE_CHANNEL is a channel name or its 24-character ID; blank means the JWT's own channel.
+  seChannel: process.env.SE_CHANNEL?.trim() || "",
+  seJwt: onSSL
+    ? ""
+    : requireEnv("SE_JWT", "Copy the JWT token from your StreamElements dashboard: Account, then Channels, then Show secrets."),
+  seApiBase: trimSlash(process.env.SE_API_BASE || "https://api.streamelements.com/kappa/v2"),
+  seEventsUrl: process.env.SE_EVENTS_URL || "wss://astro.streamelements.com",
+  // YouTube Data API key, for the exact artist and track of auto-generated uploads. Optional.
+  youtubeApiKey: (process.env.YOUTUBE_API_KEY || "").trim(),
+  sePollIntervalMs: intEnv("SE_POLL_INTERVAL_MS", 15000, 5000, 300000),
+  seRequestTimeoutMs: intEnv("SE_REQUEST_TIMEOUT_MS", 5000, 500, 60000),
+
   // Model
   aiProvider,
   // The desktop app's built-in model: a GGUF file it downloaded (AI_PROVIDER=builtin).
@@ -91,6 +111,8 @@ export const config = {
   llamaGpu: oneOf("LLAMA_GPU", ["auto", "off"] as const, "auto"),
   // Where songs.log goes. The desktop app points this at its data folder.
   logDir: process.env.BUBBLEFACTS_LOG_DIR || path.resolve(__dirname, "../../logs"),
+  // Where facts marked wrong are remembered. The desktop app points this at its data folder.
+  dataDir: process.env.BUBBLEFACTS_DATA_DIR || path.resolve(__dirname, "../../data"),
   temperature: numberEnv("TEMPERATURE", 0.2, 0, 2),
   ollamaBaseUrl: trimSlash(process.env.OLLAMA_BASE_URL || "http://localhost:11434"),
   ollamaFallbackUrl: trimSlash(process.env.OLLAMA_FALLBACK_URL || ""),

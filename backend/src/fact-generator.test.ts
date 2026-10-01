@@ -7,6 +7,7 @@ jest.mock("@anthropic-ai/sdk", () => ({
 jest.mock("./config", () => ({
   config: {
     sslStreamerName: "teststreamer",
+    dataDir: process.env.BUBBLEFACTS_DATA_DIR,
     streamerDisplayName: "Test Streamer",
     originals: true,
     instrument: "",
@@ -22,14 +23,19 @@ jest.mock("./config", () => ({
   },
 }));
 
+jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]) }));
+jest.mock("./musicbrainz", () => ({ musicbrainzFacts: jest.fn().mockResolvedValue([]) }));
+
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
   fetchGrounding: jest.fn().mockResolvedValue(""),
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, generateFacts } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, STRUCTURED } from "./fact-generator";
+import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
+import { wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
 
 const MODEL_LINES = [
@@ -69,6 +75,68 @@ describe("generateFacts", () => {
       expect(f.durationSeconds).toBe(8);
       expect(f.position.top).toMatch(/^\d+%$/);
     });
+  });
+
+  it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
+    // Two songs by the same artist, both written from the artist's article.
+    const first = (await generateFacts({ title: "Song One", artist: "Same Artist" })).map((f) => f.text);
+    const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
+    expect(first).toHaveLength(5);
+    expect(second.filter((t) => first.includes(t))).toEqual([]);
+  });
+
+  it("puts facts about the song first when the article is only about the artist", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
+    const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
+    expect(facts[0]).toBe('"Whatever Happens" came out in 2001.');
+    expect(facts.length).toBeGreaterThan(1);
+  });
+
+  it("Wrong on a Wikidata fact blocks Wikidata for the song, and the song falls back instead of going empty", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const song = { title: "Data Song", artist: "Data Artist" };
+    (wikidataFacts as jest.Mock).mockResolvedValue(['"Data Song" came out in 1999.']);
+    const first = (await generateFacts(song, entry({ timesPlayed: 2 }))).map((f) => f.text);
+    expect(first).toEqual(['"Data Song" came out in 1999.']);
+    expect(markWrong(song, first[0])).toBe(STRUCTURED);
+    const next = (await generateFacts(song, entry({ timesPlayed: 2 }))).map((f) => f.text);
+    expect(next).not.toContain('"Data Song" came out in 1999.');
+    expect(next.length).toBeGreaterThan(0);
+    (wikidataFacts as jest.Mock).mockResolvedValue([]);
+  });
+
+  it("shows the streamer's own facts for a song first, exactly as written, and labels every source", async () => {
+    saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
+    const facts = await generateFacts({ title: "Evening Rain", artist: "Jane Composer" });
+    expect(facts.map((f) => [f.text, f.source])).toEqual([
+      ['"Evening Rain" was written by Jane Composer.', SOURCE.yours],
+      ["Jane wrote it in one night.", SOURCE.yours],
+    ]);
+    expect(mockCreate).not.toHaveBeenCalled();
+    saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", facts: [] });
+  });
+
+  it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {
+    const song = { title: "Held Song", artist: "Held Artist" };
+    let release: (v: unknown) => void = () => undefined;
+    mockCreate.mockReturnValueOnce(new Promise((r) => (release = r)));
+    const first = generateFacts(song);
+    await new Promise((r) => setImmediate(r));
+    saveSongFacts({ title: "Held Song", artist: "Held Artist", facts: ["The streamer's approved fact."] });
+    forgetSong(song);
+    release(reply(MODEL_LINES));
+    expect((await first).map((f) => f.text)).toEqual(["The streamer's approved fact."]);
+    expect((await generateFacts(song)).map((f) => f.text)).toEqual(["The streamer's approved fact."]);
+    saveSongFacts({ title: "Held Song", artist: "Held Artist", facts: [] });
+  });
+
+  it("shows the streamer's own facts for a live learn too (QA follow-up #6)", async () => {
+    saveSongFacts({ title: "Off List", artist: "Jane Composer", facts: ["Jane's own song, played off the list."] });
+    const facts = await generateFacts({ title: "Off List", artist: "Jane Composer", liveLearn: true });
+    expect(facts.map((f) => f.text)).toEqual(["Jane's own song, played off the list."]);
+    saveSongFacts({ title: "Off List", artist: "Jane Composer", facts: [] });
   });
 
   it("caches a song's facts", async () => {

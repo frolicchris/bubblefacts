@@ -3,7 +3,7 @@ import { SSLQueueItem } from "./types";
 
 /**
  * Facts built from the queue entry itself: the streamer's note, play count,
- * last played, duration, requesters. True by construction, and the only
+ * last played, requesters. True by construction, and the only
  * song-specific facts available for originals and songs with no article.
  */
 
@@ -18,18 +18,40 @@ const DAY_MS = 86_400_000;
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 /**
- * Tagged as an original, or credited to the streamer: the artist field is
- * one of their names, or contains "@name". A bare name inside a longer
- * credit doesn't count; streamer "Joe" doesn't own "Joe Hisaishi".
+ * Credited to the streamer: the artist field is one of their names, or
+ * contains "@name". A bare name inside a longer credit doesn't count;
+ * streamer "Joe" doesn't own "Joe Hisaishi".
  */
-export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean {
-  if (!entry) return false;
-  if (entry.song?.attributes?.some((a) => a?.name && ORIGINALS_ATTRIBUTE.test(a.name))) return true;
-  const artist = (entry.song?.artist ?? "").trim().toLowerCase();
+export function creditedToStreamer(entry: SSLQueueItem | null, names: string[]): boolean {
+  const artist = (entry?.song?.artist ?? "").trim().toLowerCase();
   return names.some((n) => {
     const name = n.trim().toLowerCase();
     return Boolean(name) && (artist === name || new RegExp(`@${escapeRe(name)}\\b`).test(artist));
   });
+}
+
+/**
+ * "Jane's Originals" names Jane: it counts only when "Jane" is exactly one of
+ * the streamer's configured names. No prefix matching: "Christina's
+ * Originals" isn't Chris's.
+ */
+function tagNamesStreamer(tag: string, names: string[]): boolean {
+  const owner = /^\s*(.+?)['’]s?\s+originals\b/i.exec(tag)?.[1]?.trim().toLowerCase();
+  if (!owner || /^(my|our)$/.test(owner)) return true;
+  return names.some((n) => n.trim().toLowerCase() === owner);
+}
+
+/**
+ * The streamer's own song: tagged "Originals" (or "<their name>'s
+ * Originals"), or credited to them. A tag naming someone else ("Jane's
+ * Originals" on Chris's list) is another streamer's original, played as a
+ * cover: it gets no authorship claims.
+ */
+export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean {
+  if (!entry) return false;
+  const tags = (entry.song?.attributes ?? []).map((a) => a?.name ?? "").filter((t) => ORIGINALS_ATTRIBUTE.test(t));
+  if (tags.some((t) => tagNamesStreamer(t, names))) return true;
+  return creditedToStreamer(entry, names);
 }
 
 /** Drop a leading "Artist:" that repeats the artist field. */
@@ -49,7 +71,7 @@ function daysSince(iso: string): number | null {
 /** Each fact is emitted only when its field is present; the API often returns nulls. */
 export function buildStatFacts(
   entry: SSLQueueItem | null,
-  opts: { streamerName: string; isOriginalSong?: boolean }
+  opts: { streamerName: string; isOriginalSong?: boolean; names?: string[] }
 ): string[] {
   if (!entry) return [];
   const facts: string[] = [];
@@ -63,8 +85,16 @@ export function buildStatFacts(
   }
 
   if (opts.isOriginalSong) {
-    facts.push(`"${display}" is an original composition by ${(song.artist ?? "").trim() || who}.`);
-    facts.push("You're hearing this one straight from the person who wrote it.");
+    // Only the song list's artist field names a writer; a tag alone never does.
+    // A missing or "Unknown" credit stays unknown: no writer is named or implied.
+    const credit = (song.artist ?? "").trim();
+    const known = Boolean(credit) && !/^unknown$/i.test(credit);
+    if (known && creditedToStreamer(entry, [who, ...(opts.names ?? [])])) {
+      facts.push(`"${display}" is an original composition by ${credit.replace(/\s*@\S+/, "")}.`);
+      facts.push("You're hearing this one straight from the person who wrote it.");
+    } else if (known) {
+      facts.push(`"${display}" is an original, credited to ${credit}.`);
+    }
   }
 
   const played = song.timesPlayed;
@@ -76,11 +106,6 @@ export function buildStatFacts(
 
   const days = song.lastPlayed ? daysSince(song.lastPlayed) : null;
   if (days !== null && days >= STALE_AFTER_DAYS) facts.push(`This one hasn't come up in ${days} days.`);
-
-  const dur = song.durationSeconds ?? song.duration;
-  if (typeof dur === "number" && dur >= 30 && dur <= 3600) {
-    facts.push(`Runs about ${Math.floor(dur / 60)}:${String(dur % 60).padStart(2, "0")}.`);
-  }
 
   const requesters = (entry.requests ?? []).map((r) => r?.name?.trim()).filter((n): n is string => Boolean(n));
   if (requesters.length === 1) {

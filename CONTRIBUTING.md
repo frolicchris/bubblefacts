@@ -5,20 +5,32 @@ and bugs, and neither needs you to write code.
 
 ## Report a wrong fact
 
-If a bubble generated from Wikipedia showed something untrue, or a fact about
-the wrong song,
-[open a "A fact is wrong" issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
-Accuracy is the point of this project, so these reports matter most. Include
-the lines starting with `[Grounding]` and `[Screen]` from your log if you can;
-they show which Wikipedia article was used.
+If a bubble showed something untrue, or a fact about the wrong song,
+[open an "A fact is wrong" issue](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
+Accuracy is the point of this project, so these reports matter most. In the
+app, click **Wrong** next to the fact, then **Report it (opens GitHub)**: the
+report is filled in for you. Otherwise, include the lines starting with
+`[Grounding]` and `[Screen]` from your log if you can; they show which
+Wikipedia article was used.
+
+## YouTube titles that read wrong
+
+With StreamElements, BubbleFacts works out the artist and song from each
+request's YouTube title. Every real title that was read wrong belongs in
+`backend/src/fixtures/youtube-titles.json`, labeled by hand with the artist
+and song a person would read, the uploading channel, and where it came from
+(for example `"source": "stream 2026-09-30"`). The tests read every entry, so
+a fix can't quietly break an older title. Add the title even if you can't fix
+the rule yourself. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#song-sources-and-youtube-titles)
+explains how titles are read.
 
 ## Topic packs are examples
 
 The packs in `topics/` are examples that show the format and make the overlay
 work on first run. They aren't maintained, and pull requests that add to or
 change them won't be accepted. Streamers keep their own packs on their own
-machine: in the app under **Settings → Backup facts → Your own facts**, or
-as described in [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md#your-backup-facts)
+machine: in the app under **Settings → Custom facts → Your own facts**, or
+as described in [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md#your-custom-facts)
 for the command-line version.
 
 Improvements to how packs are *loaded or used* are welcome like any other code
@@ -27,14 +39,17 @@ change.
 ## Change the code
 
 1. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), especially the section
-   for the part you're changing. Most of the unusual choices exist because of
-   something that went wrong on a live stream.
+   for the part you're changing. It explains each integration (StreamerSongList,
+   StreamElements, YouTube titles, Wikipedia, Wikidata, MusicBrainz, **Wrong**)
+   and why it works the way it does. Most of the unusual choices exist because
+   of something that went wrong on a live stream.
 2. Install [Node.js](https://nodejs.org/en/download) 20 or newer and
    [ShellCheck](https://www.shellcheck.net), then run `npm install`.
 3. Make your change, with a test if it fixes a bug.
 4. Run `npm run check`. It type-checks, lints and tests everything in about
-   ten seconds, and it's the same check that runs automatically on every pull
-   request.
+   ten seconds. The same check runs on every pull request, on Linux, macOS
+   and Windows; `main` only accepts a change through a pull request whose
+   **ci-ok** check passed.
 5. Update the docs if you changed behavior or a setting. The README and
    [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md) are written for streamers,
    not programmers: plain words, no unexplained jargon.
@@ -77,10 +92,20 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 workflow**. The installers appear as downloadable artifacts on the run. This
 works in forks too.
 
-**Releases** are made by pushing a version tag, such as `v2.0.0`. The Release
-workflow builds every installer on its own system and puts them in a *draft*
-release with a `SHA256SUMS.txt` file and a build-provenance attestation for
-each file, for a person to read over and publish.
+**Releases** are made by the maintainer pushing a version tag, such as
+`v2.0.0`. Version tags are protected, so a published release's tag can't be
+moved or deleted. The Release workflow builds every installer on its own
+system and puts them in a *draft* release with a `SHA256SUMS.txt` file and a
+build-provenance attestation for each file, for a person to read over and
+publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
+
+The workflow reads the `YOUTUBE_API_KEY` repository secret, if it's set, and
+writes it into `package.json` for that build only, so StreamElements songs
+from YouTube's auto-generated uploads are read exactly. Never commit the key.
+Restrict it to the YouTube Data API in Google Cloud. Builds without it,
+including forks and local builds, read every title from the video title
+alone. To try it locally, set `YOUTUBE_API_KEY` in your environment before
+`npm run app`.
 
 **Test the overlay in a real OBS**, not only in a web browser. OBS loads a
 Local file from `http://absolute/<path>`, which a browser doesn't reproduce, so

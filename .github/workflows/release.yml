@@ -4,7 +4,9 @@ name: Release
 # own system and puts them in a *draft* release with checksums, for a person to
 # read over and publish. Each file gets a build-provenance attestation, so
 # anyone can check it came from this workflow:
-#   gh attestation verify FILE --repo frolicchris/bubblefacts
+#   gh attestation verify FILE --repo frolicchris/bubblefacts \
+#     --signer-workflow frolicchris/bubblefacts/.github/workflows/release.yml --source-ref refs/tags/vX.Y.Z
+# (test builds from workflow_dispatch are attested too; --source-ref tells a real release apart)
 
 on:
   push:
@@ -51,6 +53,14 @@ jobs:
       - name: Bundle Node.js for the fact server (Linux)
         if: runner.os == 'Linux'
         run: mkdir -p desktop/runtime && cp "$(node -p 'process.execPath')" desktop/runtime/node && desktop/runtime/node --version
+      # The YouTube Data API key is a repository secret, written into the build only (never committed).
+      # It's restricted to the YouTube Data API. Without it, song titles are read from the video title alone.
+      - name: Add the YouTube API key
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        if: env.YOUTUBE_API_KEY != ''
+        shell: bash
+        run: node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));p.bubblefacts.youtubeApiKey=process.env.YOUTUBE_API_KEY;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
       - run: npm run dist -- ${{ matrix.args }}
       - uses: actions/attest-build-provenance@v4
         with:
@@ -76,6 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -88,6 +100,11 @@ jobs:
       - name: Checksums
         working-directory: files
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            files/bubblefacts.zip
+            files/SHA256SUMS.txt
       - name: Create a draft release
         env:
           GH_TOKEN: ${{ github.token }}

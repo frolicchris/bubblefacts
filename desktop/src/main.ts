@@ -3,12 +3,23 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, testSongList } from "./checks";
+import { newerRelease, testSongList, testStreamElements } from "./checks";
 import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { problemReportUrl, wrongFactUrl } from "./reports";
-import { BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, toServerEnv, writeMyPack } from "./settings";
+import {
+  BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  toServerEnv, writeMyPack,
+} from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
+
+/**
+ * A YouTube Data API key restricted to that API, added to package.json at
+ * build time from the YOUTUBE_API_KEY secret (never committed). Used to read
+ * the exact artist and track of auto-generated uploads (issue #26).
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || (require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string } }).bubblefacts?.youtubeApiKey || "";
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
@@ -28,6 +39,7 @@ const DIRS = {
 const ALLOWED_HOSTS = [
   "github.com", "streamersonglist.com", "www.streamersonglist.com", "id.streamersonglist.com", "console.groq.com", "platform.claude.com",
   "bubblefacts.frolic.org", "www.twitch.tv", "discord.gg", "obsproject.com", "huggingface.co", "www.llama.com", "ollama.com",
+  "streamelements.com",
 ];
 
 // Loaded once the app is ready: before that, Windows and Linux can't read the keychain.
@@ -64,30 +76,19 @@ const send = (channel: string, payload: unknown) => win?.webContents.send(channe
 
 /**
  * Run as soon as the song list is connected, so the test bubble can appear
- * during setup. While the built-in AI is still downloading, songs get backup
- * facts; the server restarts with the AI once it's ready.
+ * during setup. While the built-in AI is still downloading, songs get facts
+ * that need no AI; the server restarts with the AI once it's ready.
  */
 function canStart(): boolean {
-  return !!settings.channel && !!settings.token;
-}
-
-/** How many backup facts a set of settings adds up to. The server needs five. */
-function backupFactCount(s: Settings): number {
-  let count = s.myFacts.length;
-  for (const id of s.topics) {
-    try {
-      count += JSON.parse(fs.readFileSync(path.join(ROOT, "topics", `${id}.json`), "utf8")).curatedFacts.length;
-    } catch {
-      // A pack that's gone counts as empty.
-    }
-  }
-  return count;
+  return songSourceReady(settings);
 }
 
 function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelPath: modelPath(DIRS.models), logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
   if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
+  env.BUBBLEFACTS_DATA_DIR = DATA;
+  if (YOUTUBE_API_KEY) env.YOUTUBE_API_KEY = YOUTUBE_API_KEY;
   return env;
 }
 
@@ -99,9 +100,9 @@ function startServer(): void {
 }
 
 function state() {
-  const { token, refreshToken, groqKey, anthropicKey, ...rest } = settings;
+  const { token, refreshToken, seJwt, groqKey, anthropicKey, ...rest } = settings;
   return {
-    settings: { ...rest, tokenSet: !!token, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
+    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
     signInAvailable: !!CLIENT_ID,
     paused,
     ollama,
@@ -296,8 +297,13 @@ function createWindow(): void {
     win?.hide();
     if (!toldAboutTray) {
       toldAboutTray = true;
-      const where = process.platform === "darwin" ? "menu bar" : "system tray";
-      notify("BubbleFacts is still running", `Facts keep appearing on stream. Quit from the ${where} icon.`);
+      // Windows hides tray icons behind the ^ next to the clock.
+      const where = process.platform === "darwin"
+        ? "the BubbleFacts icon in the menu bar"
+        : process.platform === "win32"
+          ? "the ^ next to the clock, then the BubbleFacts icon"
+          : "the BubbleFacts icon in the system tray";
+      notify("BubbleFacts is still running", `Facts keep appearing on stream. To quit, click ${where}.`);
     }
   });
 }
@@ -394,6 +400,10 @@ async function setPaused(next: boolean): Promise<void> {
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
+ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
+ipcMain.handle("get-song-facts", () => control("song-facts/get"));
+ipcMain.handle("save-song-facts", (_e, data: unknown) => control("song-facts", data));
+ipcMain.handle("unwrong-fact", (_e, article: string, song: unknown) => control("unwrong", { article: String(article), song }));
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());
@@ -402,17 +412,19 @@ ipcMain.handle("test-connection", (_e, channel: string, token: string, kind: str
   testSongList(channel, token || settings.token, kind)
 );
 
+ipcMain.handle("test-streamelements", (_e, channel: string, jwt: string) =>
+  testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt)
+);
+
 ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
   const next: Settings = sanitize({ ...settings, ...changes });
   // Blank secret fields mean "keep the one already saved".
-  for (const key of ["token", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
+  for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
   // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
-  if (backupFactCount(next) < 5) {
-    return { error: "BubbleFacts needs at least 5 backup facts. Check another kind, or add more of your own." };
-  }
   const aiChanged = next.ai !== settings.ai;
+  const sourceChanged = next.songSource !== settings.songSource;
   settings = next;
   if (aiChanged) builtinFailed = false;
   saveSettings(settings);
@@ -421,6 +433,8 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
     signInExpired = false;
     scheduleRefresh(); // Stops refreshing the replaced sign-in.
   }
+  // A new StreamElements token, or a switch of source, starts over; health reports if it's still refused.
+  if (changes.seJwt || sourceChanged) signInExpired = false;
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();
@@ -436,6 +450,7 @@ ipcMain.handle("sign-in", async () => {
     const s = await signIn((url) => void shell.openExternal(url), mine.signal);
     settings = {
       ...settings,
+      songSource: "streamersonglist",
       tokenKind: "oauth",
       token: s.accessToken,
       refreshToken: s.refreshToken,
@@ -466,7 +481,7 @@ ipcMain.handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of StreamerSongList and deletes your settings, the downloaded AI (about 2 GB), your own backup facts and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your custom facts, the facts you added for particular songs, the sources you marked Wrong, and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -477,7 +492,7 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable"]) {
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();
@@ -528,7 +543,7 @@ app.whenReady().then(async () => {
   app.setAppUserModelId("org.frolic.bubblefacts");
   settings = loadSettings();
   // A secret the keychain could no longer read comes back blank.
-  if (settings.setupComplete && !settings.token) signInExpired = true;
+  if (settings.setupComplete && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
   pruneLogs(DIRS.logs);
   createTray();
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);

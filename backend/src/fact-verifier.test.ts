@@ -1,6 +1,7 @@
 jest.mock("./config", () => ({
   config: {
     factsPerSong: 5,
+    dataDir: process.env.BUBBLEFACTS_DATA_DIR,
     groundingTimeoutMs: 5000,
     groundingExtractTimeoutMs: 15000,
     topic: "video-game,classical,film,pop,piano,general",
@@ -22,6 +23,8 @@ import {
   fetchGrounding,
   clearGroundingCache,
 } from "./fact-verifier";
+import { blockArticle, resetWrongFacts } from "./wrong-facts";
+import { artistNames, mentionsName } from "./fact-verifier";
 import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
@@ -217,6 +220,22 @@ describe("isRelevantArticle", () => {
     expect(isRelevantArticle("Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana")).toBe(true);
   });
 
+  it("rejects a longer title that only shares the subject's last word", () => {
+    // A real failure: "The Midnight - Lost Boy" was grounded on a racing game.
+    expect(isRelevantArticle("The Midnight", "Wangan Midnight")).toBe(false);
+    expect(isRelevantArticle("The Midnight", "Wangan Midnight (2007 video game)")).toBe(false);
+  });
+
+  it("rejects a possessive title, which names another work", () => {
+    // From a live stream: "Michael Jackson - Whatever Happens" got facts about the This Is It album.
+    expect(isRelevantArticle("Michael Jackson", "Michael Jackson's This Is It (album)", true)).toBe(false);
+  });
+
+  it("accepts a band article when the subject is a performer", () => {
+    expect(isRelevantArticle("The Midnight", "The Midnight (band)", true)).toBe(true);
+    expect(isRelevantArticle("The Midnight", "The Midnight (band)")).toBe(false);
+  });
+
   it("rejects the unrelated article Wikipedia returns for an original song", () => {
     // A real failure: faithful facts about entirely the wrong work.
     expect(isRelevantArticle("Jane Composer", "The Last of Us season 1")).toBe(false);
@@ -308,6 +327,33 @@ describe("person-name screening", () => {
 
   it("accepts a surname-only reference mention", () => {
     expect(unsupportedName("Music by Yuzo Koshiro.", "koshiro composed it; yuzo is credited")).toBeNull();
+  });
+});
+
+describe("credits must match the source's roles (review)", () => {
+  const CTX = "Starfall is a 2019 game. John Smith directed the game. The music was composed by Mia Chen.";
+
+  it("drops a credit the source gives someone else", () => {
+    expect(screenClaims(["John Smith wrote the soundtrack for Starfall."], CTX).kept).toEqual([]);
+  });
+
+  it("drops a one-word name the source never mentions", () => {
+    expect(screenClaims(["The soundtrack was composed by Adele in 2019."], CTX).kept).toEqual([]);
+  });
+
+  it("needs the role stated for that person, active or passive (QA follow-up #4)", () => {
+    const ctx = "John Smith directed the game and discussed its soundtrack. Mia Chen composed the music.";
+    expect(screenClaims(["John Smith composed the soundtrack."], ctx).kept).toEqual([]);
+    expect(screenClaims(["Adele composed the soundtrack."], ctx).kept).toEqual([]);
+    expect(screenClaims(["The soundtrack was composed by John Smith."], ctx).kept).toEqual([]);
+    expect(screenClaims(["Mia Chen composed the music."], ctx).kept).toHaveLength(1);
+    expect(screenClaims(["The music was composed by Mia Chen."], ctx).kept).toHaveLength(1);
+    expect(screenClaims(["John Smith directed the game."], ctx).kept).toHaveLength(1);
+  });
+
+  it("keeps a credit the source does give", () => {
+    expect(screenClaims(["Mia Chen composed the music for Starfall."], CTX).kept).toHaveLength(1);
+    expect(screenClaims(["Starfall was directed by John Smith."], CTX).kept).toHaveLength(1);
   });
 });
 
@@ -518,6 +564,12 @@ describe("resolveGameAndTrack — series in artist, game in title", () => {
     expect(isRelevantArticle("Ys II The Final Chapter", "Ys II")).toBe(true);
     expect(isRelevantArticle("Final Fantasy X", "Final Fantasy (video game)")).toBe(false);
   });
+
+  it("rejects a truncated title that isn't at a subtitle break", () => {
+    // A real failure: a drum cover of "Everybody Dance Now" got facts about a PlayStation game.
+    expect(isRelevantArticle("Everybody Dance Now", "Everybody Dance (video game)")).toBe(false);
+    expect(isRelevantArticle("Ys VIII: Lacrimosa of Dana", "Ys VIII")).toBe(true);
+  });
 });
 
 describe("grounding — stubs, arrangements and remakes", () => {
@@ -627,6 +679,30 @@ describe("orderExtract", () => {
   });
 });
 
+describe("screenClaims — opinions and the music video", () => {
+  const context = "Rockstar is a song by Post Malone and 21 Savage. It was considered one of the best songs of 2017. " +
+    "It was their first number one. The music video shows Post Malone fighting ninjas. The video game Nier Automata.";
+
+  it("drops opinions even when the source quotes them (issue #21)", () => {
+    const { kept, rejected } = screenClaims(["Rockstar was considered one of the best songs of 2017."], context);
+    expect(kept).toEqual([]);
+    expect(rejected[0].reason).toBe("opinion");
+  });
+
+  it("drops lines about the music video viewers are watching (issue #20)", () => {
+    expect(screenClaims(["The music video shows Post Malone fighting ninjas."], context).kept).toEqual([]);
+    expect(screenClaims(["In the video, Post Malone fights a crowd of ninjas."], context).kept).toEqual([]);
+  });
+
+  it("keeps a plain fact, and a line about a video game", () => {
+    const { kept } = screenClaims(
+      ["Rockstar was the first number one for Post Malone and 21 Savage.", "The video game Nier Automata has a famous score."],
+      context
+    );
+    expect(kept).toHaveLength(2);
+  });
+});
+
 describe("fetchGrounding", () => {
   const LONG = "x".repeat(700);
   let pages: Record<string, string[]>;
@@ -683,8 +759,46 @@ describe("fetchGrounding", () => {
     expect(await fetchGrounding({ title: "Overture", artist: "Obscure Game" })).toBe("");
   });
 
+  it("takes an installment only when it names the track (review: Final Fantasy -> Final Fantasy VII)", async () => {
+    pages = { "Final Fantasy video game": ["Final Fantasy VII"], "Final Fantasy soundtrack": ["Final Fantasy VII"], "Final Fantasy": ["Final Fantasy VII"] };
+    mentions = { "Final Fantasy VII": "with music including One-Winged Angel" };
+    expect(await fetchGrounding({ title: "Terra's Theme", artist: "Final Fantasy" })).toBe("");
+    expect(await fetchGrounding({ title: "One-Winged Angel", artist: "Final Fantasy" })).toMatch(/^Final Fantasy VII/);
+  });
+
+  it("never looks up an uploader that's only a guess (review: Apollo)", async () => {
+    pages = { "Megalovania": ["Apollo"], "Apollo video game": ["Apollo"], "Apollo": ["Apollo"] };
+    expect(await fetchGrounding({ title: "Megalovania", artist: "Apollo", artistUncertain: true })).toBe("");
+  });
+
+  it("never uses an article the streamer marked wrong for that song", async () => {
+    pages = { "Celeste video game": ["Celeste (video game)"] };
+    expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toMatch(/^Celeste/);
+    blockArticle({ title: "First Steps", artist: "Celeste" }, "Celeste (video game)");
+    // Blocked even though it's cached, and only for that song.
+    expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toBe("");
+    expect(await fetchGrounding({ title: "Resurrections", artist: "Celeste" })).toMatch(/^Celeste/);
+    // Remembered after a restart.
+    resetWrongFacts();
+    clearGroundingCache();
+    expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toBe("");
+  });
+
   it("keeps the whole reference within the context budget", async () => {
     pages = { "Celeste video game": ["Celeste (video game)"] };
     expect((await fetchGrounding({ title: "First Steps", artist: "Celeste" })).length).toBeLessThanOrEqual(2400);
+  });
+});
+
+describe("artist names (peer review)", () => {
+  it("keeps a whole credit and tries the lead artist", () => {
+    expect(artistNames("Earth, Wind & Fire")).toEqual(["earth wind fire", "earth"]);
+    expect(artistNames("Lil Nas X, Jack Harlow")).toEqual(["lil nas x jack harlow", "lil nas x"]);
+    expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel"]);
+  });
+
+  it("matches whole words only", () => {
+    expect(mentionsName("2014 single by asia", ["sia"])).toBe(false);
+    expect(mentionsName("2014 single by sia", ["sia"])).toBe(true);
   });
 });

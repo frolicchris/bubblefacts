@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("bubbleFacts", {
   getState: () => ipcRenderer.invoke("get-state"),
   testConnection: (channel: string, token: string, kind: string) => ipcRenderer.invoke("test-connection", channel, token, kind),
+  testStreamElements: (channel: string, jwt: string) => ipcRenderer.invoke("test-streamelements", channel, jwt),
   saveSettings: (changes: Record<string, unknown>) => ipcRenderer.invoke("save-settings", changes),
   signIn: () => ipcRenderer.invoke("sign-in"),
   cancelSignIn: () => ipcRenderer.invoke("cancel-sign-in"),
@@ -19,6 +20,10 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   recent: () => ipcRenderer.invoke("recent"),
   reportProblem: () => ipcRenderer.invoke("report-problem"),
   reportFact: (song: string, fact: string) => ipcRenderer.invoke("report-fact", song, fact),
+  wrongFact: (fact: string) => ipcRenderer.invoke("wrong-fact", fact),
+  unwrongFact: (article: string, song: unknown) => ipcRenderer.invoke("unwrong-fact", article, song),
+  getSongFacts: () => ipcRenderer.invoke("get-song-facts"),
+  saveSongFacts: (data: unknown) => ipcRenderer.invoke("save-song-facts", data),
   on: (channel: "status" | "state" | "model-progress", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },

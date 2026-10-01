@@ -5,8 +5,11 @@ import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
-import { generateFacts, factStats, warmUpBuiltin } from "./fact-generator";
-import { FactsPayload, SSLQueueItem } from "./types";
+import { SongSource } from "./song-source";
+import { StreamElementsClient } from "./streamelements-client";
+import { forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { findSongFacts, saveSongFacts } from "./song-facts";
+import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -16,7 +19,7 @@ import { FactsPayload, SSLQueueItem } from "./types";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
-const songList = new SongListClient();
+const songList: SongSource = config.songSource === "streamelements" ? new StreamElementsClient() : new SongListClient();
 
 interface Client {
   id: number;
@@ -40,9 +43,16 @@ let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"] 
 /** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
 let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 
+/** When the current song's facts went out to the overlay, and when bubbles were paused (0 = never). */
+let factsShownAt = 0;
+let pausedAt = 0;
+
 function broadcast(payload: FactsPayload): void {
+  if (payload.type === "new_song" && !payload.quiet) factsShownAt = 0;
+  if (payload.type === "facts_ready" && !paused) factsShownAt = Date.now();
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts };
+  else if (payload.type === "remove_fact") lastSent = { song: lastSent.song, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
@@ -70,7 +80,7 @@ wss.on("connection", (ws, req) => {
   // Catch a reconnecting overlay up on the current song.
   const current = songList.getCurrentSong();
   if (!current || paused) return;
-  const song = SongListClient.toSong(current);
+  const song = songList.toSong(current);
   const token = generation;
   send(ws, { type: "new_song", song });
   generateFacts(song, current)
@@ -81,11 +91,14 @@ wss.on("connection", (ws, req) => {
 async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const token = ++generation;
   if (!current) {
+    setCurrentSong(null);
     broadcast({ type: "clear" });
     return;
   }
 
-  const song = SongListClient.toSong(current);
+  const song = songList.toSong(current);
+  // Work for any other song is no longer wanted (see setCurrentSong).
+  setCurrentSong(song);
   broadcast({ type: "new_song", song });
 
   const facts = await generateFacts(song, current);
@@ -134,10 +147,124 @@ control.post("/pause", (req, res) => {
   if (next !== paused) {
     paused = next;
     console.log(`[Server] Bubbles ${paused ? "paused" : "resumed"}`);
-    if (paused) for (const ws of clients.keys()) send(ws, { type: "clear" });
-    else void onSongChange(songList.getCurrentSong());
+    if (paused) {
+      pausedAt = Date.now();
+      for (const ws of clients.keys()) send(ws, { type: "clear" });
+    } else if (!resumeSameSong()) {
+      void onSongChange(songList.getCurrentSong());
+    }
   }
   res.json({ paused });
+});
+
+/**
+ * Resuming on the song that was showing: carry on where it left off, with
+ * the facts not shown yet on their remaining delays and no second NOW
+ * PLAYING banner. Returns false when the song changed or its facts arrived
+ * during the pause, so it starts like any new song.
+ */
+function resumeSameSong(): boolean {
+  const current = songList.getCurrentSong();
+  const song = current && songList.toSong(current);
+  if (!song || !lastSent.song || !factsShownAt || factsShownAt > pausedAt) return false;
+  if (`${song.artist}:::${song.title}` !== `${lastSent.song.artist}:::${lastSent.song.title}`) return false;
+  const elapsed = (pausedAt - factsShownAt) / 1000;
+  const facts = (lastSent.facts ?? [])
+    .filter((f) => f.delaySeconds > elapsed)
+    .map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
+  broadcast({ type: "new_song", song: lastSent.song, quiet: true });
+  broadcast({ type: "facts_ready", song: lastSent.song, facts });
+  return true;
+}
+
+// "Wrong" in the app: take the fact off the stream now, and stop using its article for this song.
+control.post("/wrong", (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text : "";
+  const song = lastSent.song;
+  if (!song || !text || !(lastSent.facts ?? []).some((f) => f.text === text)) {
+    res.status(404).json({ removed: false });
+    return;
+  }
+  broadcast({ type: "remove_fact", song, text });
+  const article = markWrong(song, text);
+  res.json({ removed: true, article, structured: article === STRUCTURED });
+});
+
+// Undo "Wrong": the source may be used for the song again. The removed fact stays off this play.
+control.post("/unwrong", (req, res) => {
+  const article = typeof req.body?.article === "string" ? req.body.article : "";
+  // The song Wrong was pressed on, which may no longer be playing.
+  const given = req.body?.song as { title?: unknown; artist?: unknown } | undefined;
+  const song = given && typeof given.title === "string" && typeof given.artist === "string"
+    ? { title: given.title, artist: given.artist }
+    : null;
+  if (!song || !article) {
+    res.status(404).json({ restored: false });
+    return;
+  }
+  unmarkWrong(song, article);
+  res.json({ restored: true });
+});
+
+// The smoke test's check that the AI writes and screening keeps real captions.
+control.post("/selftest", async (req, res) => {
+  try {
+    res.json(await selfTest(Number(req.body?.variant) || 0));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// "Add facts for this song": the streamer's own facts for the song on stream now.
+const strings = (v: unknown, max: number): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 300)).slice(0, max) : [];
+
+/** The song an edit is for, exactly as the editor received it when it opened. */
+function songFrom(v: unknown): SSLSong | null {
+  const s = v as Partial<SSLSong> | null | undefined;
+  if (!s || typeof s.title !== "string" || typeof s.artist !== "string") return null;
+  return {
+    title: s.title,
+    artist: s.artist,
+    ...(typeof s.songId === "number" ? { songId: s.songId } : {}),
+    ...(typeof s.videoId === "string" ? { videoId: s.videoId } : {}),
+  };
+}
+const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
+  !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
+
+control.post("/song-facts/get", (_req, res) => {
+  const song = lastSent.song;
+  const target = song && songFrom(song);
+  res.json(target ? { song: target, entry: findSongFacts(target) } : { song: null, entry: null });
+});
+
+control.post("/song-facts", async (req, res) => {
+  // Saved against the song the editor opened on, even if another song is playing now.
+  const song = songFrom(req.body?.song);
+  if (!song) {
+    res.status(400).json({ saved: false });
+    return;
+  }
+  saveSongFacts({
+    title: song.title,
+    artist: song.artist,
+    ...(song.songId ? { songId: song.songId } : {}),
+    ...(song.videoId ? { videoId: song.videoId } : {}),
+    songwriters: strings(req.body?.songwriters, 5),
+    link: typeof req.body?.link === "string" ? req.body.link.slice(0, 200) : "",
+    facts: strings(req.body?.facts, 20),
+  });
+  forgetSong(song);
+  // Show them now, without a second NOW PLAYING banner, if that song is still on.
+  const current = songList.getCurrentSong();
+  const playing = current ? songFrom(songList.toSong(current)) : null;
+  const shown = sameSong(playing, song) && sameSong(songFrom(lastSent.song), song);
+  if (shown && current) {
+    const facts = await generateFacts(songList.toSong(current), current);
+    if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
+  }
+  res.json({ saved: true, shown });
 });
 
 app.use("/control", control);
@@ -149,26 +276,29 @@ app.get("/obs-overlay", (req, res) => {
   res.redirect("/obs/obs-overlay.html" + req.url.replace(/^[^?]*/, ""));
 });
 
-/** How long after starting the server may go without reaching StreamerSongList before health says so. */
+/** How long after starting the server may go without reaching the song source before health says so. */
 const STARTUP_GRACE_MS = 30_000;
 
 app.get("/health", (_req, res) => {
   const current = songList.getCurrentSong();
   const queueAgeMs = songList.lastSuccessfulFetchAgeMs();
-  // Never having reached StreamerSongList counts too, once startup has had its chance.
-  const stale = queueAgeMs === null
+  // Never having reached the song source counts too, once startup has had its chance.
+  // A source told to wait (Retry-After) isn't stale; restarting would only undo the wait.
+  const stale = !songList.backingOff?.() && (queueAgeMs === null
     ? process.uptime() * 1000 > STARTUP_GRACE_MS
-    : queueAgeMs > songList.pollIntervalMs() * 3;
+    : queueAgeMs > songList.pollIntervalMs() * 3);
   const rejected = songList.authRejected();
+  const notFollowing = songList.followingProblem?.() ?? null;
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;
 
   res.json({
     paused,
-    status: rejected ? "unauthorized" : stale ? "degraded" : "ok",
-    degradedReason: rejected ? "StreamerSongList rejected the token" : stale ? "no successful queue fetch recently" : undefined,
+    status: rejected ? "unauthorized" : stale || notFollowing ? "degraded" : "ok",
+    degradedReason: rejected ? `${songList.name} rejected the token` : stale ? "no successful queue fetch recently" : notFollowing ?? undefined,
+    songSource: songList.name,
     aiProvider: config.aiProvider,
     topic: config.topic,
-    currentSong: current ? SongListClient.displayTitle(current) : null,
+    currentSong: current ? songList.displayTitle(current) : null,
     lastQueueFetchAgeMs: queueAgeMs,
     eventsConnected: songList.isEventStreamConnected(),
     obsClients: clients.size,
@@ -198,7 +328,7 @@ app.get("/current-facts", async (_req, res) => {
     res.json({ song: null, facts: [] });
     return;
   }
-  const song = SongListClient.toSong(current);
+  const song = songList.toSong(current);
   res.json({ song, facts: await generateFacts(song, current) });
 });
 
@@ -211,7 +341,7 @@ songList.onCurrentSongChange((current) => {
 // Listen before connecting upstream, so a slow API never delays the overlay's socket.
 server.listen(config.port, config.host, () => {
   console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
-  console.log(`[Server] Tracking streamer "${config.sslStreamerName}"`);
+  console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || "(from the token)"}" on ${songList.name}`);
 });
 
 void warmUpBuiltin();
@@ -232,5 +362,5 @@ if (process.send) process.on("message", onAppMessage);
 
 songList
   .connect()
-  .then(() => console.log("[Server] Connected to StreamerSongList"))
-  .catch((err) => console.error(`[Server] StreamerSongList unavailable, retrying by poll: ${err.message}`));
+  .then(() => console.log(`[Server] Connected to ${songList.name}`))
+  .catch((err) => console.error(`[Server] ${songList.name} unavailable, retrying by poll: ${err.message}`));
