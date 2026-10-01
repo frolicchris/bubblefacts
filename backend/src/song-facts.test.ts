@@ -37,6 +37,12 @@ describe("song facts", () => {
     ).toEqual(['"Evening Rain" was written by Jane Composer.']);
   });
 
+  it("keeps a fact typed with line breaks as one fact", () => {
+    saveSongFacts({ title: "Water in the Moonlight", artist: "Chris", facts: ["Written at the lake\r\nin the summer of 2019.\n", "  "] });
+    expect(findSongFacts({ title: "Water in the Moonlight", artist: "Chris" })?.facts).toEqual(["Written at the lake in the summer of 2019."]);
+    saveSongFacts({ title: "Water in the Moonlight", artist: "Chris", facts: [] });
+  });
+
   it("keeps the creator's link when the facts fill every slot (final QA #4)", () => {
     const entry = { title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["One.", "Two.", "Three.", "Four."] };
     const lines = songFactLines(entry, 5);

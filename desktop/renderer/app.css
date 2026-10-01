@@ -131,6 +131,10 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .fact { display: flex; justify-content: space-between; gap: 14px; background: #0e1233; border-left: 3px solid var(--border); padding: 8px 12px; border-radius: 4px; }
 .wrong { font-size: 13px; white-space: nowrap; align-self: center; padding: 4px 12px; background: transparent; color: var(--text, #fff); border: 1px solid var(--border); }
 .wrong:hover { background: var(--border); }
+.edit-fact { font-size: 13px; white-space: nowrap; align-self: center; padding: 4px 12px; margin-right: 6px; background: transparent; color: var(--text, #fff); border: 1px solid var(--border); }
+.edit-fact:hover { background: var(--border); }
+#sf-facts { display: grid; gap: 6px; }
+#sf-facts textarea { resize: vertical; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; }
 
 #notices { max-width: 860px; margin: 16px auto 0; padding: 0 24px; display: grid; gap: 10px; }
