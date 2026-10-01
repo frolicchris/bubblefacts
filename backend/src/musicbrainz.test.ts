@@ -1,8 +1,10 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { gameFacts, performerFacts, readableName } from "./musicbrainz";
+import { composersOf, gameCandidates, performerFacts, readableName } from "./musicbrainz";
 
+let nextId = 0;
 const rec = (title: string, artist: string, date: string, releases: Array<[string, string?, string[]?]>, score = 100) => ({
+  id: `rec-${++nextId}`,
   score,
   title,
   "first-release-date": date,
@@ -42,29 +44,32 @@ describe("performerFacts", () => {
   });
 });
 
-describe("gameFacts", () => {
-  it("names the composer credited on several releases", () => {
-    const facts = gameFacts(
+describe("game composers (review: never from recording credits)", () => {
+  it("considers recordings on releases naming the game, earliest first, skipping remix albums", () => {
+    const ids = gameCandidates(
       [
-        rec("MEGALOVANIA", "Toby Fox", "2015-09-15", [["UNDERTALE Soundtrack"], ["UNDERTALE"]]),
-        rec("Megalovania", "Holder", "2016-03-04", [["Undertale Remixed", "Official", ["Remix"]], ["Undertale Remixed", "Official", ["Remix"]]]),
-        rec("MEGALOVANIA", "Toby Fox", "2015-11-30", [["Undertale: Looped", "Bootleg"]]),
         rec("MEGALOVANIA", "Kara Comparetto", "2025", [["Undertale"]]),
+        rec("Megalovania", "Holder", "2016-03-04", [["Undertale Remixed", "Official", ["Remix"]]]),
+        rec("MEGALOVANIA", "Toby Fox", "2015-09-15", [["UNDERTALE Soundtrack"]]),
+        rec("Other Song", "Toby Fox", "2015-09-15", [["UNDERTALE Soundtrack"]]),
       ],
       "Megalovania",
       "Undertale"
     );
-    expect(facts).toEqual(['"Megalovania" from Undertale was composed by Toby Fox.']);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
   });
 
-  it("states nothing when only covers agree, or no name leads", () => {
-    // From a real search: every exact "Terra's Theme" on a Final Fantasy VI release was a cover, each on one release.
-    const covers = [
-      rec("Terra's Theme", "Eiko Nichols", "2015-03-20", [["Final Fantasy VI: Acoustic Rendition"]]),
-      rec("Terra's Theme", "Kara Comparetto", "2021", [["Final Fantasy VI — Complete Soundtrack"]]),
-      rec("Terra's Theme", "Nobuo Uematsu", "2022-02-22", [["Final Fantasy VI Pixel Remaster Soundtrack", "Bootleg"]]),
-    ];
-    expect(gameFacts(covers, "Terra's Theme", "Final Fantasy VI")).toEqual([]);
+  it("reads composers and writers from a work's relationships only", () => {
+    const work = {
+      relations: [
+        { type: "composer", "target-type": "artist", artist: { name: "近藤浩治", "sort-name": "Kondo, Koji" } },
+        { type: "performer", "target-type": "artist", artist: { name: "Cover Artist" } },
+        { type: "writer", "target-type": "artist", artist: { name: "Toby Fox" } },
+      ],
+    };
+    expect(composersOf(work)).toEqual(["Koji Kondo", "Toby Fox"]);
+    expect(composersOf({ relations: [] })).toEqual([]);
   });
 });
 

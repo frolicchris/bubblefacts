@@ -10,9 +10,9 @@ import { SSLSong } from "./types";
  *
  * - A performer's song: the earliest recording with the exact title and the
  *   artist in its credit gives the year and the album it first came out on.
- * - A game's track: only its composer, and only when the same name is
- *   credited on several releases naming the game (see gameFacts). A
- *   soundtrack's date isn't the game's, so no year is stated.
+ * - A game's track: only its composer, and only from an explicit composer
+ *   relationship (see gameComposer). A soundtrack's date isn't the game's,
+ *   so no year is stated.
  *
  * MusicBrainz asks for at most one request a second from each user; lookups
  * are queued to keep to that.
@@ -20,11 +20,14 @@ import { SSLSong } from "./types";
 
 const API = "https://musicbrainz.org/ws/2/recording";
 const MIN_GAP_MS = 1100;
+/** Recordings checked for a composer link, two lookups each. */
+const MAX_CANDIDATES = 2;
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 /** Compilations and live albums are poor answers to "which album is it on". */
 const NOT_AN_ALBUM = /\b(live|greatest hits|best of|finest|collection|anthology|hits|remixed|instrumentals?|vol\.?\s*\d+|volume)\b/i;
 
 interface Recording {
+  id?: string;
   score?: number;
   title?: string;
   "first-release-date"?: string;
@@ -51,6 +54,15 @@ function throttled<T>(run: () => Promise<T>): Promise<T> {
   });
   queue = next.catch(() => undefined);
   return next;
+}
+
+async function lookup<T>(path: string, inc: string): Promise<T> {
+  return throttled(async () => {
+    const url = `https://musicbrainz.org/ws/2/${path}?${new URLSearchParams({ inc, fmt: "json" })}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
+    if (!res.ok) throw new Error(`MusicBrainz HTTP ${res.status}`);
+    return (await res.json()) as T;
+  });
 }
 
 async function search(query: string): Promise<Recording[]> {
@@ -112,34 +124,47 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
 }
 
 /**
- * The composer of a game's track. Fan covers crowd the results and are even
- * tagged "Soundtrack", so no single recording can be trusted. The original
- * composer shows up on several different releases naming the game; a cover
- * artist usually on one. So a name is only stated when it's credited on at
- * least two different releases and on more than any other name. Remix
- * albums don't count.
+ * Recordings that may be the original of a game's track: the exact title, on
+ * a release naming the game, not on a remix album. Earliest first.
  */
-export function gameFacts(recordings: Recording[], title: string, game: string): string[] {
+export function gameCandidates(recordings: Recording[], title: string, game: string): string[] {
   const want = normalizeTitle(title);
   const gameKey = normalizeTitle(game);
-  const releasesBy = new Map<string, { names: string[]; releases: Set<string> }>();
-  for (const r of recordings) {
-    if ((r.score ?? 0) < 85 || normalizeTitle(r.title ?? "") !== want) continue;
-    const releases = (r.releases ?? []).filter(
-      (rel) => normalizeTitle(rel.title ?? "").includes(gameKey) && !(rel["release-group"]?.["secondary-types"] ?? []).includes("Remix")
-    );
-    if (!releases.length) continue;
-    const credits = (r["artist-credit"] ?? []).map(readableName).filter(Boolean);
-    const key = credits.map((c) => normalizeTitle(c)).sort().join("|");
-    if (!key) continue;
-    const entry = releasesBy.get(key) ?? { names: credits, releases: new Set<string>() };
-    for (const rel of releases) entry.releases.add(normalizeTitle(rel.title ?? ""));
-    releasesBy.set(key, entry);
+  return recordings
+    .filter((r) => r.id && (r.score ?? 0) >= 85 && normalizeTitle(r.title ?? "") === want)
+    .filter((r) =>
+      (r.releases ?? []).some(
+        (rel) => normalizeTitle(rel.title ?? "").includes(gameKey) && !(rel["release-group"]?.["secondary-types"] ?? []).includes("Remix")
+      )
+    )
+    .sort((a, b) => date(a).localeCompare(date(b)))
+    .map((r) => r.id as string);
+}
+
+/** Composers and writers a work names through explicit relationships. */
+export function composersOf(work: { relations?: Array<{ type?: string; "target-type"?: string; artist?: { name?: string; "sort-name"?: string } }> }): string[] {
+  return (work.relations ?? [])
+    .filter((r) => r["target-type"] === "artist" && /^(composer|writer)$/i.test(r.type ?? "") && r.artist)
+    .map((r) => readableName({ name: r.artist?.name, artist: r.artist }))
+    .filter(Boolean);
+}
+
+/**
+ * The composer of a game's track, only from an explicit composer
+ * relationship: recording -> the work it performs -> that work's composer.
+ * Recording credits name performers, and fan covers crowd the results, so a
+ * credit is never taken as composition (issue from review). Most game tracks
+ * have no such link yet; then nothing is said.
+ */
+async function gameComposer(recordings: Recording[], title: string, game: string): Promise<string[]> {
+  for (const id of gameCandidates(recordings, title, game).slice(0, MAX_CANDIDATES)) {
+    const rec = await lookup<{ relations?: Array<{ "target-type"?: string; work?: { id?: string } }> }>(`recording/${id}`, "work-rels");
+    const workId = rec.relations?.find((r) => r["target-type"] === "work" && r.work?.id)?.work?.id;
+    if (!workId) continue;
+    const composers = composersOf(await lookup(`work/${workId}`, "artist-rels"));
+    if (composers.length) return [`"${title}" from ${game} was composed by ${names(composers)}.`];
   }
-  const ranked = [...releasesBy.values()].sort((a, b) => b.releases.size - a.releases.size);
-  const [top, second] = ranked;
-  if (!top || top.releases.size < 2 || (second && second.releases.size >= top.releases.size)) return [];
-  return [`"${title}" from ${game} was composed by ${names(top.names)}.`];
+  return [];
 }
 
 /** Facts for a song from MusicBrainz, or [] when nothing clearly matches. Never throws. */
@@ -154,7 +179,7 @@ export async function musicbrainzFacts(song: SSLSong): Promise<string[]> {
   // A music video names a performer; a song list's "artist" may be a game.
   const performer = song.performer || looksLikeArtistName(game);
   try {
-    let facts = performer ? [] : gameFacts(await search(`recording:${quote(title)} AND release:${quote(game)}`), title, game);
+    let facts = performer ? [] : await gameComposer(await search(`recording:${quote(title)} AND release:${quote(game)}`), title, game);
     if (!facts.length) facts = performerFacts(await search(`recording:${quote(title)} AND artist:${quote(game)}`), title, game);
     console.log(`[MusicBrainz] "${title}" by ${game}: ${facts.length} facts`);
     cache.set(key, { facts, at: Date.now() });
