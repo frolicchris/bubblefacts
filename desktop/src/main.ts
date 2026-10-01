@@ -10,7 +10,7 @@ import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
 import {
   BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  toServerEnv, writeMyPack,
+  serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 
@@ -95,11 +95,29 @@ function serverEnv(): Record<string, string> {
   return env;
 }
 
-function startServer(): void {
+/** What the running server was started with, to tell a save that changes nothing for it. */
+let serverSignature = "";
+
+/**
+ * Start the server, or restart it when something it uses has changed. A
+ * save that doesn't touch the server (finishing setup, "start at login")
+ * leaves it running: a restart mid-song announces the song again and
+ * rewrites its facts (seen on a live stream, issue #55). `force` restarts
+ * regardless, for a new sign-in or token.
+ */
+function startServer(force = false): void {
   installOverlay(path.join(ROOT, "frontend/obs"), DIRS.overlay, settings.port, BUBBLE_SCALE[settings.bubbleSize]);
   writeMyPack(settings, DIRS.facts);
-  if (canStart()) supervisor.restart(serverEnv());
-  else supervisor.stop();
+  if (!canStart()) {
+    serverSignature = "";
+    supervisor.stop();
+    return;
+  }
+  const env = serverEnv();
+  const signature = serverSettingsSignature(env, settings);
+  if (!force && signature === serverSignature && supervisor.status.state !== "stopped") return;
+  serverSignature = signature;
+  supervisor.restart(env);
 }
 
 function state() {
@@ -451,7 +469,8 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();
-  startServer();
+  // A new token or song source always starts over; anything else only if the server would notice.
+  startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
   return state();
 });
 
@@ -474,7 +493,7 @@ ipcMain.handle("sign-in", async () => {
     signInExpired = false;
     saveSettings(settings);
     scheduleRefresh();
-    startServer();
+    startServer(true);
     showWindow();
     return { ok: true, channel: settings.channel, state: state() };
   } catch (err) {

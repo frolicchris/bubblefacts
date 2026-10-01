@@ -17,7 +17,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack } from "./settings";
+import { DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -167,5 +167,25 @@ describe("the musician's own facts", () => {
     writeMyPack({ ...DEFAULTS, myFacts: ["One."], myOriginals: ["Two."] }, facts);
     const pack = JSON.parse(fs.readFileSync(path.join(facts, "my-facts.json"), "utf8"));
     expect(pack).toMatchObject({ id: "my-facts", curatedFacts: ["One."], originalsFacts: ["Two."] });
+  });
+});
+
+describe("serverSettingsSignature (issue #55)", () => {
+  const paths = { modelPath: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
+  const base = { ...DEFAULTS, channel: "jane", token: "t1", tokenKind: "oauth" as const, streamerId: 1 };
+  const sig = (s: typeof base) => serverSettingsSignature(toServerEnv(s, paths), s);
+
+  it("doesn't change for saves the server never sees", () => {
+    expect(sig({ ...base, setupComplete: true })).toBe(sig(base));
+    expect(sig({ ...base, startAtLogin: true })).toBe(sig(base));
+    expect(sig({ ...base, bubbleSize: "large" })).toBe(sig(base));
+    expect(sig({ ...base, token: "t2-refreshed" })).toBe(sig(base));
+  });
+
+  it("changes when the server would behave differently", () => {
+    expect(sig({ ...base, factsPerSong: 7 })).not.toBe(sig(base));
+    expect(sig({ ...base, myFacts: ["A new fact."] })).not.toBe(sig(base));
+    expect(sig({ ...base, originals: true })).not.toBe(sig(base));
+    expect(sig({ ...base, ai: "groq", groqKey: "k" })).not.toBe(sig(base));
   });
 });
