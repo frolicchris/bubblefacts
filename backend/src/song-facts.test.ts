@@ -31,7 +31,7 @@ describe("song facts", () => {
     ]);
     expect(
       songFactLines({ title: "Evening Rain", artist: "Jane Composer", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["Written in one night."] })
-    ).toEqual(["Written in one night.", "More from Jane Composer: twitch.tv/jane"]);
+    ).toEqual(['"Evening Rain" was written by Jane Composer.', "Written in one night.", "More from Jane Composer: twitch.tv/jane"]);
     expect(
       songFactLines({ title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], facts: [] })
     ).toEqual(['"Evening Rain" was written by Jane Composer.']);

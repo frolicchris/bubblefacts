@@ -76,9 +76,8 @@ export function findSongFacts(song: SSLSong): SongFacts | null {
 export function songFactLines(entry: SongFacts, max = Infinity): string[] {
   const writers = (entry.songwriters ?? []).map((w) => w.trim()).filter(Boolean);
   const lines: string[] = [];
-  // "Written by Jane" says nothing when the request already reads "Jane - Evening Rain".
-  const sameAsArtist = writers.length === 1 && ident(writers[0]) === ident(entry.artist);
-  if (writers.length && !sameAsArtist) {
+  // A writer the streamer confirmed is always credited, even when it's the artist on the request (final QA #4).
+  if (writers.length) {
     const list = writers.length === 1 ? writers[0] : `${writers.slice(0, -1).join(", ")} and ${writers[writers.length - 1]}`;
     lines.push(`"${entry.title}" was written by ${list}.`);
   }

@@ -123,9 +123,9 @@ export const SOURCE = {
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
 const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
 
-function toFacts(song: SSLSong, lines: string[], sourceOf: (text: string) => string | undefined = () => undefined): Fact[] {
+function toFacts(song: SSLSong, lines: string[], sourceOf: (text: string) => string | undefined = () => undefined, asWritten: string[] = []): Fact[] {
   const told = lines.filter((text) => {
-    if (WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
+    if (asWritten.includes(text) || WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
     console.log(`[Screen] DROP (repeats the request): ${text.slice(0, 90)}`);
     return false;
   });
@@ -430,18 +430,34 @@ export function taggedFactsFor(song: SSLSong): string[] {
   return topic.taggedFacts.filter((f) => names.has(normalizeTitle(f.tag.replace(/\s+[-–—]\s+/, " ")))).map((f) => f.text);
 }
 
-/** The streamer's tagged facts first, as written, then the usual facts in the slots left. */
+/**
+ * The comment the streamer wrote on this song in their song list, one fact
+ * per line, when they turned that on. Only the song's own comment: never a
+ * requester's note, which a viewer may have typed.
+ */
+export function songNoteFacts(entry: SSLQueueItem | null): string[] {
+  if (!config.songNotes) return [];
+  return (entry?.song?.comment ?? "")
+    .split(/\r?\n|\s+\|\s+/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 3 && l.length <= 160);
+}
+
+/** The streamer's song note and tagged facts first, as written, then the usual facts in the slots left. */
 async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ facts: Fact[]; ttlMs: number }> {
   const want = config.factsPerSong;
-  const mine = findSongFacts(song) ? [] : taggedFactsFor(song).slice(0, want);
+  const notes = songNoteFacts(entry);
+  const mine = [...new Set([...notes, ...(findSongFacts(song) ? [] : taggedFactsFor(song))])].slice(0, want);
   if (!mine.length) return generateRest(song, entry, want);
-  console.log(`[FactGen] "${song.title}": ${mine.length} of the streamer's custom facts are for this song`);
+  console.log(`[FactGen] "${song.title}": ${mine.length} of the streamer's own facts are for this song`);
   const rest = mine.length < want ? await generateRest(song, entry, want - mine.length) : { facts: [], ttlMs: Infinity };
   const others = rest.facts.filter((f) => !mine.includes(f.text));
   // Re-spaced as one list, so the bubbles keep their rhythm and positions.
   const lines = [...mine, ...others.map((f) => f.text)];
-  const sourceOf = (t: string) => (mine.includes(t) ? SOURCE.yours : others.find((f) => f.text === t)?.source);
-  return { facts: toFacts(song, lines, sourceOf), ttlMs: rest.ttlMs };
+  const sourceOf = (t: string) =>
+    notes.includes(t) ? SOURCE.songList : mine.includes(t) ? SOURCE.yours : others.find((f) => f.text === t)?.source;
+  // A song note can change between plays, so it's read fresh each time.
+  return { facts: toFacts(song, lines, sourceOf, mine), ttlMs: notes.length ? 0 : rest.ttlMs };
 }
 
 async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number): Promise<{ facts: Fact[]; ttlMs: number }> {

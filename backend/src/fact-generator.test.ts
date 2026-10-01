@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, STRUCTURED, taggedFactsFor } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, songNoteFacts, STRUCTURED, taggedFactsFor } from "./fact-generator";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
@@ -164,6 +164,15 @@ describe("generateFacts", () => {
     expect(facts).toHaveLength(5);
     expect(facts[1].delaySeconds).toBe(15);
     (topic as { taggedFacts: typeof tagged }).taggedFacts = [];
+  });
+
+  it("shows a song-list comment as a fact only when the streamer turned that on, never a requester's note", () => {
+    const item = { song: { title: "Noted", artist: "A", comment: "Learned for my dad. | ok" }, note: "viewer text here" } as unknown as SSLQueueItem;
+    expect(songNoteFacts(item)).toEqual([]);
+    (config as { songNotes?: boolean }).songNotes = true;
+    expect(songNoteFacts(item)).toEqual(["Learned for my dad."]);
+    expect(songNoteFacts({ song: { title: "Noted", artist: "A" }, note: "viewer text here" } as unknown as SSLQueueItem)).toEqual([]);
+    (config as { songNotes?: boolean }).songNotes = false;
   });
 
   it("caches a song's facts", async () => {

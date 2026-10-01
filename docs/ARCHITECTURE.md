@@ -361,7 +361,7 @@ folder; `data/` for the command-line version):
   song ID, YouTube video ID, else artist and title, or an alias. The match
   ignores case, accents and punctuation but keeps every word, so
   "Night Drive (Acoustic)" isn't "Night Drive (Remix)". A songwriter is
-  credited only when the streamer names one who isn't the artist.
+  credited only when the streamer names one.
 - `wrong-facts.json`: sources marked **Wrong** (above).
 
 The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,

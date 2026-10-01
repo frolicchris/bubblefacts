@@ -390,12 +390,16 @@
 
   $("#song-facts-open").addEventListener("click", async () => {
     const r = (await api.getSongFacts()) || {};
+    openSongFacts(r.song, r.entry);
+  });
+  /** Open the editor on a song: the one that's on, one from the saved list, or none (the streamer names it). */
+  function openSongFacts(song, entry) {
     // The edit belongs to this song, even if another one starts before you save.
     // With nothing playing, the streamer names the song: getting ready before a show.
-    songFactsTarget = r.song || null;
-    const e = r.entry || {};
-    otherSong(!r.song);
-    if (r.song) $("#song-facts-title").textContent = `"${r.song.title}"`;
+    const e = entry || {};
+    otherSong(!song);
+    songFactsTarget = song || null;
+    if (song) $("#song-facts-title").textContent = `"${song.title}"`;
     $("#sf-writers").value = (e.songwriters || []).join(", ");
     $("#sf-link").value = e.link || "";
     $("#sf-facts").value = (e.facts || []).join("\n");
@@ -403,7 +407,7 @@
     $("#song-facts-form").hidden = false;
     $("#song-facts-open").hidden = true;
     $("#sf-facts").focus();
-  });
+  }
   /** Switch the editor between the song that's on and one the streamer names. */
   function otherSong(on) {
     $("#sf-identity").hidden = !on;
@@ -546,6 +550,7 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
+    renderSongFactsList();
     setResult($("#settings-result"), "");
   }
 
@@ -593,6 +598,55 @@
     setResult($("#settings-result"), "✓ Saved. BubbleFacts restarted with your changes.", "ok");
   });
 
+  /** Every song with its own facts, to edit or remove without waiting for it to play. */
+  async function renderSongFactsList() {
+    const saved = (await api.listSongFacts()) || [];
+    const list = $("#s-songfacts");
+    list.replaceChildren();
+    $("#s-songfacts-empty").hidden = saved.length > 0;
+    for (const entry of saved) {
+      const song = { title: entry.title, artist: entry.artist, ...(entry.songId ? { songId: entry.songId } : {}), ...(entry.videoId ? { videoId: entry.videoId } : {}) };
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      const count = (entry.facts || []).length;
+      name.textContent = `${entry.title}${entry.artist ? " — " + entry.artist : ""} (${count} ${count === 1 ? "fact" : "facts"})`;
+      const button = (text, onClick) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "link";
+        b.textContent = text;
+        b.addEventListener("click", onClick);
+        return b;
+      };
+      li.append(
+        name, " ",
+        button("Edit", () => {
+          show("dashboard");
+          openSongFacts(song, entry);
+        }),
+        " ",
+        button("Remove", async () => {
+          const r = await api.saveSongFacts({ song, songwriters: [], link: "", facts: [] });
+          if (r && r.saved) renderSongFactsList();
+          else setResult($("#settings-result"), "Couldn't remove it. Connect your songs first, then try again.", "bad");
+        })
+      );
+      list.appendChild(li);
+    }
+  }
+
+  $("#s-import").addEventListener("click", () => $("#s-import-file").click());
+  $("#s-import-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const box = $("#s-myfacts");
+    const have = new Set(lines(box));
+    const added = (await file.text()).split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !have.has(l));
+    box.value = [...have, ...new Set(added)].join("\n");
+    setResult($("#settings-result"), `Added ${new Set(added).size} facts from ${file.name}. Click Save to keep them.`, "ok");
+  });
+
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
 
   function showSettingsSource() {
@@ -600,6 +654,7 @@
     $("#s-se-box").hidden = !se;
     $("#s-ssl-box").hidden = se;
     $("#s-livelearns-row").hidden = se;
+    $("#s-songnotes-row").hidden = se; // StreamElements requests have no song notes.
     // The saved connection's line only describes the source it belongs to.
     $("#s-signed-in").hidden = se !== onSE();
   }

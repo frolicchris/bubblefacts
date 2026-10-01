@@ -72,6 +72,8 @@ export const config = {
   originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",
   // Off-list requests get a LIVE LEARN banner and no facts. Off treats them as ordinary songs.
   liveLearns: oneOf("LIVE_LEARNS", ["on", "off"] as const, "on") === "on",
+  // Show the comment on each StreamerSongList song as its first fact, as written. Off unless the streamer asks.
+  songNotes: oneOf("SONG_NOTES", ["on", "off"] as const, "off") === "on",
   // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.
   topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",
 
