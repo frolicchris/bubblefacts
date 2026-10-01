@@ -305,7 +305,7 @@ const NOT_THE_MAKERS_HEADING =
 const CRITIC_WORDS =
   /\b(critics?|reviewers?|magazine|publication|newspaper|journalist|correspondent|writer|musicologist|scholar|author|biograph\w+|documentary|interpreted|ranked|listed|review(?:ed|s)?|praised|called it|charts?|streamed|copies|sold)\b/i;
 const CRITIC_NAMES =
-  /\b(IGN|GameSpot|Pitchfork|Rolling Stone|Billboard|NME|Kotaku|Polygon|RPGFan|Eurogamer|Famitsu|Stereogum|MTV|NPR|BBC|USA Today|Variety|Melody Maker|[A-Z]\w+ (?:Times|News|Post|Tribune|Herald|Guardian|Telegraph))\b/;
+  /\b(IGN|GameSpot|GameSpy|GamePro|Game Informer|Nintendo Power|Edge|1UP|Destructoid|Tom's Guide|AllMusic|Pitchfork|Rolling Stone|Billboard|NME|Kotaku|Polygon|RPGFan|Eurogamer|Famitsu|Stereogum|MTV|NPR|BBC|USA Today|Variety|Melody Maker|[A-Z]\w+ (?:Times|News|Post|Tribune|Herald|Guardian|Telegraph))\b/;
 const CRITIC = { test: (s: string) => CRITIC_WORDS.test(s) || CRITIC_NAMES.test(s) };
 /** A sentence that leans on the one before it can't be retold on its own. */
 const LEANS_BACK = /^["“]?(?:I|We|He|She|They|It|His|Her|Their|This|These|That|Those|Hence|However|Instead|Meanwhile|Therefore|The same|A similar|Despite|Asked|When asked)\b/;
@@ -441,7 +441,7 @@ function wholeSentences(text: string): string {
  * artist, not this song: then only what's plainly about the music is lifted,
  * and no reception, which would be the game's or the artist's, not the song's.
  */
-export function orderExtract(full: string, budget: number, names: string[] = [], ownArticle = true): string {
+export function orderExtract(full: string, budget: number, names: string[] = [], ownArticle = true, primaryHeading: RegExp = MUSIC_HEADING): string {
   // What the makers said goes first: it's the part worth retelling, and a small model reads the top best.
   const color = creatorSentences(full, names, ownArticle);
   const theory = ownArticle ? theorySentences(full).filter((s) => !color.includes(s)) : [];
@@ -458,7 +458,7 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
   let parent: { level: number; bucket: string[] | null } = { level: 0, bucket: null };
   for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
     const level = marks.length;
-    let bucket = MUSIC_HEADING.test(heading) ? primary : BACKGROUND_HEADING.test(heading) ? secondary : null;
+    let bucket = primaryHeading.test(heading) ? primary : BACKGROUND_HEADING.test(heading) ? secondary : null;
     if (level > parent.level && parent.bucket) bucket ??= parent.bucket;
     else parent = { level, bucket };
     if (bucket && body.trim()) bucket.push(`${heading}: ${body.trim()}`);
@@ -484,6 +484,102 @@ async function wikiExtract(pageTitle: string): Promise<string | null> {
 /** Reference text for the song, or "" when no relevant article exists. */
 /** Game tracks already found to have no article of their own. */
 const noOwnArticle = new Set<string>();
+
+/**
+ * A game's article and, when Wikipedia has one, its music article ("Music of
+ * Final Fantasy VIII", "Undertale Soundtrack"). Kept whole, so each of the
+ * game's tracks gets a reference built around that track without another
+ * download (issue #48).
+ */
+export interface GameArticles {
+  page: string;
+  full: string;
+  /** `series`: about the whole series, so only used for a track it names. */
+  music: { page: string; full: string; series?: boolean } | null;
+}
+const gameArticles = new Map<string, GameArticles>();
+
+/** Track names too common to search an article for: every game has a "Title Theme". */
+const GENERIC_TRACK = /^(opening|ending|theme|main theme|title|title theme|title screen|credits|intro|menu|boss|battle|overworld|prologue|epilogue|finale|stage \d+|level \d+|act \d+|\d+ ?[ap]m)$/i;
+const MAX_TRACK_SENTENCES = 4;
+const MAX_TRACK_CHARS = 800;
+
+/** The article's sentences that name this track: the only ones certainly about it. */
+export function trackSentences(full: string, track: string): string[] {
+  const name = normalizeTitle(track);
+  if (name.length < 5 || GENERIC_TRACK.test(name)) return [];
+  const kept: string[] = [];
+  let used = 0;
+  for (const raw of full.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u)) {
+    const text = raw.trim();
+    if (text.length < 30 || text.length > 320 || /^=+/.test(text) || brokenBySplit(text)) continue;
+    if (!mentionsName(normalizeTitle(text), [name])) continue;
+    if (kept.length >= MAX_TRACK_SENTENCES || used + text.length > MAX_TRACK_CHARS) break;
+    kept.push(text);
+    used += text.length + 1;
+  }
+  return kept;
+}
+
+/** Whether a title is the music article for this game or its series. */
+export function isMusicArticleFor(title: string, game: string): boolean {
+  const g = normalizeTitle(game);
+  const of = /^Music of (?:the )?(.+?)(?: series)?$/i.exec(title);
+  if (of) {
+    const subject = normalizeTitle(of[1]);
+    // The game itself, or the series it belongs to: "Sonic the Hedgehog" for "Sonic the Hedgehog 3".
+    return subject.length >= 2 && (g === subject || g.startsWith(`${subject} `));
+  }
+  const album = /^(.+?)(?: Original)? Soundtrack$|^(.+?) \(soundtrack\)$/i.exec(title);
+  return Boolean(album && normalizeTitle(album[1] ?? album[2]) === g);
+}
+
+/** Whether a music article is about this very game, not the series it belongs to. */
+const isThisGames = (title: string, game: string) =>
+  normalizeTitle(title.replace(/^Music of (?:the )?/i, "").replace(/ series$| (?:Original )?Soundtrack$| \(soundtrack\)$/i, "")) === normalizeTitle(game);
+
+/**
+ * The game's music article, or null. One search. The game's own article is
+ * taken as it is; a series-wide one ("Music of the Final Fantasy series")
+ * only when it names this track, since most of it is about other games.
+ */
+async function findMusicArticle(game: string, usable: (title: string) => boolean): Promise<GameArticles["music"]> {
+  const fits = (t: string) => usable(t) && isMusicArticleFor(t, game);
+  let titles = (await wikiSearch(`Music of ${game}`)).filter(fits);
+  if (!titles.length) titles = (await wikiSearch(`${game} soundtrack`)).filter(fits);
+  // The game's own article first, then its series'.
+  for (const page of [...titles.filter((t) => isThisGames(t, game)), ...titles.filter((t) => !isThisGames(t, game))].slice(0, 2)) {
+    const full = await wikiExtract(page);
+    if (!full || full.length < MIN_CONTEXT_CHARS) continue;
+    // "Sonic the Hedgehog (soundtrack)" is the 2020 film's album, not the game's music.
+    const lead = full.slice(0, 500);
+    if (/\b(film|movie|television series|TV series)\b/i.test(lead) && !/\bvideo games?\b/i.test(lead)) continue;
+    return { page, full, series: !isThisGames(page, game) };
+  }
+  return null;
+}
+
+/** Any section that isn't a list of tracks, credits or references. */
+const NOT_A_LIST = /^(?!.*(track listing|personnel|credits|chart|certification|reference|external|see also|notes)).+$/i;
+/** In a music article, how the music was made comes before the lists of albums and releases. */
+const MAKING_OF_MUSIC = /creation|development|concept|influence|composition|writing|recording|background|overview|production|style|themes/i;
+
+/**
+ * The reference for one track of a game: what the article says about this
+ * very track first, then the usual ordering. Built from the music article
+ * when there is one, since the game's article is mostly about the game.
+ */
+export function gameTrackText(a: GameArticles, track: string, usable: (title: string) => boolean = () => true): string {
+  const fits = a.music && usable(a.music.page) && (!a.music.series || trackSentences(a.music.full, track).length > 0);
+  const base = fits && a.music ? a.music : a;
+  const about = trackSentences(base.full, track);
+  const block = about.length ? `About this piece: ${about.join(" ")}\n\n` : "";
+  const budget = MAX_CONTEXT_CHARS - base.page.length - 1 - block.length;
+  let body = orderExtract(base.full, budget, [track], base !== a, base !== a ? MAKING_OF_MUSIC : MUSIC_HEADING);
+  // A music article with no section on how the music was made: take its other sections, bar the lists.
+  if (base !== a && body.length < MIN_CONTEXT_CHARS * 2) body = orderExtract(base.full, budget, [track], true, NOT_A_LIST);
+  return `${base.page}\n${block}${body}`;
+}
 
 export async function fetchGrounding(song: SSLSong): Promise<string> {
   const { game, track } = resolveGameAndTrack(song);
@@ -524,6 +620,13 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   }
   const ownHit = groundingCache.get(songKey);
   if (!artist && ownHit?.text && usable(ownHit.text.split("\n")[0])) return ownHit.text;
+  // A game already looked up: this track's reference is built from the kept articles.
+  const kept = !song.performer && track !== game ? gameArticles.get(gameKey) : undefined;
+  if (kept && usable(kept.page)) {
+    const text = gameTrackText(kept, track, usable);
+    groundingCache.set(songKey, { text, at: Date.now() });
+    return text;
+  }
   for (const key of artist ? [songKey] : [gameKey, songKey]) {
     const hit = key && groundingCache.get(key);
     if (hit && hit.text && !usable(hit.text.split("\n")[0])) continue;
@@ -601,8 +704,23 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
         console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
         continue;
       }
-      const text = `${page}\n${extract}`;
-      console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars)`);
+      let text = `${page}\n${extract}`;
+      // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
+      const aGame = !artist || /game\)$/i.test(page) || /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i.test(full?.slice(0, 600) ?? "");
+      if (byGame && aGame && !song.performer && !ownArticle && !installment && full) {
+        let music: GameArticles["music"] = null;
+        try {
+          music = await findMusicArticle(game, usable);
+        } catch {
+          // Throttled or unreachable: the game's article serves on its own.
+        }
+        const articles = { page, full, music };
+        // Shared by the game's tracks, unless this track has blocked articles of its own.
+        if (!blocked.size) gameArticles.set(gameKey, articles);
+        text = gameTrackText(articles, track, usable);
+        if (music) console.log(`[Grounding] "${game}" has a music article: ${music.page}${music.series ? " (series-wide: used for tracks it names)" : ""}`);
+      }
+      console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
       // Shared by the game's tracks, unless this track has blocked articles of its own.
       groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameKey : songKey, { text, at: Date.now() });
       return text;
@@ -626,6 +744,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
 
 export function clearGroundingCache(): void {
   noOwnArticle.clear();
+  gameArticles.clear();
   groundingCache.clear();
 }
 
@@ -651,8 +770,8 @@ const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
  * stream and make the real facts harder to trust (issue #21), and the music
  * video's plot or look is what viewers are already watching (issue #20).
  */
-const OPINION = /\b(considered (?:one|to be|as|by|a|an|the|among)|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
-const ABOUT_THE_VIDEO = /\b(music video|video clip|in the video|the video(?!\s*games?\b))\b/i;
+const OPINION = /\b(considered (?:one|to be|as|by|a|an|the|among)|(?:among|some of) the (?:best|greatest|finest|most)|instantly recognizable|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
+const ABOUT_THE_VIDEO = /\b(music videos?|video clips?|in the video|the video(?!\s*games?\b))\b/i;
 
 /** The model reasoning about its source instead of stating a fact. */
 const META_PATTERNS: RegExp[] = [
@@ -1053,6 +1172,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
     if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
     if (fact.length < 20) return "too short";
     if (OPINION.test(fact)) return "opinion";
+    // "GameSpy called the music incredible": a review outlet's verdict is an opinion too.
+    if (CRITIC_NAMES.test(fact) && /\b(called|wrote|said|described|praised|named|ranked|listed|rated|felt|thought|noted)\b/i.test(fact)) return "a critic's view";
     // "He combined two words": a viewer can't tell who.
     if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
