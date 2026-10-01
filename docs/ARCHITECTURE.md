@@ -77,7 +77,9 @@ StreamElements ───┴──────────────► Server 
    or artist, only sentences that name the track or are plainly about music
    are lifted, and no reception.
 6. **Write.** The AI rewrites details from the reference as short captions,
-   following strict rules at a low temperature.
+   at a low temperature. Its instructions are laid out as CROSS (Context,
+   Role, Objective, Source, Scope); `PROMPT_STYLE=rules` uses the older
+   numbered list.
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length

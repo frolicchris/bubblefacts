@@ -21,7 +21,7 @@ import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-
  */
 
 /** Ask for a few spares; screening drops some. */
-const OVERGENERATE = 2;
+const OVERGENERATE = 3;
 const MAX_TOKENS = 512;
 /** Hosted reasoning models, such as Groq's free gpt-oss, spend part of their budget thinking. */
 const HOSTED_MAX_TOKENS = 2048;
@@ -169,8 +169,8 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
  * the model can apply to its own sentence rather than "be accurate".
  */
 /**
- * The same job laid out as CROSS: Context, Role, Objective, Source, Scope.
- * Only used when PROMPT_STYLE=cross, to compare against the rule list.
+ * The prompt, laid out as CROSS: Context, Role, Objective, Source, Scope.
+ * PROMPT_STYLE=rules switches back to the numbered rule list below.
  */
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, track } = resolveGameAndTrack(song);
@@ -195,7 +195,8 @@ Exactly ${want} lines. One sentence per line, under 120 characters, in plain wor
 }
 
 function groundedPrompt(song: SSLSong, context: string, want: number): string {
-  if (process.env.PROMPT_STYLE === "cross") return crossPrompt(song, context, want);
+  // CROSS is the default: in trials it followed the rules better and gave more reception facts (issue #48).
+  if (process.env.PROMPT_STYLE !== "rules") return crossPrompt(song, context, want);
   const { game, intro } = subjectLine(song);
   return `${intro}
 

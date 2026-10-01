@@ -127,7 +127,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 
 | Setting | Default | What it does |
 |---|---|---|
-| `PROMPT_STYLE` | *unset* | Experimental. `cross` lays the AI's instructions out as Context, Role, Objective, Source and Scope instead of a numbered rule list. In a ten-song trial it gave more chart and award facts and slightly longer captions, and took about half again as long. |
+| `PROMPT_STYLE` | *unset* | How the AI's instructions are laid out. The default is CROSS (Context, Role, Objective, Source, Scope). `rules` switches to the older numbered rule list. In trials of 72 songs each, CROSS gave about three times as many chart and award facts and broke fewer rules; a few more of its captions were screened out, so one extra is requested. |
 | `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claims, no repeats). |
 | `GROUNDING_TIMEOUT_MS` | `5000` | How long to wait for a Wikipedia search. |
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |
