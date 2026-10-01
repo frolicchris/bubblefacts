@@ -42,19 +42,25 @@ jobs:
       - uses: actions/checkout@v7
         with:
           sparse-checkout: scripts
+      # Inputs go through env, never straight into the script: no shell injection.
       - name: Pick the release
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+          RUN_INPUT: ${{ inputs.run }}
         run: |
-          tag="${{ inputs.tag }}"
-          if [ -n "${{ inputs.run }}" ]; then tag="run ${{ inputs.run }}"; fi
+          tag="$TAG_INPUT"
+          if [ -n "$RUN_INPUT" ]; then tag="run $RUN_INPUT"; fi
           if [ -z "$tag" ]; then
             tag=$(gh api "repos/$GITHUB_REPOSITORY/releases" -q '[.[] | select(.draft|not)][0].tag_name')
           fi
           echo "TAG=$tag" >> "$GITHUB_ENV"
           echo "Testing $tag"
       - name: Download the installer
+        env:
+          RUN_INPUT: ${{ inputs.run }}
         run: |
-          if [ -n "${{ inputs.run }}" ]; then
-            gh run download "${{ inputs.run }}" --repo "$GITHUB_REPOSITORY" --name "${{ matrix.artifact }}" --dir all
+          if [ -n "$RUN_INPUT" ]; then
+            gh run download "$RUN_INPUT" --repo "$GITHUB_REPOSITORY" --name "${{ matrix.artifact }}" --dir all
             mkdir -p installer && find all -name "${{ matrix.asset }}" -exec cp {} installer/ \;
           else
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer

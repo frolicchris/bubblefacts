@@ -4,7 +4,9 @@ name: Release
 # own system and puts them in a *draft* release with checksums, for a person to
 # read over and publish. Each file gets a build-provenance attestation, so
 # anyone can check it came from this workflow:
-#   gh attestation verify FILE --repo frolicchris/bubblefacts
+#   gh attestation verify FILE --repo frolicchris/bubblefacts \
+#     --signer-workflow frolicchris/bubblefacts/.github/workflows/release.yml --source-ref refs/tags/vX.Y.Z
+# (test builds from workflow_dispatch are attested too; --source-ref tells a real release apart)
 
 on:
   push:
@@ -84,6 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -96,6 +100,11 @@ jobs:
       - name: Checksums
         working-directory: files
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            files/bubblefacts.zip
+            files/SHA256SUMS.txt
       - name: Create a draft release
         env:
           GH_TOKEN: ${{ github.token }}

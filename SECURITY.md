@@ -21,12 +21,26 @@ command-line overlay. In particular:
 - **The app's controls.** Buttons such as **Pause bubbles** and **Show a test
   bubble** talk to the server through routes that require a custom header. A
   web page open in your browser can't send it, so it can't press those buttons.
-- **Reports.** **Report this fact** and **Report a problem** open a GitHub issue
+- **Reports.** **Report it** (after **Wrong**) and **Report a problem** open a GitHub issue
   filled in for you, with your tokens and keys removed from the log lines. You
   read it over before anything is posted.
 - **Downloads.** Release files come with a `SHA256SUMS.txt` file and a
   build-provenance attestation, so you can check a file came from this
-  project's release workflow.
+  project's release workflow, built from a release tag:
+
+  ```
+  gh attestation verify FILE --repo frolicchris/bubblefacts \
+    --signer-workflow frolicchris/bubblefacts/.github/workflows/release.yml \
+    --source-ref refs/tags/v2.0.0-beta.3
+  ```
+
+  Test builds are attested too, but from a branch, so `--source-ref` tells
+  them apart.
+- **The built-in YouTube key.** Official builds include a Google API key
+  restricted to the YouTube Data API, used only to read song details for
+  auto-generated "- Topic" uploads. Anyone can extract a key shipped in an
+  app, so it has a daily quota cap and is replaced if it's abused; without
+  it, BubbleFacts reads the video title instead.
 
 ## Keeping your own setup safe
 

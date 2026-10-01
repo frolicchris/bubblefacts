@@ -5,3 +5,14 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # npm dependencies, grouped weekly. Electron majors are a manual upgrade (they change the runtime).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: electron
+        update-types: ["version-update:semver-major"]

@@ -2,7 +2,7 @@
   "name": "bubblefacts",
   "version": "2.0.0-beta.2",
   "description": "Fact bubbles in OBS about the song your StreamerSongList queue says you are playing. Grounded in Wikipedia, written by a local or hosted LLM, screened deterministically.",
-  "private": false,
+  "private": true,
   "scripts": {
     "build": "tsc -p backend/tsconfig.json",
     "start": "node dist/backend/server.js",
