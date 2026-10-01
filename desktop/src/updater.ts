@@ -120,7 +120,8 @@ rm -f "$DMG"
 reopen
 `;
 
-export type InstallResult = { started: true } | { started: false; reason: string };
+/** `relaunch`: the app must reopen this file itself as it quits (Linux), with no shell in between. */
+export type InstallResult = { started: true; relaunch?: string } | { started: false; reason: string };
 
 /**
  * Start installing a checked download. On success the caller must quit the
@@ -152,10 +153,8 @@ export function startInstall(file: string, opts: { pid: number; logFile: string;
     } catch (err) {
       return { started: false, reason: `couldn't replace the AppImage (${err instanceof Error ? err.message : err})` };
     }
-    // Reopened once this process is gone. The path and the process ID go in as
-    // arguments ($1, $2), never into the command text: a path is not code.
-    detached("/bin/sh", ["-c", 'while kill -0 "$1" 2>/dev/null; do sleep 0.5; done; exec "$2"', "sh", String(opts.pid), appImage]);
-    return { started: true };
+    // The app reopens the new file itself as it quits: no shell is involved.
+    return { started: true, relaunch: appImage };
   }
   return { started: false, reason: "this kind of install updates through your system" };
 }
