@@ -5,14 +5,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        Accuracy is the point of this project, so these reports are especially useful.
+        Accuracy is the point of this project, so these reports are especially useful. In the app, click **Wrong** next to the fact, then **Report it (opens GitHub)**, and this form is filled in for you.
 
-        This form is for facts generated from Wikipedia. Facts from the example topic packs aren't maintained; edit your own copy instead.
+        This form is for facts from Wikipedia, Wikidata or MusicBrainz. Your own custom facts and the example topic packs aren't checked by BubbleFacts; edit them in the app's Settings instead.
   - type: input
     id: song
     attributes:
       label: Song
-      description: The title and artist as they appear in your StreamerSongList queue.
+      description: The title and artist as they appear in your StreamerSongList queue, or the YouTube title of the StreamElements request.
       placeholder: "Sunshine Coastline — Ys VIII: Lacrimosa of Dana"
     validations:
       required: true
@@ -42,5 +42,5 @@ body:
     id: log
     attributes:
       label: Log lines (optional)
-      description: The lines starting with `[Grounding]` and `[Screen]` for that song, from the newest file in the `logs` folder. They show which article was used.
+      description: The lines starting with `[Grounding]` and `[Screen]` for that song, from the newest log file (in the app, **Show logs** under **Help and troubleshooting**). They show which article was used.
       render: text

@@ -55,7 +55,7 @@ To find your JWT token:
 | `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
 | `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
 | `SE_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamElements before giving up on one check. |
-| `YOUTUBE_API_KEY` | *none* | Optional. A YouTube Data API key from Google. With it, each request's video ID is sent to Google, and for YouTube's auto-generated uploads (channels ending in "- Topic") the exact artist and song are read from the video's description instead of guessed from its title. Each lookup uses 1 unit of the key's daily quota. Restrict the key to the YouTube Data API, and keep it private. |
+| `YOUTUBE_API_KEY` | *none* | Optional. A YouTube Data API key from Google. With it, for YouTube's auto-generated uploads (channels ending in "- Topic") only, the video ID is sent to Google and the exact artist and song are read from the video's description instead of guessed from its title. Each lookup uses 1 unit of the key's daily quota. Restrict the key to the YouTube Data API, and keep it private. |
 
 Good to know:
 
@@ -90,7 +90,7 @@ The overlay chooses automatically: Anthropic if you've set
 
 | Setting | Default | What it does |
 |---|---|---|
-| `AI_PROVIDER` | *automatic* | Force a choice: `ollama`, `openai` or `anthropic`. |
+| `AI_PROVIDER` | *automatic* | Force a choice: `ollama`, `openai` or `anthropic`. `none` uses no AI: songs get Wikidata, MusicBrainz and custom facts only. (`builtin` is the desktop app's.) |
 | `TEMPERATURE` | `0.2` | How freely the AI writes, from 0 to 2. Keep it low: its job is to rephrase an article faithfully, and higher values make it wander. |
 
 ### Ollama (on your own computer)
@@ -178,5 +178,6 @@ need them with a `.env` file.
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
+| `BUBBLEFACTS_PAUSED` | `1` starts the server with bubbles paused, so a restart while paused stays paused. |
 | `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` (sources marked **Wrong**, per song) and `song-facts.json` (the streamer's facts for particular songs) go. Without it, the overlay uses a `data` folder in the overlay folder. |
 | `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |

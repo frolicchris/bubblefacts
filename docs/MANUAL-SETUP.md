@@ -209,7 +209,7 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 | When | On screen |
 |---|---|
 | A song starts | A gold **NOW PLAYING** banner for five seconds, then up to five fact bubbles, one every 15 seconds. |
-| A song with no Wikipedia article | Bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus hand-checked facts for your genres. |
+| A song with no Wikipedia article | Plain facts from Wikidata or MusicBrainz, such as the year and the album. If they don't know it either: bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus your custom facts. |
 | One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
 | A **Live Learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it. It stays up until the next song, with no bubbles. |
 | The overlay can't reach its server | A small red dot in the bottom-right corner. It disappears once reconnected. |
@@ -228,10 +228,11 @@ All of these are lines in your `.env` file. Restart the overlay after changing i
 > music you play. In the desktop app, that's **Settings → Custom facts →
 > Your own facts**, one per line.
 
-When a song has no Wikipedia article, the overlay shows facts from **topic
-packs**: small files in the `topics` folder, each a list of facts you've
-chosen. These facts go straight to your stream without being checked by the
-overlay, so only include ones you've checked yourself.
+When a song has no Wikipedia article, and Wikidata and MusicBrainz don't
+know it either, the overlay shows facts from **topic packs**: small files
+in the `topics` folder, each a list of facts you've chosen. These facts go
+straight to your stream without being checked by the overlay, so only
+include ones you've checked yourself.
 
 The overlay comes with a few **example packs** so it works right away and
 so you can see the format:

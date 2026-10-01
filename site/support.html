@@ -59,11 +59,11 @@
           </li>
           <li class="rpg">
             <h2>2. Click "Report a problem" in the app</h2>
-            <p>You'll find it under <span class="ui">Help and troubleshooting</span> on the dashboard. This is the easiest way to report a bug. The app fills in a GitHub issue for you with your app version, your system and recent log lines, with your token removed. It opens in your browser so you can read it and change anything before you send it. You need a free GitHub account, and the report is public. See <a href="privacy.html#reports">how reports work</a>.</p>
+            <p>You'll find it under <span class="ui">Help and troubleshooting</span> on the dashboard. The app fills in a GitHub report with your app version, your system and recent log lines, with your token removed. It opens in your browser, so you can read and change it before you send it. You need a free GitHub account, and the report is public. See <a href="privacy.html#reports">how reports work</a>.</p>
           </li>
           <li class="rpg">
             <h2>3. Wrong fact? Click "Wrong"</h2>
-            <p>Click <span class="ui">Wrong</span> next to the fact on the dashboard. It comes off your stream right away. Then <span class="ui">Report it (opens GitHub)</span> opens a report on GitHub, where you need a free account, with the song and the fact filled in. These are the most useful reports of all. See <a href="#faq-wrong">What if a fact is wrong?</a></p>
+            <p>Click <span class="ui">Wrong</span> next to the fact on the dashboard. It comes off your stream right away. Then <span class="ui">Report it (opens GitHub)</span> fills in a report with the song and the fact. These are the most useful reports of all. See <a href="#faq-wrong">What if a fact is wrong?</a></p>
           </li>
           <li class="rpg">
             <h2>4. Ask a question</h2>
@@ -94,7 +94,7 @@
           <details id="faq-ai-fallback">
             <summary>What if my computer can't run the built-in fact writer?</summary>
             <div class="answer">
-              <p>You'll still be able to use BubbleFacts. If the built-in fact writer can't run, for example on an older processor, on Windows and Linux the app first tries a simpler mode that uses only the processor. If that doesn't work either, it walks you through switching to the free online option, Groq. You don't have to figure it out yourself.</p>
+              <p>You can still use BubbleFacts. On Windows and Linux, the app first tries a simpler mode that uses only the processor. If that doesn't work either, it tells you, and its <span class="ui">Switch to Groq</span> button opens Settings so you can choose the free online option. See <a href="requirements.html#fallback">If the built-in AI can't run</a>.</p>
             </div>
           </details>
 
@@ -102,7 +102,7 @@
             <summary>Will it slow down my stream?</summary>
             <div class="answer">
               <p>BubbleFacts runs beside OBS. The boxes on screen are light, simple animations. The work happens when a song starts: the built-in fact writer spends a few seconds writing facts, using your graphics chip or processor.</p>
-              <p>On most computers you won't notice. If your computer has no graphics card and you notice lag, choose <span class="ui">Online: Groq</span> in the app's <span class="ui">Settings</span>, under <span class="ui">Who writes the facts</span>. It's free and writes the facts online instead.</p>
+              <p>On most computers you won't notice. If your computer has no graphics card and you notice lag, choose <span class="ui">Online, with Groq (free key)</span> in the app's <span class="ui">Settings</span>, under <span class="ui">Who writes the facts</span>. It's free and writes the facts online instead.</p>
             </div>
           </details>
 
@@ -123,7 +123,7 @@
           <details id="faq-ai">
             <summary>What does the fact writer do?</summary>
             <div class="answer">
-              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never writes from memory, and every caption is screened against the article before it's shown: names, credits, years and similar claims have to appear there. The built-in fact writer is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
+              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never writes from memory, and every caption is screened against the article before it's shown: names, who did what, years and similar claims have to appear there. That catches most mistakes, not every one. The built-in fact writer is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
             </div>
           </details>
 
@@ -140,7 +140,7 @@
               <p>Use the <span class="ui">Wrong</span> button:</p>
               <ol>
                 <li>On the app's dashboard, under <span class="ui">On stream now</span>, click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away.</li>
-                <li>BubbleFacts never uses that fact's source for that song again, even after you restart the app: the Wikipedia article, or Wikidata and MusicBrainz. A wrong fact almost always means it found the wrong source. Clicked by mistake? Click <span class="ui">Undo</span>.</li>
+                <li>BubbleFacts never uses that fact's source for that song again, even after you restart the app: the Wikipedia article, or Wikidata and MusicBrainz. A wrong fact almost always means it found the wrong source. Clicked by mistake? Click <span class="ui">Undo</span>. Your own facts are only taken off for now; change them in Settings.</li>
                 <li>Optional: click <span class="ui">Report it (opens GitHub)</span>. It opens GitHub, where you need a free account, and fills in a report with the song and the fact, for you to check and send.</li>
               </ol>
               <p>Those reports are the most useful kind, because they show where the fact check needs to be stricter.</p>
@@ -150,8 +150,8 @@
           <details id="faq-streamelements">
             <summary>StreamElements stopped following my songs. What do I do?</summary>
             <div class="answer">
-              <p>Usually nothing. Pausing and resuming the StreamElements player no longer stops BubbleFacts. If StreamElements says a song is playing but BubbleFacts can't see which one for 30 seconds, the dashboard says <span class="ui">Reconnecting</span> instead of showing everything as fine. If that lasts about two more minutes, BubbleFacts restarts its connection on its own. Your song queue isn't touched.</p>
-              <p>If the app says StreamElements didn't accept your JWT token, paste a new one in <span class="ui">Settings</span>, under <span class="ui">Your song list</span>. If it keeps happening, click <span class="ui">Report a problem</span> and add your logs (see below).</p>
+              <p>Usually nothing. Pausing the StreamElements player doesn't stop BubbleFacts. If StreamElements says a song is playing but BubbleFacts can't see which one for 30 seconds, the dashboard says <span class="ui">Reconnecting</span>. If that lasts about two more minutes, BubbleFacts restarts its connection on its own. Your song queue isn't touched.</p>
+              <p>If the app says StreamElements didn't accept your JWT token, paste a new one in <span class="ui">Settings</span>, under <span class="ui">Your song list</span>. If it keeps happening, click <span class="ui">Report a problem</span> and add your logs (see <a href="#faq-logs">How do I send my logs?</a>).</p>
             </div>
           </details>
 
@@ -190,7 +190,7 @@
         <li><a href="requirements.html">System requirements</a></li>
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
-        <li><a href="support.html" aria-current="page">Help and support</a></li>
+        <li><a href="support.html">Help and support</a></li>
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="credits.html">Credits and licenses</a></li>
         <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
