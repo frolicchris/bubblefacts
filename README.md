@@ -77,7 +77,8 @@ he reviews and tests every change, including on live streams, and is
 responsible for everything that's merged or released.
 
 The captions on stream are written by a small AI model (Meta's Llama 3.2)
-from the song's Wikipedia article, then checked against it. Facts from
+from the song's Wikipedia article, then screened against it (names, credits,
+years and similar claims must appear there). Facts from
 Wikidata and MusicBrainz are fixed sentences filled in from their data, with
 no AI involved.
 

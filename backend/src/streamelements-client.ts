@@ -119,7 +119,11 @@ export class StreamElementsClient implements SongSource {
   toSong(item: SSLQueueItem): SSLSong {
     // No live learns on StreamElements: an entry never has the off-list fields.
     const song = SongListClient.toSong(item);
-    return item.song?.performer ? { ...song, performer: true } : song;
+    return {
+      ...song,
+      ...(item.song?.performer ? { performer: true } : {}),
+      ...(item.song?.artistUncertain ? { artistUncertain: true } : {}),
+    };
   }
 
   displayTitle(item: SSLQueueItem): string {
@@ -162,6 +166,7 @@ export class StreamElementsClient implements SongSource {
         title: parsed.title || "Unknown",
         artist: parsed.artist || "Unknown",
         ...(parsed.performer ? { performer: true } : {}),
+        ...(!parsed.confident && parsed.artist ? { artistUncertain: true } : {}),
         durationSeconds: typeof song.duration === "number" ? song.duration : null,
       },
       nonlistSong: null,

@@ -12,6 +12,8 @@ export interface SSLSong {
    * article about a band or singer of that name is a match.
    */
   performer?: boolean;
+  /** The artist is only a guess from the uploader's channel, which may be a cover channel. */
+  artistUncertain?: boolean;
 }
 
 /** API `QueueSong`. Its id lives on the entry as `songId`. */
@@ -20,6 +22,8 @@ export interface SSLQueueSong {
   artist: string;
   /** Set by StreamElements from a music video's title. See `SSLSong.performer`. */
   performer?: boolean;
+  /** Set by StreamElements. See `SSLSong.artistUncertain`. */
+  artistUncertain?: boolean;
   comment?: string | null;
   duration?: number | null;
   durationSeconds?: number | null;

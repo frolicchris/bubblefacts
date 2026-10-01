@@ -62,7 +62,10 @@ released:
 The fact captions are written while you stream by a small AI model: by
 default, Meta's Llama 3.2, running on your own computer. The model only
 rewrites details from the song's Wikipedia article, and every caption is
-checked against the article before it's shown. When there's no article, the
+screened against the article before it's shown: names, who did what, years,
+consoles, and award or chart claims must appear there. That screening is
+word-level, not full verification, so a caption can still mix up details the
+article does mention; the Wrong button takes one off the stream. When there's no article, the
 AI isn't used: facts from [Wikidata](https://www.wikidata.org) or
 [MusicBrainz](https://musicbrainz.org) are fixed sentences filled in from
 their data, and custom facts go on stream exactly as written. See

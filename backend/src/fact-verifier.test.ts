@@ -330,6 +330,23 @@ describe("person-name screening", () => {
   });
 });
 
+describe("credits must match the source's roles (review)", () => {
+  const CTX = "Starfall is a 2019 game. John Smith directed the game. The music was composed by Mia Chen.";
+
+  it("drops a credit the source gives someone else", () => {
+    expect(screenClaims(["John Smith wrote the soundtrack for Starfall."], CTX).kept).toEqual([]);
+  });
+
+  it("drops a one-word name the source never mentions", () => {
+    expect(screenClaims(["The soundtrack was composed by Adele in 2019."], CTX).kept).toEqual([]);
+  });
+
+  it("keeps a credit the source does give", () => {
+    expect(screenClaims(["Mia Chen composed the music for Starfall."], CTX).kept).toHaveLength(1);
+    expect(screenClaims(["Starfall was directed by John Smith."], CTX).kept).toHaveLength(1);
+  });
+});
+
 describe("screening edge cases", () => {
   const CTX = "ys viii was released in 2016 for playstation vita by nihon falcom.";
 
@@ -730,6 +747,18 @@ describe("fetchGrounding", () => {
   it("never grounds a game track on a generic article named like the track", async () => {
     pages = { Overture: ["Overture"], "Overture Obscure Game": ["Overture"] };
     expect(await fetchGrounding({ title: "Overture", artist: "Obscure Game" })).toBe("");
+  });
+
+  it("takes an installment only when it names the track (review: Final Fantasy -> Final Fantasy VII)", async () => {
+    pages = { "Final Fantasy video game": ["Final Fantasy VII"], "Final Fantasy soundtrack": ["Final Fantasy VII"], "Final Fantasy": ["Final Fantasy VII"] };
+    mentions = { "Final Fantasy VII": "with music including One-Winged Angel" };
+    expect(await fetchGrounding({ title: "Terra's Theme", artist: "Final Fantasy" })).toBe("");
+    expect(await fetchGrounding({ title: "One-Winged Angel", artist: "Final Fantasy" })).toMatch(/^Final Fantasy VII/);
+  });
+
+  it("never looks up an uploader that's only a guess (review: Apollo)", async () => {
+    pages = { "Megalovania": ["Apollo"], "Apollo video game": ["Apollo"], "Apollo": ["Apollo"] };
+    expect(await fetchGrounding({ title: "Megalovania", artist: "Apollo", artistUncertain: true })).toBe("");
   });
 
   it("never uses an article the streamer marked wrong for that song", async () => {

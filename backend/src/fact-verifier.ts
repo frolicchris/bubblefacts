@@ -340,14 +340,23 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   // track article must not be attributed to another artist, and its text
   // must mention the game or artist: "Overture" alone is a generic article.
   // A music video's artist is a band or singer, never a game or film of the same name.
+  // An artist that's only a guess from the uploader's channel is never looked up
+  // as the subject: an uploader called "Apollo" isn't the god (issue from review).
   const matchedGame = (title: string) =>
-    isRelevantArticle(game, title, artist || !!song.performer) && !(song.performer && NOT_A_PERFORMER.test(title));
+    !song.artistUncertain &&
+    isRelevantArticle(game, title, artist || !!song.performer) &&
+    !(song.performer && NOT_A_PERFORMER.test(title));
+  // A longer title than the subject: "Final Fantasy" -> "Final Fantasy VII".
+  const gameTokens = significantTokens(gameKey).length;
+  const extendsGame = (title: string) => significantTokens(normalizeTitle(title)).length > gameTokens;
   const matchedTrack = (title: string) =>
     track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game);
 
   // "Lil Nas X, Jack Harlow": a song's article may name only its lead artist.
   const names = artistNames(game);
-  const terms = searchTerms(game, track, artist || !!song.performer);
+  const terms = song.artistUncertain && track !== game
+    ? [track]
+    : searchTerms(game, track, artist || !!song.performer);
   // A music video's artist may share a name with a game or film; ask for the performer.
   if (song.performer && !looksLikeArtistName(game) && game.trim()) {
     const at = terms.indexOf(game);
@@ -369,6 +378,12 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       }
       const byGame = matchedGame(page);
       const full = await wikiExtract(page);
+      // An installment or spin-off is only right when it's the song's own game: it must name the track.
+      const installment = byGame && extendsGame(page) && track !== game;
+      if (installment && full && !mentionsName(normalizeTitle(full), [normalizeTitle(track)])) {
+        console.log(`[Grounding] "${page}" never mentions "${track}", skipping`);
+        continue;
+      }
       // A performer's name alone can be an everyday word: "Milestone" is about road markers.
       if (byGame && song.performer && !/\(/.test(page) && full && !PERFORMER_LEAD.test(full.slice(0, 400))) {
         console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
@@ -386,7 +401,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       const text = `${page}\n${extract}`;
       console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars)`);
       // Shared by the game's tracks, unless this track has blocked articles of its own.
-      groundingCache.set(byGame && !artist && !blocked.size ? gameKey : songKey, { text, at: Date.now() });
+      groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameKey : songKey, { text, at: Date.now() });
       return text;
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -505,7 +520,59 @@ const NAME_STOPWORDS = new Set([
  * Each word must appear as a whole word, which tolerates "Koshiro" alone or a
  * different romanization of the given name, but not "Ed" inside "played".
  */
+/**
+ * Kinds of credit, and the words that state each. A fact giving someone a
+ * credit needs a sentence in the source that names them with the same kind
+ * of credit: "John Smith directed the game" doesn't support "John Smith wrote
+ * the soundtrack" (issue from review). Writing music counts as composing.
+ */
+const ROLES: Array<{ fact: RegExp; source: RegExp }> = [
+  { fact: /\b(compos\w*|scored|wr[io]te\s+the\s+(music|score|soundtrack)|written\s+the\s+(music|score|soundtrack)|music\s+(was\s+)?(written|composed)\s+by)\b/i, source: /\b(compos\w*|score[ds]?|music|soundtrack|wr[io]te|written|writer)\b/i },
+  { fact: /\b(wr[io]te|written|penned|lyrics?)\b/i, source: /\b(wr[io]te|written|writ\w*|lyric\w*|penned|songwrit\w*|compos\w*)\b/i },
+  { fact: /\bproduc\w*/i, source: /\bproduc\w*/i },
+  { fact: /\bdirect\w*/i, source: /\bdirect\w*/i },
+  { fact: /\b(performed|sang|sung|sings|vocals?|recorded)\b/i, source: /\b(perform\w*|sang|sung|sing\w*|vocal\w*|record\w*|band|singer|rapper|musician)\b/i },
+  { fact: /\b(designed|developed)\b/i, source: /\b(design\w*|develop\w*)\b/i },
+];
+/** "by Adele", "by Nobuo Uematsu": a capitalized name after "by". */
+const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|de|van|von|da|del|la|le))*)/gu;
+
+/** The names a fact credits: two or more capitalized words, or any name after "by". */
+function creditedNames(fact: string): string[] {
+  const names = new Set<string>();
+  for (const m of fact.matchAll(BY_NAME)) names.add(m[1].trim().replace(/[.'’-]+$/, ""));
+  for (const candidate of fact.match(NAME) ?? []) {
+    const words = candidate.split(/\s+/);
+    while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
+    if (words.length >= 2 && !words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) names.add(words.join(" "));
+  }
+  return [...names];
+}
+
+/**
+ * A credit the source doesn't give: a named person in a role (composed,
+ * wrote, produced, directed, performed, designed) with no source sentence
+ * naming them in that kind of role. Returns the name, or null.
+ */
+export function unsupportedCredit(fact: string, context: string): string | null {
+  const roles = ROLES.filter((r) => r.fact.test(fact));
+  if (!roles.length) return null;
+  const sentences = context.split(/(?<=[.!?])\s+|\n+/);
+  for (const name of creditedNames(fact)) {
+    const surname = name.split(/\s+/).pop() ?? name;
+    const about = sentences.filter((s) => hasWord(surname, s));
+    if (!about.length) continue; // unsupportedName reports names the source never has
+    if (!roles.some((r) => about.some((s) => r.source.test(s)))) return name;
+  }
+  return null;
+}
+
 export function unsupportedName(fact: string, context: string): string | null {
+  // A single-word name after "by" ("composed by Adele") must be there too.
+  for (const m of fact.matchAll(BY_NAME)) {
+    const words = m[1].trim().split(/\s+/).map((w) => w.replace(/[.'’-]+$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
+    if (words.length && !words.every((w) => hasWord(w, context))) return words.join(" ");
+  }
   for (const candidate of fact.match(NAME) ?? []) {
     const words = candidate.split(/\s+/);
     while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
@@ -572,6 +639,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
       if (platform) return `unsupported platform "${platform}"`;
       const name = unsupportedName(fact, context);
       if (name) return `unsupported name "${name}"`;
+      const credit = unsupportedCredit(fact, context);
+      if (credit) return `unsupported credit for "${credit}"`;
     }
     if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
     if (result.kept.some((k) => tooSimilar(k, fact))) return "near-duplicate of an earlier fact";
