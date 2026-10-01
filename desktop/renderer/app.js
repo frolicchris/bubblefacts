@@ -434,7 +434,7 @@
     if (state.builtinFailed && state.settings.ai === "builtin") {
       add("warn", "The built-in AI can't run on this computer. Facts are coming from your song list for now. Switching to Groq is free and takes a minute.", "Switch to Groq", () => show("settings"));
     }
-    if (state.secretsUnprotected) add("warn", "This computer has no keychain, so your token is saved without encryption.", null);
+    if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
   }
 
   // --- Settings ----------------------------------------------------------------

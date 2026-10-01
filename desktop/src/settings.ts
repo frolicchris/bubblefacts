@@ -193,7 +193,19 @@ export function saveSettings(settings: Settings): void {
 }
 
 /** True when secrets can only be stored unencrypted (some Linux desktops without a keyring). */
-export const secretsUnprotected = () => !safeStorage.isEncryptionAvailable();
+/**
+ * Whether saved secrets lack real protection. On Linux, Electron can "encrypt"
+ * with a fixed built-in password when no keyring (GNOME Keyring, KWallet) is
+ * running: the basic_text backend. isEncryptionAvailable() is still true
+ * then, so the backend has to be checked too (review).
+ * https://www.electronjs.org/docs/latest/api/safe-storage
+ */
+export function secretsUnprotected(): boolean {
+  if (!safeStorage.isEncryptionAvailable()) return true;
+  if (process.platform !== "linux") return false;
+  const backend = (safeStorage as { getSelectedStorageBackend?: () => string }).getSelectedStorageBackend?.();
+  return !backend || backend === "basic_text" || backend === "unknown";
+}
 
 /** The settings as the server's environment variables. */
 export function toServerEnv(
