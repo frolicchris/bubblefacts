@@ -64,7 +64,15 @@ StreamElements ───┴──────────────► Server 
    an artist and title out of a request typed like a video title), never
    song-list or custom facts. The streamer's own composition gets entry
    facts and their composition notes, with no lookup.
-5. **Ground.** Search Wikipedia for the song, game or work, reject results that
+5. **Read the request.** Streamers write song lists differently: the game in
+   the artist field, "Game - Track" with the composer as artist, "Track -
+   Show" with the performer, "Track (Film)", "Track from Show". At start the
+   song-list client reads the whole list once and `list-profile.ts` works out
+   its habits (sources repeat across a list; track names don't). Each song
+   then has one or more `readings`, tried in order until one finds an
+   article; an article that is only the artist's biography is kept as a last
+   resort. Measured on seven public lists (about 10,800 songs).
+   **Ground.** Search Wikipedia for the song, game or work, reject results that
    aren't really about it or that the streamer marked **Wrong** for this song,
    and pull out the music-related sections first. A game's track with an
    article of its own ("Megalovania") is tried before the game's article: one

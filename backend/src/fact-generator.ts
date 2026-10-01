@@ -5,6 +5,7 @@ import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
+import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
@@ -426,10 +427,11 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
 // --- Pipeline ----------------------------------------------------------
 
 /** Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it. */
-async function structuredFacts(song: SSLSong): Promise<string[]> {
+/** `as` is the reading of the song to look up; the bookkeeping stays with the song as requested. */
+async function structuredFacts(song: SSLSong, as: SSLSong = song): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
-  const data = await wikidataFacts(song);
-  const facts = data.length ? data : await musicbrainzFacts(song);
+  const data = await wikidataFacts(as);
+  const facts = data.length ? data : await musicbrainzFacts(as);
   structuredShown.set(songKey(song), new Set(facts));
   for (const f of facts) structuredLabel.set(f, data.length ? SOURCE.wikidata : SOURCE.musicbrainz);
   return facts;
@@ -556,10 +558,26 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
 
     // No AI available (the desktop app's fallback when its model can't run):
     // song-list and hand-picked facts only, with no lookup.
-    const context = config.aiProvider === "none" ? "" : config.factVerification ? await fetchGrounding(song) : "";
+    // Streamers write their lists differently ("Game - Track" with the composer as artist,
+    // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
+    let context = "";
+    let read = song;
+    if (config.aiProvider !== "none" && config.factVerification) {
+      for (const reading of readings(song)) {
+        const found = await fetchGrounding(reading);
+        if (!found) continue;
+        // The artist's life story is the weakest find: kept, but another reading may find the song or its game.
+        const onlyTheArtist = artistNames(reading.artist ?? "").includes(normalizeTitle(found.split("\n")[0]));
+        if (context && onlyTheArtist) continue;
+        context = found;
+        read = reading;
+        if (!onlyTheArtist) break;
+      }
+      if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
+    }
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
-      const data = config.factVerification ? await structuredFacts(song) : [];
+      const data = config.factVerification ? await structuredFacts(song, read) : [];
       const shownData = data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, want);
       if (shownData.length) {
         remember(shownData);
@@ -577,9 +595,9 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // An article about the artist or game, not the song itself: facts about
     // the song come first when Wikidata or MusicBrainz has any ("describe the
     // song, then tell about it").
-    const songFacts = context && !aboutTheSong(song, context) ? await structuredFacts(song) : [];
+    const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
 
-    const prompt = context ? groundedPrompt(song, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
+    const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt, songKey(song))).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
