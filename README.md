@@ -57,7 +57,7 @@ stream, so its fact writer never answers from memory.
 4. If there's no good Wikipedia match, no AI is used. BubbleFacts looks the
    song up on Wikidata, then MusicBrainz, and fills in fixed sentences from
    what they list, such as the year and the album. If they have nothing
-   either, it shows backup facts you write yourself, or nothing.
+   either, it shows custom facts you write yourself, or nothing.
 
 Facts are only as good as Wikipedia: the check makes sure captions match the
 article, not that the article is right. Found a wrong fact? Click **Wrong**
@@ -101,7 +101,7 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 ## For developers
 
 - **[Manual setup (command line)](docs/MANUAL-SETUP.md):** run the overlay
-  with Node.js and a settings file, without the app. Its backup facts are a
+  with Node.js and a settings file, without the app. Its custom facts are a
   few examples you replace with your own.
 - **[Build and run the app from source](CONTRIBUTING.md#working-on-the-desktop-app)**,
   and how to contribute.

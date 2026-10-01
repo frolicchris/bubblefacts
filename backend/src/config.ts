@@ -66,7 +66,7 @@ export const config = {
     process.env.STREAMER_DISPLAY_NAME ||
     (onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "the streamer"),
   instrument: (process.env.INSTRUMENT || "").trim(),
-  // Empty means no backup facts: a song with no source gets none (the desktop app's default).
+  // Empty means no custom facts: a song with no source gets none (the desktop app's default).
   topic: process.env.TOPIC ?? "video-game,classical,film,pop,general",
   // Songs tagged "Originals" or credited to the streamer get facts from the song entry, not a lookup.
   originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",

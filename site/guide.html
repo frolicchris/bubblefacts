@@ -61,7 +61,7 @@
             <li><a href="#check">Check that it works</a></li>
             <li><a href="#streaming">While you stream</a></li>
           </ol>
-          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#backup-facts">Backup facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
+          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#custom-facts">Custom facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
           <p>Stuck? Jump to <a href="#troubleshooting">If something goes wrong</a>.</p>
         </nav>
 
@@ -164,7 +164,7 @@
             </div>
             <div class="note">
               <p class="note-title">The built-in AI downloads on its own</p>
-              <p>As soon as the app opens, it starts downloading its built-in AI in the background. That's Llama 3.2 3B, about 2 GB, and it's a one-time download. You don't need to wait for it. Until it's ready, songs only get facts that need no AI (see <a href="#backup-facts">Backup facts</a>), so BubbleFacts works right away. If your connection drops, the download tries again on its own. The app's dashboard shows how far along it is.</p>
+              <p>As soon as the app opens, it starts downloading its built-in AI in the background. That's Llama 3.2 3B, about 2 GB, and it's a one-time download. You don't need to wait for it. Until it's ready, songs only get facts that need no AI (see <a href="#custom-facts">Custom facts</a>), so BubbleFacts works right away. If your connection drops, the download tries again on its own. The app's dashboard shows how far along it is.</p>
             </div>
           </div>
         </div>
@@ -229,9 +229,10 @@
             <h3 id="your-music-live-learn">I do live learns</h3>
             <p>This is on to start with. When someone requests a song that isn't on your list, a <span class="ui">LIVE LEARN</span> banner shows while you learn it, with no fact bubbles. If you uncheck it, those requests are treated like any other song.</p>
 
-            <h3 id="backup-facts">Backup facts</h3>
+            <span id="backup-facts"></span><!-- the old name, for links shared before beta.3 -->
+            <h3 id="custom-facts">Custom facts</h3>
             <p>When a song has no Wikipedia article, the AI isn't used. BubbleFacts looks the song up on Wikidata, then on MusicBrainz, two free music databases. If one lists the song, it fills in plain sentences from that data, such as the year the song came out and its album.</p>
-            <p>If neither has the song, the app shows your backup facts: short facts you write yourself. If you have none, that song gets no bubbles, rather than filler. That's the best choice for request channels, where no list could cover every song.</p>
+            <p>If neither has the song, the app shows your custom facts: short facts you write yourself. If you have none, that song gets no bubbles, rather than filler. That's the best choice for request channels, where no list could cover every song.</p>
 
             <div class="note">
               <p class="note-title">The example packs are off</p>
@@ -240,7 +241,7 @@
 
             <p>Pick one of two options:</p>
             <ul>
-              <li><span class="ui">Set up my own facts later</span> (already picked for you). Until then, a song without an article gets no bubbles. You can add your own any time in <span class="ui">Settings</span>, under <span class="ui">Backup facts</span>.</li>
+              <li><span class="ui">Set up my own facts later</span> (already picked for you). Until then, a song without an article gets no bubbles. You can add your own any time in <span class="ui">Settings</span>, under <span class="ui">Custom facts</span>.</li>
               <li><span class="ui">Add my own facts now</span>. Type your facts in the box, one per line.</li>
             </ul>
             <p>Then click <span class="ui">Finish</span>. That's the whole setup.</p>
@@ -250,16 +251,16 @@
               <p>Your facts go on stream exactly as you write them. Nothing checks them for you.</p>
             </div>
 
-            <h3 id="backup-facts-settings">Add or change your facts later</h3>
+            <h3 id="custom-facts-settings">Add or change your facts later</h3>
             <ol>
-              <li>In the app, open <span class="ui">Settings</span>, then <span class="ui">Backup facts</span>.</li>
+              <li>In the app, open <span class="ui">Settings</span>, then <span class="ui">Custom facts</span>.</li>
               <li>In <span class="ui">Your own facts</span>, type one fact per line.</li>
               <li>Optional: in <span class="ui">About your own compositions</span>, add facts about your original pieces. These show when you play one of your originals.</li>
             </ol>
-            <p>Five or more backup facts keep the same ones from repeating song after song.</p>
+            <p>Five or more custom facts keep the same ones from repeating song after song.</p>
 
-            <h3 id="backup-facts-packs">The example packs</h3>
-            <p>These are off unless you check them in <span class="ui">Settings</span>, under <span class="ui">Backup facts</span>.</p>
+            <h3 id="custom-facts-packs">The example packs</h3>
+            <p>These are off unless you check them in <span class="ui">Settings</span>, under <span class="ui">Custom facts</span>.</p>
             <ul>
               <li>Video game music: 24 facts</li>
               <li>Classical: 7 facts</li>
@@ -300,7 +301,7 @@
               <li><strong>Something else wrong?</strong> Open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>. A report opens on GitHub in your browser for you to read before you send it. You need a free GitHub account. See <a href="privacy.html#reports">how reports work</a>.</li>
               <li><strong>New versions.</strong> When one is out, the app tells you and gives you a download link. See <a href="changelog.html">what's new</a>.</li>
               <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
-              <li><strong>Add your own backup facts.</strong> Songs that no source knows get backup facts. The example packs are only examples, so add your own. If you turned an example pack on and it stood in for a song, the dashboard suggests it. See <a href="#backup-facts-settings">how to add them</a>.</li>
+              <li><strong>Add your own custom facts.</strong> Songs that no source knows get custom facts. The example packs are only examples, so add your own. If you turned an example pack on and it stood in for a song, the dashboard suggests it. See <a href="#custom-facts-settings">how to add them</a>.</li>
             </ul>
 
             <h3 id="wrong-fact">If a fact is wrong</h3>
@@ -418,7 +419,7 @@
               <tr>
                 <th scope="row">No facts about the song, or none at all</th>
                 <td>No source knew the song</td>
-                <td>For game music, put the game's name in the artist field in StreamerSongList. With StreamElements, clearly titled videos ("Artist - Song") work best. Obscure songs often have no article, so they get backup facts instead, or none until you <a href="#backup-facts">add your own</a>.</td>
+                <td>For game music, put the game's name in the artist field in StreamerSongList. With StreamElements, clearly titled videos ("Artist - Song") work best. Obscure songs often have no article, so they get custom facts instead, or none until you <a href="#custom-facts">add your own</a>.</td>
               </tr>
               <tr>
                 <th scope="row">Few or no facts, soon after installing</th>

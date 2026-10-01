@@ -26,7 +26,7 @@ export interface Settings {
   /** "I play my own compositions" and "I do live learns", from setup. */
   originals: boolean;
   liveLearns: boolean;
-  /** The musician's own backup facts, one per line in Settings. */
+  /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
   myOriginals: string[];
   ai: "builtin" | "groq" | "anthropic" | "ollama";

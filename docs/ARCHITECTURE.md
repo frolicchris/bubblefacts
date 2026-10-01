@@ -68,7 +68,7 @@ StreamerSongList ──(live events + a check every 15 s)──► Server ──
    crowd the results and are even tagged "Soundtrack".
 8. **Fall back if needed.** No reference, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus the
-   streamer's backup facts, or nothing when they have none. The AI is never
+   streamer's custom facts, or nothing when they have none. The AI is never
    asked to write without a reference.
 9. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
    counting from when the facts arrive. If the song has already changed by
@@ -190,7 +190,7 @@ live-learn flag, so the facts built from those simply don't appear.
   ("CiaraVEVO", "Ciara - Topic"). Game music often comes as "Track - Game";
   the two sides swap only on a clear sign (the channel names the right side, the
   right side is a soundtrack, or only the right side has a "Series: Subtitle").
-  A wrong guess costs a missed article and backup facts, never facts about the
+  A wrong guess costs a missed article and custom facts, never facts about the
   wrong song, because article matching still checks every result.
 
 ### OBS details

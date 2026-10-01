@@ -188,7 +188,7 @@ export class Supervisor extends EventEmitter {
       return;
     }
     this.log(`[App] The built-in AI ${how}${process.platform === "darwin" ? "" : " on the processor too"}.`);
-    // The app restarts the server without the AI; it still shows song-list and backup facts.
+    // The app restarts the server without the AI; it still shows song-list and custom facts.
     this.emit("builtin-failed");
   }
 

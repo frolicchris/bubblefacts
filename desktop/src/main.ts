@@ -479,7 +479,7 @@ ipcMain.handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your own backup facts and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your own custom facts and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;

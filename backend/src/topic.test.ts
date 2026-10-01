@@ -30,7 +30,7 @@ describe("loadTopics", () => {
     expect(loadTopics("piano").curatedFacts).toHaveLength(4);
   });
 
-  it("allows no backup facts at all", () => {
+  it("allows no custom facts at all", () => {
     // Issue #18: without example packs or the streamer's own facts, a song with no source shows nothing.
     expect(loadTopics("")).toEqual({ curatedFacts: [], originalsFacts: [] });
   });

@@ -11,7 +11,7 @@
  * Everything here is deterministic string work. When a title can't be read
  * with confidence, the cleaned title is kept whole and the artist comes from
  * the channel, which at worst means no Wikipedia article is found and the
- * song gets backup facts; it never attributes a song to the wrong work.
+ * song gets custom facts; it never attributes a song to the wrong work.
  *
  * Several bracket, label and separator rules follow Web Scrobbler's
  * metadata-filter (MIT, https://github.com/web-scrobbler/metadata-filter).

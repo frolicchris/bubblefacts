@@ -221,11 +221,11 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 All of these are lines in your `.env` file. Restart the overlay after changing it.
 [CONFIG.md](CONFIG.md) lists every setting.
 
-### Your backup facts
+### Your custom facts
 
 > **The included packs are only a few examples.** They're short, they aren't
 > updated, and they won't know your songs. Fill in your own facts for the
-> music you play. In the desktop app, that's **Settings → Backup facts →
+> music you play. In the desktop app, that's **Settings → Custom facts →
 > Your own facts**, one per line.
 
 When a song has no Wikipedia article, the overlay shows facts from **topic
@@ -258,7 +258,7 @@ TOPIC=classical,film,piano,general
 The default is every example except `piano`. Keep `general`, or a pack of
 your own with lines for your originals, if you play your own music. Five or
 more facts keep them from repeating often. Set `TOPIC=` (empty) for no
-backup facts at all.
+custom facts at all.
 
 **To make your own pack,** copy any file in `topics`, give it a name that's
 yours (such as `my-facts.json`), change the facts, and add that name to

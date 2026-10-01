@@ -29,8 +29,8 @@ the rule yourself.
 The packs in `topics/` are examples that show the format and make the overlay
 work on first run. They aren't maintained, and pull requests that add to or
 change them won't be accepted. Streamers keep their own packs on their own
-machine: in the app under **Settings → Backup facts → Your own facts**, or
-as described in [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md#your-backup-facts)
+machine: in the app under **Settings → Custom facts → Your own facts**, or
+as described in [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md#your-custom-facts)
 for the command-line version.
 
 Improvements to how packs are *loaded or used* are welcome like any other code

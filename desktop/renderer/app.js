@@ -309,7 +309,7 @@
       kind = "ok";
       title = h.currentSong ? "Showing facts" : "Ready for your next song";
       detail = downloading
-        ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get backup facts.`
+        ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
         : "BubbleFacts is connected and waiting.";
     }
     banner.className = "banner " + kind;

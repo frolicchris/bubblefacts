@@ -65,7 +65,7 @@ rewrites details from the song's Wikipedia article, and every caption is
 checked against the article before it's shown. When there's no article, the
 AI isn't used: facts from [Wikidata](https://www.wikidata.org) or
 [MusicBrainz](https://musicbrainz.org) are fixed sentences filled in from
-their data, and backup facts go on stream exactly as written. See
+their data, and custom facts go on stream exactly as written. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the check works.
 
 Found a wrong fact or a problem?
