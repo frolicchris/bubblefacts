@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { buildProfile, setListProfile } from "./list-profile";
 import { CentrifugoStream } from "./centrifugo-client";
 import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
@@ -22,6 +23,9 @@ let accessToken = config.sslAccessToken;
 export function setAccessToken(token: string): void {
   accessToken = token;
 }
+
+/** A list of 6,000 songs, 100 at a time. Longer lists are profiled from their first 6,000. */
+const MAX_LIST_PAGES = 60;
 
 export class SongListClient implements SongSource {
   readonly name = "StreamerSongList";
@@ -135,12 +139,13 @@ export class SongListClient implements SongSource {
 
   // --- REST --------------------------------------------------------------
 
-  private async getJSON<T>(path: string, what: string): Promise<T> {
-    const query = new URLSearchParams(
-      config.sslStreamerId
+  private async getJSON<T>(path: string, what: string, extra: Record<string, string> = {}): Promise<T> {
+    const query = new URLSearchParams({
+      ...(config.sslStreamerId
         ? { streamer_id: String(config.sslStreamerId) }
-        : { streamer_name: config.sslStreamerName, platform: config.sslPlatform }
-    );
+        : { streamer_name: config.sslStreamerName, platform: config.sslPlatform }),
+      ...extra,
+    });
     const headers: Record<string, string> = {
       Authorization: `${AUTH_SCHEME[config.sslTokenKind]} ${accessToken}`,
       Accept: "application/json",
@@ -177,6 +182,34 @@ export class SongListClient implements SongSource {
     console.log(`[SSL] Resolved streamer "${config.sslStreamerName}" -> ID ${info.id}`);
     if (info.promoteQueueToPlaying === false) {
       console.log("[SSL] promoteQueueToPlaying is off: facts follow the top of the queue when nothing is playing");
+    }
+    // Tests drive this themselves: here it would take their mocked replies.
+    if (process.env.NODE_ENV !== "test") void this.learnListFormat();
+  }
+
+  /**
+   * Read the whole song list once, to learn how this streamer writes titles
+   * and the artist field (see list-profile.ts). In the background, and never
+   * fatal: without it, songs are read the usual way.
+   */
+  async learnListFormat(): Promise<void> {
+    try {
+      const titles: Array<{ title?: string | null }> = [];
+      let after = "";
+      for (let page = 0; page < MAX_LIST_PAGES; page++) {
+        const body = await this.getJSON<{ items?: Array<{ title?: string | null }> | null; token?: string }>(
+          "/songs", "song list", { limit: "100", ...(after ? { after } : {}) }
+        );
+        titles.push(...(body.items ?? []));
+        if (!body.token || !(body.items ?? []).length) break;
+        after = body.token;
+      }
+      const profile = buildProfile(titles);
+      setListProfile(profile);
+      const dash = profile.dash === "source-first" ? '"Game - Track"' : profile.dash === "track-first" ? '"Track - Source"' : "no dash habit";
+      console.log(`[SSL] Read ${titles.length} songs to learn the list's format: ${dash}, ${profile.parenSources.size} sources named in brackets`);
+    } catch (err) {
+      console.warn(`[SSL] Couldn't read the song list to learn its format: ${err instanceof Error ? err.message : err}`);
     }
   }
 
