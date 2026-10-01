@@ -184,7 +184,7 @@
       clearBubbles();
       removed = new Set();
       currentSongKey = songKey(msg.song);
-      if (msg.song) showToast(msg.song);
+      if (msg.song && !msg.quiet) showToast(msg.song);
     } else if (msg.type === "facts_ready") {
       showFacts(msg.song, msg.facts);
     } else if (msg.type === "remove_fact") {

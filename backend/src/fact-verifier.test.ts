@@ -24,6 +24,7 @@ import {
   clearGroundingCache,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
+import { artistNames, mentionsName } from "./fact-verifier";
 import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
@@ -747,5 +748,18 @@ describe("fetchGrounding", () => {
   it("keeps the whole reference within the context budget", async () => {
     pages = { "Celeste video game": ["Celeste (video game)"] };
     expect((await fetchGrounding({ title: "First Steps", artist: "Celeste" })).length).toBeLessThanOrEqual(2400);
+  });
+});
+
+describe("artist names (peer review)", () => {
+  it("keeps a whole credit and tries the lead artist", () => {
+    expect(artistNames("Earth, Wind & Fire")).toEqual(["earth wind fire", "earth"]);
+    expect(artistNames("Lil Nas X, Jack Harlow")).toEqual(["lil nas x jack harlow", "lil nas x"]);
+    expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel"]);
+  });
+
+  it("matches whole words only", () => {
+    expect(mentionsName("2014 single by asia", ["sia"])).toBe(false);
+    expect(mentionsName("2014 single by sia", ["sia"])).toBe(true);
   });
 });

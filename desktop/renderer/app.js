@@ -7,6 +7,8 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
   let state = null;
+  /** What the On stream now list last showed, so it redraws only on change. */
+  let lastRecent = "";
   let recentTimer = null;
 
   // --- Views -------------------------------------------------------------
@@ -325,20 +327,34 @@
   async function refreshRecent() {
     const r = await api.recent();
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
+    $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
+    // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
+    const drawn = JSON.stringify([song, (r.facts || []).map((f) => f.text)]);
+    if (drawn === lastRecent) return;
+    lastRecent = drawn;
     $("#now-song").textContent = song || "Nothing playing yet";
     const list = $("#now-facts");
     list.replaceChildren();
     for (const f of r.facts || []) {
       const li = $("#fact-item").content.firstElementChild.cloneNode(true);
       $(".fact-text", li).textContent = f.text;
-      $(".wrong", li).addEventListener("click", async () => {
+      const wrong = $(".wrong", li);
+      wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
+      wrong.addEventListener("click", async () => {
         const result = await api.wrongFact(f.text);
-        if (!result || !result.removed) return;
-        state.wrong = { song: song || "", text: f.text };
-        $("#wrong-note-text").textContent = result.article
-          ? `Removed. BubbleFacts won't use the "${result.article}" article for this song again.`
-          : "Removed from your stream.";
-        $("#wrong-note").hidden = false;
+        if (!result || !result.removed) {
+          showWrongNote("That song already ended, so there was nothing to remove.", null);
+          return;
+        }
+        state.wrong = { song: song || "", text: f.text, article: result.article };
+        showWrongNote(
+          result.structured
+            ? "Removed. BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+            : result.article
+              ? `Removed. BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
+              : "Removed from your stream.",
+          result.article
+        );
         li.remove();
       });
       list.appendChild(li);
@@ -346,7 +362,19 @@
     $("#now-empty").hidden = (r.facts || []).length > 0;
   }
 
+  function showWrongNote(text, undoable) {
+    $("#wrong-note-text").textContent = text;
+    $("#wrong-undo").hidden = !undoable;
+    $("#wrong-report").hidden = !state.wrong;
+    $("#wrong-note").hidden = false;
+  }
+
   $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
+  $("#wrong-undo").addEventListener("click", async () => {
+    if (!state.wrong || !state.wrong.article) return;
+    await api.unwrongFact(state.wrong.article);
+    showWrongNote("Undone. BubbleFacts may use that source for this song again; the fact stays off for now.", null);
+  });
   $("#pause-toggle").addEventListener("click", () => api.setPaused(!state.paused));
   $("#test-bubble").addEventListener("click", async () => {
     const r = await api.testBubble();

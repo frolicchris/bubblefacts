@@ -45,7 +45,7 @@ const NOISE_WORDS = [
   "the", "a", "in", "high", "quality", "solo", "arr\\.?", "arranged", "arrangement", "performance",
   "premiere", "new", "vevo", "original",
   // Spanish, Portuguese, French and German labels
-  "oficial", "officiel", "officielle", "offizielles", "letra", "vivo", "en", "ao", "legendado", "sub", "español",
+  "movie", "oficial", "officiel", "officielle", "offizielles", "letra", "vivo", "en", "ao", "legendado", "sub", "español",
 ];
 /** Also dropped when they make up a whole " - " or " | " segment: "Song - Live", "Song | Remix". */
 const VARIANT_WORDS = ["live", "remix", "edit", "radio", "mix", "demo", "session", "sessions"];
@@ -76,7 +76,8 @@ function labelSegment(segment: string, count: number): boolean {
 const FEATURING = /\s*(?:^|\s)(?:ft\.?|feat\.?|featuring)\s.*$/i;
 const FEATURING_BRACKET = /^\s*(?:ft\.?|feat\.?|featuring|with)\s/i;
 /** "(From "Frozen")": the bracket names the work the song comes from. */
-const FROM_BRACKET = /^\s*from\s+["'“”‘’]?(.+?)["'“”‘’]?\s*$/i;
+// Quotes or a soundtrack word are required: "(From The Vault)" is a label, not a work.
+const FROM_BRACKET = /^\s*from\s+(?:["“‘'](.+?)["”’']|(.+?\b(?:soundtrack|o\.?s\.?t\.?|movie|film|series|game)\b.*?))\s*$/i;
 /** "(Ocarina of Time OST)": a soundtrack, so the bracket names the work. */
 const SOUNDTRACK = /\s*\b(?:original\s+(?:game\s+|motion\s+picture\s+)?soundtrack|o\.?s\.?t\.?|soundtrack)\b\s*/gi;
 const HAS_SOUNDTRACK = /\b(?:soundtrack|o\.?s\.?t\.?)(?=$|[^\p{L}])/iu;
@@ -121,11 +122,18 @@ function fold(s: string): string {
  * "CiaraVEVO" is Ciara, "Ciara - Topic" is YouTube's auto-generated channel
  * for Ciara. Anything else is only a guess (it may be a cover channel).
  */
+/** YouTube names auto-generated channels in the viewer's language: "Ciara - Topic", "Ciara - Tema". */
+const TOPIC_CHANNEL = /^(.+?)\s+[-–]\s+(?:topic|tema|thema|thème|tópico|argomento|temat|onderwerp|konu|aihe|emne|тема|トピック|主题|主題|주제)$/i;
+
+/** An auto-generated "- Topic" channel, whose uploads carry exact song metadata. */
+export function isTopicChannel(channel: string | undefined | null): boolean {
+  return TOPIC_CHANNEL.test((channel ?? "").trim());
+}
+
 export function artistFromChannel(channel: string | undefined | null): { artist: string; official: boolean } {
   const name = (channel ?? "").trim();
   if (!name) return { artist: "", official: false };
-  // YouTube names auto-generated channels in the viewer's language: "Ciara - Topic", "Ciara - Tema".
-  const topic = name.match(/^(.+?)\s+[-–]\s+(?:topic|tema|thema|thème|tópico|argomento|temat|onderwerp|konu|aihe|emne|тема|トピック|主题|主題|주제)$/i);
+  const topic = name.match(TOPIC_CHANNEL);
   if (topic) return { artist: topic[1].trim(), official: true };
   const vevo = name.match(/^(.+?)\s*vevo$/i);
   if (vevo) {
@@ -149,7 +157,7 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     if (!inner || onlyNoise(inner, NOISE_RE) || FEATURING_BRACKET.test(inner)) return " ";
     const from = inner.match(FROM_BRACKET);
     if (from) {
-      source ||= withoutSoundtrack(from[1]);
+      source ||= withoutSoundtrack(from[1] ?? from[2] ?? "");
       return " ";
     }
     const by = inner.match(BY_BRACKET);

@@ -396,6 +396,7 @@ async function setPaused(next: boolean): Promise<void> {
 
 ipcMain.handle("test-bubble", () => control("test"));
 ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
+ipcMain.handle("unwrong-fact", (_e, article: string) => control("unwrong", { article: String(article) }));
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());

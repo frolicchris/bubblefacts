@@ -73,6 +73,9 @@ describe("loadSettings", () => {
     expect(loadSettings().topics).toEqual([]);
     fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "piano"] }));
     expect(loadSettings().topics).toEqual(["video-game", "piano"]);
+    // Saved by beta.3 or later (it has songSource): the streamer chose these, so they stay.
+    fs.writeFileSync(file, JSON.stringify({ songSource: "streamersonglist", topics: ["video-game", "classical", "film", "pop", "general"] }));
+    expect(loadSettings().topics).toEqual(["video-game", "classical", "film", "pop", "general"]);
   });
 
   it("replaces values of the wrong type with the default", () => {

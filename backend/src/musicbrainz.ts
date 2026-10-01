@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { looksLikeArtistName, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
+import { artistNames, looksLikeArtistName, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
 import { SSLSong } from "./types";
 
 /**
@@ -78,10 +78,10 @@ function names(list: string[]): string {
 /** Facts for a performer's song from the matching recordings. */
 export function performerFacts(recordings: Recording[], title: string, artist: string): string[] {
   const want = normalizeTitle(title);
-  const who = normalizeTitle(artist.split(/\s*(?:,|&|\band\b|\bx\b|\bfeat\.?|\bft\.?)\s*/i)[0] || artist);
+  const names = artistNames(artist);
   const matches = recordings
     .filter((r) => (r.score ?? 0) >= 90 && normalizeTitle(r.title ?? "") === want)
-    .filter((r) => (r["artist-credit"] ?? []).some((c) => normalizeTitle(c.name ?? c.artist?.name ?? "") === who))
+    .filter((r) => (r["artist-credit"] ?? []).some((c) => names.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
     .sort((a, b) => date(a).localeCompare(date(b)));
   const first = matches[0];
   if (!first) return [];

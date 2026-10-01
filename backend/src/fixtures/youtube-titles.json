@@ -368,6 +368,22 @@
       "song": "Bohemian Rhapsody",
       "kind": "official",
       "source": "format: en dash"
+    },
+    {
+      "title": "All Too Well (From The Vault)",
+      "channel": "Taylor Swift",
+      "artist": "Taylor Swift",
+      "song": "All Too Well (From The Vault)",
+      "kind": "label",
+      "source": "peer review: a From bracket without quotes isn't a work"
+    },
+    {
+      "title": "Lil Nas X - Old Town Road (Official Movie)",
+      "channel": "LilNasXVEVO",
+      "artist": "Lil Nas X",
+      "song": "Old Town Road",
+      "kind": "official",
+      "source": "peer review"
     }
   ]
 }

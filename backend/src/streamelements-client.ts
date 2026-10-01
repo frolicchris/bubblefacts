@@ -3,7 +3,7 @@ import { AstroStream } from "./astro-client";
 import { SongSource } from "./song-source";
 import { SongListClient } from "./songlist-client";
 import { SSLQueueItem, SSLSong } from "./types";
-import { parseVideoTitle } from "./youtube-title";
+import { isTopicChannel, parseVideoTitle } from "./youtube-title";
 import { songFromYouTube, YouTubeSong } from "./youtube-metadata";
 
 /**
@@ -66,8 +66,8 @@ export class StreamElementsClient implements SongSource {
    * was restarted, so a live event wins over it.
    */
   private eventState: "playing" | "paused" | null = null;
-  /** When the last play or next-song event arrived. */
-  private playingSince = 0;
+  /** Since when /playing has named a song that isn't being followed (0 = it hasn't). */
+  private unfollowedSince = 0;
   private lastRestState: string | undefined = "";
   /** Set from Retry-After when StreamElements says to slow down (429) or is down (503). */
   private backoffUntil = 0;
@@ -88,12 +88,23 @@ export class StreamElementsClient implements SongSource {
     return this.rejected;
   }
 
+  /** StreamElements asked us to wait (Retry-After): not hearing from it is expected, not stale. */
+  backingOff(): boolean {
+    return Date.now() < this.backoffUntil;
+  }
+
+  /** The live events' word, only while they're connected: a stale event must not outlive its socket. */
+  private liveState(): "playing" | "paused" | null {
+    return this.isEventStreamConnected() ? this.eventState : null;
+  }
+
   /**
    * StreamElements said a song started, but for half a minute no song has
    * been followed (issue #16: the dashboard stayed green while nothing was).
    */
   followingProblem(): string | null {
-    const stuck = this.eventState === "playing" && this.currentSong === null && Date.now() - this.playingSince > FOLLOW_GRACE_MS;
+    // Only while StreamElements still names a song: an empty queue at the end isn't a problem.
+    const stuck = this.liveState() === "playing" && this.unfollowedSince > 0 && Date.now() - this.unfollowedSince > FOLLOW_GRACE_MS;
     return stuck ? "StreamElements says a song is playing, but BubbleFacts can't see which one" : null;
   }
 
@@ -240,7 +251,7 @@ export class StreamElementsClient implements SongSource {
       this.lastRestState = restState;
     }
     // A live event is fresher than the REST state; see eventState.
-    const state = this.eventState ?? restState;
+    const state = this.liveState() ?? restState;
     const song = playing?.title ? playing : null;
     const key = song && StreamElementsClient.key(song);
     let next: SESong | null;
@@ -254,12 +265,20 @@ export class StreamElementsClient implements SongSource {
     } else {
       // Paused keeps the song that was on, even if /playing briefly answers nothing;
       // any other state means /playing is only the next song up.
-      if (state === "paused" && (key === null || key === this.currentKey)) return;
+      if (state === "paused" && (key === null || key === this.currentKey)) {
+        this.unfollowedSince = 0;
+        return;
+      }
       next = key !== null && key === this.currentKey ? song : null;
     }
     const nextKey = next && StreamElementsClient.key(next);
+    // StreamElements names a song that isn't followed: see followingProblem().
+    if (song && !next) this.unfollowedSince ||= Date.now();
+    else this.unfollowedSince = 0;
     if (nextKey === this.currentKey) return;
-    const entry = next && StreamElementsClient.toEntry(next, await songFromYouTube(next.videoId));
+    // Only auto-generated uploads carry exact metadata; asking for any other video costs quota and time.
+    const exact = next && isTopicChannel(next.channel) ? await songFromYouTube(next.videoId) : null;
+    const entry = next && StreamElementsClient.toEntry(next, exact);
     console.log(
       `[SE] Song changed: "${this.currentSong ? this.displayTitle(this.currentSong) : "none"}" -> ` +
         `"${entry ? this.displayTitle(entry) : "none"}"` +
@@ -295,7 +314,6 @@ export class StreamElementsClient implements SongSource {
       const name = event.replace(/^songrequest\./, "");
       if (/^(play|song\.next|song\.previous|song\.skip)$/.test(name)) {
         this.eventState = "playing";
-        this.playingSince = Date.now();
       }
       else if (name === "pause") this.eventState = "paused";
       if (!/^(volume|queue\.|history\.|song\.position|song\.voteskip|settings\.)/.test(name)) console.log(`[SE] Event: ${name}`);
