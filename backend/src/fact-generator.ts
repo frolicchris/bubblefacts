@@ -185,7 +185,7 @@ OBJECTIVE
 Write ${want} captions about ${game} or its music that chat would find surprising, funny or fascinating. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
 
 SOURCE
-Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Keep each fact with the person the text gives it to. If the text does not say something, leave it out.
+Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. If the text does not say something, leave it out.
 """
 ${context}
 """

@@ -504,7 +504,9 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
         (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game)
       );
       const full = own ? await wikiExtract(own) : null;
-      const extract = full && mentionsName(normalizeTitle(full), artistNames(game)) ? orderExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
+      // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
+      const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
+      const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? orderExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
       if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
         const text = `${own}\n${extract}`;
         console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);

@@ -779,6 +779,10 @@ describe("fetchGrounding", () => {
     mentions = { Megalovania: "a song from Undertale" };
     expect(await fetchGrounding({ title: "Megalovania", artist: "Undertale" })).toMatch(/^Megalovania\n/);
     expect(await fetchGrounding({ title: "Hopes and Dreams", artist: "Undertale" })).toMatch(/^Undertale\n/);
+    // An article with the track's name that isn't about music: Skyrim's "Dragonborn" expansion.
+    pages = { "Dragonborn Skyrim": ["Dragonborn"], "Skyrim video game": ["Skyrim"] };
+    mentions = { Dragonborn: "an add-on for Skyrim" };
+    expect(await fetchGrounding({ title: "Dragonborn", artist: "Skyrim" })).toMatch(/^Skyrim\n/);
   });
 
   it("does not let one song's miss block the artist's other songs", async () => {
