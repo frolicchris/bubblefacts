@@ -71,7 +71,6 @@ Good to know:
 | Setting | Default | What it does |
 |---|---|---|
 | `STREAMER_DISPLAY_NAME` | your channel name | Your name in play-count facts ("Jane has played this 3 times") and for spotting your own compositions. Never sent to the AI. |
-| `SONG_NOTES` | `off` | `on` shows the comment on a StreamerSongList song as its first fact, as written (one per line, or split with ` | `). A requester's note is never used. |
 | `INSTRUMENT` | *none* | No longer used. Nothing about you is sent to the AI: only the song and its article. |
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app starts with none. Keep `general`, or your own pack with originals lines, if you play your own compositions. Five or more facts keep them from repeating often. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |

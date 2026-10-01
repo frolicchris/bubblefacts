@@ -26,8 +26,6 @@ export interface Settings {
   /** "I play my own compositions" and "I do live learns", from setup. */
   originals: boolean;
   liveLearns: boolean;
-  /** Show the comment on each StreamerSongList song as its first fact. */
-  songNotes: boolean;
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
   myOriginals: string[];
@@ -64,7 +62,6 @@ export const DEFAULTS: Settings = {
   topics: [],
   originals: false,
   liveLearns: true,
-  songNotes: false,
   myFacts: [],
   myOriginals: [],
   ai: "builtin",
@@ -168,7 +165,7 @@ export function sanitize(s: Settings): Settings {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns", "songNotes",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
 ];
@@ -220,7 +217,6 @@ export function toServerEnv(
     BUBBLEFACTS_TOPICS_DIR: paths.topicsDir,
     ORIGINALS: s.originals ? "on" : "off",
     LIVE_LEARNS: s.liveLearns ? "on" : "off",
-    SONG_NOTES: s.songNotes ? "on" : "off",
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),

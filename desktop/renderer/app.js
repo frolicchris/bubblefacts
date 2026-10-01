@@ -520,7 +520,10 @@
     }
     if (state.update) add("info", `BubbleFacts ${state.update.version} is available.`, "Get it", () => api.openExternal(state.update.url));
     if (state.builtinFailed && state.settings.ai === "builtin") {
-      add("warn", "The built-in AI can't run on this computer. Facts are coming from your song list for now. Switching to Groq is free and takes a minute.", "Switch to Groq", () => show("settings"));
+      add("warn", "The built-in AI can't run on this computer. Facts are coming from your song list for now. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
+        show("settings");
+        $("#s-advanced").open = true;
+      });
     }
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
   }
@@ -550,6 +553,8 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
+    // Someone already using an online AI or the example packs finds them open.
+    $("#s-advanced").open = s.ai !== "builtin" || s.topics.length > 0;
     renderSongFactsList();
     setResult($("#settings-result"), "");
   }
@@ -635,18 +640,6 @@
     }
   }
 
-  $("#s-import").addEventListener("click", () => $("#s-import-file").click());
-  $("#s-import-file").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    const box = $("#s-myfacts");
-    const have = new Set(lines(box));
-    const added = (await file.text()).split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !have.has(l));
-    box.value = [...have, ...new Set(added)].join("\n");
-    setResult($("#settings-result"), `Added ${new Set(added).size} facts from ${file.name}. Click Save to keep them.`, "ok");
-  });
-
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
 
   function showSettingsSource() {
@@ -654,7 +647,6 @@
     $("#s-se-box").hidden = !se;
     $("#s-ssl-box").hidden = se;
     $("#s-livelearns-row").hidden = se;
-    $("#s-songnotes-row").hidden = se; // StreamElements requests have no song notes.
     // The saved connection's line only describes the source it belongs to.
     $("#s-signed-in").hidden = se !== onSE();
   }
