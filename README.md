@@ -20,6 +20,8 @@ an AI coding agent: see [AI disclosure](#ai-disclosure).
 **[Download BubbleFacts](https://bubblefacts.frolic.org/download.html)** from
 the website. It's free, for Mac, Windows and Linux.
 
+Already have it? See [Updating to a newer version](https://bubblefacts.frolic.org/download.html#update): your settings are kept.
+
 This is a beta. The app isn't signed yet, so the first time you open it, your
 computer may ask you to confirm. The
 [download page](https://bubblefacts.frolic.org/download.html#first-launch)
