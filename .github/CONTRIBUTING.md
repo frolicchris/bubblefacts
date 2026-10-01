@@ -132,7 +132,9 @@ The tests can't see what OBS or an installer does.
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing banner and facts appear.
 8. Quit from the menu bar or tray. Nothing is left running.
-9. Publish as a pre-release while in beta. The release notes say what changed
+9. While in beta, add the new version to the top of the version list in
+   `.github/ISSUE_TEMPLATE/beta_test.yml` (a test fails until you do).
+   Publish as a pre-release. The release notes say what changed
    and link the Beta test report form. Releases are immutable once published:
    a mistake in a file is fixed with a new version, never by replacing it.
 10. Upload the changed `site/` files to the website and check each one against

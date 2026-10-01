@@ -1,4 +1,6 @@
-import { problemReportUrl, redact, wrongFactUrl } from "./reports";
+import fs from "fs";
+import path from "path";
+import { betaReportUrl, problemReportUrl, redact, wrongFactUrl } from "./reports";
 
 const decode = (url: string) => Object.fromEntries(new URL(url).searchParams);
 
@@ -38,5 +40,28 @@ describe("problem reports", () => {
     expect(fields).toMatchObject({ template: "wrong_fact.yml", song: "Clair de Lune — Debussy", shown: "A fact." });
     expect(fields.log).toContain("Clair de lune (Debussy)");
     expect(fields.log).not.toContain("Other Song");
+  });
+});
+
+describe("beta test reports", () => {
+  const root = path.join(__dirname, "../..");
+  const { version } = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version: string };
+  const form = fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE/beta_test.yml"), "utf8");
+  /** A dropdown's options: the "- " lines under its "options:", up to the next field. */
+  const options = (id: string) => {
+    const field = form.split(/\n  - type: /).find((f) => f.includes(`id: ${id}\n`)) ?? "";
+    const list = field.split(/\n\s+options:\n/)[1] ?? "";
+    return list.split("\n").map((l) => /^\s+- (.+)$/.exec(l)?.[1]).filter(Boolean);
+  };
+
+  it("fills only answers the form offers, so GitHub selects them", () => {
+    const fields = decode(betaReportUrl({ version, systemVersion: "15.3.0", songSource: "streamelements", logLines: ["x"], secrets: [] }));
+    expect(fields.template).toBe("beta_test.yml");
+    for (const id of ["os", "download", "source"]) expect(options(id)).toContain(fields[id]);
+    expect(fields.source).toBe("StreamElements");
+  });
+
+  it("lists this version, newest first, while it's a beta", () => {
+    if (version.includes("-beta")) expect(options("version")[0]).toBe(version);
   });
 });

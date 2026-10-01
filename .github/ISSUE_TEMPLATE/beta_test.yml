@@ -1,69 +1,108 @@
 name: Beta test report
-description: Tried a beta of the app? Tell us how each step went on your computer.
+description: Tried a beta? Tell us how it went. Takes about two minutes.
 title: "Beta test: "
 labels: [beta test, desktop app]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for testing. Go through setup and one or two songs on a real stream or a test scene, then fill this in. A report that says "everything worked" is just as useful as one that finds a problem.
+        Thanks for testing! Set it up, play a song or two, then fill this in. "Everything worked" is a great report too.
 
-        **Never paste a StreamerSongList or StreamElements token, or an API key, here.**
-  - type: input
+        **In the app?** Open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first five answers for you.
+
+        Never paste a token or API key here.
+  - type: dropdown
     id: version
     attributes:
       label: BubbleFacts version
-      description: At the bottom of the app's window, for example 2.0.0-beta.3.
+      description: Shown at the bottom of the app.
+      # Newest first. Add each new beta at the top when it's published.
+      options:
+        - 2.0.0-beta.3
+        - 2.0.0-beta.2
+        - 2.0.0-beta.1
+        - Another version or not sure
+      default: 0
     validations:
       required: true
   - type: dropdown
     id: os
     attributes:
       label: Computer
-      options: [macOS, Windows, Linux]
+      options:
+        - Mac with Apple silicon (M1 or newer)
+        - Mac with Intel
+        - Windows
+        - Linux
     validations:
       required: true
+  - type: dropdown
+    id: download
+    attributes:
+      label: What you installed
+      options:
+        - Mac installer (.dmg)
+        - Windows installer (.exe)
+        - Linux AppImage
+        - Linux .deb package
+        - Not sure
+  - type: dropdown
+    id: source
+    attributes:
+      label: Your song requests
+      options:
+        - StreamerSongList
+        - StreamElements
   - type: input
     id: osversion
     attributes:
-      label: System version and chip
-      description: For example "macOS 15.3, Apple silicon", "Windows 11, Intel", or "Ubuntu 24.04, AMD".
-    validations:
-      required: true
-  - type: input
-    id: download
-    attributes:
-      label: Which file you installed
-      description: For example BubbleFacts-2.0.0-beta.3-mac-arm64.dmg, the .exe, the .AppImage or the .deb.
-  - type: input
+      label: System version (optional)
+      placeholder: macOS 15.3, Windows 11, Ubuntu 24.04…
+  - type: dropdown
     id: obs
     attributes:
       label: OBS version
       description: In OBS, Help > About.
+      options:
+        - 32.2 (newest)
+        - 32.0 or 32.1
+        - 31 or older
+        - Not sure
   - type: checkboxes
     id: worked
     attributes:
       label: What worked
-      description: Check each step that worked. Leave a box empty if it didn't, or if you didn't try it, and tell us which below.
+      description: Check what worked. Leave a box empty if it didn't, or you didn't try it.
       options:
-        - label: Installing, including any security warning on first launch
-        - label: Connecting your songs (StreamerSongList sign-in, a token, or StreamElements)
-        - label: Putting BubbleFacts on your stream (dragging it into OBS), with the test bubble
-        - label: The optional "Your music" step
+        - label: Installing and opening it the first time
+        - label: Connecting your song requests
+        - label: Dragging it into OBS, and seeing the test bubble
         - label: Fact bubbles appearing when a song played
-        - label: The dashboard showing the song, its facts and where each came from
-        - label: Getting ready in the background (the Facts light reaching Ready)
-        - label: The Wrong button, Undo, or Add facts for this song (if you tried them)
-        - label: Closing the window, with the app still running from the menu bar or system tray
-        - label: Quitting from the menu bar or system tray, and opening it again
+        - label: The dashboard (what's playing, its facts and their sources)
+        - label: Wrong, Undo, or Add facts for this song
+        - label: Closing the window and quitting from the menu bar or tray
+  - type: dropdown
+    id: feel
+    attributes:
+      label: Would you keep it on your stream?
+      options:
+        - Yes, I love it
+        - Yes, with a few fixes
+        - Not yet
+        - Not sure yet
+  - type: textarea
+    id: liked
+    attributes:
+      label: Best moment (optional)
+      placeholder: A fact your chat loved, something that was easier than you expected…
   - type: textarea
     id: notes
     attributes:
       label: What didn't work, or was confusing
-      description: Which step, what you expected, and what happened. Screenshots help.
+      placeholder: Which step, what you expected, and what happened. Screenshots help.
   - type: textarea
     id: log
     attributes:
       label: Log (optional)
-      description: On the app's dashboard, open "Help and troubleshooting" and click "Show logs". Paste the end of today's file. Check it for anything private first.
+      description: The app adds this for you. Otherwise, Help and troubleshooting > Show logs, and paste the end of today's file.
       render: text

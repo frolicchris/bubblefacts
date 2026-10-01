@@ -439,6 +439,7 @@
   $("#show-logs").addEventListener("click", () => api.showLogs());
   $("#remove-data").addEventListener("click", () => api.removeData());
   $("#report-problem").addEventListener("click", () => api.reportProblem());
+  $("#report-beta").addEventListener("click", () => api.reportBeta());
 
   // --- Notices ---------------------------------------------------------------
 
@@ -597,6 +598,7 @@
   (async () => {
     state = await api.getState();
     $("#about-version").textContent = state.version;
+    $("#report-beta").hidden = !/-beta/.test(state.version);
     renderNotices();
     renderPaths();
     if (state.settings.setupComplete) {
