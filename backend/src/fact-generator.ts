@@ -3,7 +3,8 @@ import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
-import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
+import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
+import { parseVideoTitle } from "./youtube-title";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
@@ -493,7 +494,22 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   return { facts, ttlMs: rest.ttlMs };
 }
 
-async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number): Promise<{ facts: Fact[]; ttlMs: number }> {
+/**
+ * What to look up for a live learn: the request as typed, or, when no artist
+ * was given, the artist and title read from it the way a YouTube title is
+ * read ("Rick Astley - Never Gonna Give You Up (Official Video)"). Null when
+ * no artist can be told: a bare title is too easy to mismatch.
+ */
+export function liveLearnLookup(song: SSLSong): SSLSong | null {
+  const artist = (song.artist ?? "").trim();
+  if (artist && !/^unknown$/i.test(artist)) return { title: song.title, artist };
+  const parsed = parseVideoTitle(song.title);
+  if (!parsed.artist || !parsed.title) return null;
+  return { title: parsed.title, artist: parsed.artist, ...(parsed.performer ? { performer: true } : {}), ...(parsed.confident ? {} : { artistUncertain: true }) };
+}
+
+/** `sourcedOnly`: facts from a source or none; never song-list or custom facts (a live learn's look-up). */
+async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false): Promise<{ facts: Fact[]; ttlMs: number }> {
   const keep = { facts: [] as Fact[], ttlMs: Infinity };
 
   // Facts the streamer wrote for this very song come first, exactly as written,
@@ -508,19 +524,30 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
   }
 
   if (song.liveLearn) {
-    console.log(`[FactGen] "${song.title}" is a live learn, skipping facts`);
+    // The LIVE LEARN banner still shows. A well-known song gets its facts too (issue #45);
+    // one no source knows gets none, never filler.
+    const lookup = config.factVerification && config.aiProvider !== "none" ? liveLearnLookup(song) : null;
+    const found = lookup ? await generateRest(lookup, null, want, true) : keep;
+    if (found.facts.length) {
+      console.log(`[FactGen] "${song.title}" is a live learn: ${found.facts.length} facts, looked up as "${lookup?.title}" by ${lookup?.artist}`);
+      return found;
+    }
+    console.log(`[FactGen] "${song.title}" is a live learn with nothing to look up or find, so no facts`);
     record(song, "liveLearn", 0);
-    return keep;
+    return { facts: [], ttlMs: found.ttlMs };
   }
+  const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
   try {
     const names = [config.sslStreamerName, config.streamerDisplayName];
     if (config.originals && isOriginal(entry, names)) {
       const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true, names });
-      // The streamer's notes about their own compositions only go with songs explicitly credited to them.
-      const own = creditedToStreamer(entry, names);
+      // The streamer's notes about their own compositions go first, but only with their own pieces.
+      // Two per play, picked at random, so the same notes don't fill every original.
+      const notes = isOwnOriginal(entry, names) ? [...topic.originalsFacts].sort(() => Math.random() - 0.5) : [];
       const statSet = new Set(stats);
-      const facts = toFacts(song, [...stats, ...(own ? topic.originalsFacts : [])].slice(0, want), (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom));
+      const lines = [...notes.slice(0, 2), ...stats, ...notes.slice(2)];
+      const facts = toFacts(song, lines, (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom)).slice(0, want);
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
       record(song, "original", facts.length);
       // Not cached: requester and play count change, and this path is free.
@@ -539,6 +566,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
         record(song, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
         return { facts: toFacts(song, shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
       }
+      if (sourcedOnly) return none;
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(song, "noReference", lines.length);
@@ -569,6 +597,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       const article = `Wikipedia: ${context.split("\n")[0]}`;
       return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context), ttlMs: Infinity };
     }
+    if (sourcedOnly) return none;
     const fallback = entryFacts(entry, want);
     console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
     record(song, "nothingSurvived", fallback.length);
@@ -579,6 +608,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       console.log(`[FactGen] Dropped "${song.title}": the song changed before its facts were written`);
       return { facts: [], ttlMs: 0 };
     }
+    if (sourcedOnly) return none;
     const fallback = entryFacts(entry, want);
     console.error(`[FactGen] Generation failed for "${song.title}":`, err);
     record(song, "generationFailed", fallback.length);
