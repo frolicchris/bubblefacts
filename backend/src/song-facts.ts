@@ -92,7 +92,8 @@ export function saveSongFacts(entry: SongFacts): void {
   const list = load().filter((e) => !matches(e, { title: entry.title, artist: entry.artist, songId: entry.songId, videoId: entry.videoId }));
   const clean: SongFacts = {
     ...entry,
-    facts: entry.facts.map((f) => f.trim()).filter(Boolean).slice(0, 20),
+    // A line break inside a fact is a space: one fact, one bubble.
+    facts: entry.facts.map((f) => f.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 20),
     songwriters: (entry.songwriters ?? []).map((w) => w.trim()).filter(Boolean),
   };
   if (clean.facts.length || clean.songwriters?.length) list.push(clean);

@@ -353,6 +353,21 @@
       const li = $("#fact-item").content.firstElementChild.cloneNode(true);
       $(".fact-text", li).textContent = f.text;
       $(".fact-source", li).textContent = f.source ? `(${f.source})` : "";
+      // Your own facts can be changed where they show: one song's in the editor, the rest in Settings.
+      const edit = $(".edit-fact", li);
+      if (f.source === "Your facts for this song" || f.source === "Your custom facts") {
+        edit.hidden = false;
+        edit.setAttribute("aria-label", `Edit: ${f.text}`);
+        edit.addEventListener("click", async () => {
+          if (f.source === "Your custom facts") {
+            show("settings");
+            $("#s-myfacts").focus();
+            return;
+          }
+          const got = (await api.getSongFacts()) || {};
+          openSongFacts(got.song, got.entry);
+        });
+      }
       const wrong = $(".wrong", li);
       wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
       wrong.addEventListener("click", async () => {
@@ -378,7 +393,8 @@
     $("#now-empty").hidden = (r.facts || []).length > 0;
     $("#now-empty").textContent = emptyText(r);
     $("#song-facts-open").hidden = !$("#song-facts-form").hidden;
-    $("#song-facts-open").textContent = r.song ? "Add facts for this song" : "Add facts for a song";
+    const hasOwn = (r.facts || []).some((f) => f.source === "Your facts for this song");
+    $("#song-facts-open").textContent = !r.song ? "Add facts for a song" : hasOwn ? "Edit your facts for this song" : "Add facts for this song";
   }
 
   function showWrongNote(text, undoable) {
@@ -402,12 +418,31 @@
     if (song) $("#song-facts-title").textContent = `"${song.title}"`;
     $("#sf-writers").value = (e.songwriters || []).join(", ");
     $("#sf-link").value = e.link || "";
-    $("#sf-facts").value = (e.facts || []).join("\n");
+    setFactBoxes(e.facts || []);
     $("#song-facts-result").textContent = "";
     $("#song-facts-form").hidden = false;
     $("#song-facts-open").hidden = true;
-    $("#sf-facts").focus();
+    $("#sf-facts textarea:last-child").focus();
+    $("#song-facts-form").scrollIntoView({ block: "nearest" });
   }
+  /** One box per fact, so a long fact can wrap or take a line break and stay one fact. */
+  function addFactBox(text = "") {
+    const box = document.createElement("textarea");
+    box.rows = 2;
+    box.spellcheck = true;
+    box.value = text;
+    box.placeholder = "Jane wrote this on stream in one night in 2024.";
+    box.setAttribute("aria-label", `Fact ${$$("#sf-facts textarea").length + 1}`);
+    $("#sf-facts").appendChild(box);
+    return box;
+  }
+  function setFactBoxes(facts) {
+    $("#sf-facts").replaceChildren();
+    for (const f of facts) addFactBox(f);
+    addFactBox();
+  }
+  const factBoxes = () => $$("#sf-facts textarea").map((b) => b.value.replace(/\s+/g, " ").trim()).filter(Boolean);
+  $("#sf-add").addEventListener("click", () => addFactBox().focus());
   /** Switch the editor between the song that's on and one the streamer names. */
   function otherSong(on) {
     $("#sf-identity").hidden = !on;
@@ -416,7 +451,8 @@
     if (on) {
       songFactsTarget = null;
       $("#song-facts-title").textContent = "a song";
-      for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link", "#sf-facts"]) $(id).value = "";
+      for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link"]) $(id).value = "";
+      setFactBoxes([]);
     }
   }
   $("#sf-other").addEventListener("click", () => {
@@ -442,7 +478,7 @@
       song: songFactsTarget,
       songwriters: split($("#sf-writers").value, /,/),
       link: $("#sf-link").value.trim(),
-      facts: split($("#sf-facts").value, /\n/),
+      facts: factBoxes(),
     });
     if (result && result.saved) {
       $("#song-facts-form").hidden = true;

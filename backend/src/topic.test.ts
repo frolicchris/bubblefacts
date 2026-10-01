@@ -33,6 +33,7 @@ describe("loadTopics", () => {
   it("allows no custom facts at all", () => {
     // Issue #18: without example packs or the streamer's own facts, a song with no source shows nothing.
     expect(loadTopics("")).toEqual({ curatedFacts: [], originalsFacts: [], taggedFacts: [] });
+    expect(loadTopics("none")).toEqual({ curatedFacts: [], originalsFacts: [], taggedFacts: [] });
   });
 
   it("names the available packs when one is unknown", () => {

@@ -160,7 +160,7 @@ describe("generateFacts", () => {
     expect(taggedFactsFor({ title: "Unrelated", artist: "Nobody" })).toEqual([]);
 
     const facts = await generateFacts({ title: "Storm Song", artist: "Someone" });
-    expect(facts[0]).toMatchObject({ text: "It plays in a windmill.", source: SOURCE.yours, delaySeconds: 0 });
+    expect(facts[0]).toMatchObject({ text: "It plays in a windmill.", source: SOURCE.custom, delaySeconds: 0 });
     expect(facts).toHaveLength(5);
     expect(facts[1].delaySeconds).toBe(15);
     (topic as { taggedFacts: typeof tagged }).taggedFacts = [];

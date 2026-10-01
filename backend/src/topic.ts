@@ -48,7 +48,7 @@ export interface Topics {
 }
 
 export function loadTopics(list: string): Topics {
-  const packs = list.split(",").map((s) => s.trim()).filter(Boolean).map(readPack);
+  const packs = list.split(",").map((s) => s.trim()).filter((s) => s && s !== "none").map(readPack);
   const all = [...new Set(packs.flatMap((p) => p.curatedFacts ?? []))];
   const taggedFacts = all.flatMap((line) => {
     const m = TAGGED.exec(line);

@@ -186,8 +186,9 @@
           <input id="sf-writers" type="text" placeholder="Jane Composer">
           <label for="sf-link">Their link <span class="hint">optional, shown with the writing credit</span></label>
           <input id="sf-link" type="text" placeholder="twitch.tv/janecomposer">
-          <label for="sf-facts">Facts <span class="hint">one per line</span></label>
-          <textarea id="sf-facts" rows="4" spellcheck="true" placeholder="Jane wrote this on stream in one night in 2024."></textarea>
+          <p class="label" id="sf-facts-label">Facts <span class="hint">one per box; about 160 characters fit in a bubble</span></p>
+          <div id="sf-facts" role="group" aria-labelledby="sf-facts-label"></div>
+          <button class="link" type="button" id="sf-add">Add another fact</button>
           <div class="toolbar">
             <button class="primary" type="submit" id="sf-save">Save and show</button>
             <button class="ghost" type="button" id="song-facts-cancel">Cancel</button>
@@ -350,7 +351,7 @@
   </footer>
 
   <template id="fact-item">
-    <li class="fact"><span><span class="fact-text"></span> <span class="fact-source"></span></span><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
+    <li class="fact"><span><span class="fact-text"></span> <span class="fact-source"></span></span><button class="edit-fact" hidden>Edit</button><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
   <script src="app.js"></script>
