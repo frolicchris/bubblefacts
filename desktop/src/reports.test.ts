@@ -46,7 +46,7 @@ describe("problem reports", () => {
 describe("beta test reports", () => {
   const root = path.join(__dirname, "../..");
   const { version } = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version: string };
-  const form = fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE/beta_test.yml"), "utf8");
+  const form = fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE/beta_test.yml"), "utf8").replace(/\r\n/g, "\n"); // Windows checkouts use CRLF
   /** A dropdown's options: the "- " lines under its "options:", up to the next field. */
   const options = (id: string) => {
     const field = form.split(/\n  - type: /).find((f) => f.includes(`id: ${id}\n`)) ?? "";
