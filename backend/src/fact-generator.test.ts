@@ -166,6 +166,15 @@ describe("generateFacts", () => {
     (topic as { taggedFacts: typeof tagged }).taggedFacts = [];
   });
 
+  it("gives each article fact a link and the sentence it rests on, for the dashboard", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);
+    const facts = await generateFacts({ title: "Sourced Song", artist: "Someone" });
+    expect(facts[0].source).toBe("Wikipedia: Sourced Song (song)");
+    expect(facts[0].url).toBe("https://en.wikipedia.org/wiki/Sourced_Song_(song)");
+    expect(facts[0].evidence).toBe(facts[0].text);
+  });
+
   it("caches a song's facts", async () => {
     const first = await generateFacts(song);
     expect(await generateFacts(song)).toBe(first);

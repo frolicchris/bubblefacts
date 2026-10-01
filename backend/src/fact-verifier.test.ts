@@ -18,6 +18,11 @@ import {
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
   tooSimilar,
+  alteredQuote,
+  creatorSentences,
+  explainMusicTerms,
+  receptionSentences,
+  theorySentences,
   curatedFacts,
   orderExtract,
   fetchGrounding,
@@ -763,7 +768,27 @@ describe("fetchGrounding", () => {
     await fetchGrounding({ title: "First Steps", artist: "Celeste" });
     const calls = fetchMock.mock.calls.length;
     expect(await fetchGrounding({ title: "Resurrections", artist: "Celeste" })).toMatch(/^Celeste/);
-    expect(fetchMock.mock.calls.length).toBe(calls);
+    // One search for the track's own article, and nothing more: the game's is reused.
+    expect(fetchMock.mock.calls.length).toBe(calls + 1);
+    await fetchGrounding({ title: "Resurrections", artist: "Celeste" });
+    expect(fetchMock.mock.calls.length).toBe(calls + 1);
+  });
+
+  it("prefers the song's article to the album of the same name", async () => {
+    pages = { "Let It Be The Beatles": ["Let It Be (album)", "Let It Be (song)"] };
+    mentions = { "Let It Be (album)": "by the Beatles", "Let It Be (song)": "by the Beatles" };
+    expect(await fetchGrounding({ title: "Let It Be", artist: "The Beatles" })).toMatch(/^Let It Be \(song\)\n/);
+  });
+
+  it("prefers a game track's own article when it has one (issue #48)", async () => {
+    pages = { "Megalovania Undertale": ["Megalovania", "Undertale"], "Undertale video game": ["Undertale"] };
+    mentions = { Megalovania: "a song from Undertale" };
+    expect(await fetchGrounding({ title: "Megalovania", artist: "Undertale" })).toMatch(/^Megalovania\n/);
+    expect(await fetchGrounding({ title: "Hopes and Dreams", artist: "Undertale" })).toMatch(/^Undertale\n/);
+    // An article with the track's name that isn't about music: Skyrim's "Dragonborn" expansion.
+    pages = { "Dragonborn Skyrim": ["Dragonborn"], "Skyrim video game": ["Skyrim"] };
+    mentions = { Dragonborn: "an add-on for Skyrim" };
+    expect(await fetchGrounding({ title: "Dragonborn", artist: "Skyrim" })).toMatch(/^Skyrim\n/);
   });
 
   it("does not let one song's miss block the artist's other songs", async () => {
@@ -776,7 +801,8 @@ describe("fetchGrounding", () => {
     expect(await fetchGrounding({ title: "Track One", artist: "The Tiny Game 2" })).toBe("");
     const calls = fetchMock.mock.calls.length;
     expect(await fetchGrounding({ title: "Track Two", artist: "The Tiny Game 2" })).toBe("");
-    expect(fetchMock.mock.calls.length).toBe(calls);
+    // Only the search for Track Two's own article; the game isn't looked up again.
+    expect(fetchMock.mock.calls.length).toBe(calls + 1);
   });
 
   it("never grounds a game track on a generic article named like the track", async () => {
@@ -860,5 +886,69 @@ describe("restatesRequest", () => {
     expect(restatesRequest('"Water in the Moonlight" is an original composition by Chris.', song)).toBe(true);
     expect(restatesRequest("You're hearing this one straight from the person who wrote it.", song)).toBe(true);
     expect(restatesRequest("Chris has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
+  });
+});
+
+describe("what the makers said, how it's built, how it was received (issue #48)", () => {
+  const article = [
+    "Night Drive is a 1994 song by the band Example. It reached number three on the UK Singles Chart and was certified platinum.",
+    "== Background ==",
+    "According to singer Mia Chen, \"Night Drive\" was inspired by a bus ride through Osaka.",
+    "He said the riff took a day.",
+    "Chen recalled that the demo of the song was recorded in a kitchen: \"It was all we had.",
+    "== Composition ==",
+    "The song is written in the key of E minor with a tempo of 96 beats per minute.",
+    "Its piano part is built on arpeggios over a four-chord progression.",
+    "== Critical reception ==",
+    "Jane Doe of The Daily Times said the song was the best single of the year.",
+    "The song won the award for Best Single at the 1995 Example Awards.",
+  ].join("\n");
+
+  it("lifts creators' comments that stand on their own, and leaves critics out", () => {
+    expect(creatorSentences(article, ["Night Drive", "Example"])).toEqual([
+      'According to singer Mia Chen, "Night Drive" was inspired by a bus ride through Osaka.',
+    ]);
+  });
+
+  it("in an article about the whole game or artist, takes only what names the track or is plainly about music", () => {
+    const game = "Starfall is a 2019 game.\n== Development ==\nAccording to director John Smith, the title was inspired by a camping trip.\n== Music ==\nComposer Mia Chen said the soundtrack was inspired by lullabies.";
+    expect(creatorSentences(game, ["Opening"], false)).toEqual(["Composer Mia Chen said the soundtrack was inspired by lullabies."]);
+  });
+
+  it("lifts how the music is built and how it was received, without opinions", () => {
+    expect(theorySentences(article)).toEqual([
+      "The song is written in the key of E minor with a tempo of 96 beats per minute.",
+      "Its piano part is built on arpeggios over a four-chord progression.",
+    ]);
+    const received = receptionSentences(article);
+    expect(received[0]).toContain("number three");
+    expect(received.join(" ")).toContain("won the award");
+    expect(received.join(" ")).not.toContain("best single of the year");
+  });
+
+  it("puts those sentences at the top of what the model reads", () => {
+    const text = orderExtract(article, 3000, ["Night Drive", "Example"]);
+    expect(text.startsWith("From the people who made it: According to singer Mia Chen")).toBe(true);
+    expect(text).toContain("How the music is built: The song is written in the key of E minor");
+    expect(text).toContain("How it was received:");
+  });
+
+  it("drops a quotation the source doesn't contain word for word, or one that runs long", () => {
+    const ctx = 'May said the song "was all in Freddie\'s mind" before they started.';
+    expect(alteredQuote('May said it "was all in Freddie\'s mind".', ctx)).toBeNull();
+    expect(alteredQuote('May said it "was entirely in his head".', ctx)).toBe("was entirely in his head");
+    expect(alteredQuote('"Night Drive" came out in 1994.', ctx)).toBeNull();
+    expect(screenClaims(['May said the song "lived only in his imagination" before they started.'], ctx).kept).toEqual([]);
+  });
+
+  it("explains a music term in a few fixed plain words when it fits", () => {
+    expect(explainMusicTerms("Its piano part is built on arpeggios.")).toBe("Its piano part is built on arpeggios (a chord's notes played one at a time).");
+    expect(explainMusicTerms("It was recorded in a kitchen.")).toBe("It was recorded in a kitchen.");
+    const long = "The verse rides a syncopated bass line " + "that keeps on going ".repeat(6) + "to the end.";
+    expect(explainMusicTerms(long)).toBe(long);
+  });
+
+  it("keeps a quoted title whole at the start of a caption", () => {
+    expect(screenClaims(['"Clocks" was released in the UK by Parlophone in March.'], "clocks was released in the uk by parlophone in march.").kept[0]).toMatch(/^"Clocks" was/);
   });
 });

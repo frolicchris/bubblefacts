@@ -353,6 +353,29 @@
       const li = $("#fact-item").content.firstElementChild.cloneNode(true);
       $(".fact-text", li).textContent = f.text;
       $(".fact-source", li).textContent = f.source ? `(${f.source})` : "";
+      // A fact from an article shows its source: click to see the sentence it was written from, and open the article.
+      if (f.url) {
+        $(".fact-source", li).hidden = true;
+        const link = $(".fact-source-link", li);
+        const evidence = $(".fact-evidence", li);
+        link.hidden = false;
+        link.textContent = f.source;
+        link.title = "Show where this came from";
+        link.setAttribute("aria-expanded", "false");
+        link.addEventListener("click", () => {
+          if (!evidence.hidden) {
+            evidence.hidden = true;
+            link.setAttribute("aria-expanded", "false");
+            return;
+          }
+          evidence.replaceChildren(
+            f.evidence ? `The article says: “${f.evidence}” ` : "BubbleFacts couldn't point to one sentence for this. Check the article. ",
+            Object.assign(document.createElement("button"), { className: "link", textContent: "Open the article", onclick: () => api.openExternal(f.url) })
+          );
+          evidence.hidden = false;
+          link.setAttribute("aria-expanded", "true");
+        });
+      }
       // Your own facts can be changed where they show: one song's in the editor, the rest in Settings.
       const edit = $(".edit-fact", li);
       if (f.source === "Your facts for this song" || f.source === "Your custom facts") {
