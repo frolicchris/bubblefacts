@@ -123,6 +123,7 @@ export class StreamElementsClient implements SongSource {
       ...song,
       ...(item.song?.performer ? { performer: true } : {}),
       ...(item.song?.artistUncertain ? { artistUncertain: true } : {}),
+      ...(item.song?.videoId ? { videoId: item.song.videoId } : {}),
     };
   }
 
@@ -167,6 +168,7 @@ export class StreamElementsClient implements SongSource {
         artist: parsed.artist || "Unknown",
         ...(parsed.performer ? { performer: true } : {}),
         ...(!parsed.confident && parsed.artist ? { artistUncertain: true } : {}),
+        ...(song.videoId ? { videoId: song.videoId } : {}),
         durationSeconds: typeof song.duration === "number" ? song.duration : null,
       },
       nonlistSong: null,

@@ -194,6 +194,22 @@
         <ul id="now-facts" class="facts"></ul>
         <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
+        <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
+        <form id="song-facts-form" class="song-facts" hidden>
+          <h3>Your facts for <span id="song-facts-title"></span></h3>
+          <p class="fine">For songs no source knows, like another streamer's original. They show exactly as you write them, every time this song plays.</p>
+          <label for="sf-writers">Who wrote it? <span class="hint">optional; only if you're sure, separated by commas</span></label>
+          <input id="sf-writers" type="text" placeholder="Jane Composer">
+          <label for="sf-link">Their link <span class="hint">optional, shown with the writing credit</span></label>
+          <input id="sf-link" type="text" placeholder="twitch.tv/janecomposer">
+          <label for="sf-facts">Facts <span class="hint">one per line</span></label>
+          <textarea id="sf-facts" rows="4" spellcheck="true" placeholder="Jane wrote this on stream in one night in 2024."></textarea>
+          <div class="toolbar">
+            <button class="primary" type="submit">Save and show</button>
+            <button class="ghost" type="button" id="song-facts-cancel">Cancel</button>
+            <span id="song-facts-result" class="result" role="status"></span>
+          </div>
+        </form>
       </div>
 
       <div id="nudge" class="notice info" hidden>
@@ -350,7 +366,7 @@
   </footer>
 
   <template id="fact-item">
-    <li class="fact"><span class="fact-text"></span><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
+    <li class="fact"><span><span class="fact-text"></span> <span class="fact-source"></span></span><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
   <script src="app.js"></script>

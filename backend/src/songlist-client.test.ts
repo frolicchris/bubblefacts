@@ -92,6 +92,7 @@ describe("SongListClient", () => {
       title: "On The List",
       artist: "Test Artist",
       requestedBy: "viewer1",
+      songId: 8,
     });
   });
 

@@ -32,7 +32,8 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, generateFacts, markWrong, STRUCTURED } from "./fact-generator";
+import { clearFactCache, factStats, generateFacts, markWrong, SOURCE, STRUCTURED } from "./fact-generator";
+import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
 import { wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
@@ -104,6 +105,17 @@ describe("generateFacts", () => {
     expect(next).not.toContain('"Data Song" came out in 1999.');
     expect(next.length).toBeGreaterThan(0);
     (wikidataFacts as jest.Mock).mockResolvedValue([]);
+  });
+
+  it("shows the streamer's own facts for a song first, exactly as written, and labels every source", async () => {
+    saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
+    const facts = await generateFacts({ title: "Evening Rain", artist: "Jane Composer" });
+    expect(facts.map((f) => [f.text, f.source])).toEqual([
+      ['"Evening Rain" was written by Jane Composer.', SOURCE.yours],
+      ["Jane wrote it in one night.", SOURCE.yours],
+    ]);
+    expect(mockCreate).not.toHaveBeenCalled();
+    saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", facts: [] });
   });
 
   it("caches a song's facts", async () => {

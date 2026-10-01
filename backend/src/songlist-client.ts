@@ -124,6 +124,7 @@ export class SongListClient implements SongSource {
     if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
     const by = SongListClient.requesterName(item);
     if (by) song.requestedBy = by;
+    if (typeof item.songId === "number" && item.songId > 0) song.songId = item.songId;
     return song;
   }
 

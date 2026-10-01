@@ -7,7 +7,8 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { forgetSong, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { findSongFacts, saveSongFacts } from "./song-facts";
 import { FactsPayload, SSLQueueItem } from "./types";
 
 /**
@@ -200,6 +201,40 @@ control.post("/unwrong", (req, res) => {
   }
   unmarkWrong(song, article);
   res.json({ restored: true });
+});
+
+// "Add facts for this song": the streamer's own facts for the song on stream now.
+const strings = (v: unknown, max: number): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 300)).slice(0, max) : [];
+
+control.post("/song-facts/get", (_req, res) => {
+  const song = lastSent.song;
+  res.json(song ? { song: { title: song.title, artist: song.artist }, entry: findSongFacts(song) } : { song: null, entry: null });
+});
+
+control.post("/song-facts", async (req, res) => {
+  const song = lastSent.song;
+  if (!song) {
+    res.status(404).json({ saved: false });
+    return;
+  }
+  saveSongFacts({
+    title: song.title,
+    artist: song.artist,
+    ...(song.songId ? { songId: song.songId } : {}),
+    ...(song.videoId ? { videoId: song.videoId } : {}),
+    songwriters: strings(req.body?.songwriters, 5),
+    link: typeof req.body?.link === "string" ? req.body.link.slice(0, 200) : "",
+    facts: strings(req.body?.facts, 20),
+  });
+  forgetSong(song);
+  // Show them now, without a second NOW PLAYING banner.
+  const current = songList.getCurrentSong();
+  if (current) {
+    const facts = await generateFacts(songList.toSong(current), current);
+    broadcast({ type: "facts_ready", song, facts });
+  }
+  res.json({ saved: true });
 });
 
 app.use("/control", control);

@@ -94,7 +94,7 @@ describe("StreamElementsClient", () => {
     expect(mockFetch.mock.calls[1][0]).toBe(`https://api.streamelements.com/kappa/v2/songrequest/${CHANNEL._id}/player`);
     expect(mockFetch.mock.calls[2][0]).toBe(`https://api.streamelements.com/kappa/v2/songrequest/${CHANNEL._id}/playing`);
     expect(changes).toHaveBeenCalledTimes(1);
-    expect(client.toSong(client.getCurrentSong()!)).toEqual({ title: "1, 2 Step", artist: "Ciara", requestedBy: "viewer1", performer: true });
+    expect(client.toSong(client.getCurrentSong()!)).toEqual({ title: "1, 2 Step", artist: "Ciara", requestedBy: "viewer1", performer: true, videoId: "iBHNgV6_znU" });
   });
 
   it("uses a channel ID as is, and the token's own channel when none is given", async () => {
@@ -120,7 +120,7 @@ describe("StreamElementsClient", () => {
 
   it("maps a request into the entry the fact pipeline reads", () => {
     const entry = StreamElementsClient.toEntry(STORMS);
-    expect(entry.song).toEqual({ title: "Song of Storms", artist: "The Legend of Zelda: Ocarina of Time", durationSeconds: 90 });
+    expect(entry.song).toEqual({ title: "Song of Storms", artist: "The Legend of Zelda: Ocarina of Time", durationSeconds: 90, videoId: "abc" });
     expect(entry.requests).toEqual([{ id: 0, name: "viewer2" }]);
     expect(entry.nonlistSong).toBeNull();
     expect(StreamElementsClient.toEntry({ title: "Hello", channel: "" }).song.artist).toBe("Unknown");

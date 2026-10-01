@@ -14,6 +14,10 @@ export interface SSLSong {
   performer?: boolean;
   /** The artist is only a guess from the uploader's channel, which may be a cover channel. */
   artistUncertain?: boolean;
+  /** StreamerSongList's song ID, when the song is on the list. Matches the streamer's own facts for it. */
+  songId?: number;
+  /** The YouTube video ID of a StreamElements request. */
+  videoId?: string;
 }
 
 /** API `QueueSong`. Its id lives on the entry as `songId`. */
@@ -24,6 +28,8 @@ export interface SSLQueueSong {
   performer?: boolean;
   /** Set by StreamElements. See `SSLSong.artistUncertain`. */
   artistUncertain?: boolean;
+  /** Set by StreamElements: the request's YouTube video ID. */
+  videoId?: string;
   comment?: string | null;
   duration?: number | null;
   durationSeconds?: number | null;
@@ -71,6 +77,8 @@ export interface SSLStreamerInfo {
 /** One bubble. Shown `delaySeconds` after the batch arrives; `position` is CSS percentages. */
 export interface Fact {
   text: string;
+  /** Where it came from, for the dashboard: "Wikipedia: <article>", "Wikidata", "Your facts for this song"... */
+  source?: string;
   delaySeconds: number;
   durationSeconds: number;
   position: { top: string; left: string };

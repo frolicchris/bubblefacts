@@ -401,6 +401,8 @@ async function setPaused(next: boolean): Promise<void> {
 
 ipcMain.handle("test-bubble", () => control("test"));
 ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
+ipcMain.handle("get-song-facts", () => control("song-facts/get"));
+ipcMain.handle("save-song-facts", (_e, data: unknown) => control("song-facts", data));
 ipcMain.handle("unwrong-fact", (_e, article: string, song: unknown) => control("unwrong", { article: String(article), song }));
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
@@ -490,7 +492,7 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json"]) {
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();

@@ -342,6 +342,7 @@
     for (const f of r.facts || []) {
       const li = $("#fact-item").content.firstElementChild.cloneNode(true);
       $(".fact-text", li).textContent = f.text;
+      $(".fact-source", li).textContent = f.source ? `(${f.source})` : "";
       const wrong = $(".wrong", li);
       wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
       wrong.addEventListener("click", async () => {
@@ -365,6 +366,7 @@
       list.appendChild(li);
     }
     $("#now-empty").hidden = (r.facts || []).length > 0;
+    $("#song-facts-open").hidden = !r.song || !$("#song-facts-form").hidden;
   }
 
   function showWrongNote(text, undoable) {
@@ -374,6 +376,39 @@
     $("#wrong-note").hidden = false;
   }
 
+  $("#song-facts-open").addEventListener("click", async () => {
+    const r = await api.getSongFacts();
+    if (!r || !r.song) return;
+    const e = r.entry || {};
+    $("#song-facts-title").textContent = `"${r.song.title}"`;
+    $("#sf-writers").value = (e.songwriters || []).join(", ");
+    $("#sf-link").value = e.link || "";
+    $("#sf-facts").value = (e.facts || []).join("\n");
+    $("#song-facts-result").textContent = "";
+    $("#song-facts-form").hidden = false;
+    $("#song-facts-open").hidden = true;
+    $("#sf-facts").focus();
+  });
+  $("#song-facts-cancel").addEventListener("click", () => {
+    $("#song-facts-form").hidden = true;
+    lastRecent = "";
+  });
+  $("#song-facts-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const split = (s, re) => s.split(re).map((x) => x.trim()).filter(Boolean);
+    const result = await api.saveSongFacts({
+      songwriters: split($("#sf-writers").value, /,/),
+      link: $("#sf-link").value.trim(),
+      facts: split($("#sf-facts").value, /\n/),
+    });
+    if (result && result.saved) {
+      $("#song-facts-form").hidden = true;
+      lastRecent = "";
+      showWrongNote("Saved. Your facts show now and every time this song plays.", null);
+    } else {
+      $("#song-facts-result").textContent = "That song already ended, so nothing was saved.";
+    }
+  });
   $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
   $("#wrong-undo").addEventListener("click", async () => {
     if (!state.wrong || !state.wrong.article) return;

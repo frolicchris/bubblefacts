@@ -178,5 +178,5 @@ need them with a `.env` file.
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
-| `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` goes: the Wikipedia articles marked **Wrong** in the app, per song, so they're never used for that song again. Without it, the overlay uses a `data` folder in the overlay folder. |
+| `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` (sources marked **Wrong**, per song) and `song-facts.json` (the streamer's facts for particular songs) go. Without it, the overlay uses a `data` folder in the overlay folder. |
 | `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |
