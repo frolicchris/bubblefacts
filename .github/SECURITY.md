@@ -32,7 +32,7 @@ command-line overlay. In particular:
   ```
   gh attestation verify FILE --repo frolicchris/bubblefacts \
     --signer-workflow frolicchris/bubblefacts/.github/workflows/release.yml \
-    --source-ref refs/tags/v2.0.0-beta.3
+    --source-ref refs/tags/v2.0.0-beta.4
   ```
 
   Test builds are attested too, but from a branch, so `--source-ref` tells
