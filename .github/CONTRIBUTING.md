@@ -21,7 +21,7 @@ request's YouTube title. Every real title that was read wrong belongs in
 and song a person would read, the uploading channel, and where it came from
 (for example `"source": "stream 2026-09-30"`). The tests read every entry, so
 a fix can't quietly break an older title. Add the title even if you can't fix
-the rule yourself. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#song-sources-and-youtube-titles)
+the rule yourself. [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md#song-sources-and-youtube-titles)
 explains how titles are read.
 
 ## Topic packs are examples
@@ -30,7 +30,7 @@ The packs in `topics/` are examples that show the format and make the overlay
 work on first run. They aren't maintained, and pull requests that add to or
 change them won't be accepted. Streamers keep their own packs on their own
 machine: in the app under **Settings → Custom facts → Your own facts**, or
-as described in [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md#your-custom-facts)
+as described in [docs/MANUAL-SETUP.md](../docs/MANUAL-SETUP.md#your-custom-facts)
 for the command-line version.
 
 Improvements to how packs are *loaded or used* are welcome like any other code
@@ -38,7 +38,7 @@ change.
 
 ## Change the code
 
-1. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), especially the section
+1. Read [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md), especially the section
    for the part you're changing. It explains each integration (StreamerSongList,
    StreamElements, YouTube titles, Wikipedia, Wikidata, MusicBrainz, **Wrong**)
    and why it works the way it does. Most of the unusual choices exist because
@@ -51,7 +51,7 @@ change.
    and Windows; `main` only accepts a change through a pull request whose
    **ci-ok** check passed.
 5. Update the docs if you changed behavior or a setting. The README and
-   [docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md) are written for streamers,
+   [docs/MANUAL-SETUP.md](../docs/MANUAL-SETUP.md) are written for streamers,
    not programmers: plain words, no unexplained jargon.
 
 For anything bigger than a small fix, open an issue first so we can agree on
@@ -73,7 +73,7 @@ The server always runs compiled; there's no development transpiler on purpose.
 
 The app is Electron. It starts the same server as the command-line version and
 adds setup, settings, sign-in and the built-in AI. The design and the reasons
-behind it are in [docs/DESKTOP-APP.md](docs/DESKTOP-APP.md).
+behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
 
 1. `npm ci` to install exactly the versions in `package-lock.json`.
 2. `npm run check` type-checks, lints and tests everything, including the

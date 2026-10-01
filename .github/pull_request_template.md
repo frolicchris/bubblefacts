@@ -4,7 +4,7 @@
 
 ## How this was made
 
-<!-- Check one. Either is welcome; see AI_DISCLOSURE.md. -->
+<!-- Check one. Either is welcome; see docs/AI_DISCLOSURE.md. -->
 
 - [ ] Written by hand.
 - [ ] Written with AI tools (say which, and add an `Assisted-by:` trailer to the commits): 

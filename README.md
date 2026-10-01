@@ -67,7 +67,7 @@ sentences filled in from their data, with no AI involved.
 
 Contributions are welcome, with or without AI tools. If you use one, say so in
 your pull request and add an `Assisted-by:` trailer to your commits. Details
-are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
+are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 
 ## Help
 
@@ -81,11 +81,11 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
   In the app, click **Wrong** next to it, then **Report it (opens GitHub)**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
   tried the beta? Tell us how each step went.
-- [Security policy](SECURITY.md): report security problems privately.
+- [Security policy](.github/SECURITY.md): report security problems privately.
 
 ## For developers
 
-- **[Contributing](CONTRIBUTING.md):** how to report, build the app from
+- **[Contributing](.github/CONTRIBUTING.md):** how to report, build the app from
   source, and send a change.
 - [Manual setup (command line)](docs/MANUAL-SETUP.md): run the overlay with
   Node.js and a settings file, without the app.

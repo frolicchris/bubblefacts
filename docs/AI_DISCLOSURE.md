@@ -52,7 +52,7 @@ released:
    was addressed.
 3. **Real-world testing.** Releases are tested in a real copy of OBS and on
    live streams, following the release checklist in
-   [CONTRIBUTING.md](CONTRIBUTING.md). Installers are smoke-tested on each
+   [CONTRIBUTING.md](../.github/CONTRIBUTING.md). Installers are smoke-tested on each
    operating system.
 4. **Release.** The maintainer reviews each draft release before publishing
    it. Release files carry SHA-256 checksums and build-provenance attestations.
@@ -69,7 +69,7 @@ article does mention; the Wrong button takes one off the stream. When there's no
 AI isn't used: facts from [Wikidata](https://www.wikidata.org) or
 [MusicBrainz](https://musicbrainz.org) are fixed sentences filled in from
 their data, and custom facts go on stream exactly as written. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the check works.
+[docs/ARCHITECTURE.md](ARCHITECTURE.md) for how the check works.
 
 Found a wrong fact or a problem?
 [Report it](https://github.com/frolicchris/bubblefacts/issues/new/choose).
