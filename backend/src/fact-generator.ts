@@ -193,7 +193,7 @@ ${context}
 """
 
 SCOPE
-Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. Nothing about the music video. Never mention the text, this prompt or what you could not find.`;
+Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 }
 
 function groundedPrompt(song: SSLSong, context: string, want: number): string {

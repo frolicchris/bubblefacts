@@ -19,6 +19,9 @@ import {
   qualifierNamesAnotherArtist,
   tooSimilar,
   alteredQuote,
+  gameTrackText,
+  isMusicArticleFor,
+  trackSentences,
   creatorSentences,
   explainMusicTerms,
   receptionSentences,
@@ -973,5 +976,62 @@ describe("who won the award (stream replay: Moon River)", () => {
     expect(kept("The song won an Academy Award for Best Original Song.")).toBe(true);
     expect(kept("Henry Mancini won the Grammy Award for Record of the Year.")).toBe(true);
     expect(kept("Moon River won an Academy Award for Best Original Song.")).toBe(true);
+  });
+});
+
+describe("a game's music article, and what it says about one track (issue #48)", () => {
+  it("recognizes the music article for a game or its series", () => {
+    expect(isMusicArticleFor("Music of Final Fantasy VIII", "Final Fantasy VIII")).toBe(true);
+    expect(isMusicArticleFor("Music of the Final Fantasy VII series", "Final Fantasy VII")).toBe(true);
+    expect(isMusicArticleFor("Music of Sonic the Hedgehog", "Sonic the Hedgehog 3")).toBe(true);
+    expect(isMusicArticleFor("Undertale Soundtrack", "Undertale")).toBe(true);
+    expect(isMusicArticleFor("Super Mario Galaxy Original Soundtrack", "Super Mario Galaxy")).toBe(true);
+  });
+
+  it("rejects another game's, and unrelated music articles", () => {
+    expect(isMusicArticleFor("Music of Final Fantasy IV", "Final Fantasy VI")).toBe(false);
+    expect(isMusicArticleFor("Music of Chrono Cross", "Chrono Trigger")).toBe(false);
+    expect(isMusicArticleFor("Music of Japan", "Sonic the Hedgehog 3")).toBe(false);
+    expect(isMusicArticleFor("Music of Deltarune", "Undertale")).toBe(false);
+    expect(isMusicArticleFor("Final Fantasy concerts", "Final Fantasy VIII")).toBe(false);
+  });
+
+  const music = [
+    "The music of Starfall was composed by Mia Chen.",
+    "== Soundtrack ==",
+    "The album has 40 tracks. \"Harbor at Dawn\" was the first piece Chen wrote for the game.",
+    "Chen said \"Harbor at Dawn\" was inspired by a ferry ride. The title screen uses a solo piano.",
+  ].join("\n");
+
+  it("lifts the sentences that name the track, and none for a generic track name", () => {
+    expect(trackSentences(music, "Harbor at Dawn")).toEqual([
+      '"Harbor at Dawn" was the first piece Chen wrote for the game.',
+      'Chen said "Harbor at Dawn" was inspired by a ferry ride.',
+    ]);
+    expect(trackSentences(music, "Title Screen")).toEqual([]);
+    expect(trackSentences(music, "Boss")).toEqual([]);
+  });
+
+  it("builds a track's reference from the music article, with the track's own sentences first", () => {
+    const articles = { page: "Starfall", full: "Starfall is a 2019 game about ferries.", music: { page: "Music of Starfall", full: music } };
+    const text = gameTrackText(articles, "Harbor at Dawn");
+    expect(text.startsWith('Music of Starfall\nAbout this piece: "Harbor at Dawn" was the first piece')).toBe(true);
+    // The streamer marked the music article wrong for this song: the game's article serves.
+    expect(gameTrackText(articles, "Harbor at Dawn", (t) => t !== "Music of Starfall").startsWith("Starfall\n")).toBe(true);
+    expect(gameTrackText({ ...articles, music: null }, "Harbor at Dawn").startsWith("Starfall\n")).toBe(true);
+    // A series-wide music article is only for the tracks it names.
+    const series = { ...articles, music: { ...articles.music, series: true } };
+    expect(gameTrackText(series, "Harbor at Dawn").startsWith("Music of Starfall\n")).toBe(true);
+    expect(gameTrackText(series, "Night Market").startsWith("Starfall\n")).toBe(true);
+  });
+});
+
+describe("screening slips found replaying real songs", () => {
+  it("drops talk of music videos in the plural, and 'some of the best'", () => {
+    const ctx = "Seal performed the song beside the Bat-Signal in one of its music videos. Tom's Guide wrote that the series has some of the best music in gaming.";
+    expect(screenClaims(["Seal performed the song beside the Bat-Signal in one of its music videos."], ctx).kept).toEqual([]);
+    expect(screenClaims(["Tom's Guide wrote that the series has some of the best music in gaming."], ctx).kept).toEqual([]);
+    expect(screenClaims(['GameSpy called all of the music "incredible".'], 'GameSpy called all of the music "incredible".').kept).toEqual([]);
+    expect(screenClaims(["It reached number one on the Billboard Hot 100 in 1983."], "It reached number one on the Billboard Hot 100 in 1983.").kept).toHaveLength(1);
   });
 });

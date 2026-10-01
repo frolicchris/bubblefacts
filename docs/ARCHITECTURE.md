@@ -77,6 +77,12 @@ StreamElements ───┴──────────────► Server 
    and pull out the music-related sections first. A game's track with an
    article of its own ("Megalovania") is tried before the game's article: one
    extra search per track.
+   A game's track without one gets a reference built for it (`gameTrackText`):
+   the game's music article when Wikipedia has one ("Music of Chrono
+   Trigger", "Undertale Soundtrack"; a series-wide one only for tracks it
+   names; never a film's soundtrack), led by the sentences that name this
+   track. The game's articles are kept whole per game, so its other tracks
+   need no new download.
    The reference then leads with three kinds of sentence lifted from anywhere
    in the article (issue #48), because a character budget never reached them:
    what the makers said (`creatorSentences`: a cue like "said", "recalled" or
