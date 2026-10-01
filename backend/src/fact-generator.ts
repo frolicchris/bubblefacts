@@ -467,7 +467,8 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   const others = rest.facts.filter((f) => !mine.includes(f.text));
   // Re-spaced as one list, so the bubbles keep their rhythm and positions.
   const lines = [...mine, ...others.map((f) => f.text)];
-  const sourceOf = (t: string) => (mine.includes(t) ? SOURCE.yours : others.find((f) => f.text === t)?.source);
+  // Labeled as custom facts: that's where the streamer edits them.
+  const sourceOf = (t: string) => (mine.includes(t) ? SOURCE.custom : others.find((f) => f.text === t)?.source);
   return { facts: toFacts(song, lines, sourceOf), ttlMs: rest.ttlMs };
 }
 

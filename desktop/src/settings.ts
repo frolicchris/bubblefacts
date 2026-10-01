@@ -213,7 +213,8 @@ export function toServerEnv(
   paths: { modelPath: string; logDir: string; topicsDir: string; clientId: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
-    TOPIC: topicList(s).join(","),
+    // "none", not an empty value: an empty variable can get lost on the way, and a missing one means the example packs.
+    TOPIC: topicList(s).join(",") || "none",
     BUBBLEFACTS_TOPICS_DIR: paths.topicsDir,
     ORIGINALS: s.originals ? "on" : "off",
     LIVE_LEARNS: s.liveLearns ? "on" : "off",
