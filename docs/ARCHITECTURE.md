@@ -70,6 +70,9 @@ StreamElements ───┴──────────────► Server 
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
    and near-repeats of recent facts.
+   A credit needs a source sentence that ties the person to the role
+   (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
+   just a role word nearby; an ambiguous credit is dropped.
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.

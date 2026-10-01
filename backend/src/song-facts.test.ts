@@ -37,6 +37,14 @@ describe("song facts", () => {
     ).toEqual(['"Evening Rain" was written by Jane Composer.']);
   });
 
+  it("keeps the creator's link when the facts fill every slot (final QA #4)", () => {
+    const entry = { title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["One.", "Two.", "Three.", "Four."] };
+    const lines = songFactLines(entry, 5);
+    expect(lines).toHaveLength(5);
+    expect(lines[0]).toBe('"Evening Rain" was written by Jane Composer.');
+    expect(lines[4]).toBe("More from Jane Composer: twitch.tv/jane");
+  });
+
   it("removes a song when its facts and writers are cleared, and survives a restart", () => {
     saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", facts: ["A fact."] });
     resetSongFacts();

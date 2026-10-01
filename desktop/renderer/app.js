@@ -185,12 +185,14 @@
     $("#show-test-again").hidden = false;
     const next = $("#stream-next");
     next.className = "primary";
-    next.textContent = "Continue";
+    next.textContent = "Start using BubbleFacts";
     next.focus();
   }
 
   $("#show-test-again").addEventListener("click", () => api.testBubble());
-  $("#stream-next").addEventListener("click", toMusicStep);
+  // Setup ends here. Originals and live learns are optional, and also in Settings.
+  $("#stream-next").addEventListener("click", () => finishSetup({}, $("#stream-result")));
+  $("#stream-customize").addEventListener("click", toMusicStep);
 
   // --- Setup: step 3, your music (optional) --------------------------------------------
 
@@ -201,25 +203,16 @@
     $("#setup-livelearns-row").hidden = onSE();
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
     $("#setup-originals-box").hidden = !state.settings.originals;
-    if (state.settings.myFacts.length) {
-      $('input[name="facts-choice"][value="now"]').checked = true;
-      $("#setup-myfacts").value = state.settings.myFacts.join("\n");
-    }
-    showFactsBox();
     goStep(3);
   }
 
-  function showFactsBox() {
-    $("#setup-facts-box").hidden = $('input[name="facts-choice"]:checked').value !== "now";
-  }
-  for (const r of $$('input[name="facts-choice"]')) r.addEventListener("change", showFactsBox);
   $("#setup-originals").addEventListener("change", (e) => ($("#setup-originals-box").hidden = !e.target.checked));
 
   const lines = (el) => el.value.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  async function finishSetup(changes) {
+  async function finishSetup(changes, result = $("#facts-result")) {
     const saved = await api.saveSettings({ ...changes, setupComplete: true });
-    if (saved.error) return setResult($("#facts-result"), saved.error, "bad");
+    if (saved.error) return setResult(result, saved.error, "bad");
     state = saved;
     show("dashboard");
     renderStatus(state.status);
@@ -233,7 +226,6 @@
       originals,
       liveLearns: $("#setup-livelearns").checked,
       myOriginals: originals ? lines($("#setup-myoriginals")) : state.settings.myOriginals,
-      myFacts: $('input[name="facts-choice"]:checked').value === "now" ? lines($("#setup-myfacts")) : state.settings.myFacts,
     });
   });
 
@@ -313,7 +305,7 @@
     else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
     else if (status.state === "running") {
       kind = "ok";
-      title = h.currentSong ? "Showing facts" : "Ready for your next song";
+      title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
       detail = downloading
         ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
         : "BubbleFacts is connected and waiting.";
@@ -330,12 +322,28 @@
     if (!$("#view-setup").hidden) renderObsCheck();
   }
 
+  /** Why no facts are listed: no song yet, still looking, nothing reliable, or a failure. Silence on stream is normal. */
+  function emptyText(r) {
+    if (!r.song) return "Facts appear here a few seconds after a song starts.";
+    if (!r.ready) return "Looking for facts about this song…";
+    if (r.song.liveLearn || r.outcome === "liveLearn") return "Live learn: the banner shows, with no facts.";
+    if (r.outcome === "generationFailed") return "BubbleFacts couldn't write facts for this song. It tries again the next time it plays.";
+    return "No reliable facts for this song, so no bubbles. That's normal: BubbleFacts stays quiet rather than guess. Everything is working.";
+  }
+
+  let nowShowing = 0, nowReady = false;
+
   async function refreshRecent() {
     const r = await api.recent();
+    if (nowShowing !== (r.facts || []).length || nowReady !== !!r.ready) {
+      nowShowing = (r.facts || []).length;
+      nowReady = !!r.ready;
+      if (state) renderStatus(state.status);
+    }
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
     $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
     // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
-    const drawn = JSON.stringify([song, (r.facts || []).map((f) => f.text)]);
+    const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text)]);
     if (drawn === lastRecent) return;
     lastRecent = drawn;
     $("#now-song").textContent = song || "Nothing playing yet";
@@ -368,7 +376,9 @@
       list.appendChild(li);
     }
     $("#now-empty").hidden = (r.facts || []).length > 0;
-    $("#song-facts-open").hidden = !r.song || !$("#song-facts-form").hidden;
+    $("#now-empty").textContent = emptyText(r);
+    $("#song-facts-open").hidden = !$("#song-facts-form").hidden;
+    $("#song-facts-open").textContent = r.song ? "Add facts for this song" : "Add facts for a song";
   }
 
   function showWrongNote(text, undoable) {
@@ -379,12 +389,13 @@
   }
 
   $("#song-facts-open").addEventListener("click", async () => {
-    const r = await api.getSongFacts();
-    if (!r || !r.song) return;
+    const r = (await api.getSongFacts()) || {};
     // The edit belongs to this song, even if another one starts before you save.
-    songFactsTarget = r.song;
+    // With nothing playing, the streamer names the song: getting ready before a show.
+    songFactsTarget = r.song || null;
     const e = r.entry || {};
-    $("#song-facts-title").textContent = `"${r.song.title}"`;
+    otherSong(!r.song);
+    if (r.song) $("#song-facts-title").textContent = `"${r.song.title}"`;
     $("#sf-writers").value = (e.songwriters || []).join(", ");
     $("#sf-link").value = e.link || "";
     $("#sf-facts").value = (e.facts || []).join("\n");
@@ -393,6 +404,21 @@
     $("#song-facts-open").hidden = true;
     $("#sf-facts").focus();
   });
+  /** Switch the editor between the song that's on and one the streamer names. */
+  function otherSong(on) {
+    $("#sf-identity").hidden = !on;
+    $("#sf-other").hidden = on;
+    $("#sf-save").textContent = on ? "Save" : "Save and show";
+    if (on) {
+      songFactsTarget = null;
+      $("#song-facts-title").textContent = "a song";
+      for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link", "#sf-facts"]) $(id).value = "";
+    }
+  }
+  $("#sf-other").addEventListener("click", () => {
+    otherSong(true);
+    $("#sf-title").focus();
+  });
   $("#song-facts-cancel").addEventListener("click", () => {
     $("#song-facts-form").hidden = true;
     lastRecent = "";
@@ -400,6 +426,14 @@
   $("#song-facts-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const split = (s, re) => s.split(re).map((x) => x.trim()).filter(Boolean);
+    if (!songFactsTarget) {
+      const title = $("#sf-title").value.trim();
+      if (!title) {
+        $("#song-facts-result").textContent = "Type the song's title first.";
+        return;
+      }
+      songFactsTarget = { title, artist: $("#sf-artist").value.trim() };
+    }
     const result = await api.saveSongFacts({
       song: songFactsTarget,
       songwriters: split($("#sf-writers").value, /,/),

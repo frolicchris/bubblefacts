@@ -160,7 +160,7 @@
 
             <div class="note">
               <p class="note-title">Your sign-in stays private</p>
-              <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer.</p>
+              <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
             </div>
             <div class="note">
               <p class="note-title">BubbleFacts gets ready in the background</p>
@@ -220,7 +220,7 @@
           <div class="num" aria-hidden="true">4</div>
           <div class="body">
             <h2>Tell us about your music (optional)</h2>
-            <p>Setup's last step is optional. Click <span class="ui">Skip</span> to use the defaults, or answer three things. You can change all of them later in the app's <span class="ui">Settings</span>.</p>
+            <p>Setup is done once the test bubble shows: click <span class="ui">Start using BubbleFacts</span>. This part is optional. Open it from the link under the OBS step, or any time in the app's <span class="ui">Settings</span>.</p>
 
             <h3 id="your-music-originals">I play my own compositions</h3>
             <p>This is off to start with. Check it if you play your own pieces. Songs tagged "Originals" in StreamerSongList, or with you as the artist, then get facts from your song list instead of a Wikipedia lookup: how often you've played it and who requested it. Your name is already on the request, so it doesn't say you wrote it.</p>
@@ -234,12 +234,7 @@
             <p>When a song has no Wikipedia article, the AI isn't used. BubbleFacts looks the song up on Wikidata, then MusicBrainz, two free music databases, and fills in plain sentences such as the year and the album.</p>
             <p>If neither has the song, the app shows your custom facts: short facts you write yourself. With none, that song gets no bubbles rather than filler, which suits request channels.</p>
 
-            <p>Pick one of two options:</p>
-            <ul>
-              <li><span class="ui">Set up my own facts later</span> (already picked for you). Until then, a song without an article gets no bubbles. You can add your own any time in <span class="ui">Settings</span>, under <span class="ui">Custom facts</span>.</li>
-              <li><span class="ui">Add my own facts now</span>. Type your facts in the box, one per line.</li>
-            </ul>
-            <p>Then click <span class="ui">Finish</span>. That's the whole setup.</p>
+            <p>Custom facts can show during <strong>any</strong> song no source knows, so write facts that fit any song, like something about you or your instrument. For a fact about one song, <a href="#song-facts">add facts for that song</a> instead.</p>
 
             <div class="note">
               <p class="note-title">Only add facts you've checked</p>
@@ -301,9 +296,9 @@
             <h3 id="song-facts">Add facts for one song</h3>
             <p>Some songs aren't on Wikipedia or in any music database: another streamer's original, a friend's band, a song you wrote together. You can give a song its own facts.</p>
             <ol>
-              <li>While the song plays, click <span class="ui">Add facts for this song</span> under <span class="ui">On stream now</span>.</li>
+              <li>While the song plays, click <span class="ui">Add facts for this song</span> under <span class="ui">On stream now</span>. Getting ready before a show? Click <span class="ui">Preparing a different song?</span> and type the title and artist as they'll appear on the request.</li>
               <li>Optional: under <span class="ui">Who wrote it?</span>, type the songwriter, but only if you're sure. BubbleFacts never guesses who wrote a song, and skips the credit if it's the artist already on the request.</li>
-              <li>Optional: add their link, like their Twitch page.</li>
+              <li>Optional: add their link, like their Twitch page. It always gets a bubble, with their name.</li>
               <li>Type your facts, one per line, and click <span class="ui">Save and show</span>.</li>
             </ol>
             <p>If the song is still playing, they show right away. Either way, they show exactly as you wrote them every time that song plays. On the dashboard, each fact says where it came from, so you can tell your own from Wikipedia's.</p>
@@ -347,7 +342,7 @@
             </tbody>
           </table>
         </div>
-        <p>An <strong>API key</strong> is a long password that lets the app use an online service for you. Copy it from the service's website and paste it into BubbleFacts. It's stored encrypted on your computer.</p>
+        <p>An <strong>API key</strong> is a long password that lets the app use an online service for you. Copy it from the service's website and paste it into BubbleFacts. It's stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
         <div class="note">
           <p class="note-title">If the built-in AI can't run on your computer</p>
           <p>This can happen on older processors. The app tries a simpler, processor-only mode on its own. If that doesn't work either, it tells you, and its <span class="ui">Switch to Groq</span> button opens Settings so you can choose <span class="ui">Online, with Groq (free key)</span>.</p>
@@ -384,7 +379,7 @@
               <tr>
                 <th scope="row">Nothing at all, not even a red dot</th>
                 <td>OBS isn't loading the overlay</td>
-                <td>Check the source is visible (the eye icon in Sources). Then drag the tile from BubbleFacts into OBS again. If you added it by hand, check it uses <span class="ui">Local file</span> and points at the file shown under <span class="ui">Help and troubleshooting</span>.</td>
+                <td>First click <span class="ui">Show a test bubble</span>. If it appears, OBS is fine: that song just had no reliable facts, and the dashboard says so. If it doesn't, check the source is visible (the eye icon in Sources). Then drag the tile from BubbleFacts into OBS again. If you added it by hand, check it uses <span class="ui">Local file</span> and points at the file shown under <span class="ui">Help and troubleshooting</span>.</td>
               </tr>
               <tr>
                 <th scope="row">No test bubble, and no "It's on your stream!"</th>

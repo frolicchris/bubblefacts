@@ -77,6 +77,13 @@ describe("generateFacts", () => {
     });
   });
 
+  it("tells the AI about the song only, nothing about the streamer (final QA #7)", async () => {
+    await generateFacts({ title: "Prompt Song", artist: "Prompt Artist" });
+    const prompt = JSON.stringify(mockCreate.mock.calls[0]);
+    expect(prompt).toContain("Prompt Song");
+    expect(prompt).not.toContain("Test Streamer");
+  });
+
   it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
     // Two songs by the same artist, both written from the artist's article.
     const first = (await generateFacts({ title: "Song One", artist: "Same Artist" })).map((f) => f.text);

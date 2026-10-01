@@ -94,10 +94,15 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   generationFailed: "curated",
 };
 
+/** How each song's facts last turned out, so the dashboard can tell "nothing reliable" from "failed". */
+const outcomes = new Map<string, Outcome>();
+export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song)) ?? "";
+
 /** Count the outcome and append a line to logs/songs.log: time, title, artist field, outcome, count. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
+  outcomes.set(songKey(song), outcome);
   if (process.env.NODE_ENV === "test") return;
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
   const line = [new Date().toISOString(), clean(song.title), clean(song.artist), SONGS_LOG_LABEL[outcome], count];
@@ -138,10 +143,10 @@ function toFacts(song: SSLSong, lines: string[], sourceOf: (text: string) => str
 function subjectLine(song: SSLSong): { game: string; intro: string } {
   const { game, track } = resolveGameAndTrack(song);
   const work = track && track !== game ? `"${track}" from ${game}` : `"${track || game}"`;
-  const doing = config.instrument ? `playing ${work} on ${config.instrument}` : `performing ${work}`;
+  // Nothing about the streamer goes in: an online AI gets the song and the article, no more (final QA #7).
   return {
     game,
-    intro: `You are writing short trivia captions for a live music stream overlay. The streamer, ${config.streamerDisplayName}, is ${doing} right now.`,
+    intro: `You are writing short trivia captions for a live music stream overlay. The song playing right now is ${work}.`,
   };
 }
 
@@ -419,7 +424,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   // with no lookup, even for a live learn: often another streamer's off-list original.
   const yours = findSongFacts(song);
   if (yours) {
-    const lines = songFactLines(yours).slice(0, want);
+    const lines = songFactLines(yours, want);
     console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
     record(song, "songFacts", lines.length);
     // Not cached: an edit in the app applies the next time it plays.

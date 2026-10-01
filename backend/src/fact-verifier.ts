@@ -538,6 +538,78 @@ const ROLES: Array<{ fact: RegExp; source: RegExp }> = [
 const ACTIVE_NAME = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+|originally\s+)?(?:composed|wrote|produced|directed|performed|sang|recorded|designed|developed|scored|penned)\b/gu;
 /** Words between a name and its role word, at most, for the source to count as stating that role. */
 const ROLE_REACH = 6;
+/** The performing family: "Coldplay are a British rock band" is stated loosely, and a mix-up there is harmless. */
+const LOOSE_ROLE = /perform/;
+/** Any credit verb: a name right before one is that verb's subject, not the end of an earlier list. */
+const CREDIT_VERB = /^(composed|wrote|produced|directed|performed|sang|recorded|designed|developed|scored|penned|arranged|published)$/i;
+/** "music by", "lyrics by": a noun that credits whoever follows "by". */
+const BY_NOUN: Array<{ noun: RegExp; means: RegExp }> = [
+  { noun: /^(music|score|soundtrack)$/i, means: /compos/ },
+  { noun: /^lyrics?$/i, means: /lyric/ },
+];
+const NAME_PARTICLE = /^(de|van|von|da|del|la|le|and|&|,)$/i;
+
+/**
+ * Whether one source sentence gives this person this kind of credit. Being
+ * near a role word isn't enough: "John Smith directed, while Mia Chen
+ * composed the music" credits Smith with directing only (final QA #1). The
+ * sentence has to tie the two together one of three ways:
+ *
+ *   active   "Smith [and Chen] directed", "Smith directed the game and composed its music"
+ *            (only plain words in between: no comma, no other name, and the verb isn't "... by" someone)
+ *   passive  "composed [and arranged] by [Chen and] Smith", "music by Smith"
+ *            (Smith isn't the subject of a verb that follows)
+ *   title    "composer [Mia] Chen"
+ *
+ * Anything else is ambiguous, and an ambiguous credit is dropped.
+ */
+function statesRole(sentence: string, surname: string, role: { source: RegExp }): boolean {
+  const tokens = sentence.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*|[,;]/gu) ?? [];
+  const lower = tokens.map((t) => t.toLowerCase().replace(/['’]s$/, "").replace(/\.+$/, ""));
+  const isName = (i: number) => /^\p{Lu}/u.test(tokens[i]) && !NAME_STOPWORDS.has(lower[i]);
+  /** In a list of credited names, any capitalized word counts: "Falcom Sound Team jdk". */
+  const noCaps = sentence === sentence.toLowerCase(); // Lowercased text can't show where a name ends.
+  const isCap = (i: number) => noCaps || /^\p{Lu}/u.test(tokens[i] ?? "");
+  const isRole = (i: number) => role.source.test(lower[i]);
+  const at = lower.flatMap((w, i) => (w === surname ? [i] : []));
+  if (!at.length) return false;
+  if (LOOSE_ROLE.test(role.source.source)) return lower.some((_, j) => isRole(j) && at.some((i) => Math.abs(i - j) <= ROLE_REACH));
+
+  return at.some((i) => {
+    for (let j = 0; j < tokens.length; j++) {
+      const byNoun = BY_NOUN.some((b) => b.noun.test(lower[j]) && b.means.test(role.source.source) && lower[j + 1] === "by");
+      if (!isRole(j) && !byNoun) continue;
+      if (j > i) {
+        // Active: the rest of a name list, then plain words, then the verb.
+        if (j - i - 1 > ROLE_REACH || lower[j + 1] === "by" || lower[j + 2] === "by") continue;
+        let k = i + 1;
+        while (k < j && (isName(k) || NAME_PARTICLE.test(lower[k]))) k++;
+        if (lower[k - 1] === "," && lower[k] === "who") k++; // "Chen, who composed"
+        else if (lower[k - 1] === "," && k < j) continue;
+        let plain = true;
+        for (; k < j; k++) if (isName(k) || /^[,;]$/.test(tokens[k]) || /^(while|whereas|but|although)$/.test(lower[k])) plain = false;
+        if (plain) return true;
+      } else if (j < i) {
+        const span = lower.slice(j + 1, i);
+        const by = span.indexOf("by");
+        if (by === -1) {
+          // Title: "composer Mia Chen".
+          if (/(er|or|ist)$/.test(lower[j]) && span.every((_, n) => isCap(j + 1 + n))) return true;
+          continue;
+        }
+        // Passive: a few plain words, "by", then only names up to this one.
+        const before = span.slice(0, by);
+        const list = span.slice(by + 1);
+        if (before.length > 3 || before.some((w) => /^[,;]$/.test(w))) continue;
+        if (!list.every((w, n) => isCap(j + 2 + by + n) || NAME_PARTICLE.test(w))) continue;
+        if (CREDIT_VERB.test(lower[i + 1] ?? "") && lower[i + 2] !== "by") continue; // "... and Smith directed"
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
 /** "by Adele", "by Nobuo Uematsu": a capitalized name after "by". */
 const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|de|van|von|da|del|la|le))*)/gu;
 
@@ -568,15 +640,7 @@ export function unsupportedCredit(fact: string, context: string): string | null 
   const sentences = context.split(/(?<=[.!?])\s+|\n+/);
   for (const name of creditedNames(fact)) {
     const surname = (name.split(/\s+/).pop() ?? name).toLowerCase();
-    // The role has to be stated for this person: a role word within a few words
-    // of their name in one sentence, not just anywhere nearby.
-    const stated = sentences.some((s) => {
-      const words = s.toLowerCase().split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean);
-      const at = words.flatMap((w, i) => (w.replace(/['’]s$/, "") === surname ? [i] : []));
-      return at.length > 0 && roles.some((r) =>
-        words.some((w, j) => r.source.test(w) && at.some((i) => Math.abs(i - j) <= ROLE_REACH))
-      );
-    });
+    const stated = sentences.some((sentence) => roles.some((r) => statesRole(sentence, surname, r)));
     if (!stated) return name;
   }
   return null;

@@ -36,8 +36,8 @@ shows exactly what to click.
    **It's on your stream!**
 
 No coding. No Terminal. No AI setup. BubbleFacts finishes getting ready in the
-background, so you don't wait for it. Want to make it yours? An optional last
-step lets you mark your originals and live learns and add your own facts. The
+background, so you don't wait for it. Want to make it yours? Mark your originals and live learns, or add your
+own facts, any time in Settings. The
 [setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
 
 ## How the facts are checked
