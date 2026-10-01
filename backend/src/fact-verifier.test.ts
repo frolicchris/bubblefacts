@@ -774,6 +774,12 @@ describe("fetchGrounding", () => {
     expect(fetchMock.mock.calls.length).toBe(calls + 1);
   });
 
+  it("prefers the song's article to the album of the same name", async () => {
+    pages = { "Let It Be The Beatles": ["Let It Be (album)", "Let It Be (song)"] };
+    mentions = { "Let It Be (album)": "by the Beatles", "Let It Be (song)": "by the Beatles" };
+    expect(await fetchGrounding({ title: "Let It Be", artist: "The Beatles" })).toMatch(/^Let It Be \(song\)\n/);
+  });
+
   it("prefers a game track's own article when it has one (issue #48)", async () => {
     pages = { "Megalovania Undertale": ["Megalovania", "Undertale"], "Undertale video game": ["Undertale"] };
     mentions = { Megalovania: "a song from Undertale" };

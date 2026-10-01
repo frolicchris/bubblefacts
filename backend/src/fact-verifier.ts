@@ -560,7 +560,13 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       // For an artist, the song's own article beats the artist's, wherever it ranks:
       // "Industry Baby" over "Lil Nas X".
       // The same for a game's track that has an article of its own: "Megalovania" over "Undertale".
-      const page = titles.find((t) => usable(t) && matchedTrack(t)) ?? titles.find((t) => usable(t) && matchedGame(t));
+      // Among articles named for the track, the song's beats the album's: "Let It Be (song)" over "Let It Be (album)".
+      const ofTrack = titles.filter((t) => usable(t) && matchedTrack(t));
+      const page =
+        ofTrack.find((t) => /\((?:[^)]*\b)?(song|composition|instrumental|theme)\)$/i.test(t)) ??
+        ofTrack.find((t) => !/\((?:[^)]*\b)?(album|EP|soundtrack|film|musical)\)$/i.test(t)) ??
+        ofTrack[0] ??
+        titles.find((t) => usable(t) && matchedGame(t));
       if (!page) {
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
         continue;
