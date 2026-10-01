@@ -295,20 +295,44 @@ describe("StreamElementsClient", () => {
     }
   });
 
-  it("reports when StreamElements says a song is playing but none is followed", async () => {
+  it("doesn't call an empty queue at the end of the stream a problem", async () => {
+    // From review: the last "play" event stayed in force after the queue ran out,
+    // so health turned degraded and the app restarted every few minutes.
     jest.useFakeTimers();
+    streamConnected = true;
     try {
       mockFetch.mockResolvedValueOnce(ok(CHANNEL));
-      player("paused", null);
+      player("playing", CIARA);
       await client.connect();
       const [, topic, , , onMessage] = (AstroStream as unknown as jest.Mock).mock.calls.at(-1);
-      mockFetch.mockResolvedValue(ok({ state: "paused" }));
+      player("playing", null);
+      onMessage({ topic, event: "play" });
+      await jest.advanceTimersByTimeAsync(31_000);
+      expect(client.getCurrentSong()).toBeNull();
+      expect(client.followingProblem()).toBeNull();
+    } finally {
+      streamConnected = false;
+      jest.useRealTimers();
+    }
+  });
+
+  it("ignores a live event once its socket is gone", async () => {
+    jest.useFakeTimers();
+    streamConnected = true;
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("playing", CIARA);
+      await client.connect();
+      const [, topic, , , onMessage] = (AstroStream as unknown as jest.Mock).mock.calls.at(-1);
       onMessage({ topic, event: "play" });
       await jest.advanceTimersByTimeAsync(300);
-      expect(client.followingProblem()).toBeNull();
-      await jest.advanceTimersByTimeAsync(31_000);
-      expect(client.followingProblem()).toMatch(/can't see which one/);
+      // The socket drops, and the streamer stops: REST is now the only word.
+      streamConnected = false;
+      player("stopped", STORMS);
+      await refresh(client);
+      expect(client.getCurrentSong()).toBeNull();
     } finally {
+      streamConnected = false;
       jest.useRealTimers();
     }
   });

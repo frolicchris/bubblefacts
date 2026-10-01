@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, generateFacts } from "./fact-generator";
+import { clearFactCache, factStats, generateFacts, markWrong, STRUCTURED } from "./fact-generator";
 import { fetchGrounding } from "./fact-verifier";
 import { wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
@@ -91,6 +91,19 @@ describe("generateFacts", () => {
     const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
     expect(facts[0]).toBe('"Whatever Happens" came out in 2001.');
     expect(facts.length).toBeGreaterThan(1);
+  });
+
+  it("Wrong on a Wikidata fact blocks Wikidata for the song, and the song falls back instead of going empty", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const song = { title: "Data Song", artist: "Data Artist" };
+    (wikidataFacts as jest.Mock).mockResolvedValue(['"Data Song" came out in 1999.']);
+    const first = (await generateFacts(song, entry({ timesPlayed: 2 }))).map((f) => f.text);
+    expect(first).toEqual(['"Data Song" came out in 1999.']);
+    expect(markWrong(song, first[0])).toBe(STRUCTURED);
+    const next = (await generateFacts(song, entry({ timesPlayed: 2 }))).map((f) => f.text);
+    expect(next).not.toContain('"Data Song" came out in 1999.');
+    expect(next.length).toBeGreaterThan(0);
+    (wikidataFacts as jest.Mock).mockResolvedValue([]);
   });
 
   it("caches a song's facts", async () => {

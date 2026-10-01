@@ -82,6 +82,23 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
   return { game: artist, track: title };
 }
 
+/**
+ * The names to look for in a credit, whole credit first: "Earth, Wind & Fire"
+ * stays whole, and "Lil Nas X, Jack Harlow" also tries its lead, "Lil Nas X".
+ * Only commas and "feat." split a credit: "&", "and" and "x" are often part
+ * of a name.
+ */
+export function artistNames(artist: string): string[] {
+  const lead = artist.split(/\s*,\s*|\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0] ?? "";
+  return [...new Set([normalizeTitle(artist), normalizeTitle(lead)].filter(Boolean))];
+}
+
+/** Whether normalized text names one of these as whole words: "Sia" isn't in "Asia". */
+export function mentionsName(normalizedText: string, names: string[]): boolean {
+  const padded = ` ${normalizedText} `;
+  return names.some((n) => padded.includes(` ${n} `));
+}
+
 // --- Article relevance -------------------------------------------------
 
 /** Wikipedia disambiguators meaning "a musical work or what it comes from". */
@@ -326,11 +343,14 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   const matchedTrack = (title: string) =>
     track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game);
 
-  // "Lil Nas X, Jack Harlow": a song's article names its lead artist, not the whole credit.
-  const leadArtist = game.split(/\s*(?:,|&|\band\b|\bx\b|\bfeat\.?|\bft\.?)\s*/i)[0] || game;
+  // "Lil Nas X, Jack Harlow": a song's article may name only its lead artist.
+  const names = artistNames(game);
   const terms = searchTerms(game, track, artist || !!song.performer);
   // A music video's artist may share a name with a game or film; ask for the performer.
-  if (song.performer && !artist) terms.splice(terms.indexOf(game), 0, `${game} band`);
+  if (song.performer && !artist && game.trim()) {
+    const at = terms.indexOf(game);
+    terms.splice(at < 0 ? terms.length : at, 0, `${game} band`);
+  }
   let unreachable = "";
 
   for (const term of terms) {
@@ -352,7 +372,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
         console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
         continue;
       }
-      if (!byGame && full && !normalizeTitle(full).includes(normalizeTitle(leadArtist))) {
+      if (!byGame && full && !mentionsName(normalizeTitle(full), names)) {
         console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
         continue;
       }
@@ -363,7 +383,8 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
       }
       const text = `${page}\n${extract}`;
       console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars)`);
-      groundingCache.set(byGame && !artist ? gameKey : songKey, { text, at: Date.now() });
+      // Shared by the game's tracks, unless this track has blocked articles of its own.
+      groundingCache.set(byGame && !artist && !blocked.size ? gameKey : songKey, { text, at: Date.now() });
       return text;
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";

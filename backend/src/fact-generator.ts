@@ -2,12 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { curatedFacts, fetchGrounding, normalizeTitle, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
+import { curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
-import { blockArticle, songKey } from "./wrong-facts";
+import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -62,6 +62,10 @@ export const factStats = {
 /** Songs with no usable facts are retried after this long; others are kept. */
 const RETRY_MS = 10 * 60 * 1000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
+/** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
+export const STRUCTURED = "Wikidata and MusicBrainz";
+/** The Wikidata or MusicBrainz sentences each song was given, to tell which source a wrong fact came from. */
+const structuredShown = new Map<string, Set<string>>();
 /** The Wikipedia article each cached song's facts came from, for "Wrong". */
 const sources = new Map<string, string>();
 /**
@@ -301,20 +305,29 @@ async function askModel(prompt: string): Promise<string> {
 
 // --- Pipeline ----------------------------------------------------------
 
-/** Facts from the queue entry, topped up from the topic packs. True by construction. */
-/** Plain facts about the song itself: Wikidata first, then MusicBrainz. */
+/** Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it. */
 async function structuredFacts(song: SSLSong): Promise<string[]> {
+  if (blockedArticles(song).has(STRUCTURED)) return [];
   const data = await wikidataFacts(song);
-  return data.length ? data : musicbrainzFacts(song);
+  const facts = data.length ? data : await musicbrainzFacts(song);
+  structuredShown.set(songKey(song), new Set(facts));
+  return facts;
+}
+
+/** Remember facts as shown, keeping only the last RECENT_KEPT. */
+function remember(shown: string[]): void {
+  recentFacts.push(...shown);
+  recentFacts.splice(0, Math.max(0, recentFacts.length - RECENT_KEPT));
 }
 
 /** Whether the reference is the song's own article, rather than its artist's or game's. */
 function aboutTheSong(song: SSLSong, context: string): boolean {
   const { game, track } = resolveGameAndTrack(song);
   if (!track || track === game) return true;
-  return normalizeTitle(context.split("\n")[0]).includes(normalizeTitle(track));
+  return mentionsName(normalizeTitle(context.split("\n")[0]), [normalizeTitle(track)]);
 }
 
+/** Facts from the queue entry, topped up from the topic packs. True by construction. */
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
   return [...stats, ...curatedFacts(want - stats.length)];
@@ -346,11 +359,11 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
       const data = config.factVerification ? await structuredFacts(song) : [];
-      if (data.length) {
-        const shown = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
-        recentFacts.push(...shown);
-        record(song, "wikidata", shown.length);
-        return { facts: toFacts(shown), ttlMs: Infinity };
+      const shownData = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
+      if (shownData.length) {
+        remember(shownData);
+        record(song, "wikidata", shownData.length);
+        return { facts: toFacts(shownData), ttlMs: Infinity };
       }
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
@@ -371,8 +384,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
     const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].slice(0, want);
-    recentFacts.push(...shown);
-    recentFacts.splice(0, Math.max(0, recentFacts.length - RECENT_KEPT));
+    remember(shown);
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
     if (shown.length) {
@@ -421,20 +433,31 @@ export function clearFactCache(): void {
   recentFacts.length = 0;
   inFlight.clear();
   sources.clear();
+  structuredShown.clear();
 }
 
 /**
- * The streamer marked one of this song's facts wrong. The article it came
- * from is blocked for the song, and the cached facts are dropped, so the
- * next time it plays BubbleFacts looks again. Returns the blocked article,
- * or null when the facts didn't come from one (backup or song-list facts).
+ * The streamer marked one of this song's facts wrong. Its source is blocked
+ * for the song: the Wikipedia article, or Wikidata and MusicBrainz when the
+ * fact came from them. The song's cached facts are dropped and forgotten as
+ * "already shown", so the next time it plays BubbleFacts looks again.
+ * Returns what was blocked, or null for backup or song-list facts.
  */
-export function markWrong(song: SSLSong): string | null {
+export function markWrong(song: SSLSong, text: string): string | null {
   const key = songKey(song);
-  const article = sources.get(key) ?? null;
-  if (article) blockArticle(song, article);
+  const source = structuredShown.get(key)?.has(text) ? STRUCTURED : (sources.get(key) ?? null);
+  if (source) blockArticle(song, source);
+  const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
+  for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
   factCache.delete(key);
   sources.delete(key);
-  console.log(`[WrongFact] "${song.title}": ${article ? `won't use "${article}" again` : "not from an article"}`);
-  return article;
+  structuredShown.delete(key);
+  console.log(`[WrongFact] "${song.title}": ${source ? `won't use ${source === STRUCTURED ? source : `"${source}"`} again` : "not from a lookup"}`);
+  return source;
+}
+
+/** Undo "Wrong": the source may be used for the song again. */
+export function unmarkWrong(song: SSLSong, source: string): void {
+  unblockArticle(song, source);
+  console.log(`[WrongFact] "${song.title}": "${source}" allowed again`);
 }

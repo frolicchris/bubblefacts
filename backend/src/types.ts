@@ -78,4 +78,6 @@ export interface FactsPayload {
   song?: SSLSong;
   facts?: Fact[];
   text?: string;
+  /** On new_song: the same song resuming after a pause, so no NOW PLAYING banner. */
+  quiet?: boolean;
 }

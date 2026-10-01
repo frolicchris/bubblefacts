@@ -128,7 +128,8 @@ export function loadSettings(): Settings {
   }
   // Before 2.0.0-beta.3 every install started with these example packs checked.
   // Left unchanged, they're dropped: the examples are opt-in now (issue #18).
-  if (settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
+  // Only for settings saved before beta.3 (no songSource yet), so a streamer who checks these later keeps them.
+  if (!("songSource" in raw) && settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
   for (const key of SECRET_KEYS) settings[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
   return sanitize(settings);
 }

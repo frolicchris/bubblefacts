@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { generateFacts, factStats, markWrong, warmUpBuiltin } from "./fact-generator";
+import { generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { FactsPayload, SSLQueueItem } from "./types";
 
 /**
@@ -42,7 +42,13 @@ let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"] 
 /** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
 let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 
+/** When the current song's facts went out to the overlay, and when bubbles were paused (0 = never). */
+let factsShownAt = 0;
+let pausedAt = 0;
+
 function broadcast(payload: FactsPayload): void {
+  if (payload.type === "new_song" && !payload.quiet) factsShownAt = 0;
+  if (payload.type === "facts_ready" && !paused) factsShownAt = Date.now();
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts };
   else if (payload.type === "remove_fact") lastSent = { song: lastSent.song, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
@@ -137,11 +143,35 @@ control.post("/pause", (req, res) => {
   if (next !== paused) {
     paused = next;
     console.log(`[Server] Bubbles ${paused ? "paused" : "resumed"}`);
-    if (paused) for (const ws of clients.keys()) send(ws, { type: "clear" });
-    else void onSongChange(songList.getCurrentSong());
+    if (paused) {
+      pausedAt = Date.now();
+      for (const ws of clients.keys()) send(ws, { type: "clear" });
+    } else if (!resumeSameSong()) {
+      void onSongChange(songList.getCurrentSong());
+    }
   }
   res.json({ paused });
 });
+
+/**
+ * Resuming on the song that was showing: carry on where it left off, with
+ * the facts not shown yet on their remaining delays and no second NOW
+ * PLAYING banner. Returns false when the song changed or its facts arrived
+ * during the pause, so it starts like any new song.
+ */
+function resumeSameSong(): boolean {
+  const current = songList.getCurrentSong();
+  const song = current && songList.toSong(current);
+  if (!song || !lastSent.song || !factsShownAt || factsShownAt > pausedAt) return false;
+  if (`${song.artist}:::${song.title}` !== `${lastSent.song.artist}:::${lastSent.song.title}`) return false;
+  const elapsed = (pausedAt - factsShownAt) / 1000;
+  const facts = (lastSent.facts ?? [])
+    .filter((f) => f.delaySeconds > elapsed)
+    .map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
+  broadcast({ type: "new_song", song: lastSent.song, quiet: true });
+  broadcast({ type: "facts_ready", song: lastSent.song, facts });
+  return true;
+}
 
 // "Wrong" in the app: take the fact off the stream now, and stop using its article for this song.
 control.post("/wrong", (req, res) => {
@@ -152,8 +182,20 @@ control.post("/wrong", (req, res) => {
     return;
   }
   broadcast({ type: "remove_fact", song, text });
-  const article = markWrong(song);
-  res.json({ removed: true, article });
+  const article = markWrong(song, text);
+  res.json({ removed: true, article, structured: article === STRUCTURED });
+});
+
+// Undo "Wrong": the source may be used for the song again. The removed fact stays off this play.
+control.post("/unwrong", (req, res) => {
+  const article = typeof req.body?.article === "string" ? req.body.article : "";
+  const song = lastSent.song;
+  if (!song || !article) {
+    res.status(404).json({ restored: false });
+    return;
+  }
+  unmarkWrong(song, article);
+  res.json({ restored: true });
 });
 
 app.use("/control", control);
@@ -172,9 +214,10 @@ app.get("/health", (_req, res) => {
   const current = songList.getCurrentSong();
   const queueAgeMs = songList.lastSuccessfulFetchAgeMs();
   // Never having reached the song source counts too, once startup has had its chance.
-  const stale = queueAgeMs === null
+  // A source told to wait (Retry-After) isn't stale; restarting would only undo the wait.
+  const stale = !songList.backingOff?.() && (queueAgeMs === null
     ? process.uptime() * 1000 > STARTUP_GRACE_MS
-    : queueAgeMs > songList.pollIntervalMs() * 3;
+    : queueAgeMs > songList.pollIntervalMs() * 3);
   const rejected = songList.authRejected();
   const notFollowing = songList.followingProblem?.() ?? null;
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;

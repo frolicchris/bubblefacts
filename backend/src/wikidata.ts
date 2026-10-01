@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
+import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
 import { SSLSong } from "./types";
 
 /**
@@ -72,11 +72,11 @@ export function pickSong(
   artist: string
 ): string | null {
   const want = normalizeTitle(title);
-  const who = normalizeTitle(artist.split(/\s*(?:,|&|\band\b|\bx\b|\bfeat\.?|\bft\.?)\s*/i)[0] || artist);
-  if (!want || !who) return null;
+  const names = artistNames(artist);
+  if (!want || !names.length) return null;
   const hit = hits.find((h) => {
     const desc = h.description ?? "";
-    return normalizeTitle(h.label ?? "") === want && MUSIC_ITEM.test(desc) && normalizeTitle(desc).includes(who);
+    return normalizeTitle(h.label ?? "") === want && MUSIC_ITEM.test(desc) && mentionsName(normalizeTitle(desc), names);
   });
   return hit?.id ?? null;
 }

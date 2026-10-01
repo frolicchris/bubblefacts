@@ -40,13 +40,26 @@ export function blockArticle(song: SSLSong, article: string): void {
   const list = s[key] ?? [];
   if (list.includes(article)) return;
   s[key] = [...list, article];
+  save(s);
+}
+
+function save(s: Store): void {
   try {
     fs.mkdirSync(config.dataDir, { recursive: true });
     fs.writeFileSync(file(), JSON.stringify(s, null, 2) + "\n");
   } catch (err) {
-    // Still blocked for this session; only the restart memory is lost.
+    // Still in effect for this session; only the restart memory is lost.
     console.warn(`[WrongFacts] Could not save ${file()}: ${err instanceof Error ? err.message : err}`);
   }
+}
+
+export function unblockArticle(song: SSLSong, article: string): void {
+  const s = load();
+  const key = songKey(song);
+  if (!s[key]?.includes(article)) return;
+  s[key] = s[key].filter((a) => a !== article);
+  if (!s[key].length) delete s[key];
+  save(s);
 }
 
 /** For tests. */

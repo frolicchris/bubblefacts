@@ -56,6 +56,10 @@ export class SongListClient implements SongSource {
     return this.rejected;
   }
 
+  backingOff(): boolean {
+    return Date.now() < this.backoffUntil;
+  }
+
   /** How often the queue is polled right now; health allows three misses. */
   pollIntervalMs(): number {
     return this.isEventStreamConnected() ? Math.max(config.sslPollIntervalMs, POLL_WITH_EVENTS_MS) : config.sslPollIntervalMs;

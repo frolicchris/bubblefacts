@@ -165,7 +165,7 @@
 
     <!-- ====================== Dashboard ====================== -->
     <section id="view-dashboard" class="view" hidden>
-      <div id="status-banner" class="banner warn">
+      <div id="status-banner" class="banner warn" role="status" aria-live="polite">
         <span class="banner-light" aria-hidden="true"></span>
         <div>
           <h1 id="status-title">Starting</h1>
@@ -189,10 +189,10 @@
       </div>
 
       <div class="panel">
-        <h2>On stream now</h2>
+        <h2 id="now-title">On stream now</h2>
         <p id="now-song" class="now-song">Nothing playing yet</p>
         <ul id="now-facts" class="facts"></ul>
-        <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-report" class="link">Tell us about it</button></p>
+        <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
       </div>
 
