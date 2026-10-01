@@ -79,6 +79,9 @@ export interface Fact {
   text: string;
   /** Where it came from, for the dashboard: "Wikipedia: <article>", "Wikidata", "Your facts for this song"... */
   source?: string;
+  /** For the dashboard: the article to open, and the sentence in it the fact was written from. */
+  url?: string;
+  evidence?: string;
   delaySeconds: number;
   durationSeconds: number;
   position: { top: string; left: string };

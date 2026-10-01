@@ -40,7 +40,7 @@ const DIRS = {
 const ALLOWED_HOSTS = [
   "github.com", "streamersonglist.com", "www.streamersonglist.com", "id.streamersonglist.com", "console.groq.com", "platform.claude.com",
   "bubblefacts.frolic.org", "www.twitch.tv", "discord.gg", "obsproject.com", "huggingface.co", "www.llama.com", "ollama.com",
-  "streamelements.com",
+  "streamelements.com", "en.wikipedia.org",
 ];
 
 // Loaded once the app is ready: before that, Windows and Linux can't read the keychain.
