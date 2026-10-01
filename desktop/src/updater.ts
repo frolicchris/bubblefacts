@@ -106,6 +106,7 @@ echo "--- update $(date)"
 while kill -0 "$PID" 2>/dev/null; do sleep 0.5; done
 MNT="$(mktemp -d /tmp/bubblefacts-update.XXXXXX)"
 reopen() { hdiutil detach "$MNT" -quiet 2>/dev/null; rmdir "$MNT" 2>/dev/null; open "$APP"; }
+# hdiutil warns that it's deprecated on the newest macOS but still works; its replacement isn't on older ones.
 hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG" >/dev/null || { echo "could not open the disk image"; reopen; exit 1; }
 NEW="$MNT/BubbleFacts.app"
 ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$NEW/Contents/Info.plist" 2>/dev/null)"
