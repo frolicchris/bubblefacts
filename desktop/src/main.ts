@@ -71,19 +71,6 @@ function canStart(): boolean {
   return !!settings.channel && !!settings.token;
 }
 
-/** How many backup facts a set of settings adds up to. The server needs five. */
-function backupFactCount(s: Settings): number {
-  let count = s.myFacts.length;
-  for (const id of s.topics) {
-    try {
-      count += JSON.parse(fs.readFileSync(path.join(ROOT, "topics", `${id}.json`), "utf8")).curatedFacts.length;
-    } catch {
-      // A pack that's gone counts as empty.
-    }
-  }
-  return count;
-}
-
 function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelPath: modelPath(DIRS.models), logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
   if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
@@ -409,9 +396,6 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   for (const key of ["token", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
   // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
-  if (backupFactCount(next) < 5) {
-    return { error: "BubbleFacts needs at least 5 backup facts. Check another kind, or add more of your own." };
-  }
   const aiChanged = next.ai !== settings.ai;
   settings = next;
   if (aiChanged) builtinFailed = false;
