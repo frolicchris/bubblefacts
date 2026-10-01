@@ -3,7 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, testSongList, testStreamElements } from "./checks";
+import { newerRelease, Release, testSongList, testStreamElements } from "./checks";
+import { assetName, downloadUpdate, startInstall } from "./updater";
 import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
@@ -49,7 +50,9 @@ let tray: Tray | null = null;
 let quitting = false;
 let toldAboutTray = false;
 let builtinFailed = false;
-let update: { version: string; url: string } | null = null;
+let update: Release | null = null;
+/** Where the in-app update stands: nothing yet, downloading, checked and ready, or failed (then the download page is offered). */
+let updating: { stage: "idle" | "downloading" | "ready" | "failed"; progress: number; file: string; error: string } = { stage: "idle", progress: 0, file: "", error: "" };
 let download: AbortController | null = null;
 /** The built-in AI's download, shown on the dashboard. */
 let modelDownload: (Progress & { error?: string }) | null = null;
@@ -118,6 +121,7 @@ function state() {
     secretsUnprotected: secretsUnprotected(),
     builtinFailed,
     update,
+    updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
     dataDir: DATA,
   };
 }
@@ -527,6 +531,42 @@ ipcMain.handle("recent", async () => {
     return { song: null, facts: [] };
   }
 });
+// --- Updating itself ---------------------------------------------------------
+
+ipcMain.handle("update-download", async () => {
+  if (!update?.download || updating.stage === "downloading") return;
+  updating = { stage: "downloading", progress: 0, file: "", error: "" };
+  send("state", state());
+  let last = 0;
+  try {
+    const file = await downloadUpdate(update.download, path.join(DATA, "updates"), (fraction) => {
+      // A few updates a second is plenty for a progress line.
+      if (Date.now() - last < 300) return;
+      last = Date.now();
+      updating.progress = fraction;
+      send("state", state());
+    });
+    updating = { stage: "ready", progress: 1, file, error: "" };
+  } catch (err) {
+    updating = { stage: "failed", progress: 0, file: "", error: err instanceof Error ? err.message : String(err) };
+  }
+  send("state", state());
+});
+
+ipcMain.handle("update-install", () => {
+  if (updating.stage !== "ready") return;
+  fs.mkdirSync(DIRS.logs, { recursive: true });
+  const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
+  if (!result.started) {
+    updating = { stage: "failed", progress: 0, file: "", error: result.reason };
+    send("state", state());
+    return;
+  }
+  // The installer is waiting for this app to close.
+  quitting = true;
+  app.quit();
+});
+
 ipcMain.handle("report-problem", () =>
   shell.openExternal(problemReportUrl({ version: app.getVersion(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
@@ -578,6 +618,6 @@ app.whenReady().then(async () => {
   void ensureModel();
   void ensureOllamaModel();
   startServer();
-  update = await newerRelease(app.getVersion());
+  update = await newerRelease(app.getVersion(), app.isPackaged ? (v) => assetName(v) : () => null);
   if (update) send("state", state());
 });

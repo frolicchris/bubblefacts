@@ -96,22 +96,44 @@ export function compareVersions(a: string, b: string): number {
  * A newer release on GitHub, if there is one. Someone on a beta hears about
  * newer betas; someone on a full release only hears about full releases.
  */
-export async function newerRelease(current: string): Promise<{ version: string; url: string } | null> {
+export interface Release {
+  version: string;
+  /** The download page, for installs that can't update themselves. */
+  url: string;
+  /** The installer for this computer, when the app can update itself from it. */
+  download?: { name: string; url: string; size: number; sumsUrl: string };
+}
+
+/** `installerFor` names the installer this copy can update from (see updater.ts), or null. */
+export async function newerRelease(current: string, installerFor: (version: string) => string | null = () => null): Promise<Release | null> {
   try {
     const res = await fetch("https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=20", {
       headers: { Accept: "application/vnd.github+json" },
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return null;
-    const releases = (await res.json()) as Array<{ tag_name: string; draft: boolean; prerelease: boolean }>;
+    const releases = (await res.json()) as Array<{
+      tag_name: string;
+      draft: boolean;
+      prerelease: boolean;
+      assets?: Array<{ name: string; browser_download_url: string; size: number }>;
+    }>;
     const onBeta = current.includes("-");
     const newest = releases
       .filter((r) => !r.draft && (onBeta || !r.prerelease))
       .map((r) => r.tag_name.replace(/^v/, ""))
       .sort((a, b) => compareVersions(b, a))[0];
-    return newest && compareVersions(newest, current) > 0
-      ? { version: newest, url: "https://bubblefacts.frolic.org/download.html" }
-      : null;
+    if (!newest || compareVersions(newest, current) <= 0) return null;
+    const found: Release = { version: newest, url: "https://bubblefacts.frolic.org/download.html" };
+    // Only GitHub's own download addresses, and only with a checksum list to check against.
+    const assets = releases.find((r) => r.tag_name.replace(/^v/, "") === newest)?.assets ?? [];
+    const fromGitHub = (u: string) => u.startsWith("https://github.com/frolicchris/bubblefacts/releases/download/");
+    const installer = assets.find((a) => a.name === installerFor(newest));
+    const sums = assets.find((a) => a.name === "SHA256SUMS.txt");
+    if (installer && sums && fromGitHub(installer.browser_download_url) && fromGitHub(sums.browser_download_url)) {
+      found.download = { name: installer.name, url: installer.browser_download_url, size: installer.size, sumsUrl: sums.browser_download_url };
+    }
+    return found;
   } catch {
     return null;
   }

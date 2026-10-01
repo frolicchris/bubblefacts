@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   setPaused: (paused: boolean) => ipcRenderer.invoke("set-paused", paused),
   showLogs: () => ipcRenderer.invoke("show-logs"),
   recent: () => ipcRenderer.invoke("recent"),
+  downloadUpdate: () => ipcRenderer.invoke("update-download"),
+  installUpdate: () => ipcRenderer.invoke("update-install"),
   reportProblem: () => ipcRenderer.invoke("report-problem"),
   reportBeta: () => ipcRenderer.invoke("report-beta"),
   reportFact: (song: string, fact: string) => ipcRenderer.invoke("report-fact", song, fact),
