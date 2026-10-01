@@ -105,6 +105,10 @@ StreamElements ───┴──────────────► Server 
     then, it throws the batch away. Each fact carries a `source` label for the
     dashboard: `Wikipedia: <article>`, `Wikidata`, `MusicBrainz`,
     `Your song list`, `Your custom facts` or `Your facts for this song`.
+    A fact from an article also carries the article's link and the sentence
+    it most likely came from (`supportingSentence`: the one sharing at least
+    half its content words), which the dashboard shows when the source is
+    clicked.
 
 Facts are kept in memory for the rest of the session, so a repeated song is
 instant; nothing generated is ever written to disk. Several requests for the

@@ -124,6 +124,8 @@ details summary { cursor: pointer; color: #9fb0ff; }
 
 .now-song { font-weight: 600; margin: 0 0 8px; }
 .fact-source { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.fact-source-link { font-size: 12px; }
+.fact-evidence { display: block; margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--border); color: var(--muted); font-size: 12px; }
 .song-facts { margin-top: 12px; display: grid; gap: 6px; }
 .song-facts h3 { margin: 0; font-size: 15px; }
 #song-facts-open { margin-top: 10px; }

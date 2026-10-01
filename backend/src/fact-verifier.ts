@@ -972,6 +972,31 @@ export function explainMusicTerms(fact: string): string {
   return fact;
 }
 
+/**
+ * The sentence in the reference a caption was most likely written from, so
+ * the streamer can see what it rests on. The one sharing the most of the
+ * caption's content words, when it shares at least half; otherwise none:
+ * showing a poor match as "the source" would mislead.
+ */
+export function supportingSentence(fact: string, context: string): string {
+  // The plain-word explanations in brackets are ours, not the article's.
+  const want = contentTokens(fact.replace(/\s*\([^)]*\)/g, ""));
+  if (!want.size) return "";
+  let best = "";
+  let bestShare = 0;
+  const body = context.split("\n").slice(1).join("\n").replace(/^(From the people who made it|How the music is built|How it was received): /gm, "");
+  for (const raw of body.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u)) {
+    const sentence = raw.trim();
+    if (sentence.length < 20) continue;
+    const have = contentTokens(sentence);
+    let shared = 0;
+    for (const t of want) if (have.has(t)) shared++;
+    const share = shared / want.size;
+    if (share > bestShare) [best, bestShare] = [sentence, share];
+  }
+  return bestShare >= 0.5 ? (best.length > 320 ? `${best.slice(0, 317)}…` : best) : "";
+}
+
 export interface ScreenResult {
   kept: string[];
   rejected: Array<{ text: string; reason: string }>;

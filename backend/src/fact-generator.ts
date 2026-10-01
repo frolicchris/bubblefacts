@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, tooSimilar } from "./fact-verifier";
+import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
@@ -123,19 +123,33 @@ export const SOURCE = {
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
 const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
 
-function toFacts(song: SSLSong, lines: string[], sourceOf: (text: string) => string | undefined = () => undefined): Fact[] {
+function toFacts(
+  song: SSLSong,
+  lines: string[],
+  sourceOf: (text: string) => string | undefined = () => undefined,
+  /** The Wikipedia reference the captions were written from, to show the streamer what each rests on. */
+  context = ""
+): Fact[] {
   const told = lines.filter((text) => {
     if (WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
     console.log(`[Screen] DROP (repeats the request): ${text.slice(0, 90)}`);
     return false;
   });
-  return told.map((text, i) => ({
-    text,
-    source: sourceOf(text),
-    delaySeconds: i * config.factIntervalSeconds,
-    durationSeconds: config.factDurationSeconds,
-    position: POSITIONS[i % POSITIONS.length],
-  }));
+  const page = context.split("\n")[0];
+  return told.map((text, i) => {
+    const source = sourceOf(text);
+    const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
+    const evidence = fromArticle ? supportingSentence(text, context) : "";
+    return {
+      text,
+      source,
+      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.replace(/ /g, "_"))}` } : {}),
+      ...(evidence ? { evidence } : {}),
+      delaySeconds: i * config.factIntervalSeconds,
+      durationSeconds: config.factDurationSeconds,
+      position: POSITIONS[i % POSITIONS.length],
+    };
+  });
 }
 
 // --- Prompts -----------------------------------------------------------
@@ -469,7 +483,13 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   const lines = [...mine, ...others.map((f) => f.text)];
   // Labeled as custom facts: that's where the streamer edits them.
   const sourceOf = (t: string) => (mine.includes(t) ? SOURCE.custom : others.find((f) => f.text === t)?.source);
-  return { facts: toFacts(song, lines, sourceOf), ttlMs: rest.ttlMs };
+  // Re-spacing rebuilds each fact, so the article link and source sentence are carried across.
+  const sourced = new Map(others.map((f) => [f.text, f]));
+  const facts = toFacts(song, lines, sourceOf).map((f) => {
+    const was = sourced.get(f.text);
+    return was ? { ...f, ...(was.url ? { url: was.url } : {}), ...(was.evidence ? { evidence: was.evidence } : {}) } : f;
+  });
+  return { facts, ttlMs: rest.ttlMs };
 }
 
 async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number): Promise<{ facts: Fact[]; ttlMs: number }> {
@@ -546,7 +566,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       record(song, "grounded", shown.length);
       sources.set(songKey(song), context.split("\n")[0]);
       const article = `Wikipedia: ${context.split("\n")[0]}`;
-      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article), ttlMs: Infinity };
+      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context), ttlMs: Infinity };
     }
     const fallback = entryFacts(entry, want);
     console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
