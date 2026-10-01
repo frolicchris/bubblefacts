@@ -18,7 +18,26 @@ import { SSLSong } from "./types";
 
 const API = "https://www.wikidata.org/w/api.php";
 /** A description that says the item is a piece of music. */
-const MUSIC_ITEM = /\b(song|single|track|instrumental|composition|recording|theme|piece|anthem)\b/i;
+const MUSIC_ITEM = /\b(song|single|track|instrumental|composition|recording|theme|piece|anthem)\b|楽曲|シングル|ソング|노래|싱글|歌曲|单曲|песня|сингл/i;
+
+/**
+ * The language to search in for a title written in another script, so
+ * 「紅蓮華」 finds LiSA's song by its real name instead of a guessed
+ * transliteration ("Gurenge"). Latin-script titles search in English.
+ */
+export function searchLanguage(title: string): string {
+  if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title)) return "ja";
+  if (/\p{Script=Hangul}/u.test(title)) return "ko";
+  if (/\p{Script=Han}/u.test(title)) return "ja"; // kanji-only titles are most often Japanese on music streams
+  if (/\p{Script=Cyrillic}/u.test(title)) return "ru";
+  return "en";
+}
+
+/** A Latin-script name in text of any script: "LiSA" in "LiSAの楽曲", but not "Sia" in "Asia". */
+function namesArtist(text: string, names: string[]): boolean {
+  const t = normalizeTitle(text);
+  return names.some((n) => new RegExp(`(^|[^\\p{Script=Latin}\\p{N}])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{Script=Latin}\\p{N}])`, "u").test(t));
+}
 const MAX_NAMES = 3;
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 
@@ -89,7 +108,7 @@ export function pickSong(
   if (!want || !names.length) return null;
   const hit = hits.find((h) => {
     const desc = h.description ?? "";
-    return normalizeTitle(h.label ?? "") === want && MUSIC_ITEM.test(desc) && mentionsName(normalizeTitle(desc), names);
+    return normalizeTitle(h.label ?? "") === want && MUSIC_ITEM.test(desc) && (mentionsName(normalizeTitle(desc), names) || namesArtist(desc, names));
   });
   return hit?.id ?? null;
 }
@@ -129,7 +148,7 @@ export async function wikidataFacts(song: SSLSong): Promise<string[]> {
 
   try {
     const search = await get<{ search?: Array<{ id: string; label?: string; description?: string }> }>({
-      action: "wbsearchentities", search: title, language: "en", type: "item", limit: "10",
+      action: "wbsearchentities", search: title, language: searchLanguage(title), uselang: searchLanguage(title), type: "item", limit: "10",
     });
     const id = pickSong(search.search ?? [], title, game);
     if (!id) {

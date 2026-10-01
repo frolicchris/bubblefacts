@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { factsFromEntity, pickSong } from "./wikidata";
+import { factsFromEntity, pickSong, rankedClaims, searchLanguage } from "./wikidata";
 
 describe("pickSong", () => {
   const lostBoy = [
@@ -64,5 +64,36 @@ describe("factsFromEntity", () => {
       "Song"
     );
     expect(facts).toEqual(['"Song" came out in 2017.']);
+  });
+});
+
+describe("titles in other scripts (review)", () => {
+  it("searches in the title's language", () => {
+    expect(searchLanguage("紅蓮華")).toBe("ja");
+    expect(searchLanguage("アイドル")).toBe("ja");
+    expect(searchLanguage("강남스타일")).toBe("ko");
+    expect(searchLanguage("Gurenge")).toBe("en");
+  });
+
+  it("matches a Japanese description naming the artist in Latin letters", () => {
+    expect(pickSong([{ id: "Q65278185", label: "紅蓮華", description: "LiSAの楽曲" }], "紅蓮華", "LiSA")).toBe("Q65278185");
+    expect(pickSong([{ id: "Q1", label: "紅蓮華", description: "日本のアダルトゲーム" }], "紅蓮華", "LiSA")).toBeNull();
+  });
+});
+
+describe("statement ranks (review)", () => {
+  it("drops deprecated statements and prefers preferred ones", () => {
+    const e = {
+      id: "Q1",
+      claims: {
+        P577: [
+          { rank: "deprecated", mainsnak: { datavalue: { value: { time: "+1900-01-01T00:00:00Z" } } } },
+          { rank: "normal", mainsnak: { datavalue: { value: { time: "+1999-01-01T00:00:00Z" } } } },
+          { rank: "preferred", mainsnak: { datavalue: { value: { time: "+2000-01-01T00:00:00Z" } } } },
+        ],
+      },
+    };
+    expect(rankedClaims(e, "P577")).toHaveLength(1);
+    expect(factsFromEntity(e, {}, "Song")).toEqual(['"Song" came out in 2000.']);
   });
 });
