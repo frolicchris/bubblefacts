@@ -90,7 +90,11 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
  */
 export function artistNames(artist: string): string[] {
   const lead = artist.split(/\s*,\s*|\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0] ?? "";
-  return [...new Set([normalizeTitle(artist), normalizeTitle(lead)].filter(Boolean))];
+  // Two full names joined by "and": an article may name each alone. Only when
+  // both sides are full names, so "Simon and Garfunkel" stays one.
+  const pair = artist.split(/\s+(?:and|&)\s+/i);
+  const people = pair.length === 2 && pair.every((p) => p.trim().split(/\s+/).length >= 2) ? pair : [];
+  return [...new Set([artist, lead, ...people].map(normalizeTitle).filter(Boolean))];
 }
 
 /** Whether normalized text names one of these as whole words: "Sia" isn't in "Asia". */
@@ -532,9 +536,11 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   // A music video's artist is a band or singer, never a game or film of the same name.
   // An artist that's only a guess from the uploader's channel is never looked up
   // as the subject: an uploader called "Apollo" isn't the god (issue from review).
+  // "Ecco the Dolphin CD" is the game "Ecco the Dolphin": an edition word isn't part of its name.
+  const edition = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
   const matchedGame = (title: string) =>
     !song.artistUncertain &&
-    isRelevantArticle(game, title, artist || !!song.performer) &&
+    (isRelevantArticle(game, title, artist || !!song.performer) || (edition !== game && isRelevantArticle(edition, title, artist || !!song.performer))) &&
     !(song.performer && NOT_A_PERFORMER.test(title));
   // A longer title than the subject: "Final Fantasy" -> "Final Fantasy VII".
   const gameTokens = significantTokens(gameKey).length;
@@ -914,7 +920,8 @@ const RESTATES = new Set(
 export function restatesRequest(fact: string, song: SSLSong): boolean {
   const { game, track } = resolveGameAndTrack(song);
   const known = new Set(
-    [song.title, song.artist, game, track].flatMap((s) => normalizeTitle(s ?? "").split(" ")).filter(Boolean)
+    // Apostrophes go on both sides, so "Laura's" in the title is "Lauras" in the caption too.
+    [song.title, song.artist, game, track].flatMap((s) => normalizeTitle((s ?? "").replace(/['’]/g, "")).split(" ")).filter(Boolean)
   );
   const left = normalizeTitle(fact.replace(/['’]/g, ""))
     .split(" ")

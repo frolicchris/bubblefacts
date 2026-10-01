@@ -952,3 +952,11 @@ describe("what the makers said, how it's built, how it was received (issue #48)"
     expect(screenClaims(['"Clocks" was released in the UK by Parlophone in March.'], "clocks was released in the uk by parlophone in march.").kept[0]).toMatch(/^"Clocks" was/);
   });
 });
+
+describe("names and editions from a real stream's log (issue #45)", () => {
+  it("looks for each of two full names joined by and", () => {
+    expect(artistNames("Johnny Mercer and Henry Mancini")).toEqual(expect.arrayContaining(["johnny mercer", "henry mancini"]));
+    expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel"]);
+    expect(artistNames("Earth, Wind & Fire")).not.toContain("fire");
+  });
+});

@@ -60,7 +60,9 @@ StreamElements ───┴──────────────► Server 
    learn (often another streamer's off-list original). Not cached, so an edit
    applies on the next play.
 4. **Special cases.** A live learn (a request that isn't on the song list)
-   gets its banner and no facts. The streamer's own composition gets entry
+   gets its banner, and facts only from a source (`liveLearnLookup` reads
+   an artist and title out of a request typed like a video title), never
+   song-list or custom facts. The streamer's own composition gets entry
    facts and their composition notes, with no lookup.
 5. **Ground.** Search Wikipedia for the song, game or work, reject results that
    aren't really about it or that the streamer marked **Wrong** for this song,

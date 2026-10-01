@@ -56,10 +56,23 @@ function throttled<T>(run: () => Promise<T>): Promise<T> {
   return next;
 }
 
+const BUSY_RETRY_MS = process.env.NODE_ENV === "test" ? 1 : 1500;
+
+/** One request, tried once more after a pause when MusicBrainz says it's busy (503). */
+async function mbFetch(url: string): Promise<Response> {
+  const once = () => fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
+  let res = await once();
+  if (res.status === 503) {
+    await new Promise((r) => setTimeout(r, BUSY_RETRY_MS));
+    res = await once();
+  }
+  return res;
+}
+
 async function lookup<T>(path: string, inc: string): Promise<T> {
   return throttled(async () => {
     const url = `https://musicbrainz.org/ws/2/${path}?${new URLSearchParams({ inc, fmt: "json" })}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
+    const res = await mbFetch(url);
     if (!res.ok) throw new Error(`MusicBrainz HTTP ${res.status}`);
     return (await res.json()) as T;
   });
@@ -68,7 +81,7 @@ async function lookup<T>(path: string, inc: string): Promise<T> {
 async function search(query: string): Promise<Recording[]> {
   return throttled(async () => {
     const url = `${API}?${new URLSearchParams({ query, fmt: "json", limit: "25" })}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
+    const res = await mbFetch(url);
     if (!res.ok) throw new Error(`MusicBrainz HTTP ${res.status}`);
     return ((await res.json()) as { recordings?: Recording[] }).recordings ?? [];
   });

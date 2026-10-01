@@ -62,7 +62,7 @@ Good to know:
 - Facts only appear while the player is playing. When it's paused, the current song stays, and resuming carries on as normal; when nothing is playing, the overlay clears.
 - If StreamElements says a song is playing but the overlay can't see which one for 30 seconds, it reports the connection as degraded (the desktop app shows "Reconnecting to StreamElements" and, if it lasts, restarts the server).
 - StreamElements only knows each request's YouTube title, such as "Artist - Song (Official Video)". BubbleFacts reads the song and artist out of it, so a clearly titled video gets better facts than "my fav song!!".
-- There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. A request counts as your own composition when its artist is your channel name or `STREAMER_DISPLAY_NAME`.
+- There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. A request counts as your own composition when its artist is your channel name or `STREAMER_DISPLAY_NAME`, or, on StreamerSongList, when it carries a plain "Originals" tag and names an artist.
 
 ---
 
@@ -74,7 +74,7 @@ Good to know:
 | `INSTRUMENT` | *none* | No longer used. Nothing about you is sent to the AI: only the song and its article. |
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app starts with none. Keep `general`, or your own pack with originals lines, if you play your own compositions. Five or more facts keep them from repeating often. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
-| `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner, with no facts, for off-list requests. `off` treats them like any other song. |
+| `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner for off-list requests; facts show only when a source knows the song. `off` treats them like any other song. |
 
 The example packs are `video-game`, `classical`, `film`, `pop`, `piano` and
 `general`. **They're only a few examples, and they aren't maintained.** Fill

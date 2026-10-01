@@ -1,4 +1,4 @@
-import { buildStatFacts, isOriginal, cleanTitle } from "./stat-facts";
+import { buildStatFacts, isOriginal, isOwnOriginal, cleanTitle } from "./stat-facts";
 import { SSLQueueItem } from "./types";
 
 function entry(partial: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> = {}): SSLQueueItem {
@@ -138,5 +138,23 @@ describe("buildStatFacts", () => {
 
   it("returns nothing for a null entry rather than throwing", () => {
     expect(buildStatFacts(null, opts)).toEqual([]);
+  });
+});
+
+describe("isOwnOriginal (issue #45)", () => {
+  const item = (artist: string, tag?: string) =>
+    ({ song: { title: "Water in the Moonlight", artist, attributes: tag ? [{ name: tag }] : [] } }) as unknown as Parameters<typeof isOwnOriginal>[0];
+  const names = ["frolicchris", "Chris"];
+
+  it("counts the streamer's full name under a plain Originals tag", () => {
+    expect(isOwnOriginal(item("Christopher Feyrer", "Originals"), names)).toBe(true);
+    expect(isOwnOriginal(item("frolicchris"), names)).toBe(true);
+  });
+
+  it("never counts a missing credit, or someone else's originals", () => {
+    expect(isOwnOriginal(item("Unknown", "Originals"), names)).toBe(false);
+    expect(isOwnOriginal(item("", "Originals"), names)).toBe(false);
+    expect(isOwnOriginal(item("Jane Composer", "Jane's Originals"), names)).toBe(false);
+    expect(isOwnOriginal(item("Jane Composer"), names)).toBe(false);
   });
 });

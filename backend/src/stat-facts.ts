@@ -12,8 +12,6 @@ const GENERIC_NOTE = /^(original(\s+composition)?|improvised(\s+piece)?|own\s+co
 /** "Originals" or "Jane's Originals", but not "Original Soundtrack". */
 const ORIGINALS_ATTRIBUTE = /\boriginals\b|^\s*original\s*$/i;
 const MAX_NOTE_CHARS = 120;
-const STALE_AFTER_DAYS = 14;
-const DAY_MS = 86_400_000;
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
@@ -54,18 +52,26 @@ export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean
   return creditedToStreamer(entry, names);
 }
 
+/**
+ * The streamer's own piece, so their notes about their compositions go with
+ * it: credited to one of their names, or tagged plain "Originals" (or "My
+ * Originals", or with their name) on their own song list with a named artist.
+ * Their full name in the artist field ("Christopher Feyrer") needn't match
+ * their channel name. A missing or "Unknown" artist never counts.
+ */
+export function isOwnOriginal(entry: SSLQueueItem | null, names: string[]): boolean {
+  if (!entry) return false;
+  if (creditedToStreamer(entry, names)) return true;
+  const credit = (entry.song?.artist ?? "").trim();
+  if (!credit || /^unknown$/i.test(credit)) return false;
+  return (entry.song?.attributes ?? []).map((a) => a?.name ?? "").some((t) => ORIGINALS_ATTRIBUTE.test(t) && tagNamesStreamer(t, names));
+}
+
 /** Drop a leading "Artist:" that repeats the artist field. */
 export function cleanTitle(title: string, artist?: string | null): string {
   const t = title.trim();
   const prefix = artist ? `${artist.trim()}:` : "";
   return prefix && t.toLowerCase().startsWith(prefix.toLowerCase()) ? t.slice(prefix.length).trim() : t;
-}
-
-function daysSince(iso: string): number | null {
-  const then = Date.parse(iso);
-  if (Number.isNaN(then)) return null;
-  const days = Math.floor((Date.now() - then) / DAY_MS);
-  return days >= 0 ? days : null;
 }
 
 /** Each fact is emitted only when its field is present; the API often returns nulls. */
@@ -103,9 +109,6 @@ export function buildStatFacts(
   } else if (typeof played === "number" && played > 0) {
     facts.push(`${who} has played "${display}" ${played} ${plural(played, "time", "times")} on stream.`);
   }
-
-  const days = song.lastPlayed ? daysSince(song.lastPlayed) : null;
-  if (days !== null && days >= STALE_AFTER_DAYS) facts.push(`This one hasn't come up in ${days} days.`);
 
   const requesters = (entry.requests ?? []).map((r) => r?.name?.trim()).filter((n): n is string => Boolean(n));
   if (requesters.length === 1) {

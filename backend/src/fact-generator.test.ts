@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, STRUCTURED, taggedFactsFor } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor } from "./fact-generator";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
@@ -205,14 +205,26 @@ describe("generateFacts", () => {
     errorSpy.mockRestore();
   });
 
-  it("uses no model and no lookup for a live learn, even with verification on", async () => {
+  it("shows nothing for a live learn no source knows: no song-list or custom filler", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     const before = factStats.liveLearn;
     const facts = await generateFacts({ ...song, liveLearn: true }, entry({}, { nonlistSong: "Test Song" }));
     expect(facts).toEqual([]);
-    expect(fetchGrounding).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(factStats.liveLearn).toBe(before + 1);
+  });
+
+  it("looks up a live learn typed as a video title, and shows its facts (issue #45)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    expect(liveLearnLookup({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true }))
+      .toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
+    expect(liveLearnLookup({ title: "Some Tune", artist: "Unknown", liveLearn: true })).toBeNull();
+    expect(liveLearnLookup({ title: "Some Tune", artist: "Jane Composer", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Jane Composer" });
+
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);
+    const facts = await generateFacts({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true });
+    expect(facts).toHaveLength(5);
+    expect((fetchGrounding as jest.Mock).mock.calls.at(-1)?.[0]).toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
   });
 
   it("builds an original's facts from the song entry, with no model or lookup", async () => {
@@ -221,7 +233,9 @@ describe("generateFacts", () => {
       { title: "Laura's Wedding", artist: "Test Streamer" },
       entry({ title: "Laura's Wedding", artist: "Test Streamer" })
     );
-    expect(facts[0].text).toContain("original composition");
+    // The streamer's notes about their compositions lead; nothing repeats the title and artist.
+    expect(facts[0].source).toBe(SOURCE.custom);
+    expect(facts.some((f) => /original composition/.test(f.text))).toBe(false);
     expect(fetchGrounding).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
   });
