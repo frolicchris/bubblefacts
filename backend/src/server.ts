@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { forgetSong, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { forgetSong, selfTest, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
 import { FactsPayload, SSLQueueItem } from "./types";
 
@@ -201,6 +201,15 @@ control.post("/unwrong", (req, res) => {
   }
   unmarkWrong(song, article);
   res.json({ restored: true });
+});
+
+// The smoke test's check that the AI writes and screening keeps real captions.
+control.post("/selftest", async (req, res) => {
+  try {
+    res.json(await selfTest(Number(req.body?.variant) || 0));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // "Add facts for this song": the streamer's own facts for the song on stream now.

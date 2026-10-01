@@ -513,6 +513,23 @@ export function markWrong(song: SSLSong, text: string): string | null {
   return source;
 }
 
+/**
+ * Writes captions for a made-up song from a fixed reference and screens
+ * them, as a real song would be. The packaged-app smoke test runs two at once
+ * to check the built-in model, the screening and the turn-taking queue
+ * together (review: loading the model alone proved too little).
+ */
+export async function selfTest(variant = 0): Promise<{ generated: number; kept: string[]; ms: number }> {
+  const started = Date.now();
+  const title = variant ? "Starfall Nocturne" : "Starfall Overture";
+  const context = `${title}\n${title} is a 2019 piece of video game music composed by Mia Chen for the game Starfall. ` +
+    "It was recorded with a string quartet in Lisbon. The game was directed by John Smith and released for the Nintendo Switch.";
+  const song: SSLSong = { title, artist: "Starfall" };
+  const lines = (await askModel(groundedPrompt(song, context, 4))).split("\n").map((l) => l.trim()).filter(Boolean);
+  const { kept } = screenClaims(lines, context);
+  return { generated: lines.length, kept, ms: Date.now() - started };
+}
+
 /** Forget a song's cached facts, so its next generation starts over (after its own facts change). */
 export function forgetSong(song: SSLSong): void {
   const key = songKey(song);

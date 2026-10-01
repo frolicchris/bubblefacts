@@ -92,6 +92,22 @@ async function loads(gpu) {
     else if (/Built-in model failed to load/.test(s.log()) || s.exited()) result = { ok: false, log: s.log() };
     else await new Promise((r) => setTimeout(r, 1000));
   }
+  // 3. Loading isn't enough: write and screen captions for two songs at once,
+  // as a quick song change would, through the turn-taking queue.
+  if (result?.ok) {
+    const ask = (variant) =>
+      fetch(`http://127.0.0.1:${PORT}/control/selftest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-BubbleFacts": "1" },
+        body: JSON.stringify({ variant }),
+        signal: AbortSignal.timeout(5 * 60_000),
+      }).then((r) => r.json());
+    const runs = await Promise.all([ask(0), ask(1)]).catch((err) => [{ error: err.message }]);
+    const bad = runs.find((r) => r.error || !(r.kept?.length >= 1));
+    result = bad
+      ? { ok: false, log: `captions didn't come through: ${JSON.stringify(runs)}\n${s.log()}` }
+      : { ...result, line: `${result.line}; wrote and kept ${runs.map((r) => `${r.kept.length}/${r.generated} captions in ${(r.ms / 1000).toFixed(0)}s`).join(" and ")}` };
+  }
   await s.stop();
   return result ?? { ok: false, log: `timed out\n${s.log()}` };
 }
