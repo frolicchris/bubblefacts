@@ -119,16 +119,24 @@ The tests can't see what OBS or an installer does.
 1. The version in `package.json` and the `obs-overlay.js` header match the tag.
 2. The Release workflow passed for every system, and the draft has every
    installer, `SHA256SUMS.txt` and `bubblefacts.zip`.
-3. Download one installer from the draft. Its checksum matches, and
-   `gh attestation verify FILE --repo frolicchris/bubblefacts` passes.
-4. Install it and open it. The setup screen appears and shows the new version
+3. Run the **Smoke** workflow on the Release run's artifacts:
+   `gh workflow run smoke.yml -f run=RUN_ID`. (A draft release can't be
+   downloaded by the workflow's read-only token, so test the run that built
+   it.) Every system passes, including writing and keeping captions.
+4. Download one installer from the draft. Its checksum matches the draft's
+   `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
+   frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
+5. Install it and open it. The setup screen appears and shows the new version
    at the bottom.
-5. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
+6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
-6. Play one song from the queue. The Now Playing banner and facts appear.
-7. Quit from the menu bar or tray. Nothing is left running.
-8. Publish as a pre-release while in beta. The release notes say what changed
-   and link the Beta test report form.
+7. Play one song from the queue. The Now Playing banner and facts appear.
+8. Quit from the menu bar or tray. Nothing is left running.
+9. Publish as a pre-release while in beta. The release notes say what changed
+   and link the Beta test report form. Releases are immutable once published:
+   a mistake in a file is fixed with a new version, never by replacing it.
+10. Upload the changed `site/` files to the website and check each one against
+    `main`.
 
 ## Questions
 
