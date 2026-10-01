@@ -76,7 +76,9 @@ export function findSongFacts(song: SSLSong): SongFacts | null {
 export function songFactLines(entry: SongFacts): string[] {
   const writers = (entry.songwriters ?? []).map((w) => w.trim()).filter(Boolean);
   const lines: string[] = [];
-  if (writers.length) {
+  // "Written by Jane" says nothing when the request already reads "Jane - Evening Rain".
+  const sameAsArtist = writers.length === 1 && ident(writers[0]) === ident(entry.artist);
+  if (writers.length && !sameAsArtist) {
     const list = writers.length === 1 ? writers[0] : `${writers.slice(0, -1).join(", ")} and ${writers[writers.length - 1]}`;
     lines.push(`"${entry.title}" was written by ${list}.`);
   }

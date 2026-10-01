@@ -108,14 +108,14 @@ describe("generateFacts", () => {
   });
 
   it("shows the streamer's own facts for a song first, exactly as written, and labels every source", async () => {
-    saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
-    const facts = await generateFacts({ title: "Evening Rain", artist: "Jane Composer" });
+    saveSongFacts({ title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
+    const facts = await generateFacts({ title: "Evening Rain", artist: "Chris" });
     expect(facts.map((f) => [f.text, f.source])).toEqual([
       ['"Evening Rain" was written by Jane Composer.', SOURCE.yours],
       ["Jane wrote it in one night.", SOURCE.yours],
     ]);
     expect(mockCreate).not.toHaveBeenCalled();
-    saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", facts: [] });
+    saveSongFacts({ title: "Evening Rain", artist: "Chris", facts: [] });
   });
 
   it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {

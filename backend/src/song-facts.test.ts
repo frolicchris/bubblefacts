@@ -31,7 +31,10 @@ describe("song facts", () => {
     ]);
     expect(
       songFactLines({ title: "Evening Rain", artist: "Jane Composer", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["Written in one night."] })
-    ).toEqual(['"Evening Rain" was written by Jane Composer.', "Written in one night.", "More from Jane Composer: twitch.tv/jane"]);
+    ).toEqual(["Written in one night.", "More from Jane Composer: twitch.tv/jane"]);
+    expect(
+      songFactLines({ title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], facts: [] })
+    ).toEqual(['"Evening Rain" was written by Jane Composer.']);
   });
 
   it("removes a song when its facts and writers are cleared, and survives a restart", () => {

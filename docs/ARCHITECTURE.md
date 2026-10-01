@@ -70,6 +70,9 @@ StreamElements ───┴──────────────► Server 
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
    and near-repeats of recent facts.
+   `restatesRequest` then drops, on every path except the streamer's own
+   typed facts, any caption that is only the title, artist or game plus
+   filler ("a song by", "written by", genre). Spares fill the gap.
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
    fill fixed sentences, with no AI and so no screening. When the article is
    the artist's or the game's rather than the song's, structured facts about
@@ -354,7 +357,7 @@ folder; `data/` for the command-line version):
   song ID, YouTube video ID, else artist and title, or an alias. The match
   ignores case, accents and punctuation but keeps every word, so
   "Night Drive (Acoustic)" isn't "Night Drive (Remix)". A songwriter is
-  credited only when the streamer names one.
+  credited only when the streamer names one who isn't the artist.
 - `wrong-facts.json`: sources marked **Wrong** (above).
 
 The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,

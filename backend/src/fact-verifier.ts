@@ -616,6 +616,43 @@ function contentTokens(s: string): Set<string> {
   );
 }
 
+/**
+ * Words that only say what the request already shows: that it's a song, who
+ * it's by or what it's from, and how it was made in general terms. Genre and
+ * nationality words count too: "a song by English rock band Coldplay" tells
+ * a viewer nothing the request didn't.
+ */
+const RESTATES = new Set(
+  (
+    "is was are were be been a an the this that it its one here now so just " +
+    "song songs track tracks single tune piece music musical instrumental theme composition compositions original originals cover " +
+    "by from of in on for and with to as " +
+    "written wrote writes composed composer performed performer recorded sung sings sang released credited " +
+    "artist band group singer songwriter duo trio musician rapper " +
+    "video game games soundtrack ost score album " +
+    "you youre re hearing listening playing straight person who " +
+    "english british american canadian australian irish scottish welsh japanese korean swedish french german " +
+    "rock pop hip hop rap country folk indie jazz electronic dance metal punk alternative soul r b"
+  ).split(" ")
+);
+
+/**
+ * A caption that only repeats what viewers already see: the title, the artist
+ * or game, and filler. "\"Clocks\" was written by Coldplay" says nothing when the
+ * request read "Coldplay - Clocks"; "\"Clocks\" was written by Chris Martin" or
+ * "came out in 2002" adds something and stays.
+ */
+export function restatesRequest(fact: string, song: SSLSong): boolean {
+  const { game, track } = resolveGameAndTrack(song);
+  const known = new Set(
+    [song.title, song.artist, game, track].flatMap((s) => normalizeTitle(s ?? "").split(" ")).filter(Boolean)
+  );
+  const left = normalizeTitle(fact.replace(/['’]/g, ""))
+    .split(" ")
+    .filter((t) => t && !known.has(t) && !RESTATES.has(t));
+  return left.length === 0;
+}
+
 /** Jaccard or containment overlap; containment catches a restatement that adds words. */
 export function tooSimilar(a: string, b: string): boolean {
   const ta = contentTokens(a);

@@ -24,7 +24,7 @@ import {
   clearGroundingCache,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
-import { artistNames, mentionsName } from "./fact-verifier";
+import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
 import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
@@ -800,5 +800,40 @@ describe("artist names (peer review)", () => {
   it("matches whole words only", () => {
     expect(mentionsName("2014 single by asia", ["sia"])).toBe(false);
     expect(mentionsName("2014 single by sia", ["sia"])).toBe(true);
+  });
+});
+
+describe("restatesRequest", () => {
+  const clocks = { title: "Clocks", artist: "Coldplay" };
+
+  it("drops lines that only repeat the title and artist", () => {
+    for (const f of [
+      '"Clocks" was written by Coldplay.',
+      '"Clocks" is a song by English rock band Coldplay.',
+      "Clocks is a single by Coldplay.",
+      "Coldplay performed and recorded Clocks.",
+    ]) expect(restatesRequest(f, clocks)).toBe(true);
+  });
+
+  it("keeps lines that add something", () => {
+    for (const f of [
+      '"Clocks" was written by Chris Martin, Jonny Buckland, Guy Berryman and Will Champion.',
+      '"Clocks" came out in 2002.',
+      '"Clocks" is on the album A Rush of Blood to the Head.',
+      "Requested by kirbyfan.",
+    ]) expect(restatesRequest(f, clocks)).toBe(false);
+  });
+
+  it("treats a game as part of the request", () => {
+    const song = { title: "Megalovania", artist: "Undertale" };
+    expect(restatesRequest('"Megalovania" is a song from the video game Undertale.', song)).toBe(true);
+    expect(restatesRequest('"Megalovania" from Undertale was composed by Toby Fox.', song)).toBe(false);
+  });
+
+  it("drops an originals credit that names the artist the request showed", () => {
+    const song = { title: "Water in the Moonlight", artist: "Chris" };
+    expect(restatesRequest('"Water in the Moonlight" is an original composition by Chris.', song)).toBe(true);
+    expect(restatesRequest("You're hearing this one straight from the person who wrote it.", song)).toBe(true);
+    expect(restatesRequest("Chris has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
   });
 });

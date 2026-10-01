@@ -45,7 +45,8 @@ step lets you mark your originals and live learns and add your own facts. The
 When a song starts, BubbleFacts finds its Wikipedia article (or the game's or
 film's), and the AI writes captions **only from that article**. Every caption
 is screened: names, who did what, years, consoles, and award or chart claims
-must appear in the article, or it's dropped. That catches most mistakes, not
+must appear in the article, or it's dropped. Captions that only repeat the
+title and artist are dropped too. That catches most mistakes, not
 every one (a caption can still mix up details the article does mention), so
 **Wrong** next to a fact in the app takes it off your stream.
 With no article, no AI is used: free music databases (Wikidata, MusicBrainz)
