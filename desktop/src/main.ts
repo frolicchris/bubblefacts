@@ -581,7 +581,8 @@ ipcMain.handle("update-install", () => {
     send("state", state());
     return;
   }
-  // The installer is waiting for this app to close.
+  // The installer is waiting for this app to close. On Linux the app reopens the new AppImage itself.
+  if (result.relaunch) app.relaunch({ execPath: result.relaunch, args: [] });
   quitting = true;
   app.quit();
 });
