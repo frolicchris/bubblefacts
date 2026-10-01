@@ -960,3 +960,18 @@ describe("names and editions from a real stream's log (issue #45)", () => {
     expect(artistNames("Earth, Wind & Fire")).not.toContain("fire");
   });
 });
+
+describe("who won the award (stream replay: Moon River)", () => {
+  const ctx = "Moon River\nMoon River is a song composed by Henry Mancini with lyrics by Johnny Mercer. It was originally performed by Audrey Hepburn in the 1961 film Breakfast at Tiffany's, winning an Academy Award for Best Original Song. Henry Mancini won the Grammy Award for Record of the Year.";
+  const kept = (fact: string) => screenClaims([fact], ctx).kept.length === 1;
+
+  it("drops an award given to someone the source doesn't say won it", () => {
+    expect(kept("Audrey Hepburn won an Academy Award for Best Original Song for her performance.")).toBe(false);
+  });
+
+  it("keeps the award for the song, and for a person the source says won", () => {
+    expect(kept("The song won an Academy Award for Best Original Song.")).toBe(true);
+    expect(kept("Henry Mancini won the Grammy Award for Record of the Year.")).toBe(true);
+    expect(kept("Moon River won an Academy Award for Best Original Song.")).toBe(true);
+  });
+});
