@@ -218,6 +218,14 @@
     };
     ws.onclose = () => {
       statusDot.classList.remove("connected");
+      // The song may change while disconnected: drop its pending bubbles and banner.
+      // A reconnect starts fresh with the current song.
+      if (opened) {
+        clearBubbles();
+        removeToast();
+        currentSongKey = null;
+        removed = new Set();
+      }
       if (!opened && LOCAL_FILE) {
         portOffset = (portOffset + 1) % (PORT_SPAN + 1);
         if (portOffset !== 0) {

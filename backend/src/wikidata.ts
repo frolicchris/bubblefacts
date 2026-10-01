@@ -26,7 +26,7 @@ interface Entity {
   id: string;
   labels?: Record<string, { value: string }>;
   descriptions?: Record<string, { value: string }>;
-  claims?: Record<string, Array<{ mainsnak?: { datavalue?: { value?: unknown } } }>>;
+  claims?: Record<string, Claim[]>;
 }
 
 const cache = new Map<string, { facts: string[]; at: number }>();
@@ -45,13 +45,26 @@ async function entities(ids: string[], props: string): Promise<Record<string, En
 }
 
 const label = (e: Entity | undefined) => e?.labels?.en?.value ?? "";
+type Claim = { rank?: string; mainsnak?: { datavalue?: { value?: unknown } } };
+
+/**
+ * The statements Wikidata stands behind: deprecated ones are known to be
+ * wrong, and when any is marked preferred, only those count.
+ * https://www.wikidata.org/wiki/Help:Ranking
+ */
+export function rankedClaims(e: Entity, prop: string): Claim[] {
+  const usable = (e.claims?.[prop] ?? []).filter((c) => c.rank !== "deprecated");
+  const preferred = usable.filter((c) => c.rank === "preferred");
+  return preferred.length ? preferred : usable;
+}
+
 const itemIds = (e: Entity, prop: string): string[] =>
-  (e.claims?.[prop] ?? [])
+  rankedClaims(e, prop)
     .map((c) => (c.mainsnak?.datavalue?.value as { id?: string } | undefined)?.id)
     .filter((id): id is string => typeof id === "string");
 
 function year(e: Entity): string | null {
-  const times = (e.claims?.P577 ?? [])
+  const times = rankedClaims(e, "P577")
     .map((c) => (c.mainsnak?.datavalue?.value as { time?: string } | undefined)?.time)
     .filter((t): t is string => typeof t === "string")
     .map((t) => /^\+(\d{4})/.exec(t)?.[1])

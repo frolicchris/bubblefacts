@@ -3,7 +3,7 @@ import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
-import { buildStatFacts, isOriginal } from "./stat-facts";
+import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
@@ -274,11 +274,31 @@ export async function warmUpBuiltin(): Promise<void> {
   }
 }
 
-/** The desktop app's built-in model. Each song starts from an empty chat history. */
-async function askBuiltin(prompt: string): Promise<string> {
-  const { session } = await loadBuiltin();
-  session.resetChatHistory();
-  return session.prompt(prompt, { temperature: config.temperature, maxTokens: MAX_TOKENS });
+/** Longest the built-in model may write for one song before it's stopped. */
+const BUILTIN_TIMEOUT_MS = 90_000;
+let builtinQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * The desktop app's built-in model. There is one chat session, so songs take
+ * turns: resetting the history and prompting happen together, inside the
+ * queue, or a song that changes mid-generation would inherit the previous
+ * song's conversation. Each turn is cut off after BUILTIN_TIMEOUT_MS; what
+ * was written so far is still screened like any other output.
+ */
+function askBuiltin(prompt: string): Promise<string> {
+  const run = async () => {
+    const { session } = await loadBuiltin();
+    session.resetChatHistory();
+    return session.prompt(prompt, {
+      temperature: config.temperature,
+      maxTokens: MAX_TOKENS,
+      signal: AbortSignal.timeout(BUILTIN_TIMEOUT_MS),
+      stopOnAbortSignal: true,
+    }) as Promise<string>;
+  };
+  const turn = builtinQueue.then(run, run);
+  builtinQueue = turn.catch(() => undefined);
+  return turn;
 }
 
 async function askModel(prompt: string): Promise<string> {
@@ -344,9 +364,13 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
   }
 
   try {
-    if (config.originals && isOriginal(entry, [config.sslStreamerName, config.streamerDisplayName])) {
-      const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true });
-      const facts = toFacts([...stats, ...topic.originalsFacts].slice(0, want));
+    const names = [config.sslStreamerName, config.streamerDisplayName];
+    if (config.originals && isOriginal(entry, names)) {
+      const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName, isOriginalSong: true, names });
+      // The streamer's notes about their own compositions only go with songs credited to them.
+      const credit = (entry?.song?.artist ?? "").trim();
+      const own = !credit || /^unknown$/i.test(credit) || creditedToStreamer(entry, names);
+      const facts = toFacts([...stats, ...(own ? topic.originalsFacts : [])].slice(0, want));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
       record(song, "original", facts.length);
       // Not cached: requester and play count change, and this path is free.

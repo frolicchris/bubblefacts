@@ -346,7 +346,8 @@
           showWrongNote("That song already ended, so there was nothing to remove.", null);
           return;
         }
-        state.wrong = { song: song || "", text: f.text, article: result.article };
+        // The song itself goes along, so Undo can't land on whatever plays next.
+        state.wrong = { song: song || "", text: f.text, article: result.article, songId: r.song };
         showWrongNote(
           result.structured
             ? "Removed. BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
@@ -372,8 +373,13 @@
   $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
   $("#wrong-undo").addEventListener("click", async () => {
     if (!state.wrong || !state.wrong.article) return;
-    await api.unwrongFact(state.wrong.article);
-    showWrongNote("Undone. BubbleFacts may use that source for this song again; the fact stays off for now.", null);
+    const result = await api.unwrongFact(state.wrong.article, state.wrong.songId);
+    showWrongNote(
+      result && result.restored
+        ? `Undone. BubbleFacts may use that source for "${state.wrong.song}" again; the fact stays off for now.`
+        : "Couldn't undo that. Try again in a moment.",
+      result && result.restored ? null : state.wrong.article
+    );
   });
   $("#pause-toggle").addEventListener("click", () => api.setPaused(!state.paused));
   $("#test-bubble").addEventListener("click", async () => {

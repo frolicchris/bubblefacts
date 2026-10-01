@@ -29,7 +29,12 @@ interface Recording {
   title?: string;
   "first-release-date"?: string;
   "artist-credit"?: Array<{ name?: string; artist?: { name?: string; "sort-name"?: string } }>;
-  releases?: Array<{ title?: string; status?: string; date?: string; "release-group"?: { "secondary-types"?: string[] } }>;
+  releases?: Array<{
+    title?: string;
+    status?: string;
+    date?: string;
+    "release-group"?: { "primary-type"?: string; "secondary-types"?: string[] };
+  }>;
 }
 
 const cache = new Map<string, { facts: string[]; at: number }>();
@@ -89,10 +94,20 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
   const q = `"${title}"`;
   const year = /^\d{4}/.exec(first["first-release-date"] ?? "")?.[0];
   if (year) facts.push(`${q} came out in ${year}.`);
+  // A studio album only (no compilations, live or soundtrack albums), and no
+  // claim that it came out there first: an earlier single may not be listed.
   const album = [...(first.releases ?? [])]
-    .filter((r) => r.status === "Official" && r.title && normalizeTitle(r.title) !== want && !NOT_AN_ALBUM.test(r.title))
+    .filter(
+      (r) =>
+        r.status === "Official" &&
+        r.title &&
+        normalizeTitle(r.title) !== want &&
+        r["release-group"]?.["primary-type"] === "Album" &&
+        !(r["release-group"]?.["secondary-types"] ?? []).length &&
+        !NOT_AN_ALBUM.test(r.title)
+    )
     .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"))[0]?.title;
-  if (album) facts.push(`${q} first came out on ${album}.`);
+  if (album) facts.push(`${q} is on the album ${album}.`);
   return facts;
 }
 

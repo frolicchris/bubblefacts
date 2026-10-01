@@ -7,7 +7,11 @@ const rec = (title: string, artist: string, date: string, releases: Array<[strin
   title,
   "first-release-date": date,
   "artist-credit": [{ name: artist }],
-  releases: releases.map(([t, status, types]) => ({ title: t, status: status ?? "Official", "release-group": { "secondary-types": types ?? [] } })),
+  releases: releases.map(([t, status, types]) => ({
+    title: t,
+    status: status ?? "Official",
+    "release-group": { "primary-type": "Album", "secondary-types": types ?? [] },
+  })),
 });
 
 describe("performerFacts", () => {
@@ -21,11 +25,20 @@ describe("performerFacts", () => {
       "Lost Boy",
       "The Midnight"
     );
-    expect(facts).toEqual(['"Lost Boy" came out in 2018.', '"Lost Boy" first came out on Kids.']);
+    expect(facts).toEqual(['"Lost Boy" came out in 2018.', '"Lost Boy" is on the album Kids.']);
   });
 
   it("finds nothing when no recording credits the artist", () => {
     expect(performerFacts([rec("Lost Boy", "Ruth B", "2015", [["Safe Haven"]])], "Lost Boy", "The Midnight")).toEqual([]);
+  });
+
+  it("names only a studio album, never a compilation", () => {
+    const facts = performerFacts(
+      [rec("Song", "Band", "1980-01-01", [["Hits 2005", "Official", ["Compilation"]]])],
+      "Song",
+      "Band"
+    );
+    expect(facts).toEqual(['"Song" came out in 1980.']);
   });
 });
 

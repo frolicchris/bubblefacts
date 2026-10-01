@@ -99,8 +99,8 @@ describe("buildStatFacts", () => {
 
   it("skips a boilerplate note that the originals line already states", () => {
     const f = buildStatFacts(
-      entry({ comment: "Original composition", attributes: [{ name: "Jane's Originals" }] }),
-      { ...opts, isOriginalSong: true }
+      entry({ comment: "Original composition", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] }),
+      { ...opts, isOriginalSong: true, names: ["janestreams", "Jane Composer"] }
     );
     expect(f).not.toContain("Original composition");
     expect(f.some((x) => /is an original composition by/.test(x))).toBe(true);
@@ -114,9 +114,18 @@ describe("buildStatFacts", () => {
   it("credits the composer by name rather than the channel handle", () => {
     const f = buildStatFacts(
       entry({ title: "Jane Composer: Laura's Wedding", artist: "Jane Composer" }),
-      { ...opts, isOriginalSong: true }
+      { ...opts, isOriginalSong: true, names: ["janestreams", "Jane Composer"] }
     );
     expect(f.some((x) => x.includes("by Jane Composer"))).toBe(true);
+  });
+
+  it("never claims another streamer's original was written by the one playing it", () => {
+    // From review: Chris plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
+    const song = entry({ title: "Evening Rain", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] });
+    expect(isOriginal(song, ["frolicchris", "Chris"])).toBe(false);
+    const f = buildStatFacts(song, { streamerName: "frolicchris", isOriginalSong: true, names: ["frolicchris", "Chris"] });
+    expect(f.join(" ")).not.toMatch(/person who wrote it|composition by frolicchris/);
+    expect(f).toContain('"Evening Rain" is an original, credited to Jane Composer.');
   });
 
   it("returns nothing for a null entry rather than throwing", () => {

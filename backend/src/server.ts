@@ -189,7 +189,11 @@ control.post("/wrong", (req, res) => {
 // Undo "Wrong": the source may be used for the song again. The removed fact stays off this play.
 control.post("/unwrong", (req, res) => {
   const article = typeof req.body?.article === "string" ? req.body.article : "";
-  const song = lastSent.song;
+  // The song Wrong was pressed on, which may no longer be playing.
+  const given = req.body?.song as { title?: unknown; artist?: unknown } | undefined;
+  const song = given && typeof given.title === "string" && typeof given.artist === "string"
+    ? { title: given.title, artist: given.artist }
+    : null;
   if (!song || !article) {
     res.status(404).json({ restored: false });
     return;

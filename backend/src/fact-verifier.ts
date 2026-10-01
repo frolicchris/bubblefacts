@@ -324,7 +324,9 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   // A game's tracks share one lookup. An artist's songs never share: each may
   // have its own article. The artist test is a heuristic, and guessing
   // "artist" for a game only costs extra lookups, never wrong facts.
-  const artist = looksLikeArtistName(game);
+  // A music video's artist counts as one too (issue: "Muse - Starlight" must
+  // search for Starlight, not reuse Muse's article cached for another song).
+  const artist = looksLikeArtistName(game) || !!song.performer;
   // Articles the streamer marked wrong for this song are never used for it again.
   const blocked = blockedArticles(song);
   const usable = (title: string) => !blocked.has(title);
@@ -347,7 +349,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   const names = artistNames(game);
   const terms = searchTerms(game, track, artist || !!song.performer);
   // A music video's artist may share a name with a game or film; ask for the performer.
-  if (song.performer && !artist && game.trim()) {
+  if (song.performer && !looksLikeArtistName(game) && game.trim()) {
     const at = terms.indexOf(game);
     terms.splice(at < 0 ? terms.length : at, 0, `${game} band`);
   }
