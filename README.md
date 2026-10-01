@@ -60,9 +60,10 @@ stream, so its fact writer never answers from memory.
    either, it shows backup facts you write yourself, or nothing.
 
 Facts are only as good as Wikipedia: the check makes sure captions match the
-article, not that the article is right. Found a wrong fact? Click **Wrong** next to it in the app. It comes off your
-stream right away, and BubbleFacts won't use that Wikipedia article for that
-song again. **Tell us about it** then opens a
+article, not that the article is right. Found a wrong fact? Click **Wrong**
+next to it in the app. It comes off your stream right away, and BubbleFacts
+won't use that fact's source for that song again (**Undo** if you clicked by
+mistake). **Report it (opens GitHub)** then opens a
 [report](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml),
 the most useful report of all.
 
@@ -92,7 +93,7 @@ are in [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** fills in the details for you.
 - [Report a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
-  In the app, click **Wrong** next to it, then **Tell us about it**.
+  In the app, click **Wrong** next to it, then **Report it (opens GitHub)**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
   tried the beta? Tell us how each step went.
 - [Security policy](SECURITY.md): report security problems privately.

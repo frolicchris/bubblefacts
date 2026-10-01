@@ -81,14 +81,14 @@
             <ol>
               <li>Open the BubbleFacts <span class="ui">.dmg</span> file from your Downloads folder.</li>
               <li>Drag <span class="ui">BubbleFacts</span> into the <span class="ui">Applications</span> folder.</li>
-              <li>Open your Applications folder, <strong>right-click</strong> BubbleFacts (or Control-click), and choose <span class="ui">Open</span>.</li>
-              <li>Your Mac may say the app "can't be opened because Apple cannot check it for malicious software." Click <span class="ui">Open</span> again in that message.</li>
+              <li>Open BubbleFacts from your Applications folder. On macOS 15 (Sequoia) and newer, your Mac says <span class="ui">"BubbleFacts" Not Opened</span>. Click <span class="ui">Done</span>.</li>
+              <li>Open <span class="ui">System Settings</span>, then <span class="ui">Privacy &amp; Security</span>. Scroll down and click <span class="ui">Open Anyway</span> next to the note about BubbleFacts, enter your Mac password, and click <span class="ui">Open Anyway</span> once more.</li>
             </ol>
-            <p>If there's no Open button: open <span class="ui">System Settings</span>, go to <span class="ui">Privacy &amp; Security</span>, scroll down, and click <span class="ui">Open Anyway</span> next to the note about BubbleFacts. You only need to do this once.</p>
+            <p>On older Macs: <strong>right-click</strong> BubbleFacts (or Control-click), choose <span class="ui">Open</span>, then click <span class="ui">Open</span> again. You only need to do this once.</p>
 
             <h3 id="install-windows">Windows</h3>
             <ol>
-              <li>Open the BubbleFacts <span class="ui">.exe</span> file from your Downloads folder. If your browser says the file isn't commonly downloaded, choose to keep it.</li>
+              <li>Open the BubbleFacts <span class="ui">.exe</span> file from your Downloads folder. If your browser says the file isn't commonly downloaded: in Microsoft Edge, point at the download, click <span class="ui">…</span>, then <span class="ui">Keep</span>, <span class="ui">Show more</span> and <span class="ui">Keep anyway</span>.</li>
               <li>Windows may show a blue box saying <span class="ui">Windows protected your PC</span>. Click <span class="ui">More info</span>, then <span class="ui">Run anyway</span>.</li>
               <li>The installer sets up BubbleFacts just for you. It doesn't need an administrator password.</li>
             </ol>
@@ -231,7 +231,7 @@
 
             <h3 id="backup-facts">Backup facts</h3>
             <p>When a song has no Wikipedia article, the AI isn't used. BubbleFacts looks the song up on Wikidata, then on MusicBrainz, two free music databases. If one lists the song, it fills in plain sentences from that data, such as the year the song came out and its album.</p>
-            <p>If neither has the song, the app shows your backup facts: short facts you write yourself. If you have none, that song gets no backup facts, so nothing wrong goes on stream. That's the best choice for request channels, where no list could cover every song.</p>
+            <p>If neither has the song, the app shows your backup facts: short facts you write yourself. If you have none, that song gets no bubbles, rather than filler. That's the best choice for request channels, where no list could cover every song.</p>
 
             <div class="note">
               <p class="note-title">The example packs are off</p>
@@ -307,8 +307,8 @@
             <p>The dashboard's <span class="ui">On stream now</span> list shows the facts for the song you're playing. Each one has a <span class="ui">Wrong</span> button.</p>
             <ol>
               <li>Click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away, even if its bubble is showing.</li>
-              <li>If the fact came from a Wikipedia article, BubbleFacts never uses that article for that song again. It remembers this after you quit and reopen the app. A wrong fact almost always means it found the wrong article.</li>
-              <li>Optional: click <span class="ui">Tell us about it</span>. A report opens on GitHub in your browser, with the song and the fact filled in, for you to read before you send it. You need a free GitHub account.</li>
+              <li>BubbleFacts never uses that fact's source for that song again: the Wikipedia article, or Wikidata and MusicBrainz. It remembers this after you quit and reopen the app. A wrong fact almost always means it found the wrong source. Clicked by mistake? Click <span class="ui">Undo</span>.</li>
+              <li>Optional: click <span class="ui">Report it (opens GitHub)</span>. A report opens on GitHub in your browser, with the song and the fact filled in, for you to read before you send it. You need a free GitHub account.</li>
             </ol>
             <p>Reports of wrong facts are the most useful kind. They show where the fact check needs to be stricter.</p>
           </div>
@@ -373,7 +373,7 @@
               <tr>
                 <th scope="row">Mac says the app "can't be opened because Apple cannot check it"</th>
                 <td>The app isn't signed yet</td>
-                <td>Right-click the app, choose <span class="ui">Open</span>, then <span class="ui">Open</span> again. Or use <span class="ui">System Settings</span>, <span class="ui">Privacy &amp; Security</span>, <span class="ui">Open Anyway</span>.</td>
+                <td>Open <span class="ui">System Settings</span>, then <span class="ui">Privacy &amp; Security</span>, scroll down and click <span class="ui">Open Anyway</span>. On older Macs, right-click the app, choose <span class="ui">Open</span>, then <span class="ui">Open</span> again.</td>
               </tr>
               <tr>
                 <th scope="row">Windows says "Windows protected your PC"</th>

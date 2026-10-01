@@ -297,8 +297,13 @@ function createWindow(): void {
     win?.hide();
     if (!toldAboutTray) {
       toldAboutTray = true;
-      const where = process.platform === "darwin" ? "menu bar" : "system tray";
-      notify("BubbleFacts is still running", `Facts keep appearing on stream. Quit from the ${where} icon.`);
+      // Windows hides tray icons behind the ^ next to the clock.
+      const where = process.platform === "darwin"
+        ? "the BubbleFacts icon in the menu bar"
+        : process.platform === "win32"
+          ? "the ^ next to the clock, then the BubbleFacts icon"
+          : "the BubbleFacts icon in the system tray";
+      notify("BubbleFacts is still running", `Facts keep appearing on stream. To quit, click ${where}.`);
     }
   });
 }

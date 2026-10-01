@@ -256,8 +256,9 @@ TOPIC=classical,film,piano,general
 ```
 
 The default is every example except `piano`. Keep `general`, or a pack of
-your own with lines for your originals, if you play your own music. Your
-choice needs at least five facts in total.
+your own with lines for your originals, if you play your own music. Five or
+more facts keep them from repeating often. Set `TOPIC=` (empty) for no
+backup facts at all.
 
 **To make your own pack,** copy any file in `topics`, give it a name that's
 yours (such as `my-facts.json`), change the facts, and add that name to

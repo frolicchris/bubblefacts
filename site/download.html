@@ -83,7 +83,6 @@
           <li class="rpg">
             <h2>Linux: Ubuntu and Debian</h2>
             <p class="dl-meta">64-bit. Tested on Ubuntu 24.04 and newer.</p>
-            <p class="dl-meta"><strong>Known issue in this beta:</strong> on some Linux computers the built-in fact writer can't start yet. BubbleFacts still works with your own messages, and the free online fact writer (Groq, in Settings) works fine. A fix is on the way.</p>
             <p><a class="btn btn-primary" data-asset="linux-deb" href="https://github.com/frolicchris/bubblefacts/releases">Download .deb</a></p>
             <p class="dl-file">A package that installs like other apps on Ubuntu, Debian and similar systems.</p>
           </li>
@@ -106,13 +105,14 @@
         <p>The app isn't signed yet. Signing is a paid registration with Apple and Microsoft that tells your computer who made an app. Until that's done, your computer warns you the first time you open BubbleFacts. These warnings go away once the app is signed.</p>
 
         <h3>Mac</h3>
-        <p>Your Mac may say the app "can't be opened because Apple cannot check it for malicious software."</p>
+        <p>On macOS 15 (Sequoia) and newer, your Mac says <span class="ui">"BubbleFacts" Not Opened</span>.</p>
         <ol>
-          <li>Open your Applications folder.</li>
-          <li><strong>Right-click</strong> BubbleFacts (or Control-click) and choose <span class="ui">Open</span>.</li>
-          <li>Click <span class="ui">Open</span> again in the message.</li>
+          <li>Click <span class="ui">Done</span>.</li>
+          <li>Open <span class="ui">System Settings</span>, then <span class="ui">Privacy &amp; Security</span>.</li>
+          <li>Scroll down and click <span class="ui">Open Anyway</span> next to the note about BubbleFacts.</li>
+          <li>Enter your Mac password, then click <span class="ui">Open Anyway</span> once more.</li>
         </ol>
-        <p>If there's no Open button: open <span class="ui">System Settings</span>, go to <span class="ui">Privacy &amp; Security</span>, scroll down, and click <span class="ui">Open Anyway</span>. You only need to do this once.</p>
+        <p>On older Macs: <strong>right-click</strong> BubbleFacts in your Applications folder (or Control-click), choose <span class="ui">Open</span>, then click <span class="ui">Open</span> again. You only need to do this once.</p>
 
         <h3>Windows</h3>
         <p>Windows SmartScreen may show a blue box saying <span class="ui">Windows protected your PC</span>.</p>
@@ -120,7 +120,7 @@
           <li>Click <span class="ui">More info</span>.</li>
           <li>Click <span class="ui">Run anyway</span>.</li>
         </ol>
-        <p>Your browser may also say the file isn't commonly downloaded. Choose to keep it.</p>
+        <p>Your browser may also say the file isn't commonly downloaded. In Microsoft Edge, point at the download, click <span class="ui">…</span>, then <span class="ui">Keep</span>, then <span class="ui">Show more</span>, then <span class="ui">Keep anyway</span>.</p>
 
         <p>Then follow the <a href="guide.html">setup guide</a>.</p>
       </div>
