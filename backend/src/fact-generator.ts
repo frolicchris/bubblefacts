@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, screenClaims, tooSimilar } from "./fact-verifier";
+import { curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
@@ -115,8 +115,16 @@ export const SOURCE = {
   musicbrainz: "MusicBrainz",
 } as const;
 
-function toFacts(lines: string[], sourceOf: (text: string) => string | undefined = () => undefined): Fact[] {
-  return lines.map((text, i) => ({
+/** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
+const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
+
+function toFacts(song: SSLSong, lines: string[], sourceOf: (text: string) => string | undefined = () => undefined): Fact[] {
+  const told = lines.filter((text) => {
+    if (WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
+    console.log(`[Screen] DROP (repeats the request): ${text.slice(0, 90)}`);
+    return false;
+  });
+  return told.map((text, i) => ({
     text,
     source: sourceOf(text),
     delaySeconds: i * config.factIntervalSeconds,
@@ -415,7 +423,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
     record(song, "songFacts", lines.length);
     // Not cached: an edit in the app applies the next time it plays.
-    return { facts: toFacts(lines, () => SOURCE.yours), ttlMs: 0 };
+    return { facts: toFacts(song, lines, () => SOURCE.yours), ttlMs: 0 };
   }
 
   if (song.liveLearn) {
@@ -431,7 +439,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
       // The streamer's notes about their own compositions only go with songs explicitly credited to them.
       const own = creditedToStreamer(entry, names);
       const statSet = new Set(stats);
-      const facts = toFacts([...stats, ...(own ? topic.originalsFacts : [])].slice(0, want), (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom));
+      const facts = toFacts(song, [...stats, ...(own ? topic.originalsFacts : [])].slice(0, want), (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom));
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
       record(song, "original", facts.length);
       // Not cached: requester and play count change, and this path is free.
@@ -444,17 +452,17 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
       const data = config.factVerification ? await structuredFacts(song) : [];
-      const shownData = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
+      const shownData = data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, want);
       if (shownData.length) {
         remember(shownData);
         record(song, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
-        return { facts: toFacts(shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
+        return { facts: toFacts(song, shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
       }
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(song, "noReference", lines.length);
       // Retried after the grounding negative cache expires.
-      return { facts: toFacts(lines, entrySource), ttlMs: RETRY_MS };
+      return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
     }
 
     // An article about the artist or game, not the song itself: facts about
@@ -468,7 +476,8 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
-    const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].slice(0, want);
+    // A spare takes the place of a line that only repeats the title and artist.
+    const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].filter((f) => !restatesRequest(f, song)).slice(0, want);
     remember(shown);
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
@@ -476,12 +485,12 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
       record(song, "grounded", shown.length);
       sources.set(songKey(song), context.split("\n")[0]);
       const article = `Wikipedia: ${context.split("\n")[0]}`;
-      return { facts: toFacts(shown, (t) => structuredLabel.get(t) ?? article), ttlMs: Infinity };
+      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article), ttlMs: Infinity };
     }
     const fallback = entryFacts(entry, want);
     console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
     record(song, "nothingSurvived", fallback.length);
-    return { facts: toFacts(fallback, entrySource), ttlMs: RETRY_MS };
+    return { facts: toFacts(song, fallback, entrySource), ttlMs: RETRY_MS };
   } catch (err) {
     if (err instanceof Obsolete) {
       // Not cached: the song may come back, and then it deserves a real try.
@@ -491,7 +500,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
     const fallback = entryFacts(entry, want);
     console.error(`[FactGen] Generation failed for "${song.title}":`, err);
     record(song, "generationFailed", fallback.length);
-    return { facts: toFacts(fallback, entrySource), ttlMs: RETRY_MS };
+    return { facts: toFacts(song, fallback, entrySource), ttlMs: RETRY_MS };
   }
 }
 
