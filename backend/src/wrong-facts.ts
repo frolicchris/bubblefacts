@@ -15,7 +15,14 @@ type Store = Record<string, string[]>;
 const file = () => path.join(config.dataDir, "wrong-facts.json");
 let store: Store | null = null;
 
+/**
+ * One song, for caches and Wrong marks: its StreamerSongList song ID or
+ * YouTube video ID when it has one (so a renamed entry stays the same song),
+ * otherwise artist and title.
+ */
 export function songKey(song: SSLSong): string {
+  if (song.songId) return `ssl:${song.songId}`;
+  if (song.videoId) return `yt:${song.videoId}`;
   return `${song.artist ?? ""}:::${song.title}`.toLowerCase();
 }
 

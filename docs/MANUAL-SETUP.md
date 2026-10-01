@@ -31,7 +31,7 @@ Everything you might need to download or sign up for, in one place.
 
 **The overlay**
 
-- [Download the latest version (ZIP)](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip)
+- [Releases](https://github.com/frolicchris/bubblefacts/releases): from the newest one, download **bubblefacts.zip**
 - [All versions and what changed](https://github.com/frolicchris/bubblefacts/releases)
 - [Ask a setup question](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a), or chat on [Discord](https://discord.gg/gXdVKc6KWx)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new/choose)
@@ -90,7 +90,7 @@ This takes about 15 minutes the first time.
 
 ### 1. Download the overlay
 
-[Download the latest version](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip) and unzip it somewhere you'll remember,
+From the [newest release](https://github.com/frolicchris/bubblefacts/releases), download **bubblefacts.zip** and unzip it somewhere you'll remember,
 such as your Documents folder. You'll get a folder called
 `bubblefacts`. (If you use git:
 `git clone https://github.com/frolicchris/bubblefacts.git`.)
@@ -317,7 +317,7 @@ New versions are listed on the
 with what changed in each.
 
 1. Stop the overlay (Ctrl-C in its window).
-2. [Download the latest version](https://github.com/frolicchris/bubblefacts/releases/latest/download/bubblefacts.zip) and unzip it.
+2. From the [newest release](https://github.com/frolicchris/bubblefacts/releases), download **bubblefacts.zip** and unzip it.
 3. Copy your `.env` file from the old folder into the new one. (Press
    Cmd+Shift+. in Finder to see it.) Copy your own topic pack too, and the
    CSS file if you changed the look.

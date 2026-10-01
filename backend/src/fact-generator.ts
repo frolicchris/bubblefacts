@@ -43,12 +43,13 @@ const POSITIONS = [
   { top: "70%", left: "40%" },
 ];
 
-type Outcome = "grounded" | "wikidata" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
+type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
   grounded: 0,
   wikidata: 0,
+  musicbrainz: 0,
   songFacts: 0,
   original: 0,
   liveLearn: 0,
@@ -84,6 +85,7 @@ const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
   grounded: "article",
   wikidata: "wikidata",
+  musicbrainz: "musicbrainz",
   songFacts: "yours",
   original: "original",
   liveLearn: "livelearn",
@@ -445,7 +447,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
       const shownData = data.filter((f) => !recentFacts.includes(f)).slice(0, want);
       if (shownData.length) {
         remember(shownData);
-        record(song, "wikidata", shownData.length);
+        record(song, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
         return { facts: toFacts(shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
       }
       const lines = entryFacts(entry, want);
@@ -538,7 +540,7 @@ export function clearFactCache(): void {
  * for the song: the Wikipedia article, or Wikidata and MusicBrainz when the
  * fact came from them. The song's cached facts are dropped and forgotten as
  * "already shown", so the next time it plays BubbleFacts looks again.
- * Returns what was blocked, or null for backup or song-list facts.
+ * Returns what was blocked, or null for custom, song-list or the streamer's own song facts.
  */
 export function markWrong(song: SSLSong, text: string): string | null {
   const key = songKey(song);
@@ -576,6 +578,9 @@ export function forgetSong(song: SSLSong): void {
   revisions.set(key, (revisions.get(key) ?? 0) + 1);
   factCache.delete(key);
   inFlight.delete(key);
+  // Its old sources too: Wrong on the new facts must not block an article from before.
+  sources.delete(key);
+  structuredShown.delete(key);
 }
 
 /** Undo "Wrong": the source may be used for the song again. */
