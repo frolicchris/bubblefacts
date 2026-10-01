@@ -13,7 +13,7 @@ npm test            # jest, ~1 s (transpile-only; types come from tsc)
 npm run lint        # eslint on the overlay, shellcheck on the scripts
 npm run build       # compile to dist/
 npm run app         # build and run the desktop app in development
-npm run dist        # build installers into release/ (on iCloud-synced folders, see CONTRIBUTING.md)
+npm run dist        # build installers into release/ (on iCloud-synced folders, see .github/CONTRIBUTING.md)
 bash scripts/start-overlay.sh
 ```
 Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.

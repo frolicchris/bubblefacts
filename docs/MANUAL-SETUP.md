@@ -382,7 +382,7 @@ your token removed.
 
 How it works, and the reasons behind the less obvious choices, are in
 [ARCHITECTURE.md](ARCHITECTURE.md). Read it before changing how facts are
-found or checked. [CONTRIBUTING.md](../CONTRIBUTING.md) covers the checks,
+found or checked. [CONTRIBUTING.md](../.github/CONTRIBUTING.md) covers the checks,
 the desktop app and pull requests.
 
 While the overlay runs, `curl 127.0.0.1:3000/health` reports the current song,
