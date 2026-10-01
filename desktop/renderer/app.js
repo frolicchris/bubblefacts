@@ -554,7 +554,16 @@
     if (state.settings.ai === "builtin" && state.modelDownload?.error) {
       add("warn", `The AI download paused: ${state.modelDownload.error}.`, "Try again", () => api.downloadModel());
     }
-    if (state.update) add("info", `BubbleFacts ${state.update.version} is available.`, "Get it", () => api.openExternal(state.update.url));
+    if (state.update) {
+      const v = state.update.version;
+      const u = state.updating || { stage: "idle" };
+      const getIt = () => api.openExternal(state.update.url);
+      if (!state.update.download) add("info", `BubbleFacts ${v} is available.`, "Get it", getIt);
+      else if (u.stage === "downloading") add("info", `Downloading BubbleFacts ${v}: ${Math.floor((u.progress || 0) * 100)}%. You can keep streaming.`);
+      else if (u.stage === "ready") add("info", `BubbleFacts ${v} is downloaded and checked. Installing closes BubbleFacts for a few seconds, so pick a moment between songs.`, "Install and reopen", () => api.installUpdate());
+      else if (u.stage === "failed") add("warn", `The update didn't work: ${u.error}. You can download it from the website instead.`, "Get it", getIt);
+      else add("info", `BubbleFacts ${v} is available.`, "Update now", () => api.downloadUpdate());
+    }
     if (state.builtinFailed && state.settings.ai === "builtin") {
       add("warn", "The built-in AI can't run on this computer. Facts are coming from your song list for now. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
         show("settings");

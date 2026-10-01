@@ -37,6 +37,12 @@ command-line overlay. In particular:
 
   Test builds are attested too, but from a branch, so `--source-ref` tells
   them apart.
+- **Updating from inside the app.** The app downloads the new installer only
+  from this repository's releases, over HTTPS, and installs it only if its
+  SHA-256 matches the release's `SHA256SUMS.txt`. That catches a damaged or
+  swapped file. It is not a signature: someone able to publish a release here
+  could publish matching checksums. Releases are immutable once published,
+  and the attestation above remains the stronger check.
 - **The built-in YouTube key.** Official builds include a Google API key
   restricted to the YouTube Data API, used only to read song details for
   auto-generated "- Topic" uploads. Anyone can extract a key shipped in an
