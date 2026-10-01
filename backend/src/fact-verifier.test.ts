@@ -351,6 +351,31 @@ describe("credits must match the source's roles (review)", () => {
     expect(screenClaims(["John Smith directed the game."], ctx).kept).toHaveLength(1);
   });
 
+  it("needs the sentence to tie the person to the role, not just put them near it (final QA #1)", () => {
+    const kept = (fact: string, ctx: string) => screenClaims([fact], ctx).kept.length === 1;
+    const mixed = "John Smith directed, while Mia Chen composed the music.";
+    expect(kept("John Smith composed the music.", mixed)).toBe(false);
+    expect(kept("Mia Chen composed the music.", mixed)).toBe(true);
+    expect(kept("John Smith composed the music.", "John Smith directed and Mia Chen composed the music.")).toBe(false);
+    expect(kept("John Smith composed the music.", "The game was directed by John Smith and composed by Mia Chen.")).toBe(false);
+    expect(kept("Mia Chen directed the game.", "The game was directed by John Smith and composed by Mia Chen.")).toBe(false);
+    expect(kept("John Smith composed the music.", "The music was composed by Mia Chen, and John Smith directed.")).toBe(false);
+    expect(kept("John Smith composed the music.", "John Smith hired Mia Chen, who composed the music.")).toBe(false);
+  });
+
+  it("keeps the usual ways an article states a credit", () => {
+    const kept = (fact: string, ctx: string) => screenClaims([fact], ctx).kept.length === 1;
+    expect(kept("John Smith composed the music.", "John Smith directed the game and composed its music.")).toBe(true);
+    expect(kept("Mia Chen composed the music.", "John Smith hired Mia Chen, who composed the music.")).toBe(true);
+    expect(kept("Toby Fox composed the soundtrack.", "The soundtrack was written and composed by Mia Chen and Toby Fox.")).toBe(true);
+    expect(kept("Will Champion wrote the song.", "It was written by Chris Martin, Jonny Buckland, Guy Berryman, and Will Champion, and produced by Ken Nelson.")).toBe(true);
+    expect(kept("Ken Nelson wrote the song.", "It was written by Chris Martin, Jonny Buckland, Guy Berryman, and Will Champion, and produced by Ken Nelson.")).toBe(false);
+    expect(kept("Ken Nelson produced the song.", "It was written by Chris Martin and produced by Ken Nelson.")).toBe(true);
+    expect(kept("Nobuo Uematsu composed the score.", "The game features music by Nobuo Uematsu.")).toBe(true);
+    expect(kept("Nobuo Uematsu composed the score.", "Series composer Nobuo Uematsu returned for the sequel.")).toBe(true);
+    expect(kept("Mia Chen and Toby Fox composed the music.", "Mia Chen and Toby Fox composed the music.")).toBe(true);
+  });
+
   it("keeps a credit the source does give", () => {
     expect(screenClaims(["Mia Chen composed the music for Starfall."], CTX).kept).toHaveLength(1);
     expect(screenClaims(["Starfall was directed by John Smith."], CTX).kept).toHaveLength(1);

@@ -32,7 +32,8 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, STRUCTURED } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, SOURCE, STRUCTURED, taggedFactsFor } from "./fact-generator";
+import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
 import { wikidataFacts } from "./wikidata";
@@ -75,6 +76,13 @@ describe("generateFacts", () => {
       expect(f.durationSeconds).toBe(8);
       expect(f.position.top).toMatch(/^\d+%$/);
     });
+  });
+
+  it("tells the AI about the song only, nothing about the streamer (final QA #7)", async () => {
+    await generateFacts({ title: "Prompt Song", artist: "Prompt Artist" });
+    const prompt = JSON.stringify(mockCreate.mock.calls[0]);
+    expect(prompt).toContain("Prompt Song");
+    expect(prompt).not.toContain("Test Streamer");
   });
 
   it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
@@ -137,6 +145,25 @@ describe("generateFacts", () => {
     const facts = await generateFacts({ title: "Off List", artist: "Jane Composer", liveLearn: true });
     expect(facts.map((f) => f.text)).toEqual(["Jane's own song, played off the list."]);
     saveSongFacts({ title: "Off List", artist: "Jane Composer", facts: [] });
+  });
+
+  it("shows a custom fact tagged for the song first, and never for another song", async () => {
+    const tagged = [
+      { tag: "Storm Song", text: "It plays in a windmill." },
+      { tag: "Tag Artist", text: "Tag Artist learned piano at six." },
+      { tag: "Other Game - Other Song", text: "Only for the other one." },
+    ];
+    (topic as { taggedFacts: typeof tagged }).taggedFacts = tagged;
+    expect(taggedFactsFor({ title: "Storm Song", artist: "Tag Artist" })).toEqual(["It plays in a windmill.", "Tag Artist learned piano at six."]);
+    expect(taggedFactsFor({ title: "STORM SONG!", artist: "Someone" })).toEqual(["It plays in a windmill."]);
+    expect(taggedFactsFor({ title: "Other Song", artist: "Other Game" })).toEqual(["Only for the other one."]);
+    expect(taggedFactsFor({ title: "Unrelated", artist: "Nobody" })).toEqual([]);
+
+    const facts = await generateFacts({ title: "Storm Song", artist: "Someone" });
+    expect(facts[0]).toMatchObject({ text: "It plays in a windmill.", source: SOURCE.yours, delaySeconds: 0 });
+    expect(facts).toHaveLength(5);
+    expect(facts[1].delaySeconds).toBe(15);
+    (topic as { taggedFacts: typeof tagged }).taggedFacts = [];
   });
 
   it("caches a song's facts", async () => {

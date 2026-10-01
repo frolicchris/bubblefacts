@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   unwrongFact: (article: string, song: unknown) => ipcRenderer.invoke("unwrong-fact", article, song),
   getSongFacts: () => ipcRenderer.invoke("get-song-facts"),
   saveSongFacts: (data: unknown) => ipcRenderer.invoke("save-song-facts", data),
+  listSongFacts: () => ipcRenderer.invoke("list-song-facts"),
   on: (channel: "status" | "state" | "model-progress", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },

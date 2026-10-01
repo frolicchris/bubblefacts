@@ -282,7 +282,6 @@ knows about the piece instead.
 
 ```env
 STREAMER_DISPLAY_NAME=Jane    # instead of your channel name
-INSTRUMENT=guitar             # "Jane is playing ... on guitar"
 ```
 
 ### How many bubbles, and how long
@@ -319,8 +318,9 @@ with what changed in each.
 1. Stop the overlay (Ctrl-C in its window).
 2. From the [newest release](https://github.com/frolicchris/bubblefacts/releases), download **bubblefacts.zip** and unzip it.
 3. Copy your `.env` file from the old folder into the new one. (Press
-   Cmd+Shift+. in Finder to see it.) Copy your own topic pack too, and the
-   CSS file if you changed the look.
+   Cmd+Shift+. in Finder to see it.) Copy your own topic pack too, the
+   CSS file if you changed the look, and the `data` folder: it holds your
+   facts for particular songs and the sources you marked **Wrong**.
 4. In Terminal, go to the new folder and run `npm install`, then start it as
    usual with `bash scripts/start-overlay.sh`.
 5. If your OBS source uses **Local file**, point it at `obs-overlay.html` in
@@ -361,9 +361,10 @@ your token removed.
 
 ## Good to know
 
-- **Nothing is saved between streams.** Facts are made fresh when a song
-  starts and kept in memory until you stop the overlay, so a repeated song
-  shows instantly. The topic packs are only ever read, never written. The log
+- **Generated facts aren't saved between streams.** They're made fresh when a
+  song starts and kept in memory until you stop the overlay, so a repeated
+  song shows instantly. What you add is saved, in the `data` folder: your
+  facts for particular songs and the sources you marked **Wrong**. The topic packs are only ever read, never written. The log
   file `logs/songs.log` records which way each song was handled, not the facts.
 - **Facts are only as good as Wikipedia.** The check makes sure captions match
   the article; it can't tell whether the article is right.

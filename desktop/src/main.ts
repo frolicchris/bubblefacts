@@ -402,6 +402,15 @@ async function setPaused(next: boolean): Promise<void> {
 ipcMain.handle("test-bubble", () => control("test"));
 ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
 ipcMain.handle("get-song-facts", () => control("song-facts/get"));
+// Read from the file, so the list works even before the songs are connected.
+ipcMain.handle("list-song-facts", () => {
+  try {
+    const list: unknown = JSON.parse(fs.readFileSync(path.join(DATA, "song-facts.json"), "utf8"));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+});
 ipcMain.handle("save-song-facts", (_e, data: unknown) => control("song-facts", data));
 ipcMain.handle("unwrong-fact", (_e, article: string, song: unknown) => control("unwrong", { article: String(article), song }));
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));

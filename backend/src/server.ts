@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
@@ -38,7 +38,7 @@ function send(ws: WebSocket, payload: FactsPayload): void {
 }
 
 /** The last song and facts sent, for the desktop app's dashboard. */
-let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"] } = { song: null, facts: [] };
+let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"]; ready?: boolean } = { song: null, facts: [] };
 
 /** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
 let paused = process.env.BUBBLEFACTS_PAUSED === "1";
@@ -51,8 +51,8 @@ function broadcast(payload: FactsPayload): void {
   if (payload.type === "new_song" && !payload.quiet) factsShownAt = 0;
   if (payload.type === "facts_ready" && !paused) factsShownAt = Date.now();
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
-  else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts };
-  else if (payload.type === "remove_fact") lastSent = { song: lastSent.song, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
+  else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts, ready: true };
+  else if (payload.type === "remove_fact") lastSent = { ...lastSent, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
@@ -318,7 +318,9 @@ app.get("/health", (_req, res) => {
 
 /** What the overlay is showing now. Read-only, unlike /current-facts. */
 app.get("/recent", (_req, res) => {
-  res.json(lastSent);
+  // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
+  const song = songFrom(lastSent.song);
+  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "" });
 });
 
 /** Facts for whatever is playing now, for testing without OBS. */

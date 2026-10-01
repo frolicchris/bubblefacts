@@ -15,6 +15,7 @@ the relevant section before changing it.
 | **Screening** | Checking each caption the AI wrote against the reference, and dropping those it doesn't support. |
 | **Structured facts** | Fixed sentences filled in from Wikidata or MusicBrainz data. No AI. |
 | **Song facts** | Facts the streamer wrote for one particular song (**Add facts for this song**). |
+| **Tagged custom facts** | A custom fact starting `[Name]` goes only with the song, artist or game it names (`taggedFactsFor`), first, with the usual facts filling the slots left. It never joins the any-song pool. |
 | **Custom facts** | The streamer's own facts for any song no source knows: their own lines, plus any example topic packs (`topics/`) they turned on. The packs shipped are examples, not maintained content. |
 | **Entry facts** | Facts built from the queue entry itself: "played 12 times", "requested by X". |
 
@@ -70,6 +71,9 @@ StreamElements ───┴──────────────► Server 
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
    and near-repeats of recent facts.
+   A credit needs a source sentence that ties the person to the role
+   (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
+   just a role word nearby; an ambiguous credit is dropped.
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
@@ -357,7 +361,7 @@ folder; `data/` for the command-line version):
   song ID, YouTube video ID, else artist and title, or an alias. The match
   ignores case, accents and punctuation but keeps every word, so
   "Night Drive (Acoustic)" isn't "Night Drive (Remix)". A songwriter is
-  credited only when the streamer names one who isn't the artist.
+  credited only when the streamer names one.
 - `wrong-facts.json`: sources marked **Wrong** (above).
 
 The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,

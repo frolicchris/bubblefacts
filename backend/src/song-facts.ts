@@ -73,18 +73,18 @@ export function findSongFacts(song: SSLSong): SongFacts | null {
 }
 
 /** The lines to show: a confirmed writing credit first, then the facts as written. */
-export function songFactLines(entry: SongFacts): string[] {
+export function songFactLines(entry: SongFacts, max = Infinity): string[] {
   const writers = (entry.songwriters ?? []).map((w) => w.trim()).filter(Boolean);
   const lines: string[] = [];
-  // "Written by Jane" says nothing when the request already reads "Jane - Evening Rain".
-  const sameAsArtist = writers.length === 1 && ident(writers[0]) === ident(entry.artist);
-  if (writers.length && !sameAsArtist) {
+  // A writer the streamer confirmed is always credited, even when it's the artist on the request (final QA #4).
+  if (writers.length) {
     const list = writers.length === 1 ? writers[0] : `${writers.slice(0, -1).join(", ")} and ${writers[writers.length - 1]}`;
     lines.push(`"${entry.title}" was written by ${list}.`);
   }
   lines.push(...entry.facts.map((f) => f.trim()).filter(Boolean));
-  if (entry.link?.trim() && writers.length) lines.push(`More from ${writers[0]}: ${entry.link.trim()}`);
-  return lines;
+  // The creator's link is promised, so it keeps its place when the facts fill every slot.
+  const link = entry.link?.trim() && writers.length ? `More from ${writers[0]}: ${entry.link.trim()}` : "";
+  return link ? [...lines.slice(0, Math.max(0, max - 1)), link] : lines.slice(0, max);
 }
 
 /** Add or replace the facts for a song. Empty facts and no writers removes it. */

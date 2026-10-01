@@ -32,15 +32,35 @@ function readPack(id: string): TopicPack {
   return JSON.parse(fs.readFileSync(file, "utf8")) as TopicPack;
 }
 
-export function loadTopics(list: string): Required<Pick<TopicPack, "curatedFacts" | "originalsFacts">> {
+/** A custom fact for one song, artist or game: "[Song of Storms] It plays in a windmill." */
+export interface TaggedFact {
+  tag: string;
+  text: string;
+}
+const TAGGED = /^\s*\[([^\]]+)\]\s*(.+)$/;
+
+export interface Topics {
+  /** Facts that fit any song. */
+  curatedFacts: string[];
+  originalsFacts: string[];
+  /** Facts that only go with the song, artist or game they name. Never shown for anything else. */
+  taggedFacts: TaggedFact[];
+}
+
+export function loadTopics(list: string): Topics {
   const packs = list.split(",").map((s) => s.trim()).filter(Boolean).map(readPack);
-  const curatedFacts = [...new Set(packs.flatMap((p) => p.curatedFacts ?? []))];
+  const all = [...new Set(packs.flatMap((p) => p.curatedFacts ?? []))];
+  const taggedFacts = all.flatMap((line) => {
+    const m = TAGGED.exec(line);
+    return m ? [{ tag: m[1].trim(), text: m[2].trim() }] : [];
+  });
+  const curatedFacts = all.filter((line) => !TAGGED.test(line));
   const originalsFacts = [...new Set(packs.flatMap((p) => p.originalsFacts ?? []))];
   // None is fine: a song with no source then shows no custom facts (issue #18).
   if (curatedFacts.length && curatedFacts.length < MIN_CURATED) {
     console.warn(`[Topic] "${list}" has only ${curatedFacts.length} custom facts, so they'll repeat often`);
   }
-  return { curatedFacts, originalsFacts };
+  return { curatedFacts, originalsFacts, taggedFacts };
 }
 
 export const topic = loadTopics(config.topic);

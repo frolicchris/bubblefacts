@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, tooSimilar } from "./fact-verifier";
+import { artistNames, curatedFacts, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, creditedToStreamer, isOriginal } from "./stat-facts";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
@@ -94,10 +94,15 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   generationFailed: "curated",
 };
 
+/** How each song's facts last turned out, so the dashboard can tell "nothing reliable" from "failed". */
+const outcomes = new Map<string, Outcome>();
+export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song)) ?? "";
+
 /** Count the outcome and append a line to logs/songs.log: time, title, artist field, outcome, count. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
+  outcomes.set(songKey(song), outcome);
   if (process.env.NODE_ENV === "test") return;
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
   const line = [new Date().toISOString(), clean(song.title), clean(song.artist), SONGS_LOG_LABEL[outcome], count];
@@ -138,10 +143,10 @@ function toFacts(song: SSLSong, lines: string[], sourceOf: (text: string) => str
 function subjectLine(song: SSLSong): { game: string; intro: string } {
   const { game, track } = resolveGameAndTrack(song);
   const work = track && track !== game ? `"${track}" from ${game}` : `"${track || game}"`;
-  const doing = config.instrument ? `playing ${work} on ${config.instrument}` : `performing ${work}`;
+  // Nothing about the streamer goes in: an online AI gets the song and the article, no more (final QA #7).
   return {
     game,
-    intro: `You are writing short trivia captions for a live music stream overlay. The streamer, ${config.streamerDisplayName}, is ${doing} right now.`,
+    intro: `You are writing short trivia captions for a live music stream overlay. The song playing right now is ${work}.`,
   };
 }
 
@@ -411,15 +416,42 @@ function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
 const statLines = new Set<string>();
 const entrySource = (t: string) => (statLines.has(t) ? SOURCE.songList : SOURCE.custom);
 
+/**
+ * The streamer's custom facts tagged for this song: "[Song of Storms] ...",
+ * "[Chopin] ...", "[Undertale] ...". The tag is the title, the artist or the
+ * game, compared without case, accents or punctuation.
+ */
+export function taggedFactsFor(song: SSLSong): string[] {
+  if (!topic.taggedFacts?.length) return [];
+  const { game, track } = resolveGameAndTrack(song);
+  const names = new Set(
+    [song.title, track, game, `${song.artist} ${song.title}`, ...artistNames(song.artist ?? "")].map((s) => normalizeTitle(s ?? "")).filter(Boolean)
+  );
+  return topic.taggedFacts.filter((f) => names.has(normalizeTitle(f.tag.replace(/\s+[-–—]\s+/, " ")))).map((f) => f.text);
+}
+
+/** The streamer's tagged facts first, as written, then the usual facts in the slots left. */
 async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ facts: Fact[]; ttlMs: number }> {
   const want = config.factsPerSong;
+  const mine = findSongFacts(song) ? [] : taggedFactsFor(song).slice(0, want);
+  if (!mine.length) return generateRest(song, entry, want);
+  console.log(`[FactGen] "${song.title}": ${mine.length} of the streamer's own facts are for this song`);
+  const rest = mine.length < want ? await generateRest(song, entry, want - mine.length) : { facts: [], ttlMs: Infinity };
+  const others = rest.facts.filter((f) => !mine.includes(f.text));
+  // Re-spaced as one list, so the bubbles keep their rhythm and positions.
+  const lines = [...mine, ...others.map((f) => f.text)];
+  const sourceOf = (t: string) => (mine.includes(t) ? SOURCE.yours : others.find((f) => f.text === t)?.source);
+  return { facts: toFacts(song, lines, sourceOf), ttlMs: rest.ttlMs };
+}
+
+async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number): Promise<{ facts: Fact[]; ttlMs: number }> {
   const keep = { facts: [] as Fact[], ttlMs: Infinity };
 
   // Facts the streamer wrote for this very song come first, exactly as written,
   // with no lookup, even for a live learn: often another streamer's off-list original.
   const yours = findSongFacts(song);
   if (yours) {
-    const lines = songFactLines(yours).slice(0, want);
+    const lines = songFactLines(yours, want);
     console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
     record(song, "songFacts", lines.length);
     // Not cached: an edit in the app applies the next time it plays.
