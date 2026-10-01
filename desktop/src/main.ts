@@ -6,7 +6,7 @@ import { pathToFileURL } from "url";
 import { newerRelease, testSongList, testStreamElements } from "./checks";
 import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
-import { problemReportUrl, wrongFactUrl } from "./reports";
+import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
 import {
   BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, songSourceReady,
   toServerEnv, writeMyPack,
@@ -520,6 +520,17 @@ ipcMain.handle("recent", async () => {
 });
 ipcMain.handle("report-problem", () =>
   shell.openExternal(problemReportUrl({ version: app.getVersion(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+);
+ipcMain.handle("report-beta", () =>
+  shell.openExternal(
+    betaReportUrl({
+      version: app.getVersion(),
+      systemVersion: process.getSystemVersion(),
+      songSource: settings.songSource,
+      logLines: supervisor.lines,
+      secrets: secretsOf(settings),
+    })
+  )
 );
 ipcMain.handle("report-fact", (_e, song: string, fact: string) =>
   shell.openExternal(wrongFactUrl({ song, fact, logLines: supervisor.lines, secrets: secretsOf(settings) }))

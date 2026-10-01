@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   showLogs: () => ipcRenderer.invoke("show-logs"),
   recent: () => ipcRenderer.invoke("recent"),
   reportProblem: () => ipcRenderer.invoke("report-problem"),
+  reportBeta: () => ipcRenderer.invoke("report-beta"),
   reportFact: (song: string, fact: string) => ipcRenderer.invoke("report-fact", song, fact),
   wrongFact: (fact: string) => ipcRenderer.invoke("wrong-fact", fact),
   unwrongFact: (article: string, song: unknown) => ipcRenderer.invoke("unwrong-fact", article, song),

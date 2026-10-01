@@ -44,6 +44,23 @@ export function problemReportUrl(opts: { version: string; ai: string; logLines: 
   });
 }
 
+/** The beta test form, with the answers the app knows filled in. Each must match a form option exactly. */
+export function betaReportUrl(opts: { version: string; systemVersion: string; songSource: string; logLines: string[]; secrets: string[] }): string {
+  const mac = process.arch === "arm64" ? "Mac with Apple silicon (M1 or newer)" : "Mac with Intel";
+  const computer = ({ darwin: mac, win32: "Windows" } as Record<string, string>)[process.platform] ?? "Linux";
+  const download =
+    ({ darwin: "Mac installer (.dmg)", win32: "Windows installer (.exe)" } as Record<string, string>)[process.platform] ??
+    (process.env.APPIMAGE ? "Linux AppImage" : "Linux .deb package");
+  return issueUrl("beta_test.yml", {
+    version: opts.version,
+    os: computer,
+    download,
+    source: opts.songSource === "streamelements" ? "StreamElements" : "StreamerSongList",
+    osversion: `${osName()} ${opts.systemVersion}`,
+    log: redact(opts.logLines.slice(-60).join("\n"), opts.secrets),
+  });
+}
+
 export function wrongFactUrl(opts: { song: string; fact: string; logLines: string[]; secrets: string[] }): string {
   const title = opts.song.split(" — ")[0].toLowerCase();
   const relevant = opts.logLines.filter((l) => /\[(Grounding|Screen)\]/.test(l) && l.toLowerCase().includes(title));

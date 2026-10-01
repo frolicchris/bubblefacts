@@ -81,7 +81,8 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 - [Report a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
   In the app, click **Wrong** next to it, then **Report it (opens GitHub)**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
-  tried the beta? Tell us how each step went.
+  tried the beta? Tell us how it went. In the app, **Send a beta test report**
+  fills in your version, computer and log.
 - [Security policy](.github/SECURITY.md): report security problems privately.
 
 ## For developers
