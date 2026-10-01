@@ -261,6 +261,16 @@ export function topicList(s: Settings): string[] {
   return s.myFacts.length || s.myOriginals.length ? [MY_PACK, ...s.topics] : s.topics;
 }
 
+/**
+ * Everything the server reads at start, as one string: its environment and
+ * the streamer's own facts (written to a pack it loads once). The sign-in
+ * token is left out: a refreshed token is handed to the running server.
+ */
+export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
+  const { SSL_ACCESS_TOKEN: _token, ...rest } = env;
+  return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
+}
+
 export function writeMyPack(s: Settings, dir: string): void {
   fs.mkdirSync(dir, { recursive: true });
   const pack = {
