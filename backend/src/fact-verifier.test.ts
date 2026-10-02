@@ -333,6 +333,11 @@ describe("person-name screening", () => {
     expect(screenClaims([fact], "").kept).toEqual([fact]);
   });
 
+  it("doesn't take a place or people after \"by\" for a person (\"influenced by Western action movies\")", () => {
+    expect(unsupportedName("The game was influenced by Western action movies and TV shows.", "the game drew on action films")).toBeNull();
+    expect(unsupportedName("The theme was composed by Adele.", "the theme is well known")).toBe("Adele");
+  });
+
   it("accepts a surname-only reference mention", () => {
     expect(unsupportedName("Music by Yuzo Koshiro.", "koshiro composed it; yuzo is credited")).toBeNull();
   });
