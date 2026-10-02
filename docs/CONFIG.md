@@ -144,8 +144,9 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `FACT_INTERVAL_SECONDS` | `15` | Seconds between one bubble and the next. |
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Keep this shorter than the interval so bubbles don't overlap. |
 
-Where bubbles appear is not a setting. It's the `POSITIONS` list in
-`backend/src/fact-generator.ts`. Text size, colors and animation are at the
+`BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
+`anywhere`) keeps bubbles to one part of the screen. The exact spots are the
+lists at the top of `backend/src/fact-generator.ts`. Text size, colors and animation are at the
 top of `frontend/obs/obs-overlay.css`.
 
 ---

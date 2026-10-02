@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor } from "./fact-generator";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
@@ -104,6 +104,26 @@ describe("generateFacts", () => {
     // An email-like or mid-name "@" is not a handle.
     await generateFacts({ title: "Other Piece", artist: "P@ssion Pit" });
     expect(fetchGrounding).toHaveBeenCalled();
+  });
+
+  it("keeps bubbles to the chosen part of the screen, always on screen (issue #66)", async () => {
+    const pct = (v: string) => Number(v.replace("%", ""));
+    for (const area of ["anywhere", "top", "bottom", "left", "right"]) {
+      for (const p of positionsFor(area)) {
+        expect(pct(p.left)).toBeLessThanOrEqual(66);
+        expect(pct(p.top)).toBeLessThanOrEqual(70);
+      }
+    }
+    expect(positionsFor("top").every((p) => pct(p.top) <= 20)).toBe(true);
+    expect(positionsFor("bottom").every((p) => pct(p.top) >= 57)).toBe(true);
+    expect(positionsFor("left").every((p) => pct(p.left) <= 5)).toBe(true);
+    expect(positionsFor("right").every((p) => pct(p.left) >= 66)).toBe(true);
+    expect(positionsFor("nonsense")).toBe(positionsFor("anywhere"));
+
+    (config as { bubbleArea?: string }).bubbleArea = "left";
+    const facts = await generateFacts({ title: "Area Song", artist: "Area Artist" });
+    (config as { bubbleArea?: string }).bubbleArea = "anywhere";
+    expect(facts.every((f) => f.position.left === "3%")).toBe(true);
   });
 
   it("logs each fact it shows with its source, so a stream can be read back", async () => {
