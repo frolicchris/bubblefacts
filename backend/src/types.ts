@@ -95,4 +95,6 @@ export interface FactsPayload {
   text?: string;
   /** On new_song: the same song resuming after a pause, so no NOW PLAYING banner. */
   quiet?: boolean;
+  /** On new_song: the streamer turned NOW PLAYING off. A LIVE LEARN banner is never hidden. */
+  noBanner?: boolean;
 }
