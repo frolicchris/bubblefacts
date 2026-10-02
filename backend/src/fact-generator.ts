@@ -457,6 +457,17 @@ async function structuredFacts(song: SSLSong, as: SSLSong = song): Promise<strin
   return facts;
 }
 
+/** For the saved session: the recent facts, and putting them back after a restart. */
+export const recentShown = (): string[] => [...recentFacts];
+export function restoreRecent(list: string[]): void {
+  recentFacts.length = 0;
+  recentFacts.push(...list.slice(-RECENT_KEPT));
+}
+/** Facts sent before a restart stand as this song's facts: nothing is generated again. */
+export function primeFacts(song: SSLSong, facts: Fact[]): void {
+  factCache.set(songKey(song), { facts, expires: Infinity });
+}
+
 /** Remember facts as shown, keeping only the last RECENT_KEPT. */
 function remember(shown: string[]): void {
   recentFacts.push(...shown);

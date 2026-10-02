@@ -7,8 +7,9 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { positionsFor, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
+import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
 /**
@@ -47,15 +48,25 @@ let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 let factsShownAt = 0;
 let pausedAt = 0;
 
+/** What was showing before a restart, until the first song after it is known. */
+let restored: Session | null = loadSession();
+if (restored) restoreRecent(restored.recent);
+
 function broadcast(payload: FactsPayload): void {
   if (payload.type === "new_song" && !payload.quiet) factsShownAt = 0;
-  if (payload.type === "facts_ready" && !paused) factsShownAt = Date.now();
+  // With no overlay connected nobody saw them: the first one to connect gets them all.
+  if (payload.type === "facts_ready" && !paused) factsShownAt = clients.size ? Date.now() : 0;
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts, ready: true };
   else if (payload.type === "remove_fact") lastSent = { ...lastSent, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
+  if (payload.type === "facts_ready" && payload.song) remember(payload.song, payload.facts ?? []);
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
+}
+
+function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now() });
 }
 
 wss.on("connection", (ws, req) => {
@@ -82,9 +93,23 @@ wss.on("connection", (ws, req) => {
   if (!current || paused) return;
   const song = songList.toSong(current);
   const token = generation;
+  // Facts already on their way: this overlay joins in, with no second banner and only the bubbles
+  // still to come. An overlay that reloads mid-song doesn't replay the ones viewers have seen.
+  if (factsShownAt && lastSent.ready && sameRequest(lastSent.song, song)) {
+    send(ws, { type: "new_song", song, quiet: true });
+    send(ws, { type: "facts_ready", song, facts: remainingFacts(lastSent.facts ?? [], factsShownAt) });
+    return;
+  }
   send(ws, { type: "new_song", song });
   generateFacts(song, current)
-    .then((facts) => token === generation && send(ws, { type: "facts_ready", song, facts }))
+    .then((facts) => {
+      if (token !== generation) return;
+      send(ws, { type: "facts_ready", song, facts });
+      if (!factsShownAt && sameRequest(lastSent.song, song)) {
+        factsShownAt = Date.now();
+        remember(song, facts);
+      }
+    })
     .catch((err) => console.error("[WS] Could not send facts to new client:", err));
 });
 
@@ -99,6 +124,26 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const song = songList.toSong(current);
   // Work for any other song is no longer wanted (see setCurrentSong).
   setCurrentSong(song);
+
+  // The first song after a restart, and it's the one that was showing: carry on where it left off.
+  const before = restored;
+  restored = null;
+  if (before && sameRequest(before.song, song)) {
+    if (Date.now() - (before.shownAt || before.savedAt) < RESUME_WITHIN_MS) {
+      console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
+      primeFacts(song, before.facts);
+      broadcast({ type: "new_song", song, quiet: true });
+      broadcast({ type: "facts_ready", song, facts: remainingFacts(before.facts, before.shownAt) });
+      // The record stays the full set and when it first went out: an overlay connecting later joins in from there.
+      factsShownAt = before.shownAt;
+      lastSent = { song, facts: before.facts, ready: true };
+      remember(song, before.facts);
+      return;
+    }
+    // An earlier stream's play of this song: its own facts may show again.
+    const own = new Set(before.facts.map((f) => f.text));
+    restoreRecent(before.recent.filter((r) => !own.has(r)));
+  }
   broadcast({ type: "new_song", song, ...(config.nowPlaying || song.liveLearn ? {} : { noBanner: true }) });
 
   const facts = await generateFacts(song, current);
