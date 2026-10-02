@@ -103,7 +103,16 @@ function decrypt(stored: string): string {
   return stored.startsWith("plain:") ? stored.slice(6) : "";
 }
 
-export function loadSettings(): Settings {
+/** Saved secrets not read yet (see `loadSettings(false)`). Nothing is saved meanwhile: it would store them blank. */
+let secretsPending = false;
+export const secretsWaiting = () => secretsPending;
+
+/**
+ * `readSecrets` false leaves the sign-in and keys unread, for `unlockSecrets`
+ * to read later. Reading them is what makes macOS show its keychain prompt,
+ * and the app waits on it: the window has to be up first to say what to click.
+ */
+export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
   try {
     raw = JSON.parse(fs.readFileSync(file(), "utf8"));
@@ -133,8 +142,25 @@ export function loadSettings(): Settings {
   // Left unchanged, they're dropped: the examples are opt-in now (issue #18).
   // Only for settings saved before beta.3 (no songSource yet), so a streamer who checks these later keeps them.
   if (!("songSource" in raw) && settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
-  for (const key of SECRET_KEYS) settings[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
+  const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
+  secretsPending = !readSecrets && SECRET_KEYS.some((key) => saved(key).startsWith("enc:"));
+  for (const key of SECRET_KEYS) settings[key] = secretsPending ? "" : decrypt(saved(key));
   return sanitize(settings);
+}
+
+/** Read the secrets `loadSettings(false)` left. Waits on the keychain prompt, when macOS shows one. */
+export function unlockSecrets(settings: Settings): Settings {
+  if (!secretsPending) return settings;
+  secretsPending = false;
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(fs.readFileSync(file(), "utf8"));
+  } catch {
+    // The file went away since it was read: the secrets stay blank.
+  }
+  const out = { ...settings };
+  for (const key of SECRET_KEYS) out[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
+  return sanitize(out);
 }
 
 const OLD_DEFAULT_TOPICS = "video-game,classical,film,pop,general";
@@ -189,6 +215,7 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
 }
 
 export function saveSettings(settings: Settings): void {
+  if (secretsPending) return;
   const stored: Record<string, unknown> = { ...settings };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
   fs.mkdirSync(path.dirname(file()), { recursive: true });
