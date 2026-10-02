@@ -109,7 +109,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   if (!clients.size && facts.length) {
     console.warn(
       `[Server] ${facts.length} facts ready for "${song.title}" but no overlay is connected. ` +
-        "Check the OBS Browser Source (Local File: frontend/obs/obs-overlay.html)."
+        "Add BubbleFacts to OBS, or open OBS if it is closed."
     );
   }
   broadcast({ type: "facts_ready", song, facts });
