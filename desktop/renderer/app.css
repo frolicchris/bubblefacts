@@ -167,3 +167,31 @@ textarea { resize: vertical; line-height: 1.45; }
 #unlocking[hidden] { display: none; }
 .unlocking-box { max-width: 30rem; padding: 1.5rem 2rem; text-align: center; }
 @keyframes unlocking-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* About: laid out as GNOME's About dialog. */
+.about-page { max-width: 720px; margin-left: auto; margin-right: auto; }
+.about-head { text-align: center; margin-bottom: 8px; }
+.about-head img { display: block; margin: 0 auto 10px; }
+.about-head h1 { margin: 0; }
+.about-dev { margin: 2px 0 0; color: var(--muted); }
+.about-version { margin: 10px 0 0; }
+.about-version span { display: inline-block; padding: 2px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; }
+.about-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; margin: 14px 0 0; }
+.about-section { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 18px; }
+.about-section h3 { font-size: 14px; margin: 12px 0 4px; }
+.names, .legal-list { list-style: none; padding: 0; margin: 0; }
+.names li { padding: 2px 0; }
+.legal-list li { border-top: 1px solid var(--border); padding: 10px 0 2px; margin-top: 10px; }
+.legal-list h3 { margin-top: 0; }
+.legal-copyright { margin: 6px 0 2px; font-size: 14px; }
+.legal-list p, .about-section p { overflow-wrap: anywhere; }
+
+/* Credits, Acknowledgements and Legal open in place, like the dialog's subpages. */
+.about-page-row > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.about-page-row > summary::-webkit-details-marker { display: none; }
+.about-page-row > summary h2 { margin: 0; }
+.about-page-row > summary::after { content: "›"; color: var(--muted); font-size: 22px; transition: transform 0.15s; }
+.about-page-row[open] > summary::after { transform: rotate(90deg); }
+.about-page-row[open] > summary { margin-bottom: 8px; }
+.legal-list li { padding: 8px 0 0; margin-top: 8px; }
+.legal-list li p { margin: 2px 0; }

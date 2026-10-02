@@ -50,6 +50,8 @@
     const t = e.target.closest("button");
     if (!t) return;
     if (t.dataset.open) api.openExternal(t.dataset.open);
+    if (t.dataset.view && !t.classList.contains("navlink")) show(t.dataset.view);
+    if (t.id === "open-notices") api.openNotices();
     if ("openLicense" in t.dataset) api.openExternal(state.modelLicense);
     if ("testOverlay" in t.dataset) api.testOverlay();
     if ("copyPath" in t.dataset) {
@@ -738,6 +740,8 @@
     renderStatus(status);
     if (changed) renderNotices();
   });
+  // "About BubbleFacts" in the tray menu.
+  api.on("show-view", (view) => show(view));
   api.on("state", (s) => {
     state = s;
     $("#unlocking").hidden = !s.unlocking;
@@ -753,6 +757,7 @@
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
     $("#about-version").textContent = state.version;
+    $("#about-page-version").textContent = `Version ${state.version}`;
     $("#report-beta").hidden = !/-beta/.test(state.version);
     renderNotices();
     renderPaths();

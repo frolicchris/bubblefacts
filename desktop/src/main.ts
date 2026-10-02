@@ -331,6 +331,14 @@ function createWindow(): void {
   });
 }
 
+/** The About page in the window: the same on every system (Windows has no About panel of its own here). */
+function showAbout(): void {
+  showWindow();
+  const go = () => win?.webContents.send("show-view", "about");
+  if (win?.webContents.isLoading()) win.webContents.once("did-finish-load", go);
+  else go();
+}
+
 function showWindow(): void {
   if (!win) createWindow();
   win?.show();
@@ -352,6 +360,7 @@ function updateTray(status: Status): void {
       { type: "separator" },
       { label: paused ? "Resume bubbles" : "Pause bubbles", click: () => void setPaused(!paused) },
       { label: "Open BubbleFacts", click: showWindow },
+      { label: "About BubbleFacts", click: showAbout },
       { label: "Quit BubbleFacts", click: () => { quitting = true; app.quit(); } },
     ])
   );
@@ -543,6 +552,12 @@ ipcMain.on("start-drag", (e) => e.sender.startDrag({ file: overlayFile(), icon: 
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
 ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
 ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
+// Inside the app's archive other programs can't read it, so a copy goes in the data folder first.
+ipcMain.handle("open-notices", () => {
+  const copy = path.join(DATA, "THIRD-PARTY-NOTICES.md");
+  fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), copy);
+  return shell.openPath(copy);
+});
 ipcMain.handle("recent", async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/recent`, { signal: AbortSignal.timeout(2000) });
@@ -626,8 +641,8 @@ app.whenReady().then(async () => {
   app.setAboutPanelOptions({
     applicationName: "BubbleFacts",
     applicationVersion: app.getVersion(),
-    copyright: "© 2026 Christopher Feyrer. MIT License.",
-    credits: "Built with Llama: Meta's Llama 3.2, used under the Llama 3.2 Community License. Open source credits and licenses are in THIRD-PARTY-NOTICES.md and at bubblefacts.frolic.org/credits.html. Thanks to our beta testers: izzyparadox, MacYoda and SaxDragon.",
+    copyright: "© 2026 Christopher Feyrer",
+    credits: "MIT License. Built with Llama. Credits, licenses and thanks are under About in the BubbleFacts window.",
     authors: ["Christopher Feyrer"],
     website: "https://bubblefacts.frolic.org/",
   });

@@ -29,7 +29,8 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   getSongFacts: () => ipcRenderer.invoke("get-song-facts"),
   saveSongFacts: (data: unknown) => ipcRenderer.invoke("save-song-facts", data),
   listSongFacts: () => ipcRenderer.invoke("list-song-facts"),
-  on: (channel: "status" | "state" | "model-progress", callback: (payload: unknown) => void) => {
+  openNotices: () => ipcRenderer.invoke("open-notices"),
+  on: (channel: "status" | "state" | "model-progress" | "show-view", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },
 });
