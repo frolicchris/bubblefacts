@@ -231,7 +231,8 @@ export function toServerEnv(
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;
   } else {
     Object.assign(env, {
-      SSL_STREAMER_NAME: s.channel,
+      // The server needs a name to talk about the streamer; the ID, when signed in, is what it follows.
+      SSL_STREAMER_NAME: s.channel || s.displayName || "The streamer",
       SSL_ACCESS_TOKEN: s.token,
       SSL_TOKEN_KIND: s.tokenKind === "oauth" ? "bearer" : s.tokenKind,
     });
@@ -248,7 +249,9 @@ export function toServerEnv(
 
 /** The chosen song source has what it needs to start. */
 export function songSourceReady(s: Settings): boolean {
-  return s.songSource === "streamelements" ? !!s.seJwt : !!s.channel && !!s.token;
+  if (s.songSource === "streamelements") return !!s.seJwt;
+  // The app's own sign-in follows the channel by its ID, so a missing name doesn't hold it up.
+  return !!s.token && (!!s.channel || (s.tokenKind === "oauth" && s.streamerId > 0));
 }
 
 /** Values that must never appear in a report. */

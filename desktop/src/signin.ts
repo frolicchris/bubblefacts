@@ -150,7 +150,26 @@ async function whoIs(accessToken: string): Promise<Pick<SignIn, "channel" | "str
   if (!body.streamer_id) {
     throw new Error("That StreamerSongList account doesn't have a channel yet. Set one up at streamersonglist.com first.");
   }
-  return { channel: body.username || "", streamerId: body.streamer_id };
+  return { channel: body.username || (await channelName(accessToken, body.streamer_id)), streamerId: body.streamer_id };
+}
+
+/**
+ * The channel's name, asked for by its ID. Some accounts' sign-in carries no
+ * username (a beta tester's didn't), and the name is only for display: the
+ * ID is what the app follows. Empty when it can't be read.
+ */
+async function channelName(accessToken: string, streamerId: number): Promise<string> {
+  try {
+    const res = await fetch(`${API_BASE}/streamers?streamer_id=${streamerId}`, {
+      headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": CLIENT_ID, Accept: "application/json" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return "";
+    const body = (await res.json()) as { name?: string; username?: string };
+    return body.name || body.username || "";
+  } catch {
+    return "";
+  }
 }
 
 /** Tell StreamerSongList to forget this sign-in. Best effort: removing the app's data goes ahead regardless. */
