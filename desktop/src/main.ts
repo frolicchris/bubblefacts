@@ -9,7 +9,7 @@ import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
 import {
-  BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -128,6 +128,7 @@ function state() {
     paused,
     ollama,
     signInExpired,
+    unlocking: secretsWaiting(),
     modelDownload,
     status: supervisor.status,
     overlayPath: overlayFile(),
@@ -621,13 +622,23 @@ app.on("window-all-closed", () => {
 app.whenReady().then(async () => {
   if (!primaryInstance) return;
   app.setAppUserModelId("org.frolic.bubblefacts");
-  settings = loadSettings();
-  // A secret the keychain could no longer read comes back blank.
-  if (settings.setupComplete && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
+  const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
+  // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the
+  // app waits on that prompt. The window goes up first, saying what to click (issue #62).
+  settings = loadSettings(!(process.platform === "darwin" && !atLogin));
   pruneLogs(DIRS.logs);
   createTray();
-  const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
   if (!atLogin || !settings.setupComplete) createWindow();
+  if (secretsWaiting()) {
+    await new Promise<void>((resolve) => {
+      ipcMain.once("unlock-ready", () => resolve());
+      setTimeout(resolve, 4000);
+    });
+    settings = unlockSecrets(settings);
+    send("state", state());
+  }
+  // A secret the keychain could no longer read comes back blank.
+  if (settings.setupComplete && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
   powerMonitor.on("resume", () => scheduleRefresh());
   // Refresh a sign-in that ran out while the app was closed before the server needs it.
   if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {

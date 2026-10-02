@@ -583,7 +583,7 @@
       const getIt = () => api.openExternal(state.update.url);
       if (!state.update.download) add("info", `BubbleFacts ${v} is available.`, "Get it", getIt);
       else if (u.stage === "downloading") add("info", `Downloading BubbleFacts ${v}: ${Math.floor((u.progress || 0) * 100)}%. You can keep streaming.`);
-      else if (u.stage === "ready") add("info", `BubbleFacts ${v} is ready. Installing closes BubbleFacts for a few seconds and reopens it, so pick a moment between songs.`, "Install now", () => api.installUpdate());
+      else if (u.stage === "ready") add("info", `BubbleFacts ${v} is ready. Installing closes BubbleFacts for a few seconds and reopens it, so pick a moment between songs.${state.platform === "darwin" ? " When your Mac asks for permission afterward, click Always Allow." : ""}`, "Install now", () => api.installUpdate());
       else if (u.stage === "failed") add("warn", `The update didn't work: ${u.error}. You can download it from the website instead.`, "Get it", getIt);
       else add("info", `BubbleFacts ${v} is available.`, "Update now", () => api.downloadUpdate());
     }
@@ -740,12 +740,18 @@
   });
   api.on("state", (s) => {
     state = s;
+    $("#unlocking").hidden = !s.unlocking;
     renderNotices();
     renderStatus(s.status);
   });
 
   (async () => {
     state = await api.getState();
+    if (state.unlocking) {
+      $("#unlocking").hidden = false;
+      // Painted first: the app stops answering while the Mac's prompt is up.
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
+    }
     $("#about-version").textContent = state.version;
     $("#report-beta").hidden = !/-beta/.test(state.version);
     renderNotices();

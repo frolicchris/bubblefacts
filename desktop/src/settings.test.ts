@@ -17,7 +17,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { DEFAULTS, fromWindow, loadSettings, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -106,6 +106,8 @@ describe("toServerEnv", () => {
 
   it("maps the musician's choices", () => {
     expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
+    expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left" }, paths).BUBBLE_AREA).toBe("left");
+    expect(sanitize({ ...DEFAULTS, bubbleArea: "middle" as "left" }).bubbleArea).toBe("anywhere");
     expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });
     expect(fromWindow({ nowPlaying: "no" })).toEqual({});
     const env = toServerEnv({ ...DEFAULTS, originals: true, liveLearns: false, myFacts: ["Mine."] }, paths);
@@ -209,5 +211,27 @@ describe("a sign-in with no username (a beta tester's first run)", () => {
     expect(env.SSL_STREAMER_NAME).toBe("The streamer");
     expect(env.SSL_STREAMER_ID).toBe("7");
     expect(toServerEnv({ ...signedIn, displayName: "Jane" }, paths).SSL_STREAMER_NAME).toBe("Jane");
+  });
+});
+
+describe("reading the saved sign-in after the window is up (issue #62)", () => {
+  it("leaves the secrets unread, saves nothing meanwhile, then reads them", () => {
+    keychain.available = true;
+    saveSettings({ ...DEFAULTS, setupComplete: true, channel: "jane", token: "streamer-token-123" });
+    const first = loadSettings(false);
+    expect(first).toMatchObject({ channel: "jane", token: "" });
+    expect(secretsWaiting()).toBe(true);
+    // A save now would store the sign-in blank.
+    saveSettings({ ...first, channel: "changed" });
+    const unlocked = unlockSecrets(first);
+    expect(unlocked.token).toBe("streamer-token-123");
+    expect(secretsWaiting()).toBe(false);
+    expect(loadSettings()).toMatchObject({ channel: "jane", token: "streamer-token-123" });
+  });
+
+  it("has nothing to wait for when no sign-in is saved", () => {
+    saveSettings({ ...DEFAULTS });
+    loadSettings(false);
+    expect(secretsWaiting()).toBe(false);
   });
 });

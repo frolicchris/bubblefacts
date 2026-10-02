@@ -38,6 +38,8 @@ export interface Settings {
   ollamaModel: string;
   /** How big the bubbles are on stream. */
   bubbleSize: "standard" | "large" | "larger";
+  /** The part of the screen bubbles keep to. */
+  bubbleArea: "anywhere" | "top" | "bottom" | "left" | "right";
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -73,6 +75,7 @@ export const DEFAULTS: Settings = {
   ollamaUrl: "http://localhost:11434",
   ollamaModel: "llama3.2",
   bubbleSize: "standard",
+  bubbleArea: "anywhere",
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
@@ -103,7 +106,16 @@ function decrypt(stored: string): string {
   return stored.startsWith("plain:") ? stored.slice(6) : "";
 }
 
-export function loadSettings(): Settings {
+/** Saved secrets not read yet (see `loadSettings(false)`). Nothing is saved meanwhile: it would store them blank. */
+let secretsPending = false;
+export const secretsWaiting = () => secretsPending;
+
+/**
+ * `readSecrets` false leaves the sign-in and keys unread, for `unlockSecrets`
+ * to read later. Reading them is what makes macOS show its keychain prompt,
+ * and the app waits on it: the window has to be up first to say what to click.
+ */
+export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
   try {
     raw = JSON.parse(fs.readFileSync(file(), "utf8"));
@@ -133,8 +145,25 @@ export function loadSettings(): Settings {
   // Left unchanged, they're dropped: the examples are opt-in now (issue #18).
   // Only for settings saved before beta.3 (no songSource yet), so a streamer who checks these later keeps them.
   if (!("songSource" in raw) && settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
-  for (const key of SECRET_KEYS) settings[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
+  const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
+  secretsPending = !readSecrets && SECRET_KEYS.some((key) => saved(key).startsWith("enc:"));
+  for (const key of SECRET_KEYS) settings[key] = secretsPending ? "" : decrypt(saved(key));
   return sanitize(settings);
+}
+
+/** Read the secrets `loadSettings(false)` left. Waits on the keychain prompt, when macOS shows one. */
+export function unlockSecrets(settings: Settings): Settings {
+  if (!secretsPending) return settings;
+  secretsPending = false;
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(fs.readFileSync(file(), "utf8"));
+  } catch {
+    // The file went away since it was read: the secrets stay blank.
+  }
+  const out = { ...settings };
+  for (const key of SECRET_KEYS) out[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
+  return sanitize(out);
 }
 
 const OLD_DEFAULT_TOPICS = "video-game,classical,film,pop,general";
@@ -153,6 +182,7 @@ export function sanitize(s: Settings): Settings {
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
+    bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right"] as const, "anywhere"),
     topics: s.topics.filter((t) => TOPICS.includes(t)),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
@@ -170,7 +200,7 @@ export function sanitize(s: Settings): Settings {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns", "nowPlaying",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
 ];
 
 /** The window's changes, keeping only editable keys whose values have the right type. */
@@ -189,6 +219,7 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
 }
 
 export function saveSettings(settings: Settings): void {
+  if (secretsPending) return;
   const stored: Record<string, unknown> = { ...settings };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
   fs.mkdirSync(path.dirname(file()), { recursive: true });
@@ -222,6 +253,7 @@ export function toServerEnv(
     ORIGINALS: s.originals ? "on" : "off",
     LIVE_LEARNS: s.liveLearns ? "on" : "off",
     NOW_PLAYING: s.nowPlaying ? "on" : "off",
+    BUBBLE_AREA: s.bubbleArea,
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),

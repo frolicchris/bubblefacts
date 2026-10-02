@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 /** The only things the window can ask the app to do. */
 contextBridge.exposeInMainWorld("bubbleFacts", {
   getState: () => ipcRenderer.invoke("get-state"),
+  unlockReady: () => ipcRenderer.send("unlock-ready"),
   testConnection: (channel: string, token: string, kind: string) => ipcRenderer.invoke("test-connection", channel, token, kind),
   testStreamElements: (channel: string, jwt: string) => ipcRenderer.invoke("test-streamelements", channel, jwt),
   saveSettings: (changes: Record<string, unknown>) => ipcRenderer.invoke("save-settings", changes),

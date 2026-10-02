@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
 import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
@@ -177,7 +177,7 @@ control.post("/test", (_req, res) => {
     text: "✓ BubbleFacts is working! Facts about each song you play will pop up right here.",
     delaySeconds: 0,
     durationSeconds: 8,
-    position: { top: "8%", left: "33%" },
+    position: positionsFor()[0],
   }];
   // Shown even while paused: the streamer asked for it. Not recorded as "on stream now".
   for (const ws of clients.keys()) {
