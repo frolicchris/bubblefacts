@@ -189,3 +189,22 @@ describe("serverSettingsSignature (issue #55)", () => {
     expect(sig({ ...base, ai: "groq", groqKey: "k" })).not.toBe(sig(base));
   });
 });
+
+describe("a sign-in with no username (a beta tester's first run)", () => {
+  const paths = { modelPath: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
+  const signedIn = { ...DEFAULTS, channel: "", token: "t", tokenKind: "oauth" as const, streamerId: 7 };
+
+  it("is ready to start: the channel is followed by its ID", () => {
+    expect(songSourceReady(signedIn)).toBe(true);
+    expect(songSourceReady({ ...signedIn, streamerId: 0 })).toBe(false);
+    expect(songSourceReady({ ...signedIn, tokenKind: "streamer" as const })).toBe(false);
+    expect(songSourceReady({ ...signedIn, token: "" })).toBe(false);
+  });
+
+  it("still gives the server a name and the ID", () => {
+    const env = toServerEnv(signedIn, paths);
+    expect(env.SSL_STREAMER_NAME).toBe("The streamer");
+    expect(env.SSL_STREAMER_ID).toBe("7");
+    expect(toServerEnv({ ...signedIn, displayName: "Izzy" }, paths).SSL_STREAMER_NAME).toBe("Izzy");
+  });
+});

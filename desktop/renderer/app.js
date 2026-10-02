@@ -156,7 +156,7 @@
   function toStreamStep() {
     $("#connected-as").textContent = onSE()
       ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
-      : `✓ Connected to ${state.settings.channel}.`;
+      : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
     renderPaths();
     goStep(2);
     renderObsCheck();
@@ -615,7 +615,7 @@
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
       ? (s.seJwtSet ? `✓ Connected to StreamElements${s.seChannel ? " as " + s.seChannel : ""}.` : "Not connected.")
-      : signedIn ? `✓ Signed in as ${s.channel}.` : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
+      : signedIn ? (s.channel ? `✓ Signed in as ${s.channel}.` : "✓ Signed in.") : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
     showSettingsSource();
     $("#s-sign-in").textContent = signedIn ? "Sign in again" : "Sign in with StreamerSongList";
     $("#s-sign-in").hidden = !state.signInAvailable;
