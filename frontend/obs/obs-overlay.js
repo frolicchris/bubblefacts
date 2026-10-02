@@ -184,7 +184,8 @@
       clearBubbles();
       removed = new Set();
       currentSongKey = songKey(msg.song);
-      if (msg.song && !msg.quiet) showToast(msg.song);
+      // noBanner: the streamer turned NOW PLAYING off. The last song's banner still goes.
+      if (msg.song && !msg.quiet) msg.noBanner ? removeToast() : showToast(msg.song);
     } else if (msg.type === "facts_ready") {
       showFacts(msg.song, msg.facts);
     } else if (msg.type === "remove_fact") {

@@ -99,7 +99,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const song = songList.toSong(current);
   // Work for any other song is no longer wanted (see setCurrentSong).
   setCurrentSong(song);
-  broadcast({ type: "new_song", song });
+  broadcast({ type: "new_song", song, ...(config.nowPlaying || song.liveLearn ? {} : { noBanner: true }) });
 
   const facts = await generateFacts(song, current);
   if (token !== generation) {

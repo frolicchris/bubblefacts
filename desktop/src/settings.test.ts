@@ -105,8 +105,11 @@ describe("toServerEnv", () => {
   });
 
   it("maps the musician's choices", () => {
+    expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
+    expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });
+    expect(fromWindow({ nowPlaying: "no" })).toEqual({});
     const env = toServerEnv({ ...DEFAULTS, originals: true, liveLearns: false, myFacts: ["Mine."] }, paths);
-    expect(env).toMatchObject({ ORIGINALS: "on", LIVE_LEARNS: "off", BUBBLEFACTS_TOPICS_DIR: "/facts", HOST: "127.0.0.1" });
+    expect(env).toMatchObject({ ORIGINALS: "on", LIVE_LEARNS: "off", NOW_PLAYING: "on", BUBBLEFACTS_TOPICS_DIR: "/facts", HOST: "127.0.0.1" });
     expect(env.TOPIC.split(",")[0]).toBe("my-facts");
   });
 
