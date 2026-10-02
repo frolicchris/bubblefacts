@@ -83,6 +83,8 @@ const sources = new Map<string, string>();
 const RECENT_KEPT = 80;
 const recentFacts: string[] = [];
 const inFlight = new Map<string, Promise<Fact[]>>();
+/** A streamer's handle as the artist: "@nalaniproctor", "Lennon (@lennonpiano)". */
+const STREAMER_HANDLE = /(?:^|[\s(])@([A-Za-z0-9_]{3,25})\)?\s*$/;
 const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
   grounded: "article",
@@ -562,7 +564,10 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
     let context = "";
     let read = song;
-    if (config.aiProvider !== "none" && config.factVerification) {
+    // "Lennon (@lennonpiano)": a fellow streamer's piece. No encyclopedia knows it, so nothing is looked up.
+    const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1];
+    if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): not looked up`);
+    if (config.aiProvider !== "none" && config.factVerification && !handle) {
       for (const reading of readings(song)) {
         const found = await fetchGrounding(reading);
         if (!found) continue;
@@ -577,7 +582,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     }
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
-      const data = config.factVerification ? await structuredFacts(song, read) : [];
+      const data = config.factVerification && !handle ? await structuredFacts(song, read) : [];
       const shownData = data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, want);
       if (shownData.length) {
         remember(shownData);
@@ -652,6 +657,8 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
       .then(({ facts, ttlMs }) => {
         // A generation started before the song's facts changed may not overwrite them.
         if ((revisions.get(key) ?? 0) === rev) factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        // What viewers see, so a stream's log can be read back for quality, not just counts.
+        for (const f of facts) console.log(`[Shown] "${song.title}" (${f.source ?? "no source"}): ${f.text}`);
         return facts;
       })
       .finally(() => {

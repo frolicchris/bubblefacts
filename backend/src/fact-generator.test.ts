@@ -93,6 +93,28 @@ describe("generateFacts", () => {
     expect(second.filter((t) => first.includes(t))).toEqual([]);
   });
 
+  it("looks nothing up for a fellow streamer's piece: the artist is a handle", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (wikidataFacts as jest.Mock).mockClear();
+    for (const artist of ["Lennon (@lennonpiano)", "@nalaniproctor"]) {
+      await generateFacts({ title: `Piece by ${artist}`, artist });
+    }
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(wikidataFacts).not.toHaveBeenCalled();
+    // An email-like or mid-name "@" is not a handle.
+    await generateFacts({ title: "Other Piece", artist: "P@ssion Pit" });
+    expect(fetchGrounding).toHaveBeenCalled();
+  });
+
+  it("logs each fact it shows with its source, so a stream can be read back", async () => {
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts({ title: "Logged Song", artist: "Logged Artist" });
+    const shown = log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith('[Shown] "Logged Song"'));
+    log.mockRestore();
+    expect(shown).toHaveLength(facts.length);
+    expect(shown[0]).toContain(facts[0].text);
+  });
+
   it("puts facts about the song first when the article is only about the artist", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);

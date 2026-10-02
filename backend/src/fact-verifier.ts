@@ -835,6 +835,9 @@ const NAME_STOPWORDS = new Set([
   "nintendo", "sega", "sony", "microsoft", "capcom", "konami", "square",
   "atlus", "falcom", "bandai", "namco", "enix", "ubisoft", "activision",
   "japanese", "american", "european", "english", "german", "french",
+  // "influenced by Western action movies": a place or people, not a person.
+  "western", "eastern", "northern", "southern", "british", "irish", "scottish", "italian",
+  "spanish", "russian", "chinese", "korean", "asian", "african", "latin", "celtic",
   "january", "february", "march", "april", "may", "june", "july", "august",
   "september", "october", "november", "december",
   "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",

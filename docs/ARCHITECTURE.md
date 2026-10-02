@@ -208,6 +208,14 @@ Game-music song lists usually put the track in the title and the game in the
 artist field. `resolveGameAndTrack` is the one place that handles this. If
 every song suddenly gets generic facts, check it first.
 
+An artist that is a streamer's handle (`@name`, `Name (@name)`) is a fellow
+streamer's piece: nothing is looked up, and the streamer's own facts are used.
+
+### How do I see what a stream showed?
+
+Each fact sent to the overlay is logged as `[Shown] "Song" (source): text`,
+next to the `[Screen] DROP` lines for what was held back.
+
 ### What gets remembered between songs?
 
 - A found article is kept for the session.
