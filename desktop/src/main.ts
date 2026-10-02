@@ -643,7 +643,7 @@ app.whenReady().then(async () => {
     applicationVersion: app.getVersion(),
     copyright: "© 2026 Christopher Feyrer",
     credits: "MIT License. Built with Llama. Credits, licenses and thanks are under About in the BubbleFacts window.",
-    authors: ["Christopher Feyrer"],
+    authors: ["Christopher Feyrer (creator and maintainer)", "Claude Code by Anthropic (AI coding agent)"],
     website: "https://bubblefacts.frolic.org/",
   });
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);

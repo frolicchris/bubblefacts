@@ -15,7 +15,7 @@ describe("licenses shipped with the app", () => {
   });
 
   it("puts the notices and the license in the app, and names the license in its copyright", () => {
-    expect(pkg.build.files).toEqual(expect.arrayContaining(["LICENSE", "THIRD-PARTY-NOTICES.md"]));
+    expect(pkg.build.files).toEqual(expect.arrayContaining(["LICENSE", "THIRD-PARTY-NOTICES.md", "AUTHORS.md"]));
     expect(pkg.build.copyright).toMatch(/Christopher Feyrer.*MIT License/);
   });
 });

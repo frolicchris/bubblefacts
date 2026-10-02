@@ -74,6 +74,7 @@
       "package.json",
       "LICENSE",
       "THIRD-PARTY-NOTICES.md",
+      "AUTHORS.md",
       "dist/backend/**/*.js",
       "dist/desktop/**/*.js",
       "desktop/renderer/**/*",

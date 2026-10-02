@@ -118,6 +118,8 @@ The open source software BubbleFacts ships, and each license, is listed in
 izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
-The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
+Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
+coding agent: see [AUTHORS.md](AUTHORS.md) and the
+[AI disclosure](docs/AI_DISCLOSURE.md). The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
 trademarks of Christopher Feyrer and aren't covered by the MIT license: forks
 are welcome, under a different name.
