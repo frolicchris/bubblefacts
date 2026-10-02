@@ -141,7 +141,9 @@
   function showBubble(fact) {
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble";
-    bubble.style.top = fact.position.top;
+    // A bottom spot sits on the bottom edge and grows upward, whatever the fact's length.
+    if (fact.position.bottom) bubble.style.bottom = fact.position.bottom;
+    else bubble.style.top = fact.position.top;
     bubble.style.left = fact.position.left;
     bubble.style.setProperty("--bubble-icon", JSON.stringify(ICONS[iconIndex++ % ICONS.length]));
     bubble.dataset.fact = fact.text;

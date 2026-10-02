@@ -111,11 +111,15 @@ describe("generateFacts", () => {
     for (const area of ["anywhere", "top", "bottom", "left", "right"]) {
       for (const p of positionsFor(area)) {
         expect(pct(p.left)).toBeLessThanOrEqual(66);
-        expect(pct(p.top)).toBeLessThanOrEqual(70);
+        if (p.top) expect(pct(p.top)).toBeLessThanOrEqual(70);
       }
     }
-    expect(positionsFor("top").every((p) => pct(p.top) <= 20)).toBe(true);
-    expect(positionsFor("bottom").every((p) => pct(p.top) >= 57)).toBe(true);
+    expect(positionsFor("top").every((p) => p.top && pct(p.top) <= 20)).toBe(true);
+    // "Bottom" means the bottom edge: measured up from it, never down from the top (a tester's
+    // bubble set to the bottom showed just below the middle).
+    expect(positionsFor("bottom").every((p) => !p.top && p.bottom && pct(p.bottom) <= 20)).toBe(true);
+    // The Now Playing bubble sits bottom-center as a song starts: the first two bubbles keep clear of it.
+    expect(positionsFor("bottom").slice(0, 2).every((p) => pct(p.left) < 20 || pct(p.left) > 60)).toBe(true);
     expect(positionsFor("left").every((p) => pct(p.left) <= 5)).toBe(true);
     expect(positionsFor("right").every((p) => pct(p.left) >= 66)).toBe(true);
     expect(positionsFor("nonsense")).toBe(positionsFor("anywhere"));

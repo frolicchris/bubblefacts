@@ -45,17 +45,20 @@ const POSITIONS = [
   { top: "70%", left: "40%" },
 ];
 
-const spots = (list: Array<[number, number]>) => list.map(([top, left]) => ({ top: `${top}%`, left: `${left}%` }));
+const spots = (list: Array<[number, number]>) => list.map(([top, left]): Fact["position"] => ({ top: `${top}%`, left: `${left}%` }));
+/** Measured up from the bottom edge, so a bubble of any length sits low and never runs off the screen. */
+const lowSpots = (list: Array<[number, number]>) => list.map(([bottom, left]): Fact["position"] => ({ bottom: `${bottom}%`, left: `${left}%` }));
 
 /**
  * BUBBLE_AREA: the part of the screen bubbles keep to, for streamers whose
  * layout has a camera, keyboard or chat where the default spots fall.
  * Same limits as above: `left` at most 66%, and clear of the banner at the bottom.
  */
-const AREAS: Record<string, Array<{ top: string; left: string }>> = {
+const AREAS: Record<string, Array<Fact["position"]>> = {
   anywhere: POSITIONS,
   top: spots([[6, 6], [6, 37], [6, 66], [20, 20], [20, 52], [20, 6], [20, 66], [6, 22]]),
-  bottom: spots([[57, 6], [57, 37], [57, 66], [70, 20], [70, 52], [70, 6], [70, 66], [57, 22]]),
+  // The middle of the lowest row is the Now Playing bubble's, so the first bubbles of a song keep to the sides.
+  bottom: lowSpots([[5, 4], [5, 66], [20, 35], [20, 4], [20, 66], [5, 35], [12, 20], [12, 50]]),
   left: spots([[8, 3], [40, 3], [24, 3], [56, 3], [70, 3], [16, 3], [48, 3], [64, 3]]),
   right: spots([[8, 66], [40, 66], [24, 66], [56, 66], [70, 66], [16, 66], [48, 66], [64, 66]]),
 };

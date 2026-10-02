@@ -84,7 +84,8 @@ export interface Fact {
   evidence?: string;
   delaySeconds: number;
   durationSeconds: number;
-  position: { top: string; left: string };
+  /** `top`, or `bottom` for a bubble that sits on the bottom edge and grows upward. */
+  position: { top?: string; bottom?: string; left: string };
 }
 
 /** Server-to-overlay WebSocket message. `remove_fact` takes one fact, by `text`, off the current song. */

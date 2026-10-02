@@ -136,6 +136,9 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   restored = null;
   if (before && sameRequest(before.song, song)) {
     if (Date.now() - (before.shownAt || before.savedAt) < RESUME_WITHIN_MS) {
+      // Spots from the current setting: the restart may be the streamer changing where bubbles go.
+      const spots = positionsFor();
+      before.facts = before.facts.map((f, i) => ({ ...f, position: spots[i % spots.length] }));
       console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
       primeFacts(song, before.facts);
       broadcast(song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
