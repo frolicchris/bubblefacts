@@ -37,23 +37,10 @@ python3 -m http.server 8000
 
 Then open <http://localhost:8000/>. Press Ctrl-C to stop.
 
-## Publish to DreamHost
+## Publish
 
-The site lives on its own subdomain, `bubblefacts.frolic.org`, so the
-redirects on `frolic.org` and `www.frolic.org` don't affect it. In DreamHost,
-the subdomain is set up as a fully hosted site with its own web folder
-(normally `~/bubblefacts.frolic.org`) and a free Let's Encrypt certificate.
-
-Upload the **contents** of `site/` (not the `site` folder itself) into that
-web folder, using DreamHost's file manager, SFTP, or rsync. For example:
-
-```bash
-rsync -av --delete --exclude README.md site/ USER@SERVER:bubblefacts.frolic.org/
-```
-
-Replace `USER@SERVER` with your DreamHost SFTP user and server. `--delete`
-removes files on the server that are no longer in `site/`, so check the
-target path before running it. You can leave `README.md` out of the upload.
+Upload the **contents** of `site/` (not the `site` folder itself) to any
+static web host. `README.md` doesn't need to go up.
 
 After uploading, check:
 
