@@ -622,6 +622,15 @@ app.on("window-all-closed", () => {
 app.whenReady().then(async () => {
   if (!primaryInstance) return;
   app.setAppUserModelId("org.frolic.bubblefacts");
+  // The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer.
+  app.setAboutPanelOptions({
+    applicationName: "BubbleFacts",
+    applicationVersion: app.getVersion(),
+    copyright: "© 2026 Christopher Feyrer. MIT License.",
+    credits: "Built with Llama: Meta's Llama 3.2, used under the Llama 3.2 Community License. Open source credits and licenses are in THIRD-PARTY-NOTICES.md and at bubblefacts.frolic.org/credits.html. Thanks to our beta testers, izzyparadox and SaxDragon.",
+    authors: ["Christopher Feyrer"],
+    website: "https://bubblefacts.frolic.org/",
+  });
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
   // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the
   // app waits on that prompt. The window goes up first, saying what to click (issue #62).
