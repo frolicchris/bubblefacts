@@ -208,6 +208,6 @@ describe("a sign-in with no username (a beta tester's first run)", () => {
     const env = toServerEnv(signedIn, paths);
     expect(env.SSL_STREAMER_NAME).toBe("The streamer");
     expect(env.SSL_STREAMER_ID).toBe("7");
-    expect(toServerEnv({ ...signedIn, displayName: "Izzy" }, paths).SSL_STREAMER_NAME).toBe("Izzy");
+    expect(toServerEnv({ ...signedIn, displayName: "Jane" }, paths).SSL_STREAMER_NAME).toBe("Jane");
   });
 });

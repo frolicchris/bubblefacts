@@ -83,7 +83,7 @@ const sources = new Map<string, string>();
 const RECENT_KEPT = 80;
 const recentFacts: string[] = [];
 const inFlight = new Map<string, Promise<Fact[]>>();
-/** A streamer's handle as the artist: "@nalaniproctor", "Lennon (@lennonpiano)". */
+/** A streamer's handle as the artist: "@janeplayskeys", "Jane (@janeplayskeys)". */
 const STREAMER_HANDLE = /(?:^|[\s(])@([A-Za-z0-9_]{3,25})\)?\s*$/;
 const songsLog = () => path.join(config.logDir, "songs.log");
 const SONGS_LOG_LABEL: Record<Outcome, string> = {
@@ -569,7 +569,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
     let context = "";
     let read = song;
-    // "Lennon (@lennonpiano)": a fellow streamer's piece. No encyclopedia knows it, so nothing is looked up.
+    // "Jane (@janeplayskeys)": a fellow streamer's piece. No encyclopedia knows it, so nothing is looked up.
     const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1];
     if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): not looked up`);
     if (config.aiProvider !== "none" && config.factVerification && !handle) {

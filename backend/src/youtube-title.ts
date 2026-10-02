@@ -95,7 +95,7 @@ const VARIANT_BRACKET = /^(?:live|acoustic|remix|remastered|demo|edit|session|un
 const JAPANESE_QUOTED = /^(.+?)\s*[「『｢](.+?)[」』｣]/;
 /** Quote marks around a song title, including Japanese ones. */
 const QUOTED = /^(.+?)\s*["“「『](.+)["”」』]$/;
-/** "Sax Dragon's "Billie Jean" Solo": a possessive names the performer, the quotes the song. */
+/** "Brass Fox's "Billie Jean" Solo": a possessive names the performer, the quotes the song. */
 const POSSESSIVE_QUOTED = /^(.+?)['’]s\s+["“「『](.+?)["”」』]/;
 /** "Marc Rebillet x Edeka": a collaboration, led by the first name. */
 const COLLAB = /^(.+?)\s+x\s+\S/;
@@ -145,7 +145,7 @@ export function artistFromChannel(channel: string | undefined | null): { artist:
 }
 
 export function parseVideoTitle(rawTitle: string, channel?: string | null): ParsedTitle {
-  // Hashtags describe the upload ("#saxdragon #Keytar"), never the song.
+  // Hashtags describe the upload ("#brassfox #Keytar"), never the song.
   const raw = (rawTitle ?? "").replace(/(^|\s)#[\p{L}\p{N}_]+/gu, " ").replace(/\s+/g, " ").trim();
   let source = "";
 
