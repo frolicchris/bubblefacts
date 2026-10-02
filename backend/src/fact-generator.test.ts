@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor } from "./fact-generator";
+import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor } from "./fact-generator";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
@@ -244,8 +244,12 @@ describe("generateFacts", () => {
     expect(liveLearnLookup({ title: "Some Tune", artist: "Jane Composer", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Jane Composer" });
 
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);
-    const facts = await generateFacts({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true });
+    const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
+    const facts = await generateFacts(request);
     expect(facts).toHaveLength(5);
+    // The work is filed under the request, not the reading: under the reading's name the
+    // built-in model saw a song that wasn't playing and refused (review).
+    expect(outcomeFor(request)).not.toBe("");
     expect((fetchGrounding as jest.Mock).mock.calls.at(-1)?.[0]).toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
   });
 

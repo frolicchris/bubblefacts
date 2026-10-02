@@ -62,6 +62,20 @@ describe("downloadUpdate", () => {
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 
+  it("reports a disk that can't be written to, and leaves nothing behind", async () => {
+    mockFetch.mockResolvedValueOnce(text(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(body(bytes));
+    const full = Object.assign(new Error("ENOSPC: no space left on device, write"), { code: "ENOSPC" });
+    const open = fs.promises.open;
+    const spy = jest.spyOn(fs.promises, "open").mockImplementation(async (...args: Parameters<typeof open>) => {
+      const handle = await open(...args);
+      handle.writeFile = () => Promise.reject(full);
+      return handle;
+    });
+    await expect(downloadUpdate(d, dir, () => undefined)).rejects.toThrow(/free disk space/);
+    spy.mockRestore();
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
   it("refuses when the release lists no checksum for the file", async () => {
     mockFetch.mockResolvedValueOnce(text(`${sum}  something-else.dmg\n`));
     await expect(downloadUpdate(d, dir, () => undefined)).rejects.toThrow(/no checksum/);

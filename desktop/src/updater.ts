@@ -60,20 +60,24 @@ export async function downloadUpdate(d: Download, dir: string, onProgress: (frac
   const file = path.join(dir, d.name);
   const res = await fetch(d.url, { signal });
   if (!res.ok || !res.body) throw new Error(`the download failed (${res.status})`);
-  const out = fs.createWriteStream(file);
+  // Written through a file handle so a full or failing disk is an error the window can show,
+  // not an unhandled stream error that takes the app down.
+  let out: fs.promises.FileHandle | null = null;
   let got = 0;
   try {
+    out = await fs.promises.open(file, "w");
     for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
       got += chunk.length;
-      if (!out.write(chunk)) await new Promise<void>((r) => out.once("drain", () => r()));
+      await out.writeFile(chunk);
       onProgress(d.size ? Math.min(1, got / d.size) : 0);
     }
-    await new Promise<void>((resolve, reject) => out.end((err?: Error | null) => (err ? reject(err) : resolve())));
+    await out.close();
+    out = null;
     if ((await sha256(file)) !== want) throw new Error("the download didn't match the release's checksum");
   } catch (err) {
-    out.destroy();
+    await out?.close().catch(() => undefined);
     fs.rmSync(file, { force: true });
-    throw err;
+    throw /ENOSPC|EDQUOT/.test((err as NodeJS.ErrnoException)?.code ?? "") ? new Error("there isn't enough free disk space for the update") : err;
   }
   return file;
 }
