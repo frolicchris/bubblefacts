@@ -161,3 +161,9 @@ textarea { resize: vertical; line-height: 1.45; }
   .lights, .grid3, .checks { grid-template-columns: 1fr; }
 }
 #ssl-box, #se-box { margin-top: 18px; }
+
+/* Shown while the Mac's keychain prompt may be up. Fades in late, so a start with no prompt never flashes it. */
+#unlocking { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(11, 13, 31, 0.94); animation: unlocking-in 0.2s 0.6s both; }
+#unlocking[hidden] { display: none; }
+.unlocking-box { max-width: 30rem; padding: 1.5rem 2rem; text-align: center; }
+@keyframes unlocking-in { from { opacity: 0; } to { opacity: 1; } }
