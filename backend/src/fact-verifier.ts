@@ -236,6 +236,8 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   // "Queen" -> "Long Live the Queen (video game)".
   if (got.split(" ").length > want.split(" ").length + 1) return false;
   if (gotSeq === wantSeq) return true;
+  // A set named in the plural: "Hungarian Dance" is one of the "Hungarian Dances (Brahms)".
+  if (gotSeq === wantSeq + "s" && wantTokens.length >= 2) return true;
 
   const gotSet = new Set(gotTokens);
   const ratio = wantTokens.filter((t) => gotSet.has(t)).length / wantTokens.length;
@@ -936,7 +938,7 @@ function statesRole(sentence: string, surname: string, role: { source: RegExp })
 /** "by Adele", "by Nobuo Uematsu": a capitalized name after "by". */
 const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|de|van|von|da|del|la|le))*)/gu;
 
-/** The names a fact credits: two or more capitalized words, or any name after "by". */
+/** The names a fact credits: a name after "by", or right before a credit verb. */
 function creditedNames(fact: string): string[] {
   const names = new Set<string>();
   for (const m of fact.matchAll(BY_NAME)) names.add(m[1].trim().replace(/[.'’-]+$/, ""));
@@ -944,14 +946,10 @@ function creditedNames(fact: string): string[] {
     const words = m[1].trim().split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
     if (words.length) names.add(words.join(" "));
   }
-  // A title in quotation marks is a work, not a person: "Take On Me" can't be given a credit.
-  const titles = [...fact.matchAll(/["“]([^"“”]+)["”]/g)].map((m) => m[1]);
-  for (const candidate of fact.match(NAME) ?? []) {
-    if (titles.some((t) => t.includes(candidate))) continue;
-    const words = candidate.split(/\s+/).map((w) => w.replace(/['’]s?$/, ""));
-    while (words.length && NAME_STOPWORDS.has(words[0].toLowerCase())) words.shift();
-    if (words.length >= 2 && !words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) names.add(words.join(" "));
-  }
+  // Only names in a credit's own grammar count: "by Name", "Name composed". Any
+  // other capitalized pair in the sentence is usually a game or a place: "composed
+  // the music for Chrono Trigger" doesn't credit Chrono Trigger. On a live stream
+  // that rule dropped true facts on most game tracks (October 1 log).
   return [...names];
 }
 

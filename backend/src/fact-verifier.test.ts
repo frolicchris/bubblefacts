@@ -1035,3 +1035,27 @@ describe("screening slips found replaying real songs", () => {
     expect(screenClaims(["It reached number one on the Billboard Hot 100 in 1983."], "It reached number one on the Billboard Hot 100 in 1983.").kept).toHaveLength(1);
   });
 });
+
+describe("true facts dropped on a live stream (October 1 evening log)", () => {
+  const kept = (fact: string, ctx: string) => screenClaims([fact], ctx).kept.length === 1;
+  const chrono = "Chrono Trigger\nChrono Trigger was scored primarily by Yasunori Mitsuda. Mitsuda was unhappy with his pay and threatened to leave Square if he could not compose music. Hironobu Sakaguchi suggested he score Chrono Trigger. The game's director, Masato Kato, was Mitsuda's close friend. Nobuo Uematsu composed ten pieces.";
+
+  it("keeps a fact that only mentions the game or a colleague", () => {
+    expect(kept("Mitsuda was unhappy with his pay and threatened to leave Square if he could not compose music for Chrono Trigger.", chrono)).toBe(true);
+    expect(kept("The game's director, Masato Kato, was Mitsuda's close friend and collaborator on the score.", chrono)).toBe(true);
+    expect(kept("Hironobu Sakaguchi suggested Mitsuda compose the music after he threatened to leave.", chrono)).toBe(true);
+  });
+
+  it("still drops a credit given to the wrong person", () => {
+    expect(kept("Masato Kato composed the music for Chrono Trigger.", chrono)).toBe(false);
+    expect(kept("The music was composed by Hironobu Sakaguchi.", chrono)).toBe(false);
+    expect(kept("Nobuo Uematsu composed ten pieces for the game.", chrono)).toBe(true);
+  });
+});
+
+describe("a set named in the plural (October 1 evening log)", () => {
+  it("matches Hungarian Dance to Hungarian Dances (Brahms)", () => {
+    expect(isRelevantArticle("Hungarian Dance", "Hungarian Dances (Brahms)")).toBe(true);
+    expect(isRelevantArticle("Queen", "Queens (band)")).toBe(false);
+  });
+});
