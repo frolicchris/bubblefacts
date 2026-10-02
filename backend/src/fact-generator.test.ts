@@ -96,7 +96,7 @@ describe("generateFacts", () => {
   it("looks nothing up for a fellow streamer's piece: the artist is a handle", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (wikidataFacts as jest.Mock).mockClear();
-    for (const artist of ["Lennon (@lennonpiano)", "@nalaniproctor"]) {
+    for (const artist of ["Jane (@janeplayskeys)", "@janeplayskeys"]) {
       await generateFacts({ title: `Piece by ${artist}`, artist });
     }
     expect(fetchGrounding).not.toHaveBeenCalled();
