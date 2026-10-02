@@ -96,11 +96,12 @@ wss.on("connection", (ws, req) => {
   // Facts already on their way: this overlay joins in, with no second banner and only the bubbles
   // still to come. An overlay that reloads mid-song doesn't replay the ones viewers have seen.
   if (factsShownAt && lastSent.ready && sameRequest(lastSent.song, song)) {
-    send(ws, { type: "new_song", song, quiet: true });
+    // A LIVE LEARN banner stays up for the whole song, so a reloaded overlay needs it again.
+    send(ws, song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
     send(ws, { type: "facts_ready", song, facts: remainingFacts(lastSent.facts ?? [], factsShownAt) });
     return;
   }
-  send(ws, { type: "new_song", song });
+  send(ws, newSong(song));
   generateFacts(song, current)
     .then((facts) => {
       if (token !== generation) return;
@@ -112,6 +113,11 @@ wss.on("connection", (ws, req) => {
     })
     .catch((err) => console.error("[WS] Could not send facts to new client:", err));
 });
+
+/** A song starting, with or without its NOW PLAYING bubble: the streamer's choice. A LIVE LEARN banner always shows. */
+function newSong(song: SSLSong): FactsPayload {
+  return { type: "new_song", song, ...(config.nowPlaying || song.liveLearn ? {} : { noBanner: true }) };
+}
 
 async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const token = ++generation;
@@ -132,7 +138,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
     if (Date.now() - (before.shownAt || before.savedAt) < RESUME_WITHIN_MS) {
       console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
       primeFacts(song, before.facts);
-      broadcast({ type: "new_song", song, quiet: true });
+      broadcast(song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
       broadcast({ type: "facts_ready", song, facts: remainingFacts(before.facts, before.shownAt) });
       // The record stays the full set and when it first went out: an overlay connecting later joins in from there.
       factsShownAt = before.shownAt;
@@ -144,7 +150,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
     const own = new Set(before.facts.map((f) => f.text));
     restoreRecent(before.recent.filter((r) => !own.has(r)));
   }
-  broadcast({ type: "new_song", song, ...(config.nowPlaying || song.liveLearn ? {} : { noBanner: true }) });
+  broadcast(newSong(song));
 
   const facts = await generateFacts(song, current);
   if (token !== generation) {
@@ -181,7 +187,7 @@ control.post("/test", (_req, res) => {
   }];
   // Shown even while paused: the streamer asked for it. Not recorded as "on stream now".
   for (const ws of clients.keys()) {
-    send(ws, { type: "new_song", song });
+    send(ws, newSong(song));
     send(ws, { type: "facts_ready", song, facts });
   }
   res.json({ overlays: clients.size });
