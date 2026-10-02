@@ -512,8 +512,13 @@ export function liveLearnLookup(song: SSLSong): SSLSong | null {
   return { title: parsed.title, artist: parsed.artist, ...(parsed.performer ? { performer: true } : {}), ...(parsed.confident ? {} : { artistUncertain: true }) };
 }
 
-/** `sourcedOnly`: facts from a source or none; never song-list or custom facts (a live learn's look-up). */
-async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false): Promise<{ facts: Fact[]; ttlMs: number }> {
+/**
+ * `sourcedOnly`: facts from a source or none; never song-list or custom facts (a live learn's look-up).
+ * `asked`: the request this is for, when `song` is a reading of it ("Artist - Title (Official Video)"
+ * looked up as its title and artist). The model's work and the outcome belong to the request: under
+ * the reading's name the built-in model took it for a song no longer playing and refused.
+ */
+async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = song): Promise<{ facts: Fact[]; ttlMs: number }> {
   const keep = { facts: [] as Fact[], ttlMs: Infinity };
 
   // Facts the streamer wrote for this very song come first, exactly as written,
@@ -522,7 +527,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
   if (yours) {
     const lines = songFactLines(yours, want);
     console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
-    record(song, "songFacts", lines.length);
+    record(asked, "songFacts", lines.length);
     // Not cached: an edit in the app applies the next time it plays.
     return { facts: toFacts(song, lines, () => SOURCE.yours), ttlMs: 0 };
   }
@@ -531,13 +536,13 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // The LIVE LEARN banner still shows. A well-known song gets its facts too (issue #45);
     // one no source knows gets none, never filler.
     const lookup = config.factVerification && config.aiProvider !== "none" ? liveLearnLookup(song) : null;
-    const found = lookup ? await generateRest(lookup, null, want, true) : keep;
+    const found = lookup ? await generateRest(lookup, null, want, true, song) : keep;
     if (found.facts.length) {
       console.log(`[FactGen] "${song.title}" is a live learn: ${found.facts.length} facts, looked up as "${lookup?.title}" by ${lookup?.artist}`);
       return found;
     }
     console.log(`[FactGen] "${song.title}" is a live learn with nothing to look up or find, so no facts`);
-    record(song, "liveLearn", 0);
+    record(asked, "liveLearn", 0);
     return { facts: [], ttlMs: found.ttlMs };
   }
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
@@ -553,7 +558,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       const lines = [...notes.slice(0, 2), ...stats, ...notes.slice(2)];
       const facts = toFacts(song, lines, (t) => (statSet.has(t) ? SOURCE.songList : SOURCE.custom)).slice(0, want);
       console.log(`[FactGen] "${song.title}" is an original: ${facts.length} facts from the song entry`);
-      record(song, "original", facts.length);
+      record(asked, "original", facts.length);
       // Not cached: requester and play count change, and this path is free.
       return { facts, ttlMs: 0 };
     }
@@ -586,13 +591,13 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       const shownData = data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, want);
       if (shownData.length) {
         remember(shownData);
-        record(song, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
+        record(asked, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
         return { facts: toFacts(song, shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
       }
       if (sourcedOnly) return none;
       const lines = entryFacts(entry, want);
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
-      record(song, "noReference", lines.length);
+      record(asked, "noReference", lines.length);
       // Retried after the grounding negative cache expires.
       return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
     }
@@ -603,7 +608,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
-    const lines = (await askModel(prompt, songKey(song))).split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
     const { kept, rejected } = screenClaims(lines, context);
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
     // Music terms get a few fixed plain words, so any viewer can follow.
@@ -615,15 +620,15 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
     if (shown.length) {
-      record(song, "grounded", shown.length);
-      sources.set(songKey(song), context.split("\n")[0]);
+      record(asked, "grounded", shown.length);
+      sources.set(songKey(asked), context.split("\n")[0]);
       const article = `Wikipedia: ${context.split("\n")[0]}`;
       return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context), ttlMs: Infinity };
     }
     if (sourcedOnly) return none;
     const fallback = entryFacts(entry, want);
     console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
-    record(song, "nothingSurvived", fallback.length);
+    record(asked, "nothingSurvived", fallback.length);
     return { facts: toFacts(song, fallback, entrySource), ttlMs: RETRY_MS };
   } catch (err) {
     if (err instanceof Obsolete) {
@@ -634,7 +639,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     if (sourcedOnly) return none;
     const fallback = entryFacts(entry, want);
     console.error(`[FactGen] Generation failed for "${song.title}":`, err);
-    record(song, "generationFailed", fallback.length);
+    record(asked, "generationFailed", fallback.length);
     return { facts: toFacts(song, fallback, entrySource), ttlMs: RETRY_MS };
   }
 }
