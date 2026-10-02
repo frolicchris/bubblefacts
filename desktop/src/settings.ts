@@ -38,6 +38,8 @@ export interface Settings {
   ollamaModel: string;
   /** How big the bubbles are on stream. */
   bubbleSize: "standard" | "large" | "larger";
+  /** The part of the screen bubbles keep to. */
+  bubbleArea: "anywhere" | "top" | "bottom" | "left" | "right";
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -73,6 +75,7 @@ export const DEFAULTS: Settings = {
   ollamaUrl: "http://localhost:11434",
   ollamaModel: "llama3.2",
   bubbleSize: "standard",
+  bubbleArea: "anywhere",
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
@@ -153,6 +156,7 @@ export function sanitize(s: Settings): Settings {
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
+    bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right"] as const, "anywhere"),
     topics: s.topics.filter((t) => TOPICS.includes(t)),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
@@ -170,7 +174,7 @@ export function sanitize(s: Settings): Settings {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns", "nowPlaying",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
 ];
 
 /** The window's changes, keeping only editable keys whose values have the right type. */
@@ -222,6 +226,7 @@ export function toServerEnv(
     ORIGINALS: s.originals ? "on" : "off",
     LIVE_LEARNS: s.liveLearns ? "on" : "off",
     NOW_PLAYING: s.nowPlaying ? "on" : "off",
+    BUBBLE_AREA: s.bubbleArea,
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),

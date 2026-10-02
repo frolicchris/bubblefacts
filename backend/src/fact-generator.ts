@@ -45,6 +45,24 @@ const POSITIONS = [
   { top: "70%", left: "40%" },
 ];
 
+const spots = (list: Array<[number, number]>) => list.map(([top, left]) => ({ top: `${top}%`, left: `${left}%` }));
+
+/**
+ * BUBBLE_AREA: the part of the screen bubbles keep to, for streamers whose
+ * layout has a camera, keyboard or chat where the default spots fall.
+ * Same limits as above: `left` at most 66%, and clear of the banner at the bottom.
+ */
+const AREAS: Record<string, Array<{ top: string; left: string }>> = {
+  anywhere: POSITIONS,
+  top: spots([[6, 6], [6, 37], [6, 66], [20, 20], [20, 52], [20, 6], [20, 66], [6, 22]]),
+  bottom: spots([[57, 6], [57, 37], [57, 66], [70, 20], [70, 52], [70, 6], [70, 66], [57, 22]]),
+  left: spots([[8, 3], [40, 3], [24, 3], [56, 3], [70, 3], [16, 3], [48, 3], [64, 3]]),
+  right: spots([[8, 66], [40, 66], [24, 66], [56, 66], [70, 66], [16, 66], [48, 66], [64, 66]]),
+};
+
+/** The spots for the chosen area, in the order bubbles use them. */
+export const positionsFor = (area: string = config.bubbleArea) => AREAS[area] ?? POSITIONS;
+
 type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
 /** Per-session counts, reported on /health. */
@@ -151,7 +169,7 @@ function toFacts(
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
-      position: POSITIONS[i % POSITIONS.length],
+      position: positionsFor()[i % positionsFor().length],
     };
   });
 }

@@ -106,6 +106,8 @@ describe("toServerEnv", () => {
 
   it("maps the musician's choices", () => {
     expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
+    expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left" }, paths).BUBBLE_AREA).toBe("left");
+    expect(sanitize({ ...DEFAULTS, bubbleArea: "middle" as "left" }).bubbleArea).toBe("anywhere");
     expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });
     expect(fromWindow({ nowPlaying: "no" })).toEqual({});
     const env = toServerEnv({ ...DEFAULTS, originals: true, liveLearns: false, myFacts: ["Mine."] }, paths);
