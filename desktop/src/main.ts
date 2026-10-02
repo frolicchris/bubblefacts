@@ -627,7 +627,7 @@ app.whenReady().then(async () => {
     applicationName: "BubbleFacts",
     applicationVersion: app.getVersion(),
     copyright: "© 2026 Christopher Feyrer. MIT License.",
-    credits: "Built with Llama: Meta's Llama 3.2, used under the Llama 3.2 Community License. Open source credits and licenses are in THIRD-PARTY-NOTICES.md and at bubblefacts.frolic.org/credits.html. Thanks to our beta testers, izzyparadox and SaxDragon.",
+    credits: "Built with Llama: Meta's Llama 3.2, used under the Llama 3.2 Community License. Open source credits and licenses are in THIRD-PARTY-NOTICES.md and at bubblefacts.frolic.org/credits.html. Thanks to everyone who tested BubbleFacts or talked it through: izzyparadox, Jer, MacYoda, SaxDragon and zdmajor7.",
     authors: ["Christopher Feyrer"],
     website: "https://bubblefacts.frolic.org/",
   });
