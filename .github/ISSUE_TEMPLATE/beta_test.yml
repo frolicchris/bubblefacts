@@ -18,6 +18,7 @@ body:
       description: Shown at the bottom of the app.
       # Newest first. Add each new beta at the top when it's published.
       options:
+        - 2.0.0-beta.6
         - 2.0.0-beta.5
         - 2.0.0-beta.4
         - 2.0.0-beta.3
