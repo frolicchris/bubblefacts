@@ -278,6 +278,10 @@ The overlay recognizes your originals if, in StreamerSongList, you either:
 It skips Wikipedia for these (there's no article) and uses what your song list
 knows about the piece instead.
 
+Your own notes about your compositions (`originalsFacts` in a pack) show only
+when the artist is you, by the second rule. A tag alone isn't enough, so a
+friend's piece tagged **Originals** never gets them.
+
 ### How it talks about you
 
 ```env

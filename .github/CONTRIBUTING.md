@@ -20,7 +20,8 @@ request's YouTube title. Every real title that was read wrong belongs in
 `backend/src/fixtures/youtube-titles.json`, labeled by hand with the artist
 and song a person would read, the uploading channel, and where it came from
 (for example `"source": "stream 2026-09-30"`). The tests read every entry, so
-a fix can't quietly break an older title. Add the title even if you can't fix
+a fix can't quietly break an older title. Swap a small creator's name for an
+invented one of the same shape. Add the title even if you can't fix
 the rule yourself. [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md#song-sources-and-youtube-titles)
 explains how titles are read.
 
@@ -45,7 +46,8 @@ change.
    of something that went wrong on a live stream.
 2. Install [Node.js](https://nodejs.org/en/download) 20 or newer and
    [ShellCheck](https://www.shellcheck.net), then run `npm install`.
-3. Make your change, with a test if it fixes a bug.
+3. Make your change, with a test if it fixes a bug. Examples in code, tests
+   and test data use made-up names, not a real streamer's or viewer's.
 4. Run `npm run check`. It type-checks, lints and tests everything in about
    ten seconds. The same check runs on every pull request, on Linux, macOS
    and Windows; `main` only accepts a change through a pull request whose

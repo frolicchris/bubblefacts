@@ -32,5 +32,7 @@ Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
   keep their own packs.
 - Test the overlay in a real OBS before a release (OBS loads Local files from
   `http://absolute/`, which a browser doesn't reproduce).
+- Examples in code, tests and test data use made-up names, never a real
+  streamer's or tester's. Don't name the web host or its setup anywhere in the repo.
 - Docs are for streamers first: plain words, numbered steps, no unexplained
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.

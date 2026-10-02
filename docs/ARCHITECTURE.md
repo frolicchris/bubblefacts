@@ -41,6 +41,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
 | `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts when there's no article about the song. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
+| `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
@@ -411,6 +412,8 @@ folder; `data/` for the command-line version):
   "Night Drive (Acoustic)" isn't "Night Drive (Remix)". A songwriter is
   credited only when the streamer names one.
 - `wrong-facts.json`: sources marked **Wrong** (above).
+- `session.json`: the song that was showing, its facts, when they went out,
+  and recent facts (see "What gets remembered between songs?").
 
 The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,
 `facts/` (the streamer's custom facts, as a pack) and `logs/`. **Remove my
