@@ -52,7 +52,11 @@ change.
    ten seconds. The same check runs on every pull request, on Linux, macOS
    and Windows; `main` only accepts a change through a pull request whose
    **ci-ok** check passed.
-5. Update the docs if you changed behavior or a setting. The README and
+5. Changed `dependencies`? Run `node scripts/third-party-notices.mjs` so
+   `THIRD-PARTY-NOTICES.md` lists every package the app ships, with its license.
+6. Your name goes in `AUTHORS.md` (under Contributors) in the same pull
+   request, and in that release's notes.
+7. Update the docs if you changed behavior or a setting. The README and
    [docs/MANUAL-SETUP.md](../docs/MANUAL-SETUP.md) are written for streamers,
    not programmers: plain words, no unexplained jargon.
 

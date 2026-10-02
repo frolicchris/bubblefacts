@@ -331,6 +331,14 @@ function createWindow(): void {
   });
 }
 
+/** The About page in the window: the same on every system (Windows has no About panel of its own here). */
+function showAbout(): void {
+  showWindow();
+  const go = () => win?.webContents.send("show-view", "about");
+  if (win?.webContents.isLoading()) win.webContents.once("did-finish-load", go);
+  else go();
+}
+
 function showWindow(): void {
   if (!win) createWindow();
   win?.show();
@@ -352,6 +360,7 @@ function updateTray(status: Status): void {
       { type: "separator" },
       { label: paused ? "Resume bubbles" : "Pause bubbles", click: () => void setPaused(!paused) },
       { label: "Open BubbleFacts", click: showWindow },
+      { label: "About BubbleFacts", click: showAbout },
       { label: "Quit BubbleFacts", click: () => { quitting = true; app.quit(); } },
     ])
   );
@@ -543,6 +552,12 @@ ipcMain.on("start-drag", (e) => e.sender.startDrag({ file: overlayFile(), icon: 
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
 ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
 ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
+// Inside the app's archive other programs can't read it, so a copy goes in the data folder first.
+ipcMain.handle("open-notices", () => {
+  const copy = path.join(DATA, "THIRD-PARTY-NOTICES.md");
+  fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), copy);
+  return shell.openPath(copy);
+});
 ipcMain.handle("recent", async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/recent`, { signal: AbortSignal.timeout(2000) });
@@ -622,6 +637,15 @@ app.on("window-all-closed", () => {
 app.whenReady().then(async () => {
   if (!primaryInstance) return;
   app.setAppUserModelId("org.frolic.bubblefacts");
+  // The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer.
+  app.setAboutPanelOptions({
+    applicationName: "BubbleFacts",
+    applicationVersion: app.getVersion(),
+    copyright: "© 2026 Christopher Feyrer",
+    credits: "MIT License. Built with Llama. Credits, licenses and thanks are under About in the BubbleFacts window.",
+    authors: ["Christopher Feyrer (creator and maintainer)", "Claude Code by Anthropic (AI coding agent)"],
+    website: "https://bubblefacts.frolic.org/",
+  });
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
   // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the
   // app waits on that prompt. The window goes up first, saying what to click (issue #62).

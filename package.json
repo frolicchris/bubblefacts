@@ -61,7 +61,7 @@
   "build": {
     "appId": "org.frolic.bubblefacts",
     "productName": "BubbleFacts",
-    "copyright": "Copyright © 2026 Christopher Feyrer (frolicchris)",
+    "copyright": "Copyright © 2026 Christopher Feyrer. MIT License.",
     "extraMetadata": {
       "name": "bubblefacts"
     },
@@ -73,6 +73,8 @@
     "files": [
       "package.json",
       "LICENSE",
+      "THIRD-PARTY-NOTICES.md",
+      "AUTHORS.md",
       "dist/backend/**/*.js",
       "dist/desktop/**/*.js",
       "desktop/renderer/**/*",
