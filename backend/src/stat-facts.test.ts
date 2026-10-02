@@ -146,12 +146,14 @@ describe("isOwnOriginal (issue #45)", () => {
     ({ song: { title: "Water in the Moonlight", artist, attributes: tag ? [{ name: tag }] : [] } }) as unknown as Parameters<typeof isOwnOriginal>[0];
   const names = ["frolicchris", "Chris"];
 
-  it("counts the streamer's full name under a plain Originals tag", () => {
-    expect(isOwnOriginal(item("Christopher Feyrer", "Originals"), names)).toBe(true);
+  it("counts a piece credited to one of the streamer's names", () => {
     expect(isOwnOriginal(item("frolicchris"), names)).toBe(true);
+    expect(isOwnOriginal(item("Christopher Feyrer", "Originals"), [...names, "Christopher Feyrer"])).toBe(true);
   });
 
-  it("never counts a missing credit, or someone else's originals", () => {
+  it("never counts a tag alone: a friend's piece tagged Originals isn't the streamer's (review)", () => {
+    expect(isOwnOriginal(item("Jane Composer", "Originals"), names)).toBe(false);
+    expect(isOwnOriginal(item("Christopher Feyrer", "Originals"), names)).toBe(false);
     expect(isOwnOriginal(item("Unknown", "Originals"), names)).toBe(false);
     expect(isOwnOriginal(item("", "Originals"), names)).toBe(false);
     expect(isOwnOriginal(item("Jane Composer", "Jane's Originals"), names)).toBe(false);

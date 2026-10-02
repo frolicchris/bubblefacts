@@ -54,17 +54,12 @@ export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean
 
 /**
  * The streamer's own piece, so their notes about their compositions go with
- * it: credited to one of their names, or tagged plain "Originals" (or "My
- * Originals", or with their name) on their own song list with a named artist.
- * Their full name in the artist field ("Christopher Feyrer") needn't match
- * their channel name. A missing or "Unknown" artist never counts.
+ * it: only when the artist is one of their names (channel name, or the name
+ * they gave in Settings). A tag isn't enough: streamers tag friends' pieces
+ * "Originals" too, and those must never carry the streamer's own notes.
  */
 export function isOwnOriginal(entry: SSLQueueItem | null, names: string[]): boolean {
-  if (!entry) return false;
-  if (creditedToStreamer(entry, names)) return true;
-  const credit = (entry.song?.artist ?? "").trim();
-  if (!credit || /^unknown$/i.test(credit)) return false;
-  return (entry.song?.attributes ?? []).map((a) => a?.name ?? "").some((t) => ORIGINALS_ATTRIBUTE.test(t) && tagNamesStreamer(t, names));
+  return creditedToStreamer(entry, names);
 }
 
 /** Drop a leading "Artist:" that repeats the artist field. */

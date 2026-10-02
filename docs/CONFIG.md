@@ -62,7 +62,7 @@ Good to know:
 - Facts only appear while the player is playing. When it's paused, the current song stays, and resuming carries on as normal; when nothing is playing, the overlay clears.
 - If StreamElements says a song is playing but the overlay can't see which one for 30 seconds, it reports the connection as degraded (the desktop app shows "Reconnecting to StreamElements" and, if it lasts, restarts the server).
 - StreamElements only knows each request's YouTube title, such as "Artist - Song (Official Video)". BubbleFacts reads the song and artist out of it, so a clearly titled video gets better facts than "my fav song!!".
-- There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. A request counts as your own composition when its artist is your channel name or `STREAMER_DISPLAY_NAME`, or, on StreamerSongList, when it carries a plain "Originals" tag and names an artist.
+- There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. Your notes about your own compositions show only when a request's artist is your channel name or `STREAMER_DISPLAY_NAME`. A tag alone isn't enough, so a friend's piece never gets them.
 
 ---
 
