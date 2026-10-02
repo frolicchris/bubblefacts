@@ -218,6 +218,9 @@ next to the `[Screen] DROP` lines for what was held back.
 
 ### What gets remembered between songs?
 
+- What was shown is saved to `session.json` in the data folder: after a
+  restart mid-song, or an overlay that reloads, only the bubbles still to come
+  are sent, and earlier songs' facts aren't repeated. Forgotten after 6 hours.
 - A found article is kept for the session.
 - "No article" is kept for ten minutes, then retried. A timeout or rate limit
   is never remembered, because the question was never actually answered.

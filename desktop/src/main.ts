@@ -524,7 +524,7 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json"]) {
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json", "session.json"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();
