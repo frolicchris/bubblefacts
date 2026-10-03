@@ -33,7 +33,7 @@ Everything you might need to download or sign up for, in one place.
 
 - [Releases](https://github.com/frolicchris/bubblefacts/releases): from the newest one, download **bubblefacts.zip**
 - [All versions and what changed](https://github.com/frolicchris/bubblefacts/releases)
-- [Ask a setup question](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a), or chat on [Discord](https://discord.gg/gXdVKc6KWx)
+- [Ask a setup question](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new/choose)
 
 **Required**
@@ -357,8 +357,8 @@ in a web browser and add `?test=1` to the end of the address. A sample bubble
 and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
-Still stuck? [Ask in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
-or on [Discord](https://discord.gg/gXdVKc6KWx), or if it looks like a bug, [open an issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
+Still stuck? [Ask in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a),
+or if it looks like a bug, [open an issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
 Include the relevant lines from the newest file in the `logs` folder, with
 your token removed.
 

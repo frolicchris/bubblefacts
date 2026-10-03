@@ -17,7 +17,7 @@ discussions.
 ## Reporting a problem
 
 If someone breaks these rules, or makes you uncomfortable, email
-**chris@frolic.org**. You don't need to join Discord or post anything publicly
+**chris@frolic.org**. You don't need to post anything publicly
 to report.
 
 - Your report stays confidential. Your name won't be shared with the person

@@ -9,7 +9,7 @@
  * ----
  *
  *  Questions, bug reports and wrong facts: open an issue or ask in
- *  Discussions on the page above, or chat on Discord at <https://discord.gg/gXdVKc6KWx>.
+ *  Discussions on the page above.
  *
  * Setup
  * -----

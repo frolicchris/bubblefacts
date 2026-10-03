@@ -4,7 +4,7 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 
 /**
- * Facts the streamer wrote for one particular song: another streamer's
+ * Facts the streamer wrote for one particular song: another music content creator's
  * original, a local band, anything no source knows. Kept in
  * song-facts.json in the app's data folder.
  *

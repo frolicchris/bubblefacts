@@ -83,7 +83,7 @@ sign-ins and the built-in AI. Its design decisions are in
    any facts exist.
 3. **The streamer's song facts come first.** If `findSongFacts` matches, those
    lines are shown exactly as written, with no lookup or AI, even for a live
-   learn (often another streamer's off-list original). Not cached, so an edit
+   learn (often another music content creator's off-list original). Not cached, so an edit
    applies on the next play.
 4. **Special cases.** A live learn (a request that isn't on the song list)
    gets its banner, and facts only from a source (`liveLearnLookup` reads

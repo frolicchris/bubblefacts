@@ -2,10 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Setup question or help getting started
     url: https://github.com/frolicchris/bubblefacts/discussions/categories/q-a
-    about: Ask in Discussions. Other streamers can help, and the answer helps the next person.
-  - name: Chat on Discord
-    url: https://discord.gg/gXdVKc6KWx
-    about: Quick questions, or just to say hi. The frolicchris community server.
+    about: Ask in Discussions. Other music content creators can help, and the answer helps the next person.
   - name: Security problem
     url: https://github.com/frolicchris/bubblefacts/security/advisories/new
     about: Report it privately, not in a public issue.

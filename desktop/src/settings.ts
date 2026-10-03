@@ -16,7 +16,7 @@ export interface Settings {
   /** When the signed-in access token runs out, in milliseconds since 1970. */
   tokenExpiresAt: number;
   streamerId: number;
-  /** Connect Twitch (optional, issue #47): reads other streamers' public About text. */
+  /** Connect Twitch (optional, issue #47): reads other music content creators' public About text. */
   twitchToken: string;
   twitchRefreshToken: string;
   twitchTokenExpiresAt: number;
