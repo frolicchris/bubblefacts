@@ -10,11 +10,19 @@ system and puts them in a *draft* release with a `SHA256SUMS.txt` file and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
 
+Tag a commit that's already on `main`: the workflow refuses any other, so a
+release is always built from code that went through a pull request. The
+workflow's actions are pinned to exact commits; Dependabot proposes updates.
+
 ## Code signing
 
 Builds are signed only when the repository has the secrets below; without
 them (and in forks) they come out unsigned, as now. The release log's
 **Report signing** step says which.
+
+Before adding the first signing secret, move the build job's signing secrets
+into a protected `release` environment that only `v*` tags can use, so a test
+build from another branch never sees them.
 
 **Mac (Apple Developer Program, $99 a year):**
 
