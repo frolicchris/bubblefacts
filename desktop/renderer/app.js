@@ -626,8 +626,21 @@
     // Someone already using an online AI or the example packs finds them open.
     $("#s-advanced").open = s.ai !== "builtin" || s.topics.length > 0;
     renderSongFactsList();
+    renderTimingHint();
     setResult($("#settings-result"), "");
   }
+
+  // Counted from one bubble's start to the next, not the gap between them: say what the two numbers make.
+  function renderTimingHint() {
+    const every = Number(form.elements.intervalSeconds.value);
+    const up = Number(form.elements.durationSeconds.value);
+    if (!every || !up) return void ($("#s-timing-hint").textContent = "");
+    $("#s-timing-hint").textContent = up < every
+      ? `One bubble at a time, with ${every - up} seconds between them.`
+      : "Each bubble is still up when the next appears, so two or more show at once.";
+  }
+  form.elements.intervalSeconds.addEventListener("input", renderTimingHint);
+  form.elements.durationSeconds.addEventListener("input", renderTimingHint);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
