@@ -1,16 +1,20 @@
 # BubbleFacts
 
-OBS overlay that shows verified trivia about the song a StreamerSongList
-queue says is playing. Node 20+, TypeScript backend compiled with `tsc`,
-plain JS overlay. Read `docs/ARCHITECTURE.md` before changing the fact
-pipeline — it records the constraints that were learned on live streams.
+OBS overlay and desktop app that show verified trivia about the song a
+StreamerSongList queue or StreamElements request player says is playing.
+Node 20+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
+`docs/ARCHITECTURE.md` before changing the fact pipeline — it records the
+constraints that were learned on live streams.
+
+The rules for every contributor are in `.github/CONTRIBUTING.md`; the rules
+below add to them.
 
 ## Commands
 ```bash
 npm run check       # typecheck + lint + tests: run before every commit
 npm run typecheck   # tsc, including the tests
-npm test            # jest, ~1 s (transpile-only; types come from tsc)
-npm run lint        # eslint on the overlay, shellcheck on the scripts
+npm test            # jest, a few seconds (transpile-only; types come from tsc)
+npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts
 npm run build       # compile to dist/
 npm run app         # build and run the desktop app in development
 npm run dist        # build installers into release/ (on iCloud-synced folders, see .github/CONTRIBUTING.md)

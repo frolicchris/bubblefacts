@@ -29,7 +29,8 @@ BubbleFacts is open source, so anyone can contribute, by hand or with AI
 tools. If you use an AI tool:
 
 - Say so in your pull request. The template asks.
-- Add an `Assisted-by:` trailer to your commits naming the tool, for example
+- Using Claude Code? Its default `Co-Authored-By: Claude` trailer is enough.
+  With any other tool, add an `Assisted-by:` trailer to your commits naming it, for example
   `Assisted-by: Claude Code`. This follows the convention used by the Linux
   kernel, Fedora and Electron (see [Sources](#sources)).
 - Read and test the code yourself before you submit it. You're responsible
