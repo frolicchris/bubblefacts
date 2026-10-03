@@ -38,14 +38,8 @@ project into an app you download, open, and click through: no Terminal, no
 
 ## Using StreamElements instead of StreamerSongList
 
-If viewers request songs through StreamElements (its Media Request player):
-
-1. In the first setup step, under **Where do your song requests come from?**, choose **StreamElements**.
-2. Open your StreamElements dashboard, then **Account**, then **Channels**, and click **Show secrets**.
-3. Copy the **JWT token** and paste it into BubbleFacts. The channel name is optional: the token says which channel it is. The token works like a password, so keep it off your stream.
-4. Click **Connect**. BubbleFacts checks the token and moves on to putting BubbleFacts on your stream.
-
-To switch later, or to paste a new token, open **Settings**, then **Your song list**.
+The steps for streamers are in the setup guide, under
+[Use StreamElements instead](https://bubblefacts.frolic.org/guide.html#song-list-se).
 
 What's different with StreamElements:
 
