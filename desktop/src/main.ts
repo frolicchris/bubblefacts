@@ -471,6 +471,28 @@ const wrongKey = new WrongKeyListener(globalShortcut, () => {
 
 // --- Messages from the window ------------------------------------------
 
+/**
+ * Only BubbleFacts' own window may ask for anything. Navigation is already
+ * blocked, so this is a second lock: if a page ever got into the window, it
+ * still couldn't press Remove my data or install an update. Every handler
+ * below goes through it, including ones added later.
+ */
+const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean => {
+  try {
+    // Compared loosely (drive letters and escaping differ between systems): a local file, and ours.
+    const url = new URL(e.senderFrame?.url ?? "");
+    return url.protocol === "file:" && url.pathname.endsWith("/desktop/renderer/index.html");
+  } catch {
+    return false;
+  }
+};
+const handleAny = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) =>
+  handleAny(channel, (e, ...args) => {
+    if (!fromOurPage(e)) throw new Error(`"${channel}" isn't available to this page`);
+    return listener(e, ...args);
+  });
+
 ipcMain.handle("test-bubble", () => control("test"));
 ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown) => {
   const result = await control("wrong", { text: String(text), song });
@@ -708,7 +730,7 @@ ipcMain.handle("download-model", () => {
 });
 ipcMain.handle("copy", (_e, text: string) => clipboard.writeText(text));
 // Dragging the overlay file onto OBS's Sources list makes a Browser source at the canvas size.
-ipcMain.on("start-drag", (e) => e.sender.startDrag({ file: overlayFile(), icon: asset("tray@2x.png") }));
+ipcMain.on("start-drag", (e) => fromOurPage(e) && e.sender.startDrag({ file: overlayFile(), icon: asset("tray@2x.png") }));
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
 ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
 ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));

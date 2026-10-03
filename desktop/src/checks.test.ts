@@ -15,6 +15,9 @@ describe("compareVersions", () => {
     ["2.0.0-beta.2", "2.0.0-beta.1", 1],
     ["2.0.0-beta.10", "2.0.0-beta.9", 1],
     ["2.0.0-rc.1", "2.0.0-beta.3", 1],
+    ["2.0.0-rc.1", "2.0.0-beta.12", 1],
+    ["2.0.0-rc.2", "2.0.0-rc.1", 1],
+    ["2.0.0", "2.0.0-rc.2", 1],
     ["v2.1.0", "2.0.0-beta.1", 1],
   ])("%s vs %s", (a, b, want) => expect(compareVersions(a, b)).toBe(want));
 });
@@ -25,6 +28,18 @@ describe("newerRelease", () => {
   it("tells a beta tester about the next beta", async () => {
     mockFetch.mockResolvedValueOnce(releases(["v2.0.0-beta.2", true], ["v2.0.0-beta.1", true], ["v1.0.0"]));
     await expect(newerRelease("2.0.0-beta.1")).resolves.toMatchObject({ version: "2.0.0-beta.2" });
+  });
+
+  it("takes a beta tester to the release candidate, then to the full release", async () => {
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.0-rc.1", true], ["v2.0.0-beta.12", true], ["v2.0.0-beta.11", true]));
+    await expect(newerRelease("2.0.0-beta.12")).resolves.toMatchObject({ version: "2.0.0-rc.1" });
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.0"], ["v2.0.0-rc.1", true]));
+    await expect(newerRelease("2.0.0-rc.1")).resolves.toMatchObject({ version: "2.0.0" });
+  });
+
+  it("takes someone on an older beta straight to the full release once it's out", async () => {
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.0"], ["v2.0.0-rc.1", true], ["v2.0.0-beta.12", true], ["v2.0.0-beta.9", true]));
+    await expect(newerRelease("2.0.0-beta.9")).resolves.toMatchObject({ version: "2.0.0" });
   });
 
   it("doesn't offer betas to someone on a full release", async () => {
