@@ -24,32 +24,44 @@ describe("compareVersions", () => {
 
 describe("newerRelease", () => {
   afterEach(() => mockFetch.mockReset());
+  const offered = async (current: string, channel: "stable" | "beta", ...list: Array<[string, boolean?]>) => {
+    mockFetch.mockResolvedValueOnce(releases(...list));
+    return (await newerRelease(current, channel))?.version ?? null;
+  };
 
   it("tells a beta tester about the next beta", async () => {
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.0-beta.2", true], ["v2.0.0-beta.1", true], ["v1.0.0"]));
-    await expect(newerRelease("2.0.0-beta.1")).resolves.toMatchObject({ version: "2.0.0-beta.2" });
+    await expect(offered("2.0.0-beta.1", "beta", ["v2.0.0-beta.2", true], ["v2.0.0-beta.1", true], ["v1.0.0"])).resolves.toBe("2.0.0-beta.2");
   });
 
-  it("takes a beta tester to the release candidate, then to the full release", async () => {
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.0-rc.1", true], ["v2.0.0-beta.12", true], ["v2.0.0-beta.11", true]));
-    await expect(newerRelease("2.0.0-beta.12")).resolves.toMatchObject({ version: "2.0.0-rc.1" });
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.0"], ["v2.0.0-rc.1", true]));
-    await expect(newerRelease("2.0.0-rc.1")).resolves.toMatchObject({ version: "2.0.0" });
+  it("takes a beta tester from beta.12 to the release candidate, then to the full release", async () => {
+    await expect(offered("2.0.0-beta.12", "beta", ["v2.0.0-rc.1", true], ["v2.0.0-beta.12", true], ["v2.0.0-beta.11", true])).resolves.toBe("2.0.0-rc.1");
+    await expect(offered("2.0.0-rc.1", "beta", ["v2.0.0"], ["v2.0.0-rc.1", true])).resolves.toBe("2.0.0");
   });
 
   it("takes someone on an older beta straight to the full release once it's out", async () => {
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.0"], ["v2.0.0-rc.1", true], ["v2.0.0-beta.12", true], ["v2.0.0-beta.9", true]));
-    await expect(newerRelease("2.0.0-beta.9")).resolves.toMatchObject({ version: "2.0.0" });
+    await expect(offered("2.0.0-beta.9", "beta", ["v2.0.0"], ["v2.0.0-rc.1", true], ["v2.0.0-beta.12", true], ["v2.0.0-beta.9", true])).resolves.toBe("2.0.0");
   });
 
-  it("doesn't offer betas to someone on a full release", async () => {
-    mockFetch.mockResolvedValueOnce(releases(["v2.1.0-beta.1", true], ["v2.0.0"]));
-    await expect(newerRelease("2.0.0")).resolves.toBeNull();
+  it("offers Beta the newest of betas and full releases alike", async () => {
+    await expect(offered("2.0.0", "beta", ["v2.1.0-beta.1", true], ["v2.0.0"])).resolves.toBe("2.1.0-beta.1");
+    await expect(offered("2.0.0-rc.2", "beta", ["v2.0.1"], ["v2.0.0"], ["v2.0.0-rc.2", true])).resolves.toBe("2.0.1");
+  });
+
+  it("offers Stable only full releases", async () => {
+    await expect(offered("2.0.0", "stable", ["v2.1.0-beta.1", true], ["v2.0.0"])).resolves.toBeNull();
+    await expect(offered("2.0.0", "stable", ["v2.1.0-beta.2", true], ["v2.0.1"], ["v2.1.0-beta.1", true])).resolves.toBe("2.0.1");
+    // A tag with a "-" counts as a prerelease even when GitHub wasn't told.
+    await expect(offered("2.0.0", "stable", ["v2.1.0-rc.1", false])).resolves.toBeNull();
+  });
+
+  it("never goes back a version after switching to Stable", async () => {
+    await expect(offered("2.1.0-beta.2", "stable", ["v2.1.0-beta.2", true], ["v2.1.0-beta.1", true], ["v2.0.0"])).resolves.toBeNull();
+    await expect(offered("2.1.0-beta.2", "stable", ["v2.1.0"], ["v2.1.0-rc.1", true], ["v2.1.0-beta.2", true], ["v2.0.0"])).resolves.toBe("2.1.0");
   });
 
   it("stays quiet when offline", async () => {
     mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
-    await expect(newerRelease("2.0.0")).resolves.toBeNull();
+    await expect(newerRelease("2.0.0", "beta")).resolves.toBeNull();
   });
 });
 

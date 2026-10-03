@@ -541,6 +541,7 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
   const aiChanged = next.ai !== settings.ai;
+  const channelChanged = next.updateChannel !== settings.updateChannel;
   const sourceChanged = next.songSource !== settings.songSource;
   settings = next;
   if (aiChanged) builtinFailed = false;
@@ -559,6 +560,7 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   // A new token or song source always starts over; anything else only if the server would notice.
   startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
   backUpNow();
+  if (channelChanged) void checkForUpdate();
   return state();
 });
 
@@ -690,6 +692,7 @@ ipcMain.handle("backup-restore", async () => {
   if (backup.wrongFacts) fs.writeFileSync(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
+  void checkForUpdate();
   // The fact server reads its files at start.
   startServer(true);
   send("state", state());
@@ -753,6 +756,18 @@ ipcMain.handle("recent", async () => {
   }
 });
 // --- Updating itself ---------------------------------------------------------
+
+let updateChecks = 0;
+/** At start, and again when the musician picks Stable or Beta, so the dashboard notice matches right away. */
+async function checkForUpdate(): Promise<void> {
+  const mine = ++updateChecks;
+  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v) : () => null);
+  // Only the newest check counts, and a download under way finishes.
+  if (mine !== updateChecks || updating.stage === "downloading") return;
+  if (found?.version !== update?.version) updating = { stage: "idle", progress: 0, file: "", error: "" };
+  update = found;
+  send("state", state());
+}
 
 ipcMain.handle("update-download", async () => {
   if (!update?.download || updating.stage === "downloading") return;
@@ -863,6 +878,5 @@ app.whenReady().then(async () => {
   startServer();
   wrongKey.use(settings.wrongKey);
   backUpNow();
-  update = await newerRelease(app.getVersion(), app.isPackaged ? (v) => assetName(v) : () => null);
-  if (update) send("state", state());
+  await checkForUpdate();
 });
