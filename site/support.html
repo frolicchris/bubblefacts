@@ -17,12 +17,12 @@
   <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
-  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="BubbleFacts help and support">
   <meta name="twitter:description" content="Where to get help with BubbleFacts, report a problem or a wrong fact, or report a security issue.">
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
-  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
   <link rel="stylesheet" href="assets/site.css">
   <script src="assets/site.js" defer></script>
@@ -51,6 +51,7 @@
         <p class="eyebrow">Help</p>
         <h1>Help and support</h1>
         <p class="section-intro">BubbleFacts is a free project maintained by one person, so replies may take a few days. Thanks for your patience.</p>
+        <p>While BubbleFacts is in beta, only the newest version gets help. If yours is older, click <span class="ui">Update now</span> in the app first: it may already be fixed.</p>
 
         <ol class="support-list">
           <li class="rpg">
@@ -92,7 +93,7 @@
           </details>
 
           <details id="faq-ai-fallback">
-            <summary>What if my computer can't run the built-in fact writer?</summary>
+            <summary>What if my computer can't run the built-in AI?</summary>
             <div class="answer">
               <p>You can still use BubbleFacts. On Windows and Linux, the app first tries a simpler mode that uses only the processor. If that doesn't work either, it tells you, and its <span class="ui">Switch to Groq</span> button opens Settings so you can choose the free online option. See <a href="requirements.html#fallback">If the built-in AI can't run</a>.</p>
             </div>
@@ -101,7 +102,7 @@
           <details id="faq-performance">
             <summary>Will it slow down my stream?</summary>
             <div class="answer">
-              <p>BubbleFacts runs beside OBS. The boxes on screen are light, simple animations. The work happens when a song starts: the built-in fact writer spends a few seconds writing facts, using your graphics chip or processor.</p>
+              <p>BubbleFacts runs beside OBS. The boxes on screen are light, simple animations. The work happens when a song starts: the built-in AI spends a few seconds writing facts, using your graphics chip or processor.</p>
               <p>On most computers you won't notice. If your computer has no graphics card and you notice lag, choose <span class="ui">Online, with Groq (free key)</span> in the app's <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span>. It's free and writes the facts online instead.</p>
             </div>
           </details>
@@ -109,7 +110,7 @@
           <details id="faq-offline">
             <summary>Does it work offline?</summary>
             <div class="answer">
-              <p>Partly. The built-in fact writer downloads once, on its own, when you first open the app. After that, it runs without the internet. But the app still needs the internet to read your song requests from StreamerSongList or StreamElements, and to look songs up on Wikipedia, Wikidata and MusicBrainz. Since you're streaming, you'll be online anyway.</p>
+              <p>Partly. The built-in AI downloads once, on its own, when you first open the app. After that, it runs without the internet. But the app still needs the internet to read your song requests from StreamerSongList or StreamElements, and to look songs up on Wikipedia, Wikidata and MusicBrainz. Since you're streaming, you'll be online anyway.</p>
             </div>
           </details>
 
@@ -121,16 +122,16 @@
           </details>
 
           <details id="faq-ai">
-            <summary>What does the fact writer do?</summary>
+            <summary>What does the built-in AI do?</summary>
             <div class="answer">
-              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never writes from memory, and every caption is screened against the article before it's shown: names, who did what, years and similar claims have to appear there. That catches most mistakes, not every one. The built-in fact writer is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
+              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never writes from memory, and every caption is screened against the article before it's shown: names, who did what, years and similar claims have to appear there. That catches most mistakes, not every one. The built-in AI is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
             </div>
           </details>
 
           <details id="faq-data">
             <summary>Where does my data go?</summary>
             <div class="answer">
-              <p>Almost nowhere. The app runs on your computer and reads your song requests from StreamerSongList or StreamElements. It sends song titles and artist names to Wikipedia, Wikidata and MusicBrainz to look songs up. If you pick an online fact writer, the song title and article text go to that service. Nothing is sent to this project. Your sign-in, token and keys are stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>). The <a href="privacy.html">privacy page</a> has the details.</p>
+              <p>Almost nowhere. The app runs on your computer and reads your song requests from StreamerSongList or StreamElements. It sends song titles and artist names to Wikipedia, Wikidata and MusicBrainz to look songs up. If you pick an online AI, the song title and article text go to that service. Nothing is sent to this project. Your sign-in, token and keys are stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>). The <a href="privacy.html">privacy page</a> has the details.</p>
             </div>
           </details>
 

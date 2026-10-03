@@ -30,7 +30,7 @@ explains how titles are read.
 The packs in `topics/` are examples that show the format and make the overlay
 work on first run. They aren't maintained, and pull requests that add to or
 change them won't be accepted. Streamers keep their own packs on their own
-machine: in the app under **Settings → Custom facts → Your own facts**, or
+machine: in the app under **Settings**, then **Custom facts**, or
 as described in [docs/MANUAL-SETUP.md](../docs/MANUAL-SETUP.md#your-custom-facts)
 for the command-line version.
 
@@ -133,10 +133,10 @@ them (and in forks) they come out unsigned, as now. The release log's
 Signed and notarized, the Mac app opens without the "unidentified developer"
 steps, and macOS stops asking for the keychain again after each update.
 
-**Windows (Azure Trusted Signing, billed monthly):**
+**Windows (Azure Artifact Signing, formerly Trusted Signing, billed monthly):**
 
-1. In Azure, create a Trusted Signing account, complete identity validation, and create a public-trust certificate profile.
-2. Create an app registration with the **Trusted Signing Certificate Profile Signer** role on the account.
+1. In Azure, create an Artifact Signing account, complete identity validation, and create a public-trust certificate profile.
+2. Create an app registration with the certificate profile signer role on the account.
 3. Add secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET`, and repository variables `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` and `AZURE_SIGNING_PUBLISHER` (the certificate's subject name).
 
 Once both are signed, remove the first-launch steps from `site/guide.html`
@@ -161,7 +161,7 @@ The tests can't see what OBS or an installer does.
    at the bottom.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
-7. Play one song from the queue. The Now Playing banner and facts appear.
+7. Play one song from the queue. The Now Playing bubble and facts appear.
 8. Quit from the menu bar or tray. Nothing is left running.
 9. While in beta, add the new version to the top of the version list in
    `.github/ISSUE_TEMPLATE/beta_test.yml` (a test fails until you do).

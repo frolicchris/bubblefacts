@@ -94,7 +94,7 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then
             if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_SIGNING_ENDPOINT" ]; then
               extra="-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT -c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT -c.win.azureSignOptions.certificateProfileName=$AZURE_SIGNING_PROFILE"
-              echo "Windows build: signed with Azure Trusted Signing"
+              echo "Windows build: signed with Azure Artifact Signing"
             else
               echo "Windows build: unsigned (no Azure signing secrets)"
             fi

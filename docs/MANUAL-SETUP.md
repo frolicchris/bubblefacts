@@ -181,7 +181,8 @@ Start the overlay (step 5) before you do this.
 2. Leave **Local file** unchecked. In **URL**, type
    `http://127.0.0.1:3000/obs-overlay`
 3. Set **Width** to `1920` and **Height** to `1080`.
-4. Check **Refresh browser when scene becomes active**. Leave Custom CSS empty.
+4. Leave **Shutdown source when not visible** and **Refresh browser when scene
+   becomes active** unchecked, and Custom CSS empty.
 5. Click **OK**. Then right-click the source and choose
    **Transform → Reset Transform**, so it fills the screen exactly.
 
@@ -197,7 +198,7 @@ the overlay, then right-click the source and choose **Refresh**.
 
 ### 7. Check it works
 
-Play a song from your queue. A **NOW PLAYING** banner appears at the bottom,
+Play a song from your queue. A **Now Playing** bubble appears at the bottom,
 and a few seconds later the first fact bubble pops up.
 
 Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
@@ -208,10 +209,10 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 
 | When | On screen |
 |---|---|
-| A song starts | A gold **NOW PLAYING** banner for five seconds, then up to five fact bubbles, one every 15 seconds. |
+| A song starts | A gold **NOW PLAYING** bubble for five seconds (`NOW_PLAYING=off` hides it), then up to five fact bubbles, one every 15 seconds. |
 | A song with no Wikipedia article | Plain facts from Wikidata or MusicBrainz, such as the year and the album. If they don't know it either: bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus your custom facts. |
 | One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
-| A **Live Learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it. It stays up until the next song, with no bubbles. |
+| A **live learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it, up until the next song. Fact bubbles show only when a source knows the song. |
 | The overlay can't reach its server | A small red dot in the bottom-right corner. It disappears once reconnected. |
 
 ---
@@ -225,8 +226,8 @@ All of these are lines in your `.env` file. Restart the overlay after changing i
 
 > **The included packs are only a few examples.** They're short, they aren't
 > updated, and they won't know your songs. Fill in your own facts for the
-> music you play. In the desktop app, that's **Settings → Custom facts →
-> Your own facts**, one per line.
+> music you play. In the desktop app, that's **Settings**, then **Custom facts**,
+> one per line.
 
 When a song has no Wikipedia article, and Wikidata and MusicBrainz don't
 know it either, the overlay shows facts from **topic packs**: small files
@@ -288,12 +289,14 @@ friend's piece tagged **Originals** never gets them.
 STREAMER_DISPLAY_NAME=Jane    # instead of your channel name
 ```
 
-### How many bubbles, and how long
+### How many bubbles, where, and how long
 
 ```env
 FACTS_PER_SONG=5
 FACT_INTERVAL_SECONDS=15   # a new bubble every 15 seconds
 FACT_DURATION_SECONDS=8    # how long each stays up
+BUBBLE_AREA=anywhere       # or top, bottom, left, right
+NOW_PLAYING=on             # off if your own overlay shows the song
 ```
 
 Keep the interval longer than the duration, so only one bubble is on screen
@@ -305,11 +308,9 @@ Colors, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
 text bigger or smaller, change `--fact-font-size` near the top. Save the file,
 then right-click the source in OBS and choose **Refresh**.
 
-Where bubbles appear is set in `backend/src/fact-generator.ts` (the list called
-`POSITIONS`). The defaults avoid a song-queue panel in the top-left, a camera
-in the top-right, and goal widgets in the bottom-right. If they cover something
-in your scene, edit the percentages there; the start script rebuilds
-automatically.
+To keep bubbles to one part of the screen, set `BUBBLE_AREA` (above). For
+exact spots, edit the lists at the top of `backend/src/fact-generator.ts`; the
+start script rebuilds automatically.
 
 ---
 

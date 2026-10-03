@@ -27,12 +27,13 @@ command-line overlay. In particular:
   removed from the log lines. You read it over before anything is posted.
 - **Downloads.** Release files come with a `SHA256SUMS.txt` file and a
   build-provenance attestation, so you can check a file came from this
-  project's release workflow, built from a release tag:
+  project's release workflow, built from a release tag (use the version you
+  downloaded for `vX.Y.Z`):
 
   ```
   gh attestation verify FILE --repo frolicchris/bubblefacts \
     --signer-workflow frolicchris/bubblefacts/.github/workflows/release.yml \
-    --source-ref refs/tags/v2.0.0-beta.10
+    --source-ref refs/tags/vX.Y.Z
   ```
 
   Test builds are attested too, but from a branch, so `--source-ref` tells

@@ -10,7 +10,7 @@ download script asking GitHub's public API for the newest release.
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | Beta note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Verify your download (optional)" with the in-browser checker and a "For developers" part |
+| `download.html` | Beta note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Check your download (optional)" with the in-browser checker and a "For developers" part |
 | `guide.html` | Step-by-step setup and troubleshooting |
 | `requirements.html` | System requirements, speed, fallback when the built-in AI can't run |
 | `changelog.html` | What's new in each version |
@@ -95,7 +95,7 @@ Every file is built by GitHub Actions with a build-provenance attestation.
 unsigned builds. Once builds are signed, remove the "About the security
 warnings" note and first-launch steps in `guide.html`, the first two rows of
 its troubleshooting table, the "Opening it the first time" section and the
-signing note under "Verify your download" in `download.html`.
+signing note under "Check your download" in `download.html`.
 
 ## When version 2.0.0 ships
 
