@@ -1,4 +1,3 @@
-process.env.TZ = "UTC";
 jest.mock("electron", () => ({ app: { getPath: () => "/tmp" }, safeStorage: { isEncryptionAvailable: () => false } }));
 
 import fs from "fs";
@@ -53,7 +52,8 @@ describe("backups", () => {
 describe("automatic backups", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-backups-"));
   afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const at = (i: number) => new Date(Date.UTC(2026, 9, 2, 12, 0, i));
+  // Local time, as the file names are.
+  const at = (i: number) => new Date(2026, 9, 2, 12, 0, i);
 
   it("saves one when the facts change, and none when nothing did", () => {
     expect(autoBackup(dir, makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v", at(0)))).toMatch(/auto 2026-10-02 12-00-00\.json$/);
