@@ -708,7 +708,16 @@
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
+    renderWrongKey();
     setResult($("#settings-result"), "");
+  }
+
+  /** Hands-free Wrong: the keys as this computer names them, and a key another app already has. */
+  function renderWrongKey() {
+    if (state.platform === "darwin") for (const o of $$("#s-wrongkey option[data-mac]")) o.textContent = o.dataset.mac;
+    const problem = $("#s-wrongkey-problem");
+    problem.textContent = state.wrongKeyProblem || "";
+    problem.hidden = !state.wrongKeyProblem;
   }
 
   /** Connect Twitch: not connected, waiting for the code to be approved, or connected. */
@@ -858,9 +867,40 @@
   });
   // "About BubbleFacts" in the tray menu.
   api.on("show-view", (view) => show(view));
+  // Hands-free Wrong (a foot pedal or Stream Deck): the usual note, with Undo. Nothing on stream, no sound.
+  api.on("wrong-key", (r) => {
+    if (!state || !r) return;
+    if (!r.removed) {
+      const why = {
+        paused: "Bubbles are paused, so nothing was on stream to mark.",
+        "no-song": "No song is playing, so nothing was marked.",
+        "not-ready": "This song's facts aren't ready yet, so nothing was marked.",
+        "no-facts": "This song has no bubbles, so nothing was marked.",
+        "none-shown": "No bubble has shown yet for this song, so nothing was marked.",
+        "already-marked": "The last bubble is already marked, so nothing more was marked.",
+      };
+      // Report and Undo belong to a fact that was marked, and this press marked none.
+      state.wrong = null;
+      showWrongNote(`Hands-free Wrong: ${why[r.reason] || "BubbleFacts isn't running right now, so nothing was marked."}`, null);
+      return;
+    }
+    const label = r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "");
+    state.wrong = { song: label, text: r.text, article: r.article, songId: r.song };
+    const what = r.structured
+      ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+      : r.article
+        ? `BubbleFacts won't use the "${r.article}" Wikipedia article for this song again.`
+        : "";
+    showWrongNote(`Removed with hands-free Wrong: “${r.text}” ${what}`.trim(), r.article);
+    lastRecent = "";
+    void refreshRecent();
+  });
   api.on("state", (s) => {
     state = s;
-    if (!$("#view-settings").hidden) renderTwitch();
+    if (!$("#view-settings").hidden) {
+      renderTwitch();
+      renderWrongKey();
+    }
     $("#unlocking").hidden = !s.unlocking;
     renderNotices();
     renderStatus(s.status);

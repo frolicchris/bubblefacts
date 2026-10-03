@@ -327,6 +327,15 @@
             <label>Each bubble stays up (seconds) <input name="durationSeconds" type="number" min="2" max="120"></label>
           </div>
           <p class="hint" id="s-timing-hint"></p>
+          <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
+          <select id="s-wrongkey" name="wrongKey">
+            <option value="off">Off</option>
+            <option value="ctrl-alt-w" data-mac="Control+Option+W">Ctrl+Alt+W</option>
+            <option value="ctrl-alt-shift-w" data-mac="Control+Option+Shift+W">Ctrl+Alt+Shift+W</option>
+            <option value="f13">F13</option>
+          </select>
+          <p class="fine">Press it during a song and the bubble on stream now comes off as <strong>Wrong</strong>. With none up, it's the last one shown. It works with BubbleFacts in the background, and nothing on stream shows it happened. The dashboard says which fact it was, with <strong>Undo</strong>.</p>
+          <p id="s-wrongkey-problem" class="result bad" role="status" hidden></p>
         </fieldset>
 
         <fieldset>
