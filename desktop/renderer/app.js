@@ -33,6 +33,9 @@
       const k = Number(li.dataset.step);
       li.classList.toggle("current", k === n);
       li.classList.toggle("done", k < n);
+      // Which step is current goes to screen readers too, not only as color.
+      if (k === n) li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
     }
     $(`.step[data-step="${n}"] h1`).focus?.();
   }
@@ -730,24 +733,11 @@
 
   // --- Notices ---------------------------------------------------------------
 
+  /** What the notices last said. The box is a live region, so it's redrawn only when that changes. */
+  let lastNotices = "";
   function renderNotices() {
-    const box = $("#notices");
-    box.replaceChildren();
-    const add = (kind, text, buttonText, onClick) => {
-      const div = document.createElement("div");
-      div.className = "notice " + kind;
-      const p = document.createElement("span");
-      p.textContent = text;
-      div.appendChild(p);
-      if (buttonText) {
-        const b = document.createElement("button");
-        b.className = "primary";
-        b.textContent = buttonText;
-        b.addEventListener("click", onClick);
-        div.appendChild(b);
-      }
-      box.appendChild(div);
-    };
+    const notices = [];
+    const add = (kind, text, buttonText, onClick) => notices.push({ kind, text, buttonText, onClick });
     const signInNotice = (text) => !state.signInAvailable
       ? add("warn", text.replace("Sign in again", "Paste a new token in Settings"), "Open Settings", () => show("settings"))
       : add("warn", text, "Sign in", async (e) => {
@@ -784,6 +774,27 @@
       });
     }
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
+    // Redrawn on every state change, a screen reader would read them all again, and a focused button would lose focus.
+    const said = JSON.stringify(notices.map((n) => [n.kind, n.text, n.buttonText]));
+    if (said === lastNotices) return;
+    lastNotices = said;
+    const box = $("#notices");
+    box.replaceChildren();
+    for (const { kind, text, buttonText, onClick } of notices) {
+      const div = document.createElement("div");
+      div.className = "notice " + kind;
+      const p = document.createElement("span");
+      p.textContent = text;
+      div.appendChild(p);
+      if (buttonText) {
+        const b = document.createElement("button");
+        b.className = "primary";
+        b.textContent = buttonText;
+        b.addEventListener("click", onClick);
+        div.appendChild(b);
+      }
+      box.appendChild(div);
+    }
   }
 
   // --- Settings ----------------------------------------------------------------

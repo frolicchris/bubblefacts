@@ -178,7 +178,8 @@
         <h2 id="now-title">On stream now</h2>
         <p id="now-song" class="now-song">Nothing playing yet</p>
         <ul id="now-facts" class="facts"></ul>
-        <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p>
+        <!-- The live region stays in place, so the note is announced when it appears, not only when it changes. -->
+        <div role="status"><p id="wrong-note" class="fine" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p></div>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
         <div class="toolbar song-facts-buttons">
           <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
@@ -241,8 +242,8 @@
 
         <fieldset>
           <legend>Your song list</legend>
-          <p class="label">Where do your song requests come from?</p>
-          <div class="checks">
+          <p class="label" id="s-source-label">Where do your song requests come from?</p>
+          <div class="checks" role="radiogroup" aria-labelledby="s-source-label">
             <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
             <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
           </div>
@@ -335,7 +336,7 @@
             <option value="f13">F13</option>
           </select>
           <p class="fine">Press it during a song and the bubble on stream now comes off as <strong>Wrong</strong>. With none up, it's the last one shown. It works with BubbleFacts in the background, and nothing on stream shows it happened. The dashboard says which fact it was, with <strong>Undo</strong>.</p>
-          <p id="s-wrongkey-problem" class="result bad" role="status" hidden></p>
+          <div role="status"><p id="s-wrongkey-problem" class="result bad" hidden></p></div>
         </fieldset>
 
         <fieldset>
@@ -347,8 +348,8 @@
 
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
-          <p class="label">Who writes the facts</p>
-          <div class="checks">
+          <p class="label" id="s-ai-label">Who writes the facts</p>
+          <div class="checks" role="radiogroup" aria-labelledby="s-ai-label">
             <label><input type="radio" name="ai" value="builtin"> On this computer (free)</label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
             <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
