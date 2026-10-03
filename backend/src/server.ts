@@ -9,6 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
+import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
 import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
@@ -371,6 +372,9 @@ control.post("/song-facts", async (req, res) => {
   }
   res.json({ saved: true, shown });
 });
+
+// "Add facts for another song": find it on the song list as the musician types.
+control.post("/songs/search", songSearchRoute(songList));
 
 app.use("/control", control);
 

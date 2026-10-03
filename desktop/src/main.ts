@@ -456,6 +456,8 @@ ipcMain.handle("list-song-facts", () => {
     return [];
   }
 });
+// "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
+ipcMain.handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
 ipcMain.handle("save-song-facts", async (_e, data: unknown) => {
   const result = await control("song-facts", data);
   backUpNow();

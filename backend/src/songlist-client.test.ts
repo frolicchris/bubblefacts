@@ -294,4 +294,38 @@ describe("SongListClient", () => {
     expect(song.title).toBe("Aerith's Theme [Server] fake error");
     expect(song.artist).toHaveLength(200);
   });
+
+  describe("song search", () => {
+    const page = (items: unknown[], token?: string) => ok({ items, ...(token ? { token } : {}) });
+
+    it("searches the song list it read, with title, artist and song ID", async () => {
+      mockFetch
+        .mockResolvedValueOnce(page([{ id: 11, title: "Evening Rain", artist: "Jane Composer" }, { id: 12, title: "Harbor Lights", artist: "The Paper Lanterns" }], "next"))
+        .mockResolvedValueOnce(page([{ id: 13, title: "Rain Dance\n", artist: null }, { title: "No ID" }]));
+      await client.learnListFormat();
+      expect(mockFetch.mock.calls[1][0]).toContain("after=next");
+      expect(client.searchSongs("rain", 8)).toEqual([
+        { id: 13, title: "Rain Dance", artist: "" },
+        { id: 11, title: "Evening Rain", artist: "Jane Composer" },
+      ]);
+      expect(client.searchSongs("lanterns", 8)).toEqual([{ id: 12, title: "Harbor Lights", artist: "The Paper Lanterns" }]);
+    });
+
+    it("finds nothing before the list is read, and reads it again on a search after a failure", async () => {
+      jest.spyOn(console, "warn").mockImplementation(() => {});
+      mockFetch.mockRejectedValueOnce(new Error("network down"));
+      await client.learnListFormat();
+      expect(client.searchSongs("rain", 8)).toEqual([]);
+      // Too soon to try again.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const now = Date.now();
+      jest.spyOn(Date, "now").mockReturnValue(now + 61_000);
+      mockFetch.mockResolvedValueOnce(page([{ id: 21, title: "Evening Rain", artist: "Jane Composer" }]));
+      client.searchSongs("rain", 8);
+      await new Promise((r) => setImmediate(r));
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(client.searchSongs("evening", 8)).toEqual([{ id: 21, title: "Evening Rain", artist: "Jane Composer" }]);
+      jest.restoreAllMocks();
+    });
+  });
 });

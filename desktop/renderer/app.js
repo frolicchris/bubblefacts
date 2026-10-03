@@ -539,13 +539,121 @@
     }
     setResult($("#sf-twitch-result"), r.message, r.ok ? "ok" : "bad");
   });
+  // --- Song search: pick the song from the list instead of typing it exactly ---
+
+  /** The list song picked; its ID goes with the save while both fields still say what it says. */
+  let pickedSong = null;
+  let songMatches = [];
+  let activeMatch = -1;
+  // Asked once typing pauses, and only the newest answer counts (like renderTwitchFill).
+  let songSearchAsk = 0;
+  let songSearchTimer;
+  const titleInput = $("#sf-title");
+  const songsList = $("#sf-songs");
+  const songsStatus = $("#sf-songs-status");
+
+  function closeSongList() {
+    songSearchAsk++;
+    clearTimeout(songSearchTimer);
+    songMatches = [];
+    activeMatch = -1;
+    songsList.hidden = true;
+    songsList.replaceChildren();
+    titleInput.setAttribute("aria-expanded", "false");
+    titleInput.removeAttribute("aria-activedescendant");
+  }
+  function showSongList(songs) {
+    songMatches = songs;
+    activeMatch = -1;
+    songsList.replaceChildren(...songs.map((song, i) => {
+      const li = document.createElement("li");
+      li.id = `sf-song-${i}`;
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", "false");
+      const artist = document.createElement("span");
+      artist.className = "combo-artist";
+      artist.textContent = song.artist ? ` ${song.artist}` : "";
+      li.append(song.title, artist);
+      // Keep focus in Song title, so the list doesn't close before the click lands.
+      li.addEventListener("mousedown", (e) => e.preventDefault());
+      li.addEventListener("click", () => pickSong(song));
+      return li;
+    }));
+    songsList.hidden = !songs.length;
+    titleInput.setAttribute("aria-expanded", String(songs.length > 0));
+    titleInput.removeAttribute("aria-activedescendant");
+  }
+  function setActiveMatch(i) {
+    activeMatch = i;
+    $$("li", songsList).forEach((li, k) => li.setAttribute("aria-selected", String(k === i)));
+    const li = songsList.children[i];
+    if (!li) return titleInput.removeAttribute("aria-activedescendant");
+    titleInput.setAttribute("aria-activedescendant", li.id);
+    li.scrollIntoView({ block: "nearest" });
+  }
+  async function searchSongList() {
+    const ask = ++songSearchAsk;
+    const query = titleInput.value.trim();
+    const r = query ? await api.searchSongs(query) : null;
+    if (ask !== songSearchAsk || document.activeElement !== titleInput) return;
+    const songs = (r && r.available && r.songs) || [];
+    showSongList(songs);
+    songsStatus.textContent = !r || !r.available
+      ? ""
+      : songs.length
+        ? `${songs.length} ${songs.length === 1 ? "song" : "songs"} on your list. Use the up and down arrows to pick one.`
+        : "No song on your list matches. You can still type it as it appears on the request.";
+  }
+  async function pickSong(song) {
+    pickedSong = song;
+    titleInput.value = song.title;
+    $("#sf-artist").value = song.artist;
+    closeSongList();
+    songsStatus.textContent = `Picked ${song.title}${song.artist ? " by " + song.artist : ""}.`;
+    renderTwitchFill();
+    // Facts already saved for it open with it, so a save doesn't replace them unseen.
+    if (factBoxes().length || $("#sf-writers").value.trim() || $("#sf-link").value.trim()) return;
+    const saved = ((await api.listSongFacts()) || []).find((e) => e.songId === song.id);
+    if (!saved || pickedSong !== song) return;
+    $("#sf-writers").value = (saved.songwriters || []).join(", ");
+    $("#sf-link").value = saved.link || "";
+    setFactBoxes(saved.facts || []);
+    renderTwitchFill();
+  }
+  titleInput.addEventListener("input", () => {
+    clearTimeout(songSearchTimer);
+    songSearchTimer = setTimeout(searchSongList, 200);
+  });
+  titleInput.addEventListener("keydown", (e) => {
+    const open = songMatches.length > 0;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) return void searchSongList();
+      const n = songMatches.length;
+      setActiveMatch(e.key === "ArrowDown" ? (activeMatch + 1) % n : activeMatch <= 0 ? n - 1 : activeMatch - 1);
+    } else if (e.key === "Enter" && open && activeMatch >= 0) {
+      // Picks the song instead of saving the form.
+      e.preventDefault();
+      pickSong(songMatches[activeMatch]);
+    } else if (e.key === "Escape" && open) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSongList();
+    }
+  });
+  titleInput.addEventListener("blur", closeSongList);
+
   /** Switch the editor between the song that's on and one the streamer names. */
   function otherSong(on) {
     $("#sf-identity").hidden = !on;
     $("#sf-save").textContent = on ? "Save" : "Save and show";
     if (on) {
       songFactsTarget = null;
+      pickedSong = null;
+      closeSongList();
       $("#song-facts-title").textContent = "a song";
+      // StreamElements has no song list to pick from.
+      $("#sf-title-hint").textContent = onSE() ? "as it appears on the request" : "type a few letters to pick it from your song list";
       for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link"]) $(id).value = "";
       setFactBoxes([]);
       $("#sf-twitch-row").hidden = true;
@@ -568,7 +676,10 @@
         $("#song-facts-result").textContent = "Type the song's title first.";
         return;
       }
-      songFactsTarget = { title, artist: $("#sf-artist").value.trim() };
+      const artist = $("#sf-artist").value.trim();
+      // A song picked from the list (and not changed since) is matched by its ID.
+      const picked = pickedSong && pickedSong.title === title && pickedSong.artist === artist;
+      songFactsTarget = { title, artist, ...(picked ? { songId: pickedSong.id } : {}) };
     }
     const result = await api.saveSongFacts({
       song: songFactsTarget,

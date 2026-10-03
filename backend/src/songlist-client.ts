@@ -4,6 +4,7 @@ import { CentrifugoStream } from "./centrifugo-client";
 import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 import { cleanRequestText } from "./text";
+import { ListSong, searchSongs } from "./song-search";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
@@ -27,6 +28,11 @@ export function setAccessToken(token: string): void {
 
 /** A list of 6,000 songs, 100 at a time. Longer lists are profiled from their first 6,000. */
 const MAX_LIST_PAGES = 60;
+/** A song list read that failed is tried again when the musician searches, at most this often. */
+const LIST_RETRY_MS = 60_000;
+
+/** `GET /songs` items, only the fields used here. */
+type ListItem = { id?: number; title?: string | null; artist?: string | null };
 
 export class SongListClient implements SongSource {
   readonly name = "StreamerSongList";
@@ -43,6 +49,10 @@ export class SongListClient implements SongSource {
   private rejected = false;
   /** Set from Retry-After when StreamerSongList says to slow down (429) or is down for maintenance (503). */
   private backoffUntil = 0;
+  /** The song list as read at start, for the song facts editor's search. */
+  private listSongs: ListSong[] = [];
+  private listFailedAt = 0;
+  private listReading = false;
 
   onCurrentSongChange(callback: SongChangeCallback): void {
     this.onSongChange = callback;
@@ -194,24 +204,42 @@ export class SongListClient implements SongSource {
    * fatal: without it, songs are read the usual way.
    */
   async learnListFormat(): Promise<void> {
+    if (this.listReading) return;
+    this.listReading = true;
     try {
-      const titles: Array<{ title?: string | null }> = [];
+      const titles: ListItem[] = [];
       let after = "";
       for (let page = 0; page < MAX_LIST_PAGES; page++) {
-        const body = await this.getJSON<{ items?: Array<{ title?: string | null }> | null; token?: string }>(
+        const body = await this.getJSON<{ items?: ListItem[] | null; token?: string }>(
           "/songs", "song list", { limit: "100", ...(after ? { after } : {}) }
         );
         titles.push(...(body.items ?? []));
         if (!body.token || !(body.items ?? []).length) break;
         after = body.token;
       }
+      // Cleaned like a queue entry's song, so a picked song reads as the dashboard shows it.
+      this.listSongs = titles.flatMap((s) => {
+        const title = cleanRequestText(s.title ?? "");
+        return typeof s.id === "number" && s.id > 0 && title ? [{ id: s.id, title, artist: cleanRequestText(s.artist ?? "") }] : [];
+      });
+      this.listFailedAt = 0;
       const profile = buildProfile(titles);
       setListProfile(profile);
       const dash = profile.dash === "source-first" ? '"Game - Track"' : profile.dash === "track-first" ? '"Track - Source"' : "no dash habit";
       console.log(`[SSL] Read ${titles.length} songs to learn the list's format: ${dash}, ${profile.parenSources.size} sources named in brackets`);
     } catch (err) {
+      this.listFailedAt = Date.now();
       console.warn(`[SSL] Couldn't read the song list to learn its format: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      this.listReading = false;
     }
+  }
+
+  /** Songs on the list matching what was typed. Empty until the list has been read. */
+  searchSongs(query: string, limit: number): ListSong[] {
+    // The read at start failed (network not up yet, say): searching is a good moment to try again.
+    if (this.listFailedAt && Date.now() - this.listFailedAt > LIST_RETRY_MS && !this.backingOff()) void this.learnListFormat();
+    return searchSongs(this.listSongs, query, limit);
   }
 
   /**
