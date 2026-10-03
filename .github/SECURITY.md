@@ -13,8 +13,9 @@ Both ways of running BubbleFacts: the desktop app (Mac, Windows, Linux) and the
 command-line overlay. In particular:
 
 - **Sign-in and keys.** The app's StreamerSongList sign-in tokens, your
-  StreamElements JWT token and any API keys you enter are encrypted with your
-  operating system's keychain before they're saved. (If no keychain is
+  StreamElements JWT token, your Twitch connection if you made one, and any
+  API keys you enter are encrypted with your operating system's keychain
+  before they're saved. (If no keychain is
   available, which can happen on some Linux systems, they're saved without
   real encryption in the app's settings file, and the app warns you.)
 - **The local server.** The overlay's server only listens on your own computer
@@ -45,8 +46,8 @@ command-line overlay. In particular:
   removed from the log lines. You read it over before anything is posted.
 - **Downloads.** Release files come with a `SHA256SUMS.txt` file and a
   build-provenance attestation, so you can check a file came from this
-  project's release workflow, built from a release tag (use the version you
-  downloaded for `vX.Y.Z`):
+  project's release workflow, built from a release tag on `main`, so only from
+  reviewed code (use the version you downloaded for `vX.Y.Z`):
 
   ```
   gh attestation verify FILE --repo frolicchris/bubblefacts \

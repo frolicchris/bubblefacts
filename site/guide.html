@@ -182,6 +182,7 @@
               <li>In BubbleFacts, drag the tile that says <span class="ui">Drag this into your Sources list</span> onto the <span class="ui">Sources</span> list in OBS.</li>
             </ol>
             <p>As soon as OBS loads it, BubbleFacts puts a test bubble on your stream and says <span class="ui">It's on your stream!</span> OBS names the new source "BubbleFacts" and sizes it to fit your canvas.</p>
+            <p>Next time, open OBS and BubbleFacts in either order. For a few seconds after BubbleFacts starts, the dashboard says <span class="ui">Connecting to OBS</span> while OBS picks it back up.</p>
             <p>Not ready yet? Click <span class="ui">I'll add it later</span>. The app's dashboard has a <span class="ui">Drag into OBS</span> tile for when you are.</p>
             <div class="note">
               <p class="note-title">Nothing happens when you drop it on Windows?</p>
@@ -243,7 +244,7 @@
               <li>Play a song from your StreamerSongList queue, or your StreamElements song requests.</li>
               <li>A gold <span class="ui">Now Playing</span> bubble appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up.</li>
             </ol>
-            <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>.</p>
+            <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>. It shows on top of whatever's playing and leaves that song's bubbles alone.</p>
             <p>Few or no facts at first? BubbleFacts may still be getting ready. The dashboard's <span class="ui">Facts</span> light shows how far along it is.</p>
             <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See <a href="troubleshooting.html">If something goes wrong</a>.</p>
           </div>
@@ -255,7 +256,7 @@
           <div class="body">
             <h2>While you stream</h2>
             <ul>
-              <li><strong>Need the bubbles gone right now?</strong> Click <span class="ui">Pause bubbles</span> on the dashboard, or in the BubbleFacts menu in your menu bar (Mac) or system tray (Windows and Linux). Turn them back on the same way.</li>
+              <li><strong>Need the bubbles gone right now?</strong> Click <span class="ui">Pause bubbles</span> on the dashboard, or in the BubbleFacts menu in your menu bar (Mac) or system tray (Windows and Linux). Turn them back on the same way. They stay paused even if BubbleFacts fixes itself mid-song; quitting and reopening the app turns them back on.</li>
               <li><strong>Closing the window doesn't stop it.</strong> BubbleFacts keeps running in your menu bar (Mac) or system tray (Windows and Linux), with a status light. To stop it, choose <span class="ui">Quit</span> from that menu.</li>
               <li><strong>It fixes itself.</strong> If something inside the app gets stuck, it restarts that part on its own, so you can keep playing.</li>
               <li><strong>Wrong fact?</strong> Click <span class="ui">Wrong</span> next to it on the dashboard. See <a href="#wrong-fact">If a fact is wrong</a>.</li>
@@ -307,10 +308,10 @@
             <h3 id="song-facts">Add facts for one song</h3>
             <p>Some songs aren't on Wikipedia or in any music database: another streamer's original, a friend's band, a song you wrote together. You can give a song its own facts.</p>
             <ol>
-              <li>While the song plays, click <span class="ui">Add facts for this song</span> under <span class="ui">On stream now</span>. Getting ready before a show? Click <span class="ui">Preparing a different song?</span> and type the title and the artist or game as they'll appear on the request.</li>
+              <li>While the song plays, click <span class="ui">Add facts for this song</span> under <span class="ui">On stream now</span>. Getting ready before a show? Click <span class="ui">Add facts for another song</span> (or <span class="ui">Add facts for a song</span> when nothing is playing) and type the title and the artist or game as they'll appear on the request.</li>
               <li>Optional: under <span class="ui">Who wrote it?</span>, type the songwriter, but only if you're sure. BubbleFacts never guesses who wrote a song.</li>
               <li>Optional: add their link, like their Twitch page. It always gets a bubble, with their name.</li>
-              <li>Another Twitch streamer's song? Click <span class="ui">Fill from their Twitch About</span> to add the text from their channel's About, then check it and edit it. The first time, connect Twitch in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>: Twitch opens with a code already filled in. Check it matches the one BubbleFacts shows, then click <span class="ui">Authorize</span>.</li>
+              <li>Another Twitch streamer's song? Once the artist ends with their @name (like "Jane (@janeplayskeys)") or their link is their Twitch page, click <span class="ui">Fill from their Twitch About</span> to add the text from their channel's About, then check it and edit it. The first time, connect Twitch in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>: Twitch opens with a code already filled in. Check it matches the one BubbleFacts shows, then click <span class="ui">Authorize</span>.</li>
               <li>Type your facts, one per box (<span class="ui">Add another fact</span> gives you another box), and click <span class="ui">Save and show</span>.</li>
             </ol>
             <p>Every song you've done this for is listed in <span class="ui">Settings</span>, under <span class="ui">Songs with their own facts</span>, with <span class="ui">Edit</span> and <span class="ui">Remove</span>.</p>
@@ -325,7 +326,7 @@
 
             <h3 id="backups">Your facts are backed up</h3>
             <ul>
-              <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>
+              <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in, your keys or which AI writes your facts. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>
             </ul>
           </div>
         </div>
