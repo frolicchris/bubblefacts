@@ -261,8 +261,14 @@
     $("em", li).textContent = ICONS[kind] + text;
   }
 
+  /** OBS gets a few seconds to reconnect after the fact server starts, before being asked to add BubbleFacts. */
+  const OBS_GRACE_MS = 15_000;
+  let runningSince = 0;
   function renderStatus(status) {
     if (!state || !status) return;
+    if (status.state !== "running") runningSince = 0;
+    else runningSince ||= Date.now();
+    const obsGrace = runningSince > 0 && Date.now() - runningSince < OBS_GRACE_MS;
     const h = status.health;
     const obs = obsConnected(status);
     const otherClient = h && h.obsClients > 0 && !obs;
@@ -287,6 +293,7 @@
     if (state.paused) light("light-obs", "warn", "Bubbles paused");
     else if (obs) light("light-obs", "ok", "On your stream");
     else if (otherClient) light("light-obs", "warn", "Open in a browser, not OBS");
+    else if (obsGrace) light("light-obs", "", "Connecting to OBS");
     else light("light-obs", status.state === "running" ? "warn" : "", "Not in OBS yet");
 
     // Banner
@@ -303,6 +310,7 @@
       detail = onSE() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
     }
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
+    else if (status.state === "running" && !obs && obsGrace) { title = "Connecting to OBS"; detail = "If BubbleFacts is already in OBS, this takes a few seconds."; }
     else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
     else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
     else if (status.state === "running") {
@@ -437,6 +445,8 @@
     $("#now-empty").hidden = (r.facts || []).length > 0;
     $("#now-empty").textContent = emptyText(r);
     $("#song-facts-open").hidden = !$("#song-facts-form").hidden;
+    // With nothing playing, the first button already asks which song.
+    $("#song-facts-other").hidden = !$("#song-facts-form").hidden || !r.song;
     const hasOwn = (r.facts || []).some((f) => f.source === "Your facts for this song");
     $("#song-facts-open").textContent = !r.song ? "Add facts for a song" : hasOwn ? "Edit your facts for this song" : "Add facts for this song";
   }
@@ -467,6 +477,7 @@
     $("#song-facts-result").textContent = "";
     $("#song-facts-form").hidden = false;
     $("#song-facts-open").hidden = true;
+    $("#song-facts-other").hidden = true;
     $("#sf-facts textarea:last-child").focus();
     $("#song-facts-form").scrollIntoView({ block: "nearest" });
   }
@@ -531,7 +542,6 @@
   /** Switch the editor between the song that's on and one the streamer names. */
   function otherSong(on) {
     $("#sf-identity").hidden = !on;
-    $("#sf-other").hidden = on;
     $("#sf-save").textContent = on ? "Save" : "Save and show";
     if (on) {
       songFactsTarget = null;
@@ -541,8 +551,8 @@
       $("#sf-twitch-row").hidden = true;
     }
   }
-  $("#sf-other").addEventListener("click", () => {
-    otherSong(true);
+  $("#song-facts-other").addEventListener("click", () => {
+    openSongFacts(null);
     $("#sf-title").focus();
   });
   $("#song-facts-cancel").addEventListener("click", () => {
@@ -711,7 +721,7 @@
     $("#twitch-connect").textContent = t.userCode ? "Get a new code" : "Connect Twitch";
     const status = $("#twitch-status");
     if (twitchOn) setResult(status, `✓ Connected${state.settings.twitchLogin ? " as " + state.settings.twitchLogin : ""}.`, "ok");
-    else if (t.userCode) setResult(status, `Enter ${t.userCode} on the Twitch page that just opened (twitch.tv/activate).`, "");
+    else if (t.userCode) setResult(status, `On the Twitch page that just opened, check the code is ${t.userCode}, then click Authorize.`, "");
     else setResult(status, t.error || "", t.error ? "bad" : "");
   }
   $("#twitch-connect").addEventListener("click", async () => {

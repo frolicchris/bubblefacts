@@ -1,8 +1,8 @@
 /**
  * Connect Twitch (optional): lets BubbleFacts read another streamer's public
  * About text, for their originals (issue #47). Twitch's device code sign-in,
- * the flow for apps that can't keep a secret: the streamer types a short code
- * at twitch.tv/activate. No scopes: a channel's description is public, and any
+ * the flow for apps that can't keep a secret: Twitch's page opens with a short
+ * code filled in, which the streamer checks against the app's and authorizes. No scopes: a channel's description is public, and any
  * sign-in may read it. Access tokens last 4 hours; for this kind of app each
  * refresh token works once, and lapses after 30 days unused.
  */

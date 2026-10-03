@@ -180,10 +180,13 @@
         <ul id="now-facts" class="facts"></ul>
         <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
-        <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
+        <div class="toolbar">
+          <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
+          <button id="song-facts-other" class="ghost" hidden>Add facts for another song</button>
+        </div>
         <form id="song-facts-form" class="song-facts" hidden>
           <h3>Your facts for <span id="song-facts-title"></span></h3>
-          <p class="fine">For songs no source knows, like another streamer's original. They show exactly as you write them, every time this song plays. <button class="link" type="button" id="sf-other">Preparing a different song?</button></p>
+          <p class="fine">For songs no source knows, like another streamer's original. They show exactly as you write them, every time this song plays.</p>
           <div id="sf-identity" hidden>
             <label for="sf-title">Song title <span class="hint">as it appears on the request</span></label>
             <input id="sf-title" type="text" placeholder="Evening Rain">
