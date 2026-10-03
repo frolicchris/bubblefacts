@@ -12,6 +12,16 @@ Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 
 ## Fixed
 
+## Security
+
+<!-- Every publicly known vulnerability this release fixes, in plain words.
+     Delete the section if there are none. -->
+
+## Known issues
+
+<!-- Open problems a musician might hit, with the workaround and the issue
+     link. Delete the section if there are none. -->
+
 ## Thanks
 
 <!-- Name everyone whose report, idea or contribution is in this release, by

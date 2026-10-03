@@ -92,10 +92,10 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/**
- * A newer release on GitHub, if there is one. Someone on a beta hears about
- * newer betas; someone on a full release only hears about full releases.
- */
+/** How long a new feature release (x.y.0) is out before the Stable channel offers it. */
+export const STABLE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** A newer release on GitHub, if there is one. */
 export interface Release {
   version: string;
   /** The download page, for installs that can't update themselves. */
@@ -104,10 +104,20 @@ export interface Release {
   download?: { name: string; url: string; size: number; sumsUrl: string };
 }
 
-/** `installerFor` names the installer this copy can update from (see updater.ts), or null. */
-export async function newerRelease(current: string, installerFor: (version: string) => string | null = () => null): Promise<Release | null> {
+/**
+ * Stable hears only about full releases; Beta hears about the newest of
+ * anything, betas, release candidates and full releases alike. Either way only
+ * a version newer than this one counts, so switching to Stable never goes back.
+ * `installerFor` names the installer this copy can update from (see updater.ts), or null.
+ */
+export async function newerRelease(
+  current: string,
+  channel: "stable" | "beta",
+  installerFor: (version: string) => string | null = () => null,
+  now = Date.now()
+): Promise<Release | null> {
   try {
-    const res = await fetch("https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=20", {
+    const res = await fetch("https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=30", {
       headers: { Accept: "application/vnd.github+json" },
       signal: AbortSignal.timeout(10_000),
     });
@@ -116,11 +126,18 @@ export async function newerRelease(current: string, installerFor: (version: stri
       tag_name: string;
       draft: boolean;
       prerelease: boolean;
+      published_at?: string | null;
       assets?: Array<{ name: string; browser_download_url: string; size: number }>;
     }>;
-    const onBeta = current.includes("-");
+    // A version with a "-" is a prerelease even if it was published without GitHub's pre-release box checked.
+    const isPrerelease = (r: { tag_name: string; prerelease: boolean }) => r.prerelease || r.tag_name.includes("-");
+    // Beta hears about a full release at once; Stable a few days later, once Beta has had it (a staged
+    // rollout). A maintenance release (2.0.1) carries only fixes, often for security, so it doesn't wait.
+    const isPatch = (r: { tag_name: string }) => !/\.0$/.test(r.tag_name.replace(/-.*$/, ""));
+    const settled = (r: { tag_name: string; published_at?: string | null }) =>
+      isPatch(r) || now - Date.parse(r.published_at ?? "") >= STABLE_WAIT_MS;
     const newest = releases
-      .filter((r) => !r.draft && (onBeta || !r.prerelease))
+      .filter((r) => !r.draft && (channel === "beta" || (!isPrerelease(r) && settled(r))))
       .map((r) => r.tag_name.replace(/^v/, ""))
       .sort((a, b) => compareVersions(b, a))[0];
     if (!newest || compareVersions(newest, current) <= 0) return null;

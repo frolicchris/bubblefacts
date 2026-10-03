@@ -134,6 +134,7 @@
   /**
    * Long facts stay up long enough to read: about three words a second
    * (subtitle reading speed), plus two seconds to notice the bubble.
+   * The server's copy (readingSeconds in session.ts) must match: hands-free Wrong uses it.
    */
   function readingSeconds(fact) {
     const words = String(fact.text || "").split(/\s+/).filter(Boolean).length;

@@ -33,6 +33,9 @@
       const k = Number(li.dataset.step);
       li.classList.toggle("current", k === n);
       li.classList.toggle("done", k < n);
+      // Which step is current goes to screen readers too, not only as color.
+      if (k === n) li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
     }
     $(`.step[data-step="${n}"] h1`).focus?.();
   }
@@ -325,10 +328,6 @@
     $("#status-detail").textContent = detail;
     $("#pause-toggle").textContent = state.paused ? "Resume bubbles" : "Pause bubbles";
 
-    // Only nudge when the example facts actually stood in for a song. With no
-    // examples checked, showing nothing is the streamer's choice.
-    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length && state.settings.topics.length);
-
     if (!$("#view-setup").hidden) renderObsCheck();
   }
 
@@ -539,13 +538,122 @@
     }
     setResult($("#sf-twitch-result"), r.message, r.ok ? "ok" : "bad");
   });
+  // --- Song search: pick the song from the list instead of typing it exactly ---
+
+  /** The list song picked; its ID goes with the save while both fields still say what it says. */
+  let pickedSong = null;
+  let songMatches = [];
+  let activeMatch = -1;
+  // Asked once typing pauses, and only the newest answer counts (like renderTwitchFill).
+  let songSearchAsk = 0;
+  let songSearchTimer;
+  const titleInput = $("#sf-title");
+  const songsList = $("#sf-songs");
+  const songsStatus = $("#sf-songs-status");
+
+  function closeSongList() {
+    songSearchAsk++;
+    clearTimeout(songSearchTimer);
+    songMatches = [];
+    activeMatch = -1;
+    songsList.hidden = true;
+    songsList.replaceChildren();
+    titleInput.setAttribute("aria-expanded", "false");
+    titleInput.removeAttribute("aria-activedescendant");
+  }
+  function showSongList(songs) {
+    songMatches = songs;
+    activeMatch = -1;
+    songsList.replaceChildren(...songs.map((song, i) => {
+      const li = document.createElement("li");
+      li.id = `sf-song-${i}`;
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", "false");
+      const artist = document.createElement("span");
+      artist.className = "combo-artist";
+      artist.textContent = song.artist ? ` ${song.artist}` : "";
+      li.append(song.title, artist);
+      // Keep focus in Song title, so the list doesn't close before the click lands.
+      li.addEventListener("mousedown", (e) => e.preventDefault());
+      li.addEventListener("click", () => pickSong(song));
+      return li;
+    }));
+    songsList.hidden = !songs.length;
+    titleInput.setAttribute("aria-expanded", String(songs.length > 0));
+    titleInput.removeAttribute("aria-activedescendant");
+  }
+  function setActiveMatch(i) {
+    activeMatch = i;
+    $$("li", songsList).forEach((li, k) => li.setAttribute("aria-selected", String(k === i)));
+    const li = songsList.children[i];
+    if (!li) return titleInput.removeAttribute("aria-activedescendant");
+    titleInput.setAttribute("aria-activedescendant", li.id);
+    li.scrollIntoView({ block: "nearest" });
+  }
+  async function searchSongList() {
+    const ask = ++songSearchAsk;
+    const query = titleInput.value.trim();
+    const r = query ? await api.searchSongs(query) : null;
+    if (ask !== songSearchAsk || document.activeElement !== titleInput) return;
+    const songs = (r && r.available && r.songs) || [];
+    showSongList(songs);
+    songsStatus.textContent = !r || !r.available
+      ? ""
+      : songs.length
+        ? `${songs.length} ${songs.length === 1 ? "song" : "songs"} on your list. Use the up and down arrows to pick one.`
+        : "No song on your list matches. You can still type it as it appears on the request.";
+  }
+  async function pickSong(song) {
+    pickedSong = song;
+    titleInput.value = song.title;
+    $("#sf-artist").value = song.artist;
+    closeSongList();
+    songsStatus.textContent = `Picked ${song.title}${song.artist ? " by " + song.artist : ""}.`;
+    renderTwitchFill();
+    // Facts already saved for it open with it, so a save doesn't replace them unseen.
+    if (factBoxes().length || $("#sf-writers").value.trim() || $("#sf-link").value.trim()) return;
+    // Matched the way a save matches: by its ID, or by title and artist for facts saved before it was picked from the list.
+    const saved = ((await api.getSongFacts({ title: song.title, artist: song.artist, songId: song.id })) || {}).entry;
+    if (!saved || pickedSong !== song) return;
+    $("#sf-writers").value = (saved.songwriters || []).join(", ");
+    $("#sf-link").value = saved.link || "";
+    setFactBoxes(saved.facts || []);
+    renderTwitchFill();
+  }
+  titleInput.addEventListener("input", () => {
+    clearTimeout(songSearchTimer);
+    songSearchTimer = setTimeout(searchSongList, 200);
+  });
+  titleInput.addEventListener("keydown", (e) => {
+    const open = songMatches.length > 0;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) return void searchSongList();
+      const n = songMatches.length;
+      setActiveMatch(e.key === "ArrowDown" ? (activeMatch + 1) % n : activeMatch <= 0 ? n - 1 : activeMatch - 1);
+    } else if (e.key === "Enter" && open && activeMatch >= 0) {
+      // Picks the song instead of saving the form.
+      e.preventDefault();
+      pickSong(songMatches[activeMatch]);
+    } else if (e.key === "Escape" && open) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSongList();
+    }
+  });
+  titleInput.addEventListener("blur", closeSongList);
+
   /** Switch the editor between the song that's on and one the streamer names. */
   function otherSong(on) {
     $("#sf-identity").hidden = !on;
     $("#sf-save").textContent = on ? "Save" : "Save and show";
     if (on) {
       songFactsTarget = null;
+      pickedSong = null;
+      closeSongList();
       $("#song-facts-title").textContent = "a song";
+      // StreamElements has no song list to pick from.
+      $("#sf-title-hint").textContent = onSE() ? "as it appears on the request" : "type a few letters to pick it from your song list";
       for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link"]) $(id).value = "";
       setFactBoxes([]);
       $("#sf-twitch-row").hidden = true;
@@ -568,7 +676,10 @@
         $("#song-facts-result").textContent = "Type the song's title first.";
         return;
       }
-      songFactsTarget = { title, artist: $("#sf-artist").value.trim() };
+      const artist = $("#sf-artist").value.trim();
+      // A song picked from the list (and not changed since) is matched by its ID.
+      const picked = pickedSong && pickedSong.title === title && pickedSong.artist === artist;
+      songFactsTarget = { title, artist, ...(picked ? { songId: pickedSong.id } : {}) };
     }
     const result = await api.saveSongFacts({
       song: songFactsTarget,
@@ -622,24 +733,11 @@
 
   // --- Notices ---------------------------------------------------------------
 
+  /** What the notices last said. The box is a live region, so it's redrawn only when that changes. */
+  let lastNotices = "";
   function renderNotices() {
-    const box = $("#notices");
-    box.replaceChildren();
-    const add = (kind, text, buttonText, onClick) => {
-      const div = document.createElement("div");
-      div.className = "notice " + kind;
-      const p = document.createElement("span");
-      p.textContent = text;
-      div.appendChild(p);
-      if (buttonText) {
-        const b = document.createElement("button");
-        b.className = "primary";
-        b.textContent = buttonText;
-        b.addEventListener("click", onClick);
-        div.appendChild(b);
-      }
-      box.appendChild(div);
-    };
+    const notices = [];
+    const add = (kind, text, buttonText, onClick) => notices.push({ kind, text, buttonText, onClick });
     const signInNotice = (text) => !state.signInAvailable
       ? add("warn", text.replace("Sign in again", "Paste a new token in Settings"), "Open Settings", () => show("settings"))
       : add("warn", text, "Sign in", async (e) => {
@@ -676,6 +774,27 @@
       });
     }
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
+    // Redrawn on every state change, a screen reader would read them all again, and a focused button would lose focus.
+    const said = JSON.stringify(notices.map((n) => [n.kind, n.text, n.buttonText]));
+    if (said === lastNotices) return;
+    lastNotices = said;
+    const box = $("#notices");
+    box.replaceChildren();
+    for (const { kind, text, buttonText, onClick } of notices) {
+      const div = document.createElement("div");
+      div.className = "notice " + kind;
+      const p = document.createElement("span");
+      p.textContent = text;
+      div.appendChild(p);
+      if (buttonText) {
+        const b = document.createElement("button");
+        b.className = "primary";
+        b.textContent = buttonText;
+        b.addEventListener("click", onClick);
+        div.appendChild(b);
+      }
+      box.appendChild(div);
+    }
   }
 
   // --- Settings ----------------------------------------------------------------
@@ -690,7 +809,6 @@
       else if (el.type === "radio") el.checked = s[el.name] === el.value;
       else el.value = s[el.name] ?? "";
     }
-    for (const box of $$("#s-topics input")) box.checked = s.topics.includes(box.value);
     $("#s-myfacts").value = s.myFacts.join("\n");
     $("#s-myoriginals").value = s.myOriginals.join("\n");
     $("#s-originals-box").hidden = !s.originals;
@@ -704,11 +822,20 @@
     for (const p of $$('#settings-form input[type="password"]')) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
     // Someone already using an online AI or the example packs finds them open.
-    $("#s-advanced").open = s.ai !== "builtin" || s.topics.length > 0;
+    $("#s-advanced").open = s.ai !== "builtin";
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
+    renderWrongKey();
     setResult($("#settings-result"), "");
+  }
+
+  /** Hands-free Wrong: the keys as this computer names them, and a key another app already has. */
+  function renderWrongKey() {
+    if (state.platform === "darwin") for (const o of $$("#s-wrongkey option[data-mac]")) o.textContent = o.dataset.mac;
+    const problem = $("#s-wrongkey-problem");
+    problem.textContent = state.wrongKeyProblem || "";
+    problem.hidden = !state.wrongKeyProblem;
   }
 
   /** Connect Twitch: not connected, waiting for the code to be approved, or connected. */
@@ -755,7 +882,6 @@
       else if (el.type === "number") changes[el.name] = Number(el.value);
       else changes[el.name] = el.value.trim();
     }
-    changes.topics = $$("#s-topics input").filter((b) => b.checked).map((b) => b.value);
     changes.myFacts = lines($("#s-myfacts"));
     changes.myOriginals = lines($("#s-myoriginals"));
     if (changes.token) changes.tokenKind = "streamer";
@@ -858,9 +984,40 @@
   });
   // "About BubbleFacts" in the tray menu.
   api.on("show-view", (view) => show(view));
+  // Hands-free Wrong (a foot pedal or Stream Deck): the usual note, with Undo. Nothing on stream, no sound.
+  api.on("wrong-key", (r) => {
+    if (!state || !r) return;
+    if (!r.removed) {
+      const why = {
+        paused: "Bubbles are paused, so nothing was on stream to mark.",
+        "no-song": "No song is playing, so nothing was marked.",
+        "not-ready": "This song's facts aren't ready yet, so nothing was marked.",
+        "no-facts": "This song has no bubbles, so nothing was marked.",
+        "none-shown": "No bubble has shown yet for this song, so nothing was marked.",
+        "already-marked": "The last bubble is already marked, so nothing more was marked.",
+      };
+      // Report and Undo belong to a fact that was marked, and this press marked none.
+      state.wrong = null;
+      showWrongNote(`Hands-free Wrong: ${why[r.reason] || "BubbleFacts isn't running right now, so nothing was marked."}`, null);
+      return;
+    }
+    const label = r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "");
+    state.wrong = { song: label, text: r.text, article: r.article, songId: r.song };
+    const what = r.structured
+      ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+      : r.article
+        ? `BubbleFacts won't use the "${r.article}" Wikipedia article for this song again.`
+        : "";
+    showWrongNote(`Removed with hands-free Wrong: “${r.text}” ${what}`.trim(), r.article);
+    lastRecent = "";
+    void refreshRecent();
+  });
   api.on("state", (s) => {
     state = s;
-    if (!$("#view-settings").hidden) renderTwitch();
+    if (!$("#view-settings").hidden) {
+      renderTwitch();
+      renderWrongKey();
+    }
     $("#unlocking").hidden = !s.unlocking;
     renderNotices();
     renderStatus(s.status);

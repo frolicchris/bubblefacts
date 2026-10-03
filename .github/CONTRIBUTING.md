@@ -49,7 +49,8 @@ change.
    Electron and the built-in AI's native parts too (several hundred MB).
    Changing only the server or the overlay? `ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci`
    skips the Electron download, as CI does.
-3. Make your change, with a test if it fixes a bug. Examples in code, tests
+3. Make your change, with tests: a bug fix gets a test that fails without
+   it, and new behavior gets tests that cover it. Examples in code, tests
    and test data use made-up names, not a real streamer's or viewer's. Don't
    name the website's host or describe its setup anywhere in the repository.
 4. Run `npm run check`. It type-checks, lints and tests everything in about
