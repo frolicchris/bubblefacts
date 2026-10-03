@@ -102,7 +102,9 @@
       ],
       "category": "public.app-category.music",
       "icon": "desktop/build/icon.png",
-      "identity": null,
+      "hardenedRuntime": true,
+      "entitlements": "desktop/build/entitlements.mac.plist",
+      "entitlementsInherit": "desktop/build/entitlements.mac.plist",
       "artifactName": "BubbleFacts-${version}-mac-${arch}.${ext}"
     },
     "dmg": {

@@ -61,7 +61,72 @@ jobs:
         if: env.YOUTUBE_API_KEY != ''
         shell: bash
         run: node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));p.bubblefacts.youtubeApiKey=process.env.YOUTUBE_API_KEY;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
-      - run: npm run dist -- ${{ matrix.args }}
+      # Signing happens only when its secrets are set (see "Code signing" in CONTRIBUTING.md).
+      # Without them, as in forks, builds are unsigned: the Mac app gets an ad-hoc
+      # signature (desktop/scripts/after-pack.js) and Windows shows its usual warning.
+      - name: Signing setup
+        id: signing
+        shell: bash
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+        run: |
+          extra=""
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            if [ -n "$MAC_CERT_P12_BASE64" ]; then
+              echo "CSC_LINK=$MAC_CERT_P12_BASE64" >> "$GITHUB_ENV"
+              if [ -n "$APPLE_API_KEY_P8" ]; then
+                key="$RUNNER_TEMP/apple-api-key.p8"
+                printf '%s' "$APPLE_API_KEY_P8" > "$key"
+                echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
+              fi
+              echo "Mac build: signed with the Developer ID certificate${APPLE_API_KEY_P8:+, and notarized}"
+            else
+              echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+              echo "Mac build: unsigned (no MAC_CERT_P12_BASE64 secret)"
+            fi
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_SIGNING_ENDPOINT" ]; then
+              extra="-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT -c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT -c.win.azureSignOptions.certificateProfileName=$AZURE_SIGNING_PROFILE"
+              echo "Windows build: signed with Azure Trusted Signing"
+            else
+              echo "Windows build: unsigned (no Azure signing secrets)"
+            fi
+          fi
+          echo "extra=$extra" >> "$GITHUB_OUTPUT"
+      - name: Build
+        shell: bash
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+          EXTRA: ${{ steps.signing.outputs.extra }}
+          ARGS: ${{ matrix.args }}
+        run: |
+          # $ARGS and $EXTRA are split into words on purpose.
+          if [ -n "$EXTRA" ]; then
+            npm run dist -- $ARGS $EXTRA "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
+          else
+            npm run dist -- $ARGS
+          fi
+      # Says in the log whether each installer came out signed.
+      - name: Report signing
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS) for a in release/mac*/BubbleFacts.app; do codesign -dv "$a" 2>&1 | grep -E "Authority|Signature=adhoc" || true; done ;;
+            Windows) powershell -Command "Get-AuthenticodeSignature (Get-ChildItem release/BubbleFacts-*.exe) | Format-List Status,SignerCertificate" ;;
+          esac
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
