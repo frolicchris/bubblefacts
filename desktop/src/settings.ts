@@ -27,7 +27,6 @@ export interface Settings {
   seJwt: string;
   displayName: string;
   instrument: string;
-  topics: string[];
   /** "I play my own compositions" and "I do live learns", from setup. */
   originals: boolean;
   liveLearns: boolean;
@@ -48,11 +47,26 @@ export interface Settings {
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
+  /** Hands-free Wrong: a key a foot pedal or Stream Deck sends, or "off". See WRONG_KEYS. */
+  wrongKey: WrongKey;
   port: number;
   startAtLogin: boolean;
   /** Set automatically when the GPU build of the built-in AI fails on this computer. */
   forceCpu: boolean;
 }
+
+/**
+ * The keys hands-free Wrong can listen for, as Electron accelerators. A short
+ * list of combinations few apps use, rather than any key: a global shortcut
+ * takes the key from every other app while BubbleFacts runs.
+ */
+export const WRONG_KEYS = {
+  off: null,
+  "ctrl-alt-w": "Control+Alt+W",
+  "ctrl-alt-shift-w": "Control+Alt+Shift+W",
+  f13: "F13",
+} as const;
+export type WrongKey = keyof typeof WRONG_KEYS;
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
@@ -71,8 +85,6 @@ export const DEFAULTS: Settings = {
   seJwt: "",
   displayName: "",
   instrument: "",
-  // The example packs are opt-in: without them, a song with no source shows nothing (issue #18).
-  topics: [],
   originals: false,
   liveLearns: true,
   nowPlaying: true,
@@ -88,6 +100,7 @@ export const DEFAULTS: Settings = {
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
+  wrongKey: "off",
   port: 3000,
   startAtLogin: false,
   forceCpu: false,
@@ -150,10 +163,8 @@ export function loadSettings(readSecrets = true): Settings {
       : typeof value === typeof fallback;
     if (ok) target[key] = value;
   }
-  // Before 2.0.0-beta.3 every install started with these example packs checked.
-  // Left unchanged, they're dropped: the examples are opt-in now (issue #18).
-  // Only for settings saved before beta.3 (no songSource yet), so a streamer who checks these later keeps them.
-  if (!("songSource" in raw) && settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
+  // Older versions could save example packs under "topics". The app no
+  // longer uses them: the musician's own custom facts are the only ones (the key is dropped on save).
   const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
   secretsPending = !readSecrets && SECRET_KEYS.some((key) => saved(key).startsWith("enc:"));
   for (const key of SECRET_KEYS) settings[key] = secretsPending ? "" : decrypt(saved(key));
@@ -175,12 +186,9 @@ export function unlockSecrets(settings: Settings): Settings {
   return sanitize(out);
 }
 
-const OLD_DEFAULT_TOPICS = "video-game,classical,film,pop,general";
-
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.includes(value) ? value : fallback);
-export const TOPICS = ["video-game", "classical", "film", "pop", "piano", "general"];
 
 /** Keep every value in a range the server accepts, so no setting can stop it from starting. */
 export function sanitize(s: Settings): Settings {
@@ -192,12 +200,12 @@ export function sanitize(s: Settings): Settings {
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right"] as const, "anywhere"),
-    topics: s.topics.filter((t) => TOPICS.includes(t)),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
     intervalSeconds: clamp(s.intervalSeconds, 3, 300, DEFAULTS.intervalSeconds),
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
+    wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
     port: clamp(s.port, 1024, 65525, DEFAULTS.port),
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
@@ -218,9 +226,9 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns", "nowPlaying",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
 ];
 
 /** The window's changes, keeping only editable keys whose values have the right type. */
@@ -269,7 +277,8 @@ export function toServerEnv(
   paths: { modelPath: string; logDir: string; topicsDir: string; clientId: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
-    // "none", not an empty value: an empty variable can get lost on the way, and a missing one means the example packs.
+    // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
+    // an empty variable can get lost on the way, and a missing one means the example packs.
     TOPIC: topicList(s).join(",") || "none",
     BUBBLEFACTS_TOPICS_DIR: paths.topicsDir,
     ORIGINALS: s.originals ? "on" : "off",
@@ -319,7 +328,7 @@ export const secretsOf = (s: Settings) => SECRET_KEYS.map((k) => s[k]).filter((v
 export const MY_PACK = "my-facts";
 
 export function topicList(s: Settings): string[] {
-  return s.myFacts.length || s.myOriginals.length ? [MY_PACK, ...s.topics] : s.topics;
+  return s.myFacts.length || s.myOriginals.length ? [MY_PACK] : [];
 }
 
 /**

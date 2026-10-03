@@ -1,6 +1,6 @@
 import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
 import { factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -9,6 +9,7 @@ import { newerRelease, Release, testSongList, testStreamElements } from "./check
 import { assetName, downloadUpdate, startInstall } from "./updater";
 import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
+import { WrongKeyListener } from "./handsfree";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
 import {
   BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
@@ -144,6 +145,7 @@ function state() {
     // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
+    wrongKeyProblem: wrongKey.problem,
     update,
     updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
     dataDir: DATA,
@@ -317,6 +319,23 @@ function createWindow(): void {
   win.loadFile(path.join(ROOT, "desktop/renderer/index.html"));
   win.once("ready-to-show", () => win?.show());
   win.webContents.on("will-navigate", (e) => e.preventDefault());
+  // Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
+  // on Windows and Linux to do it. Steps are a browser's, up to 300%.
+  win.webContents.on("before-input-event", (e, input) => {
+    const mod = process.platform === "darwin" ? input.meta : input.control;
+    if (input.type !== "keyDown" || !mod || input.alt) return;
+    const contents = win?.webContents;
+    if (!contents) return;
+    const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+    const now = contents.getZoomFactor();
+    let next: number | undefined;
+    if (input.key === "=" || input.key === "+") next = steps.find((s) => s > now + 0.001);
+    else if (input.key === "-" || input.key === "_") next = [...steps].reverse().find((s) => s < now - 0.001);
+    else if (input.key === "0") next = 1;
+    else return;
+    e.preventDefault();
+    if (next !== undefined) contents.setZoomFactor(next);
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url);
     return { action: "deny" };
@@ -438,6 +457,18 @@ async function setPaused(next: boolean): Promise<void> {
   send("state", state());
 }
 
+/**
+ * Hands-free Wrong: the key from a foot pedal or Stream Deck. The server picks
+ * the bubble (on stream now, or shown last); the dashboard shows the usual
+ * note with Undo. Nothing on stream says it happened, and no sound.
+ */
+const wrongKey = new WrongKeyListener(globalShortcut, () => {
+  void control("wrong-current").then((result) => {
+    if (result?.removed) backUpNow();
+    send("wrong-key", result ?? { removed: false, reason: "no-server" });
+  });
+});
+
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
@@ -446,7 +477,7 @@ ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown) => {
   backUpNow();
   return result;
 });
-ipcMain.handle("get-song-facts", () => control("song-facts/get"));
+ipcMain.handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // Read from the file, so the list works even before the songs are connected.
 ipcMain.handle("list-song-facts", () => {
   try {
@@ -456,6 +487,8 @@ ipcMain.handle("list-song-facts", () => {
     return [];
   }
 });
+// "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
+ipcMain.handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
 ipcMain.handle("save-song-facts", async (_e, data: unknown) => {
   const result = await control("song-facts", data);
   backUpNow();
@@ -491,6 +524,7 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   if (aiChanged) builtinFailed = false;
   saveSettings(settings);
   applyStartAtLogin();
+  wrongKey.use(settings.wrongKey);
   if (changes.token) {
     signInExpired = false;
     scheduleRefresh(); // Stops refreshing the replaced sign-in.
@@ -633,6 +667,7 @@ ipcMain.handle("backup-restore", async () => {
   if (backup.songFacts) fs.writeFileSync(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
   if (backup.wrongFacts) fs.writeFileSync(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
   applyStartAtLogin();
+  wrongKey.use(settings.wrongKey);
   // The fact server reads its files at start.
   startServer(true);
   send("state", state());
@@ -647,7 +682,7 @@ ipcMain.handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your custom facts, the facts you added for particular songs, the sources you marked Wrong, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB), your custom facts, the facts you added for particular songs, the sources you marked Wrong, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -759,6 +794,8 @@ app.on("before-quit", () => {
   download?.abort();
   supervisor.stop();
 });
+// The key goes back to every other app.
+app.on("will-quit", () => wrongKey.stop());
 app.on("window-all-closed", () => {
   // Stay running in the tray; quitting is explicit.
 });
@@ -802,6 +839,7 @@ app.whenReady().then(async () => {
   void ensureModel();
   void ensureOllamaModel();
   startServer();
+  wrongKey.use(settings.wrongKey);
   backUpNow();
   update = await newerRelease(app.getVersion(), app.isPackaged ? (v) => assetName(v) : () => null);
   if (update) send("state", state());
