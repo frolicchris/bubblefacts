@@ -87,10 +87,6 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
   fills in your version, computer and log.
 - [Security policy](.github/SECURITY.md): report security problems privately.
 
-Only the newest release is supported; the app tells you when there's a new
-one. What every 2.x release keeps working, and how security problems are
-handled, is in [SECURITY.md](.github/SECURITY.md#what-2x-promises).
-
 ## For developers
 
 - **[Contributing](.github/CONTRIBUTING.md):** how to report, build the app from

@@ -82,17 +82,3 @@ command-line overlay. In particular:
   risk, and only on a network you trust.
 - **Only the newest release is supported.** Update when a new one comes out.
   The app tells you when there is one.
-
-## What 2.x promises
-
-- **Fixes go into the newest 2.x release.** There are no separate long-term
-  versions.
-- **Security problems** get a first reply within 14 days, and a fix in a new
-  release normally within 60 days of becoming public; serious ones as fast as
-  possible.
-- **Your settings, facts and backups keep working in every 2.x release,** and
-  so does the BubbleFacts source in OBS, without changing your scene.
-  Anything that would break that waits for 3.0, and is announced in the
-  release notes of at least one earlier 2.x release first.
-- **When 3.0 comes out,** the last 2.x release gets security fixes for three
-  more months.
