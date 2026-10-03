@@ -660,7 +660,7 @@
       else add("info", `BubbleFacts ${v} is available.`, "Update now", () => api.downloadUpdate());
     }
     if (state.builtinFailed && state.settings.ai === "builtin") {
-      add("warn", "The built-in AI can't run on this computer. Facts are coming from your song list for now. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
+      add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
         show("settings");
         $("#s-advanced").open = true;
       });

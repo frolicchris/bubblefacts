@@ -30,7 +30,7 @@
     <section id="view-setup" class="view" hidden>
       <ol class="steps" aria-label="Setup progress">
         <li data-step="1">Connect your songs</li>
-        <li data-step="2">Add it to your stream</li>
+        <li data-step="2">Put it on your stream</li>
       </ol>
 
       <div class="panel step" data-step="1">
@@ -129,7 +129,7 @@
       </div>
 
       <div class="panel step" data-step="3" hidden>
-        <h1 tabindex="-1">Tell us about your music</h1>
+        <h1 tabindex="-1">About your music</h1>
         <p class="lead">Optional. BubbleFacts works without this, and you can change it any time in Settings.</p>
 
         <div class="checks single">
@@ -224,6 +224,8 @@
           <button class="ghost" id="show-logs">Show logs</button>
           <button class="ghost" id="report-problem">Report a problem</button>
           <button class="ghost" id="report-beta" hidden>Send a beta test report</button>
+          <button class="ghost" data-open="https://bubblefacts.frolic.org/troubleshooting.html">Troubleshooting</button>
+          <button class="ghost" data-open="https://discord.gg/gXdVKc6KWx">Ask on Discord</button>
         </div>
         <p class="fine">BubbleFacts needs to run on the same computer as OBS. To show it in several scenes, add it to one scene and nest that scene inside the others.</p>
       </details>
@@ -340,7 +342,7 @@
             <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
             <label><input type="radio" name="ai" value="ollama"> My own Ollama</label>
           </div>
-          <label for="s-groq">Groq key</label>
+          <label for="s-groq">Groq key <span class="hint">free; <button class="link" type="button" data-open="https://console.groq.com/keys">get one at console.groq.com/keys</button>, then paste it here</span></label>
           <input id="s-groq" name="groqKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
           <label for="s-anthropic">Anthropic key</label>
           <input id="s-anthropic" name="anthropicKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
@@ -393,7 +395,7 @@
           <p class="about-version"><span id="about-page-version"></span></p>
           <p class="about-links">
             <button class="link" data-open="https://bubblefacts.frolic.org/">Website</button>
-            <button class="link" data-open="https://discord.gg/gXdVKc6KWx">Support Questions</button>
+            <button class="link" data-open="https://bubblefacts.frolic.org/support.html">Support Questions</button>
             <button class="link" data-open="https://github.com/frolicchris/bubblefacts/issues">Report an Issue</button>
             <button class="link" data-open="https://bubblefacts.frolic.org/changelog.html">What's New</button>
           </p>
