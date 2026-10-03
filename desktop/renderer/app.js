@@ -537,6 +537,14 @@
   });
   $("#show-logs").addEventListener("click", () => api.showLogs());
   $("#remove-data").addEventListener("click", () => api.removeData());
+  for (const [id, call] of [["backup-save", () => api.saveBackup()], ["backup-restore", () => api.restoreBackup()]]) {
+    $("#" + id).addEventListener("click", async () => {
+      const r = await call();
+      if (r.message) setResult($("#backup-result"), r.message, r.ok ? "ok" : "bad");
+      // A restore changed the settings: show them.
+      if (r.ok && id === "backup-restore") { state = await api.getState(); fillSettings(); setResult($("#backup-result"), r.message, "ok"); }
+    });
+  }
   $("#report-problem").addEventListener("click", () => api.reportProblem());
   $("#report-beta").addEventListener("click", () => api.reportBeta());
 

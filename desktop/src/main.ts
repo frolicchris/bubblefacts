@@ -1,3 +1,4 @@
+import { backupFileName, makeBackup, readBackup } from "./backup";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
@@ -515,6 +516,57 @@ ipcMain.handle("sign-in", async () => {
 ipcMain.handle("cancel-sign-in", () => signingIn?.abort());
 
 /** The first half of uninstalling, without hunting for hidden folders. */
+// --- Backup -----------------------------------------------------------------
+
+const readJson = (name: string): unknown => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(DATA, name), "utf8"));
+  } catch {
+    return null;
+  }
+};
+
+ipcMain.handle("backup-save", async () => {
+  const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
+  const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+  if (canceled || !filePath) return { ok: false, message: "" };
+  const backup = makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json") }, app.getVersion());
+  fs.writeFileSync(filePath, JSON.stringify(backup, null, 2));
+  return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
+});
+
+ipcMain.handle("backup-restore", async () => {
+  const options = { properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
+  const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  if (canceled || !filePaths[0]) return { ok: false, message: "" };
+  let backup;
+  try {
+    backup = readBackup(fs.readFileSync(filePaths[0], "utf8"));
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "That file couldn't be read." };
+  }
+  const when = backup.createdAt ? new Date(backup.createdAt).toLocaleDateString() : "an earlier day";
+  const confirm = {
+    type: "question" as const,
+    buttons: ["Restore", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    message: `Restore the backup from ${when}?`,
+    detail: "This replaces your settings, your facts, your facts for particular songs and the sources you marked Wrong on this computer. Your sign-in stays as it is.",
+  };
+  const { response } = win ? await dialog.showMessageBox(win, confirm) : await dialog.showMessageBox(confirm);
+  if (response !== 0) return { ok: false, message: "" };
+  settings = sanitize({ ...settings, ...backup.settings });
+  saveSettings(settings);
+  if (backup.songFacts) fs.writeFileSync(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
+  if (backup.wrongFacts) fs.writeFileSync(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
+  applyStartAtLogin();
+  // The fact server reads its files at start.
+  startServer(true);
+  send("state", state());
+  return { ok: true, message: "Restored." };
+});
+
 ipcMain.handle("remove-data", async () => {
   const options = {
     type: "warning" as const,
