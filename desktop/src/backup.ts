@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { EDITABLE, fromWindow, Settings } from "./settings";
 
 /**
@@ -62,3 +64,39 @@ export function readBackup(text: string): Backup {
 
 /** "BubbleFacts backup 2026-10-02.json" */
 export const backupFileName = (now = new Date()) => `BubbleFacts backup ${now.toISOString().slice(0, 10)}.json`;
+
+/** Automatic backups kept: about the last few weeks of changes for most streamers. */
+export const AUTO_KEEP = 20;
+const AUTO_NAME = /^auto \d{4}-\d\d-\d\d \d\d-\d\d-\d\d\.json$/;
+/** What a backup holds, without when and by which version: two backups of the same facts compare equal. */
+const contents = (b: Backup) => JSON.stringify([b.settings, b.songFacts, b.wrongFacts]);
+
+/**
+ * Save `backup` in `dir` when it differs from the newest automatic one, and
+ * keep only the last `keep`. Never throws: a backup that can't be written
+ * mustn't stop the app. Returns the file written, or "" when nothing changed.
+ */
+export function autoBackup(dir: string, backup: Backup, keep = AUTO_KEEP): string {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const autos = fs.readdirSync(dir).filter((f) => AUTO_NAME.test(f)).sort();
+    const newest = autos[autos.length - 1];
+    if (newest) {
+      try {
+        if (contents(readBackup(fs.readFileSync(path.join(dir, newest), "utf8"))) === contents(backup)) return "";
+      } catch {
+        // An unreadable newest backup: write a fresh one.
+      }
+    }
+    // Named in the streamer's own time, so "the one from last night" is easy to find.
+    const d = new Date(backup.createdAt);
+    const two = (n: number) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}-${two(d.getMinutes())}-${two(d.getSeconds())}`;
+    const file = path.join(dir, `auto ${stamp}.json`);
+    fs.writeFileSync(file, JSON.stringify(backup, null, 2));
+    for (const old of [...autos, path.basename(file)].sort().slice(0, -keep)) fs.rmSync(path.join(dir, old), { force: true });
+    return file;
+  } catch {
+    return "";
+  }
+}

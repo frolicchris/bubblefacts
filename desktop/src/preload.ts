@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   openNotices: () => ipcRenderer.invoke("open-notices"),
   saveBackup: () => ipcRenderer.invoke("backup-save"),
   restoreBackup: () => ipcRenderer.invoke("backup-restore"),
+  showBackups: () => ipcRenderer.invoke("show-backups"),
   on: (channel: "status" | "state" | "model-progress" | "show-view", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },

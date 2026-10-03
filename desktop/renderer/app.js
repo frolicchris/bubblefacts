@@ -537,6 +537,7 @@
   });
   $("#show-logs").addEventListener("click", () => api.showLogs());
   $("#remove-data").addEventListener("click", () => api.removeData());
+  $("#backup-show").addEventListener("click", () => api.showBackups());
   for (const [id, call] of [["backup-save", () => api.saveBackup()], ["backup-restore", () => api.restoreBackup()]]) {
     $("#" + id).addEventListener("click", async () => {
       const r = await call();

@@ -1,4 +1,4 @@
-import { backupFileName, makeBackup, readBackup } from "./backup";
+import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
@@ -37,6 +37,7 @@ const DIRS = {
   overlay: path.join(DATA, "overlay"),
   logs: path.join(DATA, "logs"),
   facts: path.join(DATA, "facts"),
+  backups: path.join(DATA, "backups"),
 };
 const ALLOWED_HOSTS = [
   "github.com", "streamersonglist.com", "www.streamersonglist.com", "id.streamersonglist.com", "console.groq.com", "platform.claude.com",
@@ -433,7 +434,11 @@ async function setPaused(next: boolean): Promise<void> {
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
-ipcMain.handle("wrong-fact", (_e, text: string) => control("wrong", { text: String(text) }));
+ipcMain.handle("wrong-fact", async (_e, text: string) => {
+  const result = await control("wrong", { text: String(text) });
+  backUpNow();
+  return result;
+});
 ipcMain.handle("get-song-facts", () => control("song-facts/get"));
 // Read from the file, so the list works even before the songs are connected.
 ipcMain.handle("list-song-facts", () => {
@@ -444,8 +449,16 @@ ipcMain.handle("list-song-facts", () => {
     return [];
   }
 });
-ipcMain.handle("save-song-facts", (_e, data: unknown) => control("song-facts", data));
-ipcMain.handle("unwrong-fact", (_e, article: string, song: unknown) => control("unwrong", { article: String(article), song }));
+ipcMain.handle("save-song-facts", async (_e, data: unknown) => {
+  const result = await control("song-facts", data);
+  backUpNow();
+  return result;
+});
+ipcMain.handle("unwrong-fact", async (_e, article: string, song: unknown) => {
+  const result = await control("unwrong", { article: String(article), song });
+  backUpNow();
+  return result;
+});
 ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());
@@ -482,6 +495,7 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   void ensureOllamaModel();
   // A new token or song source always starts over; anything else only if the server would notice.
   startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
+  backUpNow();
   return state();
 });
 
@@ -526,17 +540,21 @@ const readJson = (name: string): unknown => {
   }
 };
 
+const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json") }, app.getVersion());
+/** After anything that changes the streamer's facts or settings: a copy they never have to think about. */
+const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
+
 ipcMain.handle("backup-save", async () => {
   const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
-  const backup = makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json") }, app.getVersion());
-  fs.writeFileSync(filePath, JSON.stringify(backup, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(currentBackup(), null, 2));
   return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
 });
 
 ipcMain.handle("backup-restore", async () => {
-  const options = { properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
+  // Opens where the automatic backups are, so the newest is a click away.
+  const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
   if (canceled || !filePaths[0]) return { ok: false, message: "" };
   let backup;
@@ -556,6 +574,8 @@ ipcMain.handle("backup-restore", async () => {
   };
   const { response } = win ? await dialog.showMessageBox(win, confirm) : await dialog.showMessageBox(confirm);
   if (response !== 0) return { ok: false, message: "" };
+  // What's here now is backed up first, so a restore can itself be undone.
+  backUpNow();
   settings = sanitize({ ...settings, ...backup.settings });
   saveSettings(settings);
   if (backup.songFacts) fs.writeFileSync(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
@@ -575,7 +595,7 @@ ipcMain.handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your custom facts, the facts you added for particular songs, the sources you marked Wrong, and the logs. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list and deletes your settings, the downloaded AI (about 2 GB), your custom facts, the facts you added for particular songs, the sources you marked Wrong, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -586,7 +606,7 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json", "session.json"]) {
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json", "session.json", "backups"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();
@@ -604,6 +624,10 @@ ipcMain.on("start-drag", (e) => e.sender.startDrag({ file: overlayFile(), icon: 
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
 ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
 ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
+ipcMain.handle("show-backups", () => {
+  fs.mkdirSync(DIRS.backups, { recursive: true });
+  return shell.openPath(DIRS.backups);
+});
 // Inside the app's archive other programs can't read it, so a copy goes in the data folder first.
 ipcMain.handle("open-notices", () => {
   const copy = path.join(DATA, "THIRD-PARTY-NOTICES.md");
@@ -725,6 +749,7 @@ app.whenReady().then(async () => {
   void ensureModel();
   void ensureOllamaModel();
   startServer();
+  backUpNow();
   update = await newerRelease(app.getVersion(), app.isPackaged ? (v) => assetName(v) : () => null);
   if (update) send("state", state());
 });

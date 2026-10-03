@@ -1,6 +1,10 @@
+process.env.TZ = "UTC";
 jest.mock("electron", () => ({ app: { getPath: () => "/tmp" }, safeStorage: { isEncryptionAvailable: () => false } }));
 
-import { backupFileName, makeBackup, readBackup } from "./backup";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
 import { DEFAULTS } from "./settings";
 
 const mine = {
@@ -43,5 +47,30 @@ describe("backups", () => {
 
   it("names the file by date", () => {
     expect(backupFileName(new Date("2026-10-02T12:00:00Z"))).toBe("BubbleFacts backup 2026-10-02.json");
+  });
+});
+
+describe("automatic backups", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-backups-"));
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const at = (i: number) => new Date(Date.UTC(2026, 9, 2, 12, 0, i));
+
+  it("saves one when the facts change, and none when nothing did", () => {
+    expect(autoBackup(dir, makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v", at(0)))).toMatch(/auto 2026-10-02 12-00-00\.json$/);
+    expect(autoBackup(dir, makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v", at(1)))).toBe("");
+    const changed = { ...mine, myFacts: [...mine.myFacts, "A new fact."] };
+    expect(autoBackup(dir, makeBackup(changed, { songFacts: [], wrongFacts: {} }, "v", at(2)))).not.toBe("");
+    expect(fs.readdirSync(dir)).toHaveLength(2);
+  });
+
+  it("keeps only the newest ones", () => {
+    for (let i = 10; i < 30; i++) autoBackup(dir, makeBackup({ ...mine, myFacts: [`Fact ${i}.`] }, { songFacts: [], wrongFacts: {} }, "v", at(i)), 5);
+    const left = fs.readdirSync(dir).sort();
+    expect(left).toHaveLength(5);
+    expect(left[4]).toBe("auto 2026-10-02 12-00-29.json");
+  });
+
+  it("never stops the app when it can't write", () => {
+    expect(autoBackup("/dev/null/not-a-folder", makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v"))).toBe("");
   });
 });

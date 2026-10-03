@@ -347,9 +347,10 @@
           <input id="s-port" name="port" type="number" min="1024" max="65535">
           <p class="fine">Your settings and logs are in <code id="s-datadir"></code>.</p>
           <p class="label">Backup</p>
-          <p class="fine">Saves your settings, your facts, your facts for particular songs and the sources you marked Wrong to a file, to keep or move to another computer. Your sign-in and keys stay out of it.</p>
+          <p class="fine">BubbleFacts backs up your settings and facts by itself whenever they change, and keeps the last 20. To move them to another computer, save a copy with <strong>Back up…</strong>. Your sign-in and keys are never in a backup.</p>
           <div class="toolbar">
             <button type="button" class="ghost" id="backup-save">Back up…</button>
+            <button type="button" class="ghost" id="backup-show">Show backups</button>
             <button type="button" class="ghost" id="backup-restore">Restore…</button>
             <span id="backup-result" class="result" role="status"></span>
           </div>
