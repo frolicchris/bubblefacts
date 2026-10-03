@@ -40,3 +40,5 @@ Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
   streamer's or tester's. Don't name the web host or its setup anywhere in the repo.
 - Docs are for streamers first: plain words, numbered steps, no unexplained
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.
+- Send people to GitHub Discussions (Q&A) for help, not Discord, until
+  BubbleFacts has a Discord server of its own.

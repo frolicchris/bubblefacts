@@ -126,7 +126,6 @@ a bug there only shows up in OBS.
 
 Setup questions are welcome in
 [Discussions](https://github.com/frolicchris/bubblefacts/discussions),
-where the answer can help the next person too, or on
-[Discord](https://discord.gg/gXdVKc6KWx) for a quick chat.
+where the answer can help the next person too.
 
 By taking part, you agree to the [code of conduct](CODE_OF_CONDUCT.md).
