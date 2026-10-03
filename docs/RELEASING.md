@@ -10,6 +10,15 @@ system and puts them in a *draft* release with a `SHA256SUMS.txt` file and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
 
+**Update channels.** Every beta and release candidate is published as a GitHub
+pre-release; full releases (`v2.0.0`, `v2.0.1`) are not. That's what the app's
+**Updates** setting reads: **Stable** offers only full releases, **Beta**
+offers the newest of everything. The app also treats any version with a
+hyphen as a prerelease, so a beta published without the box checked still
+doesn't reach Stable. The download page offers the newest full release with
+installers (until 2.0.0, the newest beta), with a "Testing betas?" link when a
+newer beta is out.
+
 Tag a commit that's already on `main`: the workflow refuses any other, so a
 release is always built from code that went through a pull request. The
 workflow's actions are pinned to exact commits; Dependabot proposes updates.

@@ -51,6 +51,8 @@ export interface Settings {
   wrongKey: WrongKey;
   port: number;
   startAtLogin: boolean;
+  /** Which updates the app offers: full releases only, or betas and release candidates too. */
+  updateChannel: "stable" | "beta";
   /** Set automatically when the GPU build of the built-in AI fails on this computer. */
   forceCpu: boolean;
 }
@@ -103,6 +105,7 @@ export const DEFAULTS: Settings = {
   wrongKey: "off",
   port: 3000,
   startAtLogin: false,
+  updateChannel: "stable",
   forceCpu: false,
 };
 
@@ -128,6 +131,9 @@ function decrypt(stored: string): string {
   return stored.startsWith("plain:") ? stored.slice(6) : "";
 }
 
+/** Beta for a copy that is itself a beta or release candidate (whoever downloaded one is testing), otherwise Stable. */
+const firstChannel = (): Settings["updateChannel"] => (app.getVersion().includes("-") ? "beta" : "stable");
+
 /** Saved secrets not read yet (see `loadSettings(false)`). Nothing is saved meanwhile: it would store them blank. */
 let secretsPending = false;
 export const secretsWaiting = () => secretsPending;
@@ -151,7 +157,7 @@ export function loadSettings(readSecrets = true): Settings {
         // Nothing more to do: start from the defaults.
       }
     }
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, updateChannel: firstChannel() };
   }
   const settings: Settings = { ...DEFAULTS };
   const target = settings as unknown as Record<string, unknown>;
@@ -162,6 +168,16 @@ export function loadSettings(readSecrets = true): Settings {
       ? Array.isArray(value) && value.every((v) => typeof v === "string")
       : typeof value === typeof fallback;
     if (ok) target[key] = value;
+  }
+  if (!("updateChannel" in raw)) {
+    // Saved before update channels existed: someone running a beta is a tester and stays on betas.
+    settings.updateChannel = firstChannel();
+    // Written now, so it stays when they update to a full release before saving anything.
+    try {
+      fs.writeFileSync(file(), JSON.stringify({ ...raw, updateChannel: settings.updateChannel }, null, 2), { mode: 0o600 });
+    } catch {
+      // Worked out again next time.
+    }
   }
   // Older versions could save example packs under "topics". The app no
   // longer uses them: the musician's own custom facts are the only ones (the key is dropped on save).
@@ -206,6 +222,7 @@ export function sanitize(s: Settings): Settings {
     intervalSeconds: clamp(s.intervalSeconds, 3, 300, DEFAULTS.intervalSeconds),
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
     wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
+    updateChannel: oneOf(s.updateChannel, ["stable", "beta"] as const, "stable"),
     port: clamp(s.port, 1024, 65525, DEFAULTS.port),
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
@@ -229,6 +246,7 @@ export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
+  "updateChannel",
 ];
 
 /** The window's changes, keeping only editable keys whose values have the right type. */

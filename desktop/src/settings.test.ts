@@ -4,9 +4,10 @@ import path from "path";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-settings-"));
 const keychain = { available: true, broken: false };
+const running = { version: "2.0.0" };
 
 jest.mock("electron", () => ({
-  app: { getPath: () => dir },
+  app: { getPath: () => dir, getVersion: () => running.version },
   safeStorage: {
     isEncryptionAvailable: () => keychain.available,
     encryptString: (s: string) => Buffer.from("x" + s),
@@ -25,6 +26,7 @@ const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clie
 afterEach(() => {
   keychain.available = true;
   keychain.broken = false;
+  running.version = "2.0.0";
   for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -94,6 +96,48 @@ describe("loadSettings", () => {
     fs.writeFileSync(file, "{not json");
     expect(loadSettings()).toEqual(DEFAULTS);
     expect(fs.existsSync(file + ".unreadable")).toBe(true);
+  });
+});
+
+describe("update channel", () => {
+  it("is Stable for a new install of a full release", () => {
+    expect(loadSettings().updateChannel).toBe("stable");
+  });
+
+  it("is Beta for a new install of a beta, whose musician downloaded it to test", () => {
+    running.version = "2.0.0-beta.12";
+    expect(loadSettings().updateChannel).toBe("beta");
+  });
+
+  it("puts testers already on a beta on Beta, and keeps that after they update to a full release", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane" }));
+    running.version = "2.0.0-beta.11";
+    expect(loadSettings()).toMatchObject({ setupComplete: true, channel: "jane", updateChannel: "beta" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ channel: "jane", updateChannel: "beta" });
+    running.version = "2.0.0";
+    expect(loadSettings().updateChannel).toBe("beta");
+  });
+
+  it("puts existing installs of a full release on Stable", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true }));
+    expect(loadSettings().updateChannel).toBe("stable");
+  });
+
+  it("keeps the musician's own choice whatever version runs", () => {
+    saveSettings({ ...DEFAULTS, updateChannel: "stable" });
+    running.version = "2.1.0-beta.1";
+    expect(loadSettings().updateChannel).toBe("stable");
+    saveSettings({ ...DEFAULTS, updateChannel: "beta" });
+    running.version = "2.0.0";
+    expect(loadSettings().updateChannel).toBe("beta");
+  });
+
+  it("takes only Stable or Beta from the window", () => {
+    expect(fromWindow({ updateChannel: "beta" })).toEqual({ updateChannel: "beta" });
+    expect(fromWindow({ updateChannel: 1 })).toEqual({});
+    expect(sanitize({ ...DEFAULTS, updateChannel: "nightly" as "beta" }).updateChannel).toBe("stable");
+    fs.writeFileSync(file, JSON.stringify({ updateChannel: "nightly" }));
+    expect(loadSettings().updateChannel).toBe("stable");
   });
 });
 

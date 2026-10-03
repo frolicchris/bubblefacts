@@ -1,7 +1,8 @@
 /* BubbleFacts website: OS-aware download button, download checker, copy
  * buttons, FAQ links.
  * No tracking. The only outside request is to GitHub's public API, to find
- * the newest release (betas included), its download links and fingerprints.
+ * the newest full release (or, before there is one with installers, the
+ * newest beta), its download links and fingerprints.
  * The download checker hashes files in the browser; files are never uploaded.
  * Without JavaScript the page still works: every download link points at the
  * GitHub Releases page, and the main button jumps to the full list.
@@ -11,7 +12,7 @@
 
   var REPO = "frolicchris/bubblefacts";
   var RELEASES_PAGE = "https://github.com/" + REPO + "/releases";
-  var API = "https://api.github.com/repos/" + REPO + "/releases?per_page=10";
+  var API = "https://api.github.com/repos/" + REPO + "/releases?per_page=30";
   var CACHE_KEY = "sf-releases-v2";
   var CACHE_MS = 10 * 60 * 1000;
 
@@ -135,11 +136,62 @@
     return (list || []).filter(function (r) { return !r.draft; });
   }
 
+  // Compares versions like 2.0.0 and 2.1.0-beta.1 the way the app does (desktop/src/checks.ts).
+  function compareVersions(a, b) {
+    var split = function (v) {
+      var parts = String(v).replace(/^v/, "").split("-");
+      return { core: parts[0].split(".").map(function (n) { return parseInt(n, 10) || 0; }), pre: parts[1] ? parts.slice(1).join("-").split(".") : [] };
+    };
+    var x = split(a), y = split(b), i, d;
+    for (i = 0; i < 3; i++) {
+      d = (x.core[i] || 0) - (y.core[i] || 0);
+      if (d) return d > 0 ? 1 : -1;
+    }
+    if (!x.pre.length || !y.pre.length) return x.pre.length ? -1 : y.pre.length ? 1 : 0;
+    for (i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+      var p = x.pre[i], q = y.pre[i];
+      if (p === undefined) return -1;
+      if (q === undefined) return 1;
+      var np = Number(p), nq = Number(q);
+      d = !isNaN(np) && !isNaN(nq) ? np - nq : p.localeCompare(q);
+      if (d) return d > 0 ? 1 : -1;
+    }
+    return 0;
+  }
+
+  function isPrerelease(r) {
+    return !!r.prerelease || versionOf(r).indexOf("-") !== -1;
+  }
+
+  function hasInstallers(r) {
+    return (r.assets || []).some(function (a) {
+      return Object.keys(BUILDS).concat("linux-appimage").some(function (key) { return PATTERNS[key].test(a.name); });
+    });
+  }
+
+  function newest(list) {
+    return list.slice().sort(function (a, b) { return compareVersions(versionOf(b), versionOf(a)); })[0];
+  }
+
+  // The newest full release with installers. Before there is one (1.0.0 was
+  // command-line only), the newest beta, as before.
   function loadRelease() {
     if (!document.querySelector("[data-asset], [data-release-version], [data-release-link]")) return;
     getReleases().then(function (list) {
-      var newest = publishedReleases(list)[0];
-      if (newest) showRelease(newest);
+      var published = publishedReleases(list).filter(hasInstallers);
+      var stable = newest(published.filter(function (r) { return !isPrerelease(r); }));
+      var beta = newest(published.filter(isPrerelease));
+      var shown = stable || beta;
+      if (!shown) return;
+      showRelease(shown);
+      // Testers find the newest beta when it's ahead of the full release.
+      if (stable && beta && compareVersions(versionOf(beta), versionOf(stable)) > 0) {
+        Array.prototype.forEach.call(document.querySelectorAll("[data-beta-line]"), function (el) {
+          var link = el.querySelector("a");
+          if (link && beta.html_url) link.href = beta.html_url;
+          el.hidden = false;
+        });
+      }
     }).catch(function () { /* links keep pointing at the Releases page */ });
   }
 
