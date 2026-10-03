@@ -27,7 +27,6 @@ export interface Settings {
   seJwt: string;
   displayName: string;
   instrument: string;
-  topics: string[];
   /** "I play my own compositions" and "I do live learns", from setup. */
   originals: boolean;
   liveLearns: boolean;
@@ -71,8 +70,6 @@ export const DEFAULTS: Settings = {
   seJwt: "",
   displayName: "",
   instrument: "",
-  // The example packs are opt-in: without them, a song with no source shows nothing (issue #18).
-  topics: [],
   originals: false,
   liveLearns: true,
   nowPlaying: true,
@@ -150,10 +147,8 @@ export function loadSettings(readSecrets = true): Settings {
       : typeof value === typeof fallback;
     if (ok) target[key] = value;
   }
-  // Before 2.0.0-beta.3 every install started with these example packs checked.
-  // Left unchanged, they're dropped: the examples are opt-in now (issue #18).
-  // Only for settings saved before beta.3 (no songSource yet), so a streamer who checks these later keeps them.
-  if (!("songSource" in raw) && settings.topics.join(",") === OLD_DEFAULT_TOPICS) settings.topics = [];
+  // Older versions could save example packs under "topics". The app no
+  // longer uses them: the musician's own custom facts are the only ones (the key is dropped on save).
   const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
   secretsPending = !readSecrets && SECRET_KEYS.some((key) => saved(key).startsWith("enc:"));
   for (const key of SECRET_KEYS) settings[key] = secretsPending ? "" : decrypt(saved(key));
@@ -175,12 +170,9 @@ export function unlockSecrets(settings: Settings): Settings {
   return sanitize(out);
 }
 
-const OLD_DEFAULT_TOPICS = "video-game,classical,film,pop,general";
-
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.includes(value) ? value : fallback);
-export const TOPICS = ["video-game", "classical", "film", "pop", "piano", "general"];
 
 /** Keep every value in a range the server accepts, so no setting can stop it from starting. */
 export function sanitize(s: Settings): Settings {
@@ -192,7 +184,6 @@ export function sanitize(s: Settings): Settings {
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right"] as const, "anywhere"),
-    topics: s.topics.filter((t) => TOPICS.includes(t)),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
@@ -218,7 +209,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "topics", "originals", "liveLearns", "nowPlaying",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
 ];
@@ -269,7 +260,8 @@ export function toServerEnv(
   paths: { modelPath: string; logDir: string; topicsDir: string; clientId: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
-    // "none", not an empty value: an empty variable can get lost on the way, and a missing one means the example packs.
+    // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
+    // an empty variable can get lost on the way, and a missing one means the example packs.
     TOPIC: topicList(s).join(",") || "none",
     BUBBLEFACTS_TOPICS_DIR: paths.topicsDir,
     ORIGINALS: s.originals ? "on" : "off",
@@ -319,7 +311,7 @@ export const secretsOf = (s: Settings) => SECRET_KEYS.map((k) => s[k]).filter((v
 export const MY_PACK = "my-facts";
 
 export function topicList(s: Settings): string[] {
-  return s.myFacts.length || s.myOriginals.length ? [MY_PACK, ...s.topics] : s.topics;
+  return s.myFacts.length || s.myOriginals.length ? [MY_PACK] : [];
 }
 
 /**
