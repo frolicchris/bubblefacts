@@ -41,6 +41,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
 | `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts when there's no article about the song. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
+| `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
@@ -442,6 +443,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. The app restarts a crashed or stalled server with `BUBBLEFACTS_PAUSED=1`, so it stays paused. |
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts and 5 songwriters). Shows them at once if the song is still on. |
+| `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.

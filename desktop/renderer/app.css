@@ -129,6 +129,17 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .song-facts { margin-top: 12px; display: grid; gap: 6px; }
 .song-facts h3 { margin: 0; font-size: 15px; }
 .song-facts-buttons { margin-top: 10px; }
+/* Song search in "Add facts for another song": a list under Song title. */
+.combo { position: relative; }
+.combo-list {
+  position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 2px); margin: 0; padding: 4px 0; list-style: none;
+  max-height: 280px; overflow-y: auto; background: #0a0c22; border: 1px solid var(--border); border-radius: 6px;
+}
+.combo-list li { padding: 6px 12px; cursor: pointer; }
+.combo-list li:hover { background: #1c2152; }
+.combo-list li[aria-selected="true"] { background: #1c2152; box-shadow: inset 3px 0 0 var(--gold); }
+.combo-list .combo-artist { color: var(--muted); font-size: 13px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .song-facts-buttons:not(:has(button:not([hidden]))) { display: none; }
 .facts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .fact { display: flex; justify-content: space-between; gap: 14px; background: #0e1233; border-left: 3px solid var(--border); padding: 8px 12px; border-radius: 4px; }

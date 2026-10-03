@@ -9,6 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
+import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
 import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
@@ -331,9 +332,9 @@ function songFrom(v: unknown): SSLSong | null {
 const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
   !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
 
-control.post("/song-facts/get", (_req, res) => {
-  const song = lastSent.song;
-  const target = song && songFrom(song);
+// The song on stream now, or the one named (a song picked from the list), matched as a save would match it.
+control.post("/song-facts/get", (req, res) => {
+  const target = songFrom(req.body?.song) ?? (lastSent.song && songFrom(lastSent.song));
   res.json(target ? { song: target, entry: findSongFacts(target) } : { song: null, entry: null });
 });
 
@@ -371,6 +372,9 @@ control.post("/song-facts", async (req, res) => {
   }
   res.json({ saved: true, shown });
 });
+
+// "Add facts for another song": find it on the song list as the musician types.
+control.post("/songs/search", songSearchRoute(songList));
 
 app.use("/control", control);
 

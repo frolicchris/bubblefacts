@@ -1,4 +1,5 @@
 import { SSLQueueItem, SSLSong } from "./types";
+import type { ListSong } from "./song-search";
 
 /**
  * Where the server learns what's playing. StreamerSongList is the default;
@@ -28,4 +29,6 @@ export interface SongSource {
   backingOff?(): boolean;
   /** Why no song is followed although the service says one is playing, or null. Optional. */
   followingProblem?(): string | null;
+  /** Songs on the streamer's list matching what was typed, for the song facts editor. Only sources with a list. */
+  searchSongs?(query: string, limit: number): ListSong[] | null;
 }
