@@ -44,6 +44,24 @@ describe("loadSettings", () => {
     expect(loadSettings()).toMatchObject({ channel: "jane", token: "secret-token", refreshToken: "refresh-1" });
   });
 
+  it("keeps settings a newer version saved, and drops retired ones", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", fromAFutureVersion: "kept", topics: ["general"], settingsVersion: 2 }));
+    saveSettings({ ...loadSettings(), displayName: "Jane Composer" });
+    const disk = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(disk).toMatchObject({ channel: "jane", displayName: "Jane Composer", fromAFutureVersion: "kept", settingsVersion: 2 });
+    expect(disk).not.toHaveProperty("topics");
+  });
+
+  it("loads a settings file from an early 2.0 beta without losing anything it had", () => {
+    // Saved by 2.0.0-beta.3: no song source, no update channel, no newer settings.
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", displayName: "Jane Composer", myFacts: ["I play by ear."], factsPerSong: 4, port: 3000, topics: ["video-game"] }));
+    const s = loadSettings();
+    expect(s).toMatchObject({ setupComplete: true, channel: "jane", displayName: "Jane Composer", myFacts: ["I play by ear."], factsPerSong: 4, songSource: "streamersonglist" });
+    expect(["stable", "beta"]).toContain(s.updateChannel);
+    saveSettings(s);
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).settingsVersion).toBe(1);
+  });
+
   it("keeps the StreamElements token encrypted on disk too", () => {
     saveSettings({ ...DEFAULTS, songSource: "streamelements", seChannel: "janeplays", seJwt: "eyJhbGciOi.secret-jwt" });
     const disk = fs.readFileSync(file, "utf8");

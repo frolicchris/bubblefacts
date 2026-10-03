@@ -6,7 +6,8 @@ For the maintainer. Contributors don't need any of this; see
 **Releases** are made by the maintainer pushing a version tag, such as
 `v2.0.0`. Version tags are protected, so a published release's tag can't be
 moved or deleted. The Release workflow builds every installer on its own
-system and puts them in a *draft* release with a `SHA256SUMS.txt` file and a
+system and puts them in a *draft* release with a `SHA256SUMS.txt` file, a
+software bill of materials (`bubblefacts-sbom.spdx.json`) and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
 
@@ -140,3 +141,18 @@ defined above. Post in Discussions (Announcements) what happened and what to
 do meanwhile; if the in-app update itself is broken, the post links the
 download page. People who want the earlier version can install it over the
 new one (see Troubleshooting).
+
+**Declaring a stable release (2.0.0, and each 2.x after it):** besides the
+go/no-go list above,
+
+- [ ] Every item in "What every 2.x release keeps working"
+      (docs/ARCHITECTURE.md) still holds, checked with a settings file and a
+      backup from the oldest 2.0 beta.
+- [ ] The Electron version is one of the three Electron still supports
+      (https://www.electronjs.org/docs/latest/tutorial/electron-timelines).
+- [ ] Known issues (#36) are current and linked from the release notes.
+- [ ] The release has its software bill of materials.
+
+A full release reaches Beta-channel users at once and Stable-channel users
+three days later, so problems show up with testers first. Plan a 2.0.1
+about a week after 2.0.0 for what they find.

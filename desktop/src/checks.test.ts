@@ -2,9 +2,10 @@ import { compareVersions, newerRelease, testStreamElements } from "./checks";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
-const releases = (...list: Array<[string, boolean?]>) => ({
+const LONG_AGO = "2026-01-01T00:00:00Z";
+const releases = (...list: Array<[string, boolean?, string?]>) => ({
   ok: true,
-  json: async () => list.map(([tag, prerelease = false]) => ({ tag_name: tag, draft: false, prerelease })),
+  json: async () => list.map(([tag, prerelease = false, published_at = LONG_AGO]) => ({ tag_name: tag, draft: false, prerelease, published_at })),
 });
 
 describe("compareVersions", () => {
@@ -24,6 +25,18 @@ describe("compareVersions", () => {
 
 describe("newerRelease", () => {
   afterEach(() => mockFetch.mockReset());
+
+  it("offers a new full release to Beta at once and to Stable three days later", async () => {
+    const out = "2026-11-01T12:00:00Z";
+    const day = 24 * 60 * 60 * 1000;
+    const at = (days: number) => Date.parse(out) + days * day;
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.1", false, out], ["v2.0.0"]));
+    await expect(newerRelease("2.0.0", "beta", () => null, at(0.1))).resolves.toMatchObject({ version: "2.0.1" });
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.1", false, out], ["v2.0.0"]));
+    await expect(newerRelease("2.0.0", "stable", () => null, at(1))).resolves.toBeNull();
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.1", false, out], ["v2.0.0"]));
+    await expect(newerRelease("2.0.0", "stable", () => null, at(3))).resolves.toMatchObject({ version: "2.0.1" });
+  });
   const offered = async (current: string, channel: "stable" | "beta", ...list: Array<[string, boolean?]>) => {
     mockFetch.mockResolvedValueOnce(releases(...list));
     return (await newerRelease(current, channel))?.version ?? null;

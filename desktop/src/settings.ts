@@ -264,9 +264,24 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
   return out as Partial<Settings>;
 }
 
+/** The settings file's format. Raise it when a later version must convert older files. */
+export const SETTINGS_VERSION = 1;
+/** Keys older versions saved that are no longer used, so they aren't carried forward. */
+const RETIRED_KEYS = new Set(["topics"]);
+
 export function saveSettings(settings: Settings): void {
   if (secretsPending) return;
-  const stored: Record<string, unknown> = { ...settings };
+  // Settings a newer version saved are kept, so going back a version and forward again loses nothing.
+  let kept: Record<string, unknown> = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(file(), "utf8")) as Record<string, unknown>;
+    kept = Object.fromEntries(Object.entries(raw).filter(([k]) => !(k in DEFAULTS) && !RETIRED_KEYS.has(k)));
+  } catch {
+    // No file yet, or unreadable: nothing to keep.
+  }
+  // A file a newer version wrote keeps its higher number: it may hold what only that version understands.
+  const version = Math.max(SETTINGS_VERSION, typeof kept.settingsVersion === "number" ? kept.settingsVersion : 0);
+  const stored: Record<string, unknown> = { ...kept, ...settings, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
   fs.mkdirSync(path.dirname(file()), { recursive: true });
   fs.writeFileSync(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });

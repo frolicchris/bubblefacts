@@ -172,6 +172,9 @@ jobs:
       # The manual (command-line) setup: docs/MANUAL-SETUP.md links to this name on the latest release.
       - name: Source zip
         run: git archive --format=zip --prefix=bubblefacts/ -o files/bubblefacts.zip "$GITHUB_REF_NAME"
+      # What the app is built from, in the standard SPDX format: every package it ships (not the dev tools), from the tag's lockfile.
+      - name: Software bill of materials
+        run: npm sbom --sbom-format spdx --omit dev --package-lock-only > files/bubblefacts-sbom.spdx.json
       - name: Checksums
         working-directory: files
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
@@ -179,6 +182,7 @@ jobs:
         with:
           subject-path: |
             files/bubblefacts.zip
+            files/bubblefacts-sbom.spdx.json
             files/SHA256SUMS.txt
       - name: Create a draft release
         env:

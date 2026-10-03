@@ -92,6 +92,9 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+/** How long a full release is out before the Stable channel offers it. */
+export const STABLE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
+
 /** A newer release on GitHub, if there is one. */
 export interface Release {
   version: string;
@@ -110,7 +113,8 @@ export interface Release {
 export async function newerRelease(
   current: string,
   channel: "stable" | "beta",
-  installerFor: (version: string) => string | null = () => null
+  installerFor: (version: string) => string | null = () => null,
+  now = Date.now()
 ): Promise<Release | null> {
   try {
     const res = await fetch("https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=30", {
@@ -122,12 +126,15 @@ export async function newerRelease(
       tag_name: string;
       draft: boolean;
       prerelease: boolean;
+      published_at?: string | null;
       assets?: Array<{ name: string; browser_download_url: string; size: number }>;
     }>;
     // A version with a "-" is a prerelease even if it was published without GitHub's pre-release box checked.
     const isPrerelease = (r: { tag_name: string; prerelease: boolean }) => r.prerelease || r.tag_name.includes("-");
+    // Beta hears about a full release at once; Stable a few days later, once Beta has had it (a staged rollout).
+    const settled = (r: { published_at?: string | null }) => now - Date.parse(r.published_at ?? "") >= STABLE_WAIT_MS;
     const newest = releases
-      .filter((r) => !r.draft && (channel === "beta" || !isPrerelease(r)))
+      .filter((r) => !r.draft && (channel === "beta" || (!isPrerelease(r) && settled(r))))
       .map((r) => r.tag_name.replace(/^v/, ""))
       .sort((a, b) => compareVersions(b, a))[0];
     if (!newest || compareVersions(newest, current) <= 0) return null;
