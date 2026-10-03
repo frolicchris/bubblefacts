@@ -179,9 +179,18 @@ function toFacts(
 
 // --- Prompts -----------------------------------------------------------
 
+/**
+ * The song as the prompt names it. A viewer typed the title, so it can't
+ * close the quotes around it and pass itself off as part of the instructions.
+ */
+function promptWork(song: SSLSong): { game: string; work: string } {
+  const { game: g, track: t } = resolveGameAndTrack(song);
+  const [game, track] = [g, t].map((s) => s.replace(/"/g, "'"));
+  return { game, work: track && track !== game ? `"${track}" from ${game}` : `"${track || game}"` };
+}
+
 function subjectLine(song: SSLSong): { game: string; intro: string } {
-  const { game, track } = resolveGameAndTrack(song);
-  const work = track && track !== game ? `"${track}" from ${game}` : `"${track || game}"`;
+  const { game, work } = promptWork(song);
   // Nothing about the streamer goes in: an online AI gets the song and the article, no more (final QA #7).
   return {
     game,
@@ -198,8 +207,7 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
  * PROMPT_STYLE=rules switches back to the numbered rule list below.
  */
 function crossPrompt(song: SSLSong, context: string, want: number): string {
-  const { game, track } = resolveGameAndTrack(song);
-  const work = track && track !== game ? `"${track}" from ${game}` : `"${track || game}"`;
+  const { game, work } = promptWork(song);
   return `CONTEXT
 A musician is playing ${work} live on a stream right now. Short captions about the song pop up on screen, one at a time, in small bubbles. The readers are the viewers in chat: music fans of every level, not experts.
 
@@ -344,7 +352,8 @@ let builtin: Promise<{ session: any }> | undefined;
 function loadBuiltin(): Promise<{ session: any }> {
   builtin ??= (async () => {
     const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
-    const llama = await getLlama(config.llamaGpu === "off" ? { gpu: false } : undefined);
+    // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
+    const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
     const session = new LlamaChatSession({ contextSequence: context.getSequence() });

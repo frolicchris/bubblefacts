@@ -10,8 +10,14 @@ import { EDITABLE, fromWindow, Settings } from "./settings";
  */
 export const BACKUP_FORMAT = "bubblefacts-backup";
 
-/** Left out: secrets, and the sign-in a backup must not carry to another account. */
-const NOT_BACKED_UP = new Set<keyof Settings>(["token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "setupComplete"]);
+/**
+ * Left out: secrets, the sign-in a backup must not carry to another account,
+ * and which AI writes the facts, so a backup someone shares can't send every
+ * song to their own server.
+ */
+const NOT_BACKED_UP = new Set<keyof Settings>([
+  "token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "setupComplete", "ai", "ollamaUrl", "ollamaModel",
+]);
 const BACKED_UP = EDITABLE.filter((k) => !NOT_BACKED_UP.has(k));
 
 export interface Backup {

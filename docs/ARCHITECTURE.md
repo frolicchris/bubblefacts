@@ -421,6 +421,19 @@ on when **Wrong** was pressed, so **Undo** can't land on the next song.
 browser can't send it without a CORS preflight, which is never approved, so
 it can't press the app's buttons.
 
+The overlay's WebSocket (`/ws`) only accepts an `Origin` of OBS's Local File
+address (`http://absolute`), a page the server served itself, or none (not a
+browser). Any other page, including the overlay opened from `file://` in a
+browser, is refused with a `[WS] Refused a connection` line. The overlay never
+sends anything, so messages over 1 KB close the connection, and at most 16
+overlays can connect.
+
+Request titles, artists and requester names are cleaned once, in
+`SongListClient.toSong` (`cleanRequestText`): one line, at most 200
+characters. In prompts, a title's double quotes become single quotes so it
+can't close the quotes around it. Whatever the source says, `screenClaims`
+drops a caption with a link, a chat command or an `@mention`.
+
 | Route | Used for |
 |---|---|
 | `/control/test` | **Show a test bubble**, even while paused. Returns how many overlays got it. |

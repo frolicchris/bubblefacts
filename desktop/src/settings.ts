@@ -202,7 +202,18 @@ export function sanitize(s: Settings): Settings {
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
     seJwt: s.seJwt.trim(),
+    ollamaUrl: webAddress(s.ollamaUrl) ?? DEFAULTS.ollamaUrl,
   };
+}
+
+/** An http or https address, or null: Ollama is only ever reached over the web's own protocols. */
+function webAddress(s: string): string | null {
+  try {
+    const url = new URL(s.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? s.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */

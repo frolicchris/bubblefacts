@@ -9,7 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
-import { allowedHost } from "./local-only";
+import { allowedHost, allowedOrigin } from "./local-only";
 import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
@@ -23,7 +23,25 @@ const server = http.createServer(app);
 // Only this computer: see local-only.ts.
 const fromHere = (host: string | undefined) => allowedHost(host, config.port, config.host);
 app.use((req, res, next) => (fromHere(req.get("host")) ? next() : res.status(403).end()));
-const wss = new WebSocketServer({ server, path: "/ws", verifyClient: (info: { req: http.IncomingMessage }) => fromHere(info.req.headers.host) });
+/** The overlay never sends anything, so anything big is not the overlay. */
+const MAX_WS_MESSAGE = 1024;
+/** OBS needs one per scene that shows the source; more than this is not OBS. */
+const MAX_CLIENTS = 16;
+const wss = new WebSocketServer({
+  server,
+  path: "/ws",
+  maxPayload: MAX_WS_MESSAGE,
+  verifyClient: ({ req }: { req: http.IncomingMessage }) => {
+    if (!fromHere(req.headers.host)) return false;
+    const refused = !allowedOrigin(req.headers.origin, req.headers.host)
+      ? `from a web page (${String(req.headers.origin).slice(0, 100)})`
+      : clients.size >= MAX_CLIENTS
+        ? `: already ${clients.size} connected`
+        : null;
+    if (refused) console.warn(`[WS] Refused a connection ${refused}`);
+    return !refused;
+  },
+});
 const songList: SongSource = config.songSource === "streamelements" ? new StreamElementsClient() : new SongListClient();
 
 interface Client {

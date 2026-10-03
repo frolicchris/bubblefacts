@@ -3,6 +3,7 @@ import { buildProfile, setListProfile } from "./list-profile";
 import { CentrifugoStream } from "./centrifugo-client";
 import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
+import { cleanRequestText } from "./text";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
@@ -106,7 +107,7 @@ export class SongListClient implements SongSource {
   // --- Song mapping ------------------------------------------------------
 
   static displayTitle(item: SSLQueueItem): string {
-    return item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "Unknown";
+    return cleanRequestText(item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "") || "Unknown";
   }
 
   /** An off-list request: the API sets `nonlistSong` to the typed-in title. */
@@ -116,14 +117,14 @@ export class SongListClient implements SongSource {
 
   static requesterName(item: SSLQueueItem): string | undefined {
     const r = item.requests?.[0];
-    return r?.name || r?.user?.username || undefined;
+    return cleanRequestText(r?.name || r?.user?.username || "") || undefined;
   }
 
   /** The song object broadcast to the overlay. */
   static toSong(item: SSLQueueItem): SSLSong {
     const song: SSLSong = {
       title: SongListClient.displayTitle(item),
-      artist: (SongListClient.isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || "Unknown",
+      artist: cleanRequestText((SongListClient.isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || "") || "Unknown",
     };
     if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
     const by = SongListClient.requesterName(item);

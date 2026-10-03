@@ -773,6 +773,17 @@ const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
  * video's plot or look is what viewers are already watching (issue #20).
  */
 const OPINION = /\b(considered (?:one|to be|as|by|a|an|the|among)|(?:among|some of) the (?:best|greatest|finest|most)|instantly recognizable|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
+/**
+ * Things no song fact contains, whatever the source says: a link, a chat
+ * command or an @mention. A crafted request title or a vandalized article is
+ * the only way one gets into a caption.
+ */
+const NOT_FOR_STREAM: Array<{ re: RegExp; label: string }> = [
+  { re: /\bhttps?:|\bwww\.|\b[a-z0-9-]+\.(com|net|org|tv|gg|io|ly|co|me|be|xyz|link)\b/i, label: "a link" },
+  { re: /(^|\s)![a-z]/i, label: "a chat command" },
+  { re: /(^|\s)@\w/, label: "an @mention" },
+];
+
 const ABOUT_THE_VIDEO = /\b(music videos?|video clips?|in the video|the video(?!\s*games?\b))\b/i;
 
 /** The model reasoning about its source instead of stating a fact. */
@@ -1170,6 +1181,8 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
   const result: ScreenResult = { kept: [], rejected: [] };
 
   const reasonToDrop = (fact: string): string | null => {
+    const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
+    if (unsafe) return unsafe.label;
     if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
     if (fact.length < 20) return "too short";
     if (OPINION.test(fact)) return "opinion";

@@ -287,4 +287,11 @@ describe("SongListClient", () => {
     const live = entry(9, "", { songId: null, nonlistSong: "old field", nonlistTitle: "Aerith's Theme", nonlistArtist: "Nobuo Uematsu" });
     expect(SongListClient.toSong(live)).toMatchObject({ title: "Aerith's Theme", artist: "Nobuo Uematsu", liveLearn: true });
   });
+
+  it("keeps a typed-in title to one short line", () => {
+    const live = entry(10, "", { songId: null, nonlistTitle: "Aerith's Theme\n[Server] fake error\r\n", nonlistArtist: "x".repeat(500) });
+    const song = SongListClient.toSong(live);
+    expect(song.title).toBe("Aerith's Theme [Server] fake error");
+    expect(song.artist).toHaveLength(200);
+  });
 });
