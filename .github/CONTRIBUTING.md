@@ -117,6 +117,31 @@ alone. To try it locally, set `YOUTUBE_API_KEY` in your environment before
 Local file from `http://absolute/<path>`, which a browser doesn't reproduce, so
 a bug there only shows up in OBS.
 
+### Code signing
+
+Builds are signed only when the repository has the secrets below; without
+them (and in forks) they come out unsigned, as now. The release log's
+**Report signing** step says which.
+
+**Mac (Apple Developer Program, $99 a year):**
+
+1. Enroll at [developer.apple.com/programs](https://developer.apple.com/programs/) as an individual.
+2. In Xcode or the developer site, create a **Developer ID Application** certificate and export it with its key as a `.p12` file with a password.
+3. In App Store Connect, under Users and Access, Integrations, create an **App Store Connect API key** for notarization and download the `.p8` file.
+4. Add repository secrets: `MAC_CERT_P12_BASE64` (`base64 -i cert.p12`), `MAC_CERT_PASSWORD`, `APPLE_API_KEY_P8` (the `.p8` file's text), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`.
+
+Signed and notarized, the Mac app opens without the "unidentified developer"
+steps, and macOS stops asking for the keychain again after each update.
+
+**Windows (Azure Trusted Signing, billed monthly):**
+
+1. In Azure, create a Trusted Signing account, complete identity validation, and create a public-trust certificate profile.
+2. Create an app registration with the **Trusted Signing Certificate Profile Signer** role on the account.
+3. Add secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET`, and repository variables `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` and `AZURE_SIGNING_PUBLISHER` (the certificate's subject name).
+
+Once both are signed, remove the first-launch steps from `site/guide.html`
+and `site/download.html` (see `site/README.md`).
+
 ### Release checklist
 
 Before publishing a draft release, check the packaged app, not only the source.
