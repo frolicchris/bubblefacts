@@ -86,3 +86,15 @@ describe("the bubble a hands-free Wrong is for", () => {
     expect(readingSeconds({ text: "Short.", durationSeconds: 8 })).toBe(8);
   });
 });
+
+describe("factOnScreen after a hands-free Wrong", () => {
+  const shownAt = 1_000_000;
+  const f = (text: string, delaySeconds: number) => ({ text, delaySeconds, durationSeconds: 5 }) as never;
+  it("never works back to bubbles that appeared before the last press", () => {
+    const facts = [f("First fact here.", 0), f("Second fact here.", 10)];
+    // The second was marked at 12 s and removed; a repeat press at 30 s finds nothing newer.
+    expect(factOnScreen([facts[0]], shownAt, shownAt + 30_000, shownAt + 12_000)).toBeNull();
+    // A bubble that appears after the press still counts.
+    expect(factOnScreen([...facts, f("Third fact here.", 20)], shownAt, shownAt + 21_000, shownAt + 12_000)?.text).toBe("Third fact here.");
+  });
+});

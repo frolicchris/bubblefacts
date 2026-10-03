@@ -1,5 +1,7 @@
 import { WRONG_KEYS, WrongKey } from "./settings";
 
+export const PRESS_GAP_MS = 1500;
+
 /** The part of Electron's globalShortcut this needs, so it can be tested without Electron. */
 export interface Shortcuts {
   register(accelerator: string, callback: () => void): boolean;
@@ -16,7 +18,17 @@ export class WrongKeyListener {
   /** Why the chosen key couldn't be used, for Settings to say plainly; "" when it's fine or off. */
   problem = "";
 
-  constructor(private shortcuts: Shortcuts, private onPress: () => void) {}
+  private lastPress = 0;
+
+  /** A held key repeats and a pedal can bounce: presses this close together count once. */
+  constructor(private shortcuts: Shortcuts, private onPress: () => void, private now: () => number = Date.now) {}
+
+  private press = (): void => {
+    const t = this.now();
+    if (t - this.lastPress < PRESS_GAP_MS) return;
+    this.lastPress = t;
+    this.onPress();
+  };
 
   /** Listen for `key`, letting go of any other. Returns the problem, if any. */
   use(key: WrongKey): string {
@@ -26,7 +38,7 @@ export class WrongKeyListener {
     if (!accelerator) return "";
     let ok = false;
     try {
-      ok = this.shortcuts.register(accelerator, this.onPress);
+      ok = this.shortcuts.register(accelerator, this.press);
     } catch {
       ok = false;
     }

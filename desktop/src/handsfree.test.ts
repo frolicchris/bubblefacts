@@ -77,3 +77,23 @@ describe("hands-free Wrong, the key", () => {
     expect(listener.use("ctrl-alt-w")).not.toBe("");
   });
 });
+
+describe("hands-free Wrong, a held or bouncing pedal", () => {
+  it("counts presses close together once", () => {
+    const keys = fakeShortcuts();
+    let presses = 0;
+    let t = 10_000;
+    const listener = new WrongKeyListener(keys, () => presses++, () => t);
+    listener.use("f13");
+    const press = [...keys.held.values()][0];
+    press();
+    t += 200;
+    press();
+    t += 1000;
+    press();
+    expect(presses).toBe(1);
+    t += 2000;
+    press();
+    expect(presses).toBe(2);
+  });
+});

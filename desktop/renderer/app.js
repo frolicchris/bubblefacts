@@ -877,7 +877,10 @@
         "not-ready": "This song's facts aren't ready yet, so nothing was marked.",
         "no-facts": "This song has no bubbles, so nothing was marked.",
         "none-shown": "No bubble has shown yet for this song, so nothing was marked.",
+        "already-marked": "The last bubble is already marked, so nothing more was marked.",
       };
+      // Report and Undo belong to a fact that was marked, and this press marked none.
+      state.wrong = null;
       showWrongNote(`Hands-free Wrong: ${why[r.reason] || "BubbleFacts isn't running right now, so nothing was marked."}`, null);
       return;
     }

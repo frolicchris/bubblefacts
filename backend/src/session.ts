@@ -77,12 +77,16 @@ export const JUST_APPEARED_SECONDS = 1.5;
 /**
  * The bubble a hands-free Wrong is for: the one on stream now, or when none
  * is up, the one shown last. Null when none has gone out yet. Delays count
- * from `shownAt`, as in the overlay.
+ * from `shownAt`, as in the overlay. Only bubbles that appeared after `since`
+ * (the last hands-free Wrong) count, so a held, bouncing or repeated pedal
+ * press can't work back through older bubbles nobody objected to.
  */
-export function factOnScreen(facts: Fact[], shownAt: number, now = Date.now()): Fact | null {
+export function factOnScreen(facts: Fact[], shownAt: number, now = Date.now(), since = 0): Fact | null {
   if (!shownAt) return null;
   const elapsed = (now - shownAt) / 1000;
-  const shown = facts.filter((f) => f.delaySeconds <= elapsed).sort((a, b) => a.delaySeconds - b.delaySeconds);
+  const shown = facts
+    .filter((f) => f.delaySeconds <= elapsed && shownAt + f.delaySeconds * 1000 > since)
+    .sort((a, b) => a.delaySeconds - b.delaySeconds);
   const latest = shown[shown.length - 1];
   if (!latest) return null;
   const before = shown[shown.length - 2];
