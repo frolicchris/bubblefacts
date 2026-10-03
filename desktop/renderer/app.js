@@ -613,7 +613,8 @@
     renderTwitchFill();
     // Facts already saved for it open with it, so a save doesn't replace them unseen.
     if (factBoxes().length || $("#sf-writers").value.trim() || $("#sf-link").value.trim()) return;
-    const saved = ((await api.listSongFacts()) || []).find((e) => e.songId === song.id);
+    // Matched the way a save matches: by its ID, or by title and artist for facts saved before it was picked from the list.
+    const saved = ((await api.getSongFacts({ title: song.title, artist: song.artist, songId: song.id })) || {}).entry;
     if (!saved || pickedSong !== song) return;
     $("#sf-writers").value = (saved.songwriters || []).join(", ");
     $("#sf-link").value = saved.link || "";

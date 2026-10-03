@@ -30,5 +30,5 @@ export interface SongSource {
   /** Why no song is followed although the service says one is playing, or null. Optional. */
   followingProblem?(): string | null;
   /** Songs on the streamer's list matching what was typed, for the song facts editor. Only sources with a list. */
-  searchSongs?(query: string, limit: number): ListSong[];
+  searchSongs?(query: string, limit: number): ListSong[] | null;
 }

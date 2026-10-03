@@ -46,17 +46,15 @@ export function searchSongs(songs: readonly ListSong[], query: string, limit = D
 
 /**
  * POST /control/songs/search {query, limit?}. `available` is false when the
- * song source has no list (StreamElements), so the editor just lets the
- * musician type.
+ * song source has no list (StreamElements) or hasn't read it yet, so the
+ * editor just lets the musician type instead of saying nothing matches.
  */
 export function songSearchRoute(source: Pick<SongSource, "searchSongs">) {
   return (req: Request, res: Response): void => {
     const query = typeof req.body?.query === "string" ? req.body.query : "";
     const limit = Number(req.body?.limit) || DEFAULT_SEARCH_LIMIT;
-    if (!source.searchSongs) {
-      res.json({ available: false, songs: [] });
-      return;
-    }
-    res.json({ available: true, songs: source.searchSongs(query, limit) });
+    // No list (StreamElements), or not read yet: the editor just lets the musician type.
+    const songs = source.searchSongs ? source.searchSongs(query, limit) : null;
+    res.json(songs ? { available: true, songs } : { available: false, songs: [] });
   };
 }

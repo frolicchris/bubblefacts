@@ -50,7 +50,8 @@ export class SongListClient implements SongSource {
   /** Set from Retry-After when StreamerSongList says to slow down (429) or is down for maintenance (503). */
   private backoffUntil = 0;
   /** The song list as read at start, for the song facts editor's search. */
-  private listSongs: ListSong[] = [];
+  /** Null until the list has been read. */
+  private listSongs: ListSong[] | null = null;
   private listFailedAt = 0;
   private listReading = false;
 
@@ -235,11 +236,11 @@ export class SongListClient implements SongSource {
     }
   }
 
-  /** Songs on the list matching what was typed. Empty until the list has been read. */
-  searchSongs(query: string, limit: number): ListSong[] {
+  /** Songs on the list matching what was typed; null until the list has been read. */
+  searchSongs(query: string, limit: number): ListSong[] | null {
     // The read at start failed (network not up yet, say): searching is a good moment to try again.
     if (this.listFailedAt && Date.now() - this.listFailedAt > LIST_RETRY_MS && !this.backingOff()) void this.learnListFormat();
-    return searchSongs(this.listSongs, query, limit);
+    return this.listSongs && searchSongs(this.listSongs, query, limit);
   }
 
   /**

@@ -446,7 +446,7 @@ ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown) => {
   backUpNow();
   return result;
 });
-ipcMain.handle("get-song-facts", () => control("song-facts/get"));
+ipcMain.handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // Read from the file, so the list works even before the songs are connected.
 ipcMain.handle("list-song-facts", () => {
   try {

@@ -332,9 +332,9 @@ function songFrom(v: unknown): SSLSong | null {
 const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
   !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
 
-control.post("/song-facts/get", (_req, res) => {
-  const song = lastSent.song;
-  const target = song && songFrom(song);
+// The song on stream now, or the one named (a song picked from the list), matched as a save would match it.
+control.post("/song-facts/get", (req, res) => {
+  const target = songFrom(req.body?.song) ?? (lastSent.song && songFrom(lastSent.song));
   res.json(target ? { song: target, entry: findSongFacts(target) } : { song: null, entry: null });
 });
 

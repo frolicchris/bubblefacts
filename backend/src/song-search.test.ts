@@ -83,4 +83,8 @@ describe("POST /control/songs/search", () => {
   it("says so when the song source has no list (StreamElements)", async () => {
     expect((await post({}, { query: "rain" })).body).toEqual({ available: false, songs: [] });
   });
+
+  it("says the list isn't there yet, rather than that nothing matches, before it's read", async () => {
+    expect((await post({ searchSongs: () => null }, { query: "rain" })).body).toEqual({ available: false, songs: [] });
+  });
 });

@@ -315,7 +315,7 @@ describe("SongListClient", () => {
       jest.spyOn(console, "warn").mockImplementation(() => {});
       mockFetch.mockRejectedValueOnce(new Error("network down"));
       await client.learnListFormat();
-      expect(client.searchSongs("rain", 8)).toEqual([]);
+      expect(client.searchSongs("rain", 8)).toBeNull();
       // Too soon to try again.
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const now = Date.now();
