@@ -16,7 +16,7 @@ the relevant section before changing it.
 | **Structured facts** | Fixed sentences filled in from Wikidata or MusicBrainz data. No AI. |
 | **Song facts** | Facts the streamer wrote for one particular song (**Add facts for this song**). |
 | **Tagged custom facts** | A custom fact starting `[Name]` goes only with the song, artist or game it names (`taggedFactsFor`), first, with the usual facts filling the slots left. It never joins the any-song pool. |
-| **Custom facts** | The streamer's own facts for any song no source knows: their own lines, plus any example topic packs (`topics/`) they turned on. The packs shipped are examples, not maintained content. |
+| **Custom facts** | The streamer's own facts for any song no source knows. In the app, only their own lines; the command-line version can also use the example topic packs (`topics/`), which are examples, not maintained content. |
 | **Entry facts** | Facts built from the queue entry itself: "played 12 times", "requested by X". |
 
 ## The pieces
@@ -182,8 +182,8 @@ a Chopin nocturne is a non-sequitur.
 
 The streamer's own facts (custom facts and song facts) are the only text shown
 without any check, since there's nothing to check them against. That's why
-the project ships topic packs only as examples, off by default in the app,
-and leaves each streamer responsible for their own. (Structured facts need no
+the project ships topic packs only as examples for the command-line version,
+the app doesn't offer them at all, and each streamer is responsible for their own. (Structured facts need no
 screening: they're fixed sentences, and only the data in them varies.)
 
 For the same reason, a short result is never padded. Four facts about the

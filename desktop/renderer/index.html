@@ -213,11 +213,6 @@
         </details>
       </div>
 
-      <div id="nudge" class="notice info" hidden>
-        <span>We couldn't find facts for the last song, so BubbleFacts used an example fact. Add facts about the music you play.</span>
-        <button class="primary" data-view="settings">Add my facts</button>
-      </div>
-
       <details class="help">
         <summary>Help and troubleshooting</summary>
         <div class="toolbar">
@@ -298,7 +293,7 @@
           <legend>Custom facts: facts that may appear during any song</legend>
           <p class="fine">When no source knows a song, BubbleFacts shows a few of these, whatever the song is. So write facts that fit any song. With none, that song gets no bubbles, which is best for request channels. They go on stream exactly as you write them, so only add facts you've checked. For a fact about one song, artist or game, start the line with its name in brackets: it then shows only for that, first. Or use <strong>Add facts for this song</strong> on the dashboard.</p>
           <label for="s-myfacts">Your own facts <span class="hint">one per line</span></label>
-          <textarea id="s-myfacts" rows="5" spellcheck="true" placeholder="I've been playing piano since I was six.&#10;[Song of Storms] It plays in a windmill in Kakariko Village.&#10;[Chopin] Chopin wrote most of his music for solo piano."></textarea>
+          <textarea id="s-myfacts" rows="5" spellcheck="true" placeholder="For example:&#10;I've been playing piano since I was six.&#10;[Song of Storms] It plays in a windmill in Kakariko Village.&#10;[Chopin] Chopin wrote most of his music for solo piano."></textarea>
           <h3 class="subhead">Songs with their own facts</h3>
           <p class="fine" id="s-songfacts-empty">None yet. Click <strong>Add facts for this song</strong> on the dashboard while a song plays, or before a show.</p>
           <ul id="s-songfacts" class="songfacts"></ul>
@@ -334,7 +329,7 @@
           <label class="inline"><input name="startAtLogin" type="checkbox"> Start BubbleFacts when I log in</label>
         </fieldset>
 
-        <p class="fine">Facts are written on this computer by the built-in AI, Meta's Llama 3.2 3B, used under the <button class="link" type="button" data-open-license>Llama 3.2 Community License</button>. Built with Llama. Online AI and the example fact packs are under Advanced.</p>
+        <p class="fine">Facts are written on this computer by the built-in AI, Meta's Llama 3.2 3B, used under the <button class="link" type="button" data-open-license>Llama 3.2 Community License</button>. Built with Llama. Online AI is under Advanced.</p>
 
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
@@ -349,16 +344,6 @@
           <input id="s-groq" name="groqKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
           <label for="s-anthropic">Anthropic key</label>
           <input id="s-anthropic" name="anthropicKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
-          <p class="label">Example fact packs</p>
-          <p class="fine">A few ready-made facts that can show during any song no source knows. They're short, they aren't updated, and they won't know your songs, so your own facts are better.</p>
-          <div class="checks" id="s-topics">
-            <label><input type="checkbox" value="video-game"> Video game music <span class="hint">24 examples</span></label>
-            <label><input type="checkbox" value="classical"> Classical <span class="hint">7 examples</span></label>
-            <label><input type="checkbox" value="film"> Film and TV scores <span class="hint">8 examples</span></label>
-            <label><input type="checkbox" value="pop"> Pop and rock <span class="hint">7 examples</span></label>
-            <label><input type="checkbox" value="piano"> Piano <span class="hint">4 examples</span></label>
-            <label><input type="checkbox" value="general"> General music <span class="hint">6 examples</span></label>
-          </div>
           <label for="s-ollama-url">Ollama address</label>
           <input id="s-ollama-url" name="ollamaUrl" type="text">
           <label for="s-ollama-model">Ollama model</label>
