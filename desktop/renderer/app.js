@@ -325,10 +325,6 @@
     $("#status-detail").textContent = detail;
     $("#pause-toggle").textContent = state.paused ? "Resume bubbles" : "Pause bubbles";
 
-    // Only nudge when the example facts actually stood in for a song. With no
-    // examples checked, showing nothing is the streamer's choice.
-    $("#nudge").hidden = !(h?.facts?.lastOutcome === "noReference" && !state.settings.myFacts.length && state.settings.topics.length);
-
     if (!$("#view-setup").hidden) renderObsCheck();
   }
 
@@ -690,7 +686,6 @@
       else if (el.type === "radio") el.checked = s[el.name] === el.value;
       else el.value = s[el.name] ?? "";
     }
-    for (const box of $$("#s-topics input")) box.checked = s.topics.includes(box.value);
     $("#s-myfacts").value = s.myFacts.join("\n");
     $("#s-myoriginals").value = s.myOriginals.join("\n");
     $("#s-originals-box").hidden = !s.originals;
@@ -704,7 +699,7 @@
     for (const p of $$('#settings-form input[type="password"]')) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
     // Someone already using an online AI or the example packs finds them open.
-    $("#s-advanced").open = s.ai !== "builtin" || s.topics.length > 0;
+    $("#s-advanced").open = s.ai !== "builtin";
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
@@ -755,7 +750,6 @@
       else if (el.type === "number") changes[el.name] = Number(el.value);
       else changes[el.name] = el.value.trim();
     }
-    changes.topics = $$("#s-topics input").filter((b) => b.checked).map((b) => b.value);
     changes.myFacts = lines($("#s-myfacts"));
     changes.myOriginals = lines($("#s-myoriginals"));
     if (changes.token) changes.tokenKind = "streamer";
