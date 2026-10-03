@@ -43,7 +43,9 @@ export interface Settings {
   /** How big the bubbles are on stream. */
   bubbleSize: "standard" | "large" | "larger";
   /** The part of the screen bubbles keep to. */
-  bubbleArea: "anywhere" | "top" | "bottom" | "left" | "right";
+  bubbleArea:
+    | "anywhere" | "top" | "bottom" | "left" | "right"
+    | "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -215,7 +217,7 @@ export function sanitize(s: Settings): Settings {
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
-    bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right"] as const, "anywhere"),
+    bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),

@@ -176,6 +176,11 @@ describe("toServerEnv", () => {
     expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
     expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left" }, paths).BUBBLE_AREA).toBe("left");
     expect(sanitize({ ...DEFAULTS, bubbleArea: "middle" as "left" }).bubbleArea).toBe("anywhere");
+    for (const spot of ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const) {
+      expect(sanitize({ ...DEFAULTS, bubbleArea: spot }).bubbleArea).toBe(spot);
+      expect(toServerEnv({ ...DEFAULTS, bubbleArea: spot }, paths).BUBBLE_AREA).toBe(spot);
+    }
+    expect(sanitize({ ...DEFAULTS, bubbleArea: "center" as "left" }).bubbleArea).toBe("anywhere");
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "file:///etc/passwd" }).ollamaUrl).toBe(DEFAULTS.ollamaUrl);
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "http://studio-pc:11434" }).ollamaUrl).toBe("http://studio-pc:11434");
     expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });

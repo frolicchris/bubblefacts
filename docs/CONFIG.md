@@ -145,7 +145,10 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
 `BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
-`anywhere`) keeps bubbles to one part of the screen. The exact spots are the
+`anywhere`) keeps bubbles to one part of the screen. To put every bubble in
+the same spot, use `top-left`, `top-center`, `top-right`, `bottom-left`,
+`bottom-center` or `bottom-right`: a new bubble replaces the one showing
+there, and `bottom-center` sits just above the Now Playing bubble. The exact spots are the
 lists at the top of `backend/src/fact-generator.ts`. Text size, colors and animation are at the
 top of `frontend/obs/obs-overlay.css`.
 

@@ -79,6 +79,15 @@ html, body {
   transform-origin: bottom center;
 }
 
+/* A spot with no left or right (Top center, Bottom center): centered, whatever the
+   bubble's length. Layout only; transform stays free for the animations. */
+.popup-bubble.centered {
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin: 0 auto;
+}
+
 /* Icon, left side. The overlay script rotates it per bubble. */
 .popup-bubble::before {
   content: var(--bubble-icon, '\266A');
