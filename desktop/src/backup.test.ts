@@ -71,6 +71,9 @@ describe("automatic backups", () => {
   });
 
   it("never stops the app when it can't write", () => {
-    expect(autoBackup("/dev/null/not-a-folder", makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v"))).toBe("");
+    // A folder inside a regular file can't be made on any system.
+    const file = path.join(dir, "a-file");
+    fs.writeFileSync(file, "");
+    expect(autoBackup(path.join(file, "backups"), makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v"))).toBe("");
   });
 });
