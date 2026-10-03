@@ -467,6 +467,23 @@ drops a caption with a link, a chat command or an `@mention`.
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.
 
+### What every 2.x release keeps working
+
+2.0.0 is the first stable release, and from it on these are the app's
+public interface: a change that breaks one waits for 3.0 (SemVer).
+
+- **Settings** (`settings.json`): a version reads any older 2.x file. A
+  setting it doesn't know is kept when it saves, so going back a version and
+  forward again loses nothing. `settingsVersion` records the format.
+- **Facts files:** `song-facts.json`, `wrong-facts.json`, and the custom
+  facts in settings.
+- **Backups:** `formatVersion` 1; a newer format is refused with a plain
+  message, never half-read.
+- **The OBS source:** the overlay file's path in the data folder and the
+  server's address and port, so a scene set up once keeps working.
+- **The update path:** any 2.x, beta or release candidate updates straight to
+  the newest 2.x in the app.
+
 ### Files in the data folder
 
 The server keeps its few files in `BUBBLEFACTS_DATA_DIR` (the app's data
