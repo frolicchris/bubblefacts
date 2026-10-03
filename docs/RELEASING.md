@@ -6,9 +6,19 @@ For the maintainer. Contributors don't need any of this; see
 **Releases** are made by the maintainer pushing a version tag, such as
 `v2.0.0`. Version tags are protected, so a published release's tag can't be
 moved or deleted. The Release workflow builds every installer on its own
-system and puts them in a *draft* release with a `SHA256SUMS.txt` file and a
+system and puts them in a *draft* release with a `SHA256SUMS.txt` file, a
+software bill of materials (`bubblefacts-sbom.spdx.json`) and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
+
+**Update channels.** Every beta and release candidate is published as a GitHub
+pre-release; full releases (`v2.0.0`, `v2.0.1`) are not. That's what the app's
+**Updates** setting reads: **Stable** offers only full releases, **Beta**
+offers the newest of everything. The app also treats any version with a
+hyphen as a prerelease, so a beta published without the box checked still
+doesn't reach Stable. The download page offers the newest full release with
+installers (until 2.0.0, the newest beta), with a "Testing betas?" link when a
+newer beta is out.
 
 Tag a commit that's already on `main`: the workflow refuses any other, so a
 release is always built from code that went through a pull request. The
@@ -73,3 +83,76 @@ The tests can't see what OBS or an installer does.
    a mistake in a file is fixed with a new version, never by replacing it.
 10. Upload the changed `site/` files to the website and check each one against
     `main`.
+
+## Release candidates and the final release
+
+A release candidate (`2.0.0-rc.1`) means "this is 2.0.0 unless testing finds
+a blocker." These rules follow the practice of projects such as Python,
+GNOME, Mozilla and VS Code, sized for one maintainer.
+
+**Freezes, from the last beta (beta.12):**
+
+- **Features:** nothing new. Only fixes, docs and tests.
+- **Screens and wording:** no changes to the app's labels or layout, so the
+  setup guide, screenshots and tester steps stay right.
+- **Dependencies:** no new packages and no major upgrades. A security fix to
+  a dependency is allowed.
+
+**What may change during the release candidates:** only a low-risk fix for a
+release blocker. Anything else waits for 2.0.1. To make an exception, write
+the reason in the pull request.
+
+**Release blockers** carry the `release blocker` label and the 2.0.0
+milestone. A blocker is anything that puts wrong or unsafe words on stream,
+stops bubbles mid-stream, loses a musician's settings or facts, breaks
+setup, sign-in or the in-app update, or a security problem. There must be
+none open to make a release candidate, and none to make the final release.
+
+**Every change during the release candidates** gets a second review (an
+independent code review, plus the maintainer reading the diff) before it
+merges.
+
+**Testing each release candidate:**
+
+1. The release checklist above, on every system.
+2. A hands-on pass on real computers: Mac and Windows by a tester each. Linux
+   relies on the smoke test unless a tester has it; say so in the notes.
+3. Every bug fixed since the last beta, checked again.
+4. The in-app update from the previous version, on Mac and Windows, with
+   settings and facts kept.
+5. At least one tester streams with it, twice, with no new blocker.
+
+**Making the final release:** 2.0.0 is the last release candidate's code with
+only the version number changed. Before tagging it, go or no-go:
+
+- [ ] No open release blockers.
+- [ ] The last release candidate was out at least three days, and testers
+      streamed with it.
+- [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than
+      any `rc` or `beta`).
+- [ ] Release notes, changelog, guide and known issues are current.
+- [ ] Signing is decided: signed, or the first-launch steps are on the
+      download page.
+
+**If 2.0.0 has a serious problem:** releases are immutable and version tags
+are locked, so the way back is forward: fix it on `main` and release 2.0.1
+the same way, as soon as possible. Serious means a release blocker as
+defined above. Post in Discussions (Announcements) what happened and what to
+do meanwhile; if the in-app update itself is broken, the post links the
+download page. People who want the earlier version can install it over the
+new one (see Troubleshooting).
+
+**Declaring a stable release (2.0.0, and each 2.x after it):** besides the
+go/no-go list above,
+
+- [ ] Every item in "What every 2.x release keeps working"
+      (docs/ARCHITECTURE.md) still holds, checked with a settings file and a
+      backup from the oldest 2.0 beta.
+- [ ] The Electron version is one of the three Electron still supports
+      (https://www.electronjs.org/docs/latest/tutorial/electron-timelines).
+- [ ] Known issues (#36) are current and linked from the release notes.
+- [ ] The release has its software bill of materials.
+
+A full release reaches Beta-channel users at once and Stable-channel users
+three days later, so problems show up with testers first. Plan a 2.0.1
+about a week after 2.0.0 for what they find.

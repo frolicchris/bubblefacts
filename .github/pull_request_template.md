@@ -12,5 +12,6 @@
 ## Checklist
 
 - [ ] `npm run check` passes.
+- [ ] Tests cover the change: a bug fix has a test that fails without it; new behavior has tests.
 - [ ] Docs are updated if behavior or settings changed.
 - [ ] I've read and tested any AI-written code in this change.
