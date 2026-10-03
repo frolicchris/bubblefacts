@@ -188,8 +188,13 @@
           <h3>Your facts for <span id="song-facts-title"></span></h3>
           <p class="fine">For songs no source knows, like another music content creator's original. They show exactly as you write them, every time this song plays.</p>
           <div id="sf-identity" hidden>
-            <label for="sf-title">Song title <span class="hint">as it appears on the request</span></label>
-            <input id="sf-title" type="text" placeholder="Evening Rain">
+            <label for="sf-title">Song title <span class="hint" id="sf-title-hint">as it appears on the request</span></label>
+            <!-- Picking from the song list fills both fields exactly as the list has them. -->
+            <div class="combo">
+              <input id="sf-title" type="text" placeholder="Evening Rain" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sf-songs" aria-describedby="sf-title-hint">
+              <ul id="sf-songs" class="combo-list" role="listbox" aria-label="Songs on your list" hidden></ul>
+            </div>
+            <span id="sf-songs-status" class="visually-hidden" role="status"></span>
             <label for="sf-artist">Artist or game <span class="hint">as it appears on the request</span></label>
             <input id="sf-artist" type="text" placeholder="Jane Composer, or Final Fantasy VI">
           </div>
