@@ -110,7 +110,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # The checksums go in the notes too: the website's download checker reads them there.
-          { echo "Download BubbleFacts at https://bubblefacts.frolic.org/download.html"; echo
+          # The draft starts from the release template's sections (New, Improved, Fixed, Thanks),
+          # to be filled in before publishing.
+          { cat .github/release-template.md; echo
             echo "### SHA-256 checksums"; echo '```'; cat files/SHA256SUMS.txt; echo '```'; } > notes.md
           flags="--draft --generate-notes --notes-file notes.md --title ${GITHUB_REF_NAME#v}"
           case "$GITHUB_REF_NAME" in *-*) flags="$flags --prerelease" ;; esac

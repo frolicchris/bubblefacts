@@ -140,8 +140,10 @@ The tests can't see what OBS or an installer does.
 8. Quit from the menu bar or tray. Nothing is left running.
 9. While in beta, add the new version to the top of the version list in
    `.github/ISSUE_TEMPLATE/beta_test.yml` (a test fails until you do).
-   Publish as a pre-release. The release notes say what changed
-   and link the Beta test report form. Releases are immutable once published:
+   Publish as a pre-release. The draft's notes start from
+   `.github/release-template.md`: fill in New, Improved, Fixed and Thanks
+   (the same lines as the website's changelog), delete empty sections and
+   the comments, and keep the checksums. Releases are immutable once published:
    a mistake in a file is fixed with a new version, never by replacing it.
 10. Upload the changed `site/` files to the website and check each one against
     `main`.
