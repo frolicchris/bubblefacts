@@ -563,7 +563,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
   const keep = { facts: [] as Fact[], ttlMs: Infinity };
 
   // Facts the streamer wrote for this very song come first, exactly as written,
-  // with no lookup, even for a live learn: often another streamer's off-list original.
+  // with no lookup, even for a live learn: often another music content creator's off-list original.
   const yours = findSongFacts(song);
   if (yours) {
     const lines = songFactLines(yours, want);
@@ -610,7 +610,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
     let context = "";
     let read = song;
-    // "Jane (@janeplayskeys)": a fellow streamer's piece. No encyclopedia knows it, so nothing is looked up.
+    // "Jane (@janeplayskeys)": another music content creator's piece. No encyclopedia knows it, so nothing is looked up.
     const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1];
     if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): not looked up`);
     if (config.aiProvider !== "none" && config.factVerification && !handle) {

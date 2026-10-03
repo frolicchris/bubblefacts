@@ -42,7 +42,7 @@ function tagNamesStreamer(tag: string, names: string[]): boolean {
 /**
  * The streamer's own song: tagged "Originals" (or "<their name>'s
  * Originals"), or credited to them. A tag naming someone else ("Jane's
- * Originals" on Chris's list) is another streamer's original, played as a
+ * Originals" on Chris's list) is another music content creator's original, played as a
  * cover: it gets no authorship claims.
  */
 export function isOriginal(entry: SSLQueueItem | null, names: string[]): boolean {

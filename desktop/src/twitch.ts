@@ -1,5 +1,5 @@
 /**
- * Connect Twitch (optional): lets BubbleFacts read another streamer's public
+ * Connect Twitch (optional): lets BubbleFacts read another music content creator's public
  * About text, for their originals (issue #47). Twitch's device code sign-in,
  * the flow for apps that can't keep a secret: Twitch's page opens with a short
  * code filled in, which the streamer checks against the app's and authorizes. No scopes: a channel's description is public, and any

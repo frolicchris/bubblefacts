@@ -42,3 +42,5 @@ Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.
 - Send people to GitHub Discussions (Q&A) for help, not Discord, until
   BubbleFacts has a Discord server of its own.
+- Call other streamers "music content creators" (they may stream on Twitch,
+  Kick or elsewhere), not "other streamers".
