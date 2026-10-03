@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   reportProblem: () => ipcRenderer.invoke("report-problem"),
   reportBeta: () => ipcRenderer.invoke("report-beta"),
   reportFact: (song: string, fact: string) => ipcRenderer.invoke("report-fact", song, fact),
-  wrongFact: (fact: string) => ipcRenderer.invoke("wrong-fact", fact),
+  wrongFact: (fact: string, song?: unknown) => ipcRenderer.invoke("wrong-fact", fact, song),
   unwrongFact: (article: string, song: unknown) => ipcRenderer.invoke("unwrong-fact", article, song),
   getSongFacts: () => ipcRenderer.invoke("get-song-facts"),
   saveSongFacts: (data: unknown) => ipcRenderer.invoke("save-song-facts", data),

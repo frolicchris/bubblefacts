@@ -22,6 +22,9 @@ command-line overlay. In particular:
 - **The app's controls.** Buttons such as **Pause bubbles** and **Show a test
   bubble** talk to the server through routes that require a custom header. A
   web page open in your browser can't send it, so it can't press those buttons.
+  The server also turns away any request that doesn't name this computer
+  (`127.0.0.1` or `localhost` on its own port), so a web page can't reach it
+  by pointing its own address at your computer (DNS rebinding).
 - **Reports.** **Report it (opens GitHub)** (after **Wrong**) and **Report a
   problem** open a GitHub issue filled in for you, with your tokens and keys
   removed from the log lines. You read it over before anything is posted.

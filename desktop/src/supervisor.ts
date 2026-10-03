@@ -15,6 +15,8 @@ export type ServerState = "stopped" | "starting" | "running" | "restarting" | "f
 
 export interface Health {
   status: string;
+  /** Whether the server is holding bubbles back (Pause bubbles). */
+  paused?: boolean;
   /** "StreamerSongList" or "StreamElements"; older servers leave it out. */
   songSource?: string;
   currentSong: string | null;
@@ -91,6 +93,11 @@ export class Supervisor extends EventEmitter {
     this.stop();
     this.restartTimes = [];
     this.start(env);
+  }
+
+  /** Settings the running server was told some other way, kept for any later restart. */
+  setEnv(patch: Record<string, string>): void {
+    this.env = { ...this.env, ...patch };
   }
 
   /** Hand the running server a new StreamerSongList token, and use it for any later restart. */

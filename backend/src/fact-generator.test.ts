@@ -32,7 +32,8 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor } from "./fact-generator";
+import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, unmarkWrong } from "./fact-generator";
+import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
@@ -314,5 +315,44 @@ describe("generateFacts", () => {
     expect(fetchGrounding).toHaveBeenCalledTimes(1);
     expect(mockCreate).not.toHaveBeenCalled();
     expect(facts[0].text).toMatch(/First time on stream/);
+  });
+});
+
+describe("Wrong decides what to block from the fact's own label (audit)", () => {
+  it("reads the label: an article, Wikidata and MusicBrainz, or nothing", () => {
+    expect(blockFor("Wikipedia: Chrono Trigger")).toBe("Chrono Trigger");
+    expect(blockFor(SOURCE.wikidata)).toBe(STRUCTURED);
+    expect(blockFor(SOURCE.musicbrainz)).toBe(STRUCTURED);
+    expect(blockFor(SOURCE.custom)).toBeNull();
+    expect(blockFor(SOURCE.yours)).toBeNull();
+    expect(blockFor(undefined)).toBeUndefined();
+  });
+
+  it("blocks the article for a fact from it, even with nothing in memory (after a restart, or after the song)", () => {
+    const song = { title: "Label Song", artist: "Label Game", songId: 4242 };
+    expect(markWrong(song, "A fact.", "Wikipedia: Label Game")).toBe("Label Game");
+    expect(blockedArticles(song).has("Label Game")).toBe(true);
+  });
+
+  it("blocks nothing when the streamer's own fact is wrong", () => {
+    const song = { title: "Own Song", artist: "Own Game" };
+    expect(markWrong(song, "My typo.", SOURCE.custom)).toBeNull();
+    expect(blockedArticles(song).size).toBe(0);
+  });
+
+  it("Undo lifts the block for a list song, found by its ID", () => {
+    const song = { title: "Listed Song", artist: "Listed Game", songId: 777 };
+    markWrong(song, "A fact.", "Wikipedia: Listed Game");
+    unmarkWrong(song, "Listed Game");
+    expect(blockedArticles(song).size).toBe(0);
+  });
+
+  it("blocks a live learn's article under the song it was looked up as too", () => {
+    const request = { title: "Some Artist - Some Song (Official Video)", artist: "Unknown", liveLearn: true };
+    markWrong(request, "A fact.", "Wikipedia: Some Song");
+    const lookup = liveLearnLookup(request)!;
+    expect(blockedArticles(lookup).has("Some Song")).toBe(true);
+    unmarkWrong(request, "Some Song");
+    expect(blockedArticles(lookup).size).toBe(0);
   });
 });

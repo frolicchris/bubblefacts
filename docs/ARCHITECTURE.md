@@ -353,21 +353,26 @@ no screening, and are skipped for a song whose structured facts were marked
 ### Wrong and Undo
 
 ```
-Wrong   → POST /control/wrong {text}
-        → markWrong(): which source made this fact?
-             Wikidata/MusicBrainz fact → blocks STRUCTURED ("Wikidata and MusicBrainz")
-             AI caption                → blocks the song's Wikipedia article title
-             song facts, custom facts  → blocks nothing
+Wrong   → POST /control/wrong {text, song}
+        → the song on now, or one from the earlier list (hands are busy mid-song)
+        → markWrong(): the fact's own source label decides (blockFor)
+             "Wikidata" / "MusicBrainz"   → blocks STRUCTURED ("Wikidata and MusicBrainz")
+             "Wikipedia: <title>"          → blocks that article
+             the streamer's or song list's → blocks nothing
+           a live learn is blocked under the song it was looked up as too
         → blockArticle() saves wrong-facts.json; the song's cached facts are dropped
-        → overlay gets remove_fact, even mid-bubble
-        ← {removed, article, structured}
+        → song on now: overlay gets remove_fact, even mid-bubble; session.json drops it
+        ← {removed, live, article, structured}
 Undo    → POST /control/unwrong {article, song}
         → unmarkWrong() lifts the block; the fact stays off for this play
         ← {restored}
 ```
 
-`wrong-facts.json` maps `songKey` (`artist:::title`, lowercased) to blocked
-article titles and the `STRUCTURED` marker. The app sends the song that was
+`wrong-facts.json` maps `songKey` (`ssl:<id>` for a list song, `yt:<id>` for a
+video, else `artist:::title` lowercased) to blocked article titles and the
+`STRUCTURED` marker. Undo sends the song in full, IDs included, so it lifts
+the same entry. The label is used rather than what's in memory, so Wrong is
+right after a restart and on an earlier song. The app sends the song that was
 on when **Wrong** was pressed, so **Undo** can't land on the next song.
 
 ### Keeping generations in order

@@ -195,3 +195,8 @@ textarea { resize: vertical; line-height: 1.45; }
 .about-page-row[open] > summary { margin-bottom: 8px; }
 .legal-list li { padding: 8px 0 0; margin-top: 8px; }
 .legal-list li p { margin: 2px 0; }
+
+/* Earlier songs: below the song that's on, for marking a wrong fact once hands are free. */
+.earlier { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
+.earlier > summary { cursor: pointer; }
+.earlier .now-song { margin-top: 12px; }
