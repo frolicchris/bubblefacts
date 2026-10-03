@@ -4,9 +4,10 @@ import path from "path";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-settings-"));
 const keychain = { available: true, broken: false };
+const running = { version: "2.0.0" };
 
 jest.mock("electron", () => ({
-  app: { getPath: () => dir },
+  app: { getPath: () => dir, getVersion: () => running.version },
   safeStorage: {
     isEncryptionAvailable: () => keychain.available,
     encryptString: (s: string) => Buffer.from("x" + s),
@@ -25,6 +26,7 @@ const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clie
 afterEach(() => {
   keychain.available = true;
   keychain.broken = false;
+  running.version = "2.0.0";
   for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -68,26 +70,74 @@ describe("loadSettings", () => {
     expect(s).toMatchObject({ setupComplete: true, channel: "jane", tokenKind: "streamer", myFacts: [], liveLearns: true });
   });
 
-  it("drops the example packs every install used to start with, but keeps a streamer's own choice", () => {
-    fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "classical", "film", "pop", "general"] }));
-    expect(loadSettings().topics).toEqual([]);
-    fs.writeFileSync(file, JSON.stringify({ topics: ["video-game", "piano"] }));
-    expect(loadSettings().topics).toEqual(["video-game", "piano"]);
-    // Saved by beta.3 or later (it has songSource): the streamer chose these, so they stay.
-    fs.writeFileSync(file, JSON.stringify({ songSource: "streamersonglist", topics: ["video-game", "classical", "film", "pop", "general"] }));
-    expect(loadSettings().topics).toEqual(["video-game", "classical", "film", "pop", "general"]);
+  it("ignores example packs an older version saved, and keeps the musician's own facts", () => {
+    fs.writeFileSync(file, JSON.stringify({ songSource: "streamersonglist", topics: ["video-game", "piano"], myFacts: ["I've played since I was six."] }));
+    const s = loadSettings();
+    expect(s).not.toHaveProperty("topics");
+    expect(s.myFacts).toEqual(["I've played since I was six."]);
+    expect(toServerEnv(s, paths).TOPIC).toBe("my-facts");
+    saveSettings(s);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(saved).not.toHaveProperty("topics");
+    expect(saved.myFacts).toEqual(["I've played since I was six."]);
+  });
+
+  it("never takes example packs from the window", () => {
+    expect(fromWindow({ topics: ["video-game"], myFacts: ["Mine."] })).toEqual({ myFacts: ["Mine."] });
   });
 
   it("replaces values of the wrong type with the default", () => {
-    fs.writeFileSync(file, JSON.stringify({ channel: 42, topics: "pop", myFacts: [1, 2], port: "3000", liveLearns: false }));
+    fs.writeFileSync(file, JSON.stringify({ channel: 42, myFacts: [1, 2], port: "3000", liveLearns: false }));
     const s = loadSettings();
-    expect(s).toMatchObject({ channel: "", topics: DEFAULTS.topics, myFacts: [], port: 3000, liveLearns: false });
+    expect(s).toMatchObject({ channel: "", myFacts: [], port: 3000, liveLearns: false });
   });
 
   it("keeps an unreadable file aside and starts fresh", () => {
     fs.writeFileSync(file, "{not json");
     expect(loadSettings()).toEqual(DEFAULTS);
     expect(fs.existsSync(file + ".unreadable")).toBe(true);
+  });
+});
+
+describe("update channel", () => {
+  it("is Stable for a new install of a full release", () => {
+    expect(loadSettings().updateChannel).toBe("stable");
+  });
+
+  it("is Beta for a new install of a beta, whose musician downloaded it to test", () => {
+    running.version = "2.0.0-beta.12";
+    expect(loadSettings().updateChannel).toBe("beta");
+  });
+
+  it("puts testers already on a beta on Beta, and keeps that after they update to a full release", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane" }));
+    running.version = "2.0.0-beta.11";
+    expect(loadSettings()).toMatchObject({ setupComplete: true, channel: "jane", updateChannel: "beta" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ channel: "jane", updateChannel: "beta" });
+    running.version = "2.0.0";
+    expect(loadSettings().updateChannel).toBe("beta");
+  });
+
+  it("puts existing installs of a full release on Stable", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true }));
+    expect(loadSettings().updateChannel).toBe("stable");
+  });
+
+  it("keeps the musician's own choice whatever version runs", () => {
+    saveSettings({ ...DEFAULTS, updateChannel: "stable" });
+    running.version = "2.1.0-beta.1";
+    expect(loadSettings().updateChannel).toBe("stable");
+    saveSettings({ ...DEFAULTS, updateChannel: "beta" });
+    running.version = "2.0.0";
+    expect(loadSettings().updateChannel).toBe("beta");
+  });
+
+  it("takes only Stable or Beta from the window", () => {
+    expect(fromWindow({ updateChannel: "beta" })).toEqual({ updateChannel: "beta" });
+    expect(fromWindow({ updateChannel: 1 })).toEqual({});
+    expect(sanitize({ ...DEFAULTS, updateChannel: "nightly" as "beta" }).updateChannel).toBe("stable");
+    fs.writeFileSync(file, JSON.stringify({ updateChannel: "nightly" }));
+    expect(loadSettings().updateChannel).toBe("stable");
   });
 });
 
@@ -114,7 +164,8 @@ describe("toServerEnv", () => {
     expect(fromWindow({ nowPlaying: "no" })).toEqual({});
     const env = toServerEnv({ ...DEFAULTS, originals: true, liveLearns: false, myFacts: ["Mine."] }, paths);
     expect(env).toMatchObject({ ORIGINALS: "on", LIVE_LEARNS: "off", NOW_PLAYING: "on", BUBBLEFACTS_TOPICS_DIR: "/facts", HOST: "127.0.0.1" });
-    expect(env.TOPIC.split(",")[0]).toBe("my-facts");
+    expect(env.TOPIC).toBe("my-facts");
+    expect(toServerEnv({ ...DEFAULTS }, paths).TOPIC).toBe("none");
   });
 
   it("points the built-in AI at the model and honors the processor-only fallback", () => {
@@ -164,9 +215,10 @@ describe("StreamElements", () => {
 });
 
 describe("the musician's own facts", () => {
-  it("adds their pack only when they've written something", () => {
-    expect(topicList({ ...DEFAULTS })).toEqual(DEFAULTS.topics);
-    expect(topicList({ ...DEFAULTS, myOriginals: ["About my song."] })[0]).toBe("my-facts");
+  it("uses only their pack, and only when they've written something", () => {
+    expect(topicList({ ...DEFAULTS })).toEqual([]);
+    expect(topicList({ ...DEFAULTS, myFacts: ["Mine."] })).toEqual(["my-facts"]);
+    expect(topicList({ ...DEFAULTS, myOriginals: ["About my song."] })).toEqual(["my-facts"]);
   });
 
   it("writes a pack the server can read", () => {

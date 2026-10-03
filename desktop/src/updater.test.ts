@@ -111,15 +111,15 @@ describe("newerRelease with an installer", () => {
 
   it("offers the installer for this computer, with the checksum list", async () => {
     mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}a.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`]]));
-    const r = await newerRelease("2.0.0-beta.4", pick);
+    const r = await newerRelease("2.0.0-beta.4", "beta", pick);
     expect(r?.download).toEqual({ name: "BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", url: `${base}a.dmg`, size: 10, sumsUrl: `${base}SHA256SUMS.txt` });
   });
 
   it("falls back to the download page without a checksum list, or for a file from anywhere else", async () => {
     mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}a.dmg`]]));
-    expect((await newerRelease("2.0.0-beta.4", pick))?.download).toBeUndefined();
+    expect((await newerRelease("2.0.0-beta.4", "beta", pick))?.download).toBeUndefined();
     mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", "https://evil.example/a.dmg"], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`]]));
-    const r = await newerRelease("2.0.0-beta.4", pick);
+    const r = await newerRelease("2.0.0-beta.4", "beta", pick);
     expect(r).toMatchObject({ version: "2.0.0-beta.5" });
     expect(r?.download).toBeUndefined();
   });

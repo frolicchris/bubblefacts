@@ -178,7 +178,8 @@
         <h2 id="now-title">On stream now</h2>
         <p id="now-song" class="now-song">Nothing playing yet</p>
         <ul id="now-facts" class="facts"></ul>
-        <p id="wrong-note" class="fine" role="status" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p>
+        <!-- The live region stays in place, so the note is announced when it appears, not only when it changes. -->
+        <div role="status"><p id="wrong-note" class="fine" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p></div>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
         <div class="toolbar song-facts-buttons">
           <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
@@ -188,8 +189,13 @@
           <h3>Your facts for <span id="song-facts-title"></span></h3>
           <p class="fine">For songs no source knows, like another music content creator's original. They show exactly as you write them, every time this song plays.</p>
           <div id="sf-identity" hidden>
-            <label for="sf-title">Song title <span class="hint">as it appears on the request</span></label>
-            <input id="sf-title" type="text" placeholder="Evening Rain">
+            <label for="sf-title">Song title <span class="hint" id="sf-title-hint">as it appears on the request</span></label>
+            <!-- Picking from the song list fills both fields exactly as the list has them. -->
+            <div class="combo">
+              <input id="sf-title" type="text" placeholder="Evening Rain" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sf-songs" aria-describedby="sf-title-hint">
+              <ul id="sf-songs" class="combo-list" role="listbox" aria-label="Songs on your list" hidden></ul>
+            </div>
+            <span id="sf-songs-status" class="visually-hidden" role="status"></span>
             <label for="sf-artist">Artist or game <span class="hint">as it appears on the request</span></label>
             <input id="sf-artist" type="text" placeholder="Jane Composer, or Final Fantasy VI">
           </div>
@@ -211,11 +217,6 @@
           <summary>Earlier songs <span class="hint">mark a wrong fact here once your hands are free</span></summary>
           <div id="earlier-list"></div>
         </details>
-      </div>
-
-      <div id="nudge" class="notice info" hidden>
-        <span>We couldn't find facts for the last song, so BubbleFacts used an example fact. Add facts about the music you play.</span>
-        <button class="primary" data-view="settings">Add my facts</button>
       </div>
 
       <details class="help">
@@ -241,8 +242,8 @@
 
         <fieldset>
           <legend>Your song list</legend>
-          <p class="label">Where do your song requests come from?</p>
-          <div class="checks">
+          <p class="label" id="s-source-label">Where do your song requests come from?</p>
+          <div class="checks" role="radiogroup" aria-labelledby="s-source-label">
             <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
             <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
           </div>
@@ -298,7 +299,7 @@
           <legend>Custom facts: facts that may appear during any song</legend>
           <p class="fine">When no source knows a song, BubbleFacts shows a few of these, whatever the song is. So write facts that fit any song. With none, that song gets no bubbles, which is best for request channels. They go on stream exactly as you write them, so only add facts you've checked. For a fact about one song, artist or game, start the line with its name in brackets: it then shows only for that, first. Or use <strong>Add facts for this song</strong> on the dashboard.</p>
           <label for="s-myfacts">Your own facts <span class="hint">one per line</span></label>
-          <textarea id="s-myfacts" rows="5" spellcheck="true" placeholder="I've been playing piano since I was six.&#10;[Song of Storms] It plays in a windmill in Kakariko Village.&#10;[Chopin] Chopin wrote most of his music for solo piano."></textarea>
+          <textarea id="s-myfacts" rows="5" spellcheck="true" placeholder="For example:&#10;I've been playing piano since I was six.&#10;[Song of Storms] It plays in a windmill in Kakariko Village.&#10;[Chopin] Chopin wrote most of his music for solo piano."></textarea>
           <h3 class="subhead">Songs with their own facts</h3>
           <p class="fine" id="s-songfacts-empty">None yet. Click <strong>Add facts for this song</strong> on the dashboard while a song plays, or before a show.</p>
           <ul id="s-songfacts" class="songfacts"></ul>
@@ -327,19 +328,34 @@
             <label>Each bubble stays up (seconds) <input name="durationSeconds" type="number" min="2" max="120"></label>
           </div>
           <p class="hint" id="s-timing-hint"></p>
+          <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
+          <select id="s-wrongkey" name="wrongKey">
+            <option value="off">Off</option>
+            <option value="ctrl-alt-w" data-mac="Control+Option+W">Ctrl+Alt+W</option>
+            <option value="ctrl-alt-shift-w" data-mac="Control+Option+Shift+W">Ctrl+Alt+Shift+W</option>
+            <option value="f13">F13</option>
+          </select>
+          <p class="fine">Press it during a song and the bubble on stream now comes off as <strong>Wrong</strong>. With none up, it's the last one shown. It works with BubbleFacts in the background, and nothing on stream shows it happened. The dashboard says which fact it was, with <strong>Undo</strong>.</p>
+          <div role="status"><p id="s-wrongkey-problem" class="result bad" hidden></p></div>
         </fieldset>
 
         <fieldset>
           <legend>General</legend>
           <label class="inline"><input name="startAtLogin" type="checkbox"> Start BubbleFacts when I log in</label>
+          <p class="label" id="s-updates-label">Updates</p>
+          <div class="checks" role="radiogroup" aria-labelledby="s-updates-label">
+            <label><input type="radio" name="updateChannel" value="stable"> Stable (recommended)</label>
+            <label><input type="radio" name="updateChannel" value="beta"> Beta: new features first, for testers</label>
+          </div>
+          <p class="hint">Switching to Stable never goes back a version: you get the next full release when it's out.</p>
         </fieldset>
 
-        <p class="fine">Facts are written on this computer by the built-in AI, Meta's Llama 3.2 3B, used under the <button class="link" type="button" data-open-license>Llama 3.2 Community License</button>. Built with Llama. Online AI and the example fact packs are under Advanced.</p>
+        <p class="fine">Facts are written on this computer by the built-in AI, Meta's Llama 3.2 3B, used under the <button class="link" type="button" data-open-license>Llama 3.2 Community License</button>. Built with Llama. Online AI is under Advanced.</p>
 
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
-          <p class="label">Who writes the facts</p>
-          <div class="checks">
+          <p class="label" id="s-ai-label">Who writes the facts</p>
+          <div class="checks" role="radiogroup" aria-labelledby="s-ai-label">
             <label><input type="radio" name="ai" value="builtin"> On this computer (free)</label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
             <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
@@ -349,16 +365,6 @@
           <input id="s-groq" name="groqKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
           <label for="s-anthropic">Anthropic key</label>
           <input id="s-anthropic" name="anthropicKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
-          <p class="label">Example fact packs</p>
-          <p class="fine">A few ready-made facts that can show during any song no source knows. They're short, they aren't updated, and they won't know your songs, so your own facts are better.</p>
-          <div class="checks" id="s-topics">
-            <label><input type="checkbox" value="video-game"> Video game music <span class="hint">24 examples</span></label>
-            <label><input type="checkbox" value="classical"> Classical <span class="hint">7 examples</span></label>
-            <label><input type="checkbox" value="film"> Film and TV scores <span class="hint">8 examples</span></label>
-            <label><input type="checkbox" value="pop"> Pop and rock <span class="hint">7 examples</span></label>
-            <label><input type="checkbox" value="piano"> Piano <span class="hint">4 examples</span></label>
-            <label><input type="checkbox" value="general"> General music <span class="hint">6 examples</span></label>
-          </div>
           <label for="s-ollama-url">Ollama address</label>
           <input id="s-ollama-url" name="ollamaUrl" type="text">
           <label for="s-ollama-model">Ollama model</label>
@@ -375,7 +381,7 @@
             <span id="backup-result" class="result" role="status"></span>
           </div>
           <p class="label">Uninstalling</p>
-          <p class="fine">Before removing the app, this deletes everything BubbleFacts saved on this computer and signs you out of StreamerSongList.</p>
+          <p class="fine">Before removing the app, this deletes everything BubbleFacts saved on this computer, signs you out of your song list and disconnects Twitch.</p>
           <button type="button" class="danger" id="remove-data">Remove my BubbleFacts data</button>
         </details>
 

@@ -16,7 +16,7 @@ the relevant section before changing it.
 | **Structured facts** | Fixed sentences filled in from Wikidata or MusicBrainz data. No AI. |
 | **Song facts** | Facts the streamer wrote for one particular song (**Add facts for this song**). |
 | **Tagged custom facts** | A custom fact starting `[Name]` goes only with the song, artist or game it names (`taggedFactsFor`), first, with the usual facts filling the slots left. It never joins the any-song pool. |
-| **Custom facts** | The streamer's own facts for any song no source knows: their own lines, plus any example topic packs (`topics/`) they turned on. The packs shipped are examples, not maintained content. |
+| **Custom facts** | The streamer's own facts for any song no source knows. In the app, only their own lines; the command-line version can also use the example topic packs (`topics/`), which are examples, not maintained content. |
 | **Entry facts** | Facts built from the queue entry itself: "played 12 times", "requested by X". |
 
 ## The pieces
@@ -41,6 +41,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
 | `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts when there's no article about the song. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
+| `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
@@ -71,6 +72,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
+| `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
 
 ## The life of one song
@@ -182,8 +184,8 @@ a Chopin nocturne is a non-sequitur.
 
 The streamer's own facts (custom facts and song facts) are the only text shown
 without any check, since there's nothing to check them against. That's why
-the project ships topic packs only as examples, off by default in the app,
-and leaves each streamer responsible for their own. (Structured facts need no
+the project ships topic packs only as examples for the command-line version,
+the app doesn't offer them at all, and each streamer is responsible for their own. (Structured facts need no
 screening: they're fixed sentences, and only the data in them varies.)
 
 For the same reason, a short result is never padded. Four facts about the
@@ -390,6 +392,11 @@ Wrong   → POST /control/wrong {text, song}
         → blockArticle() saves wrong-facts.json; the song's cached facts are dropped
         → song on now: overlay gets remove_fact, even mid-bubble; session.json drops it
         ← {removed, live, article, structured}
+Hands-free Wrong (a global key from a foot pedal or Stream Deck)
+        → POST /control/wrong-current {}
+        → factOnScreen(): the bubble up now, else the one shown last for this song
+        → then exactly as Wrong on the song on now
+        ← {removed, live, article, structured, text, song}  or  {removed: false, reason}
 Undo    → POST /control/unwrong {article, song}
         → unmarkWrong() lifts the block; the fact stays off for this play
         ← {restored}
@@ -401,6 +408,18 @@ video, else `artist:::title` lowercased) to blocked article titles and the
 the same entry. The label is used rather than what's in memory, so Wrong is
 right after a restart and on an earlier song. The app sends the song that was
 on when **Wrong** was pressed, so **Undo** can't land on the next song.
+
+**Hands-free Wrong** asks the server, not the overlay, which bubble is up: it
+knows when the facts went out (`factsShownAt`) and each one's delay, and
+`readingSeconds` in `session.ts` mirrors the overlay's (keep them the same).
+Delays count from `factsShownAt`, so a resumed or restarted song works
+unchanged. A press within 1.5 seconds of a new bubble, while the one before
+is still up, means the one before (`JUST_APPEARED_SECONDS`): the musician
+reacted to what they read. Nothing is marked while paused, before any bubble
+has gone out (no overlay connected counts), or for a song with no facts; the
+reason (`paused`, `no-song`, `not-ready`, `no-facts`, `none-shown`) becomes
+the dashboard's note. The test bubble is never in `lastSent`, so it's never
+the one marked.
 
 ### Keeping generations in order
 
@@ -441,7 +460,9 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/test` | **Show a test bubble**, even while paused. A `test_bubble` message, drawn on top of the song that's playing: that song's remaining bubbles, and **Wrong** on them, carry on. Returns how many overlays got it. |
 | `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. The app restarts a crashed or stalled server with `BUBBLEFACTS_PAUSED=1`, so it stays paused. |
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
+| `/control/wrong-current` | **Hands-free Wrong** (above): the bubble on stream now, or the one shown last for this song. |
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts and 5 songwriters). Shows them at once if the song is still on. |
+| `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.
