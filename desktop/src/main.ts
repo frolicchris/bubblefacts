@@ -319,6 +319,23 @@ function createWindow(): void {
   win.loadFile(path.join(ROOT, "desktop/renderer/index.html"));
   win.once("ready-to-show", () => win?.show());
   win.webContents.on("will-navigate", (e) => e.preventDefault());
+  // Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
+  // on Windows and Linux to do it. Steps are a browser's, up to 300%.
+  win.webContents.on("before-input-event", (e, input) => {
+    const mod = process.platform === "darwin" ? input.meta : input.control;
+    if (input.type !== "keyDown" || !mod || input.alt) return;
+    const contents = win?.webContents;
+    if (!contents) return;
+    const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+    const now = contents.getZoomFactor();
+    let next: number | undefined;
+    if (input.key === "=" || input.key === "+") next = steps.find((s) => s > now + 0.001);
+    else if (input.key === "-" || input.key === "_") next = [...steps].reverse().find((s) => s < now - 0.001);
+    else if (input.key === "0") next = 1;
+    else return;
+    e.preventDefault();
+    if (next !== undefined) contents.setZoomFactor(next);
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url);
     return { action: "deny" };
