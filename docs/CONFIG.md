@@ -141,8 +141,8 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | Setting | Default | What it does |
 |---|---|---|
 | `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Songs with short articles may get fewer. |
-| `FACT_INTERVAL_SECONDS` | `15` | Seconds between one bubble and the next. |
-| `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Keep this shorter than the interval so bubbles don't overlap. |
+| `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. |
+| `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
 `BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
 `anywhere`) keeps bubbles to one part of the screen. The exact spots are the

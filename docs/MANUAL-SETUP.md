@@ -292,7 +292,7 @@ STREAMER_DISPLAY_NAME=Jane    # instead of your channel name
 
 ```env
 FACTS_PER_SONG=5
-FACT_INTERVAL_SECONDS=15   # time between bubbles
+FACT_INTERVAL_SECONDS=15   # a new bubble every 15 seconds
 FACT_DURATION_SECONDS=8    # how long each stays up
 ```
 

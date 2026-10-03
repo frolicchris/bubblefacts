@@ -304,9 +304,10 @@
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
           <div class="grid3">
             <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
-            <label>Seconds between bubbles <input name="intervalSeconds" type="number" min="3" max="300"></label>
-            <label>Seconds each stays up <input name="durationSeconds" type="number" min="2" max="120"></label>
+            <label>A new bubble every (seconds) <input name="intervalSeconds" type="number" min="3" max="300"></label>
+            <label>Each bubble stays up (seconds) <input name="durationSeconds" type="number" min="2" max="120"></label>
           </div>
+          <p class="hint" id="s-timing-hint"></p>
         </fieldset>
 
         <fieldset>
@@ -420,7 +421,7 @@
           <summary><h2>Legal</h2></summary>
           <p class="legal-copyright">© 2026 Christopher Feyrer</p>
           <p class="fine">This application comes with absolutely no warranty. See the <button class="link" data-open="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT License</button> for details.</p>
-          <p class="fine">The BubbleFacts name and logo are trademarks of Christopher Feyrer and aren't covered by the license. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, the Wikimedia Foundation, MusicBrainz or Meta.</p>
+          <p class="fine">The BubbleFacts name and logo are trademarks of Christopher Feyrer and aren't covered by the license. BubbleFacts is not affiliated with or endorsed by Twitch, StreamerSongList, StreamElements, OBS, the Wikimedia Foundation, MusicBrainz, Meta or Anthropic.</p>
           <ul class="legal-list">
             <li>
               <h3>Song facts</h3>
