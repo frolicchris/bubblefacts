@@ -1,6 +1,6 @@
 {
   "name": "bubblefacts",
-  "version": "2.0.0-beta.10",
+  "version": "2.0.0-beta.11",
   "description": "Fact bubbles in OBS about the song you're playing, from StreamerSongList or StreamElements requests. Facts come from Wikipedia (rewritten by a local or hosted LLM, screened deterministically), Wikidata and MusicBrainz.",
   "private": true,
   "scripts": {
@@ -61,7 +61,7 @@
   "build": {
     "appId": "org.frolic.bubblefacts",
     "productName": "BubbleFacts",
-    "copyright": "Copyright \u00a9 2026 Christopher Feyrer. MIT License.",
+    "copyright": "Copyright © 2026 Christopher Feyrer. MIT License.",
     "extraMetadata": {
       "name": "bubblefacts"
     },
