@@ -128,7 +128,8 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .fact-evidence { display: block; margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--border); color: var(--muted); font-size: 12px; }
 .song-facts { margin-top: 12px; display: grid; gap: 6px; }
 .song-facts h3 { margin: 0; font-size: 15px; }
-#song-facts-open { margin-top: 10px; }
+.song-facts-buttons { margin-top: 10px; }
+.song-facts-buttons:not(:has(button:not([hidden]))) { display: none; }
 .facts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .fact { display: flex; justify-content: space-between; gap: 14px; background: #0e1233; border-left: 3px solid var(--border); padding: 8px 12px; border-radius: 4px; }
 .wrong { font-size: 13px; white-space: nowrap; align-self: center; padding: 4px 12px; background: transparent; color: var(--text, #fff); border: 1px solid var(--border); }
