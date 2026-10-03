@@ -4,8 +4,8 @@
 
 If you find a security problem, please report it privately using
 [**Report a vulnerability**](https://github.com/frolicchris/bubblefacts/security/advisories/new)
-on the Security tab, not in a public issue. You'll get a reply as soon as
-possible, and credit in the fix if you'd like it.
+on the Security tab, not in a public issue. You'll get a first reply within
+14 days (usually much sooner), and credit in the fix if you'd like it.
 
 ## What's covered
 
