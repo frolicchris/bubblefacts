@@ -1,4 +1,5 @@
 import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
+import { DeviceCode, factsFromAbout, finishDeviceCode, getChannel, refreshTwitch, revokeTwitch, startDeviceCode, TWITCH_CLIENT_ID, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
@@ -123,10 +124,11 @@ function startServer(force = false): void {
 }
 
 function state() {
-  const { token, refreshToken, seJwt, groqKey, anthropicKey, ...rest } = settings;
+  const { token, refreshToken, seJwt, groqKey, anthropicKey, twitchToken, twitchRefreshToken, ...rest } = settings;
   return {
-    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
+    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
+    twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitchConnecting?.userCode ?? "", error: twitchError },
     paused,
     ollama,
     signInExpired,
@@ -498,6 +500,82 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
   backUpNow();
   return state();
+});
+
+// --- Connect Twitch (optional, issue #47) ---------------------------------------
+
+let twitchConnecting: (DeviceCode & { stop: AbortController }) | null = null;
+let twitchError = "";
+
+function saveTwitch(t: TwitchSignIn | null): void {
+  settings = { ...settings, twitchToken: t?.accessToken ?? "", twitchRefreshToken: t?.refreshToken ?? "", twitchTokenExpiresAt: t?.expiresAt ?? 0, twitchLogin: t?.login ?? "" };
+  saveSettings(settings);
+}
+
+ipcMain.handle("twitch-connect", async () => {
+  twitchConnecting?.stop.abort();
+  twitchError = "";
+  try {
+    const code = await startDeviceCode();
+    const mine = { ...code, stop: new AbortController() };
+    twitchConnecting = mine;
+    openExternal(code.verificationUri);
+    void finishDeviceCode(code, mine.stop.signal)
+      .then((t) => saveTwitch(t))
+      .catch((err) => { if (!mine.stop.signal.aborted) twitchError = err instanceof Error ? err.message : String(err); })
+      .finally(() => {
+        if (twitchConnecting === mine) twitchConnecting = null;
+        send("state", state());
+      });
+  } catch (err) {
+    twitchError = err instanceof Error ? err.message : String(err);
+  }
+  return state();
+});
+
+ipcMain.handle("twitch-disconnect", () => {
+  twitchConnecting?.stop.abort();
+  twitchConnecting = null;
+  twitchError = "";
+  void revokeTwitch(settings.twitchToken);
+  saveTwitch(null);
+  return state();
+});
+
+/** A live access token, renewed when it's close to running out. Throws when the streamer must connect again. */
+async function twitchToken(): Promise<string> {
+  if (!settings.twitchRefreshToken) throw new TwitchSignInExpired("Connect Twitch in Settings first.");
+  if (settings.twitchTokenExpiresAt - Date.now() > 60_000) return settings.twitchToken;
+  try {
+    const t = await refreshTwitch(settings.twitchRefreshToken);
+    saveTwitch({ ...t, login: t.login || settings.twitchLogin });
+    return t.accessToken;
+  } catch (err) {
+    if (err instanceof TwitchSignInExpired) saveTwitch(null);
+    throw err;
+  }
+}
+
+/** Their Twitch About, as fact boxes for the streamer to review in the song facts editor. */
+ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
+  const login = twitchLoginFrom(String(artist ?? ""), String(link ?? ""));
+  if (!login) return { ok: false, message: "Put their Twitch link in \"Their link\" first, like twitch.tv/theirname." };
+  try {
+    const channel = await getChannel(login, await twitchToken());
+    if (!channel) return { ok: false, message: `There's no Twitch channel called ${login}.` };
+    const facts = factsFromAbout(channel.description);
+    return {
+      ok: true,
+      login: channel.login,
+      displayName: channel.displayName,
+      link: `twitch.tv/${channel.login}`,
+      facts,
+      message: facts.length ? "Added from their Twitch About. Check it before you save." : `${channel.displayName}'s Twitch About is empty. Their link is filled in.`,
+    };
+  } catch (err) {
+    send("state", state());
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
 });
 
 ipcMain.handle("sign-in", async () => {

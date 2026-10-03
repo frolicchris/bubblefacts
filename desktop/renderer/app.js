@@ -444,6 +444,7 @@
     $("#sf-writers").value = (e.songwriters || []).join(", ");
     $("#sf-link").value = e.link || "";
     setFactBoxes(e.facts || []);
+    renderTwitchFill();
     $("#song-facts-result").textContent = "";
     $("#song-facts-form").hidden = false;
     $("#song-facts-open").hidden = true;
@@ -468,6 +469,32 @@
   }
   const factBoxes = () => $$("#sf-facts textarea").map((b) => b.value.replace(/\s+/g, " ").trim()).filter(Boolean);
   $("#sf-add").addEventListener("click", () => addFactBox().focus());
+  /** Fill from their Twitch About: offered when the artist or link names a Twitch channel. */
+  const sfArtist = () => (songFactsTarget ? songFactsTarget.artist || "" : $("#sf-artist").value);
+  const looksLikeTwitch = () => /@[A-Za-z0-9_]{4,25}\)?\s*$/.test(sfArtist().trim()) || /twitch\.tv\/[A-Za-z0-9_]{4,25}/i.test($("#sf-link").value);
+  function renderTwitchFill() {
+    $("#sf-twitch-row").hidden = !(state.twitch && state.twitch.available) || !looksLikeTwitch();
+    $("#sf-twitch-result").textContent = "";
+  }
+  for (const id of ["#sf-link", "#sf-artist"]) $(id).addEventListener("input", renderTwitchFill);
+  $("#sf-twitch").addEventListener("click", async () => {
+    if (!state.settings.twitchConnected) {
+      setResult($("#sf-twitch-result"), "Connect Twitch in Settings, under You and your music, first.", "bad");
+      return;
+    }
+    setResult($("#sf-twitch-result"), "Asking Twitch…", "");
+    const r = await api.twitchAbout(sfArtist(), $("#sf-link").value);
+    if (r.ok) {
+      if (!$("#sf-link").value.trim()) $("#sf-link").value = r.link;
+      const boxes = $$("#sf-facts textarea");
+      const blank = boxes.find((b) => !b.value.trim());
+      for (const f of r.facts) {
+        const box = addFactBox(f);
+        if (blank) $("#sf-facts").insertBefore(box, blank);
+      }
+    }
+    setResult($("#sf-twitch-result"), r.message, r.ok ? "ok" : "bad");
+  });
   /** Switch the editor between the song that's on and one the streamer names. */
   function otherSong(on) {
     $("#sf-identity").hidden = !on;
@@ -636,8 +663,31 @@
     $("#s-advanced").open = s.ai !== "builtin" || s.topics.length > 0;
     renderSongFactsList();
     renderTimingHint();
+    renderTwitch();
     setResult($("#settings-result"), "");
   }
+
+  /** Connect Twitch: not connected, waiting for the code to be approved, or connected. */
+  function renderTwitch() {
+    const t = state.twitch || {};
+    $("#twitch-box").hidden = !t.available;
+    const twitchOn = state.settings.twitchConnected;
+    $("#twitch-connect").hidden = twitchOn;
+    $("#twitch-disconnect").hidden = !twitchOn;
+    $("#twitch-connect").textContent = t.userCode ? "Get a new code" : "Connect Twitch";
+    const status = $("#twitch-status");
+    if (twitchOn) setResult(status, `✓ Connected${state.settings.twitchLogin ? " as " + state.settings.twitchLogin : ""}.`, "ok");
+    else if (t.userCode) setResult(status, `Enter ${t.userCode} on the Twitch page that just opened (twitch.tv/activate).`, "");
+    else setResult(status, t.error || "", t.error ? "bad" : "");
+  }
+  $("#twitch-connect").addEventListener("click", async () => {
+    state = await api.twitchConnect();
+    renderTwitch();
+  });
+  $("#twitch-disconnect").addEventListener("click", async () => {
+    state = await api.twitchDisconnect();
+    renderTwitch();
+  });
 
   // Counted from one bubble's start to the next, not the gap between them: say what the two numbers make.
   function renderTimingHint() {
@@ -766,6 +816,7 @@
   api.on("show-view", (view) => show(view));
   api.on("state", (s) => {
     state = s;
+    if (!$("#view-settings").hidden) renderTwitch();
     $("#unlocking").hidden = !s.unlocking;
     renderNotices();
     renderStatus(s.status);

@@ -14,6 +14,8 @@ const mine = {
   seJwt: "secret-jwt-456",
   groqKey: "gsk_secret",
   anthropicKey: "sk-ant-secret",
+  twitchToken: "twitch-secret-at",
+  twitchRefreshToken: "twitch-secret-rt",
   myFacts: ["[Song of Storms] It plays in a windmill."],
   myOriginals: ["Written during a snowstorm."],
   displayName: "Jane Composer",
@@ -24,7 +26,7 @@ describe("backups", () => {
   it("keep the streamer's settings and facts, and never a sign-in or key", () => {
     const b = makeBackup(mine, { songFacts: [{ title: "A" }], wrongFacts: { k: ["x"] } }, "2.0.0-beta.9", new Date("2026-10-02T12:00:00Z"));
     const text = JSON.stringify(b);
-    for (const secret of ["secret-token-123", "secret-jwt-456", "gsk_secret", "sk-ant-secret", "\"jane\""]) expect(text).not.toContain(secret);
+    for (const secret of ["secret-token-123", "secret-jwt-456", "gsk_secret", "sk-ant-secret", "twitch-secret-at", "twitch-secret-rt", "\"jane\""]) expect(text).not.toContain(secret);
     expect(b.settings).toMatchObject({ myFacts: mine.myFacts, myOriginals: mine.myOriginals, displayName: "Jane Composer", bubbleArea: "bottom" });
     expect(b.songFacts).toEqual([{ title: "A" }]);
     expect(b.createdAt).toBe("2026-10-02T12:00:00.000Z");
