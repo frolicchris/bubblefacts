@@ -26,16 +26,22 @@ describe("compareVersions", () => {
 describe("newerRelease", () => {
   afterEach(() => mockFetch.mockReset());
 
-  it("offers a new full release to Beta at once and to Stable three days later", async () => {
+  it("offers a maintenance release to Stable at once: it carries only fixes", async () => {
+    const out = "2026-11-10T12:00:00Z";
+    mockFetch.mockResolvedValueOnce(releases(["v2.0.2", false, out], ["v2.0.1"], ["v2.0.0"]));
+    await expect(newerRelease("2.0.1", "stable", () => null, Date.parse(out) + 60_000)).resolves.toMatchObject({ version: "2.0.2" });
+  });
+
+  it("offers a new feature release to Beta at once and to Stable three days later", async () => {
     const out = "2026-11-01T12:00:00Z";
     const day = 24 * 60 * 60 * 1000;
     const at = (days: number) => Date.parse(out) + days * day;
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.1", false, out], ["v2.0.0"]));
-    await expect(newerRelease("2.0.0", "beta", () => null, at(0.1))).resolves.toMatchObject({ version: "2.0.1" });
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.1", false, out], ["v2.0.0"]));
+    mockFetch.mockResolvedValueOnce(releases(["v2.1.0", false, out], ["v2.0.0"]));
+    await expect(newerRelease("2.0.0", "beta", () => null, at(0.1))).resolves.toMatchObject({ version: "2.1.0" });
+    mockFetch.mockResolvedValueOnce(releases(["v2.1.0", false, out], ["v2.0.0"]));
     await expect(newerRelease("2.0.0", "stable", () => null, at(1))).resolves.toBeNull();
-    mockFetch.mockResolvedValueOnce(releases(["v2.0.1", false, out], ["v2.0.0"]));
-    await expect(newerRelease("2.0.0", "stable", () => null, at(3))).resolves.toMatchObject({ version: "2.0.1" });
+    mockFetch.mockResolvedValueOnce(releases(["v2.1.0", false, out], ["v2.0.0"]));
+    await expect(newerRelease("2.0.0", "stable", () => null, at(3))).resolves.toMatchObject({ version: "2.1.0" });
   });
   const offered = async (current: string, channel: "stable" | "beta", ...list: Array<[string, boolean?]>) => {
     mockFetch.mockResolvedValueOnce(releases(...list));
