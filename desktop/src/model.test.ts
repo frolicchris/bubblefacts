@@ -2,7 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
+import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 
 // A small stand-in for the 2 GB file.
 const data = crypto.randomBytes(300_000);
@@ -48,7 +48,7 @@ describe("downloadModel", () => {
     const bad = Buffer.from(data);
     bad[5] ^= 0xff;
     mockFetch.mockResolvedValueOnce(serve(bad));
-    await expect(downloadModel(dir, () => {}, new AbortController().signal)).rejects.toThrow(/checksum/);
+    await expect(downloadModel(dir, () => {}, new AbortController().signal)).rejects.toThrow(ChecksumMismatch);
     expect(fs.existsSync(modelPath(dir) + ".part")).toBe(false);
     expect(modelReady(dir)).toBe(false);
   });

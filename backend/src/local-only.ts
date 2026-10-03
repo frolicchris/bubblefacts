@@ -13,3 +13,24 @@ export function allowedHost(hostHeader: string | undefined, port: number, bindHo
   const m = /^(\[[^\]]+\]|[^:]+)(?::(\d+))?$/.exec(hostHeader.trim().toLowerCase());
   return !!m && LOOPBACK.has(m[1]) && Number(m[2] ?? 80) === port;
 }
+
+/**
+ * The live feed is for OBS. A web page open in the musician's browser can't
+ * fake the Host header, but it can open a WebSocket to this computer, and the
+ * browser then sends that page's own address as Origin. Allowed: OBS's Local
+ * File address, a page this server served itself (the Browser source URL in
+ * the manual setup), and programs other than browsers, which send no Origin.
+ */
+export const OBS_LOCAL_FILE = "http://absolute";
+
+export function allowedOrigin(origin: string | undefined, hostHeader: string | undefined): boolean {
+  if (origin === undefined) return true;
+  const o = origin.trim().toLowerCase();
+  if (o === OBS_LOCAL_FILE) return true;
+  try {
+    const url = new URL(o);
+    return (url.protocol === "http:" || url.protocol === "https:") && !!hostHeader && url.host === hostHeader.trim().toLowerCase();
+  } catch {
+    return false;
+  }
+}

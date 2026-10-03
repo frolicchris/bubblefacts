@@ -12,7 +12,7 @@ import path from "path";
  */
 export const MODEL = {
   file: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-  url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+  url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/5ab33fa94d1d04e903623ae72c95d1696f09f9e8/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
   bytes: 2_019_377_696,
   sha256: "6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff",
   license: "https://www.llama.com/llama3_2/license/",
@@ -22,6 +22,16 @@ export interface Progress {
   received: number;
   total: number;
   phase: "downloading" | "checking" | "done";
+}
+
+/**
+ * The download wasn't the file this version expects. Downloading it again
+ * would most likely fetch the same wrong 2 GB, so it isn't retried on its own.
+ */
+export class ChecksumMismatch extends Error {
+  constructor() {
+    super("the file didn't match the one BubbleFacts expects, so it was deleted. Click Try again, or choose the free online option in Settings");
+  }
 }
 
 export const modelPath = (dir: string) => path.join(dir, MODEL.file);
@@ -103,7 +113,7 @@ export async function downloadModel(dir: string, onProgress: (p: Progress) => vo
   onProgress({ received: MODEL.bytes, total: MODEL.bytes, phase: "checking" });
   if ((await sha256(part)) !== MODEL.sha256) {
     fs.unlinkSync(part);
-    throw new Error("The downloaded file didn't match its checksum and was deleted. Please try again.");
+    throw new ChecksumMismatch();
   }
   fs.renameSync(part, modelPath(dir));
   onProgress({ received: MODEL.bytes, total: MODEL.bytes, phase: "done" });

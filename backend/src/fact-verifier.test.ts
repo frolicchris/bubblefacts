@@ -100,6 +100,23 @@ describe("splitGameAndTrack", () => {
 describe("screenClaims", () => {
   const NO_CONTEXT = "";
 
+  it("never puts a link, a chat command or an @mention on stream, even from the source", () => {
+    const context = "Visit evil.example.com or www.example.org. Type !raid now. Follow @someone today.";
+    const { kept, rejected } = screenClaims([
+      "Fans can visit evil.example.com to hear the original recording today.",
+      "The song's website is www.example.org and it has the full lyrics.",
+      "Viewers should type !raid in chat to celebrate this classic song.",
+      "Follow @someone for more trivia about this song and its composer.",
+    ], context);
+    expect(kept).toEqual([]);
+    expect(rejected.map((r) => r.reason)).toEqual(["a link", "a link", "a chat command", "an @mention"]);
+  });
+
+  it("keeps names that only look like links or commands", () => {
+    const { kept } = screenClaims(["P!nk recorded a cover of the song in 2017 for a charity album."], "P!nk recorded a cover of the song in 2017.");
+    expect(kept).toHaveLength(1);
+  });
+
   it("drops fabricated award claims", () => {
     // A real failure: the model invented a Tokyo Game Award.
     const r = screenClaims(

@@ -70,6 +70,12 @@
       "buildResources": "desktop/build"
     },
     "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "resetAdHocDarwinSignature": true
+    },
     "files": [
       "package.json",
       "LICENSE",

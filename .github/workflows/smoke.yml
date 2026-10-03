@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  MODEL_URL: https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+  MODEL_URL: https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/5ab33fa94d1d04e903623ae72c95d1696f09f9e8/Llama-3.2-3B-Instruct-Q4_K_M.gguf
   MODEL_SHA256: 6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff
 
 jobs:
@@ -106,6 +106,18 @@ jobs:
           echo "APP_EXE=$HOME/Applications/BubbleFacts.app/Contents/MacOS/BubbleFacts" >> "$GITHUB_ENV"
           echo "APP_RESOURCES=$HOME/Applications/BubbleFacts.app/Contents/Resources" >> "$GITHUB_ENV"
 
+      - name: Let the test run the app as Node.js
+        # The app as shipped refuses to (electronFuses in package.json), so another
+        # program can't borrow it to read the musician's saved keys. This copy is only for the test.
+        shell: bash
+        run: |
+          app="$APP_EXE"; [ "$RUNNER_OS" = macOS ] && app="$HOME/Applications/BubbleFacts.app"
+          fuses() { if [ "$RUNNER_OS" = Linux ]; then sudo env "PATH=$PATH" npx --yes @electron/fuses@1.8.0 "$@"; else npx --yes @electron/fuses@1.8.0 "$@"; fi; }
+          fuses read --app "$app" | tee fuses.txt
+          grep -q "RunAsNode is Disabled" fuses.txt || { echo "The shipped app still runs as Node.js"; exit 1; }
+          fuses write --app "$app" RunAsNode=on
+          if [ "$RUNNER_OS" = macOS ]; then codesign --force --deep --sign - "$app"; fi
+
       - name: Describe the processor
         shell: bash
         run: |
@@ -146,7 +158,7 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/plain/res "$GITHUB_WORKSPACE/model.gguf" 2>&1 | tail -40
           echo "exit status ${PIPESTATUS[0]}"
           echo "--- the installed app's own server under plain Node.js (is it Electron's runtime?)"
-          cd /tmp && npx --yes @electron/asar extract "$APP_RESOURCES/app.asar" /tmp/extracted >/dev/null
+          cd /tmp && npx --yes @electron/asar@3.4.1 extract "$APP_RESOURCES/app.asar" /tmp/extracted >/dev/null
           cp -R "$APP_RESOURCES/app.asar.unpacked/." /tmp/extracted/
           mkdir -p /tmp/plainres/app.asar && cp -R /tmp/extracted/. /tmp/plainres/app.asar/
           SMOKE_RUNTIME=node node "$GITHUB_WORKSPACE/scripts/smoke-packaged.mjs" /tmp/plainres "$GITHUB_WORKSPACE/model.gguf" 2>&1 | grep -E "PASS|FAIL|WARN|signal" | head -10

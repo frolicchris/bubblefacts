@@ -25,6 +25,21 @@ command-line overlay. In particular:
   The server also turns away any request that doesn't name this computer
   (`127.0.0.1` or `localhost` on its own port), so a web page can't reach it
   by pointing its own address at your computer (DNS rebinding).
+- **The overlay's live feed.** Only OBS (or a page the server served itself)
+  can connect to it. A connection from any other web page is refused and
+  logged, as is anything sent to it larger than 1 KB.
+- **The built-in AI.** The app downloads one exact file, pinned to a fixed
+  version on Hugging Face, and uses it only if its SHA-256 matches the one in
+  the app. A file that doesn't match is deleted and isn't downloaded again on
+  its own. The AI has no tools, no network access and no file access: it only
+  writes captions, which are then checked against the song's source. A
+  caption with a link, a chat command (`!something`) or an `@mention` never
+  reaches the stream, whatever a request's title or an article says.
+- **Restoring a backup** never changes your sign-in, keys or which AI writes
+  the facts, so a backup someone shares can't send your songs to their server.
+- **The app itself** refuses to be run as a plain Node.js program, or with
+  Node.js debugging or `NODE_OPTIONS`, so another program can't use it to
+  read your saved keys.
 - **Reports.** **Report it (opens GitHub)** (after **Wrong**) and **Report a
   problem** open a GitHub issue filled in for you, with your tokens and keys
   removed from the log lines. You read it over before anything is posted.

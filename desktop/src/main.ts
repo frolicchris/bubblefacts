@@ -7,7 +7,7 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { newerRelease, Release, testSongList, testStreamElements } from "./checks";
 import { assetName, downloadUpdate, startInstall } from "./updater";
-import { downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
+import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
 import {
@@ -199,7 +199,7 @@ async function ensureModel(): Promise<void> {
     const reason = err instanceof Error ? err.message : String(err);
     modelDownload = { ...(modelDownload ?? { received: 0, total: MODEL.bytes, phase: "downloading" }), error: reason };
     send("model-progress", modelDownload);
-    downloadRetry = setTimeout(() => void ensureModel(), wait);
+    if (!(err instanceof ChecksumMismatch)) downloadRetry = setTimeout(() => void ensureModel(), wait);
   } finally {
     const stopped = download?.signal.aborted;
     download = null;
@@ -622,7 +622,7 @@ ipcMain.handle("backup-restore", async () => {
     defaultId: 1,
     cancelId: 1,
     message: `Restore the backup from ${when}?`,
-    detail: "This replaces your settings, your facts, your facts for particular songs and the sources you marked Wrong on this computer. Your sign-in stays as it is.",
+    detail: "This replaces your settings, your facts, your facts for particular songs and the sources you marked Wrong on this computer. Your sign-in and your AI choice stay as they are.",
   };
   const { response } = win ? await dialog.showMessageBox(win, confirm) : await dialog.showMessageBox(confirm);
   if (response !== 0) return { ok: false, message: "" };
