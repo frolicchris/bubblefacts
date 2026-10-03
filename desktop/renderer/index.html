@@ -278,6 +278,10 @@
           <label for="s-display">Your name on stream <span class="hint">optional; your channel name is used otherwise. Use the name on your own compositions in your song list</span></label>
           <input id="s-display" name="displayName" type="text">
           <label class="inline"><input name="originals" type="checkbox"> I play my own compositions</label>
+          <div id="s-originals-box">
+          <label for="s-myoriginals">About your own compositions <span class="hint">optional, one per line; shown when the artist is your channel name or your name above</span></label>
+          <textarea id="s-myoriginals" rows="3" spellcheck="true" placeholder="Written during a snowstorm in 2023."></textarea>
+          </div>
           <label class="inline" id="s-livelearns-row"><input name="liveLearns" type="checkbox"> I do live learns</label>
           <div id="twitch-box" hidden>
             <p class="label">Other streamers' originals</p>
@@ -298,10 +302,6 @@
           <h3 class="subhead">Songs with their own facts</h3>
           <p class="fine" id="s-songfacts-empty">None yet. Click <strong>Add facts for this song</strong> on the dashboard while a song plays, or before a show.</p>
           <ul id="s-songfacts" class="songfacts"></ul>
-          <div id="s-originals-box">
-          <label for="s-myoriginals">About your own compositions <span class="hint">optional, one per line; shown when the artist is your channel name or your name above</span></label>
-          <textarea id="s-myoriginals" rows="3" spellcheck="true" placeholder="Written during a snowstorm in 2023."></textarea>
-          </div>
         </fieldset>
 
         <fieldset>
