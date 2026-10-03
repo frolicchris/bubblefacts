@@ -1,0 +1,6 @@
+# Text files are stored with LF line endings on every system, so tests that
+# read them (issue forms, fixtures) see the same bytes on Windows.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.dmg binary
