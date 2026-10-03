@@ -26,8 +26,12 @@ export function setAccessToken(token: string): void {
   accessToken = token;
 }
 
-/** A list of 6,000 songs, 100 at a time. Longer lists are profiled from their first 6,000. */
-const MAX_LIST_PAGES = 60;
+/**
+ * Up to 30,000 songs, 100 at a time: musicians with long careers have lists of
+ * 20,000 and more, and the song search needs all of them. Read once, in the
+ * background, at start.
+ */
+export const MAX_LIST_PAGES = 300;
 /** A song list read that failed is tried again when the musician searches, at most this often. */
 const LIST_RETRY_MS = 60_000;
 

@@ -311,6 +311,21 @@ describe("SongListClient", () => {
       expect(client.searchSongs("lanterns", 8)).toEqual([{ id: 12, title: "Harbor Lights", artist: "The Paper Lanterns" }]);
     });
 
+    it("reads a list of 20,000 songs whole, and searches it quickly", async () => {
+      const total = 20_000;
+      for (let p = 0; p < total / 100; p++) {
+        const items = Array.from({ length: 100 }, (_, i) => ({ id: p * 100 + i + 1, title: `Night Theme ${p * 100 + i}`, artist: `Artist ${(p * 100 + i) % 900}` }));
+        mockFetch.mockResolvedValueOnce(page(items, p < total / 100 - 1 ? `page${p + 1}` : undefined));
+      }
+      await client.learnListFormat();
+      expect(mockFetch).toHaveBeenCalledTimes(total / 100);
+      expect(client.searchSongs("night theme 19999", 8)).toEqual([{ id: 20_000, title: "Night Theme 19999", artist: "Artist 199" }]);
+      const started = Date.now();
+      for (let k = 0; k < 10; k++) client.searchSongs("no such song", 8);
+      // Each keystroke's search, on the whole list, well under the 200 ms the editor waits between them.
+      expect((Date.now() - started) / 10).toBeLessThan(100);
+    });
+
     it("finds nothing before the list is read, and reads it again on a search after a failure", async () => {
       jest.spyOn(console, "warn").mockImplementation(() => {});
       mockFetch.mockRejectedValueOnce(new Error("network down"));
