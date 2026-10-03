@@ -17,7 +17,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { DEFAULTS, fromWindow, loadSettings, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { DEFAULTS, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -233,5 +233,24 @@ describe("reading the saved sign-in after the window is up (issue #62)", () => {
     saveSettings({ ...DEFAULTS });
     loadSettings(false);
     expect(secretsWaiting()).toBe(false);
+  });
+});
+
+describe("the keychain isn't touched to draw the window (issue #62)", () => {
+  const platform = process.platform;
+  afterEach(() => Object.defineProperty(process, "platform", { value: platform }));
+
+  it("doesn't ask whether secrets are protected on a Mac or Windows", () => {
+    for (const p of ["darwin", "win32"]) {
+      Object.defineProperty(process, "platform", { value: p });
+      keychain.available = false; // would say "unprotected" if it were asked
+      expect(secretsUnprotected()).toBe(false);
+    }
+  });
+
+  it("still warns on Linux without a keyring", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+    keychain.available = false;
+    expect(secretsUnprotected()).toBe(true);
   });
 });
