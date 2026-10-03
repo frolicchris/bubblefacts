@@ -246,7 +246,9 @@ next to the `[Screen] DROP` lines for what was held back.
 
 - What was shown is saved to `session.json` in the data folder: after a
   restart mid-song, or an overlay that reloads, only the bubbles still to come
-  are sent, and earlier songs' facts aren't repeated. Forgotten after 6 hours.
+  are sent, and earlier songs' facts aren't repeated. A fact taken off with
+  **Wrong** is dropped from it too, so a restart doesn't bring it back.
+  Forgotten after 6 hours.
 - A found article is kept for the session.
 - "No article" is kept for ten minutes, then retried. A timeout or rate limit
   is never remembered, because the question was never actually answered.
@@ -436,8 +438,8 @@ drops a caption with a link, a chat command or an `@mention`.
 
 | Route | Used for |
 |---|---|
-| `/control/test` | **Show a test bubble**, even while paused. Returns how many overlays got it. |
-| `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. |
+| `/control/test` | **Show a test bubble**, even while paused. A `test_bubble` message, drawn on top of the song that's playing: that song's remaining bubbles, and **Wrong** on them, carry on. Returns how many overlays got it. |
+| `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. The app restarts a crashed or stalled server with `BUBBLEFACTS_PAUSED=1`, so it stays paused. |
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts and 5 songwriters). Shows them at once if the song is still on. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
@@ -460,7 +462,8 @@ folder; `data/` for the command-line version):
 
 The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,
 `facts/` (the streamer's custom facts, as a pack), `logs/` and `backups/`
-(automatic copies of the settings and facts, never the sign-in). **Remove my
+(automatic copies of the settings and facts, never sign-ins, keys or which
+AI writes the facts). **Remove my
 BubbleFacts data** deletes all of them.
 
 ### Licenses of the sources
@@ -482,7 +485,9 @@ BubbleFacts data** deletes all of them.
   address; checking only for `file:` sent it to a server named "absolute".
   `overlay-connection.test.ts` runs the real script under both addresses.
 - **Load the overlay as a Local File.** A URL source that fails when OBS starts
-  never retries; a local file always loads and keeps reconnecting on its own.
+  never retries; a local file always loads and keeps reconnecting on its own,
+  every 1 to 4 seconds (`MAX_RECONNECT_MS`), so OBS picks the app up within a
+  few seconds of it starting.
   That's also why the server's address is written into the page (the `SERVER`
   constant): a local file can't be given settings any other way.
 - **Don't use `requestAnimationFrame` to start animations.** It pauses while

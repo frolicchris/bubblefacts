@@ -50,7 +50,8 @@ is screened: names, who did what, years, consoles, and award or chart claims
 must appear in the article, or it's dropped. Captions that only repeat the
 title and artist are dropped too. That catches most mistakes, not
 every one (a caption can still mix up details the article does mention), so
-**Wrong** next to a fact in the app takes it off your stream.
+**Wrong** next to a fact in the app takes it off your stream. Playing when you
+spot it? Mark it after the song, under **Earlier songs**.
 With no article, no AI is used: free music databases (Wikidata, MusicBrainz)
 fill in plain facts, or your own facts show, or nothing.
 
@@ -106,7 +107,7 @@ Facts are rewritten from Wikipedia, whose text is shared under
 use their public domain ([CC0](https://creativecommons.org/publicdomain/zero/1.0/))
 data. If you publish recordings, credit the sources in your description: bare
 facts aren't covered by copyright, but wording taken from an article can be.
-**Copy credit line** in the app's Help section copies this line:
+**Copy credit line**, under **Help and troubleshooting** in the app, copies this line:
 `Song facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, shown with BubbleFacts.`
 (Not legal advice, and a credit line alone doesn't settle every possible use.)
 

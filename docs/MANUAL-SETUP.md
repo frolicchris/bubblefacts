@@ -369,7 +369,9 @@ your token removed.
 - **Generated facts aren't saved between streams.** They're made fresh when a
   song starts and kept in memory until you stop the overlay, so a repeated
   song shows instantly. What you add is saved, in the `data` folder: your
-  facts for particular songs and the sources you marked **Wrong**. The topic packs are only ever read, never written. The log
+  facts for particular songs, the sources you marked **Wrong**, and what the
+  current stream has shown (for six hours), so a restart doesn't repeat
+  bubbles. The topic packs are only ever read, never written. The log
   file `logs/songs.log` records which way each song was handled, not the facts.
 - **Facts are only as good as Wikipedia.** The check makes sure captions match
   the article; it can't tell whether the article is right.
