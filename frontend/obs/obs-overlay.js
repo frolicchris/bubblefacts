@@ -43,7 +43,9 @@
   const TOAST_FADE_MS = 600;
   const POP_IN_MS = 500;
   const HIDE_FALLBACK_MS = 1000;
-  const MAX_RECONNECT_MS = 30000;
+  // The server is on this computer, so trying often costs nothing, and BubbleFacts
+  // opening again shows up on stream within a few seconds.
+  const MAX_RECONNECT_MS = 4000;
   const ICONS = ["♪", "🎵", "⭐", "🎶", "✨", "🌟", "💡", "🎼"];
 
   const container = document.getElementById("bubble-container");
