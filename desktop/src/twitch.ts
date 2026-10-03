@@ -7,13 +7,14 @@
  * refresh token works once, and lapses after 30 days unused.
  */
 
+import { setTimeout as sleep } from "timers/promises";
+
 /** Public client ID from dev.twitch.tv (client type Public). Not a secret. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pkg = require("../../package.json") as { bubblefacts?: { twitchClientId?: string } };
 export const TWITCH_CLIENT_ID = process.env.BUBBLEFACTS_TWITCH_CLIENT_ID || pkg.bubblefacts?.twitchClientId || "";
 const ID = "https://id.twitch.tv/oauth2";
 const HELIX = "https://api.twitch.tv/helix";
-const TIMEOUT = () => AbortSignal.timeout(15_000);
 
 export interface TwitchSignIn {
   accessToken: string;
@@ -23,8 +24,10 @@ export interface TwitchSignIn {
   login: string;
 }
 
-/** A sign-in Twitch won't renew: the streamer connects again. */
+/** Twitch won't renew the sign-in: the streamer connects again. */
 export class TwitchSignInExpired extends Error {}
+/** Twitch turned this access token down; a renewal may fix it. */
+class TwitchUnauthorized extends Error {}
 
 export interface DeviceCode {
   deviceCode: string;
@@ -36,17 +39,38 @@ export interface DeviceCode {
   expiresAt: number;
 }
 
-const form = (fields: Record<string, string>) => ({
+const ENDED = "Your Twitch connection ended. Connect Twitch again in Settings.";
+const RAN_OUT = "That code ran out. Click Connect Twitch to get a new one.";
+const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** One request to Twitch, with plain-words errors for the streamer. */
+async function call(url: string, init: RequestInit, timeoutMs = 15_000, cancel?: AbortSignal): Promise<Response> {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: cancel ? AbortSignal.any([cancel, timeout]) : timeout });
+  } catch (err) {
+    if (cancel?.aborted) throw err;
+    throw new Error("Couldn't reach Twitch. Check your internet connection.");
+  }
+}
+const post = (fields: Record<string, string>) => ({
   method: "POST",
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
   body: new URLSearchParams(fields).toString(),
-  signal: TIMEOUT(),
 });
+const failed = (res: Response) => new Error(`Twitch answered with an error (${res.status}). Try again in a minute.`);
+
+/** The tokens in a successful answer, checked before anything is saved. */
+async function tokens(res: Response): Promise<Omit<TwitchSignIn, "login">> {
+  const b = (await res.json().catch(() => ({}))) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  if (typeof b.access_token !== "string" || typeof b.refresh_token !== "string") throw new Error("Twitch sent an answer BubbleFacts can't read. Try again.");
+  return { accessToken: b.access_token, refreshToken: b.refresh_token, expiresAt: Date.now() + (typeof b.expires_in === "number" ? b.expires_in : 14400) * 1000 };
+}
 
 export async function startDeviceCode(): Promise<DeviceCode> {
   if (!TWITCH_CLIENT_ID) throw new Error("Connecting Twitch isn't available in this version.");
-  const res = await fetch(`${ID}/device`, form({ client_id: TWITCH_CLIENT_ID, scopes: "" }));
-  if (!res.ok) throw new Error(`Twitch answered with an error (${res.status}). Try again in a minute.`);
+  const res = await call(`${ID}/device`, post({ client_id: TWITCH_CLIENT_ID, scopes: "" }));
+  if (!res.ok) throw failed(res);
   const b = (await res.json()) as { device_code: string; user_code: string; verification_uri: string; interval?: number; expires_in?: number };
   return {
     deviceCode: b.device_code,
@@ -61,50 +85,41 @@ export async function startDeviceCode(): Promise<DeviceCode> {
 export async function finishDeviceCode(code: DeviceCode, signal?: AbortSignal): Promise<TwitchSignIn> {
   let interval = code.interval;
   while (Date.now() < code.expiresAt) {
-    await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(resolve, interval * 1000);
-      signal?.addEventListener("abort", () => { clearTimeout(t); reject(new Error("Cancelled.")); }, { once: true });
-    });
-    const res = await fetch(`${ID}/token`, form({
+    await sleep(interval * 1000, undefined, { signal });
+    const res = await call(`${ID}/token`, post({
       client_id: TWITCH_CLIENT_ID,
       scopes: "",
       device_code: code.deviceCode,
       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-    }));
-    if (res.ok) return withLogin(await tokens(res));
+    }), 15_000, signal);
+    if (res.ok) {
+      const t = await tokens(res);
+      return { ...t, login: await loginOf(t.accessToken) };
+    }
     const message = (((await res.json().catch(() => ({}))) as { message?: string }).message ?? "").toLowerCase();
     if (message.includes("authorization_pending")) continue;
     if (message.includes("slow_down")) { interval += 5; continue; }
-    throw new Error(message.includes("expired") || message.includes("invalid device code")
-      ? "That code ran out. Click Connect Twitch to get a new one."
-      : "Twitch didn't approve the connection. Try again.");
+    throw new Error(message.includes("expired") || message.includes("invalid device code") ? RAN_OUT : "Twitch didn't approve the connection. Try again.");
   }
-  throw new Error("That code ran out. Click Connect Twitch to get a new one.");
+  throw new Error(RAN_OUT);
 }
 
-export async function refreshTwitch(refreshToken: string): Promise<TwitchSignIn> {
-  const res = await fetch(`${ID}/token`, form({ client_id: TWITCH_CLIENT_ID, grant_type: "refresh_token", refresh_token: refreshToken }));
-  if (res.status === 400 || res.status === 401) throw new TwitchSignInExpired("Your Twitch connection ended. Connect Twitch again in Settings.");
-  if (!res.ok) throw new Error(`Twitch answered with an error (${res.status}). Try again in a minute.`);
-  return withLogin(await tokens(res));
+/** Which Twitch account this is, for "Connected as …". Asked once, when connecting. */
+async function loginOf(accessToken: string): Promise<string> {
+  const res = await call(`${ID}/validate`, { headers: { Authorization: `OAuth ${accessToken}` } }).catch(() => null);
+  return res?.ok ? (((await res.json()) as { login?: string }).login ?? "") : "";
 }
 
-async function tokens(res: Response): Promise<Omit<TwitchSignIn, "login">> {
-  const b = (await res.json()) as { access_token: string; refresh_token: string; expires_in?: number };
-  return { accessToken: b.access_token, refreshToken: b.refresh_token, expiresAt: Date.now() + (b.expires_in ?? 14400) * 1000 };
+export async function refreshTwitch(refreshToken: string): Promise<Omit<TwitchSignIn, "login">> {
+  const res = await call(`${ID}/token`, post({ client_id: TWITCH_CLIENT_ID, grant_type: "refresh_token", refresh_token: refreshToken }));
+  if (res.status === 400 || res.status === 401) throw new TwitchSignInExpired(ENDED);
+  if (!res.ok) throw failed(res);
+  return tokens(res);
 }
 
-/** Which Twitch account this is, for "Connected as …". */
-async function withLogin(t: Omit<TwitchSignIn, "login">): Promise<TwitchSignIn> {
-  const res = await fetch(`${ID}/validate`, { headers: { Authorization: `OAuth ${t.accessToken}` }, signal: TIMEOUT() });
-  const b = res.ok ? ((await res.json()) as { login?: string }) : {};
-  return { ...t, login: b.login ?? "" };
-}
-
-/** On Disconnect: Twitch forgets the sign-in too. Best effort; the app forgets it either way. */
+/** Twitch forgets the sign-in too. Best effort, and quick: the app forgets it either way. */
 export async function revokeTwitch(accessToken: string): Promise<void> {
-  if (!accessToken) return;
-  await fetch(`${ID}/revoke`, form({ client_id: TWITCH_CLIENT_ID, token: accessToken })).catch(() => undefined);
+  if (accessToken) await call(`${ID}/revoke`, post({ client_id: TWITCH_CLIENT_ID, token: accessToken }), 5_000).catch(() => undefined);
 }
 
 export interface TwitchChannel {
@@ -114,14 +129,93 @@ export interface TwitchChannel {
 }
 
 export async function getChannel(login: string, accessToken: string): Promise<TwitchChannel | null> {
-  const res = await fetch(`${HELIX}/users?login=${encodeURIComponent(login)}`, {
-    headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": TWITCH_CLIENT_ID },
-    signal: TIMEOUT(),
-  });
-  if (res.status === 401) throw new TwitchSignInExpired("Your Twitch connection ended. Connect Twitch again in Settings.");
-  if (!res.ok) throw new Error(`Twitch answered with an error (${res.status}). Try again in a minute.`);
+  const res = await call(`${HELIX}/users?login=${encodeURIComponent(login)}`, { headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": TWITCH_CLIENT_ID } });
+  if (res.status === 401) throw new TwitchUnauthorized(ENDED);
+  if (!res.ok) throw failed(res);
   const u = ((await res.json()) as { data?: Array<{ login: string; display_name: string; description: string }> }).data?.[0];
   return u ? { login: u.login, displayName: u.display_name, description: u.description ?? "" } : null;
+}
+
+/**
+ * The streamer's Twitch connection: connecting with a code, renewing and
+ * disconnecting, one at a time. `saved` reads the stored sign-in; `save`
+ * stores one (null clears it). Newer always wins: work still running for an
+ * older sign-in never saves over a Disconnect or a new connection.
+ */
+export class TwitchSession {
+  private connecting: AbortController | null = null;
+  private renewing: Promise<string> | null = null;
+  /** The code to show while waiting for approval. */
+  userCode = "";
+  error = "";
+
+  constructor(private readonly saved: () => TwitchSignIn | null, private readonly save: (t: TwitchSignIn | null) => void) {}
+
+  /** Start connecting; `onDone` runs once it's settled, approved or not. */
+  async connect(openPage: (url: string) => void, onDone: () => void): Promise<void> {
+    this.connecting?.abort();
+    const mine = new AbortController();
+    this.connecting = mine;
+    this.error = "";
+    this.userCode = "";
+    try {
+      const code = await startDeviceCode();
+      if (mine.signal.aborted) return;
+      this.userCode = code.userCode;
+      openPage(code.verificationUri);
+      void finishDeviceCode(code, mine.signal)
+        .then((t) => { if (!mine.signal.aborted) this.save(t); })
+        .catch((err) => { if (!mine.signal.aborted) this.error = messageOf(err); })
+        .finally(() => {
+          if (this.connecting === mine) { this.connecting = null; this.userCode = ""; }
+          onDone();
+        });
+    } catch (err) {
+      if (!mine.signal.aborted) this.error = messageOf(err);
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    this.connecting?.abort();
+    this.connecting = null;
+    this.userCode = "";
+    this.error = "";
+    const was = this.saved();
+    this.save(null);
+    if (!was) return;
+    // A token that has run out can't be revoked: renew it once so Twitch forgets the live one.
+    const live = was.expiresAt > Date.now() ? was.accessToken : await refreshTwitch(was.refreshToken).then((t) => t.accessToken, () => "");
+    await revokeTwitch(live);
+  }
+
+  /** A live access token: renewed when it's about to run out, or when `force`d. One renewal at a time. */
+  token(force = false): Promise<string> {
+    const s = this.saved();
+    if (!s) return Promise.reject(new TwitchSignInExpired("Connect Twitch in Settings first."));
+    if (!force && s.expiresAt - Date.now() > 60_000) return Promise.resolve(s.accessToken);
+    this.renewing ??= refreshTwitch(s.refreshToken)
+      .then((t) => {
+        if (this.saved()?.refreshToken !== s.refreshToken) throw new TwitchSignInExpired(ENDED);
+        this.save({ ...t, login: s.login });
+        return t.accessToken;
+      })
+      .catch((err) => {
+        if (err instanceof TwitchSignInExpired && this.saved()?.refreshToken === s.refreshToken) this.save(null);
+        throw err;
+      })
+      .finally(() => { this.renewing = null; });
+    return this.renewing;
+  }
+
+  /** Run a request with a live token. A token Twitch turns down early (revoked, say) gets one renewal. */
+  async withToken<T>(request: (accessToken: string) => Promise<T>): Promise<T> {
+    try {
+      return await request(await this.token());
+    } catch (err) {
+      if (!(err instanceof TwitchUnauthorized)) throw err;
+      return request(await this.token(true));
+    }
+  }
 }
 
 /** A Twitch login is 4 to 25 letters, digits or underscores. */
@@ -138,8 +232,8 @@ export function twitchLoginFrom(artist: string, link: string): string {
   return LOGIN.test(fromArtist) ? fromArtist.toLowerCase() : "";
 }
 
-/** About 160 characters fit in a bubble. */
-const BUBBLE_CHARS = 160;
+/** About 160 characters fit in a bubble: the fact checker's MAX_FACT_CHARS in backend/src/fact-verifier.ts. */
+export const BUBBLE_CHARS = 160;
 
 /**
  * Their About text as fact boxes for the streamer to review: whole sentences,

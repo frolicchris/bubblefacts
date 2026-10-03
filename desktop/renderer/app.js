@@ -471,24 +471,38 @@
   $("#sf-add").addEventListener("click", () => addFactBox().focus());
   /** Fill from their Twitch About: offered when the artist or link names a Twitch channel. */
   const sfArtist = () => (songFactsTarget ? songFactsTarget.artist || "" : $("#sf-artist").value);
-  const looksLikeTwitch = () => /@[A-Za-z0-9_]{4,25}\)?\s*$/.test(sfArtist().trim()) || /twitch\.tv\/[A-Za-z0-9_]{4,25}/i.test($("#sf-link").value);
-  function renderTwitchFill() {
-    $("#sf-twitch-row").hidden = !(state.twitch && state.twitch.available) || !looksLikeTwitch();
+  // The app decides what counts as a Twitch channel (twitch.ts), so the button never offers what it would refuse.
+  // Asked once typing pauses, and only the newest answer counts.
+  let twitchFillAsk = 0;
+  let twitchFillTimer;
+  async function renderTwitchFill() {
+    const ask = ++twitchFillAsk;
+    const login = state.twitch && state.twitch.available ? await api.twitchLogin(sfArtist(), $("#sf-link").value) : "";
+    if (ask !== twitchFillAsk) return;
+    $("#sf-twitch-row").hidden = !login;
     $("#sf-twitch-result").textContent = "";
   }
-  for (const id of ["#sf-link", "#sf-artist"]) $(id).addEventListener("input", renderTwitchFill);
+  for (const id of ["#sf-link", "#sf-artist"]) {
+    $(id).addEventListener("input", () => {
+      clearTimeout(twitchFillTimer);
+      twitchFillTimer = setTimeout(renderTwitchFill, 300);
+    });
+  }
   $("#sf-twitch").addEventListener("click", async () => {
     if (!state.settings.twitchConnected) {
       setResult($("#sf-twitch-result"), "Connect Twitch in Settings, under You and your music, first.", "bad");
       return;
     }
+    const button = $("#sf-twitch");
+    button.disabled = true;
     setResult($("#sf-twitch-result"), "Asking Twitch…", "");
-    const r = await api.twitchAbout(sfArtist(), $("#sf-link").value);
+    const r = await api.twitchAbout(sfArtist(), $("#sf-link").value).finally(() => (button.disabled = false));
     if (r.ok) {
       if (!$("#sf-link").value.trim()) $("#sf-link").value = r.link;
-      const boxes = $$("#sf-facts textarea");
-      const blank = boxes.find((b) => !b.value.trim());
-      for (const f of r.facts) {
+      // A second click adds nothing twice.
+      const have = new Set(factBoxes());
+      const blank = $$("#sf-facts textarea").find((b) => !b.value.trim());
+      for (const f of r.facts.filter((x) => !have.has(x))) {
         const box = addFactBox(f);
         if (blank) $("#sf-facts").insertBefore(box, blank);
       }
@@ -505,6 +519,7 @@
       $("#song-facts-title").textContent = "a song";
       for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link"]) $(id).value = "";
       setFactBoxes([]);
+      $("#sf-twitch-row").hidden = true;
     }
   }
   $("#sf-other").addEventListener("click", () => {
