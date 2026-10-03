@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troubleshooting: BubbleFacts</title>
+  <meta name="description" content="Quick fixes for BubbleFacts: what you see, why it happens, and what to do.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/troubleshooting.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="BubbleFacts troubleshooting">
+  <meta property="og:description" content="Quick fixes for BubbleFacts: what you see, why it happens, and what to do.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/troubleshooting.html">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BubbleFacts troubleshooting">
+  <meta name="twitter:description" content="Quick fixes for BubbleFacts: what you see, why it happens, and what to do.">
+  <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
+
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section" aria-labelledby="troubleshooting">
+      <div class="wrap">
+        <h1 id="troubleshooting">Troubleshooting</h1>
+        <p class="section-intro">Something not working? Find what you're seeing in the <strong>What you see</strong> column. Most problems have a quick fix.</p>
+        <div class="table-wrap">
+          <table>
+            <caption class="visually-hidden">Troubleshooting by symptom</caption>
+            <thead>
+              <tr><th scope="col">What you see</th><th scope="col">Likely reason</th><th scope="col">What to do</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Mac says "BubbleFacts" Not Opened, or that Apple can't check it</th>
+                <td>The app isn't signed yet</td>
+                <td>Open <span class="ui">System Settings</span>, then <span class="ui">Privacy &amp; Security</span>, scroll down and click <span class="ui">Open Anyway</span>. On older Macs, right-click the app, choose <span class="ui">Open</span>, then <span class="ui">Open</span> again.</td>
+              </tr>
+              <tr>
+                <th scope="row">Windows says "Windows protected your PC"</th>
+                <td>The app isn't signed yet</td>
+                <td>Click <span class="ui">More info</span>, then <span class="ui">Run anyway</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row">A small red dot in the bottom-right corner</th>
+                <td>The overlay can't reach the app</td>
+                <td>Open BubbleFacts. If it's already open, check the <span class="ui">Stream</span> light on the dashboard, or quit it from the menu bar or tray and open it again.</td>
+              </tr>
+              <tr>
+                <th scope="row">Nothing at all, not even a red dot</th>
+                <td>OBS isn't loading the overlay</td>
+                <td>First click <span class="ui">Show a test bubble</span>. If it appears, OBS is fine: that song just had no reliable facts, and the dashboard says so. If it doesn't, check the source is visible (the eye icon in Sources). Then drag the tile from BubbleFacts into OBS again. If you added it by hand, check it uses <span class="ui">Local file</span> and points at the file shown under <span class="ui">Help and troubleshooting</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row">No test bubble, and no "It's on your stream!"</th>
+                <td>OBS didn't load the overlay, or BubbleFacts runs on a different computer</td>
+                <td>BubbleFacts needs to run on the same computer as OBS. Try dragging the tile again, or <a href="guide.html#obs-by-hand">add it by hand</a>.</td>
+              </tr>
+              <tr>
+                <th scope="row">The app says StreamerSongList rejected your sign-in or token</th>
+                <td>Your sign-in ran out, or the token is wrong or expired</td>
+                <td>Sign in again from the app's <span class="ui">Settings</span>, or paste a new token if you use one (see <a href="guide.html#song-list-token">Having trouble signing in?</a>).</td>
+              </tr>
+              <tr>
+                <th scope="row">The app says StreamElements didn't accept your JWT token</th>
+                <td>The token was reset or pasted wrong</td>
+                <td>Get the token again (see <a href="guide.html#song-list-se">Use StreamElements instead</a>) and paste it in <span class="ui">Settings</span>, under <span class="ui">Your song list</span>. Then click <span class="ui">Save</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row">"Reconnecting to StreamElements" while a song plays</th>
+                <td>StreamElements says a song is playing, but BubbleFacts can't see which one</td>
+                <td>Nothing, usually. If it lasts about two minutes, BubbleFacts restarts its connection on its own. Your song queue isn't touched.</td>
+              </tr>
+              <tr>
+                <th scope="row">The app says "The AI download paused"</th>
+                <td>Not enough disk space, or the connection dropped</td>
+                <td>If the connection dropped, the app tries again on its own. If you're low on space, free up at least 4 GB. Or choose <span class="ui">Online, with Groq (free key)</span> for now (see <a href="guide.html#ai">Optional: use an online AI instead</a>).</td>
+              </tr>
+              <tr>
+                <th scope="row">No facts about the song, or none at all</th>
+                <td>No source knew the song</td>
+                <td>BubbleFacts reads your whole song list once to learn how you write it: the game in the artist field, or "Game - Track" with the composer as artist, or "Track (Film)", and so on. If a song still gets the wrong match, the surest form is the game's name in the artist field. With StreamElements, clearly titled videos ("Artist - Song") work best. Obscure songs often have no article, so they get custom facts instead, or none until you <a href="guide.html#custom-facts">add your own</a>.</td>
+              </tr>
+              <tr>
+                <th scope="row">Few or no facts, soon after installing</th>
+                <td>BubbleFacts is still getting ready</td>
+                <td>Until it's ready, songs get facts from music databases and your own facts. The <span class="ui">Facts</span> light on the dashboard shows the progress.</td>
+              </tr>
+              <tr>
+                <th scope="row">Fewer bubbles than expected</th>
+                <td>Some captions failed the fact check</td>
+                <td>That's normal for songs with short articles. It means the check is working.</td>
+              </tr>
+              <tr>
+                <th scope="row">The banner is cut off, or the bubbles sit in the wrong place</th>
+                <td>The source isn't the size of your canvas</td>
+                <td>Remove the source and drag the tile from BubbleFacts into OBS again. Or right-click the source, choose <span class="ui">Properties</span>, and set <span class="ui">Width</span> and <span class="ui">Height</span> to your canvas size (see <a href="guide.html#obs-by-hand">adding it by hand</a>).</td>
+              </tr>
+              <tr>
+                <th scope="row">The source is blank, or stops updating</th>
+                <td>An OBS Browser source setting, or an old copy of the page</td>
+                <td>Right-click the source, choose <span class="ui">Properties</span>, and click <span class="ui">Refresh cache of current page</span>. Leave <span class="ui">Shutdown source when not visible</span> and <span class="ui">Refresh browser when scene becomes active</span> off, and don't clear the Custom CSS that OBS fills in.</td>
+              </tr>
+              <tr>
+                <th scope="row">Viewers on phones say the bubbles are small</th>
+                <td>Phone screens are small</td>
+                <td>In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row">Your Mac asks for permission every time BubbleFacts opens</th>
+                <td><span class="ui">Allow</span> was clicked, which covers one time only</td>
+                <td>Click <span class="ui">Always Allow</span> the next time it asks. It asks once after each update.</td>
+              </tr>
+              <tr>
+                <th scope="row">You need the bubbles off the screen right now</th>
+                <td>Anything</td>
+                <td>Click <span class="ui">Pause bubbles</span> on the dashboard, or in the menu bar or tray menu.</td>
+              </tr>
+              <tr>
+                <th scope="row">Your stream stutters when a song starts</th>
+                <td>The built-in AI is sharing your computer with OBS</td>
+                <td>Choose <span class="ui">Online, with Groq (free key)</span> in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span> (see <a href="guide.html#ai">Optional: use an online AI instead</a>). It's free and does the work online.</td>
+              </tr>
+              <tr>
+                <th scope="row">The app says the built-in AI can't run on this computer</th>
+                <td>The processor or graphics can't run it, even in processor-only mode</td>
+                <td>Click <span class="ui">Switch to Groq</span> in the app's message. It's free. See the <a href="requirements.html#fallback">system requirements</a>.</td>
+              </tr>
+              <tr>
+                <th scope="row">You're moving to a new computer</th>
+                <td>Your settings and facts are on the old one</td>
+                <td>On the old computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, and click <span class="ui">Back up…</span>. Install BubbleFacts on the new one, sign in, then use <span class="ui">Restore…</span> in the same place and pick that file. Your sign-in isn't in the backup, so you sign in again.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Still stuck? In the app, open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>, or ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>. The <a href="support.html">help page</a> lists every option.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="requirements.html">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -13,7 +13,7 @@ while you play, each one checked against its source. The
 captions are written by a small AI model, and the app itself was written with
 an AI coding agent: see [AI disclosure](#ai-disclosure).
 
-![Three fact bubbles and a Now Playing banner over a dark background](docs/demo.png)
+![Three fact bubbles and a Now Playing bubble over a dark background](docs/demo.png)
 
 ## Download
 

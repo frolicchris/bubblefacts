@@ -17,12 +17,12 @@
   <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
-  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="BubbleFacts setup guide">
   <meta name="twitter:description" content="Install BubbleFacts, connect StreamerSongList or StreamElements, and put it on your stream in OBS, step by step.">
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
-  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
   <link rel="stylesheet" href="assets/site.css">
   <script src="assets/site.js" defer></script>
@@ -60,9 +60,10 @@
             <li><a href="#your-music">Tell us about your music (optional)</a></li>
             <li><a href="#check">Check that it works</a></li>
             <li><a href="#streaming">While you stream</a></li>
+            <li><a href="#make-it-yours">Make it yours (any time)</a></li>
           </ol>
           <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#custom-facts">Custom facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
-          <p>Stuck? Jump to <a href="#troubleshooting">If something goes wrong</a>.</p>
+          <p>Stuck? See <a href="troubleshooting.html">Troubleshooting</a>.</p>
         </nav>
 
         <!-- Step 1 -->
@@ -164,7 +165,7 @@
             </div>
             <div class="note">
               <p class="note-title">BubbleFacts gets ready in the background</p>
-              <p>While you set up, BubbleFacts downloads its built-in fact writer, once (about 2 GB). You don't wait for it: until it's ready, songs get facts from music databases and your own facts. The dashboard shows how far along it is.</p>
+              <p>While you set up, BubbleFacts downloads its built-in AI, once (about 2 GB). You don't wait for it: until it's ready, songs get facts from music databases and your own facts. The dashboard shows how far along it is.</p>
             </div>
           </div>
         </div>
@@ -224,10 +225,62 @@
 
             <h3 id="your-music-originals">I play my own compositions</h3>
             <p>This is off to start with. Check it if you play your own pieces. Songs tagged "Originals" in StreamerSongList, or with you as the artist, then get facts from your song list instead of a Wikipedia lookup: how often you've played it and who requested it. Your name is already on the request, so it doesn't say you wrote it.</p>
-            <p>When it's checked, an optional box appears: <span class="ui">About your compositions</span>. Type facts about your pieces there, one per line. They show when you play your originals.</p>
+            <p>When it's checked, an optional box appears: <span class="ui">About your own compositions</span>. Type facts about your pieces there, one per line. They show when you play your originals.</p>
 
             <h3 id="your-music-live-learn">I do live learns</h3>
             <p>This is on to start with, and only for StreamerSongList. When someone requests a song that isn't on your list, a <span class="ui">LIVE LEARN</span> banner shows while you learn it. Facts still show when BubbleFacts can find the song, or when you've <a href="#song-facts">added facts for it</a>; it never fills in with custom facts. If you uncheck it, those requests are treated like any other song.</p>
+
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="guide-step" id="check">
+          <div class="num" aria-hidden="true">5</div>
+          <div class="body">
+            <h2>Check that it works</h2>
+            <ol>
+              <li>Make sure BubbleFacts is open.</li>
+              <li>Play a song from your StreamerSongList queue, or your StreamElements song requests.</li>
+              <li>A gold <span class="ui">Now Playing</span> bubble appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up.</li>
+            </ol>
+            <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>.</p>
+            <p>Few or no facts at first? BubbleFacts may still be getting ready. The dashboard's <span class="ui">Facts</span> light shows how far along it is.</p>
+            <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See <a href="troubleshooting.html">If something goes wrong</a>.</p>
+          </div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="guide-step" id="streaming">
+          <div class="num" aria-hidden="true">6</div>
+          <div class="body">
+            <h2>While you stream</h2>
+            <ul>
+              <li><strong>Need the bubbles gone right now?</strong> Click <span class="ui">Pause bubbles</span> on the dashboard, or in the BubbleFacts menu in your menu bar (Mac) or system tray (Windows and Linux). Turn them back on the same way.</li>
+              <li><strong>Closing the window doesn't stop it.</strong> BubbleFacts keeps running in your menu bar (Mac) or system tray (Windows and Linux), with a status light. To stop it, choose <span class="ui">Quit</span> from that menu.</li>
+              <li><strong>It fixes itself.</strong> If something inside the app gets stuck, it restarts that part on its own, so you can keep playing.</li>
+              <li><strong>Wrong fact?</strong> Click <span class="ui">Wrong</span> next to it on the dashboard. See <a href="#wrong-fact">If a fact is wrong</a>.</li>
+              <li><strong>Something else wrong?</strong> Open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>. A report opens on GitHub in your browser for you to read before you send it. You need a free GitHub account. See <a href="privacy.html#reports">how reports work</a>.</li>
+              <li><strong>New versions.</strong> When one is out, the app tells you. Click <span class="ui">Update now</span>, then <span class="ui">Install now</span> between songs. Your settings are kept. See <a href="download.html#update">Updating</a> and <a href="changelog.html">what's new</a>.</li>
+            </ul>
+
+            <h3 id="wrong-fact">If a fact is wrong</h3>
+            <p>The dashboard's <span class="ui">On stream now</span> list shows the facts for the song you're playing. Each one has a <span class="ui">Wrong</span> button.</p>
+            <ol>
+              <li>Click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away, even if its bubble is showing.</li>
+              <li>BubbleFacts never uses that fact's source for that song again: the Wikipedia article, or Wikidata and MusicBrainz. It remembers this after you quit and reopen the app. A wrong fact almost always means it found the wrong source. Clicked by mistake? Click <span class="ui">Undo</span>. (Your own facts are only taken off for now: change them in Settings, or with <a href="#song-facts">Add facts for this song</a>.)</li>
+              <li>Optional: click <span class="ui">Report it (opens GitHub)</span>. A report opens on GitHub in your browser, with the song and the fact filled in, for you to read before you send it. You need a free GitHub account.</li>
+            </ol>
+            <p>Reports of wrong facts are the most useful kind. They show where the fact check needs to be stricter.</p>
+
+          </div>
+        </div>
+
+        <!-- Step 7 -->
+        <div class="guide-step" id="make-it-yours">
+          <div class="num" aria-hidden="true">7</div>
+          <div class="body">
+            <h2>Make it yours (any time)</h2>
+            <p>None of this is needed to start. Come back to it whenever you like.</p>
 
             <span id="backup-facts"></span><!-- the old name, for links shared before beta.3 -->
             <h3 id="custom-facts">Custom facts</h3>
@@ -249,52 +302,6 @@
             </ol>
             <p>Five or more custom facts keep the same ones from repeating song after song.</p>
             <p id="custom-facts-packs"><span class="ui">Advanced</span> in Settings also has a few example packs (video game music, classical, film and TV, pop and rock, piano, general music). They're off unless you check them, they aren't updated, and they won't know your songs, so your own facts are better.</p>
-          </div>
-        </div>
-
-        <!-- Step 5 -->
-        <div class="guide-step" id="check">
-          <div class="num" aria-hidden="true">5</div>
-          <div class="body">
-            <h2>Check that it works</h2>
-            <ol>
-              <li>Make sure BubbleFacts is open.</li>
-              <li>Play a song from your StreamerSongList queue, or your StreamElements song requests.</li>
-              <li>A gold <span class="ui">NOW PLAYING</span> banner appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up.</li>
-            </ol>
-            <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>.</p>
-            <p>Few or no facts at first? BubbleFacts may still be getting ready. The dashboard's <span class="ui">Facts</span> light shows how far along it is.</p>
-            <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See <a href="#troubleshooting">If something goes wrong</a>.</p>
-          </div>
-        </div>
-
-        <!-- Step 6 -->
-        <div class="guide-step" id="streaming">
-          <div class="num" aria-hidden="true">6</div>
-          <div class="body">
-            <h2>While you stream</h2>
-            <ul>
-              <li><strong>Need the bubbles gone right now?</strong> Click <span class="ui">Pause bubbles</span> on the dashboard, or in the BubbleFacts menu in your menu bar (Mac) or system tray (Windows and Linux). Turn them back on the same way.</li>
-              <li><strong>Closing the window doesn't stop it.</strong> BubbleFacts keeps running in your menu bar (Mac) or system tray (Windows and Linux), with a status light. To stop it, choose <span class="ui">Quit</span> from that menu.</li>
-              <li><strong>It fixes itself.</strong> If something inside the app gets stuck, it restarts that part on its own, so you can keep playing.</li>
-              <li><strong>Wrong fact?</strong> Click <span class="ui">Wrong</span> next to it on the dashboard. See <a href="#wrong-fact">If a fact is wrong</a>.</li>
-              <li><strong>Something else wrong?</strong> Open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>. A report opens on GitHub in your browser for you to read before you send it. You need a free GitHub account. See <a href="privacy.html#reports">how reports work</a>.</li>
-              <li><strong>New versions.</strong> When one is out, the app tells you. Click <span class="ui">Update now</span>, then <span class="ui">Install now</span> between songs. Your settings are kept. See <a href="download.html#update">Updating</a> and <a href="changelog.html">what's new</a>.</li>
-              <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
-              <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>
-              <li><strong>Bubbles covering your camera or keyboard?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Where bubbles appear</span> to the top, bottom, left or right. For anything finer, resize and move the BubbleFacts source in OBS.</li>
-              <li><strong>Already show the song yourself?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, turn off <span class="ui">Show a Now Playing bubble when a song starts</span>. Fact bubbles stay.</li>
-              <li><strong>Add your own facts.</strong> Songs no source knows get your custom facts. See <a href="#custom-facts-settings">how to add them</a>, or <a href="#song-facts">add facts for one song</a>.</li>
-            </ul>
-
-            <h3 id="wrong-fact">If a fact is wrong</h3>
-            <p>The dashboard's <span class="ui">On stream now</span> list shows the facts for the song you're playing. Each one has a <span class="ui">Wrong</span> button.</p>
-            <ol>
-              <li>Click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away, even if its bubble is showing.</li>
-              <li>BubbleFacts never uses that fact's source for that song again: the Wikipedia article, or Wikidata and MusicBrainz. It remembers this after you quit and reopen the app. A wrong fact almost always means it found the wrong source. Clicked by mistake? Click <span class="ui">Undo</span>. (Your own facts are only taken off for now: change them in Settings, or with <a href="#song-facts">Add facts for this song</a>.)</li>
-              <li>Optional: click <span class="ui">Report it (opens GitHub)</span>. A report opens on GitHub in your browser, with the song and the fact filled in, for you to read before you send it. You need a free GitHub account.</li>
-            </ol>
-            <p>Reports of wrong facts are the most useful kind. They show where the fact check needs to be stricter.</p>
 
             <h3 id="song-facts">Add facts for one song</h3>
             <p>Some songs aren't on Wikipedia or in any music database: another streamer's original, a friend's band, a song you wrote together. You can give a song its own facts.</p>
@@ -306,6 +313,18 @@
             </ol>
             <p>Every song you've done this for is listed in <span class="ui">Settings</span>, under <span class="ui">Songs with their own facts</span>, with <span class="ui">Edit</span> and <span class="ui">Remove</span>.</p>
             <p>If the song is still playing, they show right away. Either way, they show exactly as you wrote them every time that song plays. On the dashboard, each fact says where it came from, so you can tell your own from Wikipedia's. Click a Wikipedia source to see the sentence the fact was written from, and to open the article.</p>
+
+            <h3 id="bubbles">Where bubbles go, and how they look</h3>
+            <ul>
+              <li><strong>Bubbles covering your camera or keyboard?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Where bubbles appear</span> to the top, bottom, left or right. For anything finer, resize and move the BubbleFacts source in OBS.</li>
+              <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
+              <li><strong>Already show the song yourself?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, turn off <span class="ui">Show a Now Playing bubble when a song starts</span>. Fact bubbles stay.</li>
+            </ul>
+
+            <h3 id="backups">Your facts are backed up</h3>
+            <ul>
+              <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -357,113 +376,7 @@
     <section class="section" aria-labelledby="troubleshooting">
       <div class="wrap">
         <h2 id="troubleshooting">If something goes wrong</h2>
-        <p class="section-intro">Find what you're seeing in the <strong>What you see</strong> column.</p>
-        <div class="table-wrap">
-          <table>
-            <caption class="visually-hidden">Troubleshooting by symptom</caption>
-            <thead>
-              <tr><th scope="col">What you see</th><th scope="col">Likely reason</th><th scope="col">What to do</th></tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Mac says "BubbleFacts" Not Opened, or that Apple can't check it</th>
-                <td>The app isn't signed yet</td>
-                <td>Open <span class="ui">System Settings</span>, then <span class="ui">Privacy &amp; Security</span>, scroll down and click <span class="ui">Open Anyway</span>. On older Macs, right-click the app, choose <span class="ui">Open</span>, then <span class="ui">Open</span> again.</td>
-              </tr>
-              <tr>
-                <th scope="row">Windows says "Windows protected your PC"</th>
-                <td>The app isn't signed yet</td>
-                <td>Click <span class="ui">More info</span>, then <span class="ui">Run anyway</span>.</td>
-              </tr>
-              <tr>
-                <th scope="row">A small red dot in the bottom-right corner</th>
-                <td>The overlay can't reach the app</td>
-                <td>Open BubbleFacts. If it's already open, check the <span class="ui">Stream</span> light on the dashboard, or quit it from the menu bar or tray and open it again.</td>
-              </tr>
-              <tr>
-                <th scope="row">Nothing at all, not even a red dot</th>
-                <td>OBS isn't loading the overlay</td>
-                <td>First click <span class="ui">Show a test bubble</span>. If it appears, OBS is fine: that song just had no reliable facts, and the dashboard says so. If it doesn't, check the source is visible (the eye icon in Sources). Then drag the tile from BubbleFacts into OBS again. If you added it by hand, check it uses <span class="ui">Local file</span> and points at the file shown under <span class="ui">Help and troubleshooting</span>.</td>
-              </tr>
-              <tr>
-                <th scope="row">No test bubble, and no "It's on your stream!"</th>
-                <td>OBS didn't load the overlay, or BubbleFacts runs on a different computer</td>
-                <td>BubbleFacts needs to run on the same computer as OBS. Try dragging the tile again, or <a href="#obs-by-hand">add it by hand</a>.</td>
-              </tr>
-              <tr>
-                <th scope="row">The app says StreamerSongList rejected your sign-in or token</th>
-                <td>Your sign-in ran out, or the token is wrong or expired</td>
-                <td>Sign in again from the app's <span class="ui">Settings</span>, or paste a new token if you use one (see <a href="#song-list-token">Having trouble signing in?</a>).</td>
-              </tr>
-              <tr>
-                <th scope="row">The app says StreamElements didn't accept your JWT token</th>
-                <td>The token was reset or pasted wrong</td>
-                <td>Get the token again (see <a href="#song-list-se">Use StreamElements instead</a>) and paste it in <span class="ui">Settings</span>, under <span class="ui">Your song list</span>. Then click <span class="ui">Save</span>.</td>
-              </tr>
-              <tr>
-                <th scope="row">"Reconnecting to StreamElements" while a song plays</th>
-                <td>StreamElements says a song is playing, but BubbleFacts can't see which one</td>
-                <td>Nothing, usually. If it lasts about two minutes, BubbleFacts restarts its connection on its own. Your song queue isn't touched.</td>
-              </tr>
-              <tr>
-                <th scope="row">The app says "The AI download paused"</th>
-                <td>Not enough disk space, or the connection dropped</td>
-                <td>If the connection dropped, the app tries again on its own. If you're low on space, free up at least 4 GB. Or choose <span class="ui">Online, with Groq (free key)</span> for now (see <a href="#ai">Optional: use an online AI instead</a>).</td>
-              </tr>
-              <tr>
-                <th scope="row">No facts about the song, or none at all</th>
-                <td>No source knew the song</td>
-                <td>BubbleFacts reads your whole song list once to learn how you write it: the game in the artist field, or "Game - Track" with the composer as artist, or "Track (Film)", and so on. If a song still gets the wrong match, the surest form is the game's name in the artist field. With StreamElements, clearly titled videos ("Artist - Song") work best. Obscure songs often have no article, so they get custom facts instead, or none until you <a href="#custom-facts">add your own</a>.</td>
-              </tr>
-              <tr>
-                <th scope="row">Few or no facts, soon after installing</th>
-                <td>BubbleFacts is still getting ready</td>
-                <td>Until it's ready, songs get facts from music databases and your own facts. The <span class="ui">Facts</span> light on the dashboard shows the progress.</td>
-              </tr>
-              <tr>
-                <th scope="row">Fewer bubbles than expected</th>
-                <td>Some captions failed the fact check</td>
-                <td>That's normal for songs with short articles. It means the check is working.</td>
-              </tr>
-              <tr>
-                <th scope="row">The banner is cut off, or the bubbles sit in the wrong place</th>
-                <td>The source isn't the size of your canvas</td>
-                <td>Remove the source and drag the tile from BubbleFacts into OBS again. Or right-click the source, choose <span class="ui">Properties</span>, and set <span class="ui">Width</span> and <span class="ui">Height</span> to your canvas size (see <a href="#obs-by-hand">adding it by hand</a>).</td>
-              </tr>
-              <tr>
-                <th scope="row">The source is blank, or stops updating</th>
-                <td>An OBS Browser source setting, or an old copy of the page</td>
-                <td>Right-click the source, choose <span class="ui">Properties</span>, and click <span class="ui">Refresh cache of current page</span>. Leave <span class="ui">Shutdown source when not visible</span> and <span class="ui">Refresh browser when scene becomes active</span> off, and don't clear the Custom CSS that OBS fills in.</td>
-              </tr>
-              <tr>
-                <th scope="row">Viewers on phones say the bubbles are small</th>
-                <td>Phone screens are small</td>
-                <td>In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</td>
-              </tr>
-              <tr>
-                <th scope="row">Your Mac asks for permission every time BubbleFacts opens</th>
-                <td><span class="ui">Allow</span> was clicked, which covers one time only</td>
-                <td>Click <span class="ui">Always Allow</span> the next time it asks. It asks once after each update.</td>
-              </tr>
-              <tr>
-                <th scope="row">You need the bubbles off the screen right now</th>
-                <td>Anything</td>
-                <td>Click <span class="ui">Pause bubbles</span> on the dashboard, or in the menu bar or tray menu.</td>
-              </tr>
-              <tr>
-                <th scope="row">Your stream stutters when a song starts</th>
-                <td>The built-in AI is sharing your computer with OBS</td>
-                <td>Choose <span class="ui">Online, with Groq (free key)</span> in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span> (see <a href="#ai">Optional: use an online AI instead</a>). It's free and does the work online.</td>
-              </tr>
-              <tr>
-                <th scope="row">The app says the built-in AI can't run on this computer</th>
-                <td>The processor or graphics can't run it, even in processor-only mode</td>
-                <td>Click <span class="ui">Switch to Groq</span> in the app's message. It's free. See the <a href="requirements.html#fallback">system requirements</a>.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p>Still stuck? In the app, open <span class="ui">Help and troubleshooting</span> and click <span class="ui">Report a problem</span>, or ask on <a href="https://discord.gg/gXdVKc6KWx">Discord</a>. The <a href="support.html">help page</a> lists every option.</p>
+        <p>See <a href="troubleshooting.html">Troubleshooting</a>: what you see, why it happens, and what to do.</p>
       </div>
     </section>
   </main>
@@ -476,6 +389,7 @@
         <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
         <li><a href="requirements.html">System requirements</a></li>
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>

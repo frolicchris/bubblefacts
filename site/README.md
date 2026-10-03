@@ -3,15 +3,16 @@
 The public page for the BubbleFacts desktop app, published at
 <https://bubblefacts.frolic.org/>.
 
-Plain static files: nine HTML pages, one stylesheet, one small script, and
+Plain static files: ten HTML pages, one stylesheet, one small script, and
 images. No build step and no server code. The only outside request is the
 download script asking GitHub's public API for the newest release.
 
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | Beta note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Verify your download (optional)" with the in-browser checker and a "For developers" part |
-| `guide.html` | Step-by-step setup and troubleshooting |
+| `download.html` | Beta note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Check your download (optional)" with the in-browser checker and a "For developers" part |
+| `guide.html` | Step-by-step setup, then "Make it yours" (your facts and display settings) |
+| `troubleshooting.html` | What you see, why, and what to do, as one table |
 | `requirements.html` | System requirements, speed, fallback when the built-in AI can't run |
 | `changelog.html` | What's new in each version |
 | `uninstall.html` | Removing the app, its settings and the AI model |
@@ -94,8 +95,8 @@ Every file is built by GitHub Actions with a build-provenance attestation.
 `guide.html` and `download.html` explain the macOS and Windows warnings for
 unsigned builds. Once builds are signed, remove the "About the security
 warnings" note and first-launch steps in `guide.html`, the first two rows of
-its troubleshooting table, the "Opening it the first time" section and the
-signing note under "Verify your download" in `download.html`.
+`troubleshooting.html`, the "Opening it the first time" section and the
+signing note under "Check your download" in `download.html`.
 
 ## When version 2.0.0 ships
 

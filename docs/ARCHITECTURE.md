@@ -54,7 +54,7 @@ StreamElements ───┴──────────────► Server 
    [Song sources and YouTube titles](#song-sources-and-youtube-titles)).
    `setCurrentSong()` tells the fact generator, which drops AI work for any
    other song.
-2. **Tell the overlay.** It shows the NOW PLAYING banner right away, before
+2. **Tell the overlay.** It shows the Now Playing bubble right away, before
    any facts exist.
 3. **The streamer's song facts come first.** If `findSongFacts` matches, those
    lines are shown exactly as written, with no lookup or AI, even for a live
@@ -394,7 +394,7 @@ it can't press the app's buttons.
 | Route | Used for |
 |---|---|
 | `/control/test` | **Show a test bubble**, even while paused. Returns how many overlays got it. |
-| `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second NOW PLAYING banner; a new song starts normally. |
+| `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. |
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts and 5 songwriters). Shows them at once if the song is still on. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
@@ -416,7 +416,8 @@ folder; `data/` for the command-line version):
   and recent facts (see "What gets remembered between songs?").
 
 The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,
-`facts/` (the streamer's custom facts, as a pack) and `logs/`. **Remove my
+`facts/` (the streamer's custom facts, as a pack), `logs/` and `backups/`
+(automatic copies of the settings and facts, never the sign-in). **Remove my
 BubbleFacts data** deletes all of them.
 
 ### Licenses of the sources

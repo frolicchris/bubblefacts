@@ -17,12 +17,12 @@
   <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
-  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="BubbleFacts: song fact bubbles for music streamers">
   <meta name="twitter:description" content="Fun facts about the song you're playing, right on your stream, from Wikipedia and open music databases. A free app for musicians who stream with OBS and StreamerSongList or StreamElements.">
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
-  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing banner.">
+  <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
   <link rel="stylesheet" href="assets/site.css">
   <script src="assets/site.js" defer></script>
@@ -76,7 +76,7 @@
         <figure style="margin:0">
           <div class="rpg hero-shot">
             <img src="assets/demo.png" width="1600" height="900"
-              alt="An example stream screen. Three blue game-style boxes show facts about the Song of Storms from The Legend of Zelda: Ocarina of Time, such as its 1998 release on the Nintendo 64. A gold Now Playing banner at the bottom names the song.">
+              alt="An example stream screen. Three blue game-style boxes show facts about the Song of Storms from The Legend of Zelda: Ocarina of Time, such as its 1998 release on the Nintendo 64. A gold Now Playing bubble at the bottom names the song.">
           </div>
           <figcaption class="caption">What your viewers see when you play the Song of Storms.</figcaption>
         </figure>
@@ -111,10 +111,10 @@
     <section class="section" aria-labelledby="true-title">
       <div class="wrap">
         <h2 id="true-title">How BubbleFacts checks its facts</h2>
-        <p class="section-intro">AI can make things up. BubbleFacts is built to keep made-up facts off your stream, so its fact writer never answers from memory.</p>
+        <p class="section-intro">AI can make things up. BubbleFacts is built to keep made-up facts off your stream, so its AI never answers from memory.</p>
         <ul class="check-list">
           <li><strong>It finds the source first.</strong> When a song starts, it looks up the song, or the game or film it's from, on Wikipedia.</li>
-          <li><strong>It writes only from that article.</strong> The fact writer rephrases details from the article and adds nothing of its own.</li>
+          <li><strong>It writes only from that article.</strong> The built-in AI rephrases details from the article and adds nothing of its own.</li>
           <li><strong>It screens every caption.</strong> Names, who did what, years, consoles, and award or chart claims have to appear in the article, or the caption is dropped. So is anything viewers already know from the request, like the title and artist. That catches most mistakes, not every one: a caption can still mix up details the article does mention. One click on <span class="ui">Wrong</span> takes a fact off your stream.</li>
           <li><strong>No article, no AI.</strong> Free music databases fill in plain facts, like the year and the album. If they don't know the song either, it shows your own facts, or nothing.</li>
         </ul>
@@ -128,12 +128,12 @@
           <div class="rpg see-card">
             <div class="mock mock-toast" aria-hidden="true"><span class="label">&#9654; Now playing</span> Clair de Lune by Claude Debussy</div>
             <h3>Now playing</h3>
-            <p>Briefly shows the song title when it starts.</p>
+            <p>Briefly shows the song title when it starts. You can turn it off.</p>
           </div>
           <div class="rpg see-card">
             <div class="mock mock-bubble" aria-hidden="true">Debussy published Clair de Lune in 1905 as part of his Suite bergamasque.</div>
             <h3>Song facts</h3>
-            <p>Short game-style facts pop up while you play.</p>
+            <p>Short game-style facts pop up while you play, in the part of the screen you choose.</p>
           </div>
         </div>
         <p style="margin-top:1.5rem">Playing your own compositions, or learning a request live? BubbleFacts <a href="guide.html#your-music">handles those too</a>.</p>
@@ -156,7 +156,7 @@
         <details id="faq-free">
           <summary>Is it free?</summary>
           <div class="answer">
-            <p>Yes. BubbleFacts is free and open source, and its built-in fact writer costs nothing to run.</p>
+            <p>Yes. BubbleFacts is free and open source, and its built-in AI costs nothing to run.</p>
           </div>
         </details>
 
@@ -216,6 +216,7 @@
         <li><a href="https://discord.gg/gXdVKc6KWx">Discord</a></li>
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
         <li><a href="requirements.html">System requirements</a></li>
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
