@@ -347,6 +347,14 @@
           <label for="s-port">Port <span class="hint">changes automatically if another program is using it</span></label>
           <input id="s-port" name="port" type="number" min="1024" max="65535">
           <p class="fine">Your settings and logs are in <code id="s-datadir"></code>.</p>
+          <p class="label">Backup</p>
+          <p class="fine">BubbleFacts backs up your settings and facts by itself whenever they change, and keeps the last 20. To move them to another computer, save a copy with <strong>Back up…</strong>. Your sign-in and keys are never in a backup.</p>
+          <div class="toolbar">
+            <button type="button" class="ghost" id="backup-save">Back up…</button>
+            <button type="button" class="ghost" id="backup-show">Show backups</button>
+            <button type="button" class="ghost" id="backup-restore">Restore…</button>
+            <span id="backup-result" class="result" role="status"></span>
+          </div>
           <p class="label">Uninstalling</p>
           <p class="fine">Before removing the app, this deletes everything BubbleFacts saved on this computer and signs you out of StreamerSongList.</p>
           <button type="button" class="danger" id="remove-data">Remove my BubbleFacts data</button>

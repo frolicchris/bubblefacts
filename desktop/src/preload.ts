@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   saveSongFacts: (data: unknown) => ipcRenderer.invoke("save-song-facts", data),
   listSongFacts: () => ipcRenderer.invoke("list-song-facts"),
   openNotices: () => ipcRenderer.invoke("open-notices"),
+  saveBackup: () => ipcRenderer.invoke("backup-save"),
+  restoreBackup: () => ipcRenderer.invoke("backup-restore"),
+  showBackups: () => ipcRenderer.invoke("show-backups"),
   on: (channel: "status" | "state" | "model-progress" | "show-view", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },
