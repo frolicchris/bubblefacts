@@ -47,11 +47,26 @@ export interface Settings {
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
+  /** Hands-free Wrong: a key a foot pedal or Stream Deck sends, or "off". See WRONG_KEYS. */
+  wrongKey: WrongKey;
   port: number;
   startAtLogin: boolean;
   /** Set automatically when the GPU build of the built-in AI fails on this computer. */
   forceCpu: boolean;
 }
+
+/**
+ * The keys hands-free Wrong can listen for, as Electron accelerators. A short
+ * list of combinations few apps use, rather than any key: a global shortcut
+ * takes the key from every other app while BubbleFacts runs.
+ */
+export const WRONG_KEYS = {
+  off: null,
+  "ctrl-alt-w": "Control+Alt+W",
+  "ctrl-alt-shift-w": "Control+Alt+Shift+W",
+  f13: "F13",
+} as const;
+export type WrongKey = keyof typeof WRONG_KEYS;
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
@@ -85,6 +100,7 @@ export const DEFAULTS: Settings = {
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
+  wrongKey: "off",
   port: 3000,
   startAtLogin: false,
   forceCpu: false,
@@ -189,6 +205,7 @@ export function sanitize(s: Settings): Settings {
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
     intervalSeconds: clamp(s.intervalSeconds, 3, 300, DEFAULTS.intervalSeconds),
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
+    wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
     port: clamp(s.port, 1024, 65525, DEFAULTS.port),
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
@@ -211,7 +228,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying",
   "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
 ];
 
 /** The window's changes, keeping only editable keys whose values have the right type. */

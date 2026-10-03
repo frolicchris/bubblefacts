@@ -72,6 +72,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
+| `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
 
 ## The life of one song
@@ -391,6 +392,11 @@ Wrong   → POST /control/wrong {text, song}
         → blockArticle() saves wrong-facts.json; the song's cached facts are dropped
         → song on now: overlay gets remove_fact, even mid-bubble; session.json drops it
         ← {removed, live, article, structured}
+Hands-free Wrong (a global key from a foot pedal or Stream Deck)
+        → POST /control/wrong-current {}
+        → factOnScreen(): the bubble up now, else the one shown last for this song
+        → then exactly as Wrong on the song on now
+        ← {removed, live, article, structured, text, song}  or  {removed: false, reason}
 Undo    → POST /control/unwrong {article, song}
         → unmarkWrong() lifts the block; the fact stays off for this play
         ← {restored}
@@ -402,6 +408,18 @@ video, else `artist:::title` lowercased) to blocked article titles and the
 the same entry. The label is used rather than what's in memory, so Wrong is
 right after a restart and on an earlier song. The app sends the song that was
 on when **Wrong** was pressed, so **Undo** can't land on the next song.
+
+**Hands-free Wrong** asks the server, not the overlay, which bubble is up: it
+knows when the facts went out (`factsShownAt`) and each one's delay, and
+`readingSeconds` in `session.ts` mirrors the overlay's (keep them the same).
+Delays count from `factsShownAt`, so a resumed or restarted song works
+unchanged. A press within 1.5 seconds of a new bubble, while the one before
+is still up, means the one before (`JUST_APPEARED_SECONDS`): the musician
+reacted to what they read. Nothing is marked while paused, before any bubble
+has gone out (no overlay connected counts), or for a song with no facts; the
+reason (`paused`, `no-song`, `not-ready`, `no-facts`, `none-shown`) becomes
+the dashboard's note. The test bubble is never in `lastSent`, so it's never
+the one marked.
 
 ### Keeping generations in order
 
@@ -442,6 +460,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/test` | **Show a test bubble**, even while paused. A `test_bubble` message, drawn on top of the song that's playing: that song's remaining bubbles, and **Wrong** on them, carry on. Returns how many overlays got it. |
 | `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. The app restarts a crashed or stalled server with `BUBBLEFACTS_PAUSED=1`, so it stays paused. |
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
+| `/control/wrong-current` | **Hands-free Wrong** (above): the bubble on stream now, or the one shown last for this song. |
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts and 5 songwriters). Shows them at once if the song is still on. |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
