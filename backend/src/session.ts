@@ -15,6 +15,8 @@ export interface Session {
   shownAt: number;
   recent: string[];
   savedAt: number;
+  /** Earlier songs this stream and their facts, newest first, so Wrong works after a song ends. */
+  earlier?: Array<{ song: SSLSong; facts: Fact[] }>;
 }
 
 /** A restart this long after the facts went out starts the song afresh: it's another day's stream. */

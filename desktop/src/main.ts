@@ -153,6 +153,8 @@ function state() {
 // --- Supervisor events -------------------------------------------------
 
 supervisor.on("status", (status: Status) => {
+  // The streamer's Pause is the truth: a server that came back without it is told again.
+  if (typeof status.health?.paused === "boolean" && status.health.paused !== paused) void control("pause", { paused });
   send("status", status);
   updateTray(status);
 });
@@ -429,6 +431,8 @@ async function control(pathname: string, body: unknown = {}): Promise<Record<str
 
 async function setPaused(next: boolean): Promise<void> {
   paused = next;
+  // A server the supervisor restarts later (after a crash or a stall) starts paused too.
+  supervisor.setEnv({ BUBBLEFACTS_PAUSED: paused ? "1" : "" });
   await control("pause", { paused });
   updateTray(supervisor.status);
   send("state", state());
@@ -437,8 +441,8 @@ async function setPaused(next: boolean): Promise<void> {
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
-ipcMain.handle("wrong-fact", async (_e, text: string) => {
-  const result = await control("wrong", { text: String(text) });
+ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown) => {
+  const result = await control("wrong", { text: String(text), song });
   backUpNow();
   return result;
 });
@@ -654,7 +658,8 @@ ipcMain.handle("remove-data", async () => {
   await revoke(settings.refreshToken);
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json", "session.json", "backups"]) {
+  await twitch.disconnect();
+  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"]) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();

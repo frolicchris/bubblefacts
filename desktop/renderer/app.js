@@ -335,6 +335,87 @@
 
   let nowShowing = 0, nowReady = false;
 
+  /** One fact on the dashboard: its text, where it came from, Edit for your own, and Wrong. */
+  function factItem(f, songObj, label, current = true) {
+    const li = $("#fact-item").content.firstElementChild.cloneNode(true);
+    $(".fact-text", li).textContent = f.text;
+    $(".fact-source", li).textContent = f.source ? `(${f.source})` : "";
+    // A fact from an article shows its source: click to see the sentence it was written from, and open the article.
+    if (f.url) {
+      $(".fact-source", li).hidden = true;
+      const link = $(".fact-source-link", li);
+      const evidence = $(".fact-evidence", li);
+      link.hidden = false;
+      link.textContent = f.source;
+      link.title = "Show where this came from";
+      link.setAttribute("aria-expanded", "false");
+      link.addEventListener("click", () => {
+        if (!evidence.hidden) {
+          evidence.hidden = true;
+          link.setAttribute("aria-expanded", "false");
+          return;
+        }
+        evidence.replaceChildren(
+          f.evidence ? `The article says: “${f.evidence}” ` : "BubbleFacts couldn't point to one sentence for this. Check the article. ",
+          Object.assign(document.createElement("button"), { className: "link", textContent: "Open the article", onclick: () => api.openExternal(f.url) })
+        );
+        evidence.hidden = false;
+        link.setAttribute("aria-expanded", "true");
+      });
+    }
+    // Your own facts can be changed where they show: one song's in the editor, the rest in Settings.
+    const edit = $(".edit-fact", li);
+    // Edit is for the song on now; an earlier song's facts are edited from Settings.
+    if (current && (f.source === "Your facts for this song" || f.source === "Your custom facts")) {
+      edit.hidden = false;
+      edit.setAttribute("aria-label", `Edit: ${f.text}`);
+      edit.addEventListener("click", async () => {
+        if (f.source === "Your custom facts") {
+          show("settings");
+          $("#s-myfacts").focus();
+          return;
+        }
+        const got = (await api.getSongFacts()) || {};
+        openSongFacts(got.song, got.entry);
+      });
+    }
+    const wrong = $(".wrong", li);
+    wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
+    wrong.addEventListener("click", async () => {
+      // The song goes along: during the song this takes the fact off the stream; afterward it's
+      // marked for next time (hands are busy while playing).
+      const result = await api.wrongFact(f.text, songObj);
+      if (!result || !result.removed) {
+        showWrongNote("BubbleFacts no longer has that fact, so there was nothing to mark.", null);
+        return;
+      }
+      // The song itself goes along, so Undo can't land on whatever plays next.
+      state.wrong = { song: label || "", text: f.text, article: result.article, songId: songObj };
+      const what = result.structured
+        ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+        : result.article
+          ? `BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
+          : "";
+      showWrongNote(result.live ? `Removed. ${what}`.trim() : `Marked wrong. ${what || "It won't show for this song again."}`, result.article);
+      li.remove();
+    });
+    return li;
+  }
+
+  /** Songs that already played, with Wrong on each fact: for once your hands are free. */
+  function renderEarlier(earlier) {
+    $("#earlier").hidden = !earlier.length;
+    const box = $("#earlier-list");
+    box.replaceChildren();
+    for (const e of earlier) {
+      const title = e.song.title + (e.song.artist && !/^unknown$/i.test(e.song.artist) ? " — " + e.song.artist : "");
+      const heading = Object.assign(document.createElement("p"), { className: "now-song", textContent: title });
+      const ul = Object.assign(document.createElement("ul"), { className: "facts" });
+      for (const f of e.facts) ul.appendChild(factItem(f, e.song, title, false));
+      box.append(heading, ul);
+    }
+  }
+
   async function refreshRecent() {
     const r = await api.recent();
     if (nowShowing !== (r.facts || []).length || nowReady !== !!r.ready) {
@@ -345,76 +426,14 @@
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
     $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
     // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
-    const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text)]);
+    const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text), (r.earlier || []).map((e) => [e.song.title, e.facts.length])]);
     if (drawn === lastRecent) return;
     lastRecent = drawn;
     $("#now-song").textContent = song || "Nothing playing yet";
     const list = $("#now-facts");
     list.replaceChildren();
-    for (const f of r.facts || []) {
-      const li = $("#fact-item").content.firstElementChild.cloneNode(true);
-      $(".fact-text", li).textContent = f.text;
-      $(".fact-source", li).textContent = f.source ? `(${f.source})` : "";
-      // A fact from an article shows its source: click to see the sentence it was written from, and open the article.
-      if (f.url) {
-        $(".fact-source", li).hidden = true;
-        const link = $(".fact-source-link", li);
-        const evidence = $(".fact-evidence", li);
-        link.hidden = false;
-        link.textContent = f.source;
-        link.title = "Show where this came from";
-        link.setAttribute("aria-expanded", "false");
-        link.addEventListener("click", () => {
-          if (!evidence.hidden) {
-            evidence.hidden = true;
-            link.setAttribute("aria-expanded", "false");
-            return;
-          }
-          evidence.replaceChildren(
-            f.evidence ? `The article says: “${f.evidence}” ` : "BubbleFacts couldn't point to one sentence for this. Check the article. ",
-            Object.assign(document.createElement("button"), { className: "link", textContent: "Open the article", onclick: () => api.openExternal(f.url) })
-          );
-          evidence.hidden = false;
-          link.setAttribute("aria-expanded", "true");
-        });
-      }
-      // Your own facts can be changed where they show: one song's in the editor, the rest in Settings.
-      const edit = $(".edit-fact", li);
-      if (f.source === "Your facts for this song" || f.source === "Your custom facts") {
-        edit.hidden = false;
-        edit.setAttribute("aria-label", `Edit: ${f.text}`);
-        edit.addEventListener("click", async () => {
-          if (f.source === "Your custom facts") {
-            show("settings");
-            $("#s-myfacts").focus();
-            return;
-          }
-          const got = (await api.getSongFacts()) || {};
-          openSongFacts(got.song, got.entry);
-        });
-      }
-      const wrong = $(".wrong", li);
-      wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
-      wrong.addEventListener("click", async () => {
-        const result = await api.wrongFact(f.text);
-        if (!result || !result.removed) {
-          showWrongNote("That song already ended, so there was nothing to remove.", null);
-          return;
-        }
-        // The song itself goes along, so Undo can't land on whatever plays next.
-        state.wrong = { song: song || "", text: f.text, article: result.article, songId: r.song };
-        showWrongNote(
-          result.structured
-            ? "Removed. BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
-            : result.article
-              ? `Removed. BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
-              : "Removed from your stream.",
-          result.article
-        );
-        li.remove();
-      });
-      list.appendChild(li);
-    }
+    for (const f of r.facts || []) list.appendChild(factItem(f, r.song, song));
+    renderEarlier(r.earlier || []);
     $("#now-empty").hidden = (r.facts || []).length > 0;
     $("#now-empty").textContent = emptyText(r);
     $("#song-facts-open").hidden = !$("#song-facts-form").hidden;

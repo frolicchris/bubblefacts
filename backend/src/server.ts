@@ -9,6 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
+import { allowedHost } from "./local-only";
 import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
@@ -19,7 +20,10 @@ import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/ws" });
+// Only this computer: see local-only.ts.
+const fromHere = (host: string | undefined) => allowedHost(host, config.port, config.host);
+app.use((req, res, next) => (fromHere(req.get("host")) ? next() : res.status(403).end()));
+const wss = new WebSocketServer({ server, path: "/ws", verifyClient: (info: { req: http.IncomingMessage }) => fromHere(info.req.headers.host) });
 const songList: SongSource = config.songSource === "streamelements" ? new StreamElementsClient() : new SongListClient();
 
 interface Client {
@@ -48,11 +52,25 @@ let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 let factsShownAt = 0;
 let pausedAt = 0;
 
+/**
+ * Songs that already played this stream, with their facts, newest first. A
+ * musician can't click Wrong mid-song, so the dashboard offers it afterward.
+ */
+const EARLIER_KEPT = 12;
+let earlier: Array<{ song: SSLSong; facts: NonNullable<FactsPayload["facts"]> }> = [];
+
 /** What was showing before a restart, until the first song after it is known. */
 let restored: Session | null = loadSession();
-if (restored) restoreRecent(restored.recent);
+if (restored) {
+  restoreRecent(restored.recent);
+  earlier = (restored.earlier ?? []).slice(0, EARLIER_KEPT);
+}
 
 function broadcast(payload: FactsPayload): void {
+  // A new song moves the one that was showing into the earlier list.
+  if (payload.type === "new_song" && !payload.quiet && lastSent.song && lastSent.facts?.length && !sameSong(lastSent.song, payload.song)) {
+    earlier = [{ song: lastSent.song, facts: lastSent.facts }, ...earlier.filter((e) => !sameSong(e.song, lastSent.song))].slice(0, EARLIER_KEPT);
+  }
   if (payload.type === "new_song" && !payload.quiet) factsShownAt = 0;
   // With no overlay connected nobody saw them: the first one to connect gets them all.
   if (payload.type === "facts_ready" && !paused) factsShownAt = clients.size ? Date.now() : 0;
@@ -67,8 +85,9 @@ function broadcast(payload: FactsPayload): void {
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now() });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier });
 }
+
 
 wss.on("connection", (ws, req) => {
   const client: Client = {
@@ -231,26 +250,33 @@ function resumeSameSong(): boolean {
 }
 
 // "Wrong" in the app: take the fact off the stream now, and stop using its article for this song.
+// "Wrong": during the song it also comes off the stream; afterward (hands are busy while playing)
+// it's marked for next time. Either way its source isn't used for that song again.
 control.post("/wrong", (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text : "";
-  const song = lastSent.song;
-  if (!song || !text || !(lastSent.facts ?? []).some((f) => f.text === text)) {
+  const given = songFrom(req.body?.song);
+  const playing = !given || sameSong(given, songFrom(lastSent.song));
+  const song = playing ? lastSent.song : given;
+  const list = playing ? lastSent.facts ?? [] : earlier.find((e) => sameSong(e.song, given))?.facts ?? [];
+  const fact = list.find((f) => f.text === text);
+  if (!song || !fact) {
     res.status(404).json({ removed: false });
     return;
   }
-  broadcast({ type: "remove_fact", song, text });
-  const article = markWrong(song, text);
-  res.json({ removed: true, article, structured: article === STRUCTURED });
+  if (playing) broadcast({ type: "remove_fact", song, text });
+  else {
+    earlier = earlier.map((e) => (sameSong(e.song, song) ? { ...e, facts: e.facts.filter((f) => f.text !== text) } : e));
+    if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
+  }
+  const article = markWrong(song, text, fact.source);
+  res.json({ removed: true, live: playing, article, structured: article === STRUCTURED });
 });
 
 // Undo "Wrong": the source may be used for the song again. The removed fact stays off this play.
 control.post("/unwrong", (req, res) => {
   const article = typeof req.body?.article === "string" ? req.body.article : "";
-  // The song Wrong was pressed on, which may no longer be playing.
-  const given = req.body?.song as { title?: unknown; artist?: unknown } | undefined;
-  const song = given && typeof given.title === "string" && typeof given.artist === "string"
-    ? { title: given.title, artist: given.artist }
-    : null;
+  // The song Wrong was pressed on, in full: list songs and videos are blocked by their ID.
+  const song = songFrom(req.body?.song);
   if (!song || !article) {
     res.status(404).json({ restored: false });
     return;
@@ -281,6 +307,7 @@ function songFrom(v: unknown): SSLSong | null {
     artist: s.artist,
     ...(typeof s.songId === "number" ? { songId: s.songId } : {}),
     ...(typeof s.videoId === "string" ? { videoId: s.videoId } : {}),
+    ...(s.liveLearn === true ? { liveLearn: true } : {}),
   };
 }
 const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
@@ -299,15 +326,22 @@ control.post("/song-facts", async (req, res) => {
     res.status(400).json({ saved: false });
     return;
   }
-  saveSongFacts({
-    title: song.title,
-    artist: song.artist,
-    ...(song.songId ? { songId: song.songId } : {}),
-    ...(song.videoId ? { videoId: song.videoId } : {}),
-    songwriters: strings(req.body?.songwriters, 5),
-    link: typeof req.body?.link === "string" ? req.body.link.slice(0, 200) : "",
-    facts: strings(req.body?.facts, 20),
-  });
+  // A save that fails (a full disk, say) is an answer for the window, not a crash mid-stream.
+  try {
+    saveSongFacts({
+      title: song.title,
+      artist: song.artist,
+      ...(song.songId ? { songId: song.songId } : {}),
+      ...(song.videoId ? { videoId: song.videoId } : {}),
+      songwriters: strings(req.body?.songwriters, 5),
+      link: typeof req.body?.link === "string" ? req.body.link.slice(0, 200) : "",
+      facts: strings(req.body?.facts, 20),
+    });
+  } catch (err) {
+    console.warn(`[SongFacts] Couldn't save: ${err instanceof Error ? err.message : err}`);
+    res.status(500).json({ saved: false });
+    return;
+  }
   forgetSong(song);
   // Show them now, without a second NOW PLAYING banner, if that song is still on.
   const current = songList.getCurrentSong();
@@ -373,7 +407,7 @@ app.get("/health", (_req, res) => {
 app.get("/recent", (_req, res) => {
   // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
   const song = songFrom(lastSent.song);
-  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "" });
+  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier });
 });
 
 /** Facts for whatever is playing now, for testing without OBS. */

@@ -725,10 +725,35 @@ export function clearFactCache(): void {
  * "already shown", so the next time it plays BubbleFacts looks again.
  * Returns what was blocked, or null for custom, song-list or the streamer's own song facts.
  */
-export function markWrong(song: SSLSong, text: string): string | null {
+/** The songs a block is saved under: the request, and for a live learn also the song it was looked up as. */
+function blockedAs(song: SSLSong): SSLSong[] {
+  const lookup = song.liveLearn ? liveLearnLookup(song) : null;
+  return lookup ? [song, lookup] : [song];
+}
+
+/**
+ * What a fact's own source label says to block: an article, Wikidata and
+ * MusicBrainz, or nothing (the streamer's own facts and song-list facts).
+ * Undefined when there's no label to go by.
+ */
+export function blockFor(label: string | undefined): string | null | undefined {
+  if (!label) return undefined;
+  if (label.startsWith("Wikipedia: ")) return label.slice("Wikipedia: ".length);
+  if (label === SOURCE.wikidata || label === SOURCE.musicbrainz) return STRUCTURED;
+  return null;
+}
+
+/**
+ * The streamer marked one of a song's facts wrong. Its source is blocked for
+ * that song: decided by the fact's own label when it has one, so it's right
+ * after a restart and for a song that already ended, and Wrong on the
+ * streamer's own fact never blocks the article shown beside it.
+ */
+export function markWrong(song: SSLSong, text: string, label?: string): string | null {
   const key = songKey(song);
-  const source = structuredShown.get(key)?.has(text) ? STRUCTURED : (sources.get(key) ?? null);
-  if (source) blockArticle(song, source);
+  const fromLabel = blockFor(label);
+  const source = fromLabel !== undefined ? fromLabel : structuredShown.get(key)?.has(text) ? STRUCTURED : (sources.get(key) ?? null);
+  if (source) for (const s of blockedAs(song)) blockArticle(s, source);
   const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
   for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
   factCache.delete(key);
@@ -768,6 +793,6 @@ export function forgetSong(song: SSLSong): void {
 
 /** Undo "Wrong": the source may be used for the song again. */
 export function unmarkWrong(song: SSLSong, source: string): void {
-  unblockArticle(song, source);
+  for (const s of blockedAs(song)) unblockArticle(s, source);
   console.log(`[WrongFact] "${song.title}": "${source}" allowed again`);
 }
