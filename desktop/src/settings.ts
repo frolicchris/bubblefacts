@@ -235,8 +235,10 @@ export function saveSettings(settings: Settings): void {
  * https://www.electronjs.org/docs/latest/api/safe-storage
  */
 export function secretsUnprotected(): boolean {
-  if (!safeStorage.isEncryptionAvailable()) return true;
+  // Only Linux can be without a keyring. Asking on a Mac reads the keychain, and after
+  // an update that brings up macOS's prompt before the window can say what to click (#62).
   if (process.platform !== "linux") return false;
+  if (!safeStorage.isEncryptionAvailable()) return true;
   const backend = (safeStorage as { getSelectedStorageBackend?: () => string }).getSelectedStorageBackend?.();
   return !backend || backend === "basic_text" || backend === "unknown";
 }

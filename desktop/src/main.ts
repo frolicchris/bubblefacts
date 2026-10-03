@@ -139,7 +139,8 @@ function state() {
     modelLicense: MODEL.license,
     version: app.getVersion(),
     platform: process.platform,
-    secretsUnprotected: secretsUnprotected(),
+    // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
+    secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
     update,
     updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
