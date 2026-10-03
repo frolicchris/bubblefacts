@@ -1,4 +1,5 @@
 import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
+import { factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
@@ -123,10 +124,11 @@ function startServer(force = false): void {
 }
 
 function state() {
-  const { token, refreshToken, seJwt, groqKey, anthropicKey, ...rest } = settings;
+  const { token, refreshToken, seJwt, groqKey, anthropicKey, twitchToken, twitchRefreshToken, ...rest } = settings;
   return {
-    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey },
+    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
+    twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitch.userCode, error: twitch.error },
     paused,
     ollama,
     signInExpired,
@@ -498,6 +500,51 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
   backUpNow();
   return state();
+});
+
+// --- Connect Twitch (optional, issue #47) ---------------------------------------
+
+const twitch = new TwitchSession(
+  () => (settings.twitchRefreshToken
+    ? { accessToken: settings.twitchToken, refreshToken: settings.twitchRefreshToken, expiresAt: settings.twitchTokenExpiresAt, login: settings.twitchLogin }
+    : null),
+  (t) => {
+    settings = { ...settings, twitchToken: t?.accessToken ?? "", twitchRefreshToken: t?.refreshToken ?? "", twitchTokenExpiresAt: t?.expiresAt ?? 0, twitchLogin: t?.login ?? "" };
+    saveSettings(settings);
+  }
+);
+
+ipcMain.handle("twitch-connect", async () => {
+  await twitch.connect(openExternal, () => send("state", state()));
+  return state();
+});
+
+ipcMain.handle("twitch-disconnect", async () => {
+  await twitch.disconnect();
+  return state();
+});
+
+/** The Twitch channel a song points to, for the window to offer Fill: one rule, in twitch.ts. */
+ipcMain.handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
+
+/** Their Twitch About, as fact boxes for the streamer to review in the song facts editor. */
+ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
+  const login = twitchLoginFrom(String(artist ?? ""), String(link ?? ""));
+  if (!login) return { ok: false, message: "Put their Twitch link in \"Their link\" first, like twitch.tv/theirname." };
+  try {
+    const channel = await twitch.withToken((token) => getChannel(login, token));
+    if (!channel) return { ok: false, message: `There's no Twitch channel called ${login}.` };
+    const facts = factsFromAbout(channel.description);
+    return {
+      ok: true,
+      link: `twitch.tv/${channel.login}`,
+      facts,
+      message: facts.length ? "Added from their Twitch About. Check it before you save." : `${channel.displayName}'s Twitch About is empty. Their link is filled in.`,
+    };
+  } catch (err) {
+    send("state", state());
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
 });
 
 ipcMain.handle("sign-in", async () => {

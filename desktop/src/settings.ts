@@ -16,6 +16,11 @@ export interface Settings {
   /** When the signed-in access token runs out, in milliseconds since 1970. */
   tokenExpiresAt: number;
   streamerId: number;
+  /** Connect Twitch (optional, issue #47): reads other streamers' public About text. */
+  twitchToken: string;
+  twitchRefreshToken: string;
+  twitchTokenExpiresAt: number;
+  twitchLogin: string;
   /** StreamElements channel name, filled in from the token when it's tested. */
   seChannel: string;
   /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
@@ -58,6 +63,10 @@ export const DEFAULTS: Settings = {
   refreshToken: "",
   tokenExpiresAt: 0,
   streamerId: 0,
+  twitchToken: "",
+  twitchRefreshToken: "",
+  twitchTokenExpiresAt: 0,
+  twitchLogin: "",
   seChannel: "",
   seJwt: "",
   displayName: "",
@@ -84,7 +93,7 @@ export const DEFAULTS: Settings = {
   forceCpu: false,
 };
 
-const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey"] as const;
+const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey", "twitchToken", "twitchRefreshToken"] as const;
 const file = () => path.join(app.getPath("userData"), "settings.json");
 
 

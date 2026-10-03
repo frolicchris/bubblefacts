@@ -61,7 +61,7 @@
   "build": {
     "appId": "org.frolic.bubblefacts",
     "productName": "BubbleFacts",
-    "copyright": "Copyright © 2026 Christopher Feyrer. MIT License.",
+    "copyright": "Copyright \u00a9 2026 Christopher Feyrer. MIT License.",
     "extraMetadata": {
       "name": "bubblefacts"
     },
@@ -165,6 +165,7 @@
     }
   },
   "bubblefacts": {
-    "sslClientId": "e8b60f8c-f592-4c7d-bf4b-506d0752301c"
+    "sslClientId": "e8b60f8c-f592-4c7d-bf4b-506d0752301c",
+    "twitchClientId": "omqbs0mryllbx6n7uzw9k9rldzq2cy"
   }
 }

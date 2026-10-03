@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   saveBackup: () => ipcRenderer.invoke("backup-save"),
   restoreBackup: () => ipcRenderer.invoke("backup-restore"),
   showBackups: () => ipcRenderer.invoke("show-backups"),
+  twitchConnect: () => ipcRenderer.invoke("twitch-connect"),
+  twitchDisconnect: () => ipcRenderer.invoke("twitch-disconnect"),
+  twitchAbout: (artist: string, link: string) => ipcRenderer.invoke("twitch-about", artist, link),
+  twitchLogin: (artist: string, link: string) => ipcRenderer.invoke("twitch-login", artist, link),
   on: (channel: "status" | "state" | "model-progress" | "show-view", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },
