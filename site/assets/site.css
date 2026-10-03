@@ -475,6 +475,13 @@ main {
   justify-content: center;
 }
 
+/* Sections that aren't one of the app's two setup steps: a note, not a number. */
+.guide-step > .num.plain {
+  background: transparent;
+  border: 2px solid var(--gold);
+  color: var(--gold);
+}
+
 .guide-step > .body {
   min-width: 0;
 }
