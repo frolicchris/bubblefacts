@@ -44,6 +44,18 @@ const VARIANT_MARKER =
 /** "(Day)" and "(Night)" are variants only on their own; "(Night in the Woods)" is a game. */
 const VARIANT_WORD = /^\s*(day|night)\s*$/i;
 
+/**
+ * "Separate Ways (Worlds Apart) [Instrumental]" is the song "Separate Ways
+ * (Worlds Apart)": a tag at the end that says how it's played (instrumental,
+ * piano, a cover, a live version) describes the performance, not the work,
+ * and searching with it finds nothing. Song lists add these often.
+ */
+export function dropVersionTags(title: string): string {
+  let t = title;
+  for (let m; (m = /^(.+?)\s*[([]([^)\]]*)[)\]]\s*$/.exec(t)) && VARIANT_MARKER.test(m[2]); ) t = m[1];
+  return t;
+}
+
 /** Split "Game: Track", "Game - Track" or "Track (Game)". */
 export function splitGameAndTrack(title: string): { game: string; track: string } {
   const clean = title.trim();
@@ -66,7 +78,7 @@ export function splitGameAndTrack(title: string): { game: string; track: string 
  */
 export function resolveGameAndTrack(song: SSLSong): { game: string; track: string } {
   const artist = song.artist?.trim();
-  const title = song.title.trim();
+  const title = dropVersionTags(song.title.trim());
 
   if (!artist || /^unknown$/i.test(artist) || artist.toLowerCase() === title.toLowerCase()) {
     return splitGameAndTrack(title);
@@ -133,7 +145,8 @@ export function normalizeTitle(s: string): string {
   return s
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
-    .replace(/\s*\([^)]*\)\s*$/, "")
+    // Trailing tags in brackets or parentheses: "(Worlds Apart)", "[Instrumental]", "(Live) (Remastered)".
+    .replace(/(?:\s*(?:\([^)]*\)|\[[^\]]*\]))+\s*$/, "")
     .toLowerCase()
     .replace(/(\p{L})-(\d)/gu, "$1$2")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
@@ -158,13 +171,24 @@ export function looksLikeArtistName(subject: string): boolean {
   );
 }
 
+/** A page qualifier that says what kind of work it is: "(Flight Facilities song)", "(album)". */
+const WORK_TYPE = /\b(song|single|album|soundtrack|composition|video|game|series|film|instrumental|suite)\b/i;
+
 /**
  * True when a page's disambiguator names an artist that is not the subject:
  * "Clair de Lune (Flight Facilities song)" when we wanted Debussy.
+ *
+ * `track` is the title as requested. A bracket it shares with the page is
+ * part of the song's name, not a disambiguator: "Separate Ways (Worlds Apart)".
+ * With `bareSubtitlesOk`, a bracket that names no kind of work is taken as a
+ * subtitle too; the caller must then check the article names the artist.
  */
-export function qualifierNamesAnotherArtist(pageTitle: string, subject: string): boolean {
+export function qualifierNamesAnotherArtist(pageTitle: string, subject: string, track = "", bareSubtitlesOk = false): boolean {
   const qualifier = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
   if (!qualifier) return false;
+  const fold = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  if (track && ` ${fold(track)} `.includes(` ${fold(qualifier)} `)) return false;
+  if (bareSubtitlesOk && !WORK_TYPE.test(qualifier)) return false;
 
   const named = qualifier
     .split(/\s+/)
@@ -603,7 +627,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   if (!artist && track && track !== game && !song.artistUncertain && !noOwnArticle.has(songKey) && !groundingCache.get(songKey)?.text) {
     try {
       const own = (await wikiSearch(`${track} ${game}`)).find(
-        (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game)
+        (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
       );
       const full = own ? await wikiExtract(own) : null;
       // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
@@ -651,7 +675,7 @@ export async function fetchGrounding(song: SSLSong): Promise<string> {
   const gameTokens = significantTokens(gameKey).length;
   const extendsGame = (title: string) => significantTokens(normalizeTitle(title)).length > gameTokens;
   const matchedTrack = (title: string) =>
-    track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game);
+    track !== game && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game, track);
 
   // "Lil Nas X, Jack Harlow": a song's article may name only its lead artist.
   const names = artistNames(game);

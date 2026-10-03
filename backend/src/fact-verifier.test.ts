@@ -17,6 +17,8 @@ import {
   platformSupported,
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
+  dropVersionTags,
+  normalizeTitle,
   tooSimilar,
   alteredQuote,
   gameTrackText,
@@ -544,6 +546,14 @@ describe("qualifierNamesAnotherArtist", () => {
   it("ignores a bare category qualifier that names nobody", () => {
     expect(qualifierNamesAnotherArtist("Bohemian Rhapsody (song)", "Queen")).toBe(false);
     expect(qualifierNamesAnotherArtist("Celeste (video game)", "Celeste")).toBe(false);
+  });
+
+  it("treats a bracket the requested title shares as part of the name", () => {
+    // Live: "Separate Ways (Worlds Apart)" by Journey fell through to the 2012 video game Journey.
+    expect(qualifierNamesAnotherArtist("Separate Ways (Worlds Apart)", "Journey", "Separate Ways (Worlds Apart)")).toBe(false);
+    // A bare subtitle is allowed only where the caller checks the article names the artist.
+    expect(qualifierNamesAnotherArtist("Separate Ways (Worlds Apart)", "Journey", "Separate Ways", true)).toBe(false);
+    expect(qualifierNamesAnotherArtist("Clair de Lune (Flight Facilities song)", "Claude Debussy", "Clair de Lune", true)).toBe(true);
   });
 
   it("is a no-op when there is no qualifier at all", () => {
@@ -1079,5 +1089,19 @@ describe("a set named in the plural (October 1 evening log)", () => {
   it("matches Hungarian Dance to Hungarian Dances (Brahms)", () => {
     expect(isRelevantArticle("Hungarian Dance", "Hungarian Dances (Brahms)")).toBe(true);
     expect(isRelevantArticle("Queen", "Queens (band)")).toBe(false);
+  });
+});
+
+describe("dropVersionTags", () => {
+  it("drops tags that say how a song is played, keeping the song's own name", () => {
+    expect(dropVersionTags("Separate Ways (Worlds Apart) [Instrumental]")).toBe("Separate Ways (Worlds Apart)");
+    expect(dropVersionTags("Take On Me [Instrumental]")).toBe("Take On Me");
+    expect(dropVersionTags("Gerudo Valley (Piano Cover)")).toBe("Gerudo Valley");
+    expect(dropVersionTags("Song Title (Live) (Remastered)")).toBe("Song Title");
+    expect(dropVersionTags("Song of Storms (Ocarina of Time)")).toBe("Song of Storms (Ocarina of Time)");
+  });
+
+  it("compares titles without trailing tags in either kind of bracket", () => {
+    expect(normalizeTitle("Separate Ways (Worlds Apart) [Instrumental]")).toBe(normalizeTitle("Separate Ways (Worlds Apart)"));
   });
 });
