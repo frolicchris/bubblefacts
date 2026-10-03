@@ -61,3 +61,32 @@ export function remainingFacts(facts: Fact[], shownAt: number, now = Date.now())
   const elapsed = (now - shownAt) / 1000;
   return facts.filter((f) => f.delaySeconds > elapsed).map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
 }
+
+/**
+ * How long the overlay keeps a bubble up: its own time, or longer for a long
+ * fact. Must match readingSeconds in obs-overlay.js.
+ */
+export function readingSeconds(fact: Pick<Fact, "text" | "durationSeconds">): number {
+  const words = fact.text.split(/\s+/).filter(Boolean).length;
+  return Math.max(fact.durationSeconds, 2 + words / 3);
+}
+
+/** A pedal press this soon after a new bubble pops up was meant for the one before it, if that one is still up. */
+export const JUST_APPEARED_SECONDS = 1.5;
+
+/**
+ * The bubble a hands-free Wrong is for: the one on stream now, or when none
+ * is up, the one shown last. Null when none has gone out yet. Delays count
+ * from `shownAt`, as in the overlay.
+ */
+export function factOnScreen(facts: Fact[], shownAt: number, now = Date.now()): Fact | null {
+  if (!shownAt) return null;
+  const elapsed = (now - shownAt) / 1000;
+  const shown = facts.filter((f) => f.delaySeconds <= elapsed).sort((a, b) => a.delaySeconds - b.delaySeconds);
+  const latest = shown[shown.length - 1];
+  if (!latest) return null;
+  const before = shown[shown.length - 2];
+  const stillUp = (f: Fact) => elapsed < f.delaySeconds + readingSeconds(f);
+  if (before && elapsed - latest.delaySeconds < JUST_APPEARED_SECONDS && stillUp(before)) return before;
+  return latest;
+}

@@ -5,7 +5,7 @@ import path from "path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-session-"));
 jest.mock("./config", () => ({ config: { dataDir: dir } }));
 
-import { loadSession, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession } from "./session";
+import { factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession } from "./session";
 import { Fact } from "./types";
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -46,5 +46,43 @@ describe("sameRequest", () => {
     expect(sameRequest({ title: "A", artist: "B" }, { title: "A", artist: "B" })).toBe(true);
     expect(sameRequest({ title: "A", artist: "B" }, { title: "A", artist: "C" })).toBe(false);
     expect(sameRequest(null, { title: "A", artist: "B" })).toBe(false);
+  });
+});
+
+describe("the bubble a hands-free Wrong is for", () => {
+  const at = (seconds: number) => 1000 + seconds * 1000;
+
+  it("is none before any bubble has gone out, or when no overlay saw them", () => {
+    expect(factOnScreen(facts, 0, at(20))).toBeNull();
+    expect(factOnScreen([fact("Later.", 10)], 1000, at(5))).toBeNull();
+    expect(factOnScreen([], 1000, at(5))).toBeNull();
+  });
+
+  it("is the one on stream now", () => {
+    expect(factOnScreen(facts, 1000, at(3))?.text).toBe("One.");
+    expect(factOnScreen(facts, 1000, at(17))?.text).toBe("Two.");
+  });
+
+  it("is the one shown last when none is up", () => {
+    expect(factOnScreen(facts, 1000, at(12))?.text).toBe("One.");
+    expect(factOnScreen(facts, 1000, at(600))?.text).toBe("Three.");
+  });
+
+  it("follows the delays a resumed or restarted song was sent with, in any order", () => {
+    expect(factOnScreen([fact("Late.", 20), fact("Early.", 2)], 1000, at(10))?.text).toBe("Early.");
+  });
+
+  it("is the one before when a new bubble only just popped up over it", () => {
+    const overlapping = [fact("First.", 0), fact("Second.", 6)];
+    expect(factOnScreen(overlapping, 1000, at(6.5))?.text).toBe("First.");
+    expect(factOnScreen(overlapping, 1000, at(8))?.text).toBe("Second.");
+    // One at a time, the earlier bubble is gone, so the new one is meant.
+    expect(factOnScreen(facts, 1000, at(15.5))?.text).toBe("Two.");
+  });
+
+  it("keeps a long fact up as long as the overlay does", () => {
+    const long = { text: Array(30).fill("word").join(" "), durationSeconds: 8 };
+    expect(readingSeconds(long)).toBe(12);
+    expect(readingSeconds({ text: "Short.", durationSeconds: 8 })).toBe(8);
   });
 });

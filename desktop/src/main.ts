@@ -1,6 +1,6 @@
 import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
 import { factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -9,6 +9,7 @@ import { newerRelease, Release, testSongList, testStreamElements } from "./check
 import { assetName, downloadUpdate, startInstall } from "./updater";
 import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
+import { WrongKeyListener } from "./handsfree";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
 import {
   BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
@@ -144,6 +145,7 @@ function state() {
     // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
+    wrongKeyProblem: wrongKey.problem,
     update,
     updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
     dataDir: DATA,
@@ -438,6 +440,18 @@ async function setPaused(next: boolean): Promise<void> {
   send("state", state());
 }
 
+/**
+ * Hands-free Wrong: the key from a foot pedal or Stream Deck. The server picks
+ * the bubble (on stream now, or shown last); the dashboard shows the usual
+ * note with Undo. Nothing on stream says it happened, and no sound.
+ */
+const wrongKey = new WrongKeyListener(globalShortcut, () => {
+  void control("wrong-current").then((result) => {
+    if (result?.removed) backUpNow();
+    send("wrong-key", result ?? { removed: false, reason: "no-server" });
+  });
+});
+
 // --- Messages from the window ------------------------------------------
 
 ipcMain.handle("test-bubble", () => control("test"));
@@ -491,6 +505,7 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   if (aiChanged) builtinFailed = false;
   saveSettings(settings);
   applyStartAtLogin();
+  wrongKey.use(settings.wrongKey);
   if (changes.token) {
     signInExpired = false;
     scheduleRefresh(); // Stops refreshing the replaced sign-in.
@@ -633,6 +648,7 @@ ipcMain.handle("backup-restore", async () => {
   if (backup.songFacts) fs.writeFileSync(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
   if (backup.wrongFacts) fs.writeFileSync(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
   applyStartAtLogin();
+  wrongKey.use(settings.wrongKey);
   // The fact server reads its files at start.
   startServer(true);
   send("state", state());
@@ -759,6 +775,8 @@ app.on("before-quit", () => {
   download?.abort();
   supervisor.stop();
 });
+// The key goes back to every other app.
+app.on("will-quit", () => wrongKey.stop());
 app.on("window-all-closed", () => {
   // Stay running in the tray; quitting is explicit.
 });
@@ -802,6 +820,7 @@ app.whenReady().then(async () => {
   void ensureModel();
   void ensureOllamaModel();
   startServer();
+  wrongKey.use(settings.wrongKey);
   backUpNow();
   update = await newerRelease(app.getVersion(), app.isPackaged ? (v) => assetName(v) : () => null);
   if (update) send("state", state());

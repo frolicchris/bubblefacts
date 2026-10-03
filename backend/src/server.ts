@@ -10,8 +10,8 @@ import { StreamElementsClient } from "./streamelements-client";
 import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts } from "./song-facts";
 import { allowedHost, allowedOrigin } from "./local-only";
-import { loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
-import { FactsPayload, SSLQueueItem, SSLSong } from "./types";
+import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
+import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -281,13 +281,36 @@ control.post("/wrong", (req, res) => {
     res.status(404).json({ removed: false });
     return;
   }
+  res.json(takeWrong(song, fact, playing));
+});
+
+/** Wrong on one fact: off the stream if its song is on, marked for an earlier one. Either way its source is blocked. */
+function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
+  const text = fact.text;
   if (playing) broadcast({ type: "remove_fact", song, text });
   else {
     earlier = earlier.map((e) => (sameSong(e.song, song) ? { ...e, facts: e.facts.filter((f) => f.text !== text) } : e));
     if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   }
   const article = markWrong(song, text, fact.source);
-  res.json({ removed: true, live: playing, article, structured: article === STRUCTURED });
+  return { removed: true, live: playing, article, structured: article === STRUCTURED };
+}
+
+// Hands-free Wrong (a key from a foot pedal or Stream Deck): the bubble on stream now, or the
+// one shown last for this song. The server knows when each went out, so the app needn't guess.
+// The test bubble is never in lastSent, so it's never the one marked.
+control.post("/wrong-current", (_req, res) => {
+  const song = lastSent.song;
+  const facts = lastSent.facts ?? [];
+  const fact = !paused && song && facts.length ? factOnScreen(facts, factsShownAt) : null;
+  if (!song || !fact) {
+    const reason = paused ? "paused" : !song ? "no-song" : !lastSent.ready ? "not-ready" : !facts.length ? "no-facts" : "none-shown";
+    res.json({ removed: false, reason });
+    return;
+  }
+  console.log(`[Server] Hands-free Wrong: ${fact.text.slice(0, 90)}`);
+  // The fact and song go back, so the dashboard can offer Undo and Report for them.
+  res.json({ ...takeWrong(song, fact, true), text: fact.text, song });
 });
 
 // Undo "Wrong": the source may be used for the song again. The removed fact stays off this play.
