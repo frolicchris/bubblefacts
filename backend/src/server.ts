@@ -60,7 +60,8 @@ function broadcast(payload: FactsPayload): void {
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts, ready: true };
   else if (payload.type === "remove_fact") lastSent = { ...lastSent, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
-  if (payload.type === "facts_ready" && payload.song) remember(payload.song, payload.facts ?? []);
+  // What a restart resumes: a fact taken off with Wrong stays off.
+  if ((payload.type === "facts_ready" || payload.type === "remove_fact") && lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
 }
@@ -188,11 +189,9 @@ control.post("/test", (_req, res) => {
     durationSeconds: 8,
     position: positionsFor()[0],
   }];
-  // Shown even while paused: the streamer asked for it. Not recorded as "on stream now".
-  for (const ws of clients.keys()) {
-    send(ws, newSong(song));
-    send(ws, { type: "facts_ready", song, facts });
-  }
+  // Shown even while paused: the streamer asked for it. Not recorded as "on stream now", and
+  // on top of the song that's playing: its remaining bubbles, and Wrong on them, carry on.
+  for (const ws of clients.keys()) send(ws, { type: "test_bubble", song, facts });
   res.json({ overlays: clients.size });
 });
 
