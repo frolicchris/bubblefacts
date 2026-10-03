@@ -1,18 +1,27 @@
 version: 2
 updates:
-  # Keep the workflow actions current; npm security fixes are on in the repository settings.
+  # Workflow actions, monthly. Patch updates merge on their own once CI passes (dependabot-automerge.yml).
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-  # npm dependencies, grouped weekly. Electron majors are a manual upgrade (they change the runtime).
+  # npm dependencies. Security fixes (on in the repository settings) come as one grouped pull
+  # request against main; version updates are grouped weekly. Electron majors are a manual
+  # upgrade (they change the runtime). What may ship in a maintenance release: docs/RELEASING.md.
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
       npm:
+        applies-to: version-updates
         patterns: ["*"]
     ignore:
       - dependency-name: electron
         update-types: ["version-update:semver-major"]
+  # Once release/2.0 exists, add an entry like the one above with
+  #   target-branch: release/2.0
+  # and ignore semver-minor and semver-major updates, so 2.0.x only gets patches.

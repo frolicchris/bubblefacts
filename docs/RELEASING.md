@@ -153,6 +153,73 @@ go/no-go list above,
 - [ ] Known issues (#36) are current and linked from the release notes.
 - [ ] The release has its software bill of materials.
 
-A full release reaches Beta-channel users at once and Stable-channel users
-three days later, so problems show up with testers first. Plan a 2.0.1
+A new feature release (x.y.0) reaches Beta-channel users at once and
+Stable-channel users three days later, so problems show up with testers
+first. Maintenance releases (below) reach both at once. Plan a 2.0.1
 about a week after 2.0.0 for what they find.
+
+## Maintenance releases
+
+A maintenance release (2.0.1, 2.0.2) has only backward-compatible fixes.
+Everything else waits for the next feature release (2.1.0), through betas.
+This follows SemVer and the practice of Firefox, Chromium, Node, Electron and
+Kubernetes, sized for one maintainer.
+
+**Goes in a maintenance release:** security fixes; anything that would be a
+release blocker (see above), including a wrong or unsafe fact the screening
+should have caught; crashes; regressions; a fix when a song service, Twitch
+or an AI provider changes under us, keeping today's behavior; Electron patch
+versions within the same major; a dependency's fix at the smallest fixed
+version; docs and tests.
+
+**Goes through betas:** new features or settings; wording or layout changes;
+behavior changes; AI model or prompt changes (except a screening fix); new
+dependencies; minor or major upgrades; Electron majors; refactors; anything a
+musician would have to relearn. If unsure, it goes through betas. The pull
+request for a maintenance fix says what it fixes, who is affected and how it
+was checked.
+
+**When:** a serious security problem within 3 days; other security fixes
+within a week; release blockers and regressions as soon as they're fixed;
+anything else together, about monthly, only when something changed. A
+maintenance release reaches Stable at once; only a new feature release (x.y.0)
+waits three days for Beta to have it first.
+
+**Support:** only the newest release gets fixes. When 2.1.0 ships, 2.0.x
+stops. After 3.0.0, the last 2.x gets security fixes for three months.
+
+**Automated:** Dependabot opens security fixes as one grouped pull request
+against `main`, and version updates weekly. Patch updates to development
+tools and workflow actions merge on their own once CI passes
+(`dependabot-automerge.yml`): they don't change what musicians install.
+Everything that ships in the app (runtime packages, Electron) and every minor
+or major update waits for a person.
+
+**Keeping stable and beta in step:** every fix lands on `main` first, so the
+next beta has it; a fix that only reached the stable line would be lost to
+Beta-channel users, whose newer beta outranks it. While `main` has nothing
+newer than 2.0.x, maintenance releases are tagged from `main`. Once 2.1 work
+merges:
+
+1. Create `release/2.0` from the newest 2.0.x tag, with the same protection
+   as `main` (pull requests and `ci-ok`, no force pushes or deletion), and add
+   a Dependabot entry for it that takes patch updates only.
+2. Fix on `main` first, through a pull request, and label it `backport 2.0`.
+3. Cherry-pick it to a branch from `release/2.0` (`git cherry-pick -x`) and
+   open a pull request into `release/2.0`. Merge when `ci-ok` passes, and
+   remove the label.
+4. The release workflow accepts a tag like `v2.0.3` from `release/2.0`, and
+   only that kind of tag.
+
+**Making a maintenance release:**
+
+1. Set the version in `package.json` and the `obs-overlay.js` header,
+   through a pull request to the branch it comes from.
+2. Tag `vX.Y.Z` on that commit and push the tag.
+3. Run the release checklist; its hands-on steps on one Mac and one Windows
+   computer are enough.
+4. Check the in-app update from the previous release on one system, with
+   settings and facts kept.
+5. Fill in Fixed (and Security) in the release notes and publish it as a
+   full release.
+6. Upload changed `site/` files, and add the changelog entry on `main`.
