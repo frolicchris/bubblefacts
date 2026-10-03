@@ -190,6 +190,9 @@
       if (msg.song && !msg.quiet) msg.noBanner ? removeToast() : showToast(msg.song);
     } else if (msg.type === "facts_ready") {
       showFacts(msg.song, msg.facts);
+    } else if (msg.type === "test_bubble") {
+      // On top of the current song, whose bubbles and state are left alone.
+      if (msg.facts && msg.facts[0]) showBubble(msg.facts[0]);
     } else if (msg.type === "remove_fact") {
       if (songKey(msg.song) !== currentSongKey) return;
       removed.add(msg.text);

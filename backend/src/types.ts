@@ -90,7 +90,8 @@ export interface Fact {
 
 /** Server-to-overlay WebSocket message. `remove_fact` takes one fact, by `text`, off the current song. */
 export interface FactsPayload {
-  type: "new_song" | "facts_ready" | "clear" | "remove_fact";
+  /** `test_bubble`: one bubble shown on top of whatever's playing, which carries on untouched. */
+  type: "new_song" | "facts_ready" | "clear" | "remove_fact" | "test_bubble";
   song?: SSLSong;
   facts?: Fact[];
   text?: string;
