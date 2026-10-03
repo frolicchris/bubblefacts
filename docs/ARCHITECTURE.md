@@ -48,6 +48,31 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
 
+New to the fact checking? Start with `screenClaims` in `fact-verifier.ts`
+(what makes a caption pass) and `fetchGrounding` (how the article is chosen),
+then `generateRest` in `fact-generator.ts`, which ties them together.
+
+### The desktop app
+
+The app runs the same server as a child process and adds setup, settings,
+sign-ins and the built-in AI. Its design decisions are in
+[DESKTOP-APP.md](DESKTOP-APP.md).
+
+| File | Job |
+|---|---|
+| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and every request from the window (`ipcMain.handle`). |
+| `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
+| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, settings and About. Plain JavaScript, no build step. |
+| `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
+| `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
+| `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
+| `desktop/src/twitch.ts` | Connect Twitch (device code) and reading another channel's About. |
+| `desktop/src/model.ts` | Downloading the built-in AI model. |
+| `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
+| `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
+| `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
+| `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
+
 ## The life of one song
 
 1. **Find what's playing.** The song source reports a queue entry (see

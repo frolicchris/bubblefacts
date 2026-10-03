@@ -132,10 +132,11 @@ describe("generateFacts", () => {
   });
 
   it("logs each fact it shows with its source, so a stream can be read back", async () => {
-    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    // console.log is already muted for all tests (test-setup.ts): read that mock, don't replace it.
+    const log = console.log as unknown as jest.Mock;
+    log.mockClear();
     const facts = await generateFacts({ title: "Logged Song", artist: "Logged Artist" });
     const shown = log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith('[Shown] "Logged Song"'));
-    log.mockRestore();
     expect(shown).toHaveLength(facts.length);
     expect(shown[0]).toContain(facts[0].text);
   });
