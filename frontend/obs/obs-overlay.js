@@ -120,6 +120,9 @@
   }
 
   function hideBubble(bubble) {
+    // Already on its way out: replaced by a newer bubble, then its own time ran out, or marked wrong.
+    if (bubble.dataset.hiding) return;
+    bubble.dataset.hiding = "1";
     const remove = () => {
       bubble.remove();
       bubbles = bubbles.filter((b) => b !== bubble);
@@ -144,10 +147,16 @@
   function showBubble(fact) {
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble";
+    const at = fact.position;
     // A bottom spot sits on the bottom edge and grows upward, whatever the fact's length.
-    if (fact.position.bottom) bubble.style.bottom = fact.position.bottom;
-    else bubble.style.top = fact.position.top;
-    bubble.style.left = fact.position.left;
+    if (at.bottom) bubble.style.bottom = at.bottom;
+    else bubble.style.top = at.top;
+    // A right spot is measured from the right edge, and one with neither side is centered,
+    // so a bubble of any length stays in the spot the streamer chose.
+    if (at.left) bubble.style.left = at.left;
+    else if (at.right) bubble.style.right = at.right;
+    else bubble.classList.add("centered");
+    bubble.dataset.spot = [at.top, at.bottom, at.left, at.right].join("|");
     bubble.style.setProperty("--bubble-icon", JSON.stringify(ICONS[iconIndex++ % ICONS.length]));
     bubble.dataset.fact = fact.text;
     bubble.append(fact.text);
@@ -157,6 +166,8 @@
       bubble.appendChild(sparkle);
     }
 
+    // One bubble per spot: with a fixed spot, the last one fades out as this one pops in.
+    bubbles.filter((b) => b.dataset.spot === bubble.dataset.spot).forEach(hideBubble);
     container.appendChild(bubble);
     bubbles.push(bubble);
     animateIn(bubble);

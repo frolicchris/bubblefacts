@@ -111,7 +111,7 @@ describe("generateFacts", () => {
     const pct = (v: string) => Number(v.replace("%", ""));
     for (const area of ["anywhere", "top", "bottom", "left", "right"]) {
       for (const p of positionsFor(area)) {
-        expect(pct(p.left)).toBeLessThanOrEqual(66);
+        expect(pct(p.left ?? "")).toBeLessThanOrEqual(66);
         if (p.top) expect(pct(p.top)).toBeLessThanOrEqual(70);
       }
     }
@@ -120,15 +120,34 @@ describe("generateFacts", () => {
     // bubble set to the bottom showed just below the middle).
     expect(positionsFor("bottom").every((p) => !p.top && p.bottom && pct(p.bottom) <= 20)).toBe(true);
     // The Now Playing bubble sits bottom-center as a song starts: the first two bubbles keep clear of it.
-    expect(positionsFor("bottom").slice(0, 2).every((p) => pct(p.left) < 20 || pct(p.left) > 60)).toBe(true);
-    expect(positionsFor("left").every((p) => pct(p.left) <= 5)).toBe(true);
-    expect(positionsFor("right").every((p) => pct(p.left) >= 66)).toBe(true);
+    expect(positionsFor("bottom").slice(0, 2).every((p) => pct(p.left ?? "") < 20 || pct(p.left ?? "") > 60)).toBe(true);
+    expect(positionsFor("left").every((p) => pct(p.left ?? "") <= 5)).toBe(true);
+    expect(positionsFor("right").every((p) => pct(p.left ?? "") >= 66)).toBe(true);
     expect(positionsFor("nonsense")).toBe(positionsFor("anywhere"));
 
     (config as { bubbleArea?: string }).bubbleArea = "left";
     const facts = await generateFacts({ title: "Area Song", artist: "Area Artist" });
     (config as { bubbleArea?: string }).bubbleArea = "anywhere";
     expect(facts.every((f) => f.position.left === "3%")).toBe(true);
+  });
+
+  it("can keep every bubble in one spot the streamer chose", async () => {
+    expect(positionsFor("top-left")).toEqual([{ top: "6%", left: "3%" }]);
+    expect(positionsFor("top-right")).toEqual([{ top: "6%", right: "3%" }]);
+    expect(positionsFor("bottom-left")).toEqual([{ bottom: "5%", left: "3%" }]);
+    expect(positionsFor("bottom-right")).toEqual([{ bottom: "5%", right: "3%" }]);
+    // Centered: neither side is set, so the overlay centers a bubble of any length.
+    expect(positionsFor("top-center")).toEqual([{ top: "6%" }]);
+    const [low] = positionsFor("bottom-center");
+    expect(low.left ?? low.right ?? low.top).toBeUndefined();
+    // Above the Now Playing bubble (60px from the bottom), and higher at a bigger bubble size.
+    expect(low.bottom).toMatch(/^calc\(6\dpx \+ [\d.]+vh \* var\(--bf-scale, 1\)\)$/);
+
+    (config as { bubbleArea?: string }).bubbleArea = "bottom-right";
+    const facts = await generateFacts({ title: "Spot Song", artist: "Spot Artist" });
+    (config as { bubbleArea?: string }).bubbleArea = "anywhere";
+    expect(facts.length).toBeGreaterThan(1);
+    expect(facts.every((f) => f.position.right === "3%" && f.position.bottom === "5%")).toBe(true);
   });
 
   it("logs each fact it shows with its source, so a stream can be read back", async () => {

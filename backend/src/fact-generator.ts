@@ -50,6 +50,12 @@ const spots = (list: Array<[number, number]>) => list.map(([top, left]): Fact["p
 const lowSpots = (list: Array<[number, number]>) => list.map(([bottom, left]): Fact["position"] => ({ bottom: `${bottom}%`, left: `${left}%` }));
 
 /**
+ * Top of the Now Playing bubble, from obs-overlay.css: `bottom: 60px`, plus two
+ * lines of 1.944vh text at line-height 1.35 and its padding and border, plus a gap.
+ */
+const NOW_PLAYING_CLEARANCE = "calc(64px + 9.5vh * var(--bf-scale, 1))";
+
+/**
  * BUBBLE_AREA: the part of the screen bubbles keep to, for streamers whose
  * layout has a camera, keyboard or chat where the default spots fall.
  * Same limits as above: `left` at most 66%, and clear of the banner at the bottom.
@@ -61,6 +67,16 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
   bottom: lowSpots([[5, 4], [5, 66], [20, 35], [20, 4], [20, 66], [5, 35], [12, 20], [12, 50]]),
   left: spots([[8, 3], [40, 3], [24, 3], [56, 3], [70, 3], [16, 3], [48, 3], [64, 3]]),
   right: spots([[8, 66], [40, 66], [24, 66], [56, 66], [70, 66], [16, 66], [48, 66], [64, 66]]),
+  // One fixed spot each, for streamers who want bubbles in the same place every time. A new
+  // bubble there replaces the last (the overlay hides the old one). Right spots are measured
+  // from the right edge, and center ones have no left or right, so any bubble length stays put.
+  "top-left": [{ top: "6%", left: "3%" }],
+  "top-center": [{ top: "6%" }],
+  "top-right": [{ top: "6%", right: "3%" }],
+  "bottom-left": [{ bottom: "5%", left: "3%" }],
+  // Just above the Now Playing bubble (60px up, and up to two lines of its text at any bubble size).
+  "bottom-center": [{ bottom: NOW_PLAYING_CLEARANCE }],
+  "bottom-right": [{ bottom: "5%", right: "3%" }],
 };
 
 /** The spots for the chosen area, in the order bubbles use them. */

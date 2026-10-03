@@ -72,8 +72,8 @@ export const config = {
   originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",
   // Off-list requests get a LIVE LEARN banner and no facts. Off treats them as ordinary songs.
   liveLearns: oneOf("LIVE_LEARNS", ["on", "off"] as const, "on") === "on",
-  // The part of the screen bubbles keep to.
-  bubbleArea: oneOf("BUBBLE_AREA", ["anywhere", "top", "bottom", "left", "right"] as const, "anywhere"),
+  // The part of the screen bubbles keep to, or one spot they always use.
+  bubbleArea: oneOf("BUBBLE_AREA", ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
   // The NOW PLAYING bubble on a song change. Off for streamers whose own overlay already shows the song.
   nowPlaying: oneOf("NOW_PLAYING", ["on", "off"] as const, "on") === "on",
   // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.

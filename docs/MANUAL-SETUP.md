@@ -295,7 +295,7 @@ STREAMER_DISPLAY_NAME=Jane    # instead of your channel name
 FACTS_PER_SONG=5
 FACT_INTERVAL_SECONDS=15   # a new bubble every 15 seconds
 FACT_DURATION_SECONDS=8    # how long each stays up
-BUBBLE_AREA=anywhere       # or top, bottom, left, right
+BUBBLE_AREA=anywhere       # or top, bottom, left, right, or one spot: top-left, bottom-center...
 NOW_PLAYING=on             # off if your own overlay shows the song
 ```
 
@@ -308,7 +308,9 @@ Colors, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
 text bigger or smaller, change `--fact-font-size` near the top. Save the file,
 then right-click the source in OBS and choose **Refresh**.
 
-To keep bubbles to one part of the screen, set `BUBBLE_AREA` (above). For
+To keep bubbles to one part of the screen, set `BUBBLE_AREA` (above). To
+put every bubble in the same spot, use `top-left`, `top-center`, `top-right`,
+`bottom-left`, `bottom-center` or `bottom-right`. For
 exact spots, edit the lists at the top of `backend/src/fact-generator.ts`; the
 start script rebuilds automatically.
 
