@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { addChangelogStub, bumpBetaForm, bumpBugForm, bumpOverlay, changelogId, checkVersion } from "./bump-version.mjs";
+import { addChangelogStub, bumpBetaForm, bumpBugForm, bumpOverlay, bumpSiteAssets, changelogId, checkVersion } from "./bump-version.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -66,4 +66,15 @@ test("adds a dated changelog entry to fill in, above the newest, once", () => {
 
 test("the changelog has no lines left to fill in", () => {
   assert.doesNotMatch(read("site/changelog.html"), /FILL IN/);
+});
+
+test("stamps the version on every page's stylesheet and script links", () => {
+  const page = '<link rel="stylesheet" href="assets/site.css">\n<script src="assets/site.js" defer></script>\n<img src="assets/demo.png">';
+  const out = bumpSiteAssets(page, "9.9.9-rc.2");
+  assert.equal(out, '<link rel="stylesheet" href="assets/site.css?v=9.9.9-rc.2">\n<script src="assets/site.js?v=9.9.9-rc.2" defer></script>\n<img src="assets/demo.png">');
+  assert.equal(bumpSiteAssets(out, "9.9.10"), out.replaceAll("9.9.9-rc.2", "9.9.10"));
+  for (const file of fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html"))) {
+    const html = read(`site/${file}`);
+    assert.match(html, /assets\/site\.css\?v=/, `${file} links its stylesheet without a version`);
+  }
 });

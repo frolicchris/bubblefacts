@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Sets a new version everywhere a release needs it: `npm run bump -- 2.0.0-beta.12`.
 // package.json and package-lock.json (through npm version), the overlay's header,
-// the beta test form's version list and the bug form's example, and a dated
-// changelog entry to fill in. Safe to run again: what's already done is left alone.
+// the beta test form's version list and the bug form's example, the website's
+// stylesheet and script links, and a dated changelog entry to fill in. Safe to run again: what's already done is left alone.
 import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -45,6 +45,15 @@ export function bumpBugForm(text, version) {
   const re = new RegExp(String.raw`(for example )${VERSION_IN_TEXT}(?=\.)`);
   if (!re.test(text)) throw new Error("bug_report.yml has no version example");
   return text.replace(re, `$1${version}`);
+}
+
+/**
+ * The website's links to its stylesheet and script carry the version
+ * ("assets/site.css?v=2.0.0-beta.13"), so a browser that kept an older copy
+ * fetches the new one after a release instead of showing new pages with old styles.
+ */
+export function bumpSiteAssets(html, version) {
+  return html.replace(/(["'])(assets\/site\.(?:css|js))(?:\?v=[^"']*)?\1/g, `$1$2?v=${version}$1`);
 }
 
 /** The changelog's anchor for a version: v2 (2.0.0), v2-1 (2.1.0), v2-0-1, v2-beta12, v2-rc1. */
@@ -101,6 +110,9 @@ function main() {
   edit(".github/ISSUE_TEMPLATE/beta_test.yml", (t) => bumpBetaForm(t, version));
   edit(".github/ISSUE_TEMPLATE/bug_report.yml", (t) => bumpBugForm(t, version));
   edit("site/changelog.html", (t) => addChangelogStub(t, version, new Date()));
+  for (const page of fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html")).sort()) {
+    edit(`site/${page}`, (t) => bumpSiteAssets(t, version));
+  }
   console.log("Next: fill in the FILL IN lines in site/changelog.html, then run npm run check.");
 }
 
