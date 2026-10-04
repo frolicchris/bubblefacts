@@ -55,7 +55,10 @@ describe("downloadModel", () => {
 
   it("explains a server error", async () => {
     mockFetch.mockResolvedValueOnce(serve(Buffer.alloc(0), 503));
-    await expect(downloadModel(dir, () => {}, new AbortController().signal)).rejects.toThrow(/503/);
+    const err = await downloadModel(dir, () => {}, new AbortController().signal).catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/isn't answering/);
+    expect((err as Error).message).not.toMatch(/503/);
+    expect((err as Error).cause).toMatch(/503/);
   });
 
   it("stops when canceled, keeping what it has for next time", async () => {

@@ -70,3 +70,34 @@ export function wrongFactUrl(opts: { song: string; fact: string; logLines: strin
     log: redact((relevant.length ? relevant : opts.logLines.filter((l) => /\[Grounding\]/.test(l))).slice(-10).join("\n"), opts.secrets),
   });
 }
+
+/**
+ * A report as text to copy, for musicians without a GitHub account: exactly
+ * the fields the GitHub form gets (secrets already removed), read back from
+ * its address, so anything added to a report shows up here too.
+ */
+const LABELS: Record<string, string> = {
+  version: "Version",
+  install: "Installed as",
+  os: "Computer",
+  osversion: "System",
+  ai: "AI",
+  download: "Download",
+  source: "Song source",
+  song: "Song",
+  shown: "Fact shown",
+};
+
+export function reportText(url: string, title: string): string {
+  const fields = Object.fromEntries(new URL(url).searchParams);
+  const lines = [title, ""];
+  for (const [key, value] of Object.entries(fields)) {
+    if (key === "template" || key === "log") continue;
+    lines.push(`${LABELS[key] ?? key[0].toUpperCase() + key.slice(1)}: ${value}`);
+  }
+  if (fields.log) lines.push("", "Recent log:", fields.log);
+  return lines.join("\n") + "\n";
+}
+
+export const problemReportText = (opts: Parameters<typeof problemReportUrl>[0]) => reportText(problemReportUrl(opts), "BubbleFacts problem report");
+export const betaReportText = (opts: Parameters<typeof betaReportUrl>[0]) => reportText(betaReportUrl(opts), "BubbleFacts beta test report");

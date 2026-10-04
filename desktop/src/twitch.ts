@@ -8,6 +8,7 @@
  */
 
 import { setTimeout as sleep } from "timers/promises";
+import { cantReach, errorDetail, plainError, plainWithDetail } from "./plain-errors";
 
 /** Public client ID from dev.twitch.tv (client type Public). Not a secret. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -41,7 +42,6 @@ export interface DeviceCode {
 
 const ENDED = "Your Twitch connection ended. Connect Twitch again in Settings.";
 const RAN_OUT = "That code ran out. Click Connect Twitch to get a new one.";
-const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /** One request to Twitch, with plain-words errors for the streamer. */
 async function call(url: string, init: RequestInit, timeoutMs = 15_000, cancel?: AbortSignal): Promise<Response> {
@@ -50,7 +50,7 @@ async function call(url: string, init: RequestInit, timeoutMs = 15_000, cancel?:
     return await fetch(url, { ...init, signal: cancel ? AbortSignal.any([cancel, timeout]) : timeout });
   } catch (err) {
     if (cancel?.aborted) throw err;
-    throw new Error("Couldn't reach Twitch. Check your internet connection.");
+    throw new Error(plainError(err, { service: "Twitch", fallback: cantReach("Twitch") }), { cause: err });
   }
 }
 const post = (fields: Record<string, string>) => ({
@@ -58,7 +58,7 @@ const post = (fields: Record<string, string>) => ({
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
   body: new URLSearchParams(fields).toString(),
 });
-const failed = (res: Response) => new Error(`Twitch answered with an error (${res.status}). Try again in a minute.`);
+const failed = (res: Response) => plainWithDetail("Twitch isn't answering right now. Try again in a minute.", `HTTP ${res.status}`);
 
 /** The tokens in a successful answer, checked before anything is saved. */
 async function tokens(res: Response): Promise<Omit<TwitchSignIn, "login">> {
@@ -149,7 +149,17 @@ export class TwitchSession {
   userCode = "";
   error = "";
 
-  constructor(private readonly saved: () => TwitchSignIn | null, private readonly save: (t: TwitchSignIn | null) => void) {}
+  /** `log`: where the technical side of a failed connection goes. */
+  constructor(
+    private readonly saved: () => TwitchSignIn | null,
+    private readonly save: (t: TwitchSignIn | null) => void,
+    private readonly log: (line: string) => void = () => undefined
+  ) {}
+
+  private failed(err: unknown): void {
+    this.log(`[App] Connect Twitch: ${errorDetail(err)}`);
+    this.error = plainError(err, { service: "Twitch" });
+  }
 
   /** Start connecting; `onDone` runs once it's settled, approved or not. */
   async connect(openPage: (url: string) => void, onDone: () => void): Promise<void> {
@@ -165,13 +175,13 @@ export class TwitchSession {
       openPage(code.verificationUri);
       void finishDeviceCode(code, mine.signal)
         .then((t) => { if (!mine.signal.aborted) this.save(t); })
-        .catch((err) => { if (!mine.signal.aborted) this.error = messageOf(err); })
+        .catch((err) => { if (!mine.signal.aborted) this.failed(err); })
         .finally(() => {
           if (this.connecting === mine) { this.connecting = null; this.userCode = ""; }
           onDone();
         });
     } catch (err) {
-      if (!mine.signal.aborted) this.error = messageOf(err);
+      if (!mine.signal.aborted) this.failed(err);
     }
   }
 

@@ -276,7 +276,7 @@
 
   function downloadText(d) {
     if (!d) return "";
-    if (d.error) return `Paused: ${d.error}. It tries again on its own.`;
+    if (d.error) return "Paused"; // The notice above says why.
     if (d.phase === "checking") return "Almost ready";
     if (d.phase === "done") return "Ready";
     return `${Math.floor((d.received / d.total) * 100)}% downloaded`;
@@ -858,6 +858,14 @@
   }
   $("#report-problem").addEventListener("click", () => api.reportProblem());
   $("#report-beta").addEventListener("click", () => api.reportBeta());
+  // The same report without GitHub: to paste in a message or in Discussions.
+  for (const [id, kind] of [["copy-report", "problem"], ["copy-beta-report", "beta"]]) {
+    $("#" + id).addEventListener("click", async () => {
+      await api.copyReport(kind);
+      setResult($("#report-result"), "Copied. Paste it in a message to the developer or in GitHub Discussions.", "ok");
+      setTimeout(() => setResult($("#report-result"), ""), 8000);
+    });
+  }
 
   // --- Notices ---------------------------------------------------------------
 
@@ -881,9 +889,9 @@
     else if (state.signInExpired) signInNotice("Your StreamerSongList sign-in ended. Sign in again to keep facts coming.");
     else if (state.status?.health?.status === "unauthorized") signInNotice("StreamerSongList didn't accept your sign-in. Sign in again.");
     if (state.settings.ai === "ollama" && state.ollama?.pulling) add("info", `Downloading "${state.ollama.pulling}" into Ollama. This can take a few minutes the first time.`);
-    if (state.settings.ai === "ollama" && state.ollama?.error) add("warn", state.ollama.error + ".", "Try again", () => api.downloadModel());
+    if (state.settings.ai === "ollama" && state.ollama?.error) add("warn", state.ollama.error, "Try again", () => api.downloadModel());
     if (state.settings.ai === "builtin" && state.modelDownload?.error) {
-      add("warn", `The AI download paused: ${state.modelDownload.error}.`, "Try again", () => api.downloadModel());
+      add("warn", `The AI download paused. ${state.modelDownload.error}`, "Try again", () => api.downloadModel());
     }
     if (state.update) {
       const v = state.update.version;
@@ -892,7 +900,7 @@
       if (!state.update.download) add("info", `BubbleFacts ${v} is available.`, "Get it", getIt);
       else if (u.stage === "downloading") add("info", `Downloading BubbleFacts ${v}: ${Math.floor((u.progress || 0) * 100)}%. You can keep streaming.`);
       else if (u.stage === "ready") add("info", `BubbleFacts ${v} is ready. Installing closes BubbleFacts for a few seconds and reopens it, so pick a moment between songs.${state.platform === "darwin" ? " When your Mac asks for permission afterward, click Always Allow." : ""}`, "Install now", () => api.installUpdate());
-      else if (u.stage === "failed") add("warn", `The update didn't work: ${u.error}. You can download it from the website instead.`, "Get it", getIt);
+      else if (u.stage === "failed") add("warn", `The update didn't work. ${u.error} You can download it from the website instead.`, "Get it", getIt);
       else add("info", `BubbleFacts ${v} is available.`, "Update now", () => api.downloadUpdate());
     }
     if (state.builtinFailed && state.settings.ai === "builtin") {
@@ -1190,7 +1198,7 @@
     }
     $("#about-version").textContent = state.version;
     $("#about-page-version").textContent = `Version ${state.version}`;
-    $("#report-beta").hidden = !/-beta/.test(state.version);
+    $("#report-beta").hidden = $("#copy-beta-report").hidden = !/-beta/.test(state.version);
     renderNotices();
     renderPaths();
     if (state.settings.setupComplete) {
