@@ -32,6 +32,10 @@ import {
   orderExtract,
   fetchGrounding,
   clearGroundingCache,
+  readings,
+  isRespelling,
+  isSameWorkRedirect,
+  editDistance,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
@@ -880,7 +884,8 @@ describe("artist names (peer review)", () => {
   it("keeps a whole credit and tries the lead artist", () => {
     expect(artistNames("Earth, Wind & Fire")).toEqual(["earth wind fire", "earth"]);
     expect(artistNames("Lil Nas X, Jack Harlow")).toEqual(["lil nas x jack harlow", "lil nas x"]);
-    expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel"]);
+    // Written either way in articles: "Simon & Garfunkel".
+    expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel", "simon garfunkel"]);
   });
 
   it("matches whole words only", () => {
@@ -991,7 +996,7 @@ describe("what the makers said, how it's built, how it was received (issue #48)"
 describe("names and editions from a real stream's log (issue #45)", () => {
   it("looks for each of two full names joined by and", () => {
     expect(artistNames("Johnny Mercer and Henry Mancini")).toEqual(expect.arrayContaining(["johnny mercer", "henry mancini"]));
-    expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel"]);
+    expect(artistNames("Simon and Garfunkel")).not.toContain("simon");
     expect(artistNames("Earth, Wind & Fire")).not.toContain("fire");
   });
 });
@@ -1103,5 +1108,233 @@ describe("dropVersionTags", () => {
 
   it("compares titles without trailing tags in either kind of bracket", () => {
     expect(normalizeTitle("Separate Ways (Worlds Apart) [Instrumental]")).toBe(normalizeTitle("Separate Ways (Worlds Apart)"));
+  });
+});
+
+describe("other readings of a request (a song list's misses)", () => {
+  it("reads the work from the title when the artist is a category", () => {
+    expect(readings({ title: "Star Trek: Picard Season 1 Theme", artist: "Star Trek TV" })[0]).toEqual({
+      game: "Star Trek: Picard",
+      track: "Theme",
+      notGame: true,
+    });
+    const khan = readings({ title: "Star Trek II. The Wrath of Khan: Battle At The Mutara Nebula", artist: "Star Trek Movies" });
+    expect(khan.map((r) => [r.game, r.track])).toEqual([
+      ["Star Trek II: The Wrath of Khan: Battle At The Mutara Nebula", "Theme"],
+      ["Star Trek II: The Wrath of Khan", "Battle At The Mutara Nebula"],
+      ["Star Trek series", "Star Trek II. The Wrath of Khan: Battle At The Mutara Nebula"],
+    ]);
+    // A tag in brackets names the arrangement, never the work or a piece of it.
+    expect(readings({ title: "Star Trek: The Next Generation Theme [Legacy]", artist: "Star Trek TV" })[0]).toMatchObject({
+      game: "Star Trek: The Next Generation",
+      track: "Theme",
+    });
+    expect(readings({ title: "Mass Effect Main Theme", artist: "Mass Effect Series" })[0]).toMatchObject({ game: "Mass Effect", track: "Main Theme" });
+  });
+
+  it("puts a subtitle in the title under the franchise, then falls back to the franchise's own article", () => {
+    expect(readings({ title: "Wild World - The Roost", artist: "Animal Crossing Series" })).toEqual([
+      { game: "Animal Crossing: Wild World", track: "The Roost", notGame: false },
+      { game: "Animal Crossing series", track: "Wild World - The Roost", notGame: false },
+    ]);
+    expect(readings({ title: "Gourmet Race", artist: "Kirby Series" })).toEqual([{ game: "Kirby series", track: "Gourmet Race", notGame: false }]);
+  });
+
+  it("doesn't fall back to the franchise when the title names something else in brackets", () => {
+    // "Aquatic Ambiance" is from Donkey Kong Country, not Super Mario.
+    expect(readings({ title: "Aquatic Ambiance (Donkey Kong Country)", artist: "Super Mario Franchise" })).toEqual([]);
+  });
+
+  it("looks up each name of a credit with an arranger or a second name", () => {
+    expect(readings({ title: "Rocket Man [Jazzy]", artist: "Elton John arr. Brent Edstrom" })).toEqual([
+      { game: "Elton John arr. Brent Edstrom", track: "Rocket Man" },
+      { game: "Elton John", track: "Rocket Man", trackOnly: false },
+    ]);
+    expect(readings({ title: "Passacaglia", artist: "Arr. Handel Halvorsen" })[1]).toMatchObject({ game: "Handel Halvorsen", trackOnly: false });
+    const slash = readings({ title: "Sound of Silence", artist: "Simon and Garfunkel/Disturbed" });
+    // A name that isn't plainly a person's may be anything: only the song's own article is taken for it.
+    expect(slash.slice(1)).toEqual([
+      { game: "Simon and Garfunkel", track: "Sound of Silence", trackOnly: true },
+      { game: "Disturbed", track: "Sound of Silence", trackOnly: true },
+    ]);
+    expect(readings({ title: "Nocturne Op. 9 No. 2", artist: "Frederic Chopin/Some Arranger" })[1]).toMatchObject({ game: "Frederic Chopin", trackOnly: false });
+  });
+
+  it("looks up a song by no one by its title alone", () => {
+    expect(readings({ title: "Greensleeves", artist: "Traditional" })).toEqual([{ game: "", track: "Greensleeves", songAlone: true }]);
+    expect(readings({ title: "Santa Lucia", artist: "Italian Folk Song" })).toEqual([{ game: "", track: "Santa Lucia", songAlone: true }]);
+    expect(readings({ title: "Celeste: Reach for the Summit", artist: "Unknown" }).map((r) => r.songAlone ?? false)).toEqual([false, true]);
+  });
+
+  it("keeps a music video or a guessed artist to the one usual reading", () => {
+    expect(readings({ title: "Sound of Silence", artist: "Simon and Garfunkel/Disturbed", performer: true })).toHaveLength(1);
+    expect(readings({ title: "Greensleeves", artist: "Traditional", artistUncertain: true })).toHaveLength(1);
+  });
+
+  it("drops a 'jazzy' tag like any other way of playing", () => {
+    expect(dropVersionTags("Goodbye Yellow Brick Road [Jazzy]")).toBe("Goodbye Yellow Brick Road");
+  });
+});
+
+describe("a series' own article", () => {
+  it("matches the series' page, never one installment", () => {
+    expect(isRelevantArticle("Kirby series", "Kirby (series)")).toBe(true);
+    expect(isRelevantArticle("Star Trek series", "Star Trek")).toBe(true);
+    expect(isRelevantArticle("Nier series", "Nier (video game)")).toBe(false);
+    expect(isRelevantArticle("Star Trek series", "Star Trek: The Original Series")).toBe(false);
+    expect(isRelevantArticle("Mass Effect series", "Mass Effect 2")).toBe(false);
+  });
+});
+
+describe("Wikipedia's own spelling and names", () => {
+  it("counts a letter or two in one word, or the spacing, as a respelling", () => {
+    expect(isRespelling("Eric Satie", "Erik Satie")).toBe(true);
+    expect(isRespelling("Pirates of the Carribean", "Pirates of the Caribbean")).toBe(true);
+    expect(isRespelling("Stein's Gate", "Steins;Gate")).toBe(true);
+    expect(isRespelling("Pyotr Illyich Tchaikovsky", "Pyotr Ilyich Tchaikovsky")).toBe(true);
+    // Two words changed is another person.
+    expect(isRespelling("Windy Harper", "Wendy Harmer")).toBe(false);
+    expect(isRespelling("Johann Strauss", "Johann Strauss II")).toBe(false);
+    expect(isRespelling("Final Fantasy X", "Final Fantasy XI")).toBe(false);
+    expect(isRespelling("Erik Satie", "Erik Satie")).toBe(false);
+  });
+
+  it("follows a redirect only to the same work under its proper name", () => {
+    expect(isSameWorkRedirect("Star Wars: The Phantom Menace", "Star Wars: Episode I – The Phantom Menace")).toBe(true);
+    expect(isSameWorkRedirect("Red Alert 3", "Command & Conquer: Red Alert 3")).toBe(true);
+    expect(isSameWorkRedirect("Star Trek VII: Generations", "Star Trek Generations")).toBe(true);
+    expect(isSameWorkRedirect("The Inkspots", "The Ink Spots")).toBe(true);
+    // One of several, a later installment, a list, an album, or something else altogether.
+    expect(isSameWorkRedirect("Johann Strauss", "Johann Strauss II")).toBe(false);
+    expect(isSameWorkRedirect("Honkai Impact", "Honkai Impact 3rd")).toBe(false);
+    expect(isSameWorkRedirect("Star Trek Movies", "List of Star Trek films")).toBe(false);
+    expect(isSameWorkRedirect("Some Song", "Some Song (album)")).toBe(false);
+    expect(isSameWorkRedirect("Kimi no Na wa", "Your Name")).toBe(false);
+    // A surname given a first name is one person of that name.
+    expect(isSameWorkRedirect("Poirot", "Hercule Poirot")).toBe(false);
+    expect(isSameWorkRedirect("Ponce de León", "Juan Ponce de León")).toBe(false);
+  });
+
+  it("measures edit distance", () => {
+    expect(editDistance("carribean", "caribbean")).toBe(2);
+    expect(editDistance("satie", "satie")).toBe(0);
+  });
+});
+
+describe("fetchGrounding — other readings and Wikipedia's names", () => {
+  let hits: Record<string, string[]>;
+  let suggestions: Record<string, string>;
+  let redirects: Record<string, string>;
+  let extracts: Record<string, string>;
+  const LONG = " It was recorded with a full orchestra.".repeat(20);
+  const mock = jest.fn(async (url: string) => {
+    const p = new URL(url).searchParams;
+    const term = p.get("srsearch");
+    let body: unknown;
+    if (term !== null) {
+      body = { query: { search: (hits[term] ?? []).map((title) => ({ title })), searchinfo: suggestions[term] ? { suggestion: suggestions[term] } : {} } };
+    } else if (p.get("redirects")) {
+      const names = (p.get("titles") ?? "").split("|");
+      const reds = names.filter((n) => redirects[n]).map((n) => ({ from: n, to: redirects[n] }));
+      const pages = names.map((n, i) => {
+        const title = redirects[n] ?? n;
+        return extracts[title] !== undefined ? { title } : { title, missing: "", ns: i };
+      });
+      body = { query: { redirects: reds, pages: Object.fromEntries(pages.map((pg, i) => [String(i), pg])) } };
+    } else {
+      const t = p.get("titles") ?? "";
+      body = { query: { pages: { 1: { extract: extracts[t] ?? "" } } } };
+    }
+    return { ok: true, status: 200, json: async () => body } as Response;
+  });
+
+  beforeAll(() => {
+    global.fetch = mock as unknown as typeof fetch;
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+  beforeEach(() => {
+    clearGroundingCache();
+    mock.mockClear();
+    hits = {};
+    suggestions = {};
+    redirects = {};
+    extracts = {};
+  });
+
+  it("follows a redirect to the work's proper name (Duel of the Fates)", async () => {
+    hits = { "Duel of the Fates Star Wars: Episode I – The Phantom Menace": ["Duel of the Fates"], "Duel of the Fates Star Wars: The Phantom Menace": ["Duel of the Fates"] };
+    redirects = { "Star Wars: The Phantom Menace": "Star Wars: Episode I – The Phantom Menace" };
+    extracts = {
+      "Duel of the Fates": `"Duel of the Fates" is a musical theme from Star Wars: Episode I – The Phantom Menace.${LONG}`,
+      "Star Wars: Episode I – The Phantom Menace": `A film.${LONG}`,
+    };
+    expect(await fetchGrounding({ title: "Duel of the Fates", artist: "Star Wars: The Phantom Menace" })).toMatch(/^Duel of the Fates\n/);
+  });
+
+  it("takes Wikipedia's spelling suggestion when it names one of the search's hits", async () => {
+    hits = { "Pirates of the Carribean": ["Pirates of the Caribbean: The Curse of the Black Pearl", "Pirates of the Caribbean"], "Pirates of the Caribbean": ["Pirates of the Caribbean (video game)", "Pirates of the Caribbean"] };
+    suggestions = { "Pirates of the Carribean": "pirates of the caribbean" };
+    extracts = { "Pirates of the Caribbean": `Pirates of the Caribbean is a Disney media franchise.${LONG}`, "Pirates of the Caribbean (video game)": `A video game.${LONG}` };
+    // The page the suggestion names, not the video game a search for it finds first.
+    expect(await fetchGrounding({ title: "Davy Jones", artist: "Pirates of the Carribean" })).toMatch(/^Pirates of the Caribbean\n/);
+  });
+
+  it("never respells a name into someone the search didn't find", async () => {
+    hits = { "Windy Harper": ["Cavalcade of the West", "Jorjet Harper"], "Wendy Harmer": ["Wendy Harmer"] };
+    suggestions = { "Windy Harper": "windy harmer" };
+    extracts = { "Windy Harmer": `A comedian.${LONG}`, "Wendy Harmer": `A comedian.${LONG}` };
+    expect(await fetchGrounding({ title: "Let's Make Toast", artist: "Windy Harper" })).toBe("");
+    // A suggestion for a name Wikipedia already has as written is ignored too.
+    hits = { Reverie: ["Reverie"] };
+    suggestions = { Reverie: "reverse" };
+    extracts = { Reverse: `Reverse.${LONG}` };
+    expect(await fetchGrounding({ title: "Main Theme", artist: "Reverie" })).toBe("");
+  });
+
+  it("finds a traditional song by its title alone, and only an article about a song", async () => {
+    hits = { "Greensleeves song": ["Greensleeves"], "Santa Lucia song": ["Santa Lucia"], "Santa Lucia": ["Santa Lucia"] };
+    extracts = {
+      // Sections the usual ordering doesn't read: every section but the lists is used instead.
+      Greensleeves: `"Greensleeves" is a traditional English folk song.\n\n== Origin ==\n${LONG}\n\n== Form ==\n${LONG}\n\n== References ==\nA list.`,
+      "Santa Lucia": `Santa Lucia is a town in Sicily.${LONG}`,
+    };
+    const text = await fetchGrounding({ title: "Greensleeves", artist: "Traditional" });
+    expect(text).toMatch(/^Greensleeves\n/);
+    expect(text.length).toBeGreaterThan(600);
+    expect(text).not.toMatch(/A list/);
+    expect(await fetchGrounding({ title: "Santa Lucia", artist: "Italian Folk Song" })).toBe("");
+  });
+
+  it("uses a series' own article as Wikipedia files it", async () => {
+    hits = { "NieR series video game": ["Nier: Automata", "Drakengard and Nier", "Nier (video game)"] };
+    redirects = { "Nier (series)": "Drakengard and Nier" };
+    extracts = { "Drakengard and Nier": `Drakengard and Nier is a video game series.${LONG}`, "Nier (video game)": `A game.${LONG}`, "Nier: Automata": `A game.${LONG}` };
+    expect(await fetchGrounding({ title: "Grandma", artist: "NieR Series" })).toMatch(/^Drakengard and Nier\n/);
+  });
+
+  it("finds a film named in the title of a category artist, never a video game of that name", async () => {
+    hits = {
+      "Star Trek II: The Wrath of Khan soundtrack": ["Star Trek II: The Wrath of Khan (video game)", "Star Trek II: The Wrath of Khan"],
+    };
+    extracts = { "Star Trek II: The Wrath of Khan": `A 1982 film.${LONG}`, "Star Trek II: The Wrath of Khan (video game)": `A game.${LONG}` };
+    expect(await fetchGrounding({ title: "Star Trek II. The Wrath of Khan", artist: "Star Trek Movies" })).toMatch(/^Star Trek II: The Wrath of Khan\n/);
+  });
+
+  it("never takes an installment for a generic track name that every installment mentions", async () => {
+    hits = { "Some Saga video game": ["Some Saga II"], "Some Saga soundtrack": ["Some Saga II"], "Some Saga": ["Some Saga II"] };
+    extracts = { "Some Saga II": `Some Saga II is a video game. Its main theme was well liked.${LONG}` };
+    expect(await fetchGrounding({ title: "Main Theme", artist: "Some Saga" })).toBe("");
+  });
+
+  it("never takes another work's article for a generic track name (Star Trek: Discovery)", async () => {
+    hits = { "Theme Star Trek: Discovery": ["Theme from Star Trek"], "Star Trek: Discovery soundtrack": ["Theme from Star Trek"], "Star Trek: Discovery": ["Theme from Star Trek"] };
+    extracts = { "Theme from Star Trek": `The theme of Star Trek, also heard in Star Trek: Discovery, is a piece of music.${LONG}` };
+    expect(await fetchGrounding({ title: "Star Trek: Discovery Theme", artist: "Star Trek TV" })).not.toMatch(/^Theme from Star Trek/);
+  });
+
+  it("counts composers named in a page's brackets as named by the article", async () => {
+    hits = { "Passacaglia Handel Halvorsen": ["Passacaglia (Handel/Halvorsen)"] };
+    extracts = { "Passacaglia (Handel/Halvorsen)": `A piece for violin and viola.${LONG}` };
+    expect(await fetchGrounding({ title: "Passacaglia", artist: "Arr. Handel Halvorsen" })).toMatch(/^Passacaglia \(Handel\/Halvorsen\)\n/);
   });
 });
