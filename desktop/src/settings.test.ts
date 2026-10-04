@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { DEFAULTS, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { customFactsProblem, DEFAULTS, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -249,6 +249,25 @@ describe("the musician's own facts", () => {
     writeMyPack({ ...DEFAULTS, myFacts: ["One."], myOriginals: ["Two."] }, facts);
     const pack = JSON.parse(fs.readFileSync(path.join(facts, "my-facts.json"), "utf8"));
     expect(pack).toMatchObject({ id: "my-facts", curatedFacts: ["One."], originalsFacts: ["Two."] });
+  });
+
+  it("refuses a fact longer than a song's own facts may be, saying which, instead of trimming it", () => {
+    const long = "x".repeat(301);
+    expect(customFactsProblem({ myFacts: ["Fine.", "x".repeat(300)] })).toBeNull();
+    expect(customFactsProblem({ myFacts: ["Fine.", "", long] })).toBe("Your own facts: fact 2 is 301 characters. Shorten it to 300 or fewer to save.");
+    expect(customFactsProblem({ myOriginals: [long] })).toMatch(/^About your own compositions: fact 1 is 301 characters/);
+    // The [song] tag never goes on stream, so it doesn't count.
+    expect(customFactsProblem({ myFacts: ["[Song of Storms] " + "x".repeat(300)] })).toBeNull();
+    // Settings that don't touch the facts save even when an older long one is there.
+    expect(customFactsProblem({})).toBeNull();
+  });
+
+  it("saves settings.json for the musician only, replacing it whole", () => {
+    saveSettings({ ...DEFAULTS, myFacts: ["One."] });
+    saveSettings({ ...DEFAULTS, myFacts: ["Two."] });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Two."]);
+    if (process.platform !== "win32") expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    expect(fs.readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 });
 

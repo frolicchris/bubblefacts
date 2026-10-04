@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
 import { SSLSong } from "./types";
 
@@ -53,7 +54,7 @@ export function blockArticle(song: SSLSong, article: string): void {
 function save(s: Store): void {
   try {
     fs.mkdirSync(config.dataDir, { recursive: true });
-    fs.writeFileSync(file(), JSON.stringify(s, null, 2) + "\n");
+    writeFileAtomic(file(), JSON.stringify(s, null, 2) + "\n");
   } catch (err) {
     // Still in effect for this session; only the restart memory is lost.
     console.warn(`[WrongFacts] Could not save ${file()}: ${err instanceof Error ? err.message : err}`);

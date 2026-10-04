@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
 import { Fact, SSLSong } from "./types";
 
@@ -29,7 +30,7 @@ const file = () => path.join(config.dataDir, "session.json");
 export function saveSession(session: Session): void {
   try {
     fs.mkdirSync(config.dataDir, { recursive: true });
-    fs.writeFileSync(file(), JSON.stringify(session));
+    writeFileAtomic(file(), JSON.stringify(session));
   } catch (err) {
     console.warn(`[Server] Couldn't save what was shown: ${err instanceof Error ? err.message : err}`);
   }
