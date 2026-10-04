@@ -252,6 +252,11 @@ export class Supervisor extends EventEmitter {
     }
   }
 
+  /** A line from the app itself, kept with the server's so reports and log files carry it too. */
+  note(line: string): void {
+    this.log(line);
+  }
+
   private log(chunk: string): void {
     for (const line of chunk.split(/\r?\n/)) {
       if (!line.trim()) continue;

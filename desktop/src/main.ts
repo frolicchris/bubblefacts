@@ -11,6 +11,7 @@ import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
+import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
@@ -25,7 +26,12 @@ import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
  * the exact artist and track of auto-generated uploads (issue #26).
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || (require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string } }).bubblefacts?.youtubeApiKey || "";
+const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string } } };
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || PACKAGE.bubblefacts?.youtubeApiKey || "";
+/** The commit this was built from, and release, test build or dev (build.ts). */
+const BUILD = buildInfo(PACKAGE);
+/** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
+const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
@@ -143,6 +149,8 @@ function state() {
     modelBytes: MODEL.bytes,
     modelLicense: MODEL.license,
     version: app.getVersion(),
+    versionLabel: versionWithBuild(),
+    testBuild: BUILD.kind === "test",
     platform: process.platform,
     // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
@@ -815,12 +823,13 @@ ipcMain.handle("update-install", () => {
 });
 
 ipcMain.handle("report-problem", () =>
-  openExternal(problemReportUrl({ version: app.getVersion(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 ipcMain.handle("report-beta", () =>
   openExternal(
     betaReportUrl({
       version: app.getVersion(),
+      build: versionWithBuild(),
       systemVersion: process.getSystemVersion(),
       songSource: settings.songSource,
       logLines: supervisor.lines,
@@ -829,7 +838,7 @@ ipcMain.handle("report-beta", () =>
   )
 );
 ipcMain.handle("report-fact", (_e, song: string, fact: string) =>
-  openExternal(wrongFactUrl({ song, fact, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+  openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 
 // --- Lifecycle -----------------------------------------------------------
@@ -853,7 +862,10 @@ app.whenReady().then(async () => {
   // The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer.
   app.setAboutPanelOptions({
     applicationName: "BubbleFacts",
-    applicationVersion: app.getVersion(),
+    // A Mac shows "Version <applicationVersion> (<version>)"; the other systems show applicationVersion alone.
+    ...(process.platform === "darwin"
+      ? { applicationVersion: `${app.getVersion()}${BUILD.kind === "test" ? " test build" : ""}`, version: BUILD.commit || "dev" }
+      : { applicationVersion: versionWithBuild() }),
     copyright: "© 2026 Christopher Feyrer",
     credits: "MIT License. Built with Llama. Credits, licenses and thanks are under About in the BubbleFacts window.",
     authors: ["Christopher Feyrer (creator and maintainer)", "Claude Code by Anthropic (AI coding agent)"],
@@ -864,6 +876,8 @@ app.whenReady().then(async () => {
   // app waits on that prompt. The window goes up first, saying what to click (issue #62).
   settings = loadSettings(!(process.platform === "darwin" && !atLogin));
   pruneLogs(DIRS.logs);
+  // First in the log, so a log file says which build wrote it.
+  supervisor.note(`[App] BubbleFacts ${versionWithBuild()} starting on ${process.platform} ${process.arch}`);
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
   if (secretsWaiting()) {

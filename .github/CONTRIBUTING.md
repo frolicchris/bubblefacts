@@ -106,7 +106,9 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 
 **Test builds for every system:** on GitHub, go to **Actions → Release → Run
 workflow**. The installers appear as downloadable artifacts on the run. This
-works in forks too.
+works in forks too. A test build says so at the bottom of its window, with
+the commit it was built from, for example `2.0.0-beta.12 test build (c4ee826)`;
+a build from your own computer says `(dev)`.
 
 **Releases** are made by the maintainer; how, and how builds get signed, is
 in [docs/RELEASING.md](../docs/RELEASING.md).

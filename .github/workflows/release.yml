@@ -75,6 +75,14 @@ jobs:
         if: env.YOUTUBE_API_KEY != ''
         shell: bash
         run: node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));p.bubblefacts.youtubeApiKey=process.env.YOUTUBE_API_KEY;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
+      # The build ID, written into this build only like the key above: the commit, and whether it's a
+      # release (a v* tag) or a test build (Run workflow), so testers and reports can tell builds apart.
+      # The version stays as it is: the in-app updater compares it. Local builds have none and say "dev".
+      - name: Add the build ID
+        shell: bash
+        env:
+          KIND: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'test' }}
+        run: node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));p.bubblefacts.build={commit:process.env.GITHUB_SHA.slice(0,7),kind:process.env.KIND};require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")' && node -p 'JSON.stringify(require("./package.json").bubblefacts.build)'
       # Signing happens only when its secrets are set (see "Code signing" in CONTRIBUTING.md).
       # Without them, as in forks, builds are unsigned: the Mac app gets an ad-hoc
       # signature (desktop/scripts/after-pack.js) and Windows shows its usual warning.
