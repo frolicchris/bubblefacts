@@ -53,13 +53,43 @@ steps, and macOS stops asking for the keychain again after each update.
 Once both are signed, remove the first-launch steps from `site/guide.html`
 and `site/download.html` (see `site/README.md`).
 
+## Setting the version
+
+One command sets a new version everywhere it's written, through a pull
+request to `main` before tagging:
+
+```bash
+npm run bump -- 2.0.0-beta.12
+```
+
+It sets `package.json` and `package-lock.json`, the `obs-overlay.js` header,
+the top of the version list in `.github/ISSUE_TEMPLATE/beta_test.yml` and the
+example in `bug_report.yml`, and adds a dated entry at the top of
+`site/changelog.html`. Fill in its `FILL IN` lines (the same lines as the
+release notes' New, Improved and Fixed; delete the ones you don't need):
+`npm run check` fails until you do. Running it again changes nothing.
+
+## Telling builds apart
+
+Every build from the Release workflow carries the commit it was built from,
+written in at build time like the YouTube key. The app shows it at the bottom
+of the window and on its About page, writes it at the top of each day's log,
+and puts it in problem, beta test and Wrong reports:
+
+- A release (a `v*` tag): `2.0.0-beta.12 (c4ee826)`.
+- A test build (**Run workflow**): `2.0.0-beta.12 test build (c4ee826)`.
+  It keeps the version in `package.json`, so a test build of `main` between
+  releases says the last version set there. The in-app update treats it like
+  that version: it offers only a newer release.
+- Built on your own computer (`npm run app`, `npm run dist`): `2.0.0-beta.12 (dev)`.
+
 ## Release checklist
 
 Before publishing a draft release, check the packaged app, not only the source.
 The tests can't see what OBS or an installer does.
 
-1. The version in `package.json` and the `obs-overlay.js` header match the tag,
-   and `desktop/renderer/whats-new.json` has that version's two to four
+1. The version was set with `npm run bump` (above) and matches the tag, and
+   `desktop/renderer/whats-new.json` has that version's two to four
    highlights (plain words, like the changelog's top lines), added before
    tagging. The app shows them once on the dashboard after the update; a
    version without an entry shows nothing.
@@ -73,14 +103,12 @@ The tests can't see what OBS or an installer does.
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
 5. Install it and open it. The setup screen appears and shows the new version
-   at the bottom.
+   at the bottom, with the tagged commit and no "test build".
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.
 8. Quit from the menu bar or tray. Nothing is left running.
-9. While in beta, add the new version to the top of the version list in
-   `.github/ISSUE_TEMPLATE/beta_test.yml` (a test fails until you do).
-   Publish as a pre-release. The draft's notes start from
+9. While in beta, publish as a pre-release. The draft's notes start from
    `.github/release-template.md`: fill in New, Improved, Fixed and Thanks
    (the same lines as the website's changelog), delete empty sections and
    the comments, and keep the checksums. Releases are immutable once published:
@@ -232,8 +260,8 @@ merges:
 
 **Making a maintenance release:**
 
-1. Set the version in `package.json` and the `obs-overlay.js` header,
-   through a pull request to the branch it comes from.
+1. Set the version with `npm run bump -- X.Y.Z`, through a pull request to
+   the branch it comes from.
 2. Tag `vX.Y.Z` on that commit and push the tag.
 3. Run the release checklist; its hands-on steps on one Mac and one Windows
    computer are enough.
@@ -241,4 +269,5 @@ merges:
    settings and facts kept.
 5. Fill in Fixed (and Security) in the release notes and publish it as a
    full release.
-6. Upload changed `site/` files, and add the changelog entry on `main`.
+6. Upload changed `site/` files. A release from `release/2.0` also needs
+   its changelog entry copied to `main`.

@@ -1,6 +1,9 @@
+import { cantReach, errorDetail, plainError } from "./plain-errors";
+
 /** One-off checks the app runs for the musician. */
 
-export type ConnectionResult = { ok: true; id: number } | { ok: false; reason: string };
+/** `detail`: what went wrong in technical terms, for the log only. */
+export type ConnectionResult = { ok: true; id: number } | { ok: false; reason: string; detail?: string };
 
 /** Try the channel name and token against StreamerSongList, and explain any failure plainly. */
 export async function testSongList(channel: string, token: string, kind: string): Promise<ConnectionResult> {
@@ -17,15 +20,15 @@ export async function testSongList(channel: string, token: string, kind: string)
       return { ok: false, reason: "StreamerSongList didn't accept that token. Copy it again from Settings, then Access." };
     }
     if (res.status === 404) return { ok: false, reason: `StreamerSongList has no channel named "${channel.trim()}".` };
-    if (!res.ok) return { ok: false, reason: `StreamerSongList answered with an error (${res.status}). Try again in a minute.` };
+    if (!res.ok) return { ok: false, reason: "StreamerSongList isn't answering right now. Try again in a minute.", detail: `HTTP ${res.status}` };
     const body = (await res.json()) as { id: number };
     return { ok: true, id: body.id };
-  } catch {
-    return { ok: false, reason: "Couldn't reach StreamerSongList. Check your internet connection." };
+  } catch (err) {
+    return { ok: false, reason: plainError(err, { service: "StreamerSongList", fallback: cantReach("StreamerSongList") }), detail: errorDetail(err) };
   }
 }
 
-export type StreamElementsResult = { ok: true; channel: string; id: string } | { ok: false; reason: string };
+export type StreamElementsResult = { ok: true; channel: string; id: string } | { ok: false; reason: string; detail?: string };
 
 const SE_API = "https://api.streamelements.com/kappa/v2";
 
@@ -42,7 +45,7 @@ export async function testStreamElements(channel: string, jwt: string): Promise<
   try {
     const me = await get("/channels/me");
     if (me.status === 401 || me.status === 403) return { ok: false, reason: refused };
-    if (!me.ok) return { ok: false, reason: `StreamElements answered with an error (${me.status}). Try again in a minute.` };
+    if (!me.ok) return { ok: false, reason: "StreamElements isn't answering right now. Try again in a minute.", detail: `HTTP ${me.status}` };
     const info = (await me.json()) as { _id?: string; username?: string };
     if (!info._id) return { ok: false, reason: "StreamElements didn't say which channel that token is for. Copy the JWT token again." };
     const name = info.username ?? "";
@@ -57,12 +60,12 @@ export async function testStreamElements(channel: string, jwt: string): Promise<
         return { ok: false, reason: "That token can't read your song requests. Copy the JWT token (not the Overlay token) from Show secrets." };
       }
       if (!res.ok && res.status !== 404) {
-        return { ok: false, reason: `StreamElements couldn't open your song requests (${res.status}). Check that Media Request is turned on, then try again.` };
+        return { ok: false, reason: "StreamElements couldn't open your song requests. Check that Media Request is turned on, then try again.", detail: `HTTP ${res.status}` };
       }
     }
     return { ok: true, channel: name || wanted, id: info._id };
-  } catch {
-    return { ok: false, reason: "Couldn't reach StreamElements. Check your internet connection." };
+  } catch (err) {
+    return { ok: false, reason: plainError(err, { service: "StreamElements", fallback: cantReach("StreamElements") }), detail: errorDetail(err) };
   }
 }
 

@@ -11,7 +11,9 @@ import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
-import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
+import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
+import { errorDetail, plainError, PlainOptions } from "./plain-errors";
+import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
@@ -26,7 +28,12 @@ import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
  * the exact artist and track of auto-generated uploads (issue #26).
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || (require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string } }).bubblefacts?.youtubeApiKey || "";
+const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string } } };
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || PACKAGE.bubblefacts?.youtubeApiKey || "";
+/** The commit this was built from, and release, test build or dev (build.ts). */
+const BUILD = buildInfo(PACKAGE);
+/** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
+const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
 import { pruneLogs, Status, Supervisor } from "./supervisor";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
@@ -82,6 +89,12 @@ const supervisor = new Supervisor(
   process.platform === "linux" && fs.existsSync(nodeRuntime) ? nodeRuntime : null
 );
 const overlayFile = () => path.join(DIRS.overlay, OVERLAY_FILE);
+
+/** What the window says about a failure: plain words there, the technical side in the log (and so in reports). */
+function shown(where: string, err: unknown, opts: PlainOptions = {}): string {
+  supervisor.note(`[App] ${where}: ${errorDetail(err)}`);
+  return plainError(err, opts);
+}
 const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
 
 /**
@@ -144,6 +157,8 @@ function state() {
     modelBytes: MODEL.bytes,
     modelLicense: MODEL.license,
     version: app.getVersion(),
+    versionLabel: versionWithBuild(),
+    testBuild: BUILD.kind === "test",
     platform: process.platform,
     // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
@@ -226,7 +241,7 @@ async function ensureModel(): Promise<void> {
     if (download.signal.aborted) return;
     downloadFailures++;
     const wait = Math.min(30_000 * downloadFailures, 5 * 60_000);
-    const reason = err instanceof Error ? err.message : String(err);
+    const reason = shown("AI download", err, { fallback: "The download stopped. BubbleFacts tries again on its own." });
     modelDownload = { ...(modelDownload ?? { received: 0, total: MODEL.bytes, phase: "downloading" }), error: reason };
     send("model-progress", modelDownload);
     if (!(err instanceof ChecksumMismatch)) downloadRetry = setTimeout(() => void ensureModel(), wait);
@@ -267,12 +282,21 @@ async function ensureOllamaModel(): Promise<void> {
     if (names.some((n) => n === model || n === `${model}:latest`)) return tell(null);
     tell({ pulling: model });
     const res = await fetch(`${base}/api/pull`, { method: "POST", body: JSON.stringify({ model, stream: false }) });
-    if (!res.ok) throw new Error(`Ollama couldn't download "${model}" (${res.status}). Check the model name in Settings`);
+    if (!res.ok) throw new Error(`Ollama couldn't download "${model}". Check the model name in Settings, under Advanced.`, { cause: `HTTP ${res.status}` });
     tell(null);
     startServer();
   } catch (err) {
-    const offline = err instanceof TypeError || (err as Error).name === "TimeoutError";
-    tell({ error: offline ? `Ollama isn't running at ${base}. Open the Ollama app, then click Try again` : (err as Error).message });
+    const name = (err as Error)?.name;
+    const offline = name === "TypeError" || name === "TimeoutError";
+    const notOllama = name === "SyntaxError";
+    const message = shown("Ollama", err, { service: "Ollama" });
+    tell({
+      error: offline
+        ? `Ollama isn't running at ${base}. Open the Ollama app, then click Try again.`
+        : notOllama
+          ? `Something other than Ollama is answering at ${base}. Check the Ollama address in Settings, under Advanced.`
+          : message,
+    });
   }
 }
 
@@ -522,7 +546,12 @@ const handleAny = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) =>
   handleAny(channel, (e, ...args) => {
     if (!fromOurPage(e)) throw new Error(`"${channel}" isn't available to this page`);
-    return listener(e, ...args);
+    // Anything that slips through still reaches the window in plain words.
+    return Promise.resolve()
+      .then(() => listener(e, ...args))
+      .catch((err) => {
+        throw new Error(shown(channel, err));
+      });
   });
 
 ipcMain.handle("test-bubble", () => control("test"));
@@ -558,12 +587,18 @@ ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
 ipcMain.handle("get-state", () => state());
 
-ipcMain.handle("test-connection", (_e, channel: string, token: string, kind: string) =>
-  testSongList(channel, token || settings.token, kind)
+/** A connection test's technical side goes in the log; the window gets the plain reason. */
+const logged = <T extends { ok: boolean; detail?: string }>(where: string, r: T): T => {
+  if (!r.ok && r.detail) supervisor.note(`[App] ${where}: ${r.detail}`);
+  return r;
+};
+
+ipcMain.handle("test-connection", async (_e, channel: string, token: string, kind: string) =>
+  logged("StreamerSongList test", await testSongList(channel, token || settings.token, kind))
 );
 
-ipcMain.handle("test-streamelements", (_e, channel: string, jwt: string) =>
-  testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt)
+ipcMain.handle("test-streamelements", async (_e, channel: string, jwt: string) =>
+  logged("StreamElements test", await testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt))
 );
 
 ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
@@ -609,7 +644,8 @@ const twitch = new TwitchSession(
   (t) => {
     settings = { ...settings, twitchToken: t?.accessToken ?? "", twitchRefreshToken: t?.refreshToken ?? "", twitchTokenExpiresAt: t?.expiresAt ?? 0, twitchLogin: t?.login ?? "" };
     saveSettings(settings);
-  }
+  },
+  (line) => supervisor.note(line)
 );
 
 ipcMain.handle("twitch-connect", async () => {
@@ -641,7 +677,7 @@ ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
     };
   } catch (err) {
     send("state", state());
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: shown("Twitch About", err, { service: "Twitch" }) };
   }
 });
 
@@ -668,7 +704,7 @@ ipcMain.handle("sign-in", async () => {
     showWindow();
     return { ok: true, channel: settings.channel, state: state() };
   } catch (err) {
-    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    return { ok: false, reason: shown("Sign-in", err, { service: "StreamerSongList", fallback: "The sign-in didn't finish. Click Sign in to try again." }) };
   } finally {
     if (signingIn === mine) signingIn = null;
   }
@@ -694,7 +730,11 @@ ipcMain.handle("backup-save", async () => {
   const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
-  writeFileAtomic(filePath, JSON.stringify(currentBackup(), null, 2));
+  try {
+    writeFileAtomic(filePath, JSON.stringify(currentBackup(), null, 2));
+  } catch (err) {
+    return { ok: false, message: shown("Back up", err, { fallback: "BubbleFacts couldn't save the backup there. Choose another folder, then try again." }) };
+  }
   return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
 });
 
@@ -707,7 +747,7 @@ ipcMain.handle("backup-restore", async () => {
   try {
     backup = readBackup(fs.readFileSync(filePaths[0], "utf8"));
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : "That file couldn't be read." };
+    return { ok: false, message: shown("Restore", err, { fallback: "That file couldn't be read." }) };
   }
   const when = backup.createdAt ? new Date(backup.createdAt).toLocaleDateString() : "an earlier day";
   const confirm = {
@@ -820,7 +860,7 @@ ipcMain.handle("update-download", async () => {
     });
     updating = { stage: "ready", progress: 1, file, error: "" };
   } catch (err) {
-    updating = { stage: "failed", progress: 0, file: "", error: err instanceof Error ? err.message : String(err) };
+    updating = { stage: "failed", progress: 0, file: "", error: shown("Update download", err, { fallback: "The download didn't finish." }) };
   }
   send("state", state());
 });
@@ -830,6 +870,7 @@ ipcMain.handle("update-install", () => {
   fs.mkdirSync(DIRS.logs, { recursive: true });
   const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
   if (!result.started) {
+    supervisor.note(`[App] Update install: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`);
     updating = { stage: "failed", progress: 0, file: "", error: result.reason };
     send("state", state());
     return;
@@ -841,12 +882,13 @@ ipcMain.handle("update-install", () => {
 });
 
 ipcMain.handle("report-problem", () =>
-  openExternal(problemReportUrl({ version: app.getVersion(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 ipcMain.handle("report-beta", () =>
   openExternal(
     betaReportUrl({
       version: app.getVersion(),
+      build: versionWithBuild(),
       systemVersion: process.getSystemVersion(),
       songSource: settings.songSource,
       logLines: supervisor.lines,
@@ -854,8 +896,17 @@ ipcMain.handle("report-beta", () =>
     })
   )
 );
+/** The same reports, as text to paste anywhere: no GitHub account needed. */
+ipcMain.handle("copy-report", (_e, kind: unknown) => {
+  const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
+  clipboard.writeText(
+    kind === "beta"
+      ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource })
+      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai })
+  );
+});
 ipcMain.handle("report-fact", (_e, song: string, fact: string) =>
-  openExternal(wrongFactUrl({ song, fact, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+  openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 
 // --- Lifecycle -----------------------------------------------------------
@@ -879,7 +930,10 @@ app.whenReady().then(async () => {
   // The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer.
   app.setAboutPanelOptions({
     applicationName: "BubbleFacts",
-    applicationVersion: app.getVersion(),
+    // A Mac shows "Version <applicationVersion> (<version>)"; the other systems show applicationVersion alone.
+    ...(process.platform === "darwin"
+      ? { applicationVersion: `${app.getVersion()}${BUILD.kind === "test" ? " test build" : ""}`, version: BUILD.commit || "dev" }
+      : { applicationVersion: versionWithBuild() }),
     copyright: "© 2026 Christopher Feyrer",
     credits: "MIT License. Built with Llama. Credits, licenses and thanks are under About in the BubbleFacts window.",
     authors: ["Christopher Feyrer (creator and maintainer)", "Claude Code by Anthropic (AI coding agent)"],
@@ -890,6 +944,8 @@ app.whenReady().then(async () => {
   // app waits on that prompt. The window goes up first, saying what to click (issue #62).
   settings = loadSettings(!(process.platform === "darwin" && !atLogin));
   pruneLogs(DIRS.logs);
+  // First in the log, so a log file says which build wrote it.
+  supervisor.note(`[App] BubbleFacts ${versionWithBuild()} starting on ${process.platform} ${process.arch}`);
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
   if (secretsWaiting()) {

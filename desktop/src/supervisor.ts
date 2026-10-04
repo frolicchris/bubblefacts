@@ -157,7 +157,7 @@ export class Supervisor extends EventEmitter {
       if (this.portConflict) return this.movePort();
       // Only a crash between "Listening" and the model loading points at the AI; an earlier one is a setup problem.
       if (this.env.AI_PROVIDER === "builtin" && this.listening && !this.modelLoaded) return this.modelFailed("crashed while loading");
-      this.scheduleRestart(`The fact server stopped unexpectedly (code ${code})`);
+      this.scheduleRestart("The fact server stopped unexpectedly", `exit code ${code}`);
     };
 
     if (!this.healthTimer) this.healthTimer = setInterval(() => void this.checkHealth(), HEALTH_EVERY_MS);
@@ -169,7 +169,7 @@ export class Supervisor extends EventEmitter {
     if (next > this.basePort + PORT_SEARCH) {
       this.status.port = this.basePort;
       this.env = { ...this.env, PORT: String(this.basePort) };
-      return this.scheduleRestart(`Ports ${this.basePort} to ${next - 1} are all in use`);
+      return this.scheduleRestart("Other programs are using the ports BubbleFacts tries. Choose another Port in Settings, under Advanced", `ports ${this.basePort} to ${next - 1} are all in use`);
     }
     this.log(`[App] Port ${this.status.port} is in use; trying ${next}`);
     this.status.port = next;
@@ -199,7 +199,8 @@ export class Supervisor extends EventEmitter {
     this.emit("builtin-failed");
   }
 
-  private scheduleRestart(reason: string): void {
+  /** `reason` is shown in the window; `detail`, if any, goes in the log only. */
+  private scheduleRestart(reason: string, detail = ""): void {
     if (this.stopping || this.restartTimer) return;
     this.child?.kill();
     this.child = null;
@@ -208,7 +209,7 @@ export class Supervisor extends EventEmitter {
     const count = this.restartTimes.length;
     const delay = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (count - 1));
     this.status.restarts++;
-    this.log(`[App] ${reason}. Restarting in ${Math.round(delay / 1000)}s.`);
+    this.log(`[App] ${reason}${detail ? ` (${detail})` : ""}. Restarting in ${Math.round(delay / 1000)}s.`);
     this.set(count >= FAILING_AFTER ? "failing" : "restarting", reason);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
@@ -250,6 +251,11 @@ export class Supervisor extends EventEmitter {
       if (loading) this.modelFailed("stopped responding while loading");
       else this.scheduleRestart("The fact server stopped responding");
     }
+  }
+
+  /** A line from the app itself, kept with the server's so reports and log files carry it too. */
+  note(line: string): void {
+    this.log(line);
   }
 
   private log(chunk: string): void {

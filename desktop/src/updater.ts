@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { plainWithDetail } from "./plain-errors";
 
 /**
  * The app's own updater. The standard one for Electron needs a Mac app
@@ -53,13 +54,13 @@ export async function downloadUpdate(d: Download, dir: string, onProgress: (frac
   // Earlier downloads are never reused: a half-written file would fail its check anyway.
   for (const old of fs.readdirSync(dir)) fs.rmSync(path.join(dir, old), { force: true, recursive: true });
   const sums = await fetch(d.sumsUrl, { signal });
-  if (!sums.ok) throw new Error("couldn't read the release's checksums");
+  if (!sums.ok) throw plainWithDetail("BubbleFacts couldn't check the download.", `checksums: HTTP ${sums.status}`);
   const want = expectedSum(await sums.text(), d.name);
-  if (!want) throw new Error("the release has no checksum for this file");
+  if (!want) throw new Error("BubbleFacts couldn't check the download: the release has no checksum for this file.");
 
   const file = path.join(dir, d.name);
   const res = await fetch(d.url, { signal });
-  if (!res.ok || !res.body) throw new Error(`the download failed (${res.status})`);
+  if (!res.ok || !res.body) throw plainWithDetail("The download didn't finish.", `HTTP ${res.status}`);
   // Written through a file handle so a full or failing disk is an error the window can show,
   // not an unhandled stream error that takes the app down.
   let out: fs.promises.FileHandle | null = null;
@@ -73,11 +74,11 @@ export async function downloadUpdate(d: Download, dir: string, onProgress: (frac
     }
     await out.close();
     out = null;
-    if ((await sha256(file)) !== want) throw new Error("the download didn't match the release's checksum");
+    if ((await sha256(file)) !== want) throw new Error("The download didn't match the release's checksum, so it was deleted.");
   } catch (err) {
     await out?.close().catch(() => undefined);
     fs.rmSync(file, { force: true });
-    throw /ENOSPC|EDQUOT/.test((err as NodeJS.ErrnoException)?.code ?? "") ? new Error("there isn't enough free disk space for the update") : err;
+    throw /ENOSPC|EDQUOT/.test((err as NodeJS.ErrnoException)?.code ?? "") ? new Error("There isn't enough free disk space for the update.") : err;
   }
   return file;
 }
@@ -125,7 +126,7 @@ reopen
 `;
 
 /** `relaunch`: the app must reopen this file itself as it quits (Linux), with no shell in between. */
-export type InstallResult = { started: true; relaunch?: string } | { started: false; reason: string };
+export type InstallResult = { started: true; relaunch?: string } | { started: false; reason: string; detail?: string };
 
 /**
  * Start installing a checked download. On success the caller must quit the
@@ -135,7 +136,7 @@ export function startInstall(file: string, opts: { pid: number; logFile: string;
   const detached = (cmd: string, args: string[]) => spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
   if (process.platform === "darwin") {
     const bundle = macBundle();
-    if (!bundle) return { started: false, reason: "BubbleFacts isn't in a folder it can update itself in" };
+    if (!bundle) return { started: false, reason: "BubbleFacts isn't in a folder it can update itself in." };
     const script = path.join(opts.scriptDir, "swap.sh");
     fs.writeFileSync(script, MAC_SWAP_SCRIPT, { mode: 0o700 });
     detached("/bin/bash", [script, String(opts.pid), file, bundle, opts.logFile]);
@@ -155,10 +156,10 @@ export function startInstall(file: string, opts: { pid: number; logFile: string;
       fs.renameSync(staged, appImage);
       fs.rmSync(file, { force: true });
     } catch (err) {
-      return { started: false, reason: `couldn't replace the AppImage (${err instanceof Error ? err.message : err})` };
+      return { started: false, reason: "BubbleFacts couldn't replace its own file.", detail: err instanceof Error ? err.message : String(err) };
     }
     // The app reopens the new file itself as it quits: no shell is involved.
     return { started: true, relaunch: appImage };
   }
-  return { started: false, reason: "this kind of install updates through your system" };
+  return { started: false, reason: "This kind of install updates through your system." };
 }

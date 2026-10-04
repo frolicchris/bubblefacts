@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   installUpdate: () => ipcRenderer.invoke("update-install"),
   reportProblem: () => ipcRenderer.invoke("report-problem"),
   reportBeta: () => ipcRenderer.invoke("report-beta"),
+  copyReport: (kind: "problem" | "beta") => ipcRenderer.invoke("copy-report", kind),
   reportFact: (song: string, fact: string) => ipcRenderer.invoke("report-fact", song, fact),
   wrongFact: (fact: string, song?: unknown, live?: boolean) => ipcRenderer.invoke("wrong-fact", fact, song, live === true),
   unwrongFact: (article: string, song: unknown) => ipcRenderer.invoke("unwrong-fact", article, song),
