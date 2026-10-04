@@ -461,7 +461,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/pause` | **Pause bubbles** / **Resume bubbles**. While paused, songs are still followed, nothing is shown. Resuming on the same song sends its unshown facts without a second Now Playing bubble; a new song starts normally. The app restarts a crashed or stalled server with `BUBBLEFACTS_PAUSED=1`, so it stays paused. |
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
 | `/control/wrong-current` | **Hands-free Wrong** (above): the bubble on stream now, or the one shown last for this song. |
-| `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts and 5 songwriters). Shows them at once if the song is still on. |
+| `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts of up to 300 characters, 5 songwriters, a 200-character link). Over a limit, the save is refused with `error`, a reason the editor shows; nothing is trimmed. Shows them at once if the song is still on. |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 

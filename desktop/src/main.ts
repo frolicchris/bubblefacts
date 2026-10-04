@@ -442,7 +442,10 @@ async function control(pathname: string, body: unknown = {}): Promise<Record<str
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(3_000),
     });
-    return res.ok ? ((await res.json()) as Record<string, unknown>) : null;
+    if (res.ok) return (await res.json()) as Record<string, unknown>;
+    // A refusal with a reason (a fact too long to save, say) goes to the window, so it can say why.
+    const refusal = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    return refusal && typeof refusal.error === "string" ? refusal : null;
   } catch {
     return null;
   }

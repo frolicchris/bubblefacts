@@ -398,12 +398,7 @@
       }
       // The song itself goes along, so Undo can't land on whatever plays next.
       state.wrong = { song: label || "", text: f.text, article: result.article, songId: songObj };
-      const what = result.structured
-        ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
-        : result.article
-          ? `BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
-          : "";
-      showWrongNote(result.live ? `Removed. ${what}`.trim() : `Marked wrong. ${what || "It won't show for this song again."}`, result.article);
+      wrongNote(result, f.text, songObj, result.live ? "Removed." : "Marked wrong.");
       li.remove();
     });
     return li;
@@ -450,11 +445,54 @@
     $("#song-facts-open").textContent = !r.song ? "Add facts for a song" : hasOwn ? "Edit your facts for this song" : "Add facts for this song";
   }
 
-  function showWrongNote(text, undoable) {
+  /** The Edit button on the note, for the streamer's own fact. */
+  let wrongEdit = null;
+  function showWrongNote(text, undoable, edit = null) {
     $("#wrong-note-text").textContent = text;
     $("#wrong-undo").hidden = !undoable;
     $("#wrong-report").hidden = !state.wrong;
+    wrongEdit = edit;
+    $("#wrong-edit").hidden = !edit;
     $("#wrong-note").hidden = false;
+  }
+  $("#wrong-edit").addEventListener("click", () => wrongEdit && wrongEdit());
+
+  /**
+   * What Wrong did, in words. A fact from a lookup: the source it won't use
+   * again. The streamer's own fact: nothing can be blocked, so it shows again
+   * until they change it, and the note opens it for editing.
+   */
+  function wrongNote(result, text, song, start) {
+    if (result.own === "song") {
+      // Their own fact isn't a wrong source to report, and there's nothing to undo.
+      state.wrong = null;
+      showWrongNote(`${start} It's one of your own facts for this song, so it shows again the next time the song plays until you change it.`, null, async () => {
+        const got = (await api.getSongFacts(song)) || {};
+        show("dashboard");
+        openSongFacts(got.song || song, got.entry);
+      });
+      return;
+    }
+    if (result.own === "custom") {
+      state.wrong = null;
+      showWrongNote(`${start} It's one of your own custom facts, so it can show again until you change it in Settings.`, null, () => editCustomFact(text));
+      return;
+    }
+    const what = result.structured
+      ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+      : result.article
+        ? `BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
+        : "";
+    showWrongNote(`${start} ${what}`.trim(), result.article);
+  }
+
+  /** Settings, at the custom fact: in Your own facts, or About your own compositions. */
+  function editCustomFact(text) {
+    show("settings");
+    const box = [$("#s-myfacts"), $("#s-myoriginals")].find((b) => !b.closest("[hidden]") && b.value.includes(text)) || $("#s-myfacts");
+    box.focus();
+    const at = box.value.indexOf(text);
+    if (at >= 0) box.setSelectionRange(at, at + text.length);
   }
 
   $("#song-facts-open").addEventListener("click", async () => {
@@ -477,26 +515,70 @@
     $("#song-facts-form").hidden = false;
     $("#song-facts-open").hidden = true;
     $("#song-facts-other").hidden = true;
-    $("#sf-facts textarea:last-child").focus();
+    $$("#sf-facts textarea").at(-1).focus();
     $("#song-facts-form").scrollIntoView({ block: "nearest" });
   }
+  // The server's limits (SONG_FACT_LIMITS in song-facts.ts): shown here, so a save is never cut short.
+  const MAX_FACTS = 20;
+  const MAX_FACT_LENGTH = 300;
+  /** A fact as it's saved: a line break inside it is a space. */
+  const cleanFact = (text) => text.replace(/\s+/g, " ").trim();
+  /** Characters used, shown once a fact nears the limit. */
+  function renderFactLength(box) {
+    const n = cleanFact(box.value).length;
+    const count = box.nextElementSibling;
+    count.hidden = n < MAX_FACT_LENGTH - 60;
+    count.textContent = n > MAX_FACT_LENGTH
+      ? `${n} of ${MAX_FACT_LENGTH} characters. Shorten it by ${n - MAX_FACT_LENGTH} to save.`
+      : `${n} of ${MAX_FACT_LENGTH} characters`;
+    count.className = "hint fact-count" + (n > MAX_FACT_LENGTH ? " over" : "");
+  }
+  /** Add another fact stops at the most a song can have, and says so. */
+  function renderFactRoom() {
+    const full = $$("#sf-facts textarea").length >= MAX_FACTS;
+    $("#sf-add").hidden = full;
+    $("#sf-facts-full").hidden = !full;
+  }
+  let factBoxIds = 0;
   /** One box per fact, so a long fact can wrap or take a line break and stay one fact. */
   function addFactBox(text = "") {
+    const n = $$("#sf-facts textarea").length + 1;
+    const row = document.createElement("div");
+    row.className = "fact-box";
     const box = document.createElement("textarea");
     box.rows = 2;
     box.spellcheck = true;
     box.value = text;
     box.placeholder = "Jane wrote this on stream in one night in 2024.";
-    box.setAttribute("aria-label", `Fact ${$$("#sf-facts textarea").length + 1}`);
-    $("#sf-facts").appendChild(box);
+    box.setAttribute("aria-label", `Fact ${n}`);
+    const count = document.createElement("span");
+    count.id = `sf-count-${++factBoxIds}`;
+    count.setAttribute("aria-live", "polite");
+    box.setAttribute("aria-describedby", count.id);
+    box.addEventListener("input", () => renderFactLength(box));
+    row.append(box, count);
+    $("#sf-facts").appendChild(row);
+    renderFactLength(box);
+    renderFactRoom();
     return box;
   }
   function setFactBoxes(facts) {
     $("#sf-facts").replaceChildren();
     for (const f of facts) addFactBox(f);
-    addFactBox();
+    if (facts.length < MAX_FACTS) addFactBox();
+    renderFactRoom();
   }
-  const factBoxes = () => $$("#sf-facts textarea").map((b) => b.value.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const factBoxes = () => $$("#sf-facts textarea").map((b) => cleanFact(b.value)).filter(Boolean);
+  /** Why the facts can't be saved as typed, numbered as the boxes are, or "". */
+  function factsProblem() {
+    const facts = factBoxes();
+    if (facts.length > MAX_FACTS) return `A song can have up to ${MAX_FACTS} facts. Remove ${facts.length - MAX_FACTS} to save.`;
+    const boxes = $$("#sf-facts textarea");
+    const long = boxes.findIndex((b) => cleanFact(b.value).length > MAX_FACT_LENGTH);
+    if (long < 0) return "";
+    boxes[long].focus();
+    return `Fact ${long + 1} is ${cleanFact(boxes[long].value).length} characters. Shorten it to ${MAX_FACT_LENGTH} or fewer to save.`;
+  }
   $("#sf-add").addEventListener("click", () => addFactBox().focus());
   /** Fill from their Twitch About: offered when the artist or link names a Twitch channel. */
   const sfArtist = () => (songFactsTarget ? songFactsTarget.artist || "" : $("#sf-artist").value);
@@ -533,7 +615,7 @@
       const blank = $$("#sf-facts textarea").find((b) => !b.value.trim());
       for (const f of r.facts.filter((x) => !have.has(x))) {
         const box = addFactBox(f);
-        if (blank) $("#sf-facts").insertBefore(box, blank);
+        if (blank) $("#sf-facts").insertBefore(box.parentElement, blank.parentElement);
       }
     }
     setResult($("#sf-twitch-result"), r.message, r.ok ? "ok" : "bad");
@@ -670,6 +752,11 @@
   $("#song-facts-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const split = (s, re) => s.split(re).map((x) => x.trim()).filter(Boolean);
+    const problem = factsProblem();
+    if (problem) {
+      $("#song-facts-result").textContent = problem;
+      return;
+    }
     if (!songFactsTarget) {
       const title = $("#sf-title").value.trim();
       if (!title) {
@@ -697,7 +784,7 @@
         null
       );
     } else {
-      $("#song-facts-result").textContent = "Couldn't save. Try again in a moment.";
+      $("#song-facts-result").textContent = (result && result.error) || "Couldn't save. Try again in a moment.";
     }
   });
   $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
@@ -725,7 +812,7 @@
       const r = await call();
       if (r.message) setResult($("#backup-result"), r.message, r.ok ? "ok" : "bad");
       // A restore changed the settings: show them.
-      if (r.ok && id === "backup-restore") { state = await api.getState(); fillSettings(); setResult($("#backup-result"), r.message, "ok"); }
+      if (r.ok && id === "backup-restore") { state = await api.getState(); settingsDraft.clear(); fillSettings(); setResult($("#backup-result"), r.message, "ok"); }
     });
   }
   $("#report-problem").addEventListener("click", () => api.reportProblem());
@@ -801,17 +888,44 @@
 
   const form = $("#settings-form");
 
+  /**
+   * Settings fields changed since the last save, by name (or id). Filling the
+   * form again (coming back to Settings, a sign-in, Twitch) leaves them as typed,
+   * so leaving Settings never loses an edit. Save, or restoring a backup, clears them.
+   */
+  const settingsDraft = new Set();
+  const draftKey = (el) => el.name || el.id;
+  for (const type of ["input", "change"]) {
+    form.addEventListener(type, (e) => {
+      const key = draftKey(e.target);
+      if (key && e.target.matches("input, textarea, select")) settingsDraft.add(key);
+    });
+  }
+
+  /** Whether a drafted field still says something other than what's saved (an edit typed back is no draft). */
+  function differsFromSaved(key) {
+    const s = state.settings;
+    if (key === "s-myfacts") return lines($("#s-myfacts")).join("\n") !== s.myFacts.join("\n");
+    if (key === "s-myoriginals") return lines($("#s-myoriginals")).join("\n") !== s.myOriginals.join("\n");
+    const el = form.elements[key];
+    if (!el) return false;
+    if (el.type === "checkbox") return el.checked !== !!s[key];
+    if (el.type === "password") return el.value !== "";
+    return String(el.value).trim() !== String(s[key] ?? "");
+  }
+
   function fillSettings() {
     const s = state.settings;
+    for (const key of [...settingsDraft]) if (!differsFromSaved(key)) settingsDraft.delete(key);
     for (const el of form.elements) {
-      if (!el.name || el.type === "password") continue;
+      if (!el.name || el.type === "password" || settingsDraft.has(el.name)) continue;
       if (el.type === "checkbox") el.checked = !!s[el.name];
       else if (el.type === "radio") el.checked = s[el.name] === el.value;
       else el.value = s[el.name] ?? "";
     }
-    $("#s-myfacts").value = s.myFacts.join("\n");
-    $("#s-myoriginals").value = s.myOriginals.join("\n");
-    $("#s-originals-box").hidden = !s.originals;
+    if (!settingsDraft.has("s-myfacts")) $("#s-myfacts").value = s.myFacts.join("\n");
+    if (!settingsDraft.has("s-myoriginals")) $("#s-myoriginals").value = s.myOriginals.join("\n");
+    $("#s-originals-box").hidden = !form.elements.originals.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
       ? (s.seJwtSet ? `✓ Connected to StreamElements${s.seChannel ? " as " + s.seChannel : ""}.` : "Not connected.")
@@ -819,15 +933,15 @@
     showSettingsSource();
     $("#s-sign-in").textContent = signedIn ? "Sign in again" : "Sign in with StreamerSongList";
     $("#s-sign-in").hidden = !state.signInAvailable;
-    for (const p of $$('#settings-form input[type="password"]')) p.value = "";
+    for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
     // Someone already using an online AI or the example packs finds them open.
-    $("#s-advanced").open = s.ai !== "builtin";
+    $("#s-advanced").open = form.elements.ai.value !== "builtin";
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
     renderWrongKey();
-    setResult($("#settings-result"), "");
+    setResult($("#settings-result"), settingsDraft.size ? "Your changes aren't saved yet. Click Save to keep them." : "");
   }
 
   /** Hands-free Wrong: the keys as this computer names them, and a key another app already has. */
@@ -910,6 +1024,7 @@
     const saved = await api.saveSettings(changes);
     if (saved.error) return setResult($("#settings-result"), saved.error, "bad");
     state = saved;
+    settingsDraft.clear();
     renderNotices();
     fillSettings();
     setResult($("#settings-result"), "✓ Saved. BubbleFacts restarted with your changes.", "ok");
@@ -1003,12 +1118,7 @@
     }
     const label = r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "");
     state.wrong = { song: label, text: r.text, article: r.article, songId: r.song };
-    const what = r.structured
-      ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
-      : r.article
-        ? `BubbleFacts won't use the "${r.article}" Wikipedia article for this song again.`
-        : "";
-    showWrongNote(`Removed with hands-free Wrong: “${r.text}” ${what}`.trim(), r.article);
+    wrongNote(r, r.text, r.song, `Removed with hands-free Wrong: “${r.text}”`);
     lastRecent = "";
     void refreshRecent();
   });

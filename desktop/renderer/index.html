@@ -179,7 +179,7 @@
         <p id="now-song" class="now-song">Nothing playing yet</p>
         <ul id="now-facts" class="facts"></ul>
         <!-- The live region stays in place, so the note is announced when it appears, not only when it changes. -->
-        <div role="status"><p id="wrong-note" class="fine" hidden><span id="wrong-note-text"></span> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p></div>
+        <div role="status"><p id="wrong-note" class="fine" hidden><span id="wrong-note-text"></span> <button id="wrong-edit" class="link" hidden>Edit it</button> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p></div>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
         <div class="toolbar song-facts-buttons">
           <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
@@ -201,12 +201,13 @@
           </div>
           <label for="sf-writers">Who wrote it? <span class="hint">optional; only if you're sure, separated by commas</span></label>
           <input id="sf-writers" type="text" placeholder="Jane Composer">
-          <label for="sf-link">Their link <span class="hint">optional, shown with the writing credit</span></label>
+          <label for="sf-link">Their link <span class="hint">optional; it gets its own bubble</span></label>
           <input id="sf-link" type="text" placeholder="twitch.tv/janecomposer">
           <p id="sf-twitch-row" hidden><button class="link" type="button" id="sf-twitch">Fill from their Twitch About</button> <span id="sf-twitch-result" class="result" role="status"></span></p>
-          <p class="label" id="sf-facts-label">Facts <span class="hint">one per box; about 160 characters fit in a bubble</span></p>
+          <p class="label" id="sf-facts-label">Facts <span class="hint">one per box; about 160 characters fit in a bubble, 300 at most</span></p>
           <div id="sf-facts" role="group" aria-labelledby="sf-facts-label"></div>
           <button class="link" type="button" id="sf-add">Add another fact</button>
+          <p id="sf-facts-full" class="fine" hidden>That's 20 facts, the most one song can have.</p>
           <div class="toolbar">
             <button class="primary" type="submit" id="sf-save">Save and show</button>
             <button class="ghost" type="button" id="song-facts-cancel">Cancel</button>

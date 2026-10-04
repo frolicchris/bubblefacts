@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, unmarkWrong } from "./fact-generator";
+import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -358,6 +358,15 @@ describe("Wrong decides what to block from the fact's own label (audit)", () => 
     const song = { title: "Own Song", artist: "Own Game" };
     expect(markWrong(song, "My typo.", SOURCE.custom)).toBeNull();
     expect(blockedArticles(song).size).toBe(0);
+  });
+
+  it("tells the app when the wrong fact is the streamer's own, so it offers Edit instead of promising a block (musician review #3)", () => {
+    expect(ownFactKind(SOURCE.yours)).toBe("song");
+    expect(ownFactKind(SOURCE.custom)).toBe("custom");
+    expect(ownFactKind(SOURCE.songList)).toBeNull();
+    expect(ownFactKind("Wikipedia: Chrono Trigger")).toBeNull();
+    expect(ownFactKind(SOURCE.wikidata)).toBeNull();
+    expect(ownFactKind(undefined)).toBeNull();
   });
 
   it("Undo lifts the block for a list song, found by its ID", () => {

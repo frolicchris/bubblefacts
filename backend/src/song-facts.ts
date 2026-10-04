@@ -83,20 +83,49 @@ export function songFactLines(entry: SongFacts, max = Infinity): string[] {
   }
   lines.push(...entry.facts.map((f) => f.trim()).filter(Boolean));
   // The creator's link is promised, so it keeps its place when the facts fill every slot.
-  const link = entry.link?.trim() && writers.length ? `More from ${writers[0]}: ${entry.link.trim()}` : "";
+  // With no songwriter named, it still gets its bubble, without naming anyone as the writer.
+  const url = entry.link?.trim() ?? "";
+  const link = url ? `More from ${writers.length ? writers[0] : "this song's creator"}: ${url}` : "";
   return link ? [...lines.slice(0, Math.max(0, max - 1)), link] : lines.slice(0, max);
 }
 
-/** Add or replace the facts for a song. Empty facts and no writers removes it. */
+/** What the editor allows, so nothing typed is ever cut short on save. */
+export const SONG_FACT_LIMITS = { facts: 20, factLength: 300, songwriters: 5, songwriterLength: 300, link: 200 } as const;
+
+/** A fact as it's saved and shown: a line break inside it is a space. One fact, one bubble. */
+export const cleanFact = (f: string) => f.replace(/\s+/g, " ").trim();
+
+/**
+ * Why a save can't be taken as typed, in words for the editor, or null when
+ * it can. Over-limit input is refused rather than trimmed, so what's saved is
+ * always what the streamer wrote.
+ */
+export function songFactsProblem(input: { facts?: unknown; songwriters?: unknown; link?: unknown }): string | null {
+  const L = SONG_FACT_LIMITS;
+  const list = (v: unknown) => (v === undefined ? [] : Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : null);
+  const facts = list(input.facts)?.map(cleanFact).filter(Boolean);
+  const writers = list(input.songwriters)?.map((w) => w.trim()).filter(Boolean);
+  if (!facts || !writers || (input.link !== undefined && typeof input.link !== "string")) return "Couldn't read that. Try again in a moment.";
+  if (facts.length > L.facts) return `A song can have up to ${L.facts} facts. Remove ${facts.length - L.facts} to save.`;
+  const long = facts.findIndex((f) => f.length > L.factLength);
+  if (long >= 0) return `Fact ${long + 1} is ${facts[long].length} characters. Shorten it to ${L.factLength} or fewer to save.`;
+  if (writers.length > L.songwriters) return `Up to ${L.songwriters} songwriters can be credited.`;
+  if (writers.some((w) => w.length > L.songwriterLength)) return `A songwriter's name can be up to ${L.songwriterLength} characters.`;
+  if (typeof input.link === "string" && input.link.trim().length > L.link) return `Their link can be up to ${L.link} characters.`;
+  return null;
+}
+
+/** Add or replace the facts for a song. No facts, writers or link removes it. */
 export function saveSongFacts(entry: SongFacts): void {
   const list = load().filter((e) => !matches(e, { title: entry.title, artist: entry.artist, songId: entry.songId, videoId: entry.videoId }));
   const clean: SongFacts = {
     ...entry,
-    // A line break inside a fact is a space: one fact, one bubble.
-    facts: entry.facts.map((f) => f.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 20),
+    facts: entry.facts.map(cleanFact).filter(Boolean),
     songwriters: (entry.songwriters ?? []).map((w) => w.trim()).filter(Boolean),
+    link: entry.link?.trim() ?? "",
   };
-  if (clean.facts.length || clean.songwriters?.length) list.push(clean);
+  // A link alone is kept: it still gets its own bubble.
+  if (clean.facts.length || clean.songwriters?.length || clean.link) list.push(clean);
   fs.mkdirSync(config.dataDir, { recursive: true });
   fs.writeFileSync(file(), JSON.stringify(list, null, 2) + "\n");
   store = list;
