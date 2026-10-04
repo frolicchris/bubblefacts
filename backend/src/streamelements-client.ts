@@ -68,6 +68,14 @@ export class StreamElementsClient implements SongSource {
   private eventState: "playing" | "paused" | null = null;
   /** Since when /playing has named a song that isn't being followed (0 = it hasn't). */
   private unfollowedSince = 0;
+  /**
+   * The song /playing named when the current pause was first seen (null: not
+   * paused, or nothing named yet). A paused player stays on its song, so a
+   * different one while the state still says "paused" means the state is stale.
+   */
+  private pausedOn: string | null = null;
+  /** /playing moved on to another song while the only word, REST, still said "paused". */
+  private movedWhilePaused = false;
   private lastRestState: string | undefined = "";
   /** Set from Retry-After when StreamElements says to slow down (429) or is down (503). */
   private backoffUntil = 0;
@@ -101,11 +109,18 @@ export class StreamElementsClient implements SongSource {
   /**
    * StreamElements said a song started, but for half a minute no song has
    * been followed (issue #16: the dashboard stayed green while nothing was).
+   * With the live events down, their word is missing too: then a song change
+   * under a REST state that still says "paused" is the sign. A player paused
+   * on its song, however long, is never a problem.
    */
   followingProblem(): string | null {
     // Only while StreamElements still names a song: an empty queue at the end isn't a problem.
-    const stuck = this.liveState() === "playing" && this.unfollowedSince > 0 && Date.now() - this.unfollowedSince > FOLLOW_GRACE_MS;
-    return stuck ? "StreamElements says a song is playing, but BubbleFacts can't see which one" : null;
+    const unfollowed = this.unfollowedSince > 0 && Date.now() - this.unfollowedSince > FOLLOW_GRACE_MS;
+    if (unfollowed && this.liveState() === "playing") return "StreamElements says a song is playing, but BubbleFacts can't see which one";
+    if (unfollowed && this.movedWhilePaused && !this.isEventStreamConnected()) {
+      return "StreamElements says the player is paused, but its song changed, and its live events aren't connected";
+    }
+    return null;
   }
 
   pollIntervalMs(): number {
@@ -261,6 +276,9 @@ export class StreamElementsClient implements SongSource {
     const state = this.liveState() ?? restState;
     const song = playing?.title ? playing : null;
     const key = song && StreamElementsClient.key(song);
+    // The song the pause began on: the first one named, or the one followed when /playing named none.
+    this.pausedOn = state === "paused" ? (this.pausedOn ?? key ?? this.currentKey) : null;
+    this.movedWhilePaused = state === "paused" && this.liveState() === null && key !== null && key !== this.pausedOn && key !== this.currentKey;
     let next: SESong | null;
     if (state === undefined) {
       // A player answer with no state: trust /playing rather than never showing anything.

@@ -500,8 +500,9 @@ ipcMain.handle = (channel, listener) =>
   });
 
 ipcMain.handle("test-bubble", () => control("test"));
-ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown) => {
-  const result = await control("wrong", { text: String(text), song });
+ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
+  // Only a click in the On stream now list is live; one under Earlier songs never takes a bubble off.
+  const result = await control("wrong", { text: String(text), song, live: live === true });
   backUpNow();
   return result;
 });

@@ -337,6 +337,91 @@ describe("StreamElementsClient", () => {
     }
   });
 
+  it("calls a song change under a stale \"paused\" a problem while the live events are down", async () => {
+    // From review: with the socket down there's no live word, REST can sit on "paused" after a
+    // resume (issue #16), and every later song went unfollowed while health stayed ok.
+    jest.useFakeTimers();
+    streamConnected = false;
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("playing", CIARA);
+      await client.connect();
+      player("paused", CIARA);
+      await refresh(client);
+      expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
+
+      // The streamer resumed and the next song started, but REST still says "paused".
+      player("paused", STORMS);
+      await refresh(client);
+      expect(client.getCurrentSong()).toBeNull();
+      expect(client.followingProblem()).toBeNull();
+      await jest.advanceTimersByTimeAsync(31_000);
+      expect(client.followingProblem()).toMatch(/paused, but its song changed/);
+
+      // Once the player says "playing" again, the song is followed and the problem is gone.
+      player("playing", STORMS);
+      await refresh(client);
+      expect(client.getCurrentSong()?.song.artist).toBe("The Legend of Zelda: Ocarina of Time");
+      expect(client.followingProblem()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("never calls a long pause a problem, even with the live events down", async () => {
+    jest.useFakeTimers();
+    streamConnected = false;
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("playing", CIARA);
+      await client.connect();
+      player("paused", CIARA);
+      await refresh(client);
+      await jest.advanceTimersByTimeAsync(10 * 60_000);
+      player("paused", CIARA);
+      await refresh(client);
+      expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
+      expect(client.followingProblem()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("doesn't call a player that was already paused at start a problem, so a restart can't repeat", async () => {
+    // A restart for the problem above starts here: /playing names the song the player is paused on.
+    jest.useFakeTimers();
+    streamConnected = false;
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("paused", STORMS);
+      await client.connect();
+      await jest.advanceTimersByTimeAsync(31_000);
+      player("paused", STORMS);
+      await refresh(client);
+      expect(client.getCurrentSong()).toBeNull();
+      expect(client.followingProblem()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("leaves a stopped player's next song up alone with the live events down", async () => {
+    jest.useFakeTimers();
+    streamConnected = false;
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("playing", CIARA);
+      await client.connect();
+      player("stopped", STORMS);
+      await refresh(client);
+      await jest.advanceTimersByTimeAsync(31_000);
+      expect(client.getCurrentSong()).toBeNull();
+      expect(client.followingProblem()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("polls less often while live events arrive", () => {
     streamConnected = false;
     expect(client.pollIntervalMs()).toBe(15000);

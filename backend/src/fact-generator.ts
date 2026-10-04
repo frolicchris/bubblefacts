@@ -2,14 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
+import { artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
-import { findSongFacts, songFactLines } from "./song-facts";
+import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 
 /**
@@ -523,7 +523,10 @@ const entrySource = (t: string) => (statLines.has(t) ? SOURCE.songList : SOURCE.
 /**
  * The streamer's custom facts tagged for this song: "[Song of Storms] ...",
  * "[Chopin] ...", "[Undertale] ...". The tag is the title, the artist or the
- * game, compared without case, accents or punctuation.
+ * game, compared without case, accents or punctuation, and without the
+ * version tags song lists add ("Take On Me [Instrumental]"). A tag that names
+ * a version itself ("[Night Drive (Acoustic)]") goes only with that version,
+ * compared the way song-facts.ts compares the streamer's own records.
  */
 export function taggedFactsFor(song: SSLSong): string[] {
   if (!topic.taggedFacts?.length) return [];
@@ -531,7 +534,22 @@ export function taggedFactsFor(song: SSLSong): string[] {
   const names = new Set(
     [song.title, track, game, `${song.artist} ${song.title}`, ...artistNames(song.artist ?? "")].map((s) => normalizeTitle(s ?? "")).filter(Boolean)
   );
-  return topic.taggedFacts.filter((f) => names.has(normalizeTitle(f.tag.replace(/\s+[-–—]\s+/, " ")))).map((f) => f.text);
+  // Each title with its trailing brackets taken off one at a time: "Night Drive (Acoustic) [Instrumental]"
+  // is also "Night Drive (Acoustic)", but never "Night Drive (Remix)".
+  const peeled = (s: string) => {
+    const out = [s];
+    for (let m; (m = /^(.+?)\s*[([][^)\]]*[)\]]\s*$/.exec(out[out.length - 1])); ) out.push(m[1]);
+    return out;
+  };
+  const versions = new Set(
+    [song.title, track, `${song.artist} ${song.title}`].flatMap((s) => peeled(s ?? "")).map(songIdentity).filter(Boolean)
+  );
+  return topic.taggedFacts
+    .filter((f) => {
+      const tag = f.tag.replace(/\s+[-–—]\s+/, " ");
+      return dropVersionTags(tag) !== tag ? versions.has(songIdentity(tag)) : names.has(normalizeTitle(tag));
+    })
+    .map((f) => f.text);
 }
 
 /** The streamer's tagged facts first, as written, then the usual facts in the slots left. */
@@ -719,8 +737,6 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
       .then(({ facts, ttlMs }) => {
         // A generation started before the song's facts changed may not overwrite them.
         if ((revisions.get(key) ?? 0) === rev) factCache.set(key, { facts, expires: Date.now() + ttlMs });
-        // What viewers see, so a stream's log can be read back for quality, not just counts.
-        for (const f of facts) console.log(`[Shown] "${song.title}" (${f.source ?? "no source"}): ${f.text}`);
         return facts;
       })
       .finally(() => {
