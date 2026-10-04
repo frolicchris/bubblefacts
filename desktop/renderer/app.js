@@ -1188,9 +1188,10 @@
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
-    $("#about-version").textContent = state.version;
-    $("#about-page-version").textContent = `Version ${state.version}`;
-    $("#report-beta").hidden = !/-beta/.test(state.version);
+    // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
+    $("#about-version").textContent = state.versionLabel;
+    $("#about-page-version").textContent = `Version ${state.versionLabel}`;
+    $("#report-beta").hidden = !(/-beta/.test(state.version) || state.testBuild);
     renderNotices();
     renderPaths();
     if (state.settings.setupComplete) {

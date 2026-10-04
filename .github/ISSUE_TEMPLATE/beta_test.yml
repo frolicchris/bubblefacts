@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for testing! Set it up, play a song or two, then fill this in. "Everything worked" is a great report too.
 
-        **In the app?** Open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first five answers for you.
+        **In the app?** Open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first six answers for you.
 
         Never paste a token or API key here.
   - type: dropdown
@@ -16,7 +16,7 @@ body:
     attributes:
       label: BubbleFacts version
       description: Shown at the bottom of the app.
-      # Newest first. Add each new beta at the top when it's published.
+      # Newest first. `npm run bump -- VERSION` adds each new one at the top (docs/RELEASING.md).
       options:
         - 2.0.0-beta.11
         - 2.0.0-beta.10
@@ -32,6 +32,12 @@ body:
       default: 0
     validations:
       required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build (optional)
+      description: The app fills this in. It says which build you have, and whether it's a test build.
+      placeholder: 2.0.0-beta.12 (c4ee826)
   - type: dropdown
     id: os
     attributes:
