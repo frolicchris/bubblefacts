@@ -7,8 +7,8 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
-import { findSongFacts, saveSongFacts } from "./song-facts";
+import { positionsFor, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { findSongFacts, saveSongFacts, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
 import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
@@ -294,7 +294,8 @@ function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
     if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   }
   const article = markWrong(song, text, fact.source);
-  return { removed: true, live: playing, article, structured: article === STRUCTURED };
+  // The streamer's own fact: nothing to block, and it shows again until they change it.
+  return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source) };
 }
 
 // Hands-free Wrong (a key from a foot pedal or Stream Deck): the bubble on stream now, or the
@@ -340,10 +341,6 @@ control.post("/selftest", async (req, res) => {
   }
 });
 
-// "Add facts for this song": the streamer's own facts for the song on stream now.
-const strings = (v: unknown, max: number): string[] =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 300)).slice(0, max) : [];
-
 /** The song an edit is for, exactly as the editor received it when it opened. */
 function songFrom(v: unknown): SSLSong | null {
   const s = v as Partial<SSLSong> | null | undefined;
@@ -372,6 +369,12 @@ control.post("/song-facts", async (req, res) => {
     res.status(400).json({ saved: false });
     return;
   }
+  // Too many facts or too long: refused with the reason, never trimmed, so what's saved is what was typed.
+  const problem = songFactsProblem(req.body ?? {});
+  if (problem) {
+    res.status(400).json({ saved: false, error: problem });
+    return;
+  }
   // A save that fails (a full disk, say) is an answer for the window, not a crash mid-stream.
   try {
     saveSongFacts({
@@ -379,9 +382,9 @@ control.post("/song-facts", async (req, res) => {
       artist: song.artist,
       ...(song.songId ? { songId: song.songId } : {}),
       ...(song.videoId ? { videoId: song.videoId } : {}),
-      songwriters: strings(req.body?.songwriters, 5),
-      link: typeof req.body?.link === "string" ? req.body.link.slice(0, 200) : "",
-      facts: strings(req.body?.facts, 20),
+      songwriters: (req.body?.songwriters as string[] | undefined) ?? [],
+      link: (req.body?.link as string | undefined) ?? "",
+      facts: (req.body?.facts as string[] | undefined) ?? [],
     });
   } catch (err) {
     console.warn(`[SongFacts] Couldn't save: ${err instanceof Error ? err.message : err}`);

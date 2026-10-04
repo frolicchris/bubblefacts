@@ -769,6 +769,15 @@ export function blockFor(label: string | undefined): string | null | undefined {
 }
 
 /**
+ * Whose fact this is, by its label: one the streamer wrote for this song
+ * ("song"), one of their custom facts ("custom"), or neither (null). Wrong
+ * can't block the streamer's own facts, so the app offers to edit them instead.
+ */
+export function ownFactKind(label: string | undefined): "song" | "custom" | null {
+  return label === SOURCE.yours ? "song" : label === SOURCE.custom ? "custom" : null;
+}
+
+/**
  * The streamer marked one of a song's facts wrong. Its source is blocked for
  * that song: decided by the fact's own label when it has one, so it's right
  * after a restart and for a song that already ended, and Wrong on the
