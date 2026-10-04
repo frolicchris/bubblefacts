@@ -51,6 +51,9 @@ import {
   isAPerformer,
   isAPiece,
   isInitials,
+  lostQualifier,
+  swappedSubject,
+  unattributedView,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
@@ -1601,7 +1604,7 @@ describe("a big soundtrack article is cut to the track's part", () => {
     expect(part?.text).toMatch(/Shanghai Symphony/);
     expect(part?.text).not.toMatch(/London Philharmonic/);
     expect(part?.others).toEqual(["Mondstadt", "Fontaine"]);
-    // A track that names no part, or an article without parts, is left alone.
+    // An article that doesn't call itself a soundtrack, or has no parts, is left alone (a track naming no part: below).
     expect(soundtrackPart(music, "Raiden Shogun: Awake From A Nightmare")).toBeNull();
     expect(soundtrackPart("Lead.\n== Development ==\nText.\n== Reception ==\nText.", "Lumière")).toBeNull();
   });
@@ -1723,5 +1726,148 @@ describe("review: platform siblings and shared surnames", () => {
     expect(unsupportedCredit("Paul Williams composed the score.", ctx)).toBe("Paul Williams");
     expect(unsupportedCredit("John Williams composed the score.", ctx)).toBeNull();
     expect(unsupportedCredit("Yuzo Koshiro composed the score.", "Starfall\nKoshiro composed the score.")).toBeNull();
+  });
+});
+
+// Second fact check: each case adapted from a real caption the checkers marked WRONG or MISLEADING,
+// with the true captions from the same tables that must stay.
+describe("second fact check: words that change what the source says", () => {
+  const dropped = (fact: string, ctx: string) => screenClaims([fact], ctx).rejected[0]?.reason ?? null;
+
+  it("drops 'inspired by' when the source says it resembles, and keeps a stated influence", () => {
+    const riff = "Neon Static\nThe riff resembles that of Halvorsen's 1976 hit \"Long Way Down\", although it is not identical.";
+    expect(unsupportedConnective("The riff was inspired by Halvorsen's 1976 hit \"Long Way Down\".", riff)).toBe("inspired");
+    expect(unsupportedConnective("The theme of strength inspired the Giant mechanic.", "Starfall Saga\nThe theme of strength was expressed through the Giant mechanic and folklore.")).toBe("inspired");
+    expect(unsupportedConnective("The opera The Lantern inspired the final scene of Winter Roads.", "Ivo Marek\nHis teacher's opera The Lantern became a model for the final scene of Winter Roads.")).toBeNull();
+    expect(unsupportedConnective("Mia Chen drew inspiration from Orlov's symphonic suites when composing the desert music.", "Music of Starfall\nMia Chen also took reference from symphonic suites by Orlov for the desert music.")).toBeNull();
+  });
+
+  it("drops 'inspiring X to' when the source only says one piece resembles another", () => {
+    const ctx = "Anton Weiss\nWeiss's piano music had a strong influence on Moreau; Moreau's Bright Island has clear similarities with Fountains, a piece he heard Weiss perform in 1884.";
+    expect(unsupportedConnective("Weiss performed in 1884, inspiring Moreau to write Bright Island.", ctx)).toBe("inspiring Moreau to");
+  });
+
+  it("drops 'originally titled' and 'originally a cover' the source doesn't give, and keeps a working title", () => {
+    const single = "Golden Hour Ball\nOriginally released two weeks prior on a holiday compilation, the single promoted the duo's forthcoming debut album, Sunsetboulevardmuzik.";
+    expect(unsupportedConnective("The duo's debut album was originally titled \"Sunsetboulevardmuzik\".", single)).toBe("originally titled");
+    expect(unsupportedConnective("Rain Theory was originally going to be titled by Kai Moreno in December 2016.", "Kai Moreno\nHe announced in December 2016 that it would be titled Rain Theory.")).toBe("going to be titled");
+    expect(unsupportedConnective("The track was originally titled \"Luna noua\".", "Dance of May\nThe track was intended to be titled \"Luna noua\", which is the origin of its chorus.")).toBeNull();
+    const cover = "Begging You\nNordic duo Skylark recorded a version in 2007. Italian rock band Vespa performed a cover of the song in 2017.";
+    expect(unsupportedConnective("Skylark's version was originally a cover of a song by an Italian rock band.", cover)).toBe("originally");
+    // "originally from" only says where someone comes from.
+    expect(unsupportedConnective("Coral Bloom was originally formed in Motobu, Okinawa.", "Coral Bloom\nCoral Bloom was a Japanese band from Motobu, Okinawa.")).toBeNull();
+  });
+
+  it("drops a birth date the source gives as a baptism", () => {
+    const ctx = "Ludo Fennimore\nLudo Fennimore (baptised 17 December 1770 – 26 March 1827) was a German composer.";
+    expect(unsupportedConnective("Fennimore was born on December 17, 1770, and died on March 26, 1827.", ctx)).toBe("born");
+  });
+
+  it("drops 'first' the sentence doesn't have, and finds it in a closely related sentence", () => {
+    const ctx = "Ludo Fennimore\nThe 1805 premiere of the symphony received a mixed reception. In 1807, after a performance in Leipzig, the public demanded it to be played again a week later.";
+    expect(unsupportedConnective("The public demanded to hear the symphony again just one week after its first performance.", ctx)).toBe("first");
+    const pair = "Where You Are\nIt is a song written by Rafe Lyle and Owen Grant. It was the first collaboration between Grant and Lyle.";
+    expect(unsupportedConnective("Owen Grant and Rafe Lyle collaborated on their first song together.", pair)).toBeNull();
+  });
+
+  it("drops 'A after B' when the source says 'after A, B'", () => {
+    const ctx = "Dreamland\nAfter Marisol began writing songs for her new album Daylight, she decided to include the hook from the Ring Ring Club song \"Spark of Love\" in an up-tempo song.";
+    expect(unsupportedConnective("Marisol began writing songs for her new album Daylight after deciding to include a hook from \"Spark of Love\".", ctx)).toBe("after (the other way round)");
+    expect(dropped("Marisol decided to use the hook from \"Spark of Love\" after she began writing songs for Daylight.", ctx)).toBeNull();
+    const studio = "Starship Show\nAfter the original series was canceled, the studio licensed the syndication rights. Studio head Lena Ward was instrumental in approving production of the series.";
+    expect(unsupportedConnective("Lena Ward approved production of the original series after presenting a brief treatment.", studio)).toMatch(/^after/);
+  });
+
+  it("drops an illustration credit the source gives someone else", () => {
+    const ctx = "Letters of Ivy\nLetters of Ivy is a light novel series written by Kana Mizuki and illustrated by Aki Tanabe.";
+    expect(unsupportedCredit("Kana Mizuki illustrated the light novel series.", ctx)).toBe("Kana Mizuki");
+    expect(unsupportedCredit("Aki Tanabe illustrated the light novel series.", ctx)).toBeNull();
+  });
+
+  it("drops a caption about someone's video, but not their video game", () => {
+    const ctx = "Somebody Waits\nLike her previous single, the video was shot at the Starlight Theater. Rosa Lind's video game cameo came in 2001.";
+    expect(dropped("The Starlight Theater is where Rosa Lind's video was shot.", ctx)).toBe("about the music video");
+    expect(dropped("Rosa Lind's video game cameo came in 2001.", ctx)).toBeNull();
+  });
+});
+
+describe("second fact check: a detail kept without what it belongs to", () => {
+  it("drops one chart with the two peaks of two charts", () => {
+    const ctx = "Silent Promises\nIt peaked at numbers 15 and 16 on the US Billboard Hot 100 and Cash Box Top 100, and number three on the R&B chart.";
+    expect(lostQualifier("\"Silent Promises\" peaked at numbers 15 and 16 on the US Billboard Hot 100.", ctx)).toMatch(/15 and 16/);
+    expect(lostQualifier("\"Silent Promises\" peaked at numbers 15 and 16 on the Billboard Hot 100 and Cash Box Top 100.", ctx)).toBeNull();
+  });
+
+  it("drops 'her second single' when it's the second single from an album", () => {
+    const ctx = "All I Need\nSinger Nadia Rowe released it as the official second single from her third album, Midnight Hours, on December 4, 1990.";
+    expect(lostQualifier("Nadia Rowe released \"All I Need\" as her second single.", ctx)).toMatch(/second single/);
+    expect(lostQualifier("Nadia Rowe released \"All I Need\" as the second single from her third album.", ctx)).toBeNull();
+  });
+
+  it("drops a single's release date given to the album it came from", () => {
+    const ctx = "Never Let Go\nIt was released in the United Kingdom on December 4, 1995, as the second single from their self-titled debut album. The album came out in 1996 in the US.";
+    expect(lostQualifier("The Harbor Boys' debut album was released in the United Kingdom on December 4, 1995.", ctx)).toMatch(/another release/);
+    expect(lostQualifier("\"Never Let Go\" was released in the United Kingdom on December 4, 1995.", ctx)).toBeNull();
+    // A year alone is no date to move: many releases share one.
+    expect(lostQualifier("Their debut album, Quiet Rooms, was released in 2004.", "Ohio Nights\nIt was the lead single from their debut album, Quiet Rooms, in 2004.")).toBeNull();
+  });
+});
+
+describe("second fact check: the statement told with another subject", () => {
+  it("drops 'the band' for what the source says 'the company' did", () => {
+    const ctx = "Until We Fall\nThe label was using Chartwave. The company had a top 20 downloads section, based on data from peer-to-peer networks, which featured \"Until We Fall\".";
+    expect(swappedSubject("The band had a top 20 downloads section based on data from peer-to-peer networks.", ctx)).toBe("the band");
+    expect(swappedSubject("The company had a top 20 downloads section based on data from peer-to-peer networks.", ctx)).toBeNull();
+  });
+
+  it("drops the wrong speaker, and keeps a speaker named before a clause", () => {
+    const ctx = "Candy Dance\nAccording to an interview with Ruvo, Spinwheel said the speed-up came from a mixing mistake.";
+    expect(swappedSubject("Ruvo said Spinwheel made a mixing mistake that sped up the song.", ctx)).toBe("Ruvo");
+    expect(swappedSubject("Spinwheel said the speed-up came from a mixing mistake.", ctx)).toBeNull();
+    const clause = "Under Glass\nDrummer Ray Tolland, in an interview for the documentary Days of Our Band, stated that Dean had been playing the riff over and over again.";
+    expect(swappedSubject("Ray Tolland stated that Dean played the riff over and over again during sessions.", clause)).toBeNull();
+  });
+
+  it("drops a critic's reading told as the composer's intent", () => {
+    const ctx = "Star Voyage III\nAmong the new cues Hartley wrote was a percussive and atonal theme for the raiders. Music author Dana Reyes described the cue as a compromise between music from Hartley's earlier film Nightfall and the raiders' old music.";
+    expect(unattributedView("A percussive and atonal theme was written for the raiders as a compromise between Hartley's earlier film Nightfall and others.", ctx)).toBe("Reyes");
+    expect(unattributedView("Dana Reyes described the raiders' cue as a compromise between Nightfall's music and older themes.", ctx)).toBeNull();
+    expect(unattributedView("Hartley wrote a percussive and atonal theme for the raiders.", ctx)).toBeNull();
+  });
+
+  it("on another work's article, drops 'The song' or 'The musical' unless the sentence names this track", () => {
+    const ctx = "Dana Reyes\nOpening to strong reviews, the show won four stage awards, including Best New Musical. Reyes said Glass Harbor took a week to write. Her song Paper Lanterns reached number two.";
+    const opts = { track: "Glass Harbor" };
+    expect(screenClaims(["The musical won four stage awards, including Best New Musical."], ctx, opts).rejected[0]?.reason).toBe("doesn't say which musical");
+    expect(screenClaims(["The song took a week to write, according to Glass Harbor's writer."], ctx, opts).kept).toHaveLength(1);
+    expect(screenClaims(['The song "Paper Lanterns" reached number two.'], ctx, opts).kept).toHaveLength(1);
+    // On the track's own article "the song" is this one, small words aside.
+    expect(screenClaims(["The song peaked at number two."], "Through the Fire and Flames\nThe song peaked at number two.", { track: "Through the Fire and the Flames" }).kept).toHaveLength(1);
+  });
+
+  it("cuts a soundtrack in parts to its general sections for a track named after something it never mentions", () => {
+    const music = [
+      "Since 2020, the studio has been releasing music soundtracks for Starfall, primarily composed by Mia Chen.",
+      "== Windvale ==",
+      "The Windvale soundtrack was performed by the Northshore Philharmonic Orchestra with Tom Ziegel as the conductor.",
+      "== Stonehold ==",
+      "The Stonehold soundtrack draws on folk music.",
+      "== Tidemark ==",
+      "The Tidemark soundtrack was recorded with the Harbor Symphony Orchestra.",
+      "== Musicology and instrumentation ==",
+      "The main theme opens with a solo violin.",
+      "== Reception ==",
+      "It won several awards.",
+    ].join("\n");
+    const part = soundtrackPart(music, "Kaela: Radiant Dreams");
+    expect(part?.heading).toBe("");
+    expect(part?.text).toMatch(/solo violin/);
+    expect(part?.text).not.toMatch(/Philharmonic|folk|Harbor Symphony/);
+    expect(part?.others).toEqual(["Windvale", "Stonehold", "Tidemark"]);
+    const text = gameTrackText({ page: "Starfall", full: "Starfall is a 2020 game.", music: { page: "Music of Starfall", full: music } }, "Kaela: Radiant Dreams");
+    expect(text).not.toMatch(/Windvale soundtrack|Ziegel/);
+    // A track the article does mention, or a composer's article with sections, is left alone.
+    expect(soundtrackPart(`${music}\nKaela's theme is in the Stonehold section.`, "Kaela: Radiant Dreams")).toBeNull();
+    expect(soundtrackPart("Ivo Marek was a composer.\n== Early life ==\nText.\n== Vienna ==\nText.\n== Later years ==\nText.", "Sonata in A, K. 331: i. Andante")).toBeNull();
   });
 });

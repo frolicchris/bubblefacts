@@ -312,6 +312,22 @@ describe("generateFacts", () => {
     }
   });
 
+  it("on the artist's article, drops a caption about an unnamed musical: it reads as this song's (second fact check)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const article = "Dana Reyes\nDana Reyes is an English singer and pianist. In 2005 Reyes wrote the music for Harbor Lights the Musical. Opening to strong reviews, the show won four stage awards, including Best New Musical. Her ballad Paper Lanterns reached number two in 1974.";
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    mockCreate.mockResolvedValue(reply([
+      "The musical won four stage awards, including Best New Musical.",
+      "Dana Reyes wrote the music for Harbor Lights the Musical in 2005.",
+      "The song reached number two in 1974.",
+    ].join("\n")));
+    const shown = (await generateFacts({ title: "Glass Harbor", artist: "Dana Reyes" })).map((f) => f.text);
+    expect(shown).toContain("Dana Reyes wrote the music for Harbor Lights the Musical in 2005.");
+    expect(shown).not.toContain("The musical won four stage awards, including Best New Musical.");
+    // "The song" retelling a sentence about another of her songs reads as this one too.
+    expect(shown).not.toContain("The song reached number two in 1974.");
+  });
+
   it("gives each article fact a link and the sentence it rests on, for the dashboard", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);
