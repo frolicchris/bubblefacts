@@ -96,7 +96,8 @@ GNOME, Mozilla and VS Code, sized for one maintainer.
 - **Screens and wording:** no changes to the app's labels or layout, so the
   setup guide, screenshots and tester steps stay right.
 - **Dependencies:** no new packages and no major upgrades. A security fix to
-  a dependency is allowed.
+  a dependency is allowed. Dependabot is set to skip major versions until 2.0.0
+  ships; restore its Electron-only rule then (`.github/dependabot.yml`).
 
 **What may change during the release candidates:** only a low-risk fix for a
 release blocker. Anything else waits for 2.0.1. To make an exception, write

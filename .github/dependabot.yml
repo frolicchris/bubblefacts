@@ -5,6 +5,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # Major versions wait until 2.0.0 ships (the dependency freeze in docs/RELEASING.md).
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   # npm dependencies. Security fixes (on in the repository settings) come as one grouped pull
   # request against main; version updates are grouped weekly. Electron majors are a manual
   # upgrade (they change the runtime). What may ship in a maintenance release: docs/RELEASING.md.
@@ -19,8 +23,10 @@ updates:
       npm:
         applies-to: version-updates
         patterns: ["*"]
+    # Major versions wait until 2.0.0 ships (the dependency freeze in docs/RELEASING.md); after
+    # that, only Electron's stay manual. Security fixes aren't affected.
     ignore:
-      - dependency-name: electron
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
   # Once release/2.0 exists, add an entry like the one above with
   #   target-branch: release/2.0
