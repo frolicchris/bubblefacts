@@ -22,6 +22,10 @@ Code carry a `Co-Authored-By: Claude` trailer.
 - MacYoda
 - SaxDragon
 
+## Special Thanks
+
+- charliesbeats, for being the best mod ever
+
 ## Contributors
 
 Everyone whose contribution is merged is added here, and credited by name in
