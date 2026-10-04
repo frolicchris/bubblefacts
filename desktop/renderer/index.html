@@ -151,6 +151,16 @@
 
     <!-- ====================== Dashboard ====================== -->
     <section id="view-dashboard" class="view" hidden>
+      <!-- Once after an update: the new version's highlights, from whats-new.json. -->
+      <div id="whats-new" class="whats-new" role="region" aria-labelledby="whats-new-title" hidden>
+        <div>
+          <h2 id="whats-new-title">What's new in <span id="whats-new-version"></span></h2>
+          <ul id="whats-new-list"></ul>
+          <button class="link" type="button" id="whats-new-more">See everything that changed</button>
+        </div>
+        <button class="ghost" type="button" id="whats-new-close">Got it</button>
+      </div>
+
       <div id="status-banner" class="banner warn" role="status" aria-live="polite">
         <span class="banner-light" aria-hidden="true"></span>
         <div>

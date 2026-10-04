@@ -6,6 +6,7 @@
  * The download checker hashes files in the browser; files are never uploaded.
  * Without JavaScript the page still works: every download link points at the
  * GitHub Releases page, and the main button jumps to the full list.
+ * It also switches beta wording to stable wording once 2.0.0 is out (setChannel).
  */
 (function () {
   "use strict";
@@ -173,16 +174,29 @@
     return list.slice().sort(function (a, b) { return compareVersions(versionOf(b), versionOf(a)); })[0];
   }
 
+  // Beta or stable wording: elements marked data-beta-only or
+  // data-stable-only are shown or hidden by a class on <html> (rules in
+  // site.css). Stable once a full 2.x release with installers is out, so the
+  // site switches by itself when 2.0.0 is published. If GitHub can't be
+  // reached, neither class is set and site.css's default decides.
+  function setChannel(stable) {
+    var root = document.documentElement;
+    var isStable = !!stable && (parseInt(versionOf(stable), 10) || 0) >= 2;
+    root.classList.remove(isStable ? "site-beta" : "site-stable");
+    root.classList.add(isStable ? "site-stable" : "site-beta");
+  }
+
   // The newest full release with installers. Before there is one (1.0.0 was
   // command-line only), the newest beta, as before.
   function loadRelease() {
-    if (!document.querySelector("[data-asset], [data-release-version], [data-release-link]")) return;
+    if (!document.querySelector("[data-asset], [data-release-version], [data-release-link], [data-beta-only], [data-stable-only]")) return;
     getReleases().then(function (list) {
       var published = publishedReleases(list).filter(hasInstallers);
       var stable = newest(published.filter(function (r) { return !isPrerelease(r); }));
       var beta = newest(published.filter(isPrerelease));
       var shown = stable || beta;
       if (!shown) return;
+      setChannel(stable);
       showRelease(shown);
       // Testers find the newest beta when it's ahead of the full release.
       if (stable && beta && compareVersions(versionOf(beta), versionOf(stable)) > 0) {

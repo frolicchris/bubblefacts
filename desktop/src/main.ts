@@ -10,6 +10,7 @@ import { assetName, downloadUpdate, startInstall } from "./updater";
 import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
+import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
 import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
 import { errorDetail, plainError, PlainOptions } from "./plain-errors";
 import { buildInfo, versionLabel } from "./build";
@@ -166,8 +167,33 @@ function state() {
     update,
     updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
     dataDir: DATA,
+    whatsNew: whatsNew && { ...whatsNew, url: CHANGELOG_URL },
   };
 }
+
+// --- What's new after an update ----------------------------------------
+
+/** This version's highlights, shown on the dashboard until dismissed. Null on a new install. */
+let whatsNew: WhatsNew | null = null;
+
+function checkWhatsNew(): void {
+  const version = app.getVersion();
+  const { show, remember } = whatsNewOnStart(version, settings.lastVersionSeen, settings.setupComplete, readWhatsNew(path.join(ROOT, "desktop/renderer/whats-new.json")));
+  whatsNew = show;
+  if (remember) markWhatsNewSeen();
+}
+
+function markWhatsNewSeen(): void {
+  whatsNew = null;
+  if (settings.lastVersionSeen === app.getVersion()) return;
+  settings.lastVersionSeen = app.getVersion();
+  saveSettings(settings);
+}
+
+ipcMain.handle("whats-new-seen", () => {
+  markWhatsNewSeen();
+  return state();
+});
 
 // --- Supervisor events -------------------------------------------------
 
@@ -930,6 +956,9 @@ app.whenReady().then(async () => {
     settings = unlockSecrets(settings);
     send("state", state());
   }
+  // After the secrets are read: settings can't be saved before then.
+  checkWhatsNew();
+  send("state", state());
   // A secret the keychain could no longer read comes back blank.
   if (settings.setupComplete && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
   powerMonitor.on("resume", () => scheduleRefresh());

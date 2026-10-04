@@ -403,6 +403,24 @@ main {
   display: none;
 }
 
+/* ---------- Beta or stable wording ----------
+ * Wording marked data-beta-only or data-stable-only. site.js adds
+ * "site-stable" to <html> once GitHub lists a stable 2.x release with
+ * installers, or "site-beta" when it lists only betas. Without either (no
+ * JavaScript, or GitHub can't be reached) the default below decides.
+ * Release day for 2.0.0: change SITE DEFAULT from beta to stable by swapping
+ * the two ":not" rules (see site/README.md).
+ */
+html.site-stable [data-beta-only],
+html.site-beta [data-stable-only] {
+  display: none !important;
+}
+
+/* SITE DEFAULT: beta. */
+html:not(.site-stable):not(.site-beta) [data-stable-only] {
+  display: none !important;
+}
+
 /* ---------- Steps ---------- */
 
 .steps {

@@ -88,7 +88,11 @@ and puts it in problem, beta test and Wrong reports:
 Before publishing a draft release, check the packaged app, not only the source.
 The tests can't see what OBS or an installer does.
 
-1. The version was set with `npm run bump` (above) and matches the tag.
+1. The version was set with `npm run bump` (above) and matches the tag, and
+   `desktop/renderer/whats-new.json` has that version's two to four
+   highlights (plain words, like the changelog's top lines), added before
+   tagging. The app shows them once on the dashboard after the update; a
+   version without an entry shows nothing.
 2. The Release workflow passed for every system, and the draft has every
    installer, `SHA256SUMS.txt` and `bubblefacts.zip`.
 3. Run the **Smoke** workflow on the Release run's artifacts:
@@ -169,6 +173,13 @@ only the version number changed. Before tagging it, go or no-go:
 - [ ] Release notes, changelog, guide and known issues are current.
 - [ ] Signing is decided: signed, or the first-launch steps are on the
       download page.
+- [ ] `desktop/renderer/whats-new.json` has 2.0.0's highlights.
+
+**The website on release day:** it switches to stable wording by itself as
+soon as 2.0.0 is published (the download page then says "Newest version"
+instead of "2.0 beta"). The one edit is for visitors without JavaScript:
+flip the site default in `site/assets/site.css`, as `site/README.md`
+("When version 2.0.0 ships") describes, and upload it.
 
 **If 2.0.0 has a serious problem:** releases are immutable and version tags
 are locked, so the way back is forward: fix it on `main` and release 2.0.1
