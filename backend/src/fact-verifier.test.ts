@@ -54,6 +54,14 @@ import {
   lostQualifier,
   swappedSubject,
   unattributedView,
+  misattributedWords,
+  otherDoer,
+  unnamedReference,
+  droppedHedge,
+  misplacedYear,
+  wrongOwner,
+  suppliedException,
+  reversedRole,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
@@ -1869,5 +1877,130 @@ describe("second fact check: the statement told with another subject", () => {
     // A track the article does mention, or a composer's article with sections, is left alone.
     expect(soundtrackPart(`${music}\nKaela's theme is in the Stonehold section.`, "Kaela: Radiant Dreams")).toBeNull();
     expect(soundtrackPart("Ivo Marek was a composer.\n== Early life ==\nText.\n== Vienna ==\nText.\n== Later years ==\nText.", "Sonata in A, K. 331: i. Andante")).toBeNull();
+  });
+});
+
+describe("third fact check: words put in someone's mouth", () => {
+  const reason = (fact: string, ctx: string) => screenClaims([fact], ctx).rejected[0]?.reason ?? null;
+
+  it("drops a quote from someone the source only credits", () => {
+    const ctx = "Never Let You Go\n\"Never Let You Go\" is a ballad written by singer-songwriters Dana Vale and Ike Morrow. It reached number one on the Adult Contemporary chart.";
+    expect(misattributedWords("Dana Vale described the song as a \"very tender\" ballad.", ctx)).toBe("Vale");
+    expect(misattributedWords("Dana Vale described the song as a classic.", ctx)).toBe("Vale");
+    expect(reason("Dana Vale described the song as a \"very tender\" ballad.", ctx)).toMatch(/doesn't give to Vale/);
+    expect(misattributedWords("Dana Vale and Ike Morrow wrote the ballad.", ctx)).toBeNull();
+  });
+
+  it("drops a view the source gives no one, or someone else", () => {
+    const ctx = "Hold My Breath\nIt was written by Tia Rowe, Kim Bell and Lena Moss. Rowe said the song came together in a day. The members' vocals in \"Hold My Breath\" were described as \"airy\". Critic Sam Hale felt that the vocals were \"too airy\".";
+    expect(misattributedWords("Tia Rowe described Lena Moss's vocals in \"Hold My Breath\" as \"airy\".", ctx)).toBe("Rowe");
+    expect(misattributedWords("Sam Hale described the vocals as \"too airy\".", ctx)).toBeNull();
+    expect(misattributedWords("Tia Rowe said the song came together in a day.", ctx)).toBeNull();
+    const narrated = "Raftwork\nThe team was programmer Ole Dahl and artist Ana Berg. To fix it, they introduced the shark as a constant threat. According to Berg, the shark solved other problems too. When they later added islands, they found the shark also helped on reefs.";
+    expect(misattributedWords("Ole Dahl described the shark as a constant threat to players.", narrated)).toBe("Dahl");
+    // A quote or finding running on from "According to Berg" is still Berg's.
+    expect(misattributedWords("Berg said the shark helped on reefs.", narrated)).toBeNull();
+  });
+
+  it("keeps a speaker the source gives as a pronoun, a passive or a part of the name", () => {
+    expect(misattributedWords("Lio Tessard acknowledged inspiration from French singers.", "Music of Lumen\nLio Tessard scored the game. Since then, he has acknowledged inspiration from French singers.")).toBeNull();
+    expect(misattributedWords("Kenji Arata described the series as a student project.", "Ember Crest\nThe series was defined by creator Kenji Arata as a student project.")).toBeNull();
+    expect(misattributedWords("Chen Yuwei described the project as a difficult challenge.", "Music of Starfall\nThe studio hired Yu Chen, also known as Chen Yuwei. It was Chen's first major work, and he described the project as a difficult challenge.")).toBeNull();
+    expect(misattributedWords("Rui Nobre described his work \"Arcade\" as a Brazilian tango.", "Arcade (Nobre)\n\"Arcade\" is a Brazilian tango written for piano by Rui Nobre. The form of \"Arcade\" is marked by the composer as a \"Brazilian tango\".")).toBeNull();
+  });
+
+  it("drops a speaker who only gave the interview", () => {
+    const ctx = "Candy Dance\nAccording to an interview with Ruvo, Spinwheel said the speed-up came from a mixing mistake.";
+    expect(reason("Ruvo described a mixing mistake as the reason for the speed-up.", ctx)).toMatch(/isn't about "Ruvo"/);
+  });
+});
+
+describe("third fact check: someone else's doing", () => {
+  it("drops a caption opening on a person the retold sentence gives to another", () => {
+    const ctx = "Paper Sky\nThe song was first performed on December 2, 1932. Ada Pell recorded a hit version later that year, featuring Bo Hart on trumpet. Nate Cole recorded it in 1943.";
+    expect(otherDoer("Nate Cole recorded a hit version of the song featuring Bo Hart on trumpet.", ctx)).toBe("Ada Pell");
+    expect(otherDoer("Ada Pell recorded a hit version featuring Bo Hart on trumpet.", ctx)).toBeNull();
+    const lead = "Shadow Ops\nIn 2003, during the filming in Sydney, Mara Quill, the effects supervisor, pitched an episode for the unmade series Underground.";
+    expect(otherDoer("Dale Ortiz had pitched an episode of Underground in 2003.", lead)).toBe("Mara Quill");
+  });
+
+  it("keeps a caption whose retold sentence opens on the work it names", () => {
+    const ctx = "Music of Starfall\nForest of Ash, the fourth album, came out in 2022. Other musicians included Gu Lan on the bansuri.";
+    expect(otherDoer("Gu Lan played the bansuri on Forest of Ash.", ctx)).toBeNull();
+  });
+
+  it("drops a role turned round", () => {
+    const ctx = "Music of Starfall\nThe vocals of Juno's voice actor Kai Moreno were recorded at the Harbor Opera House.";
+    expect(reversedRole("The vocals of Kai Moreno's voice actor were recorded at the Harbor Opera House.", ctx)).toBe("voice actor");
+    expect(reversedRole("The vocals of Juno's voice actor were recorded at the Harbor Opera House.", ctx)).toBeNull();
+  });
+});
+
+describe("third fact check: unnamed references", () => {
+  it("drops 'the duo' or 'the quartet' the source's subject isn't", () => {
+    const ctx = "Ari Song\nAri Song is a South Korean pianist. From 2010 he presented a radio show alongside singer Bo Kim. The duo initially raised eyebrows.";
+    expect(unnamedReference("The duo initially raised eyebrows due to their different backgrounds.", ctx)).toBe("the duo");
+    expect(unnamedReference("Ari Song and Bo Kim initially raised eyebrows as hosts.", ctx)).toBeNull();
+  });
+
+  it("keeps 'the band' or 'the group' when the source's subject is one", () => {
+    expect(unnamedReference("The group is signed to Kioto Records.", "Home Grown\nHome Grown is a Japanese hip hop trio from Nagoya. They are signed to Kioto Records.")).toBeNull();
+    expect(unnamedReference("The band chose a studio in London.", "Take It\n\"Take It\" is a song by the Norwegian band Northline.")).toBeNull();
+  });
+
+  it("drops 'this chart'", () => {
+    const ctx = "Violet Rain\nOn the US World chart the song peaked at number 8, becoming their second top 10 hit.";
+    expect(unnamedReference("This was their second top-ten hit on this chart.", ctx)).toBe("this chart");
+    expect(unnamedReference("It was their second top-ten hit on the US World chart.", ctx)).toBeNull();
+  });
+});
+
+describe("third fact check: hedges, years and owners", () => {
+  it("drops a hedge the caption leaves out, but not one inside someone's quote", () => {
+    const ctx = "Ivo Marek\nThe idea of a symphony on the general's career may have been suggested to Marek by Count Ardent in 1798. His Concerto No. 9 is sometimes described as a breakthrough; Lee Rosen called it \"perhaps the first masterpiece\".";
+    expect(droppedHedge("Count Ardent suggested Marek write a symphony on the general's career in 1798.", ctx)).toBe("may have");
+    expect(droppedHedge("Count Ardent may have suggested the symphony to Marek in 1798.", ctx)).toBeNull();
+    expect(droppedHedge("Lee Rosen described Marek's Concerto No. 9 as a breakthrough.", ctx)).toBeNull();
+  });
+
+  it("drops a year the retold sentence doesn't place there", () => {
+    const ctx = "Ivo Marek\nWhen the symphony premiered in early 1805 it got a mixed reception. Some listeners disliked its length. In 1807, after a concert in Leipzig, the public demanded it again a week later.";
+    expect(misplacedYear("The public demanded the symphony again a week after its premiere in 1805.", ctx)).toBe("1805");
+    expect(misplacedYear("In 1807 the public in Leipzig demanded the symphony again a week later.", ctx)).toBeNull();
+    const after = "Arcade (Nobre)\n\"Arcade\" is a tango written by Rui Nobre. Written in 1909, it is his most popular work.";
+    expect(misplacedYear("Rui Nobre wrote \"Arcade\" in 1909.", after)).toBeNull();
+    const clauses = "Rolling Hills\nIn 2011, it was reportedly the biggest crossover hit since 1985; \"Rolling Hills\" gained airplay from many radio formats.";
+    expect(misplacedYear("The song gained airplay from many radio formats since 1985.", clauses)).toBe("1985");
+  });
+
+  it("drops a detail the source gives the video, the single or the release", () => {
+    expect(wrongOwner("The song was inspired by the 1998 film Fangs.", "Wall Run\nThe music video for \"Wall Run\" was inspired by the 1998 film Fangs.")).toBe("the music video");
+    expect(wrongOwner("The song topped the Hot 100.", "Take It\nIn October 1985, the single topped the Hot 100, helped by the wide exposure of its music video.")).toBeNull();
+    const sales = "Big Ball\nIt was the lead single from their debut album, Southern Nights. The single was certified gold in 1994, selling over 500,000 copies.";
+    expect(wrongOwner("Their debut album Southern Nights sold over 500,000 copies.", sales)).toBe("the single");
+    expect(wrongOwner("The single sold over 500,000 copies.", sales)).toBeNull();
+    const radio = "Last Day\n\"Last Day\" was released to radio on August 12, 2003 and charted at number 12 on the Alternative Songs chart.";
+    expect(wrongOwner("The song charted at number 12 on the Alternative Songs chart in August 2003.", radio)).toMatch(/release/);
+    expect(wrongOwner("The song was released to radio in August 2003.", radio)).toBeNull();
+  });
+
+  it("drops an EP's date that is the single's", () => {
+    const ctx = "Jungle Dance\n\"Jungle Dance\" is a song by Kira Vale, released on 10 May 2019 as the second single from Kira Vale's debut EP, The Young Ones.";
+    expect(lostQualifier("Kira Vale released her debut EP \"The Young Ones\" on 10 May 2019.", ctx)).toMatch(/not the EP/);
+    expect(lostQualifier("\"Jungle Dance\" was released on 10 May 2019.", ctx)).toBeNull();
+  });
+
+  it("drops an exception the caption explains on its own", () => {
+    const ctx = "Max Groove\nHe sided against modern game music, saying it serves a more atmospheric role. He noted that the Ember Saga series was an exception.";
+    expect(suppliedException("The Ember Saga series is an exception to his preference for atmospheric soundtracks.", ctx)).toBe(true);
+    expect(suppliedException("He noted that the Ember Saga series was an exception.", ctx)).toBe(false);
+  });
+
+  it("drops a cause turned round from a 'when' clause, and a co-producer made a co-writer", () => {
+    const ctx = "Venom\nThe song was meant for Eli Straite, but plans changed when the members of the trio heard his demo version.";
+    expect(screenClaims(["The members of the trio heard Straite's demo version after plans changed."], ctx).rejected[0]?.reason).toMatch(/turns round/);
+    expect(screenClaims(["Plans changed after the members of the trio heard Straite's demo version."], ctx).kept).toHaveLength(1);
+    const credit = "See You\nIt was written by Kenny Lane and co-produced by him along with Tony Reid and Daryl Sim.";
+    expect(screenClaims(["Kenny Lane wrote the song along with co-producer Tony Reid."], credit).rejected[0]?.reason).toMatch(/Tony Reid/);
   });
 });
