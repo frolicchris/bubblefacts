@@ -1807,7 +1807,7 @@ const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}
 
 /** A credit shared "with" others: "co-wrote the song with A and B". */
 const WITH_NAMES =
-  /\b(?:co-?)?(?:wr[io]te|written|composed|produced|penned)\b[^.;]*?\b(?:with|alongside)\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:(?:\s+|\s*,\s*)(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|and|&|de|van|von))*)/gu;
+  /\b(?:co-?)?(?:wr[io]te|written|composed|produced|penned)\b[^.;]*?\b(?:with|alongside)\s+(?:(?:co-)?\p{Ll}[\p{Ll}-]*er\s+)?((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:(?:\s+|\s*,\s*)(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|and|&|de|van|von))*)/gu;
 
 /** The names a fact credits: a name after "by", right before a credit verb, or sharing the credit "with" them. */
 function creditedNames(fact: string): string[] {
@@ -2014,8 +2014,8 @@ export function unsupportedConnective(fact: string, context: string): string | n
 }
 
 /** A sentence split at "after": the clause it opens ("After X," or "after X" to the next comma), and the rest. */
-function splitAtAfter(s: string): { after: string; rest: string } | null {
-  const m = /\bafter\b/i.exec(s);
+function splitAtAfter(s: string, word = /\bafter\b/i): { after: string; rest: string } | null {
+  const m = word.exec(s);
   if (!m) return null;
   const from = m.index + m[0].length;
   const comma = s.slice(from).search(/[,;]/);
@@ -2028,13 +2028,15 @@ function splitAtAfter(s: string): { after: string; rest: string } | null {
  * round. "Marisol began writing the album after deciding to use the hook"
  * when the source says "After Marisol began writing the album, she decided to
  * use the hook". The caption's main clause matches the source's "after" clause
- * better than the caption's own "after" clause does.
+ * better than the caption's own "after" clause does. A "when" clause counts
+ * as the earlier event too: "they heard the demo after plans changed" for
+ * "plans changed when they heard the demo".
  */
 function afterReversed(fact: string, retold: string[]): boolean {
   const own = splitAtAfter(fact);
   if (!own) return false;
   return retold.some((s) => {
-    const src = splitAtAfter(s);
+    const src = splitAtAfter(s) ?? splitAtAfter(s, /\bwhen\b/i);
     if (!src) return false;
     const main = share(own.rest, src.after);
     return main >= 0.3 && main > share(own.after, src.after);
@@ -2101,7 +2103,7 @@ export function unsupportedRelation(fact: string, context: string): string | nul
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
 const RELEASE_ORDINAL = `(?:first|lead|debut|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|\\d+(?:st|nd|rd|th))`;
 /** "from their self-titled debut album", "off her third album": an album named only as what something came from. */
-const FROM_AN_ALBUM = /\b(?:from|off|of|on)\s+(?:(?:the|their|his|her|its|a|an)\s+)?(?:[\p{L}'’-]+\s+){0,3}(?:album|EP|LP)s?\b/giu;
+const FROM_AN_ALBUM = /\b(?:from|off|of|on)\s+(?:(?:the|their|his|her|its|a|an)\s+)?(?:[\p{L}'’-]+\s+){0,5}(?:album|EP|LP)s?\b/giu;
 
 /**
  * A detail kept while what it belongs to is dropped, so it lands on
@@ -2129,7 +2131,8 @@ export function lostQualifier(fact: string, context: string): string | null {
     if (retold.some((s) => scoped.test(s))) return `"${ordinal[0]}" without the album it's from`;
   }
   // The album is the caption's subject: named before the verb that dates it.
-  const dated = /\b(album|EP|LP)\b[^.]*?\b(?:was\s+|were\s+)?(?:released|issued|came out|out)\b/i.exec(fact);
+  // Or its object: "released her debut EP on 10 May".
+  const dated = /\b(album|EP|LP)\b[^.]*?\b(?:was\s+|were\s+)?(?:released|issued|came out|out)\b/i.exec(fact) ?? /\b(?:released|issued)\s+(?:[\p{L}'’-]+\s+){0,3}?(album|EP|LP)\b/iu.exec(fact);
   const day = new RegExp(`\\b(?:(${MONTHS})\\s+(\\d{1,2})|(\\d{1,2})\\s+(${MONTHS}))\\b`).exec(fact);
   // Only a full date: a year alone is shared by too many releases to tell whose it is.
   if (dated && day) {
@@ -2181,7 +2184,8 @@ export function swappedSubject(fact: string, context: string): string | null {
     const others = retold.map((s) => AGENT.exec(s)?.[1].toLowerCase()).filter((a): a is string => Boolean(a) && a !== agent[1].toLowerCase());
     if (others.length && !retold.some((s) => hasWord(agent[1], s))) return `the ${agent[1].toLowerCase()}`;
   }
-  for (const said of speakers(fact)) {
+  const factSpeakers = [...speakers(fact), ...[SAID_BY.exec(fact)?.[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase())).pop() ?? ""].filter(Boolean)];
+  for (const said of new Set(factSpeakers)) {
     const theirs = retold.flatMap(speakers);
     const own = retold.some((s) => theirs.some((t) => t.toLowerCase() === said.toLowerCase()) || namedAsSpeaker(s, said) || new RegExp(`according to ${escapeRe(said)}\\b`, "i").test(s) || new RegExp(`\\b${escapeRe(said)}['’]s?\\s+(?:words|account|interview)`, "i").test(s));
     if (theirs.length && !own) return said;
@@ -2205,6 +2209,232 @@ export function unattributedView(fact: string, context: string): string | null {
     const own = contentTokens(s);
     const only = [...contentTokens(fact)].filter((t) => own.has(t) && !others.some((o) => o.has(t)));
     if (only.length && others.length) return by[1];
+  }
+  return null;
+}
+
+/** A name right before a word of saying in a caption: "Vela described", "Ruvo said", "Okafor recalled". */
+const SAID_BY =
+  /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+|once\s+)?(?:described|said|says|stated|recalled|explained|claimed|admitted|noted|commented|remarked|revealed|insisted|joked|praised|likened|characteri[sz]ed|acknowledged|recounted)\b/u;
+/** Any word a source uses to give someone's words or view: "comments that", "defined by", "according to", "in an interview". */
+const ATTRIBUTION =
+  /\b(?:said|says|say|stat(?:ed|es|ing)|recall\w*|explain\w*|claim\w*|admit\w*|told|tell\w*|not(?:ed|es|ing)|comment\w*|remark\w*|reveal\w*|confirm\w*|insist\w*|jok\w*|describ\w*|call(?:ed|s|ing)|prais\w*|liken\w*|characteri[sz]\w*|acknowledg\w*|recount\w*|defin\w*|summari[sz]\w*|wr(?:ote|ites?|iting) that|interview\w*|according|quot\w*|felt|feel\w*|believ\w*|consider\w*|deem\w*|refer\w*|compar\w*|express\w*|reflect\w*|label\w*|dubb\w*|thought|argu\w*|observ\w*|asked|answer\w*|speak\w*|spoke|mention\w*|announc\w*|cit(?:ed|es|ing)|credit\w*|views?|opinion|marked by)\b|:\s*["“]/i;
+
+/** "he has acknowledged", "She said": a pronoun giving its own words. */
+const PRONOUN_SAYS =
+  /\b(?:he|she|they)\s+(?:has\s+|have\s+|had\s+|also\s+|later\s+|once\s+)*(?:said|says|stated|recalled|explained|claimed|admitted|told|noted|commented|remarked|revealed|confirmed|insisted|joked|described|called|praised|acknowledged|recounted|felt|believed|considered|wrote)\b/i;
+
+/**
+ * Words put in someone's mouth. A small model turns a credit into a quote:
+ * "Dana Vale described the song as a 'very tender' ballad" when the source
+ * only lists Vale as a co-writer, or "Ruvo described the mistake" when Ruvo
+ * only gave the interview. A caption saying someone said, described or
+ * recalled something needs:
+ *
+ *   - a source sentence giving that person's words or view at all;
+ *   - the person's words in the sentence it retells or another it draws on,
+ *     or the one before (a quote often runs on from its attribution);
+ *   - every quoted word in the source, in a sentence that gives that person's
+ *     words (a quoted title is left to the name checks).
+ *
+ * Returns the person, or null.
+ */
+export function misattributedWords(fact: string, context: string): string | null {
+  const m = SAID_BY.exec(fact);
+  if (!m) return null;
+  const names = m[1].split(/\s+/).map((w) => w.replace(/['’]s?$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
+  const name = names[names.length - 1];
+  if (!name) return null;
+  const sentences = bodySentences(context);
+  // "Chen" or "Zhiyi" for "Chen Zhiyi": a source often uses one part of a name.
+  // Outside quotation marks: a name inside someone's quote isn't the one speaking.
+  const mentions = (s: string | undefined) => Boolean(s) && names.some((w) => hasWord(w, (s as string).replace(/["“][^"”]*["”]/g, "")));
+  const gives = sentences.map((s, i) =>
+    ATTRIBUTION.test(s) &&
+    (mentions(s) ||
+      // "He stated he would retire", with the name in the sentence or two before.
+      (PRONOUN_SAYS.test(s) && (mentions(sentences[i - 1]) || mentions(sentences[i - 2]))) ||
+      // "marked by the composer as", in the article about the composer's work.
+      (/\b(?:by|to) the (?:composer|songwriter|singer|artist|author|band)\b/i.test(s) && mentions(sentences[0]))));
+  // A quote running on from the sentence before has no speaker of its own.
+  const near = (i: number) => gives[i] || (i > 0 && gives[i - 1] && !ATTRIBUTION.test(sentences[i].replace(/["“][^"”]*["”]/g, "")));
+  if (!gives.some(Boolean)) return name;
+  for (const q of fact.replace(/[“”]/g, '"').matchAll(/"([^"]+)"/g)) {
+    const quoted = q[1].replace(/[.,!?;:]+$/, "").trim();
+    // "Lose My Breath": a title, which the speaker needn't have said.
+    if (!quoted || quoted.split(/\s+/).every((w) => /^(?:\p{Lu}|\d)/u.test(w) || /^(?:a|an|the|of|in|on|to|and|for|at|by|or)$/.test(w))) continue;
+    const words = plainQuotes(quoted);
+    const at = sentences.flatMap((s, i) => (plainQuotes(s).includes(words) ? [i] : []));
+    if (!at.length || !at.some(near)) return name;
+  }
+  const scored = sentences.map((s, i) => ({ i, share: share(fact, s) }));
+  const best = Math.max(0, ...scored.map((x) => x.share));
+  if (best < 0.25) return null;
+  // The sentence it retells, or another it draws on: "is a Brazilian tango by Nazareth" and "marked by the composer as a "Brazilian tango"".
+  const drawn = scored.filter((x) => x.share >= best - 0.1 || x.share >= 0.3).map((x) => x.i);
+  return drawn.some(near) ? null : name;
+}
+
+/**
+ * A caption opening on a person the sentence it retells gives to someone
+ * else: "Dale Ortiz pitched the story in 2003" retelling "Mara Quill, the
+ * effects supervisor, pitched the story in 2003". The retold sentence never
+ * names the caption's person and opens on another name. Returns that name, or null.
+ */
+export function otherDoer(fact: string, context: string): string | null {
+  const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s+\p{Ll})/u.exec(fact);
+  // "Nadia's album": the subject is the album, not Nadia.
+  if (!lead || /['’]s?$/.test(lead[1])) return null;
+  const words = lead[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
+  // A full name: a single word is as often a game, a band or a place.
+  if (words.length < 2 || NAME_STOPWORDS.has(lead[1].split(/\s+/)[0].toLowerCase())) return null;
+  const retold = retoldSentences(fact, context);
+  if (!retold.length || retold.some((s) => words.some((w) => hasWord(w, s)))) return null;
+  const subjects = retold.map((s) => {
+    // "In 1933, Ada Pell recorded": a time or place first is not the subject.
+    const body = s.replace(/^(?:(?:In|On|By|During|After|Before|Later|From|At|When|While)\b[^,]{0,80},\s*)+/i, "");
+    const m = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s*,|\s+\p{Ll})/u.exec(body);
+    const who = (m?.[1] ?? "").split(/\s+/).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
+    // "Released in 2021, ...": a verb, not a name.
+    if (who.length === 1 && /(?:ed|ing|ly)$/.test(who[0])) return "";
+    // "Forest of Ash, the fourth album, ...": a subject the caption also names is no one else.
+    return m && !/['’]s?$/.test(m[1]) && !NAME_STOPWORDS.has(m[1].split(/\s+/)[0].toLowerCase()) && !who.some((w) => hasWord(w, fact)) ? who.join(" ") : "";
+  });
+  return subjects.every(Boolean) ? subjects[0] : null;
+}
+
+/** "The duo", "the quartet": a group named only by its kind. */
+const COLLECTIVE = /^(?:The|This|That) (duo|pair|trio|quartet|quintet|couple|band|group|orchestra|ensemble)\b(?!\s*["“'‘]|\s+\p{Lu})/u;
+/** "The group" or "the band" for a trio: either word fits any group; "the duo" fits only a duo. */
+const ANY_GROUP = "band|group|duo|pair|trio|quartet|quintet|orchestra|ensemble|choir|unit";
+/** "this chart", "the same list": a chart the caption never names. */
+const THIS_CHART = /\b(?:this|that|the same) (chart|list|ranking|countdown|poll)\b/i;
+
+/**
+ * A caption about something it doesn't name, which only made sense next to
+ * a caption the screen dropped: "The duo raised eyebrows" on a solo
+ * pianist's article, "their second top-ten hit on this chart". "The band" is
+ * fine where the source says its subject is a band ("... is a song by the
+ * band Nightjar", "Nightjar were a Welsh band"). Returns the unnamed thing, or null.
+ */
+export function unnamedReference(fact: string, context: string): string | null {
+  const chart = THIS_CHART.exec(fact);
+  if (chart && (fact.match(new RegExp(`\\b${chart[1]}\\b`, "gi")) ?? []).length === 1) return chart[0].toLowerCase();
+  const group = COLLECTIVE.exec(fact);
+  if (!group) return null;
+  const kinds = /^(?:band|group)$/i.test(group[1]) ? ANY_GROUP : group[1].toLowerCase();
+  const isOne = new RegExp(`\\b(?:is|are|was|were)\\s+(?:an?|the)\\b[^.]{0,80}?\\b(?:${kinds})s?\\b`, "i");
+  return sourceSentences(context).some((s) => isOne.test(s)) ? null : `the ${group[1].toLowerCase()}`;
+}
+
+/** Words that keep a statement uncertain. */
+const HEDGE =
+  /\b(?:may|might|could) have\b|\b(?:possibly|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b/i;
+
+/**
+ * A hedge the caption drops: "General Ardent suggested the symphony" when the
+ * source says it "may have been suggested by General Ardent", or "The song is
+ * inspired by a bus driver" for "was reportedly inspired". Every sentence the
+ * caption retells hedges, and the caption doesn't. Returns the hedge, or null.
+ */
+export function droppedHedge(fact: string, context: string): string | null {
+  if (HEDGE.test(fact) || /\baccording to\b/i.test(fact)) return null;
+  const retold = retoldSentences(fact, context);
+  // "Rowe called it "perhaps the first masterpiece"": a hedge inside a quote is the speaker's.
+  const unquoted = retold.map((s) => s.replace(/["“][^"”]*["”]/g, ""));
+  if (!unquoted.length || !unquoted.every((s) => HEDGE.test(s))) return null;
+  return HEDGE.exec(unquoted[0])?.[0] ?? null;
+}
+
+/**
+ * A year the sentence the caption retells doesn't place there: "demanded an
+ * encore a week after its premiere in 1805" retelling "In 1807, after a
+ * concert in Leipzig, the public demanded it again", or "performed it at the
+ * 1990 halftime show" retelling "He performed it at that year's ceremony and
+ * the halftime show", with 2000 in the sentence before. The year must be in
+ * the retold sentence (in the clause the caption retells, when a semicolon
+ * splits it), in another sentence the caption draws on, or in the one just
+ * before or after. Returns the year, or null.
+ */
+export function misplacedYear(fact: string, context: string): string | null {
+  const years = fact.match(YEAR) ?? [];
+  if (!years.length) return null;
+  const sentences = bodySentences(context);
+  const scored = sentences.map((s, i) => ({ s, i, share: share(fact, s) }));
+  const best = Math.max(0, ...scored.map((x) => x.share));
+  if (best < 0.25) return null;
+  const retold = scored.filter((x) => x.share >= best - 0.1);
+  const related = scored.filter((x) => x.share >= 0.3).map((x) => x.s);
+  // The sentence before ("In 2000, ... at that year's ceremony") or after ("... by Nazareth. Written in 1909, ...").
+  const before = retold.flatMap((x) => [sentences[x.i - 1] ?? "", sentences[x.i + 1] ?? ""]);
+  const withoutYears = fact.replace(YEAR, "");
+  for (const y of years) {
+    if (![...retold.map((x) => x.s), ...related, ...before].some((s) => hasWord(y, s))) return y;
+    // "In 2011, it was the biggest hit since 1985; the song gained airplay": the year is the other clause's.
+    const holders = retold.filter((x) => hasWord(y, x.s));
+    if (holders.length && holders.every((x) => {
+      const clauses = x.s.replace(/\s*\([^)]*;[^)]*\)/g, "").split(/;\s*/);
+      if (clauses.length < 2) return false;
+      const main = clauses.reduce((a, c) => (share(withoutYears, c) > share(withoutYears, a) ? c : a));
+      return !hasWord(y, main);
+    })) return y;
+  }
+  return null;
+}
+
+/**
+ * A detail the source gives the song's video, single or album, told of
+ * another of the three:
+ *
+ *   video   "The song was inspired by X" retelling "The music video was inspired by X".
+ *   sales   "Her debut album sold over 500,000 copies" when every sentence with
+ *           500,000 is about the single.
+ *   radio   "charted at number 12 in August 2003" retelling "released to radio
+ *           on August 12, 2003 and charted at number 12".
+ *
+ * Returns what the detail belongs to, or null.
+ */
+export function wrongOwner(fact: string, context: string): string | null {
+  const retold = retoldSentences(fact, context);
+  // The video is the retold sentence's subject: "The music video for X was inspired by", "Its video was shot".
+  const videoFirst = /^(?:[^,]{0,40},\s*)?(?:the|its|their|his|her|an?)\s+(?:(?:official|music|lyric|accompanying|original)\s+)*videos?\b(?!\s*games?\b)/i;
+  if (retold.length && !ABOUT_THE_VIDEO.test(fact) && retold.every((s) => videoFirst.test(s))) return "the music video";
+  const figure = /\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\s+million\b/.exec(fact);
+  if (figure) {
+    const kinds = [{ name: "single", re: /\b(?:single|song|track)s?\b/i }, { name: "album", re: /\b(?:album|EP|LP)s?\b/i }];
+    const own = kinds.map((k) => ({ ...k, at: fact.search(k.re) })).filter((k) => k.at >= 0).sort((a, b) => a.at - b.at)[0];
+    const other = kinds.find((k) => k !== kinds.find((x) => x.name === own?.name));
+    const holders = sourceSentences(context).filter((s) => s.includes(figure[0]));
+    if (own && other && holders.length && holders.every((s) => !own.re.test(s) && other.re.test(s))) return `the ${other.name}`;
+  }
+  const month = new RegExp(`\\b(${MONTHS})\\b`).exec(fact);
+  if (month && /\b(?:charted|peaked|reached|debuted|topped|climbed|entered)\b/i.test(fact) && !/\b(?:released|issued|radio|out)\b/i.test(fact)) {
+    const releasedThen = new RegExp(`\\b(?:released|issued|serviced|sent|radio)\\b[^.;]{0,30}\\b${month[1]}\\b`, "i");
+    const withMonth = retold.filter((s) => hasWord(month[1], s));
+    if (withMonth.length && withMonth.every((s) => releasedThen.test(s))) return "the release, not the chart peak";
+  }
+  return null;
+}
+
+/**
+ * "an exception to his love of atmospheric music" when the source says only
+ * "He noted that the series was an exception", after a sentence about what
+ * he dislikes: the caption supplies what the exception is to, and a small
+ * model gets it backwards. Kept when a retold sentence says "exception to".
+ */
+export function suppliedException(fact: string, context: string): boolean {
+  return /\bexception to\b/i.test(fact) && !retoldSentences(fact, context).some((s) => /\bexception to\b/i.test(s));
+}
+
+/**
+ * "Kai Moreno's voice actor" when the source says "Juno's voice actor Kai
+ * Moreno": the role word followed by the caption's possessor makes that
+ * person the one in the role. Returns the role, or null.
+ */
+export function reversedRole(fact: string, context: string): string | null {
+  for (const m of fact.matchAll(/((?:Mc)?\p{Lu}[\p{L}.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}.-]*){0,3})['’]s?\s+((?:voice actor|voice actress|producer|manager|singer|drummer|guitarist|bassist|keyboardist|pianist|composer|lyricist|wife|husband|brother|sister|son|daughter|father|mother))\b/gu)) {
+    const who = m[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase())).join("\\s+");
+    if (who && new RegExp(`\\b${m[2]}\\s+${who}\\b`, "u").test(context)) return m[2];
   }
   return null;
 }
@@ -2416,8 +2646,23 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
       if (relation) return `"${relation}" isn't stated for them in the source`;
       const lost = lostQualifier(fact, context);
       if (lost) return lost;
+      const owner = wrongOwner(fact, context);
+      if (owner) return `the source says this of ${owner}`;
       const subject = swappedSubject(fact, context);
       if (subject) return `the sentence it retells isn't about "${subject}"`;
+      const speaker = misattributedWords(fact, context);
+      if (speaker) return `words the source doesn't give to ${speaker}`;
+      const doer = otherDoer(fact, context);
+      if (doer) return `the sentence it retells is about ${doer}`;
+      const role = reversedRole(fact, context);
+      if (role) return `the source names someone else's ${role}`;
+      const hedge = droppedHedge(fact, context);
+      if (hedge) return `drops the source's "${hedge}"`;
+      const placed = misplacedYear(fact, context);
+      if (placed) return `${placed} isn't the year of the sentence it retells`;
+      if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
+      const unnamedOne = unnamedReference(fact, context);
+      if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
       const view = unattributedView(fact, context);
       if (view) return `a view the source gives to ${view}`;
       // "The musical won four Olivier Awards" from an artist's article, shown during another of their songs.

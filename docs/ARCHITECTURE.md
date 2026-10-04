@@ -150,10 +150,11 @@ sign-ins and the built-in AI. Its design decisions are in
    (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
    just a role word nearby; an ambiguous credit is dropped. "Wrote" counts as
    composing only next to music ("wrote the score"), never "wrote the story",
-   and names sharing a credit ("wrote it with A and B") must share it in the
-   source. A fact's given name must go with the surname in that sentence
-   ("Paul Williams" isn't credited by "John Williams composed"), though a bare
-   surname there still counts, for other romanizations. A console named only
+   and names sharing a credit ("wrote it with A and B", "along with
+   co-producer C") must share it in the source. A fact's given name must go
+   with the surname in that sentence ("Paul Williams" isn't credited by "John
+   Williams composed"), though a bare surname there still counts, for other
+   romanizations. A console named only
    inside a sibling's name ("Wii U", "PlayStation 4") doesn't support the
    console itself.
    A small model joins two true statements with a word of its own: "due to",
@@ -180,7 +181,35 @@ sign-ins and the built-in AI. Its design decisions are in
    (`unattributedView`). On an article that isn't the song's own (the
    artist's, the game's), a caption opening "The song", "The musical" or "The
    collection" reads as the song being played, so it must retell a sentence
-   that names that song. Most wrong subjects can't be seen in the words alone
+   that names that song.
+   A caption saying someone said, described or recalled something needs a
+   source sentence giving that person's words or view, in (or just before)
+   the sentence it retells or another it draws on; a pronoun ("he has
+   acknowledged"), a passive ("defined by creator X") or one part of the name
+   counts. Quoted words in such a caption, even one or two, must be in a
+   sentence giving that person's words (`misattributedWords`): a small model
+   turns a co-writer credit into "X described the song as 'very emotional'".
+   A caption opening on a full name is dropped when the sentence it retells
+   never names that person and opens on someone else (`otherDoer`), and
+   "B's voice actor" is dropped when the source says "A's voice actor B"
+   (`reversedRole`). "The duo", "the quartet" or "the pair" must be what the
+   source says its subject is ("The band" fits any group), and "this chart"
+   must come with the chart's name (`unnamedReference`): the caption that
+   named them may have been dropped. A hedge ("may have", "reportedly") in
+   every sentence a caption retells must stay, unless it sits inside
+   someone's quote (`droppedHedge`). A year must be in the sentence the
+   caption retells, a closely related one, or the one just before or after,
+   and in the clause it retells when a semicolon splits that sentence
+   (`misplacedYear`: the 1805 premiere told as the date of an 1807 encore).
+   `wrongOwner` drops what the source says of the music video told of the
+   song, sales figures that belong to the single told of the album, and a
+   radio date told as a chart peak's date; `lostQualifier` also catches
+   "released her debut EP on 10 May" when 10 May dates the single from it.
+   "An exception to X" must have "exception to" in the source; otherwise the
+   caption supplied what it is an exception to, and a small model gets that
+   backwards (`suppliedException`). "A after B" is also dropped when the
+   source says "B when A".
+   Most wrong subjects can't be seen in the words alone
    ("B scored the games" when the source says A did, and B scored only the
    film); for those the prompt asks to keep each statement's subject, verb
    and details together.
