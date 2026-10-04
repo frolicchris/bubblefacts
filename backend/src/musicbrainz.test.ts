@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { composersOf, gameCandidates, performerFacts, readableName } from "./musicbrainz";
+import { composersOf, firstYear, gameCandidates, performerFacts, readableName } from "./musicbrainz";
 
 let nextId = 0;
 const rec = (title: string, artist: string, date: string, releases: Array<[string, string?, string[]?]>, score = 100) => ({
@@ -34,13 +34,13 @@ describe("performerFacts", () => {
     expect(performerFacts([rec("Lost Boy", "Ruth B", "2015", [["Safe Haven"]])], "Lost Boy", "The Midnight")).toEqual([]);
   });
 
-  it("names only a studio album, never a compilation", () => {
+  it("names only a studio album, never a compilation, and takes no year from one", () => {
     const facts = performerFacts(
       [rec("Song", "Band", "1980-01-01", [["Hits 2005", "Official", ["Compilation"]]])],
       "Song",
       "Band"
     );
-    expect(facts).toEqual(['"Song" came out in 1980.']);
+    expect(facts).toEqual([]);
   });
 });
 
@@ -78,5 +78,38 @@ describe("readableName", () => {
     expect(readableName({ name: "近藤浩治", artist: { name: "近藤浩治", "sort-name": "Kondo, Koji" } })).toBe("Koji Kondo");
     expect(readableName({ name: "Toby Fox" })).toBe("Toby Fox");
     expect(readableName({ name: "近藤浩治", artist: { "sort-name": "近藤浩治" } })).toBe("");
+  });
+});
+
+describe("release years (October 2026 fact checks)", () => {
+  const dated = (title: string, artist: string, releases: Array<[string, string, string[]]>) => ({
+    id: `rec-${++nextId}`,
+    score: 100,
+    title,
+    "first-release-date": releases.map((r) => r[1]).sort()[0],
+    "artist-credit": [{ name: artist }],
+    releases: releases.map(([t, date, types]) => ({ title: t, status: "Official", date, "release-group": { "primary-type": "Album", "secondary-types": types } })),
+  });
+
+  it("takes no year from a compilation or a live album", () => {
+    expect(performerFacts([dated("It's Only a Paper Moon", "Harold Arlen", [["I Love Jazz", "1988", ["Compilation"]]])], "It's Only a Paper Moon", "Harold Arlen")).toEqual([]);
+    expect(firstYear([dated("Through the Fire and the Flames", "DragonForce", [["Live at Wacken 2009", "2010", ["Live"]]])])).toBeUndefined();
+    expect(firstYear([dated("Song", "Band", [["Best Of", "2001", ["Compilation"]], ["Debut", "1998", []]])])).toBe("1998");
+  });
+
+  it("takes no year after the credited artist died", () => {
+    const satie = [dated("Gnossienne No. 1", "Erik Satie", [["Satie Piano Music", "1995", []]])];
+    expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie", 1925)).toEqual(['"Gnossienne No. 1" is on the album Satie Piano Music.']);
+    expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie")[0]).toBe('"Gnossienne No. 1" came out in 1995.');
+  });
+
+  it("leaves out an additional composer", () => {
+    const work = {
+      relations: [
+        { type: "composer", "target-type": "artist", artist: { name: "James Horner" } },
+        { type: "composer", "target-type": "artist", attributes: ["additional"], artist: { name: "Alexander Courage" } },
+      ],
+    };
+    expect(composersOf(work)).toEqual(["James Horner"]);
   });
 });
