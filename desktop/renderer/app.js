@@ -285,9 +285,14 @@
   api.on("model-progress", (p) => {
     if (!state) return;
     state.modelDownload = p;
-    if (p.phase === "done") state.modelReady = true;
+    if (p.phase === "done") Object.assign(state, { modelReady: true, modelSwitching: false });
     renderStatus(state.status);
   });
+
+  /** The built-in AI's quality setting, in the words Settings uses. */
+  const qualityName = (q = state.settings.aiQuality) => (q === "high" ? "High quality" : "Standard");
+  /** Downloading the other quality while the model already here keeps writing facts. */
+  const switchingQuality = () => state.settings.ai === "builtin" && state.modelSwitching;
 
   function renderPaths() {
     for (const c of $$(".overlay-path")) c.textContent = state.overlayPath;
@@ -329,6 +334,7 @@
     // Facts
     if (downloading) light("light-ai", state.modelDownload?.error ? "warn" : "", "Getting ready: " + (downloadText(state.modelDownload) || "starting"));
     else if (state.builtinFailed && state.settings.ai === "builtin") light("light-ai", "bad", "Needs attention");
+    else if (switchingQuality() && status.state === "running") light("light-ai", "ok", `Ready (${qualityName()}: ${downloadText(state.modelDownload) || "starting"})`);
     else if (status.state === "running") light("light-ai", "ok", "Ready");
     else light("light-ai", "", "Starting");
 
@@ -892,6 +898,9 @@
     if (state.settings.ai === "ollama" && state.ollama?.error) add("warn", state.ollama.error, "Try again", () => api.downloadModel());
     if (state.settings.ai === "builtin" && state.modelDownload?.error) {
       add("warn", `The AI download paused. ${state.modelDownload.error}`, "Try again", () => api.downloadModel());
+    } else if (switchingQuality()) {
+      const other = qualityName(state.settings.aiQuality === "high" ? "standard" : "high");
+      add("info", `Downloading the ${qualityName()} AI${state.settings.aiQuality === "high" ? " (about 5 GB)" : ""}. ${other} keeps writing facts until it's ready. You can keep streaming.`);
     }
     if (state.update) {
       const v = state.update.version;
@@ -903,7 +912,15 @@
       else if (u.stage === "failed") add("warn", `The update didn't work. ${u.error} You can download it from the website instead.`, "Get it", getIt);
       else add("info", `BubbleFacts ${v} is available.`, "Update now", () => api.downloadUpdate());
     }
-    if (state.builtinFailed && state.settings.ai === "builtin") {
+    if (state.builtinFailed && state.settings.ai === "builtin" && state.settings.aiQuality === "high") {
+      add("warn", "The High quality AI can't run on this computer, most likely because it needs more memory. For now, songs get facts from music databases and your own facts. Standard needs about half the memory.", "Use Standard", async () => {
+        const saved = await api.saveSettings({ aiQuality: "standard" });
+        if (saved.error) return;
+        state = saved;
+        renderNotices();
+        fillSettings();
+      });
+    } else if (state.builtinFailed && state.settings.ai === "builtin") {
       add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
         show("settings");
         $("#s-advanced").open = true;
@@ -1022,14 +1039,36 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
-    // Someone already using an online AI or the example packs finds them open.
-    $("#s-advanced").open = form.elements.ai.value !== "builtin";
+    // Someone already using an online AI, High quality or the example packs finds them open.
+    $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
+    $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
+    $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
+    renderQuality();
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
     renderWrongKey();
     setResult($("#settings-result"), settingsDraft.size ? "Your changes aren't saved yet. Click Save to keep them." : "");
   }
+
+  /** High quality is a choice under "On this computer", with a warning (never a block) where it may struggle. */
+  const GB = 1024 ** 3;
+  function renderQuality() {
+    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin";
+    const reasons = [];
+    // A computer sold with 16 GB reports a little less, as some is set aside for the system.
+    if (state.totalMemory && state.totalMemory < 15 * GB) {
+      reasons.push(`This computer has ${Math.round(state.totalMemory / GB)} GB of memory, and High quality needs 16 GB. It may run slowly or not load.`);
+    }
+    if (state.platform === "darwin" && state.arch !== "arm64") {
+      reasons.push("This Mac has an Intel processor, so High quality runs without the graphics chip: several times slower, with fewer bubbles per song.");
+    }
+    const warning = $("#s-quality-warning");
+    const warn = form.elements.aiQuality.value === "high" && reasons.length > 0;
+    warning.textContent = warn ? "! " + reasons.join(" ") + " Standard is the better fit here." : "";
+    warning.hidden = !warn;
+  }
+  for (const el of form.querySelectorAll('input[name="ai"], input[name="aiQuality"]')) el.addEventListener("change", renderQuality);
 
   /** Hands-free Wrong: the keys as this computer names them, and a key another app already has. */
   function renderWrongKey() {
@@ -1111,13 +1150,17 @@
       const r = await api.testConnection(changes.channel, changes.token, "streamer");
       if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
     }
+    const qualityBefore = state.settings.aiQuality;
     const saved = await api.saveSettings(changes);
     if (saved.error) return setResult($("#settings-result"), saved.error, "bad");
     state = saved;
     settingsDraft.clear();
     renderNotices();
     fillSettings();
-    setResult($("#settings-result"), "✓ Saved. BubbleFacts restarted with your changes.", "ok");
+    const newQuality = state.settings.aiQuality !== qualityBefore && switchingQuality();
+    setResult($("#settings-result"), newQuality
+      ? `✓ Saved. The ${qualityName()} AI is downloading; the one you have keeps writing facts until it's ready.`
+      : "✓ Saved. BubbleFacts restarted with your changes.", "ok");
   });
 
   /** Every song with its own facts, to edit or remove without waiting for it to play. */

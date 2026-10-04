@@ -183,7 +183,7 @@ need them with a `.env` file.
 
 | Setting | What it does |
 |---|---|
-| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` shows custom facts only. |
+| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **High quality** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` shows custom facts only. |
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
