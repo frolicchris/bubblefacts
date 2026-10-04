@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { artistNames, curatedFacts, explainMusicTerms, fetchGrounding, mentionsName, normalizeTitle, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, artistNames, curatedFacts, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -234,7 +234,7 @@ OBJECTIVE
 Write ${want} captions about ${game} or its music that chat would find surprising, funny or fascinating. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
 
 SOURCE
-Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. If the text does not say something, leave it out.
+Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. If the text does not say something, leave it out.
 """
 ${context}
 """
@@ -261,7 +261,7 @@ Write exactly ${want} trivia lines about ${game} or its music. Your readers are 
 Follow every rule:
 1. Use ONLY the SOURCE. Every person, year, number, platform, studio, and title you write must appear in the SOURCE, spelled the same way.
 2. Match the SOURCE's subject. If it describes a song, film, or classical work rather than a video game, write about that — never force a gaming angle onto music that has nothing to do with games.
-3. Each line restates ONE statement from the SOURCE. Never merge two statements, and never move a name from one statement into another — if the SOURCE says someone composed the music, do not say they wrote the story or designed the game.
+3. Each line restates ONE statement from the SOURCE. Never merge two statements, and never move a name from one statement into another — if the SOURCE says someone composed the music, do not say they wrote the story or designed the game. Keep the statement's subject as your subject, and use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it.
 4. If the SOURCE does not name a composer, do NOT name a composer — write about a different detail the SOURCE does give.
 5. Do not mention awards, sales, chart positions, or review scores unless the SOURCE uses those words.
    Never write opinions or praise ("considered", "acclaimed", "one of the greatest"), even if the SOURCE quotes them.
@@ -509,6 +509,28 @@ function aboutTheSong(song: SSLSong, context: string): boolean {
   return mentionsName(normalizeTitle(context.split("\n")[0]), [normalizeTitle(track)]);
 }
 
+/** Articles passed over for one request before giving up on a reading. */
+const MAX_MISFITS = 2;
+
+/**
+ * A reference for one reading of the request that fits it (`articleMisfit`):
+ * an article whose opening isn't about music or a work, or that never names
+ * what the request's brackets name, is passed over and the lookup tried again
+ * without it ("Jezebel" by Sade finds the singer instead of the queen).
+ */
+async function fittingGrounding(song: SSLSong, reading: SSLSong): Promise<string> {
+  const skip = new Set<string>();
+  for (;;) {
+    const found = await fetchGrounding(reading, skip);
+    const why = found ? articleMisfit(song, found) : "";
+    if (!why) return found;
+    const page = found.split("\n")[0];
+    console.log(`[Grounding] "${page}" ${why}, skipping`);
+    skip.add(page);
+    if (skip.size >= MAX_MISFITS) return "";
+  }
+}
+
 /** Facts from the queue entry, topped up from the topic packs. True by construction. */
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
@@ -629,9 +651,12 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // "Jane (@janeplayskeys)": another music content creator's piece. No encyclopedia knows it, so nothing is looked up.
     const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1];
     if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): not looked up`);
-    if (config.aiProvider !== "none" && config.factVerification && !handle) {
+    // "Off-List YouTube Request < 5 Min (Free)": a slot in the queue, not a song. Its "article" would be YouTube's.
+    const placeholder = isPlaceholderRequest(song);
+    if (placeholder) console.log(`[FactGen] "${song.title}" is a request placeholder, not a song: not looked up`);
+    if (config.aiProvider !== "none" && config.factVerification && !handle && !placeholder) {
       for (const reading of readings(song)) {
-        const found = await fetchGrounding(reading);
+        const found = await fittingGrounding(song, reading);
         if (!found) continue;
         // The artist's life story is the weakest find: kept, but another reading may find the song or its game.
         const onlyTheArtist = artistNames(reading.artist ?? "").includes(normalizeTitle(found.split("\n")[0]));
@@ -644,7 +669,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     }
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
-      const data = config.factVerification && !handle ? await structuredFacts(song, read) : [];
+      const data = config.factVerification && !handle && !placeholder ? await structuredFacts(song, read) : [];
       const shownData = data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, want);
       if (shownData.length) {
         remember(shownData);
@@ -666,7 +691,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
-    const { kept, rejected } = screenClaims(lines, context);
+    const { kept, rejected } = screenClaims(lines, context, { otherParts: otherParts(context, resolveGameAndTrack(read).track) });
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
     // Music terms get a few fixed plain words, so any viewer can follow.
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f))).map(explainMusicTerms);

@@ -500,6 +500,31 @@ export function theorySentences(full: string): string[] {
   return kept;
 }
 
+/** A section about the music video, or what's worn in it. Not "video game". */
+const VIDEO_HEADING = /\b(?:videos?(?!\s*games?)|fashion|visuals?)\b/i;
+
+/**
+ * The article without its music-video sections and their subsections (plot,
+ * production, fashion). Told as facts, a video's story reads as if it
+ * happened ("Papa Emeritus III takes a paper from a hawker"), and a shoot's
+ * details as if they were the recording's ("wore a Gucci bathing suit").
+ */
+export function withoutVideoSections(full: string): string {
+  const out: string[] = [];
+  let skipBelow = 0; // Skipping while inside a video section of this level.
+  for (const line of full.split("\n")) {
+    const h = /^(==+)\s*(.+?)\s*==+\s*$/.exec(line);
+    if (h) {
+      const level = h[1].length;
+      if (skipBelow && level > skipBelow) continue;
+      skipBelow = VIDEO_HEADING.test(h[2]) ? level : 0;
+      if (skipBelow) continue;
+    } else if (skipBelow) continue;
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 /** Cut text back to its last whole sentence, so the model never copies half of one. */
 function wholeSentences(text: string): string {
   if (/[.!?]["”)]?$/.test(text)) return text;
@@ -514,6 +539,7 @@ function wholeSentences(text: string): string {
  * and no reception, which would be the game's or the artist's, not the song's.
  */
 export function orderExtract(full: string, budget: number, names: string[] = [], ownArticle = true, primaryHeading: RegExp = MUSIC_HEADING): string {
+  full = withoutVideoSections(full);
   // What the makers said goes first: it's the part worth retelling, and a small model reads the top best.
   const color = creatorSentences(full, names, ownArticle);
   const theory = ownArticle ? theorySentences(full).filter((s) => !color.includes(s)) : [];
@@ -550,7 +576,117 @@ async function wikiExtract(pageTitle: string): Promise<string | null> {
     "extract"
   );
   const full = Object.values(data.query?.pages ?? {})[0]?.extract;
+  if (full) rememberArticle(pageTitle, full);
   return full && !/may refer to:/i.test(full.slice(0, 200)) ? full : null;
+}
+
+// --- Does the article fit the request? -----------------------------------
+
+/**
+ * Articles read recently, whole, by title. A reference is cut down to a few
+ * thousand characters; whether it fits the request is judged on the whole
+ * article: its opening, and every name it mentions.
+ */
+const articleTexts = new Map<string, string>();
+const MAX_ARTICLE_TEXTS = 40;
+
+export function rememberArticle(page: string, full: string): void {
+  articleTexts.delete(page);
+  articleTexts.set(page, full);
+  if (articleTexts.size > MAX_ARTICLE_TEXTS) articleTexts.delete(articleTexts.keys().next().value as string);
+}
+
+/** An article's whole text, when it was read this session, or "". */
+export function articleText(page: string): string {
+  const known = articleTexts.get(page);
+  if (known) return known;
+  // A game's articles are kept for all its tracks, longer than the list above.
+  for (const a of gameArticles.values()) {
+    if (a.page === page) return a.full;
+    if (a.music?.page === page) return a.music.full;
+  }
+  return "";
+}
+
+/**
+ * What an article's opening says its subject is, when that is something a
+ * song can come from or be: a song, a record, a performer, a composer, a
+ * soundtrack, a game, a film or a show. "Jezebel was a Phoenician princess"
+ * and "YouTube is an online video-sharing platform" are neither, and facts
+ * written from them are true but about the wrong thing.
+ */
+const MUSIC_OR_WORK =
+  /\b(songs?|singles?|albums?|EPs?|mixtapes?|records?|recordings?|bands?|groups?|duo|trio|quartet|singers?|singer-songwriters?|rappers?|musicians?|composers?|pianists?|guitarists?|drummers?|bassists?|violinists?|cellists?|organists?|songwriters?|DJs?|disc jockey|producers?|vocalists?|lyricists?|conductors?|orchestras?|ensembles?|choirs?|idols?|YouTuber|entertainers?|performers?|soundtracks?|scores?|instrumentals?|compositions?|pieces?|suites?|sonatas?|symphon(?:y|ies)|concert[oi]s?|operas?|operettas?|ballets?|musicals?|hymns?|anthems?|ballads?|carols?|march(?:es)?|waltz(?:es)?|rhapsod(?:y|ies)|[eé]tudes?|nocturnes?|preludes?|fugues?|serenades?|overtures?|requiems?|cantatas?|arias?|tunes?|melod(?:y|ies)|tangos?|games?|films?|movies?|television|TV|series|shows?|sitcoms?|anime|manga|novels?|franchises?)\b/i;
+
+/** The article's opening: its first two sentences, or its first 400 characters. */
+function openingOf(full: string): string {
+  const lead = full.split(/\n==/)[0].trim();
+  const sentences = lead.split(/(?<=[.!?])\s+(?=\p{Lu})/u);
+  return sentences.slice(0, 2).join(" ").slice(0, 400);
+}
+
+/** Whether an article's opening says it is about music, a performer, a game, a film or a show. */
+export function opensAboutMusicOrWork(full: string): boolean {
+  return MUSIC_OR_WORK.test(openingOf(full));
+}
+
+/** Words in a bracket or a subtitle that name nothing in particular. */
+const GENERIC_NAME_WORDS = new Set([
+  "theme", "themes", "main", "opening", "ending", "op", "ed", "no", "ost", "original", "song", "music", "track", "bgm",
+  "intro", "outro", "edit", "mix", "version", "from", "the", "of", "a", "an", "and", "in", "on", "s", "free", "full",
+]);
+
+/**
+ * Names the request gives that its article has to mention: the character a
+ * bracket says the theme is for ("Killer (Yoshikage Kira's Theme)") and the
+ * subtitle of the work in the artist field ("Star Wars: Rogue One"). Each
+ * comes back normalized, generic words dropped.
+ */
+export function requestNames(song: SSLSong): string[] {
+  const out: string[] = [];
+  const add = (raw: string) => {
+    const words = normalizeTitle(raw.replace(/['’]s\b/g, "")).split(" ").filter((w) => w && !GENERIC_NAME_WORDS.has(w) && !/^\d+$/.test(w));
+    if (words.join("").length >= 4) out.push(words.join(" "));
+  };
+  // Only a bracket naming whose theme it is: "(Wild Canyon)" is a stage the game's article may never name.
+  for (const m of song.title.matchAll(/[([]([^)\]]{2,})[)\]]/g)) {
+    const whose = /^(.+?)['’]s\s+(?:theme|song|motif)$/i.exec(m[1].trim())?.[1] ?? /^(?:theme|motif) (?:of|for) (.+)$/i.exec(m[1].trim())?.[1];
+    if (whose) add(whose);
+  }
+  // A person's article needn't name a translated title: "Debajo Las Estrellas (Under The Stars)".
+  const artist = (song.artist ?? "").trim();
+  const subtitle = /^[^:]{2,}:\s*(.{3,})$/.exec(artist)?.[1];
+  if (subtitle && !looksLikeArtistName(artist)) add(subtitle);
+  return [...new Set(out)];
+}
+
+/** Requests that are a slot in the queue, not a song: "Off-List YouTube Request < 5 Min (Free)". */
+const PLACEHOLDER_TITLE = /\boff[- ]?list\b|<\s*\d+\s*min|\(\s*free\s*\)|\b(?:yt|youtube|song|any|open|custom|viewers?['’]?s?|paid|free)\s+requests?\b/i;
+const PLACEHOLDER_ARTIST = /^(?:youtube|yt|twitch|spotify|requests?|off[- ]?list|tbd|various|n\/?a)$/i;
+
+/** Whether a request is a placeholder for whatever a viewer asks for, rather than a song. */
+export function isPlaceholderRequest(song: SSLSong): boolean {
+  return PLACEHOLDER_TITLE.test(song.title) || PLACEHOLDER_ARTIST.test((song.artist ?? "").trim());
+}
+
+/**
+ * Why a found reference doesn't fit the request, or "" when it does. The
+ * whole article is read when it was fetched this session; otherwise only
+ * the reference itself.
+ * - Its opening must say it is about music, a performer, a game, a film or a show.
+ * - Each name in the request's brackets or subtitle must be in the article, unless the
+ *   artist is a person: then a bracket may be a translation or the film it's from.
+ */
+export function articleMisfit(song: SSLSong, text: string): string {
+  const page = text.split("\n")[0];
+  const full = articleText(page);
+  if (full && !opensAboutMusicOrWork(full)) return "doesn't open like an article about a song, a performer or a work";
+  const own = page.replace(/\s*\([^)]*\)\s*$/, "");
+  const haystack = ` ${normalizeTitle(own)} ${normalizeTitle(full || text)} `;
+  // "Reprise (Spirited Away)" by Joe Hisaishi: for a person's piece, the bracket may be a film, a translation or a nickname.
+  if (looksLikeArtistName((song.artist ?? "").trim())) return "";
+  const missing = requestNames(song).find((name) => !haystack.includes(` ${name} `));
+  return missing ? `never mentions "${missing}"` : "";
 }
 
 /** Reference text for the song, or "" when no relevant article exists. */
@@ -631,6 +767,55 @@ async function findMusicArticle(game: string, usable: (title: string) => boolean
   return null;
 }
 
+/** Section headings that are a kind of section, not the name of a part of a soundtrack. */
+const GENERIC_SECTION =
+  /^(?:background|development|composition|production|recording|releases?|reception|critical|commercial|legacy|references|notes|external|see also|track listings?|personnel|credits|charts?|certifications?|awards?|accolades|overview|history|music|soundtracks?|albums?|singles|eps|other|musicology|instrumentation|motifs?|themes?|style|influences?|bibliography|further|sales|live|concerts?|creation|concept|writing|lyrics|cast|plot|synopsis|gameplay|setting|story|characters|marketing|reviews?|impact|cover|versions?|remix(?:es)?|formats?|editions?|arrangements?)\b/i;
+
+/** The sections of an article: heading, level, and the lines it runs over, subsections included. */
+function sectionsOf(lines: string[]): Array<{ heading: string; quoted: boolean; level: number; from: number; to: number }> {
+  const heads = lines.flatMap((line, i) => {
+    const h = /^(==+)\s*(.+?)\s*==+\s*$/.exec(line);
+    const quoted = h ? /^["“].*["”]$/.test(h[2]) : false;
+    return h ? [{ heading: h[2].replace(/^["“](.*)["”]$/, "$1"), quoted, level: h[1].length, from: i, to: lines.length }] : [];
+  });
+  for (const [n, h] of heads.entries()) {
+    const next = heads.slice(n + 1).find((o) => o.level <= h.level);
+    if (next) h.to = next.from;
+  }
+  return heads;
+}
+
+/**
+ * The part of a soundtrack article a track belongs to, when the track names
+ * it: "Fontaine: Remuria" is from the Fontaine section of "Music of Genshin
+ * Impact". Returns the article cut to its lead and that section, and the
+ * article's other parts ("Mondstadt", "Liyue"), which a caption for this track
+ * must not name. Null unless the track names one part and the article has at
+ * least two others.
+ */
+export function soundtrackPart(full: string, track: string): { heading: string; text: string; others: string[] } | null {
+  const lines = withoutVideoSections(full).split("\n");
+  const parts = sectionsOf(lines).filter((s) => !GENERIC_SECTION.test(s.heading) && s.heading.split(/\s+/).length <= 5);
+  const name = ` ${normalizeTitle(track)} `;
+  const matched = parts
+    .filter((s) => normalizeTitle(s.heading).length >= 4 && name.includes(` ${normalizeTitle(s.heading)} `))
+    .sort((a, b) => b.heading.length - a.heading.length)[0];
+  if (!matched) return null;
+  // Its own subsections and the sections it sits in aren't other parts.
+  // A quoted heading is one track ("Main Theme"), which any part's caption may mention.
+  const others = parts.filter((s) => !s.quoted && !(s.from >= matched.from && s.to <= matched.to) && !(s.from <= matched.from && s.to >= matched.to));
+  if (others.length < 2) return null;
+  const lead = lines.slice(0, lines.findIndex((l) => /^==/.test(l))).join("\n").trim();
+  const section = lines.slice(matched.from, matched.to).join("\n");
+  return { heading: matched.heading, text: `${lead}\n\n${section}`, others: [...new Set(others.map((s) => s.heading))] };
+}
+
+/** The other parts of the soundtrack a reference was cut from, which captions for this track mustn't name. */
+export function otherParts(text: string, track: string): string[] {
+  const full = articleText(text.split("\n")[0]);
+  return full ? (soundtrackPart(full, track)?.others ?? []) : [];
+}
+
 /** Any section that isn't a list of tracks, credits or references. */
 const NOT_A_LIST = /^(?!.*(track listing|personnel|credits|chart|certification|reference|external|see also|notes)).+$/i;
 /** In a music article, how the music was made comes before the lists of albums and releases. */
@@ -644,9 +829,13 @@ const MAKING_OF_MUSIC = /creation|development|concept|influence|composition|writ
 export function gameTrackText(a: GameArticles, track: string, usable: (title: string) => boolean = () => true): string {
   const fits = a.music && usable(a.music.page) && (!a.music.series || trackSentences(a.music.full, track).length > 0);
   const base = fits && a.music ? a.music : a;
-  const about = trackSentences(base.full, track);
+  // "Liyue: Relaxation in Liyue" from "Music of Genshin Impact": the lead and the Liyue section, nothing about Mondstadt.
+  const part = soundtrackPart(base.full, track);
+  const full = part ? part.text : withoutVideoSections(base.full);
+  const about = trackSentences(full, track);
   const block = about.length ? `About this piece: ${about.join(" ")}\n\n` : "";
   const budget = MAX_CONTEXT_CHARS - base.page.length - 1 - block.length;
+  if (part) return `${base.page}\n${block}${orderExtract(full, budget, [track], true, NOT_A_LIST)}`;
   let body = orderExtract(base.full, budget, [track], base !== a, base !== a ? MAKING_OF_MUSIC : MUSIC_HEADING);
   // A music article with no section on how the music was made: take its other sections, bar the lists.
   if (base !== a && body.length < MIN_CONTEXT_CHARS * 2) body = orderExtract(base.full, budget, [track], true, NOT_A_LIST);
@@ -955,10 +1144,13 @@ interface Grounded {
   unreachable: boolean;
 }
 
-/** Reference text for the song, or "" when no relevant article exists. */
-export async function fetchGrounding(song: SSLSong): Promise<string> {
+/**
+ * Reference text for the song, or "" when no relevant article exists.
+ * `skip`: articles already found not to fit this request (`articleMisfit`), passed over like blocked ones.
+ */
+export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
   // Articles the streamer marked wrong for this song are never used for it again.
-  const blocked = blockedArticles(song);
+  const blocked = new Set([...blockedArticles(song), ...skip]);
   const usable = (title: string) => !blocked.has(title);
   const tried = new Set<string>();
   const attempt = async (reading: Reading): Promise<Grounded> => {
@@ -1210,7 +1402,7 @@ const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
  * stream and make the real facts harder to trust (issue #21), and the music
  * video's plot or look is what viewers are already watching (issue #20).
  */
-const OPINION = /\b(considered (?:one|to be|as|by|a|an|the|among)|(?:among|some of) the (?:best|greatest|finest|most)|instantly recognizable|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
+const OPINION = /\b(considered (?:one|to be|as|by|a|an|among|the (?:best|greatest|finest|most|top))|(?:among|some of) the (?:best|greatest|finest|most)|instantly recognizable|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
 /**
  * Things no song fact contains, whatever the source says: a link, a chat
  * command or an @mention. A crafted request title or a vandalized article is
@@ -1222,7 +1414,12 @@ const NOT_FOR_STREAM: Array<{ re: RegExp; label: string }> = [
   { re: /(^|\s)@\w/, label: "an @mention" },
 ];
 
-const ABOUT_THE_VIDEO = /\b(music videos?|video clips?|in the video|the video(?!\s*games?\b))\b/i;
+/**
+ * The music video, or its shoot: "the original video", "after filming stopped",
+ * "the video shoot". Never "the video game" or "in the video game".
+ */
+const ABOUT_THE_VIDEO =
+  /\b(?:music videos?|video clips?|(?:in )?the (?:(?:original|first|second|third|official|accompanying|later|new|lyric) )?videos?(?!\s*games?\b)|filming|(?:video |photo )?shoots?(?!\s*['’]?em\b|-em))\b/i;
 
 /** The model reasoning about its source instead of stating a fact. */
 const META_PATTERNS: RegExp[] = [
@@ -1236,7 +1433,8 @@ const META_PATTERNS: RegExp[] = [
 
 const YEAR = /\b(1\d{3}|20\d{2})\b/g;
 /** Capitalized words, including "McCartney"; two or more, or a single Mc- surname. */
-const NAME_WORD = String.raw`(?:Mc\p{Lu}\p{Ll}+|\p{Lu}[\p{Ll}'’-]+)`;
+/** "DeVoe", "LaBelle" and "YouTube" are one word each. */
+const NAME_WORD = String.raw`(?:Mc\p{Lu}\p{Ll}+|\p{Lu}[\p{Ll}'’-]+(?:\p{Lu}[\p{Ll}'’-]+)*)`;
 const NAME = new RegExp(String.raw`(?<!\p{L})(?:${NAME_WORD}(?:\s+${NAME_WORD})+|Mc\p{Lu}\p{Ll}+)`, "gu");
 
 const PLATFORM_PATTERN =
@@ -1303,14 +1501,17 @@ const NAME_STOPWORDS = new Set([
  * of credit: "John Smith directed the game" doesn't support "John Smith wrote
  * the soundtrack" (issue from review). Writing music counts as composing.
  */
-const ROLES: Array<{ fact: RegExp; source: RegExp }> = [
-  { fact: /\b(compos\w*|scored|wr[io]te\s+the\s+(music|score|soundtrack)|written\s+the\s+(music|score|soundtrack)|music\s+(was\s+)?(written|composed)\s+by)\b/i, source: /\b(compos\w*|scored|wr[io]te|written|writer)\b/i },
+const ROLES: Array<{ fact: RegExp; source: RegExp; musicOnly?: boolean }> = [
+  // "Matsuno wrote the story" is no composing credit: "wrote" counts only next to music ("wrote the score", "music was written by").
+  { fact: /\b(compos\w*|scored|wr[io]te\s+the\s+(music|score|soundtrack)|written\s+the\s+(music|score|soundtrack)|music\s+(was\s+)?(written|composed)\s+by)\b/i, source: /\b(compos\w*|scored|wr[io]te|written|writer)\b/i, musicOnly: true },
   { fact: /\b(wr[io]te|written|penned|lyrics?)\b/i, source: /\b(wr[io]te|written|writ\w*|lyric\w*|penned|songwrit\w*|compos\w*)\b/i },
   { fact: /\bproduc\w*/i, source: /\bproduc\w*/i },
   { fact: /\bdirect\w*/i, source: /\bdirect\w*/i },
   { fact: /\b(performed|sang|sung|sings|vocals?|recorded)\b/i, source: /\b(perform\w*|sang|sung|sing\w*|vocal\w*|record\w*|band|singer|rapper|musician)\b/i },
   { fact: /\b(designed|developed)\b/i, source: /\b(design\w*|develop\w*)\b/i },
 ];
+/** What "wrote" must be followed by to mean composing: "wrote the music", "wrote its score". */
+const MUSIC_OBJECT = /^(music|musical|score|scores|soundtrack|soundtracks|theme|themes|songs?|melod\w*|tunes?|pieces?|instrumentals?)$/;
 /** "Adele composed", "Mia Chen and Toby Fox wrote": a capitalized name right before a credit verb. */
 const ACTIVE_NAME = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+|originally\s+)?(?:composed|wrote|produced|directed|performed|sang|recorded|designed|developed|scored|penned)\b/gu;
 /** Words between a name and its role word, at most, for the source to count as stating that role. */
@@ -1325,6 +1526,8 @@ const BY_NOUN: Array<{ noun: RegExp; means: RegExp }> = [
   { noun: /^lyrics?$/i, means: /lyric/ },
 ];
 const NAME_PARTICLE = /^(de|van|von|da|del|la|le|and|&|,)$/i;
+/** Words that describe whoever follows "by": "by singer-songwriters", "by the band", "by producer". */
+const DESCRIPTOR = /^(?:[\p{L}-]*(?:er|ers|or|ors|ist|ists|ian|ians)|the|band|bands|duo|group|trio|team|his|her|their)$/u;
 
 /**
  * Whether one source sentence gives this person this kind of credit. Being
@@ -1340,14 +1543,16 @@ const NAME_PARTICLE = /^(de|van|von|da|del|la|le|and|&|,)$/i;
  *
  * Anything else is ambiguous, and an ambiguous credit is dropped.
  */
-function statesRole(sentence: string, surname: string, role: { source: RegExp }): boolean {
+function statesRole(sentence: string, surname: string, role: { source: RegExp; musicOnly?: boolean }): boolean {
   const tokens = sentence.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*|[,;]/gu) ?? [];
   const lower = tokens.map((t) => t.toLowerCase().replace(/['’]s$/, "").replace(/\.+$/, ""));
   const isName = (i: number) => /^\p{Lu}/u.test(tokens[i]) && !NAME_STOPWORDS.has(lower[i]);
   /** In a list of credited names, any capitalized word counts: "Falcom Sound Team jdk". */
   const noCaps = sentence === sentence.toLowerCase(); // Lowercased text can't show where a name ends.
   const isCap = (i: number) => noCaps || /^\p{Lu}/u.test(tokens[i] ?? "");
-  const isRole = (i: number) => role.source.test(lower[i]);
+  const isRole = (i: number) =>
+    role.source.test(lower[i]) &&
+    !(role.musicOnly && /^(wr[io]te|written|writer)$/.test(lower[i]) && ![...lower.slice(Math.max(0, i - 3), i), ...lower.slice(i + 1, i + 4)].some((w) => MUSIC_OBJECT.test(w)));
   const at = lower.flatMap((w, i) => (w === surname ? [i] : []));
   if (!at.length) return false;
   if (LOOSE_ROLE.test(role.source.source)) return lower.some((_, j) => isRole(j) && at.some((i) => Math.abs(i - j) <= ROLE_REACH));
@@ -1378,7 +1583,10 @@ function statesRole(sentence: string, surname: string, role: { source: RegExp })
         const before = span.slice(0, by);
         const list = span.slice(by + 1);
         if (before.length > 3 || before.some((w) => /^[,;]$/.test(w))) continue;
-        if (!list.every((w, n) => isCap(j + 2 + by + n) || NAME_PARTICLE.test(w))) continue;
+        // "written by singer-songwriters Eugene Wilde and Albert Manno": a descriptor may come first.
+        let d = 0;
+        while (d < 2 && d < list.length - 1 && DESCRIPTOR.test(list[d]) && !/^\p{Lu}/u.test(tokens[j + 2 + by + d])) d++;
+        if (!list.slice(d).every((w, n) => isCap(j + 2 + by + d + n) || NAME_PARTICLE.test(w))) continue;
         if (CREDIT_VERB.test(lower[i + 1] ?? "") && lower[i + 2] !== "by") continue; // "... and Smith directed"
         return true;
       }
@@ -1387,16 +1595,30 @@ function statesRole(sentence: string, surname: string, role: { source: RegExp })
   });
 }
 
+/**
+ * The source's sentences for the credit and award checks. A middle initial
+ * ends no sentence: "produced by Barry J. Eastmond" stays whole.
+ */
+const sourceSentences = (context: string) => context.split(/(?<!(?:^|[^\p{L}])\p{Lu}\.)(?<=[.!?])\s+|\n+/u);
+
 /** "by Adele", "by Nobuo Uematsu": a capitalized name after "by". */
 const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|de|van|von|da|del|la|le))*)/gu;
 
-/** The names a fact credits: a name after "by", or right before a credit verb. */
+/** A credit shared "with" others: "co-wrote the song with A and B". */
+const WITH_NAMES =
+  /\b(?:co-?)?(?:wr[io]te|written|composed|produced|penned)\b[^.;]*?\b(?:with|alongside)\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:(?:\s+|\s*,\s*)(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|and|&|de|van|von))*)/gu;
+
+/** The names a fact credits: a name after "by", right before a credit verb, or sharing the credit "with" them. */
 function creditedNames(fact: string): string[] {
   const names = new Set<string>();
   for (const m of fact.matchAll(BY_NAME)) names.add(m[1].trim().replace(/[.'’-]+$/, ""));
   for (const m of fact.matchAll(ACTIVE_NAME)) {
     const words = m[1].trim().split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
     if (words.length) names.add(words.join(" "));
+  }
+  // "Babyface wrote it with L.A. Reid and Daryl Simmons": the partners get the same credit.
+  for (const m of fact.matchAll(WITH_NAMES)) {
+    for (const n of m[1].split(/\s*,\s*|\s+(?:and|&)\s+/)) if (/^\p{Lu}/u.test(n.trim())) names.add(n.trim().replace(/[.'’-]+$/, ""));
   }
   // Only names in a credit's own grammar count: "by Name", "Name composed". Any
   // other capitalized pair in the sentence is usually a game or a place: "composed
@@ -1411,9 +1633,11 @@ function creditedNames(fact: string): string[] {
  * naming them in that kind of role. Returns the name, or null.
  */
 export function unsupportedCredit(fact: string, context: string): string | null {
-  const roles = ROLES.filter((r) => r.fact.test(fact));
+  let roles = ROLES.filter((r) => r.fact.test(fact));
+  // "wrote the music" is a composing credit: the plain writing role would accept "wrote the story".
+  if (roles.includes(ROLES[0]) && !/\b(lyric\w*|words)\b/i.test(fact)) roles = roles.filter((r) => r !== ROLES[1]);
   if (!roles.length) return null;
-  const sentences = context.split(/(?<=[.!?])\s+|\n+/);
+  const sentences = sourceSentences(context);
   for (const name of creditedNames(fact)) {
     const surname = (name.split(/\s+/).pop() ?? name).toLowerCase();
     const stated = sentences.some((sentence) => roles.some((r) => statesRole(sentence, surname, r)));
@@ -1434,7 +1658,7 @@ const WON = { source: /^(won|wins|winning|awarded|received|earned|winner)$/i };
  */
 export function unsupportedWinner(fact: string, context: string): string | null {
   const article = normalizeTitle(context.split("\n")[0]);
-  const sentences = context.split(/(?<=[.!?])\s+|\n+/);
+  const sentences = sourceSentences(context);
   for (const m of fact.matchAll(WINNER)) {
     const words = m[1].trim().split(/\s+/).map((w) => w.replace(/['’]s?$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
     if (!words.length) continue;
@@ -1461,6 +1685,146 @@ export function unsupportedName(fact: string, context: string): string | null {
     if (!isName || words.every((w) => NAME_STOPWORDS.has(w.toLowerCase()))) continue;
     if (words.every((w) => hasWord(w, context))) continue;
     return words.join(" ");
+  }
+  return null;
+}
+
+/** The reference's sentences, without its own labels, for matching a caption to the one it retells. */
+function bodySentences(context: string): string[] {
+  const body = context.split("\n").slice(1).join("\n").replace(/^(About this piece|From the people who made it|How the music is built|How it was received): /gm, "");
+  return body.split(/(?<!(?:^|[^\p{L}])\p{Lu}\.)(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u).map((s) => s.trim()).filter((s) => s.length >= 20 && !/^==/.test(s));
+}
+
+/** How much of a caption's content one sentence holds. */
+function share(fact: string, sentence: string): number {
+  const want = contentTokens(fact.replace(/\s*\([^)]*\)/g, ""));
+  if (!want.size) return 0;
+  const have = contentTokens(sentence);
+  let shared = 0;
+  for (const t of want) if (have.has(t)) shared++;
+  return shared / want.size;
+}
+
+/**
+ * The sentences a caption most likely retells: the best match, and any
+ * nearly as good. None when even the best holds under a quarter of it.
+ */
+function retoldSentences(fact: string, context: string): string[] {
+  const scored = bodySentences(context).map((s) => ({ s, share: share(fact, s) }));
+  const best = Math.max(0, ...scored.map((x) => x.share));
+  return best < 0.25 ? [] : scored.filter((x) => x.share >= best - 0.1).map((x) => x.s);
+}
+
+/** How well the reference supports a caption: the share of its words in the best-matching sentence. */
+const support = (fact: string, context: string) => Math.max(0, ...bodySentences(context).map((s) => share(fact, s)));
+
+/**
+ * Words that join two statements into a cause, an order, an intention or a
+ * count. Names and years in a merged caption are all in the source, so only
+ * the joining word is new: "Marth and Roy appeared in Melee due to the success
+ * of Advance Wars" when the source says the two together "led to" a
+ * localization. Each is kept only when the sentence the caption retells has
+ * a word of the same kind.
+ */
+const NUMBER_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "hundred", "dozen"];
+const ORDINALS = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
+  { label: "a cause", fact: /\b(due to|because|owing to|thanks to|as a result)\b/i, source: /\b(due to|because|owing to|thanks to|as a result|since|so|as (?:he|she|they|it|the|a|his|her|their))\b/i },
+  { label: "a consequence", fact: /\b(led to|leading to|lead to|resulted in|prompted|caused)\b/i, source: /\b(led|lead|leading|result\w*|prompt\w*|caus\w*)\b/i },
+  { label: "an order", fact: /\bafter\b/i, source: /\b(after|following|afterwards?|previously|when|once|upon|then|subsequently)\b/i },
+  { label: "an order", fact: /\bbefore\b/i, source: /\b(before|prior|earlier|previously|until|first|originally)\b/i },
+  { label: "a first", fact: /\b(?:for )?the first time\b|\bfirst[- ]ever\b/i, source: /\bfirst\b|\bdebut/i },
+  { label: "an intention", fact: /\boriginally (?:intended|meant|planned|supposed)|\b(?:was|were) (?:intended|meant|supposed|planned) to\b/i, source: /\b(originally|intend\w*|meant|plann?\w*|suppos\w*|initially)\b/i },
+  { label: "a count", fact: /\b(twice|thrice|again|\w+ times)\b/i, source: /\b(twice|thrice|again|\w+ times|re-\w+|re(?:issued|released|recorded|turned|appeared|entered))\b/i },
+];
+const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.slice(0, 19).map((w, i) => [w, String(i + 2)]), ["thirty", "30"], ["forty", "40"], ["fifty", "50"], ...ORDINALS.map((w, i) => [w, `${i + 2}`])]);
+
+/**
+ * A joining word or a number the sentence the caption retells doesn't have,
+ * or null. Numbers (words or figures, not years) must be in that sentence too:
+ * "reached number one twice", "the collection's three pieces" when it has five.
+ */
+export function unsupportedConnective(fact: string, context: string): string | null {
+  const used = CONNECTIVES.filter((c) => c.fact.test(fact));
+  const numbers = [
+    // Lowercase only: "Two Worlds" is a title.
+    ...(fact.match(new RegExp(`\\b(${[...NUMBER_WORDS, ...ORDINALS].join("|")})\\b`, "g")) ?? []),
+    // A figure: not a year, and not part of a name ("Expedition 33", "Hot 100", "No. 3").
+    ...[...fact.matchAll(/(?<![\p{L}\d.,$])\d{1,3}(?:,\d{3})*(?![\d\p{L}])/gu)]
+      .filter((m) => !/(?:\p{Lu}[\p{L}.'’-]*|No\.|Op\.|K\.)\s+$/u.test(fact.slice(0, m.index)) && !/^\s+\p{Lu}/u.test(fact.slice((m.index ?? 0) + m[0].length)))
+      .map((m) => m[0]),
+  ];
+  if (!used.length && !numbers.length) return null;
+  const retold = retoldSentences(fact, context);
+  if (!retold.length) return used[0]?.fact.exec(fact)?.[0] ?? numbers[0];
+  for (const c of used) {
+    if (retold.some((s) => c.source.test(s))) continue;
+    if (c.fact.source === "\\bafter\\b" && afterFollowsSource(fact, context)) continue;
+    return c.fact.exec(fact)?.[0] ?? c.label;
+  }
+  // A number may sit in any sentence the caption draws on, not only the closest: "their third film together".
+  const related = bodySentences(context).filter((s) => share(fact, s) >= 0.3);
+  for (const n of numbers) {
+    const forms = [n, DIGIT_OF[n], ...Object.entries(DIGIT_OF).filter(([, d]) => d === n).map(([w]) => w)].filter(Boolean) as string[];
+    // "second" is also "2nd"; a figure may be written "1,000" or "1000".
+    if (![...retold, ...related].some((s) => forms.some((f) => hasWord(f, s) || hasWord(f.replace(/,/g, ""), s.replace(/(\d),(\d)/g, "$1$2")) || (/^\d+$/.test(f) && hasWord(`${f}${f === "2" ? "nd" : f === "3" ? "rd" : "th"}`, s))))) return n;
+  }
+  return null;
+}
+
+/**
+ * "A after B" told from two sentences next to each other, B's first: the
+ * article's order is the story's ("threatened to leave. Sakaguchi suggested
+ * he score it" is "suggested it after he threatened to leave"). Not when B
+ * comes later, or both halves come from one sentence that says otherwise
+ * ("The band fell apart, and a few years later, Gleason decided...").
+ */
+function afterFollowsSource(fact: string, context: string): boolean {
+  const [a, b] = fact.split(/\bafter\b/i);
+  if (!a || !b) return false;
+  const sentences = bodySentences(context);
+  const bestIndex = (part: string) => {
+    let at = -1;
+    let best = 0.5;
+    sentences.forEach((s, i) => {
+      const sh = share(part, s);
+      if (sh >= best) [at, best] = [i, sh];
+    });
+    return at;
+  };
+  const ia = bestIndex(a);
+  const ib = bestIndex(b);
+  return ia > 0 && ib >= 0 && ib < ia && ia - ib <= 2;
+}
+
+/**
+ * Words for how two people are related, or what someone plays. A small model
+ * invents them ("Leon Ware is T-Boy Ross's older brother", "guitarist
+ * Furuholmen", "their self-titled album"). The source must have the word in a
+ * sentence that also names the caption's subject and the person the word sits
+ * next to.
+ */
+const RELATION =
+  /(?<![\p{L}-])(brothers?|sisters?|siblings?|sons?|daughters?|father|mother|parents?|wife|husband|spouse|married|girlfriend|boyfriend|fianc[eé]e?|cousins?|uncle|aunt|nephew|niece|grand(?:son|daughter|father|mother)|partners?|self-titled|eponymous|guitarist|keyboardist|keyboard player|drummer|bassist|pianist|violinist|saxophonist|trumpeter|voice actress|voice actor)\b/gu;
+const NAME_RUN = /(?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*)*/gu;
+
+export function unsupportedRelation(fact: string, context: string): string | null {
+  const sentences = sourceSentences(context);
+  const runs = [...fact.matchAll(NAME_RUN)]
+    .map((m) => ({ at: m.index ?? 0, end: (m.index ?? 0) + m[0].length, words: m[0].split(/\s+/).map((w) => w.replace(/['’]s?$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase())) }))
+    .filter((r) => r.words.length);
+  for (const m of fact.matchAll(RELATION)) {
+    const word = m[0].toLowerCase();
+    const at = m.index ?? 0;
+    const root = word.replace(/s$/, "").replace(/^(fianc)[eé]e?$/, "$1");
+    // The subject, and the name nearest the word: "[Leon Ware] is [T-Boy Ross]'s older brother".
+    const nearest = [...runs].sort((a, b) => Math.min(Math.abs(a.end - at), Math.abs(a.at - at - word.length)) - Math.min(Math.abs(b.end - at), Math.abs(b.at - at - word.length)))[0];
+    // "a new drummer position": a word not next to anyone describes no one in particular.
+    const gap = nearest ? fact.slice(Math.min(nearest.end, at + word.length), Math.max(nearest.at, at)).trim().split(/\s+/).filter(Boolean).length : Infinity;
+    if (runs.length && gap > 3) continue;
+    const people = [...new Set([runs[0], nearest].filter(Boolean))];
+    const stated = sentences.some((s) => new RegExp(`\\b${escapeRe(root)}`, "i").test(s) && people.every((p) => p.words.some((w) => hasWord(w, s))));
+    if (!stated) return m[0];
   }
   return null;
 }
@@ -1615,8 +1979,11 @@ export interface ScreenResult {
  * when FACT_VERIFICATION=off) the source checks are skipped but formatting,
  * meta-commentary, risky claims, length and duplicates are still screened.
  */
-export function screenClaims(facts: string[], context: string): ScreenResult {
+export function screenClaims(facts: string[], rawContext: string, opts: { otherParts?: string[] } = {}): ScreenResult {
   const result: ScreenResult = { kept: [], rejected: [] };
+  // "Wagner‐influenced" with U+2010 is "Wagner-influenced": the name checks compare plain hyphens.
+  const plainHyphens = (t: string) => t.replace(/[\u2010\u2011\u2012]/g, "-");
+  const context = plainHyphens(rawContext);
 
   const reasonToDrop = (fact: string): string | null => {
     const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
@@ -1629,6 +1996,9 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
     // "He combined two words": a viewer can't tell who.
     if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
+    // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
+    const other = (opts.otherParts ?? []).find((p) => hasWord(p, fact, ""));
+    if (other) return `about another part of the soundtrack ("${other}")`;
     for (const { re, label } of RISKY_PATTERNS) {
       const m = fact.match(re);
       if (m && !hasWord(m[0].trim(), context)) return label;
@@ -1646,17 +2016,29 @@ export function screenClaims(facts: string[], context: string): ScreenResult {
       if (winner) return `award not given to "${winner}" in the source`;
       const quote = alteredQuote(fact, context);
       if (quote) return `quote not in the source: "${quote}"`;
+      const joined = unsupportedConnective(fact, context);
+      if (joined) return `"${joined}" isn't in the sentence it retells`;
+      const relation = unsupportedRelation(fact, context);
+      if (relation) return `"${relation}" isn't stated for them in the source`;
     }
     if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
-    if (result.kept.some((k) => tooSimilar(k, fact))) return "near-duplicate of an earlier fact";
     return null;
   };
 
   for (const raw of facts) {
-    const fact = stripPrefix(raw);
+    const fact = plainHyphens(stripPrefix(raw));
     const reason = reasonToDrop(fact);
-    if (reason) result.rejected.push({ text: fact, reason });
-    else result.kept.push(fact);
+    if (reason) {
+      result.rejected.push({ text: fact, reason });
+      continue;
+    }
+    // Of two near-duplicates, the one closer to its source sentence stays: "resembles" over "was inspired by".
+    const twin = result.kept.findIndex((k) => tooSimilar(k, fact));
+    if (twin < 0) result.kept.push(fact);
+    else if (context && support(fact, context) > support(result.kept[twin], context)) {
+      result.rejected.push({ text: result.kept[twin], reason: "near-duplicate of a closer retelling" });
+      result.kept[twin] = fact;
+    } else result.rejected.push({ text: fact, reason: "near-duplicate of an earlier fact" });
   }
   return result;
 }
