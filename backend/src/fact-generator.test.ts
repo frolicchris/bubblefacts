@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, restoreRecent, unmarkWrong } from "./fact-generator";
+import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -138,10 +138,25 @@ describe("generateFacts", () => {
     expect(positionsFor("bottom-right")).toEqual([{ bottom: "5%", right: "3%" }]);
     // Centered: neither side is set, so the overlay centers a bubble of any length.
     expect(positionsFor("top-center")).toEqual([{ top: "6%" }]);
-    const [low] = positionsFor("bottom-center");
+    const [low] = positionsFor("bottom-center", true);
     expect(low.left ?? low.right ?? low.top).toBeUndefined();
     // Above the Now Playing bubble (60px from the bottom), and higher at a bigger bubble size.
     expect(low.bottom).toMatch(/^calc\(6\dpx \+ [\d.]+vh \* var\(--bf-scale, 1\)\)$/);
+    // With Now Playing off, the true bottom center, level with the other bottom spots (a tester's request).
+    expect(positionsFor("bottom-center", false)).toEqual([{ bottom: "5%" }]);
+    // A live learn still shows its banner there, so its bubbles wait above it.
+    const c = config as { bubbleArea?: string; nowPlaying?: boolean };
+    c.bubbleArea = "bottom-center";
+    c.nowPlaying = false;
+    try {
+      expect(positionsForSong({ title: "Any", artist: "Any" })).toEqual([{ bottom: "5%" }]);
+      expect(positionsForSong({ title: "Any", artist: "Any", liveLearn: true })).toEqual([low]);
+      c.nowPlaying = true;
+      expect(positionsForSong({ title: "Any", artist: "Any" })).toEqual([low]);
+    } finally {
+      c.bubbleArea = "anywhere";
+      delete c.nowPlaying;
+    }
 
     (config as { bubbleArea?: string }).bubbleArea = "bottom-right";
     const facts = await generateFacts({ title: "Spot Song", artist: "Spot Artist" });

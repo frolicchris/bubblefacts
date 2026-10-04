@@ -74,13 +74,21 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
   "top-center": [{ top: "6%" }],
   "top-right": [{ top: "6%", right: "3%" }],
   "bottom-left": [{ bottom: "5%", left: "3%" }],
-  // Just above the Now Playing bubble (60px up, and up to two lines of its text at any bubble size).
-  "bottom-center": [{ bottom: NOW_PLAYING_CLEARANCE }],
+  // At the bottom edge like the other bottom spots; just above the Now Playing bubble while it shows
+  // (positionsFor).
+  "bottom-center": [{ bottom: "5%" }],
   "bottom-right": [{ bottom: "5%", right: "3%" }],
 };
 
-/** The spots for the chosen area, in the order bubbles use them. */
-export const positionsFor = (area: string = config.bubbleArea) => AREAS[area] ?? POSITIONS;
+/**
+ * The spots for the chosen area, in the order bubbles use them. `banner`: the Now Playing (or
+ * LIVE LEARN) bubble shows at the bottom center, so a bubble there waits just above it (60px up,
+ * and up to two lines of its text at any bubble size). With Now Playing off it's the true bottom center.
+ */
+export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
+  area === "bottom-center" && banner ? [{ bottom: NOW_PLAYING_CLEARANCE }] : AREAS[area] ?? POSITIONS;
+/** The spots for a song's bubbles: a live learn shows its banner even with Now Playing off. */
+export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, config.nowPlaying || !!song.liveLearn);
 
 type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
@@ -184,6 +192,7 @@ function toFacts(
     return false;
   });
   const page = context.split("\n")[0];
+  const spots = positionsForSong(song);
   return told.map((text, i) => {
     const source = sourceOf(text);
     const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
@@ -195,7 +204,7 @@ function toFacts(
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
-      position: positionsFor()[i % positionsFor().length],
+      position: spots[i % spots.length],
     };
   });
 }
