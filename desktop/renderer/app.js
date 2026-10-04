@@ -925,6 +925,40 @@
     }
   }
 
+  // --- What's new after an update ---------------------------------------------
+
+  /** The version whose highlights are drawn, so a state change doesn't redraw them. */
+  let whatsNewShown = null;
+  function renderWhatsNew() {
+    const w = state.whatsNew;
+    const box = $("#whats-new");
+    if (!w) {
+      box.hidden = true;
+      whatsNewShown = null;
+      return;
+    }
+    if (whatsNewShown === w.version) return;
+    whatsNewShown = w.version;
+    $("#whats-new-version").textContent = w.version;
+    $("#whats-new-list").replaceChildren(...w.highlights.map((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      return li;
+    }));
+    box.hidden = false;
+  }
+  async function whatsNewDone() {
+    $("#whats-new").hidden = true;
+    const saved = await api.whatsNewSeen();
+    state.whatsNew = saved.whatsNew;
+    renderWhatsNew();
+  }
+  $("#whats-new-close").addEventListener("click", whatsNewDone);
+  $("#whats-new-more").addEventListener("click", () => {
+    api.openExternal(state.whatsNew?.url || "https://bubblefacts.frolic.org/changelog.html");
+    void whatsNewDone();
+  });
+
   // --- Settings ----------------------------------------------------------------
 
   const form = $("#settings-form");
@@ -1178,6 +1212,7 @@
     }
     $("#unlocking").hidden = !s.unlocking;
     renderNotices();
+    renderWhatsNew();
     renderStatus(s.status);
   });
 
@@ -1192,6 +1227,7 @@
     $("#about-page-version").textContent = `Version ${state.version}`;
     $("#report-beta").hidden = !/-beta/.test(state.version);
     renderNotices();
+    renderWhatsNew();
     renderPaths();
     if (state.settings.setupComplete) {
       show("dashboard");

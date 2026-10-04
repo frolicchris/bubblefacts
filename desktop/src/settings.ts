@@ -58,6 +58,8 @@ export interface Settings {
   updateChannel: "stable" | "beta";
   /** Set automatically when the GPU build of the built-in AI fails on this computer. */
   forceCpu: boolean;
+  /** The version whose "What's new" was seen (or skipped on a new install). Kept by the app, not the window. */
+  lastVersionSeen: string;
 }
 
 /**
@@ -110,6 +112,7 @@ export const DEFAULTS: Settings = {
   startAtLogin: false,
   updateChannel: "stable",
   forceCpu: false,
+  lastVersionSeen: "",
 };
 
 const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey", "twitchToken", "twitchRefreshToken"] as const;

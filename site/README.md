@@ -20,7 +20,7 @@ download script asking GitHub's public API for the newest release.
 | `privacy.html` | What the app sends where |
 | `credits.html` | Credits, licenses, "Built with Llama" notice |
 | `assets/site.css` | All styles |
-| `assets/site.js` | Picks the right download for the visitor's computer, Copy buttons, opens linked FAQ answers |
+| `assets/site.js` | Picks the right download for the visitor's computer, switches beta wording to stable, Copy buttons, opens linked FAQ answers |
 | `assets/favicon.svg` | Browser tab icon |
 | `assets/demo.png`, `assets/social-preview.png` | Copied from `docs/` in the repo |
 
@@ -98,6 +98,35 @@ warnings" note and first-launch steps in `guide.html`, the first two rows of
 `troubleshooting.html`, the "Opening it the first time" section and the
 signing note under "Check your download" in `download.html`.
 
+## Beta or stable wording
+
+Words that are only true during the beta (the download page's "BubbleFacts
+2.0 beta" and "Beta note", the home page's "Beta:" line, the guide's signing
+note, the support page's "While BubbleFacts is in beta", the changelog's
+"Coming soon" tag for 2.0.0) sit next to their stable wording, each marked:
+
+- `data-beta-only` for beta wording, `data-stable-only` for stable wording.
+- `assets/site.js` adds the class `site-stable` to `<html>` when GitHub lists
+  a full (not pre-release) 2.x release with installers, and `site-beta` when
+  it lists only betas. `assets/site.css` hides the other wording.
+- So the site switches to stable wording **by itself** the moment 2.0.0 is
+  published, with no upload.
+- Without JavaScript, or if GitHub can't be reached, the **site default** in
+  `assets/site.css` decides. Until 2.0.0 it's beta.
+
+New beta-only wording gets `data-beta-only` and a `data-stable-only` twin
+(or none, if nothing should show after 2.0).
+
 ## When version 2.0.0 ships
 
-Change its "Coming soon" tag in `changelog.html` to the release date.
+1. In `assets/site.css`, under "SITE DEFAULT", change the rule to
+   `html:not(.site-stable):not(.site-beta) [data-beta-only]` and the comment
+   to "SITE DEFAULT: stable." That's the one change: visitors without
+   JavaScript now see stable wording too.
+2. Change the 2.0.0 entry in `changelog.html` to the release date, as for
+   any version.
+3. Upload the changed files, then open the download page in a private window
+   and check it says "Newest version (2.0.0)".
+
+Later, the beta wording and its markers can be deleted at leisure; nothing
+depends on them.

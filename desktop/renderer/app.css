@@ -163,6 +163,11 @@ details summary { cursor: pointer; color: #9fb0ff; }
 #notices { max-width: 860px; margin: 16px auto 0; padding: 0 24px; display: grid; gap: 10px; }
 .notice { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 12px 16px; border-radius: 8px; background: #1c2152; border: 1px solid var(--warn); }
 .notice.info { border-color: var(--border); }
+.whats-new { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 18px; padding: 12px 16px; border-radius: 8px; background: #1c2152; border: 1px solid var(--border); }
+.whats-new h2 { margin: 0 0 4px; font-size: 16px; color: var(--gold); }
+.whats-new ul { margin: 0 0 6px; padding-left: 20px; }
+.whats-new li + li { margin-top: 2px; }
+.whats-new > button { flex-shrink: 0; white-space: nowrap; }
 
 fieldset { border: 0; padding: 0; margin: 0 0 22px; }
 legend { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 4px; }

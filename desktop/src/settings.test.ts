@@ -159,6 +159,23 @@ describe("update channel", () => {
   });
 });
 
+describe("the last version whose What's new was seen", () => {
+  it("is blank until the app records one, and survives a save", () => {
+    expect(loadSettings().lastVersionSeen).toBe("");
+    saveSettings({ ...DEFAULTS, lastVersionSeen: "2.0.0-beta.12" });
+    expect(loadSettings().lastVersionSeen).toBe("2.0.0-beta.12");
+  });
+
+  it("falls back to blank when the file holds something else", () => {
+    fs.writeFileSync(file, JSON.stringify({ lastVersionSeen: 12 }));
+    expect(loadSettings().lastVersionSeen).toBe("");
+  });
+
+  it("belongs to the app: the window and a backup can't set it", () => {
+    expect(fromWindow({ lastVersionSeen: "9.9.9" })).toEqual({});
+  });
+});
+
 describe("toServerEnv", () => {
   it("passes the app's sign-in as a bearer token with the client and channel IDs", () => {
     const env = toServerEnv({ ...DEFAULTS, channel: "jane", token: "t", tokenKind: "oauth", streamerId: 42 }, paths);
