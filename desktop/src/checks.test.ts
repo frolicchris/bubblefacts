@@ -113,6 +113,16 @@ describe("testStreamElements", () => {
     await expect(testStreamElements("", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/can't read your song requests/) });
 
     mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
-    await expect(testStreamElements("jane", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/Couldn't reach/) });
+    await expect(testStreamElements("jane", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/can't reach StreamElements/), detail: expect.stringMatching(/fetch failed/) });
+
+    // A server error: the status goes to the log, not the window.
+    mockFetch.mockResolvedValueOnce(res(503));
+    const r = await testStreamElements("jane", "jwt");
+    expect(r).toMatchObject({ ok: false, detail: "HTTP 503" });
+    expect(!r.ok && r.reason).not.toMatch(/503/);
+
+    // An answer that isn't JSON.
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => JSON.parse("<html>") });
+    await expect(testStreamElements("jane", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/StreamElements sent an answer BubbleFacts can't read/) });
   });
 });

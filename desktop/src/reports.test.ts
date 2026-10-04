@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { betaReportUrl, problemReportUrl, redact, wrongFactUrl } from "./reports";
+import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, redact, wrongFactUrl } from "./reports";
 
 const decode = (url: string) => Object.fromEntries(new URL(url).searchParams);
 
@@ -76,5 +76,35 @@ describe("beta test reports", () => {
 
   it("lists this version, newest first, while it's a beta", () => {
     if (version.includes("-beta")) expect(options("version")[0]).toBe(version);
+  });
+});
+
+describe("copied reports", () => {
+  const secrets = ["secret-token-xyz", "my-groq-key-123"];
+  const lines = [
+    "[Server] Listening on 3000",
+    "[Server] polling with secret-token-xyz",
+    "[App] key my-groq-key-123 and sk-ant-abcdefghijklmnop",
+    "[App] Authorization: Bearer abc.def.ghi",
+    "[App] Sign-in: TypeError fetch failed <- ENOTFOUND",
+  ];
+
+  it("holds the problem report's fields and recent log, without secrets", () => {
+    const text = problemReportText({ version: "2.0.0", ai: "groq", logLines: lines, secrets });
+    expect(text).toMatch(/^BubbleFacts problem report\n/);
+    expect(text).toContain("Version: 2.0.0");
+    expect(text).toContain("AI: Groq");
+    expect(text).toContain("Installed as: The desktop app");
+    expect(text).toContain("Recent log:\n[Server] Listening on 3000");
+    expect(text).toContain("ENOTFOUND");
+    expect(text).not.toMatch(/secret-token-xyz|my-groq-key-123|sk-ant-abc|abc\.def\.ghi|template/);
+  });
+
+  it("holds the beta test report's fields, without secrets", () => {
+    const text = betaReportText({ version: "2.0.0-beta.9", build: "2.0.0-beta.9 (c4ee826)", systemVersion: "15.3.0", songSource: "streamelements", logLines: lines, secrets });
+    expect(text).toMatch(/^BubbleFacts beta test report\n/);
+    expect(text).toContain("Version: 2.0.0-beta.9");
+    expect(text).toContain("Song source: StreamElements");
+    expect(text).not.toMatch(/secret-token-xyz|my-groq-key-123|sk-ant-abc|abc\.def\.ghi/);
   });
 });

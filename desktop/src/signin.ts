@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import http from "http";
+import { cantReach, plainError, plainWithDetail } from "./plain-errors";
 
 /**
  * "Sign in with StreamerSongList": OAuth 2 authorization code with PKCE, the
@@ -113,6 +114,8 @@ export async function refresh(refreshToken: string): Promise<Pick<SignIn, "acces
   return tokenRequest({ grant_type: "refresh_token", refresh_token: refreshToken });
 }
 
+const notAnswering = (res: Response) => plainWithDetail("StreamerSongList isn't answering right now. Try again in a minute.", `HTTP ${res.status}`);
+
 async function tokenRequest(params: Record<string, string>) {
   let res: Response;
   try {
@@ -122,15 +125,15 @@ async function tokenRequest(params: Record<string, string>) {
       body: new URLSearchParams({ client_id: CLIENT_ID, ...params }),
       signal: AbortSignal.timeout(15_000),
     });
-  } catch {
-    throw new Error("Couldn't reach StreamerSongList. Check your internet connection.");
+  } catch (err) {
+    throw new Error(plainError(err, { service: "StreamerSongList", fallback: cantReach("StreamerSongList") }), { cause: err });
   }
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     if (body.error === "invalid_grant" || body.error === "invalid_client") {
       throw new SignInExpired("Your StreamerSongList sign-in has ended. Sign in again.");
     }
-    throw new Error(`StreamerSongList answered with an error (${res.status}). Try again in a minute.`);
+    throw notAnswering(res);
   }
   if (typeof body.access_token !== "string" || typeof body.refresh_token !== "string") {
     throw new Error("StreamerSongList sent an incomplete sign-in. Try again.");
@@ -145,7 +148,7 @@ async function whoIs(accessToken: string): Promise<Pick<SignIn, "channel" | "str
     headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": CLIENT_ID, Accept: "application/json" },
     signal: AbortSignal.timeout(15_000),
   });
-  if (!res.ok) throw new Error(`StreamerSongList answered with an error (${res.status}). Try again in a minute.`);
+  if (!res.ok) throw notAnswering(res);
   const body = (await res.json()) as { username?: string; streamer_id?: number };
   if (!body.streamer_id) {
     throw new Error("That StreamerSongList account doesn't have a channel yet. Set one up at streamersonglist.com first.");

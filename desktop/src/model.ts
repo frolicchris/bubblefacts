@@ -4,6 +4,7 @@ import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import type { ReadableStream as WebReadableStream } from "stream/web";
 import path from "path";
+import { plainWithDetail } from "./plain-errors";
 
 /**
  * The built-in AI model: Meta's Llama 3.2 3B Instruct, 4-bit, from Hugging Face.
@@ -30,7 +31,7 @@ export interface Progress {
  */
 export class ChecksumMismatch extends Error {
   constructor() {
-    super("the file didn't match the one BubbleFacts expects, so it was deleted. Click Try again, or choose the free online option in Settings");
+    super("The file didn't match the one BubbleFacts expects, so it was deleted. Click Try again, or choose the free online option in Settings.");
   }
 }
 
@@ -54,7 +55,7 @@ function sha256(file: string): Promise<string> {
 
 /** Room to leave free beyond the file itself. */
 const SPARE_BYTES = 500 * 1024 * 1024;
-const NO_SPACE = "There isn't enough free disk space. The AI needs about 2.5 GB. Free up some space and it will try again";
+const NO_SPACE = "There isn't enough free disk space. The AI needs about 2.5 GB. Free up some space and it will try again.";
 
 function freeBytes(dir: string): number | null {
   try {
@@ -82,7 +83,7 @@ export async function downloadModel(dir: string, onProgress: (p: Progress) => vo
       redirect: "follow",
       signal,
     });
-    if (!res.ok || !res.body) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+    if (!res.ok || !res.body) throw plainWithDetail("The download site isn't answering right now. BubbleFacts tries again on its own.", `HTTP ${res.status} ${res.statusText}`);
     if (received && res.status !== 206) received = 0; // The server ignored the resume request.
 
     let lastReport = 0;
