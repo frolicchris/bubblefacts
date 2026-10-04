@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { positionsFor, positionsForSong, primeFacts, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
@@ -170,9 +170,9 @@ wss.on("connection", (ws, req) => {
     .catch((err) => console.error("[WS] Could not send facts to new client:", err));
 });
 
-/** A song starting, with or without its NOW PLAYING bubble: the streamer's choice. A LIVE LEARN banner always shows. */
+/** A song starting, with or without its NOW PLAYING or LIVE LEARN bubble: the streamer's choice for each. */
 function newSong(song: SSLSong): FactsPayload {
-  return { type: "new_song", song, ...(config.nowPlaying || song.liveLearn ? {} : { noBanner: true }) };
+  return { type: "new_song", song, ...(showsBanner(song) ? {} : { noBanner: true }) };
 }
 
 async function onSongChange(current: SSLQueueItem | null): Promise<void> {
