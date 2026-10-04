@@ -11,8 +11,10 @@ import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { betaReportUrl, problemReportUrl, wrongFactUrl } from "./reports";
+import { writeFileAtomic } from "./atomic-write";
+import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, customFactsProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -404,6 +406,7 @@ function notify(title: string, body: string): void {
   if (Notification.isSupported()) new Notification({ title, body }).show();
 }
 
+/** The browser, only for https addresses on ALLOWED_HOSTS: sign-in pages and reports too. */
 function openExternal(url: string): void {
   try {
     const u = new URL(url);
@@ -421,7 +424,7 @@ function applyStartAtLogin(): void {
       if (settings.startAtLogin) {
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const exec = process.env.APPIMAGE || process.execPath;
-        fs.writeFileSync(file, `[Desktop Entry]\nType=Application\nName=BubbleFacts\nExec="${exec}" --hidden\nX-GNOME-Autostart-enabled=true\n`);
+        fs.writeFileSync(file, autostartEntry(exec));
       } else if (fs.existsSync(file)) {
         fs.unlinkSync(file);
       }
@@ -538,6 +541,9 @@ ipcMain.handle("test-streamelements", (_e, channel: string, jwt: string) =>
 
 ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
+  // The window checks first; this is the backstop, so an over-long fact is never saved.
+  const problem = customFactsProblem(changes);
+  if (problem) return { error: problem };
   const next: Settings = sanitize({ ...settings, ...changes });
   // Blank secret fields mean "keep the one already saved".
   for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
@@ -617,7 +623,7 @@ ipcMain.handle("sign-in", async () => {
   const mine = new AbortController();
   signingIn = mine;
   try {
-    const s = await signIn((url) => void shell.openExternal(url), mine.signal);
+    const s = await signIn(openExternal, mine.signal);
     settings = {
       ...settings,
       songSource: "streamersonglist",
@@ -661,7 +667,7 @@ ipcMain.handle("backup-save", async () => {
   const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
-  fs.writeFileSync(filePath, JSON.stringify(currentBackup(), null, 2));
+  writeFileAtomic(filePath, JSON.stringify(currentBackup(), null, 2));
   return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
 });
 
@@ -691,8 +697,8 @@ ipcMain.handle("backup-restore", async () => {
   backUpNow();
   settings = sanitize({ ...settings, ...backup.settings });
   saveSettings(settings);
-  if (backup.songFacts) fs.writeFileSync(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
-  if (backup.wrongFacts) fs.writeFileSync(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
+  if (backup.songFacts) writeFileAtomic(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
+  if (backup.wrongFacts) writeFileAtomic(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
   void checkForUpdate();
@@ -808,10 +814,10 @@ ipcMain.handle("update-install", () => {
 });
 
 ipcMain.handle("report-problem", () =>
-  shell.openExternal(problemReportUrl({ version: app.getVersion(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+  openExternal(problemReportUrl({ version: app.getVersion(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 ipcMain.handle("report-beta", () =>
-  shell.openExternal(
+  openExternal(
     betaReportUrl({
       version: app.getVersion(),
       systemVersion: process.getSystemVersion(),
@@ -822,7 +828,7 @@ ipcMain.handle("report-beta", () =>
   )
 );
 ipcMain.handle("report-fact", (_e, song: string, fact: string) =>
-  shell.openExternal(wrongFactUrl({ song, fact, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+  openExternal(wrongFactUrl({ song, fact, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 
 // --- Lifecycle -----------------------------------------------------------

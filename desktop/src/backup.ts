@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { writeFileAtomic } from "./atomic-write";
 import { EDITABLE, fromWindow, Settings } from "./settings";
 
 /**
@@ -99,7 +100,7 @@ export function autoBackup(dir: string, backup: Backup, keep = AUTO_KEEP): strin
     const two = (n: number) => String(n).padStart(2, "0");
     const stamp = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}-${two(d.getMinutes())}-${two(d.getSeconds())}`;
     const file = path.join(dir, `auto ${stamp}.json`);
-    fs.writeFileSync(file, JSON.stringify(backup, null, 2));
+    writeFileAtomic(file, JSON.stringify(backup, null, 2));
     for (const old of [...autos, path.basename(file)].sort().slice(0, -keep)) fs.rmSync(path.join(dir, old), { force: true });
     return file;
   } catch {

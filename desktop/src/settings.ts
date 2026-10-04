@@ -1,6 +1,7 @@
 import { app, safeStorage } from "electron";
 import fs from "fs";
 import path from "path";
+import { writeFileAtomic } from "./atomic-write";
 
 /** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
 export interface Settings {
@@ -176,7 +177,7 @@ export function loadSettings(readSecrets = true): Settings {
     settings.updateChannel = firstChannel();
     // Written now, so it stays when they update to a full release before saving anything.
     try {
-      fs.writeFileSync(file(), JSON.stringify({ ...raw, updateChannel: settings.updateChannel }, null, 2), { mode: 0o600 });
+      writeFileAtomic(file(), JSON.stringify({ ...raw, updateChannel: settings.updateChannel }, null, 2), { mode: 0o600 });
     } catch {
       // Worked out again next time.
     }
@@ -233,6 +234,26 @@ export function sanitize(s: Settings): Settings {
   };
 }
 
+/** The longest custom fact, as for a song's own facts (SONG_FACT_LIMITS in the server's song-facts.ts). */
+export const CUSTOM_FACT_LENGTH = 300;
+/** "[Song of Storms] It plays in a windmill." shows only the part after the brackets, so that's what counts. */
+const bubbleText = (line: string) => line.trim().replace(/^\[[^\]]+\]\s*/, "");
+
+/**
+ * Why custom facts can't be saved as typed, or null. Refused with the reason,
+ * never trimmed, so what goes on stream is what was written. Only the lists
+ * in `changes` are checked: an older save's long line doesn't block other settings.
+ */
+export function customFactsProblem(changes: Partial<Pick<Settings, "myFacts" | "myOriginals">>): string | null {
+  const lists = [["Your own facts", changes.myFacts], ["About your own compositions", changes.myOriginals]] as const;
+  for (const [name, list] of lists) {
+    const lines = (list ?? []).map((l) => l.trim()).filter(Boolean);
+    const long = lines.findIndex((l) => bubbleText(l).length > CUSTOM_FACT_LENGTH);
+    if (long >= 0) return `${name}: fact ${long + 1} is ${bubbleText(lines[long]).length} characters. Shorten it to ${CUSTOM_FACT_LENGTH} or fewer to save.`;
+  }
+  return null;
+}
+
 /** An http or https address, or null: Ollama is only ever reached over the web's own protocols. */
 function webAddress(s: string): string | null {
   try {
@@ -286,7 +307,7 @@ export function saveSettings(settings: Settings): void {
   const stored: Record<string, unknown> = { ...kept, ...settings, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
   fs.mkdirSync(path.dirname(file()), { recursive: true });
-  fs.writeFileSync(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
+  writeFileAtomic(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
 }
 
 /** True when secrets can only be stored unencrypted (some Linux desktops without a keyring). */

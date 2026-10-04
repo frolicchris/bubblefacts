@@ -207,6 +207,7 @@
     // Live learns are a StreamerSongList idea: StreamElements requests are always videos.
     $("#setup-livelearns-row").hidden = onSE();
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
+    renderSetupOriginals();
     $("#setup-originals-box").hidden = !state.settings.originals;
     goStep(3);
   }
@@ -214,6 +215,43 @@
   $("#setup-originals").addEventListener("change", (e) => ($("#setup-originals-box").hidden = !e.target.checked));
 
   const lines = (el) => el.value.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Custom facts have the same limit as a song's own (CUSTOM_FACT_LENGTH in settings.ts).
+  const MAX_CUSTOM_FACT = 300;
+  /** A "[Song of Storms]" tag never goes on stream, so only the bubble's text counts. */
+  const bubbleLength = (line) => line.trim().replace(/^\[[^\]]+\]\s*/, "").length;
+  /**
+   * Why a custom facts box can't be saved as typed, by the line the musician
+   * sees, or "". `select` picks out that line, so it's easy to find on Save.
+   */
+  function customFactsProblem(box, name, select = false) {
+    const rows = box.value.split("\n");
+    const long = rows.findIndex((l) => bubbleLength(l) > MAX_CUSTOM_FACT);
+    if (long < 0) return "";
+    if (select) {
+      const start = rows.slice(0, long).reduce((n, l) => n + l.length + 1, 0);
+      box.focus();
+      box.setSelectionRange(start, start + rows[long].length);
+    }
+    return `${name}: line ${long + 1} is ${bubbleLength(rows[long])} characters. Shorten it to ${MAX_CUSTOM_FACT} or fewer to save.`;
+  }
+  /** Shown under the box as soon as a line is too long, as the song facts editor does. */
+  function watchCustomFacts(box, name) {
+    const note = document.createElement("span");
+    note.id = `${box.id}-count`;
+    note.className = "hint fact-count over";
+    note.setAttribute("aria-live", "polite");
+    note.hidden = true;
+    box.setAttribute("aria-describedby", note.id);
+    box.after(note);
+    const render = () => {
+      note.textContent = customFactsProblem(box, name);
+      note.hidden = !note.textContent;
+    };
+    box.addEventListener("input", render);
+    return render;
+  }
+  const renderSetupOriginals = watchCustomFacts($("#setup-myoriginals"), "About your own compositions");
 
   async function finishSetup(changes, result = $("#facts-result")) {
     const saved = await api.saveSettings({ ...changes, setupComplete: true });
@@ -227,6 +265,8 @@
   $("#music-skip").addEventListener("click", () => finishSetup({}));
   $("#music-finish").addEventListener("click", () => {
     const originals = $("#setup-originals").checked;
+    const problem = originals && customFactsProblem($("#setup-myoriginals"), "About your own compositions", true);
+    if (problem) return setResult($("#facts-result"), problem, "bad");
     finishSetup({
       originals,
       liveLearns: $("#setup-livelearns").checked,
@@ -779,7 +819,7 @@
       lastRecent = "";
       showWrongNote(
         result.shown
-          ? "Saved. Your facts show now and every time this song plays."
+          ? "Saved. Your facts show in a moment, and every time this song plays."
           : `Saved for "${songFactsTarget.title}". They'll show the next time it plays.`,
         null
       );
@@ -887,6 +927,8 @@
   // --- Settings ----------------------------------------------------------------
 
   const form = $("#settings-form");
+  const renderMyFacts = watchCustomFacts($("#s-myfacts"), "Your own facts");
+  const renderMyOriginals = watchCustomFacts($("#s-myoriginals"), "About your own compositions");
 
   /**
    * Settings fields changed since the last save, by name (or id). Filling the
@@ -925,6 +967,8 @@
     }
     if (!settingsDraft.has("s-myfacts")) $("#s-myfacts").value = s.myFacts.join("\n");
     if (!settingsDraft.has("s-myoriginals")) $("#s-myoriginals").value = s.myOriginals.join("\n");
+    renderMyFacts();
+    renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
@@ -998,6 +1042,9 @@
     }
     changes.myFacts = lines($("#s-myfacts"));
     changes.myOriginals = lines($("#s-myoriginals"));
+    const tooLong = customFactsProblem($("#s-myfacts"), "Your own facts", true)
+      || customFactsProblem($("#s-myoriginals"), "About your own compositions", true);
+    if (tooLong) return setResult($("#settings-result"), tooLong, "bad");
     if (changes.token) changes.tokenKind = "streamer";
     if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return setResult($("#settings-result"), "Add your Groq key first.", "bad");
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return setResult($("#settings-result"), "Add your Anthropic key first.", "bad");
