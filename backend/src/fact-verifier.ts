@@ -40,20 +40,42 @@ const groundingCache = new Map<string, { text: string; at: number }>();
 
 /** A trailing parenthetical that marks a variant rather than naming the game. */
 const VARIANT_MARKER =
-  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b|live\b|acoustic\b|piano\b|vocal\b|instrumental\b|jazzy\b)/i;
+  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b|\d0'?s\b|live\b|acoustic\b|piano\b|vocal\b|instrumental\b|jazzy\b|original\b|a\s?cc?app?ella\b|lo-?fi\b|ext\b|extended\b|unplugged\b|npr\b|tiny desk\b)/i;
+/** A tag that ends by saying it's a version: "(Chill Version)", "(Children's Choir Remix)", "(2020 Performance)". */
+const VARIANT_END = /\b(remix|mix|version|ver\.?|cover|arrangement|performance|rendition|edit)(?:\s+\d+)?\.?\s*$/i;
 /** "(Day)" and "(Night)" are variants only on their own; "(Night in the Woods)" is a game. */
 const VARIANT_WORD = /^\s*(day|night)\s*$/i;
 
+/** Whether a tag in brackets or after a dash says how a song is played, not what it is. */
+const isVariantTag = (tag: string) => VARIANT_MARKER.test(tag) || VARIANT_END.test(tag);
+
+/** Styles a remix is named for: "80's", "Synthwave", "Trap", "Lofi". They name no work. */
+const REMIX_STYLE =
+  /^(?:\d0'?s|lo-?fi|trap|edm|synthwave|synth|chill|chillhop|retro|reggae|reggaeton|orchestral|dubstep|downtempo|jazz|jazzy|funk|future|house|techno|disco|rock|metal|piano|acoustic|club|dance|epic|8-?bit|chiptune|vaporwave|waltz|extended|original|official)$/i;
+
 /**
  * "Separate Ways (Worlds Apart) [Instrumental]" is the song "Separate Ways
- * (Worlds Apart)": a tag at the end that says how it's played (instrumental,
- * piano, a cover, a live version) describes the performance, not the work,
- * and searching with it finds nothing. Song lists add these often.
+ * (Worlds Apart)": a tag that says how it's played (instrumental, piano, a
+ * cover, a live version, a remix) describes the performance, not the work,
+ * and searching with it finds nothing. Song lists add these often, at the
+ * end, glued to the title ("Beat It(Arrangement)"), before a dash ("Song of
+ * Storms(Lofi) - Ocarina of Time"), or after one ("Numb - 80's Remix"). A
+ * dash part that names a work as well keeps the work: "Let the Battles Begin
+ * - Final Fantasy VII Remix" is from "Final Fantasy VII".
  */
 export function dropVersionTags(title: string): string {
-  let t = title;
-  for (let m; (m = /^(.+?)\s*[([]([^)\]]*)[)\]]\s*$/.exec(t)) && VARIANT_MARKER.test(m[2]); ) t = m[1];
-  return t;
+  let t = title.replace(/\s*[([]([^)\]]*)[)\]](?=\s+[-–—]\s)/g, (tag, inner: string) => (isVariantTag(inner) ? "" : tag));
+  for (let m; (m = /^(.+?)\s*[([]([^)\]]*)[)\]]\s*$/.exec(t)) && isVariantTag(m[2]); ) t = m[1];
+  const dash = /^(.+?)\s+[-–—]\s+([^-–—]+)$/.exec(t);
+  if (dash && VARIANT_MARKER.test(dash[2]) && !VARIANT_END.test(dash[2]) && !/^\s*(act|part)\b/i.test(dash[2])) {
+    // "Song - Live at Wembley", "Song - 2011 Remaster".
+    t = dash[1];
+  } else if (dash && VARIANT_END.test(dash[2])) {
+    const words = dash[2].replace(VARIANT_END, "").trim().split(/\s+/).filter(Boolean);
+    while (words.length && REMIX_STYLE.test(words[words.length - 1])) words.pop();
+    t = words.length ? `${dash[1]} - ${words.join(" ")}` : dash[1];
+  }
+  return t.trim();
 }
 
 /** Split "Game: Track", "Game - Track" or "Track (Game)". */
@@ -61,7 +83,7 @@ export function splitGameAndTrack(title: string): { game: string; track: string 
   const clean = title.trim();
 
   const paren = clean.match(/^(.+?)\s*[([]([^)\]]{2,})[)\]]\s*$/);
-  if (paren && !VARIANT_MARKER.test(paren[2]) && !VARIANT_WORD.test(paren[2])) {
+  if (paren && !isVariantTag(paren[2]) && !VARIANT_WORD.test(paren[2])) {
     return { game: paren[2].trim(), track: paren[1].trim() };
   }
 
@@ -255,6 +277,10 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   if (gotSeq.startsWith(wantSeq + " ")) {
     // A possessive names another work: "Michael Jackson's This Is It" isn't about Michael Jackson's songs.
     if (got.startsWith(want + " s ")) return false;
+    // A topic joined to it is another subject: "Overwatch and pornography" (but "Pokémon Red and Blue" is a pair of games).
+    if (got.startsWith(want + " and ") && /\sand\s+\p{Ll}/u.test(pageTitle)) return false;
+    // A company named for it: "Qumu Corporation" isn't the musician "Qumu".
+    if (COMPANY.test(pageTitle.replace(/\s*\([^)]*\)\s*$/, "")) && !COMPANY.test(subject)) return false;
     return !(MEDIUM_SHIFT.test(got) && !MEDIUM_SHIFT.test(want));
   }
   // The article truncates the subject: safe only at a subtitle break ("Ys VIII:
@@ -577,7 +603,8 @@ async function wikiExtract(pageTitle: string): Promise<string | null> {
   );
   const full = Object.values(data.query?.pages ?? {})[0]?.extract;
   if (full) rememberArticle(pageTitle, full);
-  return full && !/may refer to:/i.test(full.slice(0, 200)) ? full : null;
+  // A disambiguation page, even one that opens with its main meaning: "2 A.M. is a time ... may also refer to:".
+  return full && !/may (?:also )?refer to:/i.test(full.slice(0, 300)) ? full : null;
 }
 
 // --- Does the article fit the request? -----------------------------------
@@ -853,6 +880,11 @@ export function gameTrackText(a: GameArticles, track: string, usable: (title: st
  *   the name may be an arranger's or a fellow musician's.
  * - `page`: Wikipedia said which article the subject's name means; no other
  *   article about the subject will do.
+ * - `aPerformer`: one of several names in the credit: the subject's own
+ *   article must be a performer's ("Black Caviar" is a racehorse too).
+ * - `fromTitle`: the work was read from the title, the artist being someone
+ *   else ("Gerudo Valley - Ocarina of Time" by a remixer): the subject's
+ *   article must be a game's, a film's or a show's, never a person's or a song's.
  */
 export interface Reading {
   game: string;
@@ -861,6 +893,8 @@ export interface Reading {
   songAlone?: boolean;
   notGame?: boolean;
   trackOnly?: boolean;
+  fromTitle?: boolean;
+  aPerformer?: boolean;
 }
 
 /** An artist field naming a kind of work: "Star Trek TV", "NieR Series", "Super Mario Franchise". */
@@ -871,6 +905,10 @@ const SCREEN_CATEGORY = /^(tv|tv series|tv shows?|movies|films)$/i;
 const NO_ONE = /^(?:traditional|trad\.?|anonymous|anon\.?|unknown|(?:\p{L}+\s+)?folk(?:\s+(?:song|tune|melody))?)$/iu;
 /** "Elton John arr. Brent Edstrom", "Arr. Handel Halvorsen": who arranged a piece isn't who wrote it. */
 const ARRANGER = /^\s*arr(?:\.|anged by)?\s+|\s+(?:arr(?:\.|anged by)?|arrangement by)\s+.*$/i;
+/** What joins several names in one credit: "A - B", "A / B", "A ft. B", "A x B". */
+const CREDIT_JOIN = /\s+[-–—]\s+|\s*\/\s*|\s+(?:[Ff]eat\.?|[Ff]t\.?|[Ff]eaturing)\s+|\s+x\s+/;
+/** A short tag after the names, a list's own mark ("Some Singer - AB"): never a name to look up. */
+const LIST_TAG = /^\p{Lu}{1,2}$/u;
 /** Words naming a work's music rather than the work: "Picard Season 1 Theme". */
 const THEME_WORDS = /\s+((?:season\s+\d+\s+)?(?:(?:main|opening|ending|end|title|love)\s+)?theme)$/i;
 
@@ -939,15 +977,46 @@ export function readings(song: SSLSong): Reading[] {
     return [...(/^unknown$/i.test(artist) ? [first] : []), { game: "", track: title, songAlone: true }];
   }
 
-  const names = [...new Set(artist.split(/\s*\/\s*/).map((p) => p.replace(ARRANGER, "").trim()).filter(Boolean))];
-  const others = names.filter((n) => n.toLowerCase() !== artist.toLowerCase());
+  const parts = [...new Set(artist.split(CREDIT_JOIN).map((p) => p.replace(ARRANGER, "").trim()).filter(Boolean))];
+  const names = parts.some((p) => !LIST_TAG.test(p)) && parts.length > 1 ? parts.filter((p) => !LIST_TAG.test(p)) : parts;
+  // "Some Singer - AB" is Some Singer's: a list's own tag is no part of the name.
+  const alone = names.length === 1 && names[0].toLowerCase() !== artist.toLowerCase() && parts.length > 1;
+  const start = alone ? [{ ...resolveGameAndTrack({ ...song, artist: names[0] }), trackOnly: false }] : [first];
+  const others = alone ? [] : names.filter((n) => n.toLowerCase() !== artist.toLowerCase());
+  if (names.length <= 1) {
+    return [...start, ...others.map((name) => ({ ...resolveGameAndTrack({ ...song, artist: name }), trackOnly: false })), ...namedInTitle(title, start[0])];
+  }
+  // Several names: the song's own article under any of them first ("Can You Feel the Love Tonight"
+  // under its third name beats the first name's band), then the work in the title, and only then
+  // a name's own article, for a name that reads like a person's and an article about a performer.
   return [
-    first,
-    ...others.map((name) => ({
-      ...resolveGameAndTrack({ ...song, artist: name }),
-      // One of several names may be anyone's: only an artist's name is looked up on its own.
-      trackOnly: names.length > 1 && !looksLikeArtistName(name),
-    })),
+    ...start,
+    ...others.map((name) => ({ ...resolveGameAndTrack({ ...song, artist: name }), trackOnly: true })),
+    ...namedInTitle(title, start[0]),
+    ...others.filter(looksLikeArtistName).map((name) => ({ ...resolveGameAndTrack({ ...song, artist: name }), trackOnly: false, aPerformer: true })),
+  ];
+}
+
+/**
+ * What a title names besides the piece, when the artist is someone else (a
+ * remixer, a cover band):
+ * - the original artist or the work in brackets, "Baby (Justin Bieber)",
+ *   "Wind (Naruto)": only the piece's own article, which must name it;
+ * - the work after or before a dash, "Gerudo Valley - Ocarina of Time",
+ *   "Fire Emblem: Three Houses - Main Theme": the piece's own article, or
+ *   the work's, which must be a game's, a film's or a show's.
+ */
+function namedInTitle(title: string, first: { game: string; track: string }): Reading[] {
+  // The usual reading already took the work from the title.
+  if (first.track !== title) return [];
+  const bracket = /^(.+?)\s*\(([^)]+)\)$/.exec(title);
+  if (bracket) return isVariantTag(bracket[2]) ? [] : [{ game: bracket[2].trim(), track: bracket[1].trim(), trackOnly: true }];
+  const dash = /^(.+)\s[-–—]\s(.+)$/.exec(title);
+  if (!dash || /\s[-–—]\s/.test(dash[1])) return [];
+  const [left, right] = [dash[1].trim(), dash[2].trim()];
+  return [
+    { game: right, track: left, fromTitle: true },
+    { game: left, track: right, fromTitle: true },
   ];
 }
 
@@ -974,6 +1043,8 @@ export function isRespelling(name: string, page: string): boolean {
   const a = normalizeTitle(name);
   const b = normalizeTitle(page);
   if (!a || !b || a === b) return false;
+  // "Memes" isn't a misspelled "Meme": a plural names many, the article one.
+  if (a === `${b}s` || b === `${a}s`) return false;
   const d = editDistance(a.replace(/ /g, ""), b.replace(/ /g, ""));
   if (d > 2 || d > a.replace(/ /g, "").length * 0.2) return false;
   if (numerals(name).join(" ") !== numerals(page).join(" ")) return false;
@@ -982,6 +1053,9 @@ export function isRespelling(name: string, page: string): boolean {
   if (wa.length !== wb.length) return d === 0;
   return wa.filter((w, i) => w !== wb[i]).length <= 1;
 }
+
+/** A company's name: "Qumu Corporation", "Some Records", "Some Studios Inc.". */
+const COMPANY = /\s(?:corporation|corp\.?|inc\.?|incorporated|company|co\.|ltd\.?|limited|llc|plc|gmbh|records|studios|entertainment|holdings)$/i;
 
 /**
  * Whether a redirect leads to the same thing under its proper name: "Star Wars:
@@ -993,6 +1067,10 @@ export function isRespelling(name: string, page: string): boolean {
  */
 export function isSameWorkRedirect(from: string, to: string): boolean {
   if (/^List of\b/i.test(to) || /\((?:[^)]*\b)?(album|soundtrack|EP|discography|filmography)\)$/i.test(to)) return false;
+  // "FFVII" is "Final Fantasy VII": the initials carry the installment number.
+  if (isInitials(from, to)) return true;
+  // "Qumu" leads to "Qumu Corporation": a company named the same isn't a musician or a work.
+  if (COMPANY.test(to) && !COMPANY.test(from)) return false;
   // "Poirot" leads to "Hercule Poirot" and "Ponce de León" to "Juan Ponce de León": a surname
   // given a first name is one person of that name. A title before a colon is a series name:
   // "Red Alert 3" in "Command & Conquer: Red Alert 3".
@@ -1007,6 +1085,23 @@ export function isSameWorkRedirect(from: string, to: string): boolean {
   if (/\d/.test(toWords[toWords.length - 1] ?? "") && !fromNumbers.includes(toWords[toWords.length - 1])) return false;
   const fromWords = new Set(significantTokens(normalizeTitle(from)).filter((t) => !/\d/.test(t)));
   return significantTokens(normalizeTitle(to)).some((t) => fromWords.has(t)) || isRespelling(from, to);
+}
+
+/**
+ * Whether a name is the initials of a title, its installment number kept:
+ * "FFVII" and "FF7" are "Final Fantasy VII". Only for a redirect Wikipedia
+ * itself keeps, so the abbreviation is its, not a guess.
+ */
+export function isInitials(short: string, long: string): boolean {
+  const s = normalizeTitle(short).replace(/ /g, "");
+  if (s.length < 2 || /\s/.test(short.trim())) return false;
+  const words = normalizeTitle(long).split(" ").filter(Boolean);
+  const forms = (keep: (w: string) => boolean) => {
+    const kept = words.filter(keep);
+    const num = (w: string) => /^\d+$/.test(w) || w in ROMAN;
+    return [kept.map((w) => (num(w) ? w : w[0])).join(""), kept.map((w) => (num(w) ? (ROMAN[w] ?? w) : w[0])).join("")];
+  };
+  return [...forms(() => true), ...forms((w) => !STOPWORDS.has(w))].includes(s);
 }
 
 const wikipediaNames = new Map<string, string | null>();
@@ -1154,7 +1249,7 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
   const usable = (title: string) => !blocked.has(title);
   const tried = new Set<string>();
   const attempt = async (reading: Reading): Promise<Grounded> => {
-    const key = `${reading.songAlone ? "alone" : ""}\0${normalizeTitle(reading.game)}\0${normalizeTitle(reading.track)}`;
+    const key = `${reading.songAlone ? "alone" : ""}${reading.trackOnly ? "track" : ""}\0${normalizeTitle(reading.game)}\0${normalizeTitle(reading.track)}`;
     if (tried.has(key)) return { text: "", unreachable: false };
     tried.add(key);
     if (tried.size > 1) console.log(`[Grounding] "${song.title}": trying ${reading.songAlone ? "the title alone" : `"${reading.track}" from "${reading.game}"`}`);
@@ -1192,11 +1287,64 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
   return "";
 }
 
+/** What a game, a film or a show is called in its article's first sentence or its title's brackets. */
+const A_WORK =
+  /\b(video games?|games?|films?|movies?|television (?:series|programs?|programmes?|shows?|films?)|tv series|animated series|anime|web series|sitcom|musical|soundtrack|franchise|series)\b/i;
+
+/** Who or what else an article opens by naming: "a German film score composer", "a Middle Eastern folk tale". */
+const NOT_A_WORK =
+  /\b(singer|band|composer|musician|rapper|songwriter|producer|actor|actress|director|DJ|duo|group|orchestra|person|character|company|developer|publisher|studio|label|tale|song|single|album|EP)s?\b/i;
+
+/**
+ * Whether an article is about a game, a film or a show: by its brackets, or
+ * by what its first sentence says it is ("a 1997 role-playing video game"),
+ * up to who made it.
+ */
+export function isAWork(page: string, full: string): boolean {
+  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  if (qualifier) return A_WORK.test(qualifier) && !NOT_A_WORK.test(qualifier.replace(/\bsoundtrack album\b/i, "soundtrack"));
+  const what = openingSays(full);
+  return A_WORK.test(what) && !NOT_A_WORK.test(what.replace(/\bsoundtrack album\b/i, "soundtrack"));
+}
+
+/** What an article's first sentence says its subject is, up to who made it: "a 1997 role-playing video game". */
+function openingSays(full: string): string {
+  // "Dwayne Michael Carter Jr. (born 1982), known professionally as Lil Wayne, is an American rapper".
+  const opening = full.slice(0, 600).replace(/\s*\([^()]*\)/g, "");
+  const says = /\b(?:is|was|are|were)\s+((?:an?|the|one)\b[^.]*)/.exec(opening)?.[1] ?? "";
+  return says.split(/,|;|\s(?:by|developed|directed|created|produced|published|written|released|that|which|who|based|starring|featuring|from|for|in)\b/)[0];
+}
+
+/** What a piece of music is called in its brackets or its first sentence. */
+const A_PIECE = /\b(song|single|ballad|anthem|theme|instrumental|track|piece|composition|aria|hymn|tune|jingle)s?\b/i;
+
+/** Whether an article is about a piece of music: "(Bee Gees song)", or "a song from the film Aladdin". */
+export function isAPiece(page: string, full: string): boolean {
+  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  if (qualifier && A_PIECE.test(qualifier)) return true;
+  return A_PIECE.test(openingSays(full));
+}
+
+const A_PERFORMER =
+  /\b(singers?|bands?|rappers?|musicians?|composers?|songwriters?|producers?|DJs?|disc jockeys?|duo|trio|group|vocalists?|pianists?|guitarists?|drummers?|violinists?|saxophonists?|orchestra|ensemble|choir|entertainers?|performers?|YouTuber)\b/i;
+
+/**
+ * Whether an article is about a performer: by its brackets ("(band)"), or by
+ * what its first sentence says ("an American singer"). "Black Caviar" is a
+ * duo's name and a racehorse's article.
+ */
+export function isAPerformer(page: string, full: string): boolean {
+  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  if (qualifier) return PERFORMER_QUALIFIER.test(qualifier);
+  return A_PERFORMER.test(openingSays(full));
+}
+
 /** One reading of the request, looked up the usual way. */
 async function groundReading(song: SSLSong, reading: Reading, blocked: Set<string>): Promise<Grounded> {
   const { game, track } = reading;
   // A subject pinned to one page is remembered apart: another song's search may have found another page for the name.
-  const gameKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "");
+  // A lookup for the song's own article alone says nothing about the subject's article.
+  const gameKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "");
   const songKey = `${gameKey}\0${normalizeTitle(track)}`;
 
   // A game's tracks share one lookup. An artist's songs never share: each may
@@ -1276,7 +1424,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   const names = artistNames(game);
   const terms = song.artistUncertain && track !== game
     ? [track]
-    : searchTerms(game, track, artist || !!song.performer, reading.notGame);
+    : searchTerms(game, track, artist || !!song.performer, reading.notGame || reading.fromTitle);
   // The page Wikipedia named is searched for by its own title; a series also by its bare name ("Star Trek").
   const series = /^(.+) (?:series|franchise)$/i.exec(game)?.[1];
   for (const extra of [reading.page, series]) {
@@ -1318,6 +1466,23 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // A performer's name alone can be an everyday word: "Milestone" is about road markers.
       if (byGame && song.performer && !/\(/.test(page) && full && !PERFORMER_LEAD.test(full.slice(0, 400))) {
         console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
+        continue;
+      }
+      // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
+      // A game's or a show's own article under that very name serves too: "Kingdom Hearts / Some Remixer".
+      const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isAWork(page, full ?? "");
+      if (byGame && reading.aPerformer && full && !isAPerformer(page, full) && !workByName()) {
+        console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
+        continue;
+      }
+      // A piece read from the title must be one: "Overwatch" read as a track name isn't "Overwatch and pornography".
+      if (!byGame && reading.fromTitle && full && !isAPiece(page, full)) {
+        console.log(`[Grounding] "${page}" isn't about a piece of music, skipping`);
+        continue;
+      }
+      // A work read from the title must be a game, a film or a show: "Aladdin" is also a folk tale.
+      if (byGame && reading.fromTitle && full && !isAWork(page, full)) {
+        console.log(`[Grounding] "${page}" isn't a game, a film or a show, skipping`);
         continue;
       }
       // "Passacaglia (Handel/Halvorsen)" names its composers in its title.

@@ -47,6 +47,10 @@ import {
   unsupportedConnective,
   unsupportedRelation,
   unsupportedCredit,
+  isAWork,
+  isAPerformer,
+  isAPiece,
+  isInitials,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
@@ -1168,7 +1172,13 @@ describe("other readings of a request (a song list's misses)", () => {
       { game: "Simon and Garfunkel", track: "Sound of Silence", trackOnly: true },
       { game: "Disturbed", track: "Sound of Silence", trackOnly: true },
     ]);
-    expect(readings({ title: "Nocturne Op. 9 No. 2", artist: "Frederic Chopin/Some Arranger" })[1]).toMatchObject({ game: "Frederic Chopin", trackOnly: false });
+    // A person's name: the song's own article under every name first, then the person's, which must be a performer's.
+    expect(readings({ title: "Nocturne Op. 9 No. 2", artist: "Frederic Chopin/Some Arranger" }).slice(1)).toEqual([
+      { game: "Frederic Chopin", track: "Nocturne Op. 9 No. 2", trackOnly: true },
+      { game: "Some Arranger", track: "Nocturne Op. 9 No. 2", trackOnly: true },
+      { game: "Frederic Chopin", track: "Nocturne Op. 9 No. 2", trackOnly: false, aPerformer: true },
+      { game: "Some Arranger", track: "Nocturne Op. 9 No. 2", trackOnly: false, aPerformer: true },
+    ]);
   });
 
   it("looks up a song by no one by its title alone", () => {
@@ -1347,6 +1357,161 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Passacaglia Handel Halvorsen": ["Passacaglia (Handel/Halvorsen)"] };
     extracts = { "Passacaglia (Handel/Halvorsen)": `A piece for violin and viola.${LONG}` };
     expect(await fetchGrounding({ title: "Passacaglia", artist: "Arr. Handel Halvorsen" })).toMatch(/^Passacaglia \(Handel\/Halvorsen\)\n/);
+  });
+
+  it("never takes the name's article for a credit of several names when it isn't a performer's", async () => {
+    hits = { "Some Song Black Caviar": ["Black Caviar"], "Black Caviar": ["Black Caviar"] };
+    extracts = { "Black Caviar": `Black Caviar is an Australian Thoroughbred racehorse.${LONG}` };
+    expect(await fetchGrounding({ title: "Some Song", artist: "Some Remixer - Black Caviar" })).toBe("");
+  });
+
+  it("takes a game's own article under one of several names", async () => {
+    hits = { "Dearly Beloved Kingdom Hearts": ["Kingdom Hearts"], "Kingdom Hearts": ["Kingdom Hearts"] };
+    extracts = { "Kingdom Hearts": `Kingdom Hearts is a fantasy action role-playing game franchise. Dearly Beloved is its theme.${LONG}` };
+    expect(await fetchGrounding({ title: "Dearly Beloved", artist: "Kingdom Hearts / Some Remixer" })).toMatch(/^Kingdom Hearts\n/);
+  });
+
+  it("never takes a disambiguation page that opens with its main meaning", async () => {
+    hits = { "Regret 2 A.M.": ["2 A.M."], "2 A.M.": ["2 A.M."] };
+    redirects = { "2am": "2 A.M." };
+    extracts = { "2 A.M.": "2 A.M. is a time on the 12-hour clock.\n2 A.M. may also refer to:\nA film\nA song" + LONG };
+    expect(await fetchGrounding({ title: "Regret", artist: "2am" })).toBe("");
+  });
+
+  it("takes only a piece of music for a piece read from the title", async () => {
+    hits = { "Victory Overwatch": ["Overwatch and fan art"], "Overwatch Victory": ["Overwatch and fan art"] };
+    extracts = { "Overwatch and fan art": `The Overwatch franchise inspired fan art. Players celebrate a victory.${LONG}` };
+    expect(await fetchGrounding({ title: "Victory - Overwatch", artist: "Some Remixer" })).toBe("");
+    expect(isAPiece("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
+    expect(isAPiece("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
+  });
+
+  it("reads a work after a dash in the title when the artist is a remixer", async () => {
+    hits = { "Dad Battle Friday Night Funkin'": ["Friday Night Funkin'"], "Friday Night Funkin' soundtrack": ["Friday Night Funkin'"] };
+    extracts = { "Friday Night Funkin'": `Friday Night Funkin' is a 2020 rhythm game developed by a small team.${LONG}` };
+    expect(await fetchGrounding({ title: "Dad Battle - Friday Night Funkin'", artist: "Chiptune Kid" })).toMatch(/^Friday Night Funkin'\n/);
+  });
+
+  it("never takes a person, a song or a folk tale for a work read from the title", async () => {
+    hits = { "Aladdin soundtrack": ["Aladdin"], Aladdin: ["Aladdin"] };
+    extracts = { Aladdin: `Aladdin is a Middle Eastern folk tale, later made into films.${LONG}` };
+    expect(await fetchGrounding({ title: "Prince Ali - Aladdin", artist: "Some Remixer" })).toBe("");
+  });
+
+  it("follows a redirect from a game's initials (FFVII)", async () => {
+    hits = { "Final Fantasy VII soundtrack": ["Final Fantasy VII"] };
+    redirects = { FFVII: "Final Fantasy VII" };
+    extracts = { "Final Fantasy VII": `Final Fantasy VII is a 1997 role-playing video game. Let the Battles Begin plays in fights.${LONG}` };
+    expect(await fetchGrounding({ title: "Let the Battles Begin - FFVII Remix", artist: "Chiptune Kid" })).toMatch(/^Final Fantasy VII\n/);
+  });
+
+  it("finds the original's own article for a cover that names it in brackets, and only that", async () => {
+    hits = { "Baby Justin Bieber": ["Baby (Justin Bieber song)", "Justin Bieber"] };
+    extracts = { "Baby (Justin Bieber song)": `"Baby" is a song by Justin Bieber.${LONG}`, "Justin Bieber": `Justin Bieber is a Canadian singer.${LONG}` };
+    expect(await fetchGrounding({ title: "Baby(Justin Bieber)", artist: "Some Cover Band" })).toMatch(/^Baby \(Justin Bieber song\)\n/);
+    // No song article: never the original artist's own.
+    clearGroundingCache();
+    hits = { "Baby Justin Bieber": ["Justin Bieber"], "Justin Bieber": ["Justin Bieber"] };
+    expect(await fetchGrounding({ title: "Baby(Justin Bieber)", artist: "Some Cover Band" })).toBe("");
+  });
+
+  it("looks up a credit of several names joined by dashes under each name (Under Pressure)", async () => {
+    hits = { "Under Pressure Queen": ["Under Pressure"] };
+    extracts = { "Under Pressure": `"Under Pressure" is a song by the British rock band Queen and David Bowie.${LONG}` };
+    expect(await fetchGrounding({ title: "Under Pressure", artist: "Queen - David Bowie" })).toMatch(/^Under Pressure\n/);
+  });
+});
+
+describe("glued and dashed version tags, credits of several names (a second song list's misses)", () => {
+  it("drops a version tag glued to the title, or ending in what kind of version it is", () => {
+    expect(dropVersionTags("Beat It(Arrangement)")).toBe("Beat It");
+    expect(dropVersionTags("Dear Mama(Original)")).toBe("Dear Mama");
+    expect(dropVersionTags("End of the Road(Acapella)")).toBe("End of the Road");
+    expect(dropVersionTags("What a Fool Believes(A Capella Cover)")).toBe("What a Fool Believes");
+    expect(dropVersionTags("Guile's Theme(Chill Version)")).toBe("Guile's Theme");
+    expect(dropVersionTags("Something Just Like This (Children's Choir Remix)")).toBe("Something Just Like This");
+    expect(dropVersionTags("What's the Use(NPR Tiny Desk)")).toBe("What's the Use");
+    expect(dropVersionTags("The Real Folk Blues(2020 Performance)")).toBe("The Real Folk Blues");
+    expect(dropVersionTags("Can You Feel the Love Tonight(Elton John Version 2)")).toBe("Can You Feel the Love Tonight");
+    // A name in brackets is kept: it may be the game, or part of the song's name.
+    expect(dropVersionTags("Song of Storms (Ocarina of Time)")).toBe("Song of Storms (Ocarina of Time)");
+    expect(dropVersionTags("Forever(Part II.)")).toBe("Forever(Part II.)");
+  });
+
+  it("drops a version tag before or after a dash, keeping a work named with it", () => {
+    expect(dropVersionTags("Song of Storms(Lofi) - Ocarina of Time")).toBe("Song of Storms - Ocarina of Time");
+    expect(dropVersionTags("Numb - 80's Remix")).toBe("Numb");
+    expect(dropVersionTags("Coffin Dance - Downtempo Remix")).toBe("Coffin Dance");
+    expect(dropVersionTags("Bohemian Rhapsody - Remastered 2011")).toBe("Bohemian Rhapsody");
+    expect(dropVersionTags("Let the Battles Begin - FFVII Remix")).toBe("Let the Battles Begin - FFVII");
+    expect(dropVersionTags("Mystic Cave Zone - Sonic 2 Trap Remix 1")).toBe("Mystic Cave Zone - Sonic 2");
+    // "Act 2" and "Part 2" name a piece.
+    expect(dropVersionTags("Undertale - Act 2")).toBe("Undertale - Act 2");
+  });
+
+  it("drops a short tag after the artist", () => {
+    expect(readings({ title: "Billie Jean", artist: "Michael Jackson - AB" })).toEqual([{ game: "Michael Jackson", track: "Billie Jean", trackOnly: false }]);
+    expect(readings({ title: "Rivers in the Desert", artist: "Persona 5 - AB" })[0]).toMatchObject({ game: "Persona 5", track: "Rivers in the Desert" });
+    // Three capitals can be a name.
+    expect(readings({ title: "Black Swan", artist: "BTS" })).toEqual([{ game: "BTS", track: "Black Swan" }]);
+  });
+
+  it("looks up each of several names joined by a dash, an x or ft.", () => {
+    expect(readings({ title: "Under Pressure", artist: "Queen - David Bowie" }).slice(1).map((r) => r.game)).toEqual(["Queen", "David Bowie", "Queen", "David Bowie"]);
+    expect(readings({ title: "My Heart Will Go On", artist: "Titanic - Celine Dion" }).slice(1)).toEqual([
+      { game: "Titanic", track: "My Heart Will Go On", trackOnly: true },
+      { game: "Celine Dion", track: "My Heart Will Go On", trackOnly: true },
+      { game: "Celine Dion", track: "My Heart Will Go On", trackOnly: false, aPerformer: true },
+    ]);
+    expect(readings({ title: "Mia", artist: "Bad Bunny x Drake" }).slice(1, 3).map((r) => r.game)).toEqual(["Bad Bunny", "Drake"]);
+    expect(readings({ title: "Before I Let Go", artist: "Maze ft. Frankie Beverly" })[1]).toEqual({ game: "Maze", track: "Before I Let Go", trackOnly: true });
+    // A capital X is part of a name.
+    expect(readings({ title: "Industry Baby", artist: "Lil Nas X" })).toHaveLength(1);
+  });
+
+  it("reads the original or the work named in the title when the artist is someone else", () => {
+    expect(readings({ title: "Baby(Justin Bieber)", artist: "Some Cover Band" })[1]).toEqual({ game: "Justin Bieber", track: "Baby", trackOnly: true });
+    expect(readings({ title: "Gerudo Valley - Ocarina of Time", artist: "Some Remixer" }).slice(1)).toEqual([
+      { game: "Ocarina of Time", track: "Gerudo Valley", fromTitle: true },
+      { game: "Gerudo Valley", track: "Ocarina of Time", fromTitle: true },
+    ]);
+    // The usual reading already took the game from the title.
+    expect(readings({ title: "Super Mario 64: Dire Dire Docks", artist: "Super Mario" })).toHaveLength(1);
+  });
+
+  it("tells a game, a film or a show from a person, a song or a tale", () => {
+    expect(isAWork("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
+    expect(isAWork("The Mask (1994 film)", "")).toBe(true);
+    expect(isAWork("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
+    expect(isAWork("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
+    expect(isAWork("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
+    expect(isAWork("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
+    expect(isAWork("Queen (band)", "")).toBe(false);
+  });
+
+  it("tells a performer from a racehorse or a show's season", () => {
+    expect(isAPerformer("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
+    expect(isAPerformer("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
+    expect(isAPerformer("Some Name (singer)", "")).toBe(true);
+    expect(isAPerformer("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
+    expect(isAPerformer("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
+  });
+
+  it("never takes a company or a plural for a name", () => {
+    expect(isRelevantArticle("Qumu", "Qumu Corporation")).toBe(false);
+    expect(isRelevantArticle("Overwatch", "Overwatch and pornography")).toBe(false);
+    expect(isSameWorkRedirect("Qumu", "Qumu Corporation")).toBe(false);
+    expect(isRespelling("Memes", "Meme")).toBe(false);
+    expect(isRelevantArticle("Celeste", "Celeste (video game)")).toBe(true);
+  });
+
+  it("counts a game's initials as its name only with the installment number", () => {
+    expect(isInitials("FFVII", "Final Fantasy VII")).toBe(true);
+    expect(isInitials("FF7", "Final Fantasy VII")).toBe(true);
+    expect(isInitials("TLoZ", "The Legend of Zelda")).toBe(true);
+    expect(isInitials("FFX", "Final Fantasy VII")).toBe(false);
+    expect(isInitials("Final Fantasy", "Final Fantasy VII")).toBe(false);
+    expect(isSameWorkRedirect("FFVII", "Final Fantasy VII")).toBe(true);
   });
 });
 
