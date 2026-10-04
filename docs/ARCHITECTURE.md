@@ -145,7 +145,11 @@ sign-ins and the built-in AI. Its design decisions are in
    just a role word nearby; an ambiguous credit is dropped. "Wrote" counts as
    composing only next to music ("wrote the score"), never "wrote the story",
    and names sharing a credit ("wrote it with A and B") must share it in the
-   source.
+   source. A fact's given name must go with the surname in that sentence
+   ("Paul Williams" isn't credited by "John Williams composed"), though a bare
+   surname there still counts, for other romanizations. A console named only
+   inside a sibling's name ("Wii U", "PlayStation 4") doesn't support the
+   console itself.
    A small model joins two true statements with a word of its own: "due to",
    "after", "for the first time", "originally intended", "twice", a count.
    Such a word, and any number, must be in the sentence the caption retells

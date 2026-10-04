@@ -1438,7 +1438,7 @@ const NAME_WORD = String.raw`(?:Mc\p{Lu}\p{Ll}+|\p{Lu}[\p{Ll}'’-]+(?:\p{Lu}[\p
 const NAME = new RegExp(String.raw`(?<!\p{L})(?:${NAME_WORD}(?:\s+${NAME_WORD})+|Mc\p{Lu}\p{Ll}+)`, "gu");
 
 const PLATFORM_PATTERN =
-  /\b(NES|SNES|Nintendo 64|N64|GameCube|Wii U|Wii|Switch|Game Boy|Nintendo DS|3DS|PlayStation|PSone|PS1|PS2|PS3|PS4|PS5|PSP|Vita|Xbox(?: 360| One| Series [SX])?|Sega Genesis|Mega Drive|Dreamcast|Saturn|Master System|Game Gear|Atari(?: 2600)?|Amiga|Commodore 64|C64|MS-?DOS|TurboGrafx-16|PC Engine|Neo Geo|Steam Deck|arcade|YM2612|SPC700|2A03|Ricoh)\b/gi;
+  /\b(NES|SNES|Nintendo 64|N64|GameCube|Wii U|Wii|Switch|Game Boy(?: Advance| Colou?r)?|Nintendo DS|3DS|PlayStation(?: [2-5]| Portable| Vita)?|PSone|PS1|PS2|PS3|PS4|PS5|PSP|Vita|Xbox(?: 360| One| Series [SX])?|Sega Genesis|Mega Drive|Dreamcast|Saturn|Master System|Game Gear|Atari(?: 2600)?|Amiga|Commodore 64|C64|MS-?DOS|TurboGrafx-16|PC Engine|Neo Geo|Steam Deck|arcade|YM2612|SPC700|2A03|Ricoh)\b/gi;
 
 /** Names for the same hardware. Each name corroborates every other in its group. */
 const PLATFORM_ALIASES = new Map<string, string[]>();
@@ -1466,9 +1466,24 @@ const AMBIGUOUS_PLATFORMS = new Set(["switch", "saturn", "genesis", "vita"]);
 export function platformSupported(platform: string, context: string): boolean {
   const p = platform.toLowerCase();
   const direct = AMBIGUOUS_PLATFORMS.has(p)
-    ? hasWord(p[0].toUpperCase() + p.slice(1), context, "")
-    : hasWord(p, context);
-  return direct || (PLATFORM_ALIASES.get(p) ?? []).some((a) => hasWord(a, context));
+    ? namesPlatform(p[0].toUpperCase() + p.slice(1), context, "")
+    : namesPlatform(p, context);
+  return direct || (PLATFORM_ALIASES.get(p) ?? []).some((a) => namesPlatform(a, context));
+}
+
+/** What turns one console's name into its sibling's: "Wii U", "PlayStation 4", "Game Boy Advance". */
+const SIBLING_SUFFIX = /^[\s-]+(?:U|[2-5]|360|One|Series|Advance|Colou?r|Portable|Vita|Pocket|DSi?|XL|Lite)(?![\p{L}\p{N}])/iu;
+
+/**
+ * The platform named on its own, not only as part of a sibling's name: a
+ * source about the Wii U doesn't support "came out on the Wii" (review).
+ */
+function namesPlatform(name: string, context: string, flags = "i"): boolean {
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(name)}(?![\\p{L}\\p{N}])`, `g${flags}u`);
+  for (const m of context.matchAll(re)) {
+    if (!SIBLING_SUFFIX.test(context.slice((m.index ?? 0) + m[0].length))) return true;
+  }
+  return false;
 }
 
 /** Leading words that make a capitalized run look like a name when it isn't one. */
@@ -1639,11 +1654,35 @@ export function unsupportedCredit(fact: string, context: string): string | null 
   if (!roles.length) return null;
   const sentences = sourceSentences(context);
   for (const name of creditedNames(fact)) {
-    const surname = (name.split(/\s+/).pop() ?? name).toLowerCase();
-    const stated = sentences.some((sentence) => roles.some((r) => statesRole(sentence, surname, r)));
+    const words = name.split(/\s+/);
+    const surname = (words.pop() ?? name).toLowerCase();
+    // "Paul Williams composed the score" isn't supported by "John Williams composed the score".
+    // The name just before the surname: "Michael" in "Narada Michael Walden", "Jimmy" in "Engineer Jimmy Douglass".
+    const given = words.filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()) && !/^\p{Lu}\.$/u.test(w)).pop();
+    const stated = sentences.some((sentence) => roles.some((r) => statesRole(sentence, surname, r)) && sameGivenName(sentence, surname, given));
     if (!stated) return name;
   }
   return null;
+}
+
+/**
+ * Whether a source sentence names this surname for the same person: with
+ * the fact's given name (or its initial), or bare ("Koshiro composed",
+ * which a different romanization of the given name still matches), but not
+ * with another given name.
+ */
+function sameGivenName(sentence: string, surname: string, given: string | undefined): boolean {
+  if (!given) return true;
+  const g = given.replace(/\.$/, "").toLowerCase();
+  // A middle initial between them is skipped: "Barry J. Eastmond".
+  const re = new RegExp(`(?:([\\p{L}.'’-]+)\\s+)?(?:\\p{Lu}\\.\\s+)?${escapeRe(surname)}(?![\\p{L}])`, "giu");
+  for (const m of sentence.matchAll(re)) {
+    const before = (m[1] ?? "").replace(/\.$/, "");
+    if (!/^\p{Lu}/u.test(before) || NAME_STOPWORDS.has(before.toLowerCase())) return true;
+    const b = before.toLowerCase();
+    if (b === g || (b.length === 1 && g.startsWith(b)) || (g.length === 1 && b.startsWith(g))) return true;
+  }
+  return false;
 }
 
 /** "Audrey Hepburn won", "Mancini received": a capitalized name right before winning something. */

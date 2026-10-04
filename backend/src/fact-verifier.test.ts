@@ -1542,3 +1542,21 @@ describe("true facts the screen used to drop", () => {
     expect(both).toEqual(['The guitar riff resembles Boston\'s 1976 hit "More Than a Feeling".']);
   });
 });
+
+describe("review: platform siblings and shared surnames", () => {
+  it("doesn't take a sibling console's name for the console", () => {
+    expect(screenClaims(["Starfall came out on the Wii in 2012."], "Starfall\nStarfall was released for the Wii U in 2012.").kept).toEqual([]);
+    expect(screenClaims(["Starfall came out on the Wii in 2012."], "Starfall\nStarfall was released for the Wii in 2012 and the Wii U in 2013.").kept).toHaveLength(1);
+    expect(platformSupported("PlayStation", "It came out on PlayStation 4.")).toBe(false);
+    expect(platformSupported("Game Boy", "It came out on the Game Boy Advance.")).toBe(false);
+    expect(platformSupported("Xbox", "It came out on the Xbox 360.")).toBe(false);
+    expect(platformSupported("Wii U", "It came out on the Wii U.")).toBe(true);
+  });
+
+  it("needs the fact's given name in the role's sentence, unless the source gives the surname alone", () => {
+    const ctx = "Starfall\nJohn Williams composed the score. Paul Williams wrote the lyrics.";
+    expect(unsupportedCredit("Paul Williams composed the score.", ctx)).toBe("Paul Williams");
+    expect(unsupportedCredit("John Williams composed the score.", ctx)).toBeNull();
+    expect(unsupportedCredit("Yuzo Koshiro composed the score.", "Starfall\nKoshiro composed the score.")).toBeNull();
+  });
+});
