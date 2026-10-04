@@ -265,11 +265,38 @@ other ways to read one, each checked by all the rules above:
   (series)"), never one installment. A film or show category never matches a
   video game. A title with a name in brackets gets no series article: it may
   be from another game ("Aquatic Ambiance (Donkey Kong Country)").
-- **An arranger or a second name** ("Elton John arr. Brent Edstrom",
-  "Frederic Chopin/Arranger"): each name alone. A second name that isn't
-  plainly a person's only counts for the song's own article.
+- **An arranger** ("Elton John arr. Brent Edstrom"): the name alone.
+- **Several names** joined by "/", " - ", " x " or "ft." ("Frederic
+  Chopin/Arranger", "Queen - David Bowie", "Titanic - Celine Dion"), the
+  main name not always first: the song's own article under each name first,
+  then the work named in the title (below), and only then a name's own
+  article: only for a name that reads like a person's, and only an article
+  that opens by calling it a performer ("Black Caviar" is a duo and a
+  racehorse), or a game's or a show's own article under that very name
+  ("Kingdom Hearts / Some Remixer"). A short tag of one or two capitals after the names ("Some
+  Singer - AB") is a list's own mark and is dropped; with one name left,
+  that name is simply the artist.
 - **No one** ("Traditional", "Italian Folk Song"): the title alone, and only
   an article that opens by calling it a song ("Santa Lucia" is also a town).
+- **Someone else's song in the title** ("Baby (Justin Bieber)" by a cover
+  band, "Wind (Naruto)"): the name in brackets, for the song's own article
+  only, which must name it.
+- **The work after or before a dash, the artist a remixer** ("Gerudo Valley -
+  Ocarina of Time"): the song's own article, or the work's, which must be a
+  game, a film or a show by its brackets or its first sentence ("Aladdin" is
+  also a folk tale; a composer's article opening "a film score composer"
+  isn't a film). No "video game" search for it: "The Mask" is a film first.
+  Read the other way round, the piece's article must open by calling it a
+  piece of music: "Overwatch" read as a track name isn't "Overwatch and
+  pornography". Nor is any "X and something" article about X; "Pokémon Red
+  and Blue", a pair of names, still is.
+
+Version tags are dropped before any reading: at the end, glued to the title
+("Beat It(Arrangement)"), before a dash, or after one ("Numb - 80's Remix").
+A tag counts when it starts with a way of playing ("Acapella", "Lofi",
+"Original", "Live") or ends with what kind of version it is ("Chill Version",
+"Children's Choir Remix", "2020 Performance"). A dash part that also names a
+work keeps the work: "Let the Battles Begin - FFVII Remix" is from "FFVII".
 
 After a miss, Wikipedia's own name for the subject is tried: an exact-title
 redirect ("Star Wars: The Phantom Menace" to "Star Wars: Episode I – The
@@ -278,6 +305,12 @@ Satie"). Not our fuzzy guessing, and still careful:
 
 - A redirect must lead to the same thing under its proper name: not a list,
   an album, or one of several ("Johann Strauss" leads to Johann Strauss II).
+  Nor to a company named like it ("Qumu" leads to Qumu Corporation), nor
+  from a plural ("Memes" isn't "Meme"), nor to a disambiguation page that
+  opens with its main meaning ("2am" leads to "2 A.M.", a time of day).
+  A redirect from initials counts when they spell the title, installment
+  number included ("FFVII" to "Final Fantasy VII"). The abbreviation is
+  Wikipedia's own redirect, never our table.
 - A suggestion must be a respelling (a letter or two, in one word), name an
   article, and be among the search's own hits: "Windy Harper" is never
   "Wendy Harmer".
