@@ -119,6 +119,13 @@ const sources = new Map<string, string>();
  */
 const RECENT_KEPT = 80;
 const recentFacts: string[] = [];
+/**
+ * When each fact tagged for an artist or game was last picked. One game can
+ * cover hundreds of songs on a list, so its facts take turns instead of
+ * opening every one of those songs the same way.
+ */
+const poolTurns = new Map<string, number>();
+let poolTurn = 0;
 const inFlight = new Map<string, Promise<Fact[]>>();
 /** A streamer's handle as the artist: "@janeplayskeys", "Jane (@janeplayskeys)". */
 const STREAMER_HANDLE = /(?:^|[\s(])@([A-Za-z0-9_]{3,25})\)?\s*$/;
@@ -551,11 +558,20 @@ const entrySource = (t: string) => (statLines.has(t) ? SOURCE.songList : SOURCE.
  * compared the way song-facts.ts compares the streamer's own records.
  */
 export function taggedFactsFor(song: SSLSong): string[] {
-  if (!topic.taggedFacts?.length) return [];
+  const { forSong, pool } = taggedFor(song);
+  return [...forSong, ...pool];
+}
+
+/**
+ * Tagged facts split by what the tag names: this song (`forSong`), or its
+ * artist or game (`pool`), which every song by that artist or from that game shares.
+ */
+function taggedFor(song: SSLSong): { forSong: string[]; pool: string[] } {
+  if (!topic.taggedFacts?.length) return { forSong: [], pool: [] };
   const { game, track } = resolveGameAndTrack(song);
-  const names = new Set(
-    [song.title, track, game, `${song.artist} ${song.title}`, ...artistNames(song.artist ?? "")].map((s) => normalizeTitle(s ?? "")).filter(Boolean)
-  );
+  const named = (list: (string | undefined)[]) => new Set(list.map((s) => normalizeTitle(s ?? "")).filter(Boolean));
+  const titles = named([song.title, track, `${song.artist} ${song.title}`]);
+  const shared = named([game, ...artistNames(song.artist ?? "")]);
   // Each title with its trailing brackets taken off one at a time: "Night Drive (Acoustic) [Instrumental]"
   // is also "Night Drive (Acoustic)", but never "Night Drive (Remix)".
   const peeled = (s: string) => {
@@ -566,26 +582,58 @@ export function taggedFactsFor(song: SSLSong): string[] {
   const versions = new Set(
     [song.title, track, `${song.artist} ${song.title}`].flatMap((s) => peeled(s ?? "")).map(songIdentity).filter(Boolean)
   );
-  return topic.taggedFacts
-    .filter((f) => {
-      const tag = f.tag.replace(/\s+[-–—]\s+/, " ");
-      return dropVersionTags(tag) !== tag ? versions.has(songIdentity(tag)) : names.has(normalizeTitle(tag));
-    })
-    .map((f) => f.text);
+  const forSong: string[] = [];
+  const pool: string[] = [];
+  for (const f of topic.taggedFacts) {
+    const tag = f.tag.replace(/\s+[-–—]\s+/, " ");
+    if (dropVersionTags(tag) !== tag) {
+      if (versions.has(songIdentity(tag))) forSong.push(f.text);
+    } else if (titles.has(normalizeTitle(tag))) forSong.push(f.text);
+    else if (shared.has(normalizeTitle(tag))) pool.push(f.text);
+  }
+  return { forSong, pool };
 }
 
-/** The streamer's tagged facts first, as written, then the usual facts in the slots left. */
+/** `n` facts from an artist's or game's pool, the longest unused first, in the order written. */
+function takeTurns(pool: string[], n: number): string[] {
+  const picked = pool
+    .map((text, i) => ({ text, i, turn: poolTurns.get(text) ?? -1 }))
+    .sort((a, b) => a.turn - b.turn || a.i - b.i)
+    .slice(0, n)
+    .map((p) => p.text);
+  for (const text of picked) poolTurns.set(text, ++poolTurn);
+  return picked;
+}
+
+/** Facts about the song itself, from a source, rather than written by the streamer or built from the song list. */
+const fromASource = (f: Fact) => !WRITTEN_BY_STREAMER.has(f.source) && f.source !== SOURCE.songList;
+
+/**
+ * The streamer's facts tagged for this song first, as written. Facts tagged for its
+ * artist or game take turns: one per song beside the facts about the song itself,
+ * or, when no source knows the song, as many as there are bubbles. Then the usual
+ * facts in the slots left.
+ */
 async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ facts: Fact[]; ttlMs: number }> {
   const want = config.factsPerSong;
-  const mine = findSongFacts(song) ? [] : taggedFactsFor(song).slice(0, want);
-  if (!mine.length) return generateRest(song, entry, want);
-  console.log(`[FactGen] "${song.title}": ${mine.length} of the streamer's own facts are for this song`);
-  const rest = mine.length < want ? await generateRest(song, entry, want - mine.length) : { facts: [], ttlMs: Infinity };
-  const others = rest.facts.filter((f) => !mine.includes(f.text));
-  // Re-spaced as one list, so the bubbles keep their rhythm and positions.
-  const lines = [...mine, ...others.map((f) => f.text)];
+  // A song with its own facts takes its pool fact there (generateRest).
+  const tagged = findSongFacts(song) ? { forSong: [], pool: [] } : taggedFor(song);
+  const mine = tagged.forSong.slice(0, want);
+  if (!mine.length && !tagged.pool.length) return generateRest(song, entry, want);
+  const room = want - mine.length;
+  const rest = room > 0 ? await generateRest(song, entry, room) : { facts: [], ttlMs: Infinity };
+  const found = rest.facts.filter((f) => !mine.includes(f.text) && !tagged.pool.includes(f.text));
+  const known = found.some(fromASource);
+  const pool = room > 0 ? takeTurns(tagged.pool, known ? 1 : room) : [];
+  const others = found.slice(0, room - pool.length);
+  console.log(`[FactGen] "${song.title}": ${mine.length + pool.length} of the streamer's own facts are for this song`);
+  // The first bubble stays about the song: its own tagged facts, else the first fact found about it.
+  const first = mine.length ? undefined : others.find(fromASource);
+  const lead = first ? [first.text] : mine;
+  const lines = [...lead, ...pool, ...others.map((f) => f.text).filter((t) => !lead.includes(t))];
   // Labeled as custom facts: that's where the streamer edits them.
-  const sourceOf = (t: string) => (mine.includes(t) ? SOURCE.custom : others.find((f) => f.text === t)?.source);
+  const theirs = new Set([...mine, ...pool]);
+  const sourceOf = (t: string) => (theirs.has(t) ? SOURCE.custom : others.find((f) => f.text === t)?.source);
   // Re-spacing rebuilds each fact, so the article link and source sentence are carried across.
   const sourced = new Map(others.map((f) => [f.text, f]));
   const facts = toFacts(song, lines, sourceOf).map((f) => {
@@ -623,10 +671,13 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
   const yours = findSongFacts(song);
   if (yours) {
     const lines = songFactLines(yours, want);
+    // With room left, one fact from its artist's or game's pool, ahead of the creator's link.
+    const pool = lines.length < want ? takeTurns(taggedFor(song).pool, 1) : [];
+    lines.splice(yours.link?.trim() ? lines.length - 1 : lines.length, 0, ...pool);
     console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
     record(asked, "songFacts", lines.length);
     // Not cached: an edit in the app applies the next time it plays.
-    return { facts: toFacts(song, lines, () => SOURCE.yours), ttlMs: 0 };
+    return { facts: toFacts(song, lines, (t) => (pool.includes(t) ? SOURCE.custom : SOURCE.yours)), ttlMs: 0 };
   }
 
   if (song.liveLearn) {
@@ -779,6 +830,7 @@ const revisions = new Map<string, number>();
 export function clearFactCache(): void {
   factCache.clear();
   recentFacts.length = 0;
+  poolTurns.clear();
   inFlight.clear();
   sources.clear();
   structuredShown.clear();
