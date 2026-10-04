@@ -229,6 +229,36 @@ otherwise match the general article about overtures. More rules in
   uploader called "Apollo" isn't the god.
 - **Blocked articles are skipped.** Anything the streamer marked **Wrong** for
   this song (`blockedArticles`), even if it's cached.
+- **A generic track names no installment.** "Main Theme" is in every
+  installment's article, so it never makes one the song's game.
+
+Song lists also write requests the usual reading misses. `readings` gives the
+other ways to read one, each checked by all the rules above:
+
+- **A category as the artist** ("Star Trek TV", "NieR Series", "Super Mario
+  Franchise"): the work named in the title ("Star Trek: Picard Season 1
+  Theme" is from *Star Trek: Picard*), then the series' own article ("Kirby
+  (series)"), never one installment. A film or show category never matches a
+  video game. A title with a name in brackets gets no series article: it may
+  be from another game ("Aquatic Ambiance (Donkey Kong Country)").
+- **An arranger or a second name** ("Elton John arr. Brent Edstrom",
+  "Frederic Chopin/Arranger"): each name alone. A second name that isn't
+  plainly a person's only counts for the song's own article.
+- **No one** ("Traditional", "Italian Folk Song"): the title alone, and only
+  an article that opens by calling it a song ("Santa Lucia" is also a town).
+
+After a miss, Wikipedia's own name for the subject is tried: an exact-title
+redirect ("Star Wars: The Phantom Menace" to "Star Wars: Episode I – The
+Phantom Menace") or the search's spelling suggestion ("Eric Satie" to "Erik
+Satie"). Not our fuzzy guessing, and still careful:
+
+- A redirect must lead to the same thing under its proper name: not a list,
+  an album, or one of several ("Johann Strauss" leads to Johann Strauss II).
+- A suggestion must be a respelling (a letter or two, in one word), name an
+  article, and be among the search's own hits: "Windy Harper" is never
+  "Wendy Harmer".
+- The renamed subject is that very page, not whatever a search for its name
+  finds first ("Pirates of the Caribbean", not its video game).
 
 ### Why is the game read from the artist field?
 
