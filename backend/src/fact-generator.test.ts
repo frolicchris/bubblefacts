@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, unmarkWrong } from "./fact-generator";
+import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, restoreRecent, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -231,6 +231,61 @@ describe("generateFacts", () => {
     expect(facts).toHaveLength(5);
     expect(facts[1].delaySeconds).toBe(15);
     (topic as { taggedFacts: typeof tagged }).taggedFacts = [];
+  });
+
+  describe("facts tagged for a game or artist (a pool many songs share)", () => {
+    // From a tester with nearly 200 songs from one game: every one of them opened with the same facts.
+    const pool = [
+      { tag: "Moonfall Saga", text: "Pool fact A." },
+      { tag: "Moonfall Saga", text: "Pool fact B." },
+      { tag: "Moonfall Saga", text: "Pool fact C." },
+    ];
+    const isPool = (t: string) => t.startsWith("Pool fact");
+    beforeEach(() => ((topic as { taggedFacts: typeof pool }).taggedFacts = pool));
+    afterEach(() => ((topic as { taggedFacts: typeof pool }).taggedFacts = []));
+
+    it("gives each song one, second, taking turns, beside the facts about the song", async () => {
+      const picked: string[] = [];
+      for (const title of ["Theme One", "Theme Two", "Theme Three", "Theme Four"]) {
+        // The mock writes the same lines for every song: let each count as new.
+        restoreRecent([]);
+        const facts = await generateFacts({ title, artist: "Moonfall Saga" });
+        const theirs = facts.filter((f) => isPool(f.text));
+        expect(theirs).toHaveLength(1);
+        expect(facts[1]).toMatchObject({ text: theirs[0].text, source: SOURCE.custom });
+        expect(isPool(facts[0].text)).toBe(false);
+        picked.push(theirs[0].text);
+      }
+      expect(picked).toEqual(["Pool fact A.", "Pool fact B.", "Pool fact C.", "Pool fact A."]);
+    });
+
+    it("fills the bubbles first when no source knows the song", async () => {
+      (config as { factVerification: boolean }).factVerification = true;
+      const facts = (await generateFacts({ title: "Unknown Theme", artist: "Moonfall Saga" })).map((f) => f.text);
+      expect(facts.slice(0, 3)).toEqual(["Pool fact A.", "Pool fact B.", "Pool fact C."]);
+    });
+
+    it("adds one to a song with its own facts, ahead of the creator's link, while there's room", async () => {
+      saveSongFacts({ title: "Featured Piece", artist: "Moonfall Saga", facts: ["Arranged for a festival."], link: "https://example.com/piece" });
+      try {
+        const facts = await generateFacts({ title: "Featured Piece", artist: "Moonfall Saga" });
+        expect(facts.map((f) => [f.text, f.source])).toEqual([
+          ["Arranged for a festival.", SOURCE.yours],
+          ["Pool fact A.", SOURCE.custom],
+          ["More from this song's creator: https://example.com/piece", SOURCE.yours],
+        ]);
+        saveSongFacts({ title: "Featured Piece", artist: "Moonfall Saga", facts: ["One.", "Two.", "Three.", "Four.", "Five."] });
+        expect((await generateFacts({ title: "Featured Piece", artist: "Moonfall Saga" })).some((f) => isPool(f.text))).toBe(false);
+      } finally {
+        saveSongFacts({ title: "Featured Piece", artist: "Moonfall Saga", facts: [] });
+      }
+    });
+
+    it("still shows every fact tagged for the song itself, first", async () => {
+      (topic as { taggedFacts: typeof pool }).taggedFacts = [...pool, { tag: "Theme One", text: "Own tag one." }, { tag: "Theme One", text: "Own tag two." }];
+      const facts = (await generateFacts({ title: "Theme One", artist: "Moonfall Saga" })).map((f) => f.text);
+      expect(facts.slice(0, 3)).toEqual(["Own tag one.", "Own tag two.", "Pool fact A."]);
+    });
   });
 
   it("keeps a custom fact tagged for one version off the song's other versions", () => {
