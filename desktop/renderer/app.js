@@ -429,9 +429,10 @@
     const wrong = $(".wrong", li);
     wrong.setAttribute("aria-label", `Mark wrong: ${f.text}`);
     wrong.addEventListener("click", async () => {
-      // The song goes along: during the song this takes the fact off the stream; afterward it's
-      // marked for next time (hands are busy while playing).
-      const result = await api.wrongFact(f.text, songObj);
+      // The song goes along, and which list this is: only On stream now takes the fact off the
+      // stream; Earlier songs marks it for next time (hands are busy while playing), even when
+      // that song is playing again.
+      const result = await api.wrongFact(f.text, songObj, current);
       if (!result || !result.removed) {
         showWrongNote("BubbleFacts no longer has that fact, so there was nothing to mark.", null);
         return;

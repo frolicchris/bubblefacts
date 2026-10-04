@@ -150,14 +150,14 @@ describe("generateFacts", () => {
     expect(facts.every((f) => f.position.right === "3%" && f.position.bottom === "5%")).toBe(true);
   });
 
-  it("logs each fact it shows with its source, so a stream can be read back", async () => {
+  it("doesn't log facts as shown when it writes them: the server logs them when they go out (shown-log.ts)", async () => {
+    // From review: a skipped, paused or superseded song's facts were logged as [Shown] though never sent.
     // console.log is already muted for all tests (test-setup.ts): read that mock, don't replace it.
     const log = console.log as unknown as jest.Mock;
     log.mockClear();
     const facts = await generateFacts({ title: "Logged Song", artist: "Logged Artist" });
-    const shown = log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith('[Shown] "Logged Song"'));
-    expect(shown).toHaveLength(facts.length);
-    expect(shown[0]).toContain(facts[0].text);
+    expect(facts.length).toBeGreaterThan(0);
+    expect(log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith("[Shown]"))).toEqual([]);
   });
 
   it("puts facts about the song first when the article is only about the artist", async () => {
@@ -231,6 +231,30 @@ describe("generateFacts", () => {
     expect(facts).toHaveLength(5);
     expect(facts[1].delaySeconds).toBe(15);
     (topic as { taggedFacts: typeof tagged }).taggedFacts = [];
+  });
+
+  it("keeps a custom fact tagged for one version off the song's other versions", () => {
+    // From review: the tag's brackets were dropped, so "[Night Drive (Acoustic)]" showed on the remix.
+    const tagged = [
+      { tag: "Night Drive (Acoustic)", text: "Recorded in one take." },
+      { tag: "Tag Artist - Night Drive (Remix)", text: "The remix came first." },
+      { tag: "Take On Me", text: "Any version of this one." },
+    ];
+    (topic as { taggedFacts: typeof tagged }).taggedFacts = tagged;
+    try {
+      expect(taggedFactsFor({ title: "Night Drive (Acoustic)", artist: "Tag Artist" })).toEqual(["Recorded in one take."]);
+      expect(taggedFactsFor({ title: "night drive [acoustic]", artist: "Someone" })).toEqual(["Recorded in one take."]);
+      // The list's own performance tag after the version doesn't hide it.
+      expect(taggedFactsFor({ title: "Night Drive (Acoustic) [Instrumental]", artist: "Someone" })).toEqual(["Recorded in one take."]);
+      expect(taggedFactsFor({ title: "Night Drive (Remix)", artist: "Tag Artist" })).toEqual(["The remix came first."]);
+      expect(taggedFactsFor({ title: "Night Drive (Remix)", artist: "Someone Else" })).toEqual([]);
+      expect(taggedFactsFor({ title: "Night Drive", artist: "Tag Artist" })).toEqual([]);
+      // A tag with no version matches every version, and the list's tags.
+      expect(taggedFactsFor({ title: "Take On Me [Instrumental]", artist: "Someone" })).toEqual(["Any version of this one."]);
+      expect(taggedFactsFor({ title: "Take On Me (Acoustic)", artist: "Someone" })).toEqual(["Any version of this one."]);
+    } finally {
+      (topic as { taggedFacts: typeof tagged }).taggedFacts = [];
+    }
   });
 
   it("gives each article fact a link and the sentence it rests on, for the dashboard", async () => {

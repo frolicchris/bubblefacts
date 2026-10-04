@@ -13,6 +13,8 @@ import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
 import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
+import { sameSong, wrongTarget } from "./wrong-target";
+import { ShownLog } from "./shown-log";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -85,6 +87,10 @@ if (restored) {
   earlier = (restored.earlier ?? []).slice(0, EARLIER_KEPT);
 }
 
+/** The [Shown] lines: logged where facts go out to an overlay, once per play of a song. */
+const shown = new ShownLog();
+const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
+
 function broadcast(payload: FactsPayload): void {
   // A new song moves the one that was showing into the earlier list.
   if (payload.type === "new_song" && !payload.quiet && lastSent.song && lastSent.facts?.length && !sameSong(lastSent.song, payload.song)) {
@@ -99,8 +105,11 @@ function broadcast(payload: FactsPayload): void {
   else lastSent = { song: null, facts: [] };
   // What a restart resumes: a fact taken off with Wrong stays off.
   if ((payload.type === "facts_ready" || payload.type === "remove_fact") && lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
+  // A new play of a song starts a new record, even of the same song; a quiet one (resuming) carries on.
+  if (payload.type === "new_song" && !payload.quiet) shown.newPlay();
   if (paused && payload.type !== "clear") return;
   for (const ws of clients.keys()) send(ws, payload);
+  if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
@@ -137,7 +146,10 @@ wss.on("connection", (ws, req) => {
   if (factsShownAt && lastSent.ready && sameRequest(lastSent.song, song)) {
     // A LIVE LEARN banner stays up for the whole song, so a reloaded overlay needs it again.
     send(ws, song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
-    send(ws, { type: "facts_ready", song, facts: remainingFacts(lastSent.facts ?? [], factsShownAt) });
+    const remaining = remainingFacts(lastSent.facts ?? [], factsShownAt);
+    send(ws, { type: "facts_ready", song, facts: remaining });
+    // Logged already unless no overlay was there when they went out (a restart, say).
+    logShown(song, remaining);
     return;
   }
   send(ws, newSong(song));
@@ -149,6 +161,7 @@ wss.on("connection", (ws, req) => {
       // Paused while they were being written: Pause cleared the screen, and they wait for Resume.
       if (token !== generation || paused) return;
       send(ws, { type: "facts_ready", song, facts });
+      logShown(song, facts);
       if (!factsShownAt && sameRequest(lastSent.song, song)) {
         factsShownAt = Date.now();
         remember(song, facts);
@@ -272,21 +285,19 @@ function resumeSameSong(): boolean {
   return true;
 }
 
-// "Wrong" in the app: take the fact off the stream now, and stop using its article for this song.
-// "Wrong": during the song it also comes off the stream; afterward (hands are busy while playing)
-// it's marked for next time. Either way its source isn't used for that song again.
+// "Wrong": from the On stream now list (`live`) it also comes off the stream; from Earlier songs
+// (hands are busy while playing) it's marked for next time, even when that song is on again.
+// Either way its source isn't used for that song again.
 control.post("/wrong", (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text : "";
-  const given = songFrom(req.body?.song);
-  const playing = !given || sameSong(given, songFrom(lastSent.song));
-  const song = playing ? lastSent.song : given;
-  const list = playing ? lastSent.facts ?? [] : earlier.find((e) => sameSong(e.song, given))?.facts ?? [];
-  const fact = list.find((f) => f.text === text);
-  if (!song || !fact) {
+  const click = { text, song: songFrom(req.body?.song), live: req.body?.live === true };
+  const target = wrongTarget(click, { song: songFrom(lastSent.song), facts: lastSent.facts ?? [] }, earlier);
+  if (!target) {
     res.status(404).json({ removed: false });
     return;
   }
-  res.json(takeWrong(song, fact, playing));
+  // The live song as the server holds it, so the overlay's remove_fact matches what it was sent.
+  res.json(takeWrong(target.playing ? lastSent.song! : target.song, target.fact, target.playing));
 });
 
 /** Wrong on one fact: off the stream if its song is on, marked for an earlier one. Either way its source is blocked. */
@@ -357,8 +368,6 @@ function songFrom(v: unknown): SSLSong | null {
     ...(s.liveLearn === true ? { liveLearn: true } : {}),
   };
 }
-const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
-  !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
 
 // The song on stream now, or the one named (a song picked from the list), matched as a save would match it.
 control.post("/song-facts/get", (req, res) => {

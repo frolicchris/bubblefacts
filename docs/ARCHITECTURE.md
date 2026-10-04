@@ -15,7 +15,7 @@ the relevant section before changing it.
 | **Screening** | Checking each caption the AI wrote against the reference, and dropping those it doesn't support. |
 | **Structured facts** | Fixed sentences filled in from Wikidata or MusicBrainz data. No AI. |
 | **Song facts** | Facts the streamer wrote for one particular song (**Add facts for this song**). |
-| **Tagged custom facts** | A custom fact starting `[Name]` goes only with the song, artist or game it names (`taggedFactsFor`), first, with the usual facts filling the slots left. It never joins the any-song pool. |
+| **Tagged custom facts** | A custom fact starting `[Name]` goes only with the song, artist or game it names (`taggedFactsFor`), first, with the usual facts filling the slots left. It never joins the any-song pool. A tag without a version matches every version of the title (`[Take On Me]` goes with `Take On Me [Instrumental]`, a tag song lists add often). A tag that names a version in brackets goes only with that version (`[Night Drive (Acoustic)]` never goes with `Night Drive (Remix)`), compared the way song facts are (`songIdentity` in `song-facts.ts`), with the list's own tags after it still allowed. |
 | **Custom facts** | The streamer's own facts for any song no source knows. In the app, only their own lines; the command-line version can also use the example topic packs (`topics/`), which are examples, not maintained content. |
 | **Entry facts** | Facts built from the queue entry itself: "played 12 times", "requested by X". |
 
@@ -44,6 +44,8 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
+| `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
+| `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
@@ -272,7 +274,12 @@ streamer's piece: nothing is looked up, and the streamer's own facts are used.
 ### How do I see what a stream showed?
 
 Each fact sent to the overlay is logged as `[Shown] "Song" (source): text`,
-next to the `[Screen] DROP` lines for what was held back.
+next to the `[Screen] DROP` lines for what was held back. It's logged where
+the facts go out (`broadcast` in `server.ts` after the pause check, and an
+overlay's catch-up), not where they're written, so a skipped, paused or
+superseded song's facts aren't in it. Each fact is logged once per play of a
+song, however many overlays get it (`shown-log.ts`); nothing is logged while
+no overlay is connected, and the first one to connect gets them, logged then.
 
 ### What gets remembered between songs?
 
@@ -341,7 +348,17 @@ requests through its Media Request player:
   restart the bubbles); any other song while paused is only the next one up,
   so the overlay clears.
 - `followingProblem()`: the live state says `playing`, `/playing` has a song,
-  but nothing has been followed for 30 s (`FOLLOW_GRACE_MS`).
+  but nothing has been followed for 30 s (`FOLLOW_GRACE_MS`). With the live
+  events down there's no live state, and REST can stay `paused` after a
+  resume (issue #16), so the sign then is a song change under `paused`: a
+  paused player stays on its song, so `/playing` naming a different one than
+  when the pause was first seen (`pausedOn`), unfollowed for 30 s, is a
+  problem too. Health says degraded, the dashboard says Reconnecting, and
+  after `DEGRADED_BEFORE_RESTART_MS` (2 minutes) the app restarts the server,
+  which reconnects the events. A pause on one song, however long, is never a
+  problem, and neither is a stopped player's next song up. A restart starts
+  with the song the player is on as `pausedOn`, so it can't repeat; a
+  streamer who skips while paused gets at most that one restart.
 - Polls every `SE_POLL_INTERVAL_MS` (15 s), or 30 s while events arrive.
 - The entry has a title, an artist, the requester and the length; no play
   count, note or live-learn flag, so facts built from those don't appear.
@@ -412,8 +429,9 @@ no screening, and are skipped for a song whose structured facts were marked
 ### Wrong and Undo
 
 ```
-Wrong   → POST /control/wrong {text, song}
-        → the song on now, or one from the earlier list (hands are busy mid-song)
+Wrong   → POST /control/wrong {text, song, live}
+        → wrongTarget(): live (clicked under On stream now) and still on → the song on now;
+          otherwise that song's play in the earlier list (hands are busy mid-song)
         → markWrong(): the fact's own source label decides (blockFor)
              "Wikidata" / "MusicBrainz"   → blocks STRUCTURED ("Wikidata and MusicBrainz")
              "Wikipedia: <title>"          → blocks that article
@@ -438,6 +456,13 @@ video, else `artist:::title` lowercased) to blocked article titles and the
 the same entry. The label is used rather than what's in memory, so Wrong is
 right after a restart and on an earlier song. The app sends the song that was
 on when **Wrong** was pressed, so **Undo** can't land on the next song.
+
+The window also says which list was clicked (`live: true` only from **On
+stream now**). The song alone can't tell: when a song plays again (A, B, A),
+its earlier play under **Earlier songs** is the same song as the one on, and
+**Wrong** there took the live bubble off. A click under **Earlier songs**
+always marks that earlier play and never touches the stream. A live click
+whose song has moved on finds the fact under **Earlier songs** instead.
 
 **Hands-free Wrong** asks the server, not the overlay, which bubble is up: it
 knows when the facts went out (`factsShownAt`) and each one's delay, and
