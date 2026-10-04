@@ -31,7 +31,7 @@ interface Recording {
   score?: number;
   title?: string;
   "first-release-date"?: string;
-  "artist-credit"?: Array<{ name?: string; artist?: { name?: string; "sort-name"?: string } }>;
+  "artist-credit"?: Array<{ name?: string; artist?: { id?: string; name?: string; "sort-name"?: string } }>;
   releases?: Array<{
     title?: string;
     status?: string;
@@ -71,7 +71,7 @@ async function mbFetch(url: string): Promise<Response> {
 
 async function lookup<T>(path: string, inc: string): Promise<T> {
   return throttled(async () => {
-    const url = `https://musicbrainz.org/ws/2/${path}?${new URLSearchParams({ inc, fmt: "json" })}`;
+    const url = `https://musicbrainz.org/ws/2/${path}?${new URLSearchParams(inc ? { inc, fmt: "json" } : { fmt: "json" })}`;
     const res = await mbFetch(url);
     if (!res.ok) throw new Error(`MusicBrainz HTTP ${res.status}`);
     return (await res.json()) as T;
@@ -105,19 +105,54 @@ function names(list: string[]): string {
   return n.length <= 1 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
 }
 
-/** Facts for a performer's song from the matching recordings. */
-export function performerFacts(recordings: Recording[], title: string, artist: string): string[] {
+/** Release groups that reissue or record live what came out before: their date isn't the song's. */
+const REISSUE_TYPES = /^(compilation|live|dj-mix|remix|mixtape\/street)$/i;
+
+/** The recordings of this title credited to this artist, earliest first. */
+function matchingRecordings(recordings: Recording[], title: string, artist: string): Recording[] {
   const want = normalizeTitle(title);
   const names = artistNames(artist);
-  const matches = recordings
+  return recordings
     .filter((r) => (r.score ?? 0) >= 90 && normalizeTitle(r.title ?? "") === want)
     .filter((r) => (r["artist-credit"] ?? []).some((c) => names.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
     .sort((a, b) => date(a).localeCompare(date(b)));
+}
+
+/**
+ * The year the song first came out, from releases that aren't compilations,
+ * live albums or remixes: "It's Only a Paper Moon" (1933) isn't from 1988
+ * because a 1988 jazz compilation is the earliest one MusicBrainz lists.
+ * None when the artist had died by then: a Satie piece on a 1995 album.
+ */
+export function firstYear(matches: Recording[], diedIn?: number): string | undefined {
+  const years = matches.flatMap((r) => {
+    const original = (r.releases ?? []).filter(
+      (rel) => rel.status === "Official" && !(rel["release-group"]?.["secondary-types"] ?? []).some((t) => REISSUE_TYPES.test(t)) && !NOT_AN_ALBUM.test(rel.title ?? "")
+    );
+    const dated = original.map((rel) => /^\d{4}/.exec(rel.date ?? "")?.[0]).filter((y): y is string => Boolean(y));
+    // Releases listed without dates: the recording's own first date, if it has an original release at all.
+    const own = original.length ? /^\d{4}/.exec(r["first-release-date"] ?? "")?.[0] : undefined;
+    return dated.length ? dated : own ? [own] : [];
+  });
+  const year = years.sort()[0];
+  return year && !(diedIn && Number(year) > diedIn) ? year : undefined;
+}
+
+/** The credited artist's MusicBrainz id, to look up when they died. */
+export function creditedArtistId(recordings: Recording[], title: string, artist: string): string | undefined {
+  const names = artistNames(artist);
+  return matchingRecordings(recordings, title, artist)[0]?.["artist-credit"]?.find((c) => names.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))?.artist?.id;
+}
+
+/** Facts for a performer's song from the matching recordings. `diedIn`: the year the credited artist died, if they have. */
+export function performerFacts(recordings: Recording[], title: string, artist: string, diedIn?: number): string[] {
+  const want = normalizeTitle(title);
+  const matches = matchingRecordings(recordings, title, artist);
   const first = matches[0];
   if (!first) return [];
   const facts: string[] = [];
   const q = `"${title}"`;
-  const year = /^\d{4}/.exec(first["first-release-date"] ?? "")?.[0];
+  const year = firstYear(matches, diedIn);
   if (year) facts.push(`${q} came out in ${year}.`);
   // A studio album only (no compilations, live or soundtrack albums), and no
   // claim that it came out there first: an earlier single may not be listed.
@@ -154,10 +189,14 @@ export function gameCandidates(recordings: Recording[], title: string, game: str
     .map((r) => r.id as string);
 }
 
-/** Composers and writers a work names through explicit relationships. */
-export function composersOf(work: { relations?: Array<{ type?: string; "target-type"?: string; artist?: { name?: string; "sort-name"?: string } }> }): string[] {
+/**
+ * Composers and writers a work names through explicit relationships. An
+ * "additional" composer is left out: Alexander Courage's fanfare quoted in a
+ * James Horner cue doesn't make him its co-composer.
+ */
+export function composersOf(work: { relations?: Array<{ type?: string; "target-type"?: string; attributes?: string[]; artist?: { name?: string; "sort-name"?: string } }> }): string[] {
   return (work.relations ?? [])
-    .filter((r) => r["target-type"] === "artist" && /^(composer|writer)$/i.test(r.type ?? "") && r.artist)
+    .filter((r) => r["target-type"] === "artist" && /^(composer|writer)$/i.test(r.type ?? "") && r.artist && !(r.attributes ?? []).some((a) => /additional/i.test(a)))
     .map((r) => readableName({ name: r.artist?.name, artist: r.artist }))
     .filter(Boolean);
 }
@@ -193,7 +232,16 @@ export async function musicbrainzFacts(song: SSLSong): Promise<string[]> {
   const performer = song.performer || looksLikeArtistName(game);
   try {
     let facts = performer ? [] : await gameComposer(await search(`recording:${quote(title)} AND release:${quote(game)}`), title, game);
-    if (!facts.length) facts = performerFacts(await search(`recording:${quote(title)} AND artist:${quote(game)}`), title, game);
+    if (!facts.length) {
+      const recordings = await search(`recording:${quote(title)} AND artist:${quote(game)}`);
+      facts = performerFacts(recordings, title, game);
+      // A year is only stated when the artist was alive for it: one more lookup, only then.
+      const id = facts.some((f) => / came out in \d{4}\.$/.test(f)) ? creditedArtistId(recordings, title, game) : undefined;
+      if (id) {
+        const died = /^\d{4}/.exec((await lookup<{ "life-span"?: { end?: string } }>(`artist/${id}`, ""))["life-span"]?.end ?? "")?.[0];
+        if (died) facts = performerFacts(recordings, title, game, Number(died));
+      }
+    }
     console.log(`[MusicBrainz] "${title}" by ${game}: ${facts.length} facts`);
     cache.set(key, { facts, at: Date.now() });
     return facts;

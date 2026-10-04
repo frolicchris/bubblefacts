@@ -36,6 +36,17 @@ import {
   isRespelling,
   isSameWorkRedirect,
   editDistance,
+  opensAboutMusicOrWork,
+  isPlaceholderRequest,
+  requestNames,
+  articleMisfit,
+  rememberArticle,
+  withoutVideoSections,
+  soundtrackPart,
+  otherParts,
+  unsupportedConnective,
+  unsupportedRelation,
+  unsupportedCredit,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
@@ -1336,5 +1347,216 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Passacaglia Handel Halvorsen": ["Passacaglia (Handel/Halvorsen)"] };
     extracts = { "Passacaglia (Handel/Halvorsen)": `A piece for violin and viola.${LONG}` };
     expect(await fetchGrounding({ title: "Passacaglia", artist: "Arr. Handel Halvorsen" })).toMatch(/^Passacaglia \(Handel\/Halvorsen\)\n/);
+  });
+});
+
+// Examples below are from the two 50-song fact checks of October 2026 (public works only).
+describe("the article must fit the request", () => {
+  it("needs an opening about a song, a performer or a work", () => {
+    expect(opensAboutMusicOrWork("Jezebel () was the daughter of Ithobaal I of Tyre and the wife of Ahab, King of Israel, according to the Book of Kings of the Hebrew Bible (1 Kings 16). In the biblical narrative, Jezebel replaced Yahwism with Baal and Asherah worship.")).toBe(false);
+    expect(opensAboutMusicOrWork("YouTube is an American online video-sharing platform owned by Google. YouTube was founded on February 14, 2005, by Chad Hurley, Jawed Karim and Steve Chen.")).toBe(false);
+    expect(opensAboutMusicOrWork('"Square Hammer" is a song by Swedish rock band Ghost.')).toBe(true);
+    expect(opensAboutMusicOrWork("The Touhou Project is a bullet hell shoot 'em up video game series created by ZUN.")).toBe(true);
+    expect(opensAboutMusicOrWork("Star Trek: Voyager is an American science fiction television series created by Rick Berman, Michael Piller and Jeri Taylor.")).toBe(true);
+    expect(opensAboutMusicOrWork("Erik Satie was a French composer and pianist.")).toBe(true);
+  });
+
+  it("knows a request placeholder from a song", () => {
+    expect(isPlaceholderRequest({ title: "Off-List YouTube Request < 5 Min(Free). 4", artist: "YouTube" })).toBe(true);
+    expect(isPlaceholderRequest({ title: "Any song request", artist: "Viewer" })).toBe(true);
+    expect(isPlaceholderRequest({ title: "Love Story", artist: "Indila" })).toBe(false);
+    expect(isPlaceholderRequest({ title: "Special Request", artist: "The Midnight Owls" })).toBe(false);
+  });
+
+  it("asks the article to name the character whose theme it is, and the work in the artist's subtitle", () => {
+    expect(requestNames({ title: "Killer (Yoshikage Kira's Theme)", artist: "JoJo's Bizarre Adventure" })).toEqual(["yoshikage kira"]);
+    expect(requestNames({ title: "Main Theme", artist: "Star Wars: Rogue One" })).toEqual(["rogue one"]);
+    // A stage name in brackets: the game's article may never name it, and its facts were right.
+    expect(requestNames({ title: "Kick The Rock! (Wild Canyon)", artist: "Sonic Adventure 2" })).toEqual([]);
+    expect(requestNames({ title: "Don't Let The Sun Go Down On Me [Instrumental]", artist: "Elton John" })).toEqual([]);
+  });
+
+  it("rejects an article that doesn't name them, or isn't about music or a work", () => {
+    rememberArticle("Star Wars (1983 video game)", "Star Wars is a 1983 space combat game developed and published by Atari, Inc. The controller was designed for a Bradley Fighting Vehicle simulator.");
+    expect(articleMisfit({ title: "Main Theme", artist: "Star Wars: Rogue One" }, "Star Wars (1983 video game)\nreference")).toBe('never mentions "rogue one"');
+    rememberArticle("Jezebel", "Jezebel () was the daughter of Ithobaal I of Tyre and the wife of Ahab, King of Israel.");
+    expect(articleMisfit({ title: "Jezebel", artist: "Sade" }, "Jezebel\nreference")).toMatch(/doesn't open like/);
+    // For a person's piece a bracket is often a translation: "Under The Stars" is fine.
+    rememberArticle("Eugénie Rocherolle", "Eugénie Ricau Rocherolle was an American composer and pianist.");
+    expect(articleMisfit({ title: "Debajo Las Estrellas (Under The Stars)", artist: "Eugénie Rocherolle" }, "Eugénie Rocherolle\nreference")).toBe("");
+  });
+});
+
+describe("music-video sections stay out of the reference", () => {
+  const article = [
+    '"Square Hammer" is a song by Swedish rock band Ghost.',
+    "== Music video ==",
+    "Papa Emeritus III takes a paper from a hawker.",
+    "=== Production ===",
+    "The video was shot in black and white.",
+    "== Reception ==",
+    "It made Ghost the first Swedish band to top the Billboard Mainstream Rock chart.",
+  ].join("\n");
+
+  it("drops the section and its subsections, and keeps the rest", () => {
+    const text = withoutVideoSections(article);
+    expect(text).not.toMatch(/hawker|black and white/);
+    expect(text).toMatch(/first Swedish band/);
+    expect(withoutVideoSections("Lead.\n== Video game ==\nIt was used in a video game.")).toMatch(/used in a video game/);
+  });
+
+  it("drops talk of the video or its shoot, but not a video game or a shoot 'em up", () => {
+    const ctx = "I'll Never Break Your Heart\nKristin Willits was asked to be featured in the original video. The group would fall off after filming stopped. It gained notoriety due to its inclusion in the video game Guitar Hero III. The Touhou Project is a shoot 'em up series.";
+    expect(screenClaims(["Kristin Willits was asked to be featured in the original video."], ctx).kept).toEqual([]);
+    expect(screenClaims(["The group would constantly fall off after filming stopped."], ctx).kept).toEqual([]);
+    expect(screenClaims(["The song gained notoriety due to its inclusion in the video game Guitar Hero III."], ctx).kept).toHaveLength(1);
+    expect(screenClaims(["The Touhou Project is a shoot 'em up series."], ctx).kept).toHaveLength(1);
+  });
+});
+
+describe("a big soundtrack article is cut to the track's part", () => {
+  const music = [
+    "The music of Genshin Impact was composed by Yu-Peng Chen.",
+    "== Mondstadt ==",
+    "The Mondstadt soundtrack was performed by the London Philharmonic Orchestra with Robert Ziegler.",
+    "== Liyue ==",
+    "The Liyue soundtrack draws on Chinese folk music and was recorded with the Shanghai Symphony Orchestra.",
+    "== Fontaine ==",
+    "The Fontaine soundtrack was recorded with the London Symphony Orchestra.",
+    "== Musicology and instrumentation ==",
+    '=== "Main Theme" ===',
+    "The main theme opens with a solo violin.",
+    "== Reception ==",
+    "It won several awards.",
+  ].join("\n");
+
+  it("keeps the lead and the named part, and lists the others", () => {
+    const part = soundtrackPart(music, "Liyue: Relaxation in Liyue");
+    expect(part?.heading).toBe("Liyue");
+    expect(part?.text).toMatch(/Shanghai Symphony/);
+    expect(part?.text).not.toMatch(/London Philharmonic/);
+    expect(part?.others).toEqual(["Mondstadt", "Fontaine"]);
+    // A track that names no part, or an article without parts, is left alone.
+    expect(soundtrackPart(music, "Raiden Shogun: Awake From A Nightmare")).toBeNull();
+    expect(soundtrackPart("Lead.\n== Development ==\nText.\n== Reception ==\nText.", "Lumière")).toBeNull();
+  });
+
+  it("builds the track's reference from its part, and drops a caption naming another part", () => {
+    const text = gameTrackText({ page: "Genshin Impact", full: "Genshin Impact is a 2020 action role-playing game.", music: { page: "Music of Genshin Impact", full: music } }, "Fontaine: Remuria - Glory and Decay");
+    expect(text).toMatch(/London Symphony/);
+    expect(text).not.toMatch(/Mondstadt|Philharmonic/);
+    rememberArticle("Music of Genshin Impact", music);
+    const others = otherParts(text, "Fontaine: Remuria - Glory and Decay");
+    const { kept, rejected } = screenClaims(["Medieval European styles inspired the design of the Mondstadt region."], music, { otherParts: others });
+    expect(kept).toEqual([]);
+    expect(rejected[0].reason).toMatch(/another part/);
+  });
+});
+
+describe("cause, order and count words must be in the sentence retold", () => {
+  const fireEmblem = "Fire Emblem\nMarth and Roy's appearance in Super Smash Bros. Melee, alongside the international success of Advance Wars, is cited as what led to Nintendo localizing The Blazing Blade. Due to its success overseas, the series returned to home consoles.";
+
+  it("drops a cause the source doesn't give", () => {
+    expect(unsupportedConnective("Marth and Roy appeared in Super Smash Bros. Melee due to the international success of Advance Wars.", fireEmblem)).toBe("due to");
+    const creed = "Assassin's Creed (soundtrack)\nBut he was ultimately replaced by Justin's brother, composer Jed Kurzel. Assassin's Creed is their third film together.";
+    expect(unsupportedConnective("Justin's brother Jed Kurzel scored the film for the first time.", creed)).toBe("for the first time");
+    expect(unsupportedConnective("The Assassin's Creed film marked Jed Kurzel and Justin Kurzel's third collaboration.", creed)).toBeNull();
+  });
+
+  it("drops an invented intention or order", () => {
+    const ttfaf = "Through the Fire and Flames\nWhen the band first played the song live, they lacked any acoustic guitars, so it was decided to have keyboardist Vadim Pruzhanov play the acoustic guitar part.";
+    expect(unsupportedConnective("The song was originally intended to be performed with only keyboardist Vadim Pruzhanov on acoustic guitar.", ttfaf)).toBe("originally intended");
+    const smooth = "Smooth McGroove\nThe band fell apart, and a few years later, Gleason decided to do more music.";
+    expect(unsupportedConnective("Gleason's band fell apart after he decided to focus on music full-time.", smooth)).toBe("after");
+    const yiruma = "Yiruma\nAfter completing his military service, he made his comeback with a nationwide tour.";
+    expect(unsupportedConnective("After completing his military service, Yiruma made his comeback with a nationwide tour.", yiruma)).toBeNull();
+  });
+
+  it("drops a count or number the source doesn't give", () => {
+    const pressure = "Under Pressure\nIt reached number one on the UK Singles Chart, becoming Queen's second number-one hit in the UK and Bowie's third.";
+    expect(unsupportedConnective('"Under Pressure" reached number one on the UK Singles Chart twice.', pressure)).toBe("twice");
+    const violet = "Violet Evergarden\nThe album has 6 vocal tracks featuring performances by Aira Yuuki, Minori Chihara, and True.";
+    expect(unsupportedConnective("Aira Yuuki performed in 5 of the 6 vocal tracks of the album.", violet)).toBe("5");
+    const souvenirs = "Eugénie Rocherolle\nSouvenirs du château includes Une matinée au lavoir, La chapelle, Déjeuner dans la cour, Le donjon, and Le salon de musique.";
+    expect(unsupportedConnective('"Souvenirs du château" includes three pieces.', souvenirs)).toBe("three");
+    // A number in a name is no count: "Expedition 33", "21 Savage".
+    expect(unsupportedConnective("Testard scored Clair Obscur: Expedition 33.", "Music of Clair Obscur: Expedition 33\nTestard scored the game.")).toBeNull();
+  });
+});
+
+describe("relationship and role words must be stated for those people", () => {
+  it("drops an invented kinship, instrument or 'self-titled'", () => {
+    const ware = "I Wanna Be Where You Are\nIt was written by Arthur 'T-Boy' Ross and Leon Ware. Ross, the younger brother of Diana Ross, later wrote for Marvin Gaye.";
+    expect(unsupportedRelation("Leon Ware is T-Boy Ross's older brother.", ware)).toBe("brother");
+    const aha = "Take On Me\nFuruholmen recalled thinking it was \"quite catchy\". Waaktaar played guitar.";
+    expect(unsupportedRelation('The band\'s guitarist Furuholmen recalled thinking it was "quite catchy".', aha)).toBe("guitarist");
+    const poison = "Poison (Bell Biv DeVoe song)\nIt was the first single from their debut album of the same name.";
+    expect(unsupportedRelation("The group's debut single was released as part of their self-titled debut album.", poison)).toBe("self-titled");
+  });
+
+  it("keeps a relationship the source states", () => {
+    const creed = "Assassin's Creed (soundtrack)\nBut he was ultimately replaced by Justin's brother, composer Jed Kurzel.";
+    expect(unsupportedRelation("Jed Kurzel is Justin's brother.", creed)).toBeNull();
+  });
+});
+
+describe("credits: partners, and what 'wrote' means", () => {
+  it("needs the partners named 'with' a credit to share it in the source", () => {
+    const ctx = "When Can I See You\nIt was written by Babyface and co-produced by him along with Antonio Reid and Daryl Simmons.";
+    expect(unsupportedCredit('Babyface wrote "When Can I See You" with Antonio Reid and Daryl Simmons.', ctx)).toBe("Antonio Reid");
+    expect(unsupportedCredit('Babyface wrote "When Can I See You".', ctx)).toBeNull();
+  });
+
+  it("doesn't take writing the story for composing (review)", () => {
+    const ctx = "Starfall Tactics\nYasumi Matsuno wrote the story. Hitoshi Sakimoto composed the music.";
+    expect(unsupportedCredit("Yasumi Matsuno composed the music for Starfall Tactics.", ctx)).toBe("Yasumi Matsuno");
+    expect(unsupportedCredit("Yasumi Matsuno wrote the music for Starfall Tactics.", ctx)).toBe("Yasumi Matsuno");
+    expect(unsupportedCredit("Hitoshi Sakimoto composed the music.", ctx)).toBeNull();
+    expect(unsupportedCredit("Hitoshi Sakimoto composed the music.", "Starfall Tactics\nThe music was written by Hitoshi Sakimoto.")).toBeNull();
+    expect(unsupportedCredit("Hitoshi Sakimoto composed the music.", "Starfall Tactics\nHitoshi Sakimoto wrote the score in a year.")).toBeNull();
+  });
+});
+
+describe("true facts the screen used to drop", () => {
+  const kept = (fact: string, ctx: string) => screenClaims([fact], ctx).kept.length === 1;
+
+  it("reads U+2010 hyphens, middle initials and descriptors before names", () => {
+    expect(kept("Satie's music shows Wagner-influenced Impressionism.", "Erik Satie\nHis music shows a Wagner‐influenced Impressionism.")).toBe(true);
+    expect(kept("The song was produced by Barry J. Eastmond.", "Somebody Loves You Baby\nThe song was produced by Barry J. Eastmond. It reached number two.")).toBe(true);
+    expect(kept("The song was written by Eugene Wilde and Albert Manno.", "Body and Soul\nThe song was written by singer-songwriters Eugene Wilde and Albert Manno.")).toBe(true);
+  });
+
+  it("keeps names written in one word with capitals inside", () => {
+    expect(kept("Bell Biv DeVoe's song blends new jack swing and hip hop.", "Poison\nPoison is a song by Bell Biv DeVoe that blends new jack swing and hip hop.")).toBe(true);
+    expect(kept("Luther Vandross ran a Patti LaBelle fan club as a teenager.", "Luther Vandross\nAs a teenager Vandross ran a Patti LaBelle fan club.")).toBe(true);
+    expect(kept("Indila's YouTube clip passed 483 million views.", "Love Story (Indila song)\nIndila's YouTube clip passed 483 million views.")).toBe(true);
+  });
+
+  it("takes a maker's view for a fact, and keeps the closer of two near-duplicates", () => {
+    expect(kept("Waaktaar considered the song too poppy at first.", "Take On Me\nWaaktaar considered the song too poppy at first.")).toBe(true);
+    const ctx = 'Smells Like Teen Spirit\nThe riff resembles that of Boston\'s 1976 hit "More Than a Feeling", although it is not identical.';
+    const { kept: both } = screenClaims(
+      ['The guitar riff was inspired by Boston\'s 1976 hit "More Than a Feeling".', 'The guitar riff resembles Boston\'s 1976 hit "More Than a Feeling".'],
+      ctx
+    );
+    expect(both).toEqual(['The guitar riff resembles Boston\'s 1976 hit "More Than a Feeling".']);
+  });
+});
+
+describe("review: platform siblings and shared surnames", () => {
+  it("doesn't take a sibling console's name for the console", () => {
+    expect(screenClaims(["Starfall came out on the Wii in 2012."], "Starfall\nStarfall was released for the Wii U in 2012.").kept).toEqual([]);
+    expect(screenClaims(["Starfall came out on the Wii in 2012."], "Starfall\nStarfall was released for the Wii in 2012 and the Wii U in 2013.").kept).toHaveLength(1);
+    expect(platformSupported("PlayStation", "It came out on PlayStation 4.")).toBe(false);
+    expect(platformSupported("Game Boy", "It came out on the Game Boy Advance.")).toBe(false);
+    expect(platformSupported("Xbox", "It came out on the Xbox 360.")).toBe(false);
+    expect(platformSupported("Wii U", "It came out on the Wii U.")).toBe(true);
+  });
+
+  it("needs the fact's given name in the role's sentence, unless the source gives the surname alone", () => {
+    const ctx = "Starfall\nJohn Williams composed the score. Paul Williams wrote the lyrics.";
+    expect(unsupportedCredit("Paul Williams composed the score.", ctx)).toBe("Paul Williams");
+    expect(unsupportedCredit("John Williams composed the score.", ctx)).toBeNull();
+    expect(unsupportedCredit("Yuzo Koshiro composed the score.", "Starfall\nKoshiro composed the score.")).toBeNull();
   });
 });
