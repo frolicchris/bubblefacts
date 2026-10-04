@@ -117,7 +117,11 @@ sign-ins and the built-in AI. Its design decisions are in
    Fontaine...) is cut to its lead and the part the track names ("Liyue:
    Relaxation in Liyue"), and captions naming another part are dropped
    (`soundtrackPart`): every name in a Mondstadt fact is in the article, so
-   nothing else catches it under a Liyue track.
+   nothing else catches it under a Liyue track. A track named after something
+   the article never mentions ("Ganyu: Radiant Dreams", a character) belongs
+   to a part no one can tell, so the reference keeps only the lead and the
+   general sections (musicology, reception), and every part counts as another
+   part. This applies only when the article's lead calls it a soundtrack or score.
    Music-video sections, with their plot, production and fashion
    subsections, never go into a reference (`withoutVideoSections`): told as
    facts, a video's story reads as if it happened.
@@ -159,6 +163,27 @@ sign-ins and the built-in AI. Its design decisions are in
    are related or what they play ("brother", "guitarist", "self-titled")
    must be in a source sentence naming them (`unsupportedRelation`). Of two
    near-duplicates, the one closer to its source sentence is kept.
+   The same check covers words that change what the sentence says:
+   "inspired by" where the source says "resembles", "inspiring X to" where it
+   says one piece resembles another, "originally titled" or "originally a
+   cover" where the source just names it, "born" for a baptism date, and
+   "first" (which may also sit in a closely related sentence). "A after B"
+   is dropped when the sentence it retells says "after A, B".
+   Three slips keep a detail but drop what it belongs to (`lostQualifier`):
+   two chart peaks put on one chart ("numbers 15 and 16 on the Hot 100" when
+   the second was Cash Box), "her second single" when it was the second single
+   from her third album, and a single's full release date given to the album
+   it came from. Three more tell a statement with another subject: "the band"
+   for what the source says "the company" did, a speaker the sentence names
+   only inside "an interview with" (`swappedSubject`), and a critic's reading
+   ("described the cue as a compromise") told as fact without the critic
+   (`unattributedView`). On an article that isn't the song's own (the
+   artist's, the game's), a caption opening "The song", "The musical" or "The
+   collection" reads as the song being played, so it must retell a sentence
+   that names that song. Most wrong subjects can't be seen in the words alone
+   ("B scored the games" when the source says A did, and B scored only the
+   film); for those the prompt asks to keep each statement's subject, verb
+   and details together.
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.

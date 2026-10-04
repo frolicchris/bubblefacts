@@ -241,7 +241,7 @@ OBJECTIVE
 Write ${want} captions about ${game} or its music that chat would find surprising, funny or fascinating. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
 
 SOURCE
-Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. If the text does not say something, leave it out.
+Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. If the text does not say something, leave it out.
 """
 ${context}
 """
@@ -268,7 +268,7 @@ Write exactly ${want} trivia lines about ${game} or its music. Your readers are 
 Follow every rule:
 1. Use ONLY the SOURCE. Every person, year, number, platform, studio, and title you write must appear in the SOURCE, spelled the same way.
 2. Match the SOURCE's subject. If it describes a song, film, or classical work rather than a video game, write about that — never force a gaming angle onto music that has nothing to do with games.
-3. Each line restates ONE statement from the SOURCE. Never merge two statements, and never move a name from one statement into another — if the SOURCE says someone composed the music, do not say they wrote the story or designed the game. Keep the statement's subject as your subject, and use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it.
+3. Each line restates ONE statement from the SOURCE. Never merge two statements, and never move a name from one statement into another — if the SOURCE says someone composed the music, do not say they wrote the story or designed the game. Keep the statement's subject as your subject, and use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to (a date with the release it dates, "second single from her third album" whole), and keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them.
 4. If the SOURCE does not name a composer, do NOT name a composer — write about a different detail the SOURCE does give.
 5. Do not mention awards, sales, chart positions, or review scores unless the SOURCE uses those words.
    Never write opinions or praise ("considered", "acclaimed", "one of the greatest"), even if the SOURCE quotes them.
@@ -760,7 +760,8 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
-    const { kept, rejected } = screenClaims(lines, context, { otherParts: otherParts(context, resolveGameAndTrack(read).track) });
+    const { track } = resolveGameAndTrack(read);
+    const { kept, rejected } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track });
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
     // Music terms get a few fixed plain words, so any viewer can follow.
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f))).map(explainMusicTerms);
