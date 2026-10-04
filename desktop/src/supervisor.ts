@@ -116,11 +116,6 @@ export class Supervisor extends EventEmitter {
     this.set("stopped", "");
   }
 
-  /** A line from the app itself, kept with the server's: in the log file and in problem reports. */
-  note(line: string): void {
-    this.log(line);
-  }
-
   private set(state: ServerState, message: string): void {
     this.status = { ...this.status, state, message };
     this.emit("status", this.status);
@@ -256,6 +251,11 @@ export class Supervisor extends EventEmitter {
       if (loading) this.modelFailed("stopped responding while loading");
       else this.scheduleRestart("The fact server stopped responding");
     }
+  }
+
+  /** A line from the app itself, kept with the server's so reports and log files carry it too. */
+  note(line: string): void {
+    this.log(line);
   }
 
   private log(chunk: string): void {

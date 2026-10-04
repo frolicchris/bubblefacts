@@ -32,6 +32,7 @@ const aiName = (ai: string) =>
   ({ builtin: "Built into the app", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama on my computer" } as Record<string, string>)[ai] ??
   "Other or not sure";
 
+/** `version` is the label with the build, such as "2.0.0-beta.12 test build (c4ee826)" (build.ts). */
 export function problemReportUrl(opts: { version: string; ai: string; logLines: string[]; secrets: string[] }): string {
   const log = redact(opts.logLines.slice(-60).join("\n"), opts.secrets);
   return issueUrl("bug_report.yml", {
@@ -44,8 +45,11 @@ export function problemReportUrl(opts: { version: string; ai: string; logLines: 
   });
 }
 
-/** The beta test form, with the answers the app knows filled in. Each must match a form option exactly. */
-export function betaReportUrl(opts: { version: string; systemVersion: string; songSource: string; logLines: string[]; secrets: string[] }): string {
+/**
+ * The beta test form, with the answers the app knows filled in. Each dropdown answer must match a form
+ * option exactly, so `version` is the plain version and `build` the label with the build (build.ts).
+ */
+export function betaReportUrl(opts: { version: string; build: string; systemVersion: string; songSource: string; logLines: string[]; secrets: string[] }): string {
   const mac = process.arch === "arm64" ? "Mac with Apple silicon (M1 or newer)" : "Mac with Intel";
   const computer = ({ darwin: mac, win32: "Windows" } as Record<string, string>)[process.platform] ?? "Linux";
   const download =
@@ -53,6 +57,7 @@ export function betaReportUrl(opts: { version: string; systemVersion: string; so
     (process.env.APPIMAGE ? "Linux AppImage" : "Linux .deb package");
   return issueUrl("beta_test.yml", {
     version: opts.version,
+    build: opts.build,
     os: computer,
     download,
     source: opts.songSource === "streamelements" ? "StreamElements" : "StreamerSongList",
@@ -61,12 +66,14 @@ export function betaReportUrl(opts: { version: string; systemVersion: string; so
   });
 }
 
-export function wrongFactUrl(opts: { song: string; fact: string; logLines: string[]; secrets: string[] }): string {
+/** `version` is the label with the build (build.ts). */
+export function wrongFactUrl(opts: { song: string; fact: string; version: string; logLines: string[]; secrets: string[] }): string {
   const title = opts.song.split(" — ")[0].toLowerCase();
   const relevant = opts.logLines.filter((l) => /\[(Grounding|Screen)\]/.test(l) && l.toLowerCase().includes(title));
   return issueUrl("wrong_fact.yml", {
     song: opts.song,
     shown: opts.fact,
+    version: opts.version,
     log: redact((relevant.length ? relevant : opts.logLines.filter((l) => /\[Grounding\]/.test(l))).slice(-10).join("\n"), opts.secrets),
   });
 }

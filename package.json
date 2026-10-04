@@ -9,10 +9,12 @@
     "test": "jest --config jest.config.ts",
     "lint": "eslint frontend desktop/renderer && shellcheck scripts/*.sh",
     "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p backend/tsconfig.test.json && tsc -p desktop/tsconfig.json --noEmit && tsc -p desktop/tsconfig.test.json",
-    "check": "npm run typecheck && npm run lint && npm test",
+    "check": "npm run typecheck && npm run lint && npm test && npm run test:scripts",
     "build:desktop": "tsc -p desktop/tsconfig.json",
     "app": "npm run build && npm run build:desktop && electron .",
-    "dist": "npm run build && npm run build:desktop && electron-builder --publish never"
+    "dist": "npm run build && npm run build:desktop && electron-builder --publish never",
+    "bump": "node scripts/bump-version.mjs",
+    "test:scripts": "node --test scripts/bump-version.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

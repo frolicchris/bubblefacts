@@ -20,11 +20,12 @@ describe("redact", () => {
 describe("problem reports", () => {
   it("fills the bug form without secrets, and fits in a web address", () => {
     const lines = Array.from({ length: 800 }, (_, i) => `[Server] line ${i} with secret-token-xyz ${"x".repeat(60)}`);
-    const url = problemReportUrl({ version: "2.0.0", ai: "builtin", logLines: lines, secrets: ["secret-token-xyz"] });
+    const url = problemReportUrl({ version: "2.0.0 test build (c4ee826)", ai: "builtin", logLines: lines, secrets: ["secret-token-xyz"] });
     expect(url.length).toBeLessThanOrEqual(7000);
     const fields = decode(url);
     expect(fields.template).toBe("bug_report.yml");
     expect(fields.ai).toBe("Built into the app");
+    expect(fields.version).toBe("2.0.0 test build (c4ee826)");
     expect(fields.log).not.toContain("secret-token-xyz");
     expect(fields.log).toContain("line 799");
   });
@@ -36,8 +37,8 @@ describe("problem reports", () => {
       '[Screen] "Clair de Lune": 6 generated, 1 dropped, 5 shown',
       "[Server] unrelated",
     ];
-    const fields = decode(wrongFactUrl({ song: "Clair de Lune — Debussy", fact: "A fact.", logLines: lines, secrets: [] }));
-    expect(fields).toMatchObject({ template: "wrong_fact.yml", song: "Clair de Lune — Debussy", shown: "A fact." });
+    const fields = decode(wrongFactUrl({ song: "Clair de Lune — Debussy", fact: "A fact.", version: "2.0.0 (c4ee826)", logLines: lines, secrets: [] }));
+    expect(fields).toMatchObject({ template: "wrong_fact.yml", song: "Clair de Lune — Debussy", shown: "A fact.", version: "2.0.0 (c4ee826)" });
     expect(fields.log).toContain("Clair de lune (Debussy)");
     expect(fields.log).not.toContain("Other Song");
   });
@@ -55,10 +56,22 @@ describe("beta test reports", () => {
   };
 
   it("fills only answers the form offers, so GitHub selects them", () => {
-    const fields = decode(betaReportUrl({ version, systemVersion: "15.3.0", songSource: "streamelements", logLines: ["x"], secrets: [] }));
+    const fields = decode(betaReportUrl({ version, build: `${version} test build (c4ee826)`, systemVersion: "15.3.0", songSource: "streamelements", logLines: ["x"], secrets: [] }));
     expect(fields.template).toBe("beta_test.yml");
+    expect(fields.version).toBe(version);
+    expect(fields.build).toBe(`${version} test build (c4ee826)`);
     for (const id of ["os", "download", "source"]) expect(options(id)).toContain(fields[id]);
     expect(fields.source).toBe("StreamElements");
+  });
+
+  it("has a field for every answer the app fills in, in each form", () => {
+    const ids = (file: string) =>
+      [...fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE", file), "utf8").matchAll(/^\s+id: (\S+?)\r?$/gm)].map((m) => m[1]);
+    const filled = (url: string) => Object.keys(decode(url)).filter((k) => k !== "template");
+    const opts = { version: "2.0.0", build: "2.0.0 (c4ee826)", systemVersion: "15.3.0", songSource: "streamersonglist", logLines: ["x"], secrets: [] };
+    expect(ids("beta_test.yml")).toEqual(expect.arrayContaining(filled(betaReportUrl(opts))));
+    expect(ids("bug_report.yml")).toEqual(expect.arrayContaining(filled(problemReportUrl({ ...opts, ai: "groq" }))));
+    expect(ids("wrong_fact.yml")).toEqual(expect.arrayContaining(filled(wrongFactUrl({ ...opts, song: "A — B", fact: "F" }))));
   });
 
   it("lists this version, newest first, while it's a beta", () => {
@@ -88,7 +101,7 @@ describe("copied reports", () => {
   });
 
   it("holds the beta test report's fields, without secrets", () => {
-    const text = betaReportText({ version: "2.0.0-beta.9", systemVersion: "15.3.0", songSource: "streamelements", logLines: lines, secrets });
+    const text = betaReportText({ version: "2.0.0-beta.9", build: "2.0.0-beta.9 (c4ee826)", systemVersion: "15.3.0", songSource: "streamelements", logLines: lines, secrets });
     expect(text).toMatch(/^BubbleFacts beta test report\n/);
     expect(text).toContain("Version: 2.0.0-beta.9");
     expect(text).toContain("Song source: StreamElements");

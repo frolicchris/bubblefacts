@@ -38,6 +38,11 @@ body:
         - Not sure
     validations:
       required: true
+  - type: input
+    id: version
+    attributes:
+      label: BubbleFacts version (optional)
+      description: The app fills this in. Otherwise, it's at the bottom of the app's window.
   - type: textarea
     id: log
     attributes:
