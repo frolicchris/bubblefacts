@@ -87,8 +87,10 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
  */
 export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
   area === "bottom-center" && banner ? [{ bottom: NOW_PLAYING_CLEARANCE }] : AREAS[area] ?? POSITIONS;
-/** The spots for a song's bubbles: a live learn shows its banner even with Now Playing off. */
-export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, config.nowPlaying || !!song.liveLearn);
+/** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off. */
+export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying);
+/** The spots for a song's bubbles, clear of its banner while it shows. */
+export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
 
 type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 

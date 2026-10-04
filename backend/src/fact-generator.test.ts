@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, unmarkWrong } from "./fact-generator";
+import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -145,17 +145,23 @@ describe("generateFacts", () => {
     // With Now Playing off, the true bottom center, level with the other bottom spots (a tester's request).
     expect(positionsFor("bottom-center", false)).toEqual([{ bottom: "5%" }]);
     // A live learn still shows its banner there, so its bubbles wait above it.
-    const c = config as { bubbleArea?: string; nowPlaying?: boolean };
+    const c = config as { bubbleArea?: string; nowPlaying?: boolean; liveLearnBanner?: boolean };
     c.bubbleArea = "bottom-center";
     c.nowPlaying = false;
+    c.liveLearnBanner = true;
     try {
       expect(positionsForSong({ title: "Any", artist: "Any" })).toEqual([{ bottom: "5%" }]);
       expect(positionsForSong({ title: "Any", artist: "Any", liveLearn: true })).toEqual([low]);
       c.nowPlaying = true;
       expect(positionsForSong({ title: "Any", artist: "Any" })).toEqual([low]);
+      // Its own setting turns the LIVE LEARN bubble off, and the spot moves down with it.
+      c.liveLearnBanner = false;
+      expect(showsBanner({ title: "Any", artist: "Any", liveLearn: true })).toBe(false);
+      expect(positionsForSong({ title: "Any", artist: "Any", liveLearn: true })).toEqual([{ bottom: "5%" }]);
     } finally {
       c.bubbleArea = "anywhere";
       delete c.nowPlaying;
+      delete c.liveLearnBanner;
     }
 
     (config as { bubbleArea?: string }).bubbleArea = "bottom-right";

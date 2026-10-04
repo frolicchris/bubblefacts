@@ -74,7 +74,8 @@ Good to know:
 | `INSTRUMENT` | *none* | No longer used. Nothing about you is sent to the AI: only the song and its article. |
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app never uses the example packs, only the facts you type in its Settings. Keep `general`, or your own pack with originals lines, if you play your own compositions. Five or more facts keep them from repeating often. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
-| `NOW_PLAYING` | `on` | `off` hides the Now Playing bubble on a song change, for when your own overlay already shows the song. A LIVE LEARN banner still shows. |
+| `NOW_PLAYING` | `on` | `off` hides the Now Playing bubble on a song change, for when your own overlay already shows the song. |
+| `LIVE_LEARN_BANNER` | `on` | `off` hides the LIVE LEARN bubble that stays up during a live learn. |
 | `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner for off-list requests; facts show only when a source knows the song. `off` treats them like any other song. |
 
 The example packs are `video-game`, `classical`, `film`, `pop`, `piano` and
@@ -149,8 +150,8 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 the same spot, use `top-left`, `top-center`, `top-right`, `bottom-left`,
 `bottom-center` or `bottom-right`: a new bubble replaces the one showing
 there. `bottom-center` sits just above the Now Playing bubble, or at the
-very bottom when `NOW_PLAYING=off` (a live learn still shows its banner, so
-its bubbles stay above it). The exact spots are the
+very bottom when that bubble is off (`NOW_PLAYING=off`, and for a live learn
+`LIVE_LEARN_BANNER=off`). The exact spots are the
 lists at the top of `backend/src/fact-generator.ts`. Text size, colors and animation are at the
 top of `frontend/obs/obs-overlay.css`.
 

@@ -76,6 +76,7 @@ export const config = {
   bubbleArea: oneOf("BUBBLE_AREA", ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
   // The NOW PLAYING bubble on a song change. Off for streamers whose own overlay already shows the song.
   nowPlaying: oneOf("NOW_PLAYING", ["on", "off"] as const, "on") === "on",
+  liveLearnBanner: oneOf("LIVE_LEARN_BANNER", ["on", "off"] as const, "on") === "on",
   // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.
   topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",
 

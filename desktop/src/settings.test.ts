@@ -191,6 +191,8 @@ describe("toServerEnv", () => {
 
   it("maps the musician's choices", () => {
     expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
+    expect(toServerEnv(DEFAULTS, paths).LIVE_LEARN_BANNER).toBe("on");
+    expect(toServerEnv({ ...DEFAULTS, liveLearnBanner: false }, paths).LIVE_LEARN_BANNER).toBe("off");
     expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left" }, paths).BUBBLE_AREA).toBe("left");
     expect(sanitize({ ...DEFAULTS, bubbleArea: "middle" as "left" }).bubbleArea).toBe("anywhere");
     for (const spot of ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const) {
@@ -202,6 +204,7 @@ describe("toServerEnv", () => {
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "http://studio-pc:11434" }).ollamaUrl).toBe("http://studio-pc:11434");
     expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });
     expect(fromWindow({ nowPlaying: "no" })).toEqual({});
+    expect(fromWindow({ liveLearnBanner: false })).toEqual({ liveLearnBanner: false });
     const env = toServerEnv({ ...DEFAULTS, originals: true, liveLearns: false, myFacts: ["Mine."] }, paths);
     expect(env).toMatchObject({ ORIGINALS: "on", LIVE_LEARNS: "off", NOW_PLAYING: "on", BUBBLEFACTS_TOPICS_DIR: "/facts", HOST: "127.0.0.1" });
     expect(env.TOPIC).toBe("my-facts");
