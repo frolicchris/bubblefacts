@@ -143,7 +143,8 @@ wss.on("connection", (ws, req) => {
   send(ws, newSong(song));
   generateFacts(song, current)
     .then((facts) => {
-      if (token !== generation) return;
+      // Paused while they were being written: Pause cleared the screen, and they wait for Resume.
+      if (token !== generation || paused) return;
       send(ws, { type: "facts_ready", song, facts });
       if (!factsShownAt && sameRequest(lastSent.song, song)) {
         factsShownAt = Date.now();
