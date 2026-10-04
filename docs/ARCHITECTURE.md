@@ -111,6 +111,14 @@ sign-ins and the built-in AI. Its design decisions are in
    names; never a film's soundtrack), led by the sentences that name this
    track. The game's articles are kept whole per game, so its other tracks
    need no new download.
+   A music article in parts ("Music of Genshin Impact": Mondstadt, Liyue,
+   Fontaine...) is cut to its lead and the part the track names ("Liyue:
+   Relaxation in Liyue"), and captions naming another part are dropped
+   (`soundtrackPart`): every name in a Mondstadt fact is in the article, so
+   nothing else catches it under a Liyue track.
+   Music-video sections, with their plot, production and fashion
+   subsections, never go into a reference (`withoutVideoSections`): told as
+   facts, a video's story reads as if it happened.
    The reference then leads with three kinds of sentence lifted from anywhere
    in the article (issue #48), because a character budget never reached them:
    what the makers said (`creatorSentences`: a cue like "said", "recalled" or
@@ -134,7 +142,17 @@ sign-ins and the built-in AI. Its design decisions are in
    (`explainMusicTerms`), never the model's own explanation.
    A credit needs a source sentence that ties the person to the role
    (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
-   just a role word nearby; an ambiguous credit is dropped.
+   just a role word nearby; an ambiguous credit is dropped. "Wrote" counts as
+   composing only next to music ("wrote the score"), never "wrote the story",
+   and names sharing a credit ("wrote it with A and B") must share it in the
+   source.
+   A small model joins two true statements with a word of its own: "due to",
+   "after", "for the first time", "originally intended", "twice", a count.
+   Such a word, and any number, must be in the sentence the caption retells
+   (`unsupportedConnective`); the prompt asks the same. Words for how people
+   are related or what they play ("brother", "guitarist", "self-titled")
+   must be in a source sentence naming them (`unsupportedRelation`). Of two
+   near-duplicates, the one closer to its source sentence is kept.
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
@@ -259,6 +277,18 @@ Satie"). Not our fuzzy guessing, and still careful:
   "Wendy Harmer".
 - The renamed subject is that very page, not whatever a search for its name
   finds first ("Pirates of the Caribbean", not its video game).
+
+**Does the article fit the request?** A found article is checked once more
+against the request as typed (`articleMisfit`), on the whole article read
+this session. Its opening must say it is about a song, a record, a
+performer, a composer, a soundtrack, a game, a film or a show: the biblical
+"Jezebel" (for Sade's song) and "YouTube" fail. It must name the character a
+"(Name's Theme)" bracket names and the work in an artist field's subtitle
+("Star Wars: Rogue One" isn't the 1983 Atari game); a stage name in brackets
+isn't required, since a game's article rarely lists stages, and a person's
+piece may carry a translated title. A misfit is passed over and the lookup
+tried again without it, twice at most. Queue placeholders ("Off-List YouTube
+Request < 5 Min (Free)") aren't looked up at all.
 
 ### Why is the game read from the artist field?
 
@@ -407,7 +437,12 @@ no screening, and are skipped for a song whose structured facts were marked
   because fan covers crowd the search results and are even tagged
   "Soundtrack". For a performer, or a game with no such relationship: the
   first year of the artist's recording, and a studio album (official, an
-  album with no secondary type) when there is one.
+  album with no secondary type) when there is one. The year comes only from
+  releases that aren't compilations, live albums or remixes (a 1988 jazz
+  compilation isn't when "It's Only a Paper Moon" came out), and is left
+  out when the credited artist had died by then (a Satie piece on a 1995
+  album). An "additional" composer, such as a fanfare quoted in another
+  composer's cue, isn't named.
 
 ### Wrong and Undo
 
