@@ -148,13 +148,15 @@ merges.
 **Testing each release candidate:**
 
 1. The release checklist above, on every system.
-1. A fact check of at least one tester's whole song list (with their
-   permission): `npm run build`, then
+1. A fact check of two testers' whole song lists, of different kinds of
+   music (with their permission): `npm run build`, then
    `node scripts/check-song-list.mjs LIST.json OUT_DIR --facts 50`. It
    records the Wikipedia article every song gets and flags ones that look
-   wrong, and writes facts for a random 50 for a person to read. Keep the
-   list and results out of the repository. Each wrong article or fact is a
-   release blocker.
+   wrong, and writes facts for a random 50 songs, each checked against its
+   own source. **The bar: under 5% of the facts that come from a source are
+   wrong or misleading, on each list, with no new kind of mistake.** (A
+   small AI never reaches zero; Wrong and Hands-free Wrong catch the rest.)
+   Keep the lists and results out of the repository.
 2. A hands-on pass on real computers: Mac and Windows by a tester each. Linux
    relies on the smoke test unless a tester has it; say so in the notes.
 3. Every bug fixed since the last beta, checked again.
@@ -166,6 +168,7 @@ merges.
 only the version number changed. Before tagging it, go or no-go:
 
 - [ ] No open release blockers.
+- [ ] The fact check of the last release candidate met the under-5% bar.
 - [ ] The last release candidate was out at least three days, and testers
       streamed with it.
 - [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than
