@@ -141,6 +141,9 @@ wss.on("connection", (ws, req) => {
     return;
   }
   send(ws, newSong(song));
+  // Still being written for every overlay: onSongChange's broadcast reaches this one too. Its
+  // own copy as well made the overlay start the same bubbles over a second time.
+  if (!lastSent.ready && sameRequest(lastSent.song, song)) return;
   generateFacts(song, current)
     .then((facts) => {
       // Paused while they were being written: Pause cleared the screen, and they wait for Resume.
@@ -363,7 +366,7 @@ control.post("/song-facts/get", (req, res) => {
   res.json(target ? { song: target, entry: findSongFacts(target) } : { song: null, entry: null });
 });
 
-control.post("/song-facts", async (req, res) => {
+control.post("/song-facts", (req, res) => {
   // Saved against the song the editor opened on, even if another song is playing now.
   const song = songFrom(req.body?.song);
   if (!song) {
@@ -397,11 +400,15 @@ control.post("/song-facts", async (req, res) => {
   const current = songList.getCurrentSong();
   const playing = current ? songFrom(songList.toSong(current)) : null;
   const shown = sameSong(playing, song) && sameSong(songFrom(lastSent.song), song);
-  if (shown && current) {
-    const facts = await generateFacts(songList.toSong(current), current);
-    if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
-  }
+  // Answered now: the app gives up after 3 seconds, and a slow AI made a save look failed.
   res.json({ saved: true, shown });
+  if (shown && current) {
+    generateFacts(songList.toSong(current), current)
+      .then((facts) => {
+        if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
+      })
+      .catch((err) => console.error("[SongFacts] Couldn't show the saved facts:", err));
+  }
 });
 
 // "Add facts for another song": find it on the song list as the musician types.

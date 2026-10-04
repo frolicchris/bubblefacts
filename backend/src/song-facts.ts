@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
 import { SSLSong } from "./types";
 
@@ -127,7 +128,7 @@ export function saveSongFacts(entry: SongFacts): void {
   // A link alone is kept: it still gets its own bubble.
   if (clean.facts.length || clean.songwriters?.length || clean.link) list.push(clean);
   fs.mkdirSync(config.dataDir, { recursive: true });
-  fs.writeFileSync(file(), JSON.stringify(list, null, 2) + "\n");
+  writeFileAtomic(file(), JSON.stringify(list, null, 2) + "\n");
   store = list;
   storeMtime = fs.statSync(file()).mtimeMs;
 }
