@@ -62,6 +62,7 @@ import {
   wrongOwner,
   suppliedException,
   reversedRole,
+  supportingSentence,
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
@@ -2002,5 +2003,21 @@ describe("third fact check: hedges, years and owners", () => {
     expect(screenClaims(["Plans changed after the members of the trio heard Straite's demo version."], ctx).kept).toHaveLength(1);
     const credit = "See You\nIt was written by Kenny Lane and co-produced by him along with Tony Reid and Daryl Sim.";
     expect(screenClaims(["Kenny Lane wrote the song along with co-producer Tony Reid."], credit).rejected[0]?.reason).toMatch(/Tony Reid/);
+  });
+});
+
+describe("supportingSentence", () => {
+  it("finds the sentence a caption retells, ignoring our own bracketed explanations", () => {
+    const context = "Night Drive\nThe song was recorded in one take at a small studio in Leeds. It reached number four.";
+    expect(supportingSentence("The song was recorded in one take (a single continuous performance) in Leeds.", context)).toBe(
+      "The song was recorded in one take at a small studio in Leeds."
+    );
+  });
+
+  it("stays fast on text built to slow a pattern down (code scanning alert)", () => {
+    const context = "Night Drive\nThe song was recorded in one take at a small studio in Leeds.";
+    const start = Date.now();
+    supportingSentence(`${" ".repeat(50_000)}(${"(".repeat(50_000)}`, context);
+    expect(Date.now() - start).toBeLessThan(500);
   });
 });

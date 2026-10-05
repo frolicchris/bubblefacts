@@ -2561,8 +2561,9 @@ export function explainMusicTerms(fact: string): string {
  * showing a poor match as "the source" would mislead.
  */
 export function supportingSentence(fact: string, context: string): string {
-  // The plain-word explanations in brackets are ours, not the article's.
-  const want = contentTokens(fact.replace(/\s*\([^)]*\)/g, ""));
+  // The plain-word explanations in brackets are ours, not the article's. Only the words are
+  // compared, so the space before a bracket can stay; this keeps the pattern linear on any text.
+  const want = contentTokens(fact.replace(/\([^()]*\)/g, " "));
   if (!want.size) return "";
   let best = "";
   let bestShare = 0;
