@@ -100,7 +100,8 @@ describe("macBundle", () => {
     expect(MAC_SWAP_SCRIPT).toContain('mv "$OLD" "$APP"');
   });
 
-  describe("when the disk image won't open (a tester's update, canceled half a second in)", () => {
+  // The swap script is bash, run by macOS: there's no /bin/bash to run it with on Windows.
+  (process.platform === "win32" ? describe.skip : describe)("when the disk image won't open (a tester's update, canceled half a second in)", () => {
     // The script, run for real, with stand-ins for the macOS tools it calls.
     let dir: string;
     const run = (hdiutilFails: number, interrupt = false) => {
