@@ -14,10 +14,11 @@ export const BACKUP_FORMAT = "bubblefacts-backup";
 /**
  * Left out: secrets, the sign-in a backup must not carry to another account,
  * and which AI writes the facts, so a backup someone shares can't send every
- * song to their own server.
+ * song to their own server. The built-in AI's quality belongs to the computer
+ * too: restored onto a smaller one, it would start a 5 GB download.
  */
 const NOT_BACKED_UP = new Set<keyof Settings>([
-  "token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "setupComplete", "ai", "ollamaUrl", "ollamaModel",
+  "token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel",
 ]);
 const BACKED_UP = EDITABLE.filter((k) => !NOT_BACKED_UP.has(k));
 

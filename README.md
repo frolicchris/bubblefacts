@@ -115,7 +115,9 @@ facts aren't covered by copyright, but wording taken from an article can be.
 (Not legal advice, and a credit line alone doesn't settle every possible use.)
 
 Built with Llama. The app's built-in AI is Meta's Llama 3.2 3B, used under the
-[Llama 3.2 Community License](https://www.llama.com/llama3_2/license/).
+[Llama 3.2 Community License](https://www.llama.com/llama3_2/license/), or with
+High quality chosen in Settings, Meta's Llama 3.1 8B, used under the
+[Llama 3.1 Community License](https://www.llama.com/llama3_1/license/).
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,

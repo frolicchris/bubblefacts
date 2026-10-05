@@ -262,7 +262,11 @@ export class Supervisor extends EventEmitter {
     for (const line of chunk.split(/\r?\n/)) {
       if (!line.trim()) continue;
       if (/EADDRINUSE/.test(line)) this.portConflict = true;
-      if (/Built-in model loaded/.test(line)) this.modelLoaded = true;
+      if (/Built-in model loaded/.test(line)) {
+        this.modelLoaded = true;
+        // Which file loaded, so the app can tidy away a model it switched from (main.ts).
+        this.emit("model-loaded", this.env.MODEL_PATH ?? "");
+      }
       if (/\[Server\] Listening on/.test(line)) this.listening = true;
       if (/Built-in model failed to load/.test(line)) this.modelFailed("failed to load");
       this.lines.push(line);

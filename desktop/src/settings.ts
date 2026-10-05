@@ -2,6 +2,7 @@ import { app, safeStorage } from "electron";
 import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
+import { AiQuality, modelFor, modelPath } from "./model";
 
 /** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
 export interface Settings {
@@ -38,6 +39,8 @@ export interface Settings {
   myFacts: string[];
   myOriginals: string[];
   ai: "builtin" | "groq" | "anthropic" | "ollama";
+  /** Which built-in model: the small default, or the bigger one that makes fewer mistakes (model.ts). */
+  aiQuality: AiQuality;
   groqKey: string;
   anthropicKey: string;
   ollamaUrl: string;
@@ -100,6 +103,7 @@ export const DEFAULTS: Settings = {
   myFacts: [],
   myOriginals: [],
   ai: "builtin",
+  aiQuality: "standard",
   groqKey: "",
   anthropicKey: "",
   ollamaUrl: "http://localhost:11434",
@@ -222,6 +226,7 @@ export function sanitize(s: Settings): Settings {
     songSource: oneOf(s.songSource, ["streamersonglist", "streamelements"] as const, "streamersonglist"),
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
+    aiQuality: oneOf(s.aiQuality, ["standard", "high"] as const, "standard"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     myFacts: lines(s.myFacts),
@@ -272,7 +277,7 @@ function webAddress(s: string): string | null {
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "liveLearnBanner",
-  "myFacts", "myOriginals", "ai", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
+  "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
@@ -335,7 +340,7 @@ export function secretsUnprotected(): boolean {
 /** The settings as the server's environment variables. */
 export function toServerEnv(
   s: Settings,
-  paths: { modelPath: string; logDir: string; topicsDir: string; clientId: string }
+  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
     // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
@@ -369,7 +374,7 @@ export function toServerEnv(
   }
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
   if (s.instrument) env.INSTRUMENT = s.instrument;
-  if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: paths.modelPath, LLAMA_GPU: s.forceCpu ? "off" : "auto" });
+  if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
   if (s.ai === "groq") Object.assign(env, { AI_PROVIDER: "openai", OPENAI_API_KEY: s.groqKey });
   if (s.ai === "anthropic") Object.assign(env, { AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: s.anthropicKey });
   if (s.ai === "ollama") Object.assign(env, { AI_PROVIDER: "ollama", OLLAMA_BASE_URL: s.ollamaUrl, OLLAMA_MODEL: s.ollamaModel });

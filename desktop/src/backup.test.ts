@@ -50,6 +50,7 @@ describe("backups", () => {
     const b = makeBackup({ ...mine, ai: "ollama", ollamaUrl: "http://studio-pc:11434" }, { songFacts: [], wrongFacts: {} }, "2.0.0-beta.11");
     expect(b.settings).not.toHaveProperty("ai");
     expect(b.settings).not.toHaveProperty("ollamaUrl");
+    expect(makeBackup({ ...mine, aiQuality: "high" }, { songFacts: [], wrongFacts: {} }, "2.0.0-beta.13").settings).not.toHaveProperty("aiQuality");
     const shared = readBackup(JSON.stringify({ format: "bubblefacts-backup", formatVersion: 1, settings: { ai: "ollama", ollamaUrl: "http://203.0.113.9:11434", ollamaModel: "theirs", factsPerSong: 3 } }));
     expect(shared.settings).toEqual({ factsPerSong: 3 });
   });

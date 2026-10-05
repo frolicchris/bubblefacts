@@ -6,18 +6,45 @@ import type { ReadableStream as WebReadableStream } from "stream/web";
 import path from "path";
 import { plainWithDetail } from "./plain-errors";
 
+/** One built-in AI model file: where it comes from, its exact size and SHA-256, and its license. */
+export interface ModelFile {
+  file: string;
+  url: string;
+  bytes: number;
+  sha256: string;
+  license: string;
+}
+
 /**
  * The built-in AI model: Meta's Llama 3.2 3B Instruct, 4-bit, from Hugging Face.
  * Downloaded once, resumable, and checked against the SHA-256 Hugging Face
  * publishes for the file, so a truncated or tampered download is never used.
  */
-export const MODEL = {
+export const MODEL: ModelFile = {
   file: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
   url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/5ab33fa94d1d04e903623ae72c95d1696f09f9e8/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
   bytes: 2_019_377_696,
   sha256: "6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff",
   license: "https://www.llama.com/llama3_2/license/",
 };
+
+/**
+ * The "High quality" choice: Meta's Llama 3.1 8B Instruct, 4-bit. About half
+ * the wrong facts of the 3B in a fact check, but a 5 GB download that needs
+ * 16 GB of memory and writes 1.5 to 2 times slower, so it's opt-in.
+ */
+export const MODEL_HIGH: ModelFile = {
+  file: "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+  url: "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/bf5b95e96dac0462e2a09145ec66cae9a3f12067/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+  bytes: 4_920_739_232,
+  sha256: "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c",
+  license: "https://www.llama.com/llama3_1/license/",
+};
+
+export type AiQuality = "standard" | "high";
+
+/** The model for a quality setting; anything unknown gets the standard one. */
+export const modelFor = (quality: string): ModelFile => (quality === "high" ? MODEL_HIGH : MODEL);
 
 export interface Progress {
   received: number;
@@ -35,12 +62,12 @@ export class ChecksumMismatch extends Error {
   }
 }
 
-export const modelPath = (dir: string) => path.join(dir, MODEL.file);
+export const modelPath = (dir: string, model: ModelFile = MODEL) => path.join(dir, model.file);
 
 /** Present and the right size. The full checksum runs after each download, not on every start. */
-export function modelReady(dir: string): boolean {
+export function modelReady(dir: string, model: ModelFile = MODEL): boolean {
   try {
-    return fs.statSync(modelPath(dir)).size === MODEL.bytes;
+    return fs.statSync(modelPath(dir, model)).size === model.bytes;
   } catch {
     return false;
   }
@@ -55,7 +82,12 @@ function sha256(file: string): Promise<string> {
 
 /** Room to leave free beyond the file itself. */
 const SPARE_BYTES = 500 * 1024 * 1024;
-const NO_SPACE = "There isn't enough free disk space. The AI needs about 2.5 GB. Free up some space and it will try again.";
+/** "about 2.5 GB" for the 3B, "about 5.5 GB" for the 8B: the file plus the room left spare, to the nearest half GB. */
+export function diskNeeded(model: ModelFile): string {
+  const gb = Math.max(0.5, Math.round(((model.bytes + SPARE_BYTES) / 1e9) * 2) / 2);
+  return `about ${gb} GB`;
+}
+const noSpace = (model: ModelFile) => `There isn't enough free disk space. The AI needs ${diskNeeded(model)}. Free up some space and it will try again.`;
 
 function freeBytes(dir: string): number | null {
   try {
@@ -66,19 +98,19 @@ function freeBytes(dir: string): number | null {
   }
 }
 
-export async function downloadModel(dir: string, onProgress: (p: Progress) => void, signal: AbortSignal): Promise<void> {
+export async function downloadModel(dir: string, onProgress: (p: Progress) => void, signal: AbortSignal, model: ModelFile = MODEL): Promise<void> {
   fs.mkdirSync(dir, { recursive: true });
-  const part = modelPath(dir) + ".part";
+  const part = modelPath(dir, model) + ".part";
   let received = fs.existsSync(part) ? fs.statSync(part).size : 0;
-  if (received > MODEL.bytes) {
+  if (received > model.bytes) {
     fs.unlinkSync(part);
     received = 0;
   }
 
-  if (received < MODEL.bytes) {
+  if (received < model.bytes) {
     const free = freeBytes(dir);
-    if (free !== null && free < MODEL.bytes - received + SPARE_BYTES) throw new Error(NO_SPACE);
-    const res = await fetch(MODEL.url, {
+    if (free !== null && free < model.bytes - received + SPARE_BYTES) throw new Error(noSpace(model));
+    const res = await fetch(model.url, {
       headers: received ? { Range: `bytes=${received}-` } : {},
       redirect: "follow",
       signal,
@@ -92,7 +124,7 @@ export async function downloadModel(dir: string, onProgress: (p: Progress) => vo
         received += chunk.length;
         if (Date.now() - lastReport > 250) {
           lastReport = Date.now();
-          onProgress({ received, total: MODEL.bytes, phase: "downloading" });
+          onProgress({ received, total: model.bytes, phase: "downloading" });
         }
         done(null, chunk);
       },
@@ -106,16 +138,16 @@ export async function downloadModel(dir: string, onProgress: (p: Progress) => vo
         { signal }
       );
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOSPC") throw new Error(NO_SPACE);
+      if ((err as NodeJS.ErrnoException).code === "ENOSPC") throw new Error(noSpace(model));
       throw err;
     }
   }
 
-  onProgress({ received: MODEL.bytes, total: MODEL.bytes, phase: "checking" });
-  if ((await sha256(part)) !== MODEL.sha256) {
+  onProgress({ received: model.bytes, total: model.bytes, phase: "checking" });
+  if ((await sha256(part)) !== model.sha256) {
     fs.unlinkSync(part);
     throw new ChecksumMismatch();
   }
-  fs.renameSync(part, modelPath(dir));
-  onProgress({ received: MODEL.bytes, total: MODEL.bytes, phase: "done" });
+  fs.renameSync(part, modelPath(dir, model));
+  onProgress({ received: model.bytes, total: model.bytes, phase: "done" });
 }

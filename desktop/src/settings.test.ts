@@ -21,7 +21,7 @@ jest.mock("electron", () => ({
 import { customFactsProblem, DEFAULTS, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
-const paths = { modelPath: "/m.gguf", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
+const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
 
 afterEach(() => {
   keychain.available = true;
@@ -213,7 +213,21 @@ describe("toServerEnv", () => {
 
   it("points the built-in AI at the model and honors the processor-only fallback", () => {
     const env = toServerEnv({ ...DEFAULTS, ai: "builtin", forceCpu: true }, paths);
-    expect(env).toMatchObject({ AI_PROVIDER: "builtin", MODEL_PATH: "/m.gguf", LLAMA_GPU: "off" });
+    expect(env).toMatchObject({ AI_PROVIDER: "builtin", MODEL_PATH: path.join("/models", "Llama-3.2-3B-Instruct-Q4_K_M.gguf"), LLAMA_GPU: "off" });
+  });
+
+  it("points the built-in AI at the model for the chosen quality", () => {
+    expect(DEFAULTS.aiQuality).toBe("standard");
+    expect(toServerEnv({ ...DEFAULTS, aiQuality: "high" }, paths).MODEL_PATH).toBe(path.join("/models", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"));
+    expect(toServerEnv({ ...DEFAULTS, ai: "groq", groqKey: "k", aiQuality: "high" }, paths).MODEL_PATH).toBeUndefined();
+  });
+
+  it("keeps the AI quality to standard or high, falling back to standard", () => {
+    expect(sanitize({ ...DEFAULTS, aiQuality: "high" }).aiQuality).toBe("high");
+    expect(sanitize({ ...DEFAULTS, aiQuality: "ultra" as never }).aiQuality).toBe("standard");
+    expect(sanitize({ ...DEFAULTS, aiQuality: undefined as never }).aiQuality).toBe("standard");
+    expect(fromWindow({ aiQuality: "high" })).toEqual({ aiQuality: "high" });
+    expect(fromWindow({ aiQuality: 2 })).toEqual({});
   });
 });
 
@@ -292,7 +306,7 @@ describe("the musician's own facts", () => {
 });
 
 describe("serverSettingsSignature (issue #55)", () => {
-  const paths = { modelPath: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
+  const paths = { modelsDir: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
   const base = { ...DEFAULTS, channel: "jane", token: "t1", tokenKind: "oauth" as const, streamerId: 1 };
   const sig = (s: typeof base) => serverSettingsSignature(toServerEnv(s, paths), s);
 
@@ -308,11 +322,12 @@ describe("serverSettingsSignature (issue #55)", () => {
     expect(sig({ ...base, myFacts: ["A new fact."] })).not.toBe(sig(base));
     expect(sig({ ...base, originals: true })).not.toBe(sig(base));
     expect(sig({ ...base, ai: "groq", groqKey: "k" })).not.toBe(sig(base));
+    expect(sig({ ...base, aiQuality: "high" })).not.toBe(sig(base));
   });
 });
 
 describe("a sign-in with no username (a beta tester's first run)", () => {
-  const paths = { modelPath: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
+  const paths = { modelsDir: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
   const signedIn = { ...DEFAULTS, channel: "", token: "t", tokenKind: "oauth" as const, streamerId: 7 };
 
   it("is ready to start: the channel is followed by its ID", () => {

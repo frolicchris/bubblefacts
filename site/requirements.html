@@ -88,7 +88,7 @@
               <tr>
                 <th scope="row">Memory (RAM)</th>
                 <td>8 GB</td>
-                <td>16 GB. The built-in AI uses about 1 to 3 GB while it writes facts. OBS and your game or music software need the rest.</td>
+                <td>16 GB. The built-in AI uses about 1 to 3 GB while it writes facts. OBS and your game or music software need the rest. <a href="#high-quality">High quality</a> needs 16 GB.</td>
               </tr>
               <tr>
                 <th scope="row">Free disk space</th>
@@ -131,10 +131,53 @@
       </div>
     </section>
 
+    <section class="section" aria-labelledby="high-quality">
+      <div class="wrap narrow">
+        <h2 id="high-quality">High quality AI (optional)</h2>
+        <p>In Settings, under Advanced, the built-in AI can be Standard or High quality. Standard is the default and suits most computers. High quality makes about half as many mistakes, but it's a bigger download, needs more memory and a strong graphics chip, and writes more slowly. You can switch at any time: BubbleFacts downloads the other one while the one you have keeps writing facts, then deletes the old one to save space. Switching back downloads it again.</p>
+        <div class="table-wrap">
+          <table>
+            <caption class="visually-hidden">Standard and High quality built-in AI compared</caption>
+            <thead>
+              <tr><th scope="col">What</th><th scope="col">Standard (default)</th><th scope="col">High quality</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">AI model</th>
+                <td>Meta's Llama 3.2 3B</td>
+                <td>Meta's Llama 3.1 8B</td>
+              </tr>
+              <tr>
+                <th scope="row">Memory (RAM)</th>
+                <td>8 GB</td>
+                <td>16 GB recommended. It uses about 6 GB while it writes facts.</td>
+              </tr>
+              <tr>
+                <th scope="row">Disk space for the AI</th>
+                <td>About 2.5 GB</td>
+                <td>About 5 GB</td>
+              </tr>
+              <tr>
+                <th scope="row">Graphics</th>
+                <td>Not required</td>
+                <td>A graphics chip that can hold the AI, to be fast enough: any Apple silicon Mac (M1 or newer), or on Windows and Linux a graphics card with about 6 GB or more of its own memory (VRAM). Without one, it runs on the processor and can be several times slower.</td>
+              </tr>
+              <tr>
+                <th scope="row">Speed</th>
+                <td>A few seconds per song on a recent computer</td>
+                <td>About 1.5 to 2 times slower than Standard. BubbleFacts stops writing a song's facts after 90 seconds, so on a computer without a suitable graphics chip you may get fewer bubbles per song.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>If your computer has less than 16 GB of memory, or is a Mac with an Intel processor, Settings warns you. You can still choose High quality, but it may run slowly or not load. If it can't run, BubbleFacts tells you and offers to switch back to Standard.</p>
+      </div>
+    </section>
+
     <section class="section" aria-labelledby="speed">
       <div class="wrap narrow">
         <h2 id="speed">How fast are the facts?</h2>
-        <p>When a song starts, the built-in AI takes a few seconds to write its facts. On the one computer measured so far, that's 5 to 8 seconds, well within the song. Other computers will vary until they're measured.</p>
+        <p>When a song starts, the built-in AI takes a few seconds to write its facts. On the one computer measured so far, that's 5 to 8 seconds, well within the song. Other computers will vary until they're measured. These times are for Standard; <a href="#high-quality">High quality</a> takes about 1.5 to 2 times as long.</p>
         <div class="table-wrap">
           <table>
             <caption class="visually-hidden">Time to write facts for one song</caption>

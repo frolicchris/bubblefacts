@@ -7,7 +7,7 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { newerRelease, Release, testSongList, testStreamElements } from "./checks";
 import { assetName, downloadUpdate, startInstall } from "./updater";
-import { ChecksumMismatch, downloadModel, MODEL, modelPath, modelReady, Progress } from "./model";
+import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
@@ -106,9 +106,26 @@ function canStart(): boolean {
   return songSourceReady(settings);
 }
 
+/** The built-in model chosen in Settings, and the one it replaces when the quality is switched. */
+const chosenModel = (): ModelFile => modelFor(settings.aiQuality);
+const otherModel = (): ModelFile => (chosenModel() === MODEL ? MODEL_HIGH : MODEL);
+
+/**
+ * The model the server writes with: the chosen one once it's downloaded.
+ * While a switch of quality downloads the new one, the one already there
+ * keeps writing facts. Null when neither is downloaded.
+ */
+function activeModel(): ModelFile | null {
+  if (modelReady(DIRS.models, chosenModel())) return chosenModel();
+  if (modelReady(DIRS.models, otherModel())) return otherModel();
+  return null;
+}
+
 function serverEnv(): Record<string, string> {
-  const env = toServerEnv(settings, { modelPath: modelPath(DIRS.models), logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
-  if (settings.ai === "builtin" && (builtinFailed || !modelReady(DIRS.models))) env.AI_PROVIDER = "none";
+  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
+  const active = activeModel();
+  if (settings.ai === "builtin" && (builtinFailed || !active)) env.AI_PROVIDER = "none";
+  else if (settings.ai === "builtin" && active) env.MODEL_PATH = modelPath(DIRS.models, active);
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
   env.BUBBLEFACTS_DATA_DIR = DATA;
   if (YOUTUBE_API_KEY) env.YOUTUBE_API_KEY = YOUTUBE_API_KEY;
@@ -153,9 +170,15 @@ function state() {
     modelDownload,
     status: supervisor.status,
     overlayPath: overlayFile(),
-    modelReady: modelReady(DIRS.models),
-    modelBytes: MODEL.bytes,
-    modelLicense: MODEL.license,
+    // Ready when some model can write facts, including the old one during a switch of quality.
+    modelReady: activeModel() !== null,
+    // Downloading the newly chosen quality while the other model keeps writing facts.
+    modelSwitching: activeModel() === otherModel(),
+    modelBytes: chosenModel().bytes,
+    modelLicense: chosenModel().license,
+    // High quality needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
+    totalMemory: os.totalmem(),
+    arch: process.arch,
     version: app.getVersion(),
     versionLabel: versionWithBuild(),
     testBuild: BUILD.kind === "test",
@@ -210,6 +233,23 @@ supervisor.on("gpu-off", () => {
   settings.forceCpu = true;
   saveSettings(settings);
 });
+// The newly chosen model is running, so the one it replaced (or a download of it
+// that was stopped) only takes up disk space. Switching back downloads it again.
+// Not deleted before the new one loads: if it can't run here, switching back is instant.
+supervisor.on("model-loaded", (loaded: string) => {
+  if (settings.ai !== "builtin" || loaded !== modelPath(DIRS.models, chosenModel())) return;
+  const other = modelPath(DIRS.models, otherModel());
+  for (const file of [other, other + ".part"]) {
+    if (!fs.existsSync(file)) continue;
+    try {
+      fs.rmSync(file, { force: true });
+      supervisor.note(`[App] Deleted ${path.basename(file)}: the other quality is in use now`);
+    } catch (err) {
+      supervisor.note(`[App] Couldn't delete ${path.basename(file)}: ${errorDetail(err)}`);
+    }
+  }
+  send("state", state());
+});
 supervisor.on("builtin-failed", () => {
   if (!builtinFailed) {
     builtinFailed = true;
@@ -223,17 +263,18 @@ supervisor.on("builtin-failed", () => {
 
 /** Download the AI in the background whenever it's chosen and missing, retrying on its own. */
 async function ensureModel(): Promise<void> {
-  if (settings.ai !== "builtin" || modelReady(DIRS.models) || download) return;
+  if (settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
   if (downloadRetry) clearTimeout(downloadRetry);
   downloadRetry = null;
   download = new AbortController();
+  const model = chosenModel();
   const progress = (p: Progress) => {
     modelDownload = p;
     send("model-progress", p);
   };
   try {
-    progress({ received: 0, total: MODEL.bytes, phase: "downloading" });
-    await downloadModel(DIRS.models, progress, download.signal);
+    progress({ received: 0, total: model.bytes, phase: "downloading" });
+    await downloadModel(DIRS.models, progress, download.signal, model);
     downloadFailures = 0;
     modelDownload = null;
     startServer();
@@ -242,14 +283,14 @@ async function ensureModel(): Promise<void> {
     downloadFailures++;
     const wait = Math.min(30_000 * downloadFailures, 5 * 60_000);
     const reason = shown("AI download", err, { fallback: "The download stopped. BubbleFacts tries again on its own." });
-    modelDownload = { ...(modelDownload ?? { received: 0, total: MODEL.bytes, phase: "downloading" }), error: reason };
+    modelDownload = { ...(modelDownload ?? { received: 0, total: model.bytes, phase: "downloading" }), error: reason };
     send("model-progress", modelDownload);
     if (!(err instanceof ChecksumMismatch)) downloadRetry = setTimeout(() => void ensureModel(), wait);
   } finally {
     const stopped = download?.signal.aborted;
     download = null;
     send("state", state());
-    // Stopped by a switch away and back again: pick the download up again.
+    // Stopped by a switch away and back again, or to the other quality: pick up the chosen one.
     if (stopped && !quitting && settings.ai === "builtin") void ensureModel();
   }
 }
@@ -612,10 +653,11 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
   const aiChanged = next.ai !== settings.ai;
+  const qualityChanged = next.aiQuality !== settings.aiQuality;
   const channelChanged = next.updateChannel !== settings.updateChannel;
   const sourceChanged = next.songSource !== settings.songSource;
   settings = next;
-  if (aiChanged) builtinFailed = false;
+  if (aiChanged || qualityChanged) builtinFailed = false;
   saveSettings(settings);
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
@@ -625,6 +667,8 @@ ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   }
   // A new StreamElements token, or a switch of source, starts over; health reports if it's still refused.
   if (changes.seJwt || sourceChanged) signInExpired = false;
+  // A download of the quality no longer chosen stops; ensureModel then starts the chosen one.
+  if (qualityChanged) stopModelDownload();
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();

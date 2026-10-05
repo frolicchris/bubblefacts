@@ -70,7 +70,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code) and reading another channel's About. |
-| `desktop/src/model.ts` | Downloading the built-in AI model. |
+| `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |

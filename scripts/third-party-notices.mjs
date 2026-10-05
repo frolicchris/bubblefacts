@@ -40,6 +40,7 @@ const lines = [
   "- **Node.js**, run by the Linux app's fact server: MIT License, with the notices of the libraries it includes. https://github.com/nodejs/node/blob/main/LICENSE",
   "- **llama.cpp**, the AI engine inside node-llama-cpp: MIT License. https://github.com/ggml-org/llama.cpp",
   "- **Llama 3.2 3B Instruct**, the built-in AI model, downloaded on first run and not bundled: Llama 3.2 Community License. Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved. Built with Llama. https://www.llama.com/llama3_2/license/",
+  "- **Llama 3.1 8B Instruct**, the built-in AI's High quality model, downloaded only when chosen in Settings and not bundled: Llama 3.1 Community License. Llama 3.1 is licensed under the Llama 3.1 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved. Built with Llama. https://www.llama.com/llama3_1/license/",
   "- **Facts** are rewritten from Wikipedia (text under CC BY-SA 4.0), with data from Wikidata and MusicBrainz (CC0).",
   "- Some rules for reading a song out of a YouTube title follow **Web Scrobbler metadata-filter** (MIT). https://github.com/web-scrobbler/metadata-filter",
   "",
