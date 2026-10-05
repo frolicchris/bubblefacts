@@ -99,6 +99,77 @@ describe("macBundle", () => {
     expect(MAC_SWAP_SCRIPT).toContain('[ "$ID" = "org.frolic.bubblefacts" ]');
     expect(MAC_SWAP_SCRIPT).toContain('mv "$OLD" "$APP"');
   });
+
+  describe("when the disk image won't open (a tester's update, canceled half a second in)", () => {
+    // The script, run for real, with stand-ins for the macOS tools it calls.
+    let dir: string;
+    const run = (hdiutilFails: number, interrupt = false) => {
+      const bin = path.join(dir, "bin");
+      fs.mkdirSync(bin, { recursive: true });
+      const stub = (name: string, body: string) => fs.writeFileSync(path.join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+      // hdiutil fails its first `hdiutilFails` attaches; every call is recorded.
+      // With `interrupt`, its first attach also sends the script the signals that could end it partway.
+      const signal = interrupt ? `[ "$n" = 1 ] && kill -TERM $PPID && kill -INT $PPID && kill -HUP $PPID;` : "";
+      stub("hdiutil", `echo "hdiutil $1" >> "${dir}/calls"; [ "$1" = attach ] || exit 0; n=$(grep -c "hdiutil attach" "${dir}/calls"); ${signal} [ "$n" -gt ${hdiutilFails} ]`);
+      stub("diskutil", `echo "diskutil $1 $2" >> "${dir}/calls"; exit 1`);
+      stub("open", `echo "open $1" >> "${dir}/calls"`);
+      stub("ditto", "exit 1");
+      const script = path.join(dir, "swap.sh");
+      fs.writeFileSync(script, MAC_SWAP_SCRIPT, { mode: 0o700 });
+      const app = path.join(dir, "BubbleFacts.app");
+      fs.mkdirSync(app, { recursive: true });
+      // 999999: a process id that isn't running, so the script doesn't wait.
+      require("child_process").execFileSync("/bin/bash", [script, "999999", path.join(dir, "u.dmg"), app, path.join(dir, "log")], {
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, BF_RETRY_DELAY: "0" },
+      });
+      return { calls: fs.readFileSync(path.join(dir, "calls"), "utf8"), log: fs.readFileSync(path.join(dir, "log"), "utf8"), app };
+    };
+    beforeEach(() => (dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-swap-"))));
+    afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+    it("tries three times, with diskutil as a second choice, then reopens the old app", () => {
+      let err: unknown = null;
+      let out = { calls: "", log: "", app: "" };
+      try {
+        out = run(99);
+      } catch (e) {
+        err = e;
+        out = { calls: fs.readFileSync(path.join(dir, "calls"), "utf8"), log: fs.readFileSync(path.join(dir, "log"), "utf8"), app: path.join(dir, "BubbleFacts.app") };
+      }
+      expect(err).not.toBeNull(); // exit 1
+      expect(out.calls.match(/hdiutil attach/g)).toHaveLength(3);
+      expect(out.calls.match(/diskutil image attach/g)).toHaveLength(3);
+      expect(out.log).toContain("could not open the disk image (try 3 of 3)");
+      expect(out.calls).toContain(`open ${out.app}`);
+      expect(fs.existsSync(out.app)).toBe(true);
+    });
+
+    it("carries on when a later try opens it", () => {
+      let out = { calls: "", log: "" };
+      try {
+        out = run(2);
+      } catch {
+        out = { calls: fs.readFileSync(path.join(dir, "calls"), "utf8"), log: fs.readFileSync(path.join(dir, "log"), "utf8") };
+      }
+      expect(out.calls.match(/hdiutil attach/g)).toHaveLength(3);
+      expect(out.log).toContain("try 2 of 3");
+      expect(out.log).not.toContain("try 3 of 3");
+      // The stand-in image holds no app, so the check after opening it stops the swap, and the app reopens.
+      expect(out.log).toContain("not BubbleFacts");
+      expect(out.calls).toMatch(/open .*BubbleFacts\.app/);
+    });
+
+    it("isn't stopped by an interrupt while it works, and still reopens the app", () => {
+      try {
+        run(99, true);
+      } catch {
+        // exit 1: the image never opened
+      }
+      const calls = fs.readFileSync(path.join(dir, "calls"), "utf8");
+      expect(calls.match(/hdiutil attach/g)).toHaveLength(3);
+      expect(calls).toContain(`open ${path.join(dir, "BubbleFacts.app")}`);
+    });
+  });
 });
 
 describe("newerRelease with an installer", () => {

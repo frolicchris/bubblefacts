@@ -107,12 +107,26 @@ export function macBundle(execPath = process.execPath): string | null {
 export const MAC_SWAP_SCRIPT = `#!/bin/bash
 PID="$1"; DMG="$2"; APP="$3"; LOG="$4"
 exec >>"$LOG" 2>&1
+# Nothing may stop the swap halfway, so the app always comes back: an interrupt is ignored,
+# here and in the programs it runs. (A tester's update was canceled half a second in, 2026-10-04.)
+trap '' INT TERM HUP
 echo "--- update $(date)"
 while kill -0 "$PID" 2>/dev/null; do sleep 0.5; done
 MNT="$(mktemp -d /tmp/bubblefacts-update.XXXXXX)"
 reopen() { hdiutil detach "$MNT" -quiet 2>/dev/null; rmdir "$MNT" 2>/dev/null; open "$APP"; }
-# hdiutil warns that it's deprecated on the newest macOS but still works; its replacement isn't on older ones.
-hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG" >/dev/null || { echo "could not open the disk image"; reopen; exit 1; }
+# hdiutil warns that it's deprecated on the newest macOS but still works; its replacement,
+# diskutil image, isn't on older ones, so it's the second choice.
+attach() {
+  hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG" >/dev/null && return 0
+  diskutil image attach --mountOptions nobrowse --readOnly --mountPoint "$MNT" "$DMG" >/dev/null
+}
+# Opening the disk image right after the app quits has failed once in a while: try three times.
+for TRY in 1 2 3; do
+  attach && break
+  echo "could not open the disk image (try $TRY of 3)"
+  [ "$TRY" = 3 ] && { reopen; exit 1; }
+  sleep "\${BF_RETRY_DELAY:-2}"
+done
 NEW="$MNT/BubbleFacts.app"
 ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$NEW/Contents/Info.plist" 2>/dev/null)"
 [ "$ID" = "org.frolic.bubblefacts" ] || { echo "not BubbleFacts: $ID"; reopen; exit 1; }
