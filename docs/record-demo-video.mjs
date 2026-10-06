@@ -4,7 +4,8 @@
 // is exactly 1/30 s apart. Needs Playwright and ffmpeg, which are not project dependencies:
 //   npm install --no-save playwright && node docs/record-demo-video.mjs frontend/obs/obs-overlay.html BACKDROP.jpg /tmp/frames 15
 //   ffmpeg -framerate 30 -i /tmp/frames/f%04d.png -c:v libx264 -preset slow -crf 24 -pix_fmt yuv420p -movflags +faststart site/assets/demo.mp4
-// BACKDROP.jpg is a 1600x900 stream scene (the current clip uses Chris's piano photo, dimmed and softened).
+// BACKDROP is a 1600x900 image behind the bubbles. The site clip uses a plain dark navy glow, so the example
+// shows BubbleFacts rather than any one streamer.
 // The facts are the same source-checked ones the earlier still image showed.
 import { chromium } from 'playwright';
 import { mkdirSync, rmSync } from 'node:fs';
