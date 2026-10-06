@@ -296,8 +296,30 @@ main {
   overflow: hidden;
 }
 
-.hero-shot img {
+.hero-shot img,
+.hero-shot video {
+  display: block;
   width: 100%;
+  height: auto;
+}
+
+/* Pause button for the looping demo clip (WCAG 2.2.2). */
+.demo-toggle {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: rgba(10, 12, 40, 0.8);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.demo-toggle:hover {
+  border-color: var(--gold);
 }
 
 .caption {

@@ -425,6 +425,29 @@
     });
   }
 
+  // Play the home page demo clip, with a Pause button. Visitors who ask for
+  // less motion see the still poster and can press Play.
+  function setupDemo() {
+    var video = document.querySelector(".demo-video");
+    var button = document.querySelector(".demo-toggle");
+    if (!video || !button) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function show(playing) {
+      button.textContent = playing ? "Pause" : "Play";
+    }
+    button.hidden = false;
+    button.addEventListener("click", function () {
+      if (video.paused) video.play(); else video.pause();
+    });
+    video.addEventListener("play", function () { show(true); });
+    video.addEventListener("pause", function () { show(false); });
+    show(false);
+    if (!reduce) {
+      var started = video.play();
+      if (started && started.catch) started.catch(function () { show(false); });
+    }
+  }
+
   // Open a FAQ answer when someone follows a link straight to it.
   function openFromHash() {
     if (!location.hash) return;
@@ -436,6 +459,7 @@
     if (target && target.scrollIntoView) target.scrollIntoView();
   }
 
+  setupDemo();
   setupDownload();
   loadRelease();
   setupChecker();
