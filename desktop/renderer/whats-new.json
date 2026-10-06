@@ -1,4 +1,9 @@
 {
+  "2.0.0-rc.1": [
+    "High quality AI: fewer wrong facts on computers that can run it. Settings, under Advanced.",
+    "More songs find their article, and fewer wrong facts get through.",
+    "Turn the LIVE LEARN bubble off under Bubbles, and Bottom center sits at the very bottom when Now Playing is off."
+  ],
   "2.0.0-beta.13": [
     "Facts you write for a whole game or artist, like [Chopin] in Your own facts, now take turns across their songs.",
     "Each of those songs gets one, and its other bubbles stay about the song. Facts tagged with one song's title work as before."
