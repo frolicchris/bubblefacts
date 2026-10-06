@@ -20,9 +20,10 @@ download script asking GitHub's public API for the newest release.
 | `privacy.html` | What the app sends where |
 | `credits.html` | Credits, licenses, "Built with Llama" notice |
 | `assets/site.css` | All styles |
-| `assets/site.js` | Picks the right download for the visitor's computer, switches beta wording to stable, Copy buttons, opens linked FAQ answers |
+| `assets/site.js` | Picks the right download for the visitor's computer, switches beta wording to stable, Copy buttons, opens linked FAQ answers, plays the home page clip with a Pause button |
 | `assets/favicon.svg` | Browser tab icon |
-| `assets/demo.png`, `assets/social-preview.png` | Copied from `docs/` in the repo |
+| `assets/social-preview.png` | Copied from `docs/` in the repo |
+| `assets/demo.mp4`, `assets/demo-poster.jpg` | Home page clip and its still frame, recorded from the real overlay with `docs/record-demo-video.mjs` |
 
 Every page has the same header, footer and social-preview tags. If you add a
 page or change the menu, update the `<header>` and `<footer>` in every page.

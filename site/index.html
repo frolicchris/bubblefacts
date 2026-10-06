@@ -76,8 +76,12 @@
 
         <figure style="margin:0">
           <div class="rpg hero-shot">
-            <img src="assets/demo.png" width="1600" height="900"
-              alt="An example stream screen. Three blue game-style boxes show facts about the Song of Storms from The Legend of Zelda: Ocarina of Time, such as its 1998 release on the Nintendo 64. A gold Now Playing bubble at the bottom names the song.">
+            <video class="demo-video" width="1600" height="900" muted loop playsinline preload="metadata"
+              poster="assets/demo-poster.jpg"
+              aria-label="An example stream: a pianist plays the Song of Storms from The Legend of Zelda: Ocarina of Time. A Now Playing banner names the song, then three blue game-style boxes pop up one by one with facts about it, such as its 1998 release on the Nintendo 64.">
+              <source src="assets/demo.mp4" type="video/mp4">
+            </video>
+            <button type="button" class="demo-toggle" hidden>Pause</button>
           </div>
           <figcaption class="caption">What your viewers see when you play the Song of Storms.</figcaption>
         </figure>
