@@ -122,7 +122,7 @@ A release candidate (`2.0.0-rc.1`) means "this is 2.0.0 unless testing finds
 a blocker." These rules follow the practice of projects such as Python,
 GNOME, Mozilla and VS Code, sized for one maintainer.
 
-**Freezes, from the last beta (beta.12):**
+**Freezes, from the first release candidate (rc.1):** (planned from beta.12; testers' requests added a beta.13 and a few features after it, so the freeze took effect with rc.1)
 
 - **Features:** nothing new. Only fixes, docs and tests.
 - **Screens and wording:** no changes to the app's labels or layout, so the

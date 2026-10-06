@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.0.0-beta.13">
-  <script src="assets/site.js?v=2.0.0-beta.13" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.0.0-rc.1">
+  <script src="assets/site.js?v=2.0.0-rc.1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -51,6 +51,20 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-rc1">
+          <h2 id="v2-rc1">Version 2.0.0-rc.1 <span class="tag">Release candidate, October 6, 2026</span></h2>
+          <p>The first release candidate: the features of 2.0 are final, and what's left before 2.0 is fixing what testing finds, starting with fewer wrong facts on the default AI.</p>
+          <ul>
+            <li>New: a <span class="ui">High quality</span> choice for the built-in AI, in Settings, under Advanced. In our fact checks it made about half as many mistakes. It's a bigger download (about 5 GB) and needs 16 GB of memory and a graphics chip that can hold it; <span class="ui">Standard</span> stays the default.</li>
+            <li>New: <span class="ui">Show a LIVE LEARN bubble during a live learn</span>, under Bubbles, to turn that bubble off like the Now Playing one.</li>
+            <li>Improved: many more songs find their Wikipedia article, including artists credited together ("A - B", "A x B", "ft."), version tags written onto the title, covers that name the original in brackets, and remixes with the game after a dash. Thanks to SaxDragon's song list.</li>
+            <li>Improved: fewer wrong or misleading facts. Bubbles now drop words put in someone's mouth, a detail moved to the wrong record or person, and an unnamed "the duo" or "this chart".</li>
+            <li>Fixed: <span class="ui">Bottom center</span> sits at the very bottom when the Now Playing bubble is off. Thanks to izzyparadox.</li>
+            <li>Fixed: an update on a Mac that couldn't open its download now tries again, and BubbleFacts always reopens either way.</li>
+            <li>Fixed: two issues found by GitHub's code scanning (a pattern that could run slowly on unusual text, and how the Linux start-at-login entry is written).</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-beta13">
           <h2 id="v2-beta13">Version 2.0.0-beta.13 <span class="tag">Beta, October 4, 2026</span></h2>
