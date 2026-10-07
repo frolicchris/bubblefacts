@@ -17,7 +17,7 @@
     "test:scripts": "node --test scripts/bump-version.test.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.128.0",
+    "@anthropic-ai/sdk": "^0.131.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "node-llama-cpp": "^3.22.1",
@@ -26,8 +26,8 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.13.0",
-    "@types/ws": "^8.5.13",
+    "@types/node": "^22.20.5",
+    "@types/ws": "^8.18.2",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "eslint": "^9.19.0",
