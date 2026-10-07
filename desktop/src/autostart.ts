@@ -5,6 +5,7 @@
  * backtick, backslash or percent sign still starts the app.
  * https://specifications.freedesktop.org/desktop-entry-spec/latest/exec-variables.html
  */
+
 /**
  * Each character the Exec line can't take as it is, written once with both layers of escaping
  * applied: inside double quotes " ` $ and \ take a backslash, and Exec is also a string value
