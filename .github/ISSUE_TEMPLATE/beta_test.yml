@@ -1,5 +1,5 @@
 name: Beta test report
-description: Tried a beta? Tell us how it went. Takes about two minutes.
+description: Tried a beta or release candidate? Tell us how it went. Takes about two minutes.
 title: "Beta test: "
 labels: [beta test, desktop app]
 body:
@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for testing! Set it up, play a song or two, then fill this in. "Everything worked" is a great report too.
 
-        **In the app?** Open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first six answers for you.
+        **Using a beta?** In the app, open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first six answers for you.
 
         Never paste a token or API key here.
   - type: dropdown

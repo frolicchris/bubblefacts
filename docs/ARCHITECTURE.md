@@ -258,7 +258,7 @@ model states confident errors, such as crediting Final Fantasy VII to the
 wrong composer, and there's nothing to check them against. Hand-checked
 facts the streamer has chosen are better than invented ones. Packs can be
 split by genre so a channel only draws on music it plays: a Tetris fact under
-a Chopin nocturne is a non-sequitur.
+a Chopin nocturne is a non sequitur.
 
 The streamer's own facts (custom facts and song facts) are the only text shown
 without any check, since there's nothing to check them against. That's why
@@ -389,8 +389,8 @@ Game-music song lists usually put the track in the title and the game in the
 artist field. `resolveGameAndTrack` is the one place that handles this. If
 every song suddenly gets generic facts, check it first.
 
-An artist that is a streamer's handle (`@name`, `Name (@name)`) is a fellow
-streamer's piece: nothing is looked up, and the streamer's own facts are used.
+An artist that is a streamer's handle (`@name`, `Name (@name)`) is another
+music content creator's piece: nothing is looked up, and the streamer's own facts are used.
 
 ### How do I see what a stream showed?
 
@@ -650,8 +650,8 @@ drops a caption with a link, a chat command or an `@mention`.
 
 ### What every 2.x release keeps working
 
-2.0.0 is the first stable release, and from it on these are the app's
-public interface: a change that breaks one waits for 3.0 (SemVer).
+From 2.0.0, the first stable release, these are the app's public
+interface: a change that breaks one waits for 3.0 (SemVer).
 
 - **Settings** (`settings.json`): a version reads any older 2.x file. A
   setting it doesn't know is kept when it saves, so going back a version and

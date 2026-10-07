@@ -188,5 +188,5 @@ need them with a `.env` file.
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
 | `BUBBLEFACTS_PAUSED` | `1` starts the server with bubbles paused, so a restart while paused stays paused. |
-| `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` (sources marked **Wrong**, per song) `song-facts.json` (the streamer's facts for particular songs) and `session.json` (what the current stream has shown) go. Without it, the overlay uses a `data` folder in the overlay folder. |
+| `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` (sources marked **Wrong**, per song), `song-facts.json` (the streamer's facts for particular songs) and `session.json` (what the current stream has shown) go. Without it, the overlay uses a `data` folder in the overlay folder. |
 | `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |

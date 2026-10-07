@@ -26,8 +26,8 @@ Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 
 <!-- Name everyone whose report, idea or contribution is in this release, by
      the name they asked for (see AUTHORS.md). For example:
-     Thanks to izzyparadox for spotting where the bubbles really landed. -->
+     Thanks to Jane Example for spotting where the bubbles really landed. -->
 
-Testing it? In the app, open Help and troubleshooting and click **Send a beta test report**, or use the [beta test form](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml). Full list: [changelog](https://bubblefacts.frolic.org/changelog.html).
+Testing it? Tell us how it went with the [beta test form](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml). In a beta, **Send a beta test report** under Help and troubleshooting fills it in for you. Full list: [changelog](https://bubblefacts.frolic.org/changelog.html).
 
 **This version isn't signed yet**, so your computer asks you to confirm the first time you open a fresh download. The [download page](https://bubblefacts.frolic.org/download.html#first-launch) shows exactly what to click.
