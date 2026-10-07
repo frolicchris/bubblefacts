@@ -78,11 +78,6 @@ export function wrongFactUrl(opts: { song: string; fact: string; version: string
   });
 }
 
-/**
- * A report as text to copy, for musicians without a GitHub account: exactly
- * the fields the GitHub form gets (secrets already removed), read back from
- * its address, so anything added to a report shows up here too.
- */
 const LABELS: Record<string, string> = {
   version: "Version",
   install: "Installed as",
@@ -95,6 +90,11 @@ const LABELS: Record<string, string> = {
   shown: "Fact shown",
 };
 
+/**
+ * A report as text to copy, for musicians without a GitHub account: exactly
+ * the fields the GitHub form gets (secrets already removed), read back from
+ * its address, so anything added to a report shows up here too.
+ */
 export function reportText(url: string, title: string): string {
   const fields = Object.fromEntries(new URL(url).searchParams);
   const lines = [title, ""];

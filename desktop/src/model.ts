@@ -54,7 +54,7 @@ export interface Progress {
 
 /**
  * The download wasn't the file this version expects. Downloading it again
- * would most likely fetch the same wrong 2 GB, so it isn't retried on its own.
+ * would most likely fetch the same wrong file, so it isn't retried on its own.
  */
 export class ChecksumMismatch extends Error {
   constructor() {
