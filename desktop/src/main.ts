@@ -8,7 +8,7 @@ import { pathToFileURL } from "url";
 import { newerRelease, Release, testSongList, testStreamElements } from "./checks";
 import { assetName, downloadUpdate, startInstall } from "./updater";
 import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady, Progress } from "./model";
-import { installOverlay, OVERLAY_FILE } from "./overlay";
+import { installOverlay, OVERLAY_FILE, VERTICAL_OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
 import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
@@ -17,7 +17,7 @@ import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, customFactsProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -88,7 +88,8 @@ const supervisor = new Supervisor(
   DIRS.logs,
   process.platform === "linux" && fs.existsSync(nodeRuntime) ? nodeRuntime : null
 );
-const overlayFile = () => path.join(DIRS.overlay, OVERLAY_FILE);
+/** The landscape overlay, or with `vertical` the 1080x1920 one for phone-shaped streams. */
+const overlayFile = (vertical = false) => path.join(DIRS.overlay, vertical ? VERTICAL_OVERLAY_FILE : OVERLAY_FILE);
 
 /** What the window says about a failure: plain words there, the technical side in the log (and so in reports). */
 function shown(where: string, err: unknown, opts: PlainOptions = {}): string {
@@ -143,7 +144,10 @@ let serverSignature = "";
  * regardless, for a new sign-in or token.
  */
 function startServer(force = false): void {
-  installOverlay(path.join(ROOT, "frontend/obs"), DIRS.overlay, settings.port, BUBBLE_SCALE[settings.bubbleSize]);
+  installOverlay(path.join(ROOT, "frontend/obs"), DIRS.overlay, settings.port, {
+    scale: BUBBLE_SCALE[settings.bubbleSize],
+    verticalScale: VERTICAL_BUBBLE_SCALE[settings.verticalBubbleSize],
+  });
   writeMyPack(settings, DIRS.facts);
   if (!canStart()) {
     serverSignature = "";
@@ -170,6 +174,7 @@ function state() {
     modelDownload,
     status: supervisor.status,
     overlayPath: overlayFile(),
+    verticalOverlayPath: overlayFile(true),
     // Ready when some model can write facts, including the old one during a switch of quality.
     modelReady: activeModel() !== null,
     // Downloading the newly chosen quality while the other model keeps writing facts.
@@ -853,9 +858,11 @@ ipcMain.handle("download-model", () => {
 });
 ipcMain.handle("copy", (_e, text: string) => clipboard.writeText(text));
 // Dragging the overlay file onto OBS's Sources list makes a Browser source at the canvas size.
-ipcMain.on("start-drag", (e) => fromOurPage(e) && e.sender.startDrag({ file: overlayFile(), icon: asset("tray@2x.png") }));
+// `vertical`: the 1080x1920 overlay, for an OBS whose canvas is vertical.
+ipcMain.on("start-drag", (e, vertical?: unknown) =>
+  fromOurPage(e) && e.sender.startDrag({ file: overlayFile(vertical === true), icon: asset("tray@2x.png") }));
 ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
-ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
+ipcMain.handle("test-overlay", (_e, vertical?: unknown) => shell.openExternal(`${pathToFileURL(overlayFile(vertical === true))}?test=1`));
 ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
 ipcMain.handle("show-backups", () => {
   fs.mkdirSync(DIRS.backups, { recursive: true });

@@ -88,8 +88,13 @@ export interface Fact {
    * `top`, or `bottom` for a bubble that sits on the bottom edge and grows upward.
    * `left`, or `right` for one measured from the right edge; neither centers it.
    */
-  position: { top?: string; bottom?: string; left?: string; right?: string };
+  position: Spot;
+  /** Where the vertical overlay (1080x1920, for phone-shaped streams) shows it, by the same rules. */
+  vertical?: Spot;
 }
+
+/** Where a bubble sits, as CSS lengths. */
+export type Spot = { top?: string; bottom?: string; left?: string; right?: string };
 
 /** Server-to-overlay WebSocket message. `remove_fact` takes one fact, by `text`, off the current song. */
 export interface FactsPayload {

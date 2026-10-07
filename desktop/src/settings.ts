@@ -51,6 +51,9 @@ export interface Settings {
   bubbleArea:
     | "anywhere" | "top" | "bottom" | "left" | "right"
     | "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
+  /** The vertical overlay (BubbleFacts Vertical.html), for phone-shaped streams: its own size and spots. */
+  verticalBubbleSize: "standard" | "large" | "larger";
+  verticalArea: "top" | "above-chat";
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -110,6 +113,8 @@ export const DEFAULTS: Settings = {
   ollamaModel: "llama3.2",
   bubbleSize: "standard",
   bubbleArea: "anywhere",
+  verticalBubbleSize: "standard",
+  verticalArea: "top",
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
@@ -227,6 +232,8 @@ export function sanitize(s: Settings): Settings {
     aiQuality: oneOf(s.aiQuality, ["standard", "high"] as const, "standard"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
+    verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
+    verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
@@ -276,7 +283,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "liveLearnBanner",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -352,6 +359,7 @@ export function toServerEnv(
     NOW_PLAYING: s.nowPlaying ? "on" : "off",
     LIVE_LEARN_BANNER: s.liveLearnBanner ? "on" : "off",
     BUBBLE_AREA: s.bubbleArea,
+    VERTICAL_AREA: s.verticalArea,
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),
@@ -421,3 +429,8 @@ export function writeMyPack(s: Settings, dir: string): void {
 }
 
 export const BUBBLE_SCALE: Record<Settings["bubbleSize"], number> = { standard: 1, large: 1.25, larger: 1.5 };
+/**
+ * The vertical overlay's sizes. Its Standard is already phone-sized (40px text on a 1080-wide
+ * canvas, about 17px on a phone), and the area clear of the apps' chat is short, so the steps are smaller.
+ */
+export const VERTICAL_BUBBLE_SCALE: Record<Settings["verticalBubbleSize"], number> = { standard: 1, large: 1.15, larger: 1.3 };

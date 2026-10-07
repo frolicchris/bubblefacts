@@ -17,6 +17,10 @@
  *  Add a Browser Source in OBS with "Local File" checked, pointing at this
  *  folder's obs-overlay.html, 1920x1080. See docs/MANUAL-SETUP.md.
  *
+ *  For a vertical (9:16) stream, use obs-overlay-vertical.html instead, at
+ *  1080x1920. It has its own bubble spots and size, kept clear of the
+ *  phone apps' buttons and chat.
+ *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
  *  without the server. A red dot bottom-right means the server isn't
  *  reachable. Styling lives in obs-overlay.css; positions come from the server.
@@ -47,6 +51,9 @@
   // opening again shows up on stream within a few seconds.
   const MAX_RECONNECT_MS = 4000;
   const ICONS = ["♪", "🎵", "⭐", "🎶", "✨", "🌟", "💡", "🎼"];
+
+  // The vertical overlay (obs-overlay-vertical.html) uses each fact's vertical spot.
+  const VERTICAL = document.documentElement.dataset.layout === "vertical";
 
   const container = document.getElementById("bubble-container");
   const statusDot = document.getElementById("connection-status");
@@ -147,7 +154,7 @@
   function showBubble(fact) {
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble";
-    const at = fact.position;
+    const at = (VERTICAL && fact.vertical) || fact.position;
     // A bottom spot sits on the bottom edge and grows upward, whatever the fact's length.
     if (at.bottom) bubble.style.bottom = at.bottom;
     else bubble.style.top = at.top;
@@ -263,8 +270,8 @@
   function renderTestMode() {
     if (!/[?&]test=1(&|$)/.test(location.search)) return;
     const bubble = document.createElement("div");
-    bubble.className = "popup-bubble";
-    Object.assign(bubble.style, { top: "8%", left: "33%", opacity: "1", transform: "scale(1)" });
+    bubble.className = "popup-bubble" + (VERTICAL ? " centered" : "");
+    Object.assign(bubble.style, VERTICAL ? { top: "15%" } : { top: "8%", left: "33%" }, { opacity: "1", transform: "scale(1)" });
     bubble.textContent = "TEST MODE — if you can read this in OBS, the browser source is loading and rendering correctly.";
     const banner = document.createElement("div");
     banner.className = "song-toast";
@@ -273,6 +280,27 @@
     container.append(bubble, banner);
   }
 
+  /**
+   * The vertical overlay in a source wider than tall: OBS made it at the landscape canvas size,
+   * or a new Browser source kept its 800x600. Says how to fix it, in OBS's preview. Only in OBS
+   * (which adds window.obsstudio): "Test in your browser" opens it in a wide window on purpose.
+   */
+  function checkVerticalSize() {
+    if (!VERTICAL || !window.obsstudio) return;
+    const wide = window.innerWidth > window.innerHeight;
+    let note = document.querySelector(".size-note");
+    if (wide && !note) {
+      note = document.createElement("div");
+      note.className = "size-note";
+      note.textContent = "BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1920.";
+      document.body.appendChild(note);
+    } else if (!wide && note) {
+      note.remove();
+    }
+  }
+
   renderTestMode();
+  checkVerticalSize();
+  window.addEventListener("resize", checkVerticalSize);
   connect();
 })();

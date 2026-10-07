@@ -57,6 +57,7 @@
             <li><a href="#install">Install the app</a></li>
             <li><strong>Step 1:</strong> <a href="#song-list">Connect your songs</a></li>
             <li><strong>Step 2:</strong> <a href="#obs">Put BubbleFacts on your stream</a></li>
+            <li><a href="#vertical">Streaming vertically too (optional)</a></li>
             <li><a href="#your-music">About your music (optional)</a></li>
             <li><a href="#check">Check that it works</a></li>
             <li><a href="#streaming">While you stream</a></li>
@@ -215,6 +216,23 @@
 
             <h3 id="obs-scenes">Stream from more than one scene?</h3>
             <p>Add BubbleFacts to just one scene, for example a scene called "BubbleFacts overlay". Then, in each of your other scenes, click <span class="ui">+</span> under <span class="ui">Sources</span>, choose <span class="ui">Scene</span>, and pick "BubbleFacts overlay". That's easier than adding BubbleFacts six times, and any change happens everywhere at once.</p>
+
+            <h3 id="vertical">Streaming vertically too? (TikTok, YouTube Shorts, Instagram Live)</h3>
+            <p>Phone-shaped streams get their own overlay, <span class="ui">BubbleFacts Vertical</span>. Its bubbles are sized for a phone screen and stay clear of the buttons, top bar and chat those apps show over your video. It runs beside the usual one, so one BubbleFacts can feed a landscape scene and a vertical scene at the same time.</p>
+            <p><strong>If OBS's canvas is vertical</strong> (1080 by 1920 in <span class="ui">Settings</span>, then <span class="ui">Video</span>):</p>
+            <ol>
+              <li>In BubbleFacts, open <span class="ui">Settings</span> and find <span class="ui">Vertical stream</span>.</li>
+              <li>Drag the tile that says <span class="ui">Drag this into your vertical scene</span> onto the <span class="ui">Sources</span> list in OBS. OBS sizes it for you.</li>
+            </ol>
+            <p><strong>If you use Aitum Vertical</strong> (or another plugin that adds a second, vertical canvas), its Sources list doesn't take a dragged file, so add it there once by hand:</p>
+            <ol>
+              <li>In the vertical <span class="ui">Sources</span> list, click <span class="ui">+</span> and choose <span class="ui">Browser</span>. Name it "BubbleFacts Vertical" and click <span class="ui">OK</span>.</li>
+              <li>In BubbleFacts, open <span class="ui">Settings</span>, then <span class="ui">Vertical stream</span>, then <span class="ui">Using Aitum Vertical, or a second canvas?</span>, and click <span class="ui">Copy</span>.</li>
+              <li>In OBS, check <span class="ui">Local file</span>, click <span class="ui">Browse</span> and choose the file at the location you copied.</li>
+              <li>Set <span class="ui">Width</span> to <span class="ui">1080</span> and <span class="ui">Height</span> to <span class="ui">1920</span>, and click <span class="ui">OK</span>.</li>
+            </ol>
+            <p>Click <span class="ui">Show a test bubble</span> on the dashboard: it shows on both overlays. If the vertical one says to set the width and height, open the source's properties in OBS and set 1080 and 1920.</p>
+            <p>Under <span class="ui">Vertical stream</span> you can also choose its own <span class="ui">Bubble size</span>, and whether bubbles show <span class="ui">Near the top</span> or <span class="ui">Just above the chat</span>. On a phone screen there's room for one bubble at a time, so each new one replaces the last.</p>
           </div>
         </div>
 

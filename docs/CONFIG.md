@@ -155,6 +155,14 @@ very bottom when that bubble is off (`NOW_PLAYING=off`, and for a live learn
 lists at the top of `backend/src/fact-generator.ts`. Text size, colors and animation are at the
 top of `frontend/obs/obs-overlay.css`.
 
+`VERTICAL_AREA` (`top` or `above-chat`; default `top`) is where bubbles go in
+the vertical overlay, `frontend/obs/obs-overlay-vertical.html`, a 1080x1920
+Browser source for TikTok, YouTube Shorts and Instagram Live. It has one spot
+in each case, inside the part of the screen those apps leave clear of their
+own buttons and chat (`VERTICAL_SAFE` in `backend/src/fact-generator.ts`). Its
+bubble size is `--bf-vertical-scale` in `obs-overlay.css`, apart from
+`--bf-scale`, so a landscape and a vertical scene can run at once.
+
 ---
 
 ## Connection
