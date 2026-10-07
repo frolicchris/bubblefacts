@@ -307,6 +307,14 @@ Follow every rule:
 
 // --- Providers ---------------------------------------------------------
 
+/**
+ * The system prompt every provider gets. Without one, node-llama-cpp gives the
+ * built-in model its own "helpful assistant" prompt, which Ollama never sends,
+ * so the shipped model and the one measured through Ollama were told different things.
+ */
+export const SYSTEM_PROMPT =
+  "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
+
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
 async function askAnthropic(prompt: string): Promise<string> {
@@ -318,6 +326,7 @@ async function askAnthropic(prompt: string): Promise<string> {
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
     temperature: config.temperature,
+    system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -340,7 +349,10 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
     `${config.openaiBaseUrl}/chat/completions`,
     {
       model: config.openaiModel,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
       temperature: config.temperature,
       max_tokens: HOSTED_MAX_TOKENS,
     },
@@ -360,6 +372,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
+          system: SYSTEM_PROMPT,
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -390,7 +403,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence() });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {
