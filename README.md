@@ -82,8 +82,9 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 - [Report a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
   In the app, click **Wrong** next to it, then **Report it (opens GitHub)**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
-  testing a version before its full release? Tell us how it went. In a beta,
-  **Send a beta test report** in the app fills in your version, computer and log.
+  testing a version before its full release? Tell us how it went. In a beta or
+  release candidate, **Send a beta test report** in the app fills in your
+  version, computer and log; **Copy beta test report** needs no GitHub account.
 - [Security policy](.github/SECURITY.md): report security problems privately.
 
 Only the newest release is supported; the app tells you when there's a new

@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for testing! Set it up, play a song or two, then fill this in. "Everything worked" is a great report too.
 
-        **Using a beta?** In the app, open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first six answers for you.
+        **Using a beta or release candidate?** In the app, open **Help and troubleshooting** and click **Send a beta test report**: it fills in the first six answers for you.
 
         Never paste a token or API key here.
   - type: dropdown
