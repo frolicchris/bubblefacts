@@ -93,7 +93,7 @@ The overlay chooses automatically: Anthropic if you've set
 | Setting | Default | What it does |
 |---|---|---|
 | `AI_PROVIDER` | *automatic* | Force a choice: `ollama`, `openai` or `anthropic`. `none` uses no AI: songs get Wikidata, MusicBrainz and custom facts only. (`builtin` is the desktop app's.) |
-| `TEMPERATURE` | `0.2` | How freely the AI writes, from 0 to 2. Keep it low: its job is to rephrase an article faithfully, and higher values make it wander. |
+| `TEMPERATURE` | `0` | How freely the AI writes, from 0 to 2. Keep it at or near 0: its job is to rephrase an article faithfully, and higher values make it wander. |
 
 ### Ollama (on your own computer)
 
