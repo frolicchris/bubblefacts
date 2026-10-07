@@ -1914,11 +1914,52 @@ export function unsupportedName(fact: string, context: string): string | null {
   return null;
 }
 
+/** The labels a reference puts before the sentences it lifts (`orderExtract`). */
+const REFERENCE_LABEL = /^(About this piece|From the people who made it|How the music is built|How it was received): /;
+/** A sentence break: not after a middle initial ("Barry J. Eastmond"), and only before a capital. */
+const SENTENCE_BREAK = /(?<!(?:^|[^\p{L}])\p{Lu}\.)(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u;
+
+/** One line of a reference split into its sentences, without the label. */
+const lineSentences = (line: string) =>
+  line.replace(REFERENCE_LABEL, "").split(SENTENCE_BREAK).map((s) => s.trim()).filter((s) => s && !/^==/.test(s));
+
+/**
+ * Every sentence of a reference after its title line, in order: the sentences
+ * the prompt numbers for the model to cite (`numberedReference`). Sentence N is
+ * `referenceSentences(context)[N - 1]`.
+ */
+export function referenceSentences(context: string): string[] {
+  return context.split("\n").slice(1).flatMap(lineSentences);
+}
+
+/**
+ * The reference as the model sees it when it must cite: the title line, each
+ * label on a line of its own, and every sentence numbered, "[3] ...".
+ */
+export function numberedReference(context: string): string {
+  const [title, ...lines] = context.split("\n");
+  const out = [title];
+  let n = 0;
+  for (const line of lines) {
+    const label = REFERENCE_LABEL.exec(line)?.[1];
+    if (label) out.push(`${label}:`);
+    const sentences = lineSentences(line);
+    if (!sentences.length && !line.trim()) out.push("");
+    for (const sentence of sentences) out.push(`[${++n}] ${sentence}`);
+  }
+  return out.join("\n");
+}
+
 /** The reference's sentences, without its own labels, for matching a caption to the one it retells. */
 function bodySentences(context: string): string[] {
-  const body = context.split("\n").slice(1).join("\n").replace(/^(About this piece|From the people who made it|How the music is built|How it was received): /gm, "");
-  return body.split(/(?<!(?:^|[^\p{L}])\p{Lu}\.)(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u).map((s) => s.trim()).filter((s) => s.length >= 20 && !/^==/.test(s));
+  return referenceSentences(context).filter((s) => s.length >= 20);
 }
+
+/**
+ * The sentence the model cited for the caption being screened. While it's set,
+ * that sentence is the one the caption retells: no guessing by shared words.
+ */
+let citing: { fact: string; sentence: string } | null = null;
 
 /** How much of a caption's content one sentence holds. */
 function share(fact: string, sentence: string): number {
@@ -1935,13 +1976,18 @@ function share(fact: string, sentence: string): number {
  * nearly as good. None when even the best holds under a quarter of it.
  */
 export function retoldSentences(fact: string, context: string): string[] {
+  if (citing?.fact === fact) return [citing.sentence];
   const scored = bodySentences(context).map((s) => ({ s, share: share(fact, s) }));
   const best = Math.max(0, ...scored.map((x) => x.share));
   return best < 0.25 ? [] : scored.filter((x) => x.share >= best - 0.1).map((x) => x.s);
 }
 
-/** How well the reference supports a caption: the share of its words in the best-matching sentence. */
-const support = (fact: string, context: string) => Math.max(0, ...bodySentences(context).map((s) => share(fact, s)));
+/**
+ * How well the reference supports a caption: the share of its words in the
+ * sentence it cites, or else in the best-matching sentence.
+ */
+export const support = (fact: string, context: string, cited?: string) =>
+  cited !== undefined ? share(fact, cited) : Math.max(0, ...bodySentences(context).map((s) => share(fact, s)));
 
 /**
  * Words that join two statements into a cause, an order, an intention or a
@@ -1985,14 +2031,7 @@ export function unsupportedConnective(fact: string, context: string): string | n
   const retold = retoldSentences(fact, context);
   // "first" is too common to drop when the caption retells no sentence at all; the other checks judge that.
   const used = CONNECTIVES.filter((c) => c.fact.test(fact) && (c.label !== "a first" || retold.length > 0));
-  const numbers = [
-    // Lowercase only: "Two Worlds" is a title.
-    ...(fact.match(new RegExp(`\\b(${[...NUMBER_WORDS, ...ORDINALS].join("|")})\\b`, "g")) ?? []),
-    // A figure: not a year, and not part of a name ("Expedition 33", "Hot 100", "No. 3").
-    ...[...fact.matchAll(/(?<![\p{L}\d.,$])\d{1,3}(?:,\d{3})*(?![\d\p{L}])/gu)]
-      .filter((m) => !/(?:\p{Lu}[\p{L}.'’-]*|No\.|Op\.|K\.)\s+$/u.test(fact.slice(0, m.index)) && !/^\s+\p{Lu}/u.test(fact.slice((m.index ?? 0) + m[0].length)))
-      .map((m) => m[0]),
-  ];
+  const numbers = numbersIn(fact);
   if (!used.length && !numbers.length) return null;
   if (!retold.length) return used[0]?.fact.exec(fact)?.[0] ?? numbers[0];
   // A number, or "first", may sit in any sentence the caption draws on, not only the closest: "their third film together".
@@ -2005,12 +2044,25 @@ export function unsupportedConnective(fact: string, context: string): string | n
     if (c.fact.source === "\\bafter\\b" && afterFollowsSource(fact, context)) continue;
     return c.fact.exec(fact)?.[0] ?? c.label;
   }
-  for (const n of numbers) {
-    const forms = [n, DIGIT_OF[n], ...Object.entries(DIGIT_OF).filter(([, d]) => d === n).map(([w]) => w)].filter(Boolean) as string[];
-    // "second" is also "2nd"; a figure may be written "1,000" or "1000".
-    if (![...retold, ...related].some((s) => forms.some((f) => hasWord(f, s) || hasWord(f.replace(/,/g, ""), s.replace(/(\d),(\d)/g, "$1$2")) || (/^\d+$/.test(f) && hasWord(`${f}${f === "2" ? "nd" : f === "3" ? "rd" : "th"}`, s))))) return n;
-  }
+  for (const n of numbers) if (![...retold, ...related].some((s) => hasNumber(n, s))) return n;
   return null;
+}
+
+/** Counts and ordinals in a caption, in words or figures: not years, and not part of a name ("Expedition 33", "Hot 100", "No. 3"). */
+function numbersIn(fact: string): string[] {
+  return [
+    // Lowercase only: "Two Worlds" is a title.
+    ...(fact.match(new RegExp(`\\b(${[...NUMBER_WORDS, ...ORDINALS].join("|")})\\b`, "g")) ?? []),
+    ...[...fact.matchAll(/(?<![\p{L}\d.,$])\d{1,3}(?:,\d{3})*(?![\d\p{L}])/gu)]
+      .filter((m) => !/(?:\p{Lu}[\p{L}.'’-]*|No\.|Op\.|K\.)\s+$/u.test(fact.slice(0, m.index)) && !/^\s+\p{Lu}/u.test(fact.slice((m.index ?? 0) + m[0].length)))
+      .map((m) => m[0]),
+  ];
+}
+
+/** Whether a sentence has this number in any form: "second" is also "2nd", and "1,000" is "1000". */
+function hasNumber(n: string, s: string): boolean {
+  const forms = [n, DIGIT_OF[n], ...Object.entries(DIGIT_OF).filter(([, d]) => d === n).map(([w]) => w)].filter(Boolean) as string[];
+  return forms.some((f) => hasWord(f, s) || hasWord(f.replace(/,/g, ""), s.replace(/(\d),(\d)/g, "$1$2")) || (/^\d+$/.test(f) && hasWord(`${f}${f === "2" ? "nd" : f === "3" ? "rd" : "th"}`, s)));
 }
 
 /** A sentence split at "after": the clause it opens ("After X," or "after X" to the next comma), and the rest. */
@@ -2303,6 +2355,122 @@ export function otherDoer(fact: string, context: string): string | null {
   return subjects.every(Boolean) ? subjects[0] : null;
 }
 
+/** Words before a name that make it not the one doing anything: "with Ada Pell", "according to Pell", "feat. Pell". */
+const NOT_THE_DOER = /(?:\b(?:with|to|by|of|from|for|about|on|than|and|or|as|featuring|feat\.|ft\.|including|like|according to|over|against|versus|vs\.?)|['’]s?|,)\s*$/i;
+/** Small words after a name that make it no subject: "Pell and Ruiz", "Pell as an influence". */
+const NOT_A_VERB = /^(?:and|or|as|in|on|at|of|for|with|to|from|by|the|a|an|nor|but)$/i;
+
+/** A single capitalized word at the start of a sentence that is a verb or an adverb, not a name: "Released", "Recording", "Notably". */
+const leadingVerb = (word: string) => /(?:ed|ing|ly)$/.test(word);
+
+/**
+ * The first person or group a sentence names, as the words of the name: "In
+ * 1933, Paul Whiteman recorded" gives Paul Whiteman. Not the work it is about
+ * (words of the reference's title), and not a time, a place word or "The".
+ */
+function firstNamed(sentence: string, title: string): string[] {
+  const body = sentence.replace(/^(?:(?:In|On|By|During|After|Before|Later|From|At|When|While)\b[^,]{0,80},\s*)+/i, "");
+  for (const m of body.matchAll(NAME_RUN)) {
+    const words = m[0].split(/\s+/).map((w) => w.replace(/['’]s?$|[.,:;!?]+$/g, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
+    if (!words.length) continue;
+    if (words.every((w) => hasWord(w, title))) continue;
+    if (m.index === 0 && words.length === 1 && leadingVerb(words[0])) continue;
+    return words;
+  }
+  return [];
+}
+
+/** Whether a sentence has the name as one doing something: followed by a verb, and not after "with", "to", "by" or a possessive. */
+function namedAsDoer(sentence: string, name: string): boolean {
+  const last = name.split(/\s+/).pop() ?? name;
+  for (const m of sentence.matchAll(new RegExp(`(?<![\\p{L}])${escapeRe(last)}(?![\\p{L}])`, "gu"))) {
+    // Back to the start of the name, so "with Ada Pell" is read before "Ada".
+    const before = sentence.slice(0, m.index).replace(/(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*\s+)*$/u, "");
+    const next = /^\s+(\p{Ll}[\p{L}-]*)/u.exec(sentence.slice((m.index ?? 0) + m[0].length));
+    if (next && !NOT_A_VERB.test(next[1]) && !NOT_THE_DOER.test(before)) return true;
+  }
+  return false;
+}
+
+/**
+ * A caption checked against the one sentence it cites (`numberedReference`):
+ *
+ *   names    every name in it is in that sentence, the two before it (a
+ *            "he" there names someone earlier), the reference's title or the
+ *            request's artist (for "the band");
+ *   numbers  every count is in that sentence, and every year in it or the one
+ *            before or after;
+ *   first    "first" only when that sentence has a word of firsts;
+ *   words    someone "said", "recalled" or "described" only when that sentence
+ *            (or the one before) gives that person's words;
+ *   doer     a caption opening on a person other than the one the sentence
+ *            names first is dropped, unless the sentence has that person doing
+ *            something too, or the caption has the first one doing it ("Gioeli,
+ *            who was paid $3,000, said he followed Senoue's demos" is no fee
+ *            for Senoue);
+ *   overlap  the caption shares at least a quarter of its words with it.
+ *
+ * `sentences` are `referenceSentences(context)` and `at` the cited one's index.
+ * Returns why it doesn't match, or null.
+ */
+export function citedMismatch(fact: string, sentences: string[], at: number, title: string, artists: string[] = []): string | null {
+  const own = sentences[at];
+  if (share(fact, own) < 0.25) return "doesn't retell the sentence it cites";
+  const near = [sentences[at - 2], sentences[at - 1], own, title, ...artists].filter(Boolean).join("\n");
+  const unquoted = fact.replace(/["“][^"”]*["”]/g, " ");
+  const names = [
+    ...(unquoted.match(NAME) ?? []),
+    // A single capitalized word after the first: "Mansfield", "Gioeli".
+    ...[...unquoted.matchAll(/(?<=\S\s+)(?<![\p{L}'’])(?:Mc)?\p{Lu}[\p{Ll}'’-]+(?:\p{Lu}[\p{Ll}'’-]+)*/gu)].map((m) => m[0]),
+  ];
+  for (const candidate of names) {
+    const words = candidate.split(/\s+/).map((w) => w.replace(/['’]s?$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
+    const missing = words.find((w) => !hasWord(w, near));
+    if (missing) return `"${missing}" isn't in the sentence it cites`;
+  }
+  const number = numbersIn(fact).find((n) => !hasNumber(n, own));
+  if (number) return `"${number}" isn't in the sentence it cites`;
+  const year = (fact.match(YEAR) ?? []).find((y) => ![sentences[at - 1], own, sentences[at + 1]].some((s) => s && hasWord(y, s)));
+  if (year) return `${year} isn't in the sentence it cites`;
+  const first = CONNECTIVES.find((c) => c.label === "a first" && c.fact.source === "\\bfirst\\b");
+  if (first && first.fact.test(fact) && !first.source.test(own)) return `"first" isn't in the sentence it cites`;
+  const said = SAID_BY.exec(fact);
+  if (said) {
+    const who = said[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase())).pop() ?? "";
+    const gives = (s: string | undefined) => Boolean(s) && ATTRIBUTION.test(s as string) && (hasWord(who, s as string) || PRONOUN_SAYS.test(s as string));
+    if (who && !(gives(own) && [own, sentences[at - 1]].some((s) => s && hasWord(who, s)))) return `the sentence it cites doesn't give ${who}'s words`;
+  }
+  const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s+\p{Ll})/u.exec(fact);
+  if (lead && !/['’]s?$/.test(lead[1])) {
+    const words = lead[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
+    const agent = firstNamed(own, title);
+    const isWork = words.every((w) => hasWord(w, title));
+    if (words.length && !isWork && agent.length && !namedAsDoer(fact, agent.join(" ")) && !namedAsDoer(own, words.join(" "))) return `the sentence it cites is about ${agent.join(" ")}`;
+  }
+  return null;
+}
+
+const MONTH_DAY = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "g");
+const DAY_MONTH = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTHS})\\b`, "g");
+/** The days a text names, as "November 22", whichever way round it writes them. */
+const daysIn = (text: string) => [
+  ...[...text.matchAll(MONTH_DAY)].map((m) => `${m[1]} ${Number(m[2])}`),
+  ...[...text.matchAll(DAY_MONTH)].map((m) => `${m[2]} ${Number(m[1])}`),
+];
+
+/**
+ * A day or month the source doesn't give: years are checked on their own, so
+ * "released on November 22, 1994" passed whenever 1994 was in the source.
+ * A month counts only next to a number ("May 1990"), never the word "may".
+ * Returns the date, or null.
+ */
+export function unsupportedDay(fact: string, context: string): string | null {
+  const known = new Set(daysIn(context));
+  const day = daysIn(fact).find((d) => !known.has(d));
+  if (day) return day;
+  return [...fact.matchAll(new RegExp(`\\b(${MONTHS})(?=,?\\s+\\d)`, "g"))].map((m) => m[1]).find((month) => !hasWord(month, context, "")) ?? null;
+}
+
 /** "The duo", "the quartet": a group named only by its kind. */
 const COLLECTIVE = /^(?:The|This|That) (duo|pair|trio|quartet|quintet|couple|band|group|orchestra|ensemble)\b(?!\s*["“'‘]|\s+\p{Lu})/u;
 /** "The group" or "the band" for a trio: either word fits any group; "the duo" fits only a duo. */
@@ -2593,6 +2761,17 @@ const UNNAMED_WORK = /^(?:The|This|That) (song|track|piece|tune|musical|show|col
 export interface ScreenResult {
   kept: string[];
   rejected: Array<{ text: string; reason: string }>;
+  /** With `cited`: the sentence each kept caption cites. */
+  sources?: Map<string, string>;
+}
+
+/** "4 | caption", or "[4] caption": the number of the sentence a caption retells, then the caption. */
+const CITATION = /^\s*(?:[-*•]\s*)?(?:\d{1,2}\.\s+(?=\[?\d{1,3}\]?\s*\|))?(?:\[(\d{1,3})\]\s*[|:.)-]?|(\d{1,3})\s*[|｜:)\]-])\s*(.*)$/u;
+
+/** A line the model wrote when told to cite: the sentence number (0 when none) and the caption. */
+export function parseCitation(line: string): { at: number; text: string } {
+  const m = CITATION.exec(line);
+  return m ? { at: Number(m[1] ?? m[2]), text: m[3].trim() } : { at: 0, text: line.trim() };
 }
 
 /**
@@ -2603,9 +2782,11 @@ export interface ScreenResult {
  * `otherParts`: the other parts of the soundtrack the reference was cut from.
  * `track`: set when the article isn't the track's own (an artist's, a game's):
  * then "The song ..." reads as this track, so it must retell a sentence that names it.
+ * `cited`: each line starts with the number of the sentence it retells (`numberedReference`).
+ * `artists`: the request's artist, a name a cited caption may use where its sentence says "the band".
  */
-export function screenClaims(facts: string[], rawContext: string, opts: { otherParts?: string[]; track?: string } = {}): ScreenResult {
-  const result: ScreenResult = { kept: [], rejected: [] };
+export function screenClaims(facts: string[], rawContext: string, opts: { otherParts?: string[]; track?: string; cited?: boolean; artists?: string[] } = {}): ScreenResult {
+  const result: ScreenResult = { kept: [], rejected: [], ...(opts.cited ? { sources: new Map<string, string>() } : {}) };
   // "Wagner‐influenced" with U+2010 is "Wagner-influenced": the name checks compare plain hyphens.
   const plainHyphens = (t: string) => t.replace(/[\u2010\u2011\u2012]/g, "-");
   const context = plainHyphens(rawContext);
@@ -2620,6 +2801,8 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     if (CRITIC_NAMES.test(fact) && /\b(called|wrote|said|described|praised|named|ranked|listed|rated|felt|thought|noted)\b/i.test(fact)) return "a critic's view";
     // "He combined two words": a viewer can't tell who.
     if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
+    // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
+    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact)) return "doesn't say who is speaking";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
     // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
     const other = (opts.otherParts ?? []).find((p) => hasWord(p, fact, ""));
@@ -2631,6 +2814,8 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     if (context) {
       const year = (fact.match(YEAR) ?? []).find((y) => !hasWord(y, context));
       if (year) return `unsupported year ${year}`;
+      const day = unsupportedDay(fact, context);
+      if (day) return `unsupported date "${day}"`;
       const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
       if (platform) return `unsupported platform "${platform}"`;
       const name = unsupportedName(fact, context);
@@ -2676,19 +2861,42 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     return null;
   };
 
+  // Told to cite, the model numbers each caption with the sentence it retells (`numberedReference`).
+  // That sentence stands in for the guess by shared words, and the caption must match it (`citedMismatch`).
+  const sentences = opts.cited ? referenceSentences(context) : [];
+  const title = context.split("\n")[0];
+  const citedReason = (fact: string, at: number): string | null => {
+    if (!at) return "doesn't say which sentence it retells";
+    if (at > sentences.length) return `cites sentence ${at}, which the reference doesn't have`;
+    return citedMismatch(fact, sentences, at - 1, title, opts.artists);
+  };
+  const sourceOf = (fact: string) => result.sources?.get(fact);
+
   for (const raw of facts) {
-    const fact = plainHyphens(stripPrefix(raw));
-    const reason = reasonToDrop(fact);
+    const line = opts.cited ? parseCitation(raw) : { at: 0, text: raw };
+    const fact = plainHyphens(stripPrefix(line.text));
+    const sentence = opts.cited && line.at >= 1 ? sentences[line.at - 1] : undefined;
+    citing = sentence !== undefined ? { fact, sentence } : null;
+    let reason: string | null;
+    try {
+      reason = (opts.cited ? citedReason(fact, line.at) : null) ?? reasonToDrop(fact);
+    } finally {
+      citing = null;
+    }
     if (reason) {
       result.rejected.push({ text: fact, reason });
       continue;
     }
     // Of two near-duplicates, the one closer to its source sentence stays: "resembles" over "was inspired by".
     const twin = result.kept.findIndex((k) => tooSimilar(k, fact));
-    if (twin < 0) result.kept.push(fact);
-    else if (context && support(fact, context) > support(result.kept[twin], context)) {
+    if (twin < 0) {
+      result.kept.push(fact);
+      if (sentence !== undefined) result.sources?.set(fact, sentence);
+    } else if (context && support(fact, context, sentence) > support(result.kept[twin], context, sourceOf(result.kept[twin]))) {
       result.rejected.push({ text: result.kept[twin], reason: "near-duplicate of a closer retelling" });
+      result.sources?.delete(result.kept[twin]);
       result.kept[twin] = fact;
+      if (sentence !== undefined) result.sources?.set(fact, sentence);
     } else result.rejected.push({ text: fact, reason: "near-duplicate of an earlier fact" });
   }
   return result;

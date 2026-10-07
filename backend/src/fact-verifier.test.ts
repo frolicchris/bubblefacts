@@ -10,6 +10,11 @@ jest.mock("./config", () => ({
 
 import {
   screenClaims,
+  numberedReference,
+  referenceSentences,
+  parseCitation,
+  citedMismatch,
+  unsupportedDay,
   splitGameAndTrack,
   resolveGameAndTrack,
   isRelevantArticle,
@@ -2019,5 +2024,99 @@ describe("supportingSentence", () => {
     const start = Date.now();
     supportingSentence(`${" ".repeat(50_000)}(${"(".repeat(50_000)}`, context);
     expect(Date.now() - start).toBeLessThan(500);
+  });
+});
+
+describe("unattributed speakers and dates (fourth fact check)", () => {
+  const ref = 'Glass Harbor\n"Glass Harbor" is a song by Dana Reyes, released on 3 May 1994. Reyes said: "Somewhere between an hour and two, I had the whole thing written."';
+
+  it("drops a caption that opens in someone's own words with no one named", () => {
+    const { kept, rejected } = screenClaims(["I had the whole thing written somewhere between an hour and two."], ref);
+    expect(kept).toEqual([]);
+    expect(rejected[0].reason).toBe("doesn't say who is speaking");
+    // A title that starts with "I" is no speaker.
+    expect(screenClaims(["I Wanna Stay was the B-side of Glass Harbor in 1994."], "Glass Harbor\nI Wanna Stay was the B-side of Glass Harbor in 1994.").kept).toHaveLength(1);
+  });
+
+  it("drops a day or month the source doesn't give, though the year is there", () => {
+    expect(unsupportedDay("Glass Harbor came out on November 22, 1994.", ref)).toBe("November 22");
+    expect(unsupportedDay("Glass Harbor came out in November 1994.", ref)).toBe("November");
+    expect(unsupportedDay("Glass Harbor came out on May 3, 1994.", ref)).toBeNull();
+    expect(unsupportedDay("Glass Harbor came out on the 3rd of May 1994.", ref)).toBeNull();
+    expect(unsupportedDay("Reyes may have written it in an hour.", ref)).toBeNull();
+    expect(screenClaims(["Glass Harbor was released on November 22, 1994."], ref).rejected[0].reason).toBe('unsupported date "November 22"');
+  });
+});
+
+describe("cite the sentence (fourth fact check)", () => {
+  const context = [
+    "Paper Lanterns",
+    "From the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".",
+    "",
+    "Recording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.",
+    "\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+  ].join("\n");
+  const sentences = referenceSentences(context);
+  const screen = (lines: string[]) => screenClaims(lines, context, { cited: true, artists: ["northlight"] });
+
+  it("numbers every sentence for the model, labels on lines of their own", () => {
+    const numbered = numberedReference(context).split("\n");
+    expect(numbered[0]).toBe("Paper Lanterns");
+    expect(numbered[1]).toBe("From the people who made it:");
+    expect(numbered[2]).toMatch(/^\[1\] Ada Pell considered/);
+    expect(numbered).toContain("[2] Recording: The band signed with Tom Hale, who introduced them to manager Lena Voss.");
+    expect(numbered.filter((l) => /^\[\d+\]/.test(l))).toHaveLength(sentences.length);
+    expect(sentences[4]).toBe('"Paper Lanterns" is a song by the trio Northlight, composed by series composer Ada Pell.');
+  });
+
+  it("reads the sentence number in the forms a small model writes", () => {
+    expect(parseCitation("4 | The caption.")).toEqual({ at: 4, text: "The caption." });
+    expect(parseCitation("[4] The caption.")).toEqual({ at: 4, text: "The caption." });
+    expect(parseCitation("1. 4 | The caption.")).toEqual({ at: 4, text: "The caption." });
+    expect(parseCitation("The caption.")).toEqual({ at: 0, text: "The caption." });
+    expect(parseCitation("1985 was the year.").at).toBe(0);
+  });
+
+  it("keeps true captions, including a name from the sentence before and a second clause's subject", () => {
+    const { kept, rejected, sources } = screen([
+      "1 | Rui Moreno recalled thinking Paper Lanterns was quite catchy.",
+      "3 | With Tom Hale's encouragement, Northlight completed some songs.",
+      "5 | Paper Lanterns was composed by series composer Ada Pell.",
+    ]);
+    expect(rejected).toEqual([]);
+    expect(kept).toHaveLength(3);
+    expect(sources?.get(kept[2])).toBe(sentences[4]);
+  });
+
+  it("drops a caption with no sentence number, or one the reference doesn't have", () => {
+    expect(screen(["Paper Lanterns was composed by series composer Ada Pell."]).rejected[0].reason).toBe("doesn't say which sentence it retells");
+    expect(screen(["40 | Paper Lanterns was composed by series composer Ada Pell."]).rejected[0].reason).toMatch(/^cites sentence 40/);
+  });
+
+  it("drops a name, number or year from another sentence", () => {
+    // Merged across sentences: the hit version was Brandt's, and Hale isn't in its sentence.
+    expect(screen(["6 | Tom Hale recorded a hit version of Paper Lanterns in October 1933."]).rejected[0].reason).toBe('"Tom" isn\'t in the sentence it cites');
+    expect(screen(["3 | The band completed three songs with this encouragement."]).rejected[0].reason).toBe('"three" isn\'t in the sentence it cites');
+  });
+
+  it("drops a first, or words, the sentence doesn't give", () => {
+    expect(screen(["5 | Paper Lanterns was the first song composed by series composer Ada Pell."]).rejected[0].reason).toBe('"first" isn\'t in the sentence it cites');
+    expect(screen(["5 | Ada Pell said Paper Lanterns was a song for the trio Northlight."]).rejected[0].reason).toBe("the sentence it cites doesn't give Pell's words");
+  });
+
+  it("drops a caption that gives the sentence's doing to someone it only mentions", () => {
+    // The fee was Arden's; Moreno only made the demos.
+    expect(screen(["4 | Moreno was paid $3,000 for his work on the strings."]).rejected[0].reason).toBe("the sentence it cites is about Kit Arden");
+    // The introduction was Hale's.
+    expect(screen(["2 | Lena Voss introduced the band to manager Tom Hale."]).rejected[0].reason).toBe("the sentence it cites is about Tom Hale");
+  });
+
+  it("drops a caption that barely shares a word with the sentence it cites", () => {
+    expect(screen(["1 | Paper Lanterns was recorded in October 1933 as a hit version."]).rejected[0].reason).toBe("doesn't retell the sentence it cites");
+  });
+
+  it("checks the caption against the cited sentence only, not the closest one", () => {
+    expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 5, "Paper Lanterns")).toBeNull();
+    expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 4, "Paper Lanterns")).not.toBeNull();
   });
 });

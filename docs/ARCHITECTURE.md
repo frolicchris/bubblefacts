@@ -135,7 +135,9 @@ sign-ins and the built-in AI. Its design decisions are in
    or artist, only sentences that name the track or are plainly about music
    are lifted, and no reception.
 6. **Write.** The AI rewrites details from the reference as short captions,
-   at a low temperature. Its instructions are laid out as CROSS (Context,
+   at temperature 0, with the same short system prompt from every provider
+   (without one, node-llama-cpp gave the built-in model its own "helpful
+   assistant" prompt, which Ollama never sends). Its instructions are laid out as CROSS (Context,
    Role, Objective, Source, Scope); `PROMPT_STYLE=rules` uses the older
    numbered list.
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
@@ -213,6 +215,25 @@ sign-ins and the built-in AI. Its design decisions are in
    ("B scored the games" when the source says A did, and B scored only the
    film); for those the prompt asks to keep each statement's subject, verb
    and details together.
+   **Cite the sentence.** The reference's sentences are numbered for the
+   model (`numberedReference`), and each line it writes starts with the
+   number of the one sentence it retells: `4 | caption`. "The sentence it
+   retells" above is then that sentence, not a guess by shared words, which
+   let merges and swapped subjects through. A line with no number, or one
+   the reference doesn't have, is dropped. `citedMismatch` also checks the
+   caption against that sentence: every name in it, the two before (for a
+   "he") or the title, or the request's artist (for "the band"); every count
+   in it and every year in it or next to it; "first" only with a word of
+   firsts; "said" or "recalled" only when it gives that person's words; and a
+   caption opening on someone other than the sentence's first-named person
+   only when the sentence has them doing something ("Gioeli, who was paid
+   $3,000, followed Senoue's demos" is no fee for Senoue). It must share a
+   quarter of its words with the sentence. `PROMPT_STYLE=rules` doesn't cite.
+   A caption opening "I", "We" or "My" is someone's words with no one named
+   and reads as the streamer's. Days and months must be in the source too
+   (`unsupportedDay`), not just the year. Of the captions left, the ones
+   their sentences support best fill the bubbles, in the order written; the
+   spares are not just stand-ins for dropped lines.
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
