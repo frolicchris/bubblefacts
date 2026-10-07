@@ -57,7 +57,7 @@ change.
    ten seconds. The same check runs on every pull request; `main` only accepts
    a change through a pull request whose **ci-ok** check passed. On Windows,
    ShellCheck usually isn't installed, so run `npm run typecheck` and
-   `npm test` instead (CI lints on Linux and macOS).
+   `npm test` instead (CI lints on Linux).
 5. Changed `dependencies`? Run `node scripts/third-party-notices.mjs` so
    `THIRD-PARTY-NOTICES.md` lists every package the app ships, with its license.
 6. Your name goes in `AUTHORS.md` (under Contributors) in the same pull
@@ -107,7 +107,7 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 **Test builds for every system:** on GitHub, go to **Actions → Release → Run
 workflow**. The installers appear as downloadable artifacts on the run. This
 works in forks too. A test build says so at the bottom of its window, with
-the commit it was built from, for example `2.0.0-beta.12 test build (c4ee826)`;
+the commit it was built from, for example `2.0.0-rc.1 test build (c4ee826)`;
 a build from your own computer says `(dev)`.
 
 **Releases** are made by the maintainer; how, and how builds get signed, is

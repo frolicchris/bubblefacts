@@ -10,7 +10,7 @@ download script asking GitHub's public API for the newest release.
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | Beta note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Check your download (optional)" with the in-browser checker and a "For developers" part |
+| `download.html` | Signing note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Check your download (optional)" with the in-browser checker and a "For developers" part |
 | `guide.html` | Step-by-step setup, then "Make it yours" (your facts and display settings) |
 | `troubleshooting.html` | What you see, why, and what to do, as one table |
 | `requirements.html` | System requirements, speed, fallback when the built-in AI can't run |
@@ -71,8 +71,9 @@ link ignores. So the pages don't use fixed links. Instead:
   `href` to the GitHub Releases page.
 - `assets/site.js` asks
   `https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=10`,
-  takes the first release that isn't a draft (prereleases count), and matches
-  its files by the end of their names (`PATTERNS` at the top of the script).
+  takes the newest full release with installers (until 2.0.0 is out, the
+  newest beta or release candidate), and matches its files by the end of
+  their names (`PATTERNS` at the top of the script).
   It then points each link at the matching file.
 - Elements with `data-release-version` show the version number, and links with
   `data-release-link` go to that release's page.
@@ -101,10 +102,10 @@ signing note under "Check your download" in `download.html`.
 
 ## Beta or stable wording
 
-Words that are only true during the beta (the download page's "BubbleFacts
-2.0 beta" and "Beta note", the home page's "Beta:" line, the guide's signing
-note, the support page's "While BubbleFacts is in beta", the changelog's
-"Coming soon" tag for 2.0.0) sit next to their stable wording, each marked:
+Words that are only true before 2.0.0 (the download page's "BubbleFacts
+2.0 test version" and its signing note, the home page's "Not signed yet:"
+line, the guide's signing note, the support page's "While 2.0 is being
+tested", the changelog's "Coming soon" tag for 2.0.0) sit next to their stable wording, each marked:
 
 - `data-beta-only` for beta wording, `data-stable-only` for stable wording.
 - `assets/site.js` adds the class `site-stable` to `<html>` when GitHub lists

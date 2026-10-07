@@ -22,9 +22,8 @@ the website. It's free, for Mac, Windows and Linux.
 
 Already have it? See [Updating to a newer version](https://bubblefacts.frolic.org/download.html#update): your settings are kept.
 
-This is a beta. The app isn't signed yet, so the first time you open it, your
-computer may ask you to confirm. The
-[download page](https://bubblefacts.frolic.org/download.html#first-launch)
+The app isn't signed yet, so the first time you open it, your computer may
+ask you to confirm. The [download page](https://bubblefacts.frolic.org/download.html#first-launch)
 shows exactly what to click.
 
 ## Get running in two steps
@@ -38,9 +37,9 @@ shows exactly what to click.
    **It's on your stream!**
 
 No coding. No Terminal. No AI setup. BubbleFacts finishes getting ready in the
-background, so you don't wait for it. Want to make it yours? Tell it you play your own compositions or do live
-learns, or add custom facts, any time in Settings. The
-[setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
+background, so you don't wait for it. Want to make it yours? Tell it you play
+your own compositions or do live learns, or add custom facts, any time in
+Settings. The [setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
 
 ## How the facts are checked
 
@@ -48,8 +47,8 @@ When a song starts, BubbleFacts finds its Wikipedia article (or the game's or
 film's), and the AI writes captions **only from that article**. Every caption
 is screened: names, who did what, years, consoles, and award or chart claims
 must appear in the article, or it's dropped. Captions that only repeat the
-title and artist are dropped too. That catches most mistakes, not
-every one (a caption can still mix up details the article does mention), so
+title and artist are dropped too. That catches most mistakes, not every one
+(a caption can still mix up details the article does mention), so
 **Wrong** next to a fact in the app takes it off your stream. Playing when you
 spot it? Mark it after the song, under **Earlier songs**.
 With no article, no AI is used: free music databases (Wikidata, MusicBrainz)
@@ -83,8 +82,8 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 - [Report a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new?template=wrong_fact.yml).
   In the app, click **Wrong** next to it, then **Report it (opens GitHub)**.
 - [Beta test report](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml):
-  tried the beta? Tell us how it went. In the app, **Send a beta test report**
-  fills in your version, computer and log.
+  testing a version before its full release? Tell us how it went. In a beta,
+  **Send a beta test report** in the app fills in your version, computer and log.
 - [Security policy](.github/SECURITY.md): report security problems privately.
 
 Only the newest release is supported; the app tells you when there's a new
