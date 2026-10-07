@@ -2368,13 +2368,18 @@ const leadingVerb = (word: string) => /(?:ed|ing|ly)$/.test(word);
  * 1933, Paul Whiteman recorded" gives Paul Whiteman. Not the work it is about
  * (words of the reference's title), and not a time, a place word or "The".
  */
-function firstNamed(sentence: string, title: string): string[] {
-  const body = sentence.replace(/^(?:(?:In|On|By|During|After|Before|Later|From|At|When|While)\b[^,]{0,80},\s*)+/i, "");
+function firstNamed(sentence: string, title: string, reference = ""): string[] {
+  // "Recording and production: The band ...": a section's heading, not a name.
+  const body = sentence
+    .replace(/^\p{Lu}[\p{L}'’-]*(?:\s+[\p{L}'’-]+){0,3}:\s+/u, (heading) => (SAYS.test(heading) ? heading : ""))
+    .replace(/^(?:(?:In|On|By|During|After|Before|Later|From|At|When|While|Since|As|Although|Though|Because|Until|With|Without|Following|Despite)\b[^,]{0,80},\s*)+/i, "");
   for (const m of body.matchAll(NAME_RUN)) {
     const words = m[0].split(/\s+/).map((w) => w.replace(/['’]s?$|[.,:;!?]+$/g, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
     if (!words.length) continue;
     if (words.every((w) => hasWord(w, title))) continue;
-    if (m.index === 0 && words.length === 1 && leadingVerb(words[0])) continue;
+    // "Written in 1909, ...", "Further, ...": a word capitalized only because it starts the sentence.
+    // A name is capitalized in the middle of a sentence somewhere too.
+    if (m.index === 0 && words.length === 1 && (leadingVerb(words[0]) || !new RegExp(`(?<![.!?:]["”]?\\s*)(?<=\\S\\s+)${escapeRe(words[0])}(?![\\p{L}])`, "u").test(reference))) continue;
     return words;
   }
   return [];
@@ -2423,10 +2428,13 @@ export function citedMismatch(fact: string, sentences: string[], at: number, tit
     // A single capitalized word after the first: "Mansfield", "Gioeli".
     ...[...unquoted.matchAll(/(?<=\S\s+)(?<![\p{L}'’])(?:Mc)?\p{Lu}[\p{Ll}'’-]+(?:\p{Lu}[\p{Ll}'’-]+)*/gu)].map((m) => m[0]),
   ];
+  const reference = sentences.join(" ");
   for (const candidate of names) {
     const words = candidate.split(/\s+/).map((w) => w.replace(/['’]s?$/, "")).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
     const missing = words.find((w) => !hasWord(w, near));
-    if (missing) return `"${missing}" isn't in the sentence it cites`;
+    // "Nobuo Uematsu" for a sentence's "Uematsu", when the reference gives him in full elsewhere.
+    const fullElsewhere = words.length > 1 && hasWord(words[words.length - 1], near) && hasWord(words.join(" "), reference);
+    if (missing && !fullElsewhere) return `"${missing}" isn't in the sentence it cites`;
   }
   const number = numbersIn(fact).find((n) => !hasNumber(n, own));
   if (number) return `"${number}" isn't in the sentence it cites`;
@@ -2443,7 +2451,7 @@ export function citedMismatch(fact: string, sentences: string[], at: number, tit
   const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s+\p{Ll})/u.exec(fact);
   if (lead && !/['’]s?$/.test(lead[1])) {
     const words = lead[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
-    const agent = firstNamed(own, title);
+    const agent = firstNamed(own, title, sentences.join(" "));
     const isWork = words.every((w) => hasWord(w, title));
     if (words.length && !isWork && agent.length && !namedAsDoer(fact, agent.join(" ")) && !namedAsDoer(own, words.join(" "))) return `the sentence it cites is about ${agent.join(" ")}`;
   }
@@ -2871,10 +2879,23 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     return citedMismatch(fact, sentences, at - 1, title, opts.artists);
   };
   const sourceOf = (fact: string) => result.sources?.get(fact);
+  // A small model counts its own lines more than it reads the numbers: once it has joined two
+  // sentences into one caption, every number after is one short. A caption that doesn't retell
+  // the sentence it cites but clearly retells the one next to it cites that one.
+  const nextTo = (fact: string, at: number): number => {
+    if (at < 1 || at > sentences.length || share(fact, sentences[at - 1]) >= 0.25) return at;
+    const [best] = [at - 1, at + 1]
+      .filter((n) => n >= 1 && n <= sentences.length)
+      .map((n) => ({ n, share: share(fact, sentences[n - 1]) }))
+      .filter((x) => x.share >= 0.5)
+      .sort((a, b) => b.share - a.share);
+    return best?.n ?? at;
+  };
 
   for (const raw of facts) {
-    const line = opts.cited ? parseCitation(raw) : { at: 0, text: raw };
-    const fact = plainHyphens(stripPrefix(line.text));
+    const parsed = opts.cited ? parseCitation(raw) : { at: 0, text: raw };
+    const fact = plainHyphens(stripPrefix(parsed.text));
+    const line = { ...parsed, at: opts.cited ? nextTo(fact, parsed.at) : 0 };
     const sentence = opts.cited && line.at >= 1 ? sentences[line.at - 1] : undefined;
     citing = sentence !== undefined ? { fact, sentence } : null;
     let reason: string | null;

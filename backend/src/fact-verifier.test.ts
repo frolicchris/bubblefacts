@@ -2111,6 +2111,22 @@ describe("cite the sentence (fourth fact check)", () => {
     expect(screen(["2 | Lena Voss introduced the band to manager Tom Hale."]).rejected[0].reason).toBe("the sentence it cites is about Tom Hale");
   });
 
+  it("reads a number one off from the line it clearly retells as that line", () => {
+    // Sentence 5 cited for sentence 6: the model joined two sentences earlier and counts one short.
+    const { kept, sources } = screen(["5 | Ivo Brandt recorded a hit version of Paper Lanterns in October 1933."]);
+    expect(kept).toHaveLength(1);
+    expect(sources?.get(kept[0])).toBe(sentences[5]);
+  });
+
+  it("never takes a heading or a word that only starts the sentence for its first-named person", () => {
+    const ref = "Night Song\nRecording and production: Dana Reyes recorded the song in Leeds. Written in 1909, it was taken up by Ivo Brandt in his concerts.";
+    const cited = (line: string) => screenClaims([line], ref, { cited: true });
+    expect(cited("1 | Dana Reyes recorded the song in Leeds.").kept).toHaveLength(1);
+    expect(cited("2 | Ivo Brandt took the song up in his concerts in 1909.").kept).toHaveLength(1);
+    // A surname in the sentence and the full name elsewhere in the reference.
+    expect(screenClaims(["2 | Dana Reyes took it up in her concerts."], "Night Song\nDana Reyes wrote it. Reyes took it up in her concerts.", { cited: true }).kept).toHaveLength(1);
+  });
+
   it("drops a caption that barely shares a word with the sentence it cites", () => {
     expect(screen(["1 | Paper Lanterns was recorded in October 1933 as a hit version."]).rejected[0].reason).toBe("doesn't retell the sentence it cites");
   });
