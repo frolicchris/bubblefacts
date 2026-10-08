@@ -128,4 +128,4 @@ Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
 coding agent: see [AUTHORS.md](AUTHORS.md) and the
 [AI disclosure](docs/AI_DISCLOSURE.md). The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
 trademarks of Christopher Feyrer and aren't covered by the MIT license: forks
-are welcome, under a different name.
+are welcome, under a different name. See the [trademark policy](TRADEMARKS.md).
