@@ -17,11 +17,13 @@ You don't need to ask to:
 - Say you use BubbleFacts, on stream, in a panel, a video or a post.
 - Write, teach or make videos about it, including reviews and tutorials.
 - Say your tool works with BubbleFacts, connects to it, or is made for it,
-  as long as it's clear your tool is yours and isn't part of or officially
-  affiliated with BubbleFacts.
-- Share the official, unchanged installers from the
-  [releases page](https://github.com/frolicchris/bubblefacts/releases), under
-  the BubbleFacts name.
+  as long as it's clear the tool is yours and not part of the official
+  BubbleFacts project.
+- Share or package the official releases from the
+  [releases page](https://github.com/frolicchris/bubblefacts/releases) under
+  the BubbleFacts name, for example in a Linux package manager or an app
+  store, as long as the app itself is unchanged and the listing says who
+  packaged it.
 - Show BubbleFacts on stream, including its name, bubbles and logo as they
   appear in the unchanged app.
 
@@ -33,11 +35,15 @@ Forks are welcome. If you change the code and share the result:
 - You may say it's "based on BubbleFacts" or "a fork of BubbleFacts".
 - Remove the BubbleFacts logo and other BubbleFacts branding from it.
 
+Changes only to how an official release is packaged don't count as changing
+it. Translations are welcome as contributions to this project, so they ship
+in the official app.
+
 ## Ask first
 
 These need written permission:
 
-- A product, service, app, extension, website or account named with
+- A product, service, app, extension, bot, website or account named with
   "BubbleFacts", or with a name that's easy to mistake for it.
 - Domain names or social media handles containing "BubbleFacts".
 - Using the name or logo in a way that suggests BubbleFacts endorses,
