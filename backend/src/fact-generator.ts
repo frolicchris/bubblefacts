@@ -243,14 +243,22 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
  * PROMPT_STYLE=rules switches back to the numbered rule list below.
  */
 /**
- * The CROSS prompt has the model cite the sentence each caption retells
- * ("4 | caption"), so the screen checks the caption against that sentence
- * instead of guessing it (`screenClaims` with `cited`). The rules prompt doesn't.
+ * CITE_SENTENCES=on: the CROSS prompt numbers the reference's sentences and has
+ * the model cite the one each caption retells ("4 | caption"), so the screen
+ * checks the caption against that sentence instead of guessing it
+ * (`screenClaims` with `cited`). Off by default: a 3B model miscounts the
+ * numbers, and the screen then dropped about five true captions for each wrong
+ * one it caught. The rules prompt never cites.
  */
-export const citesSentences = () => process.env.PROMPT_STYLE !== "rules";
+export const citesSentences = () => process.env.CITE_SENTENCES === "on" && process.env.PROMPT_STYLE !== "rules";
 
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
+  return citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want);
+}
+
+/** The CROSS prompt's opening, the same with or without citations. */
+function crossOpening(game: string, work: string, want: number): string {
   return `CONTEXT
 A musician is playing ${work} live on a stream right now. Short captions about the song pop up on screen, one at a time, in small bubbles. The readers are the viewers in chat: music fans of every level, not experts.
 
@@ -258,10 +266,32 @@ ROLE
 Act as a music trivia writer for live streams, who retells what a text says plainly and exactly.
 
 OBJECTIVE
-Write ${want} captions about ${game} or its music that chat would enjoy learning. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
+Write ${want} captions about ${game} or its music that chat would enjoy learning. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.`;
+}
+
+/** The CROSS prompt's rules for retelling the text and for the captions, the same with or without citations. */
+const RETELL_RULES = `Every person, year, number and title you write must appear in it, spelled the same way.`;
+const STATEMENT_RULES = `never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like. Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.`;
+const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
+
+function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
+  return `${crossOpening(game, work, want)}
 
 SOURCE
-Use only the text between the triple quotes. Its sentences are numbered in square brackets. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE numbered sentence: never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like. Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.
+Use only the text between the triple quotes. ${RETELL_RULES} Each line retells ONE statement from the text: ${STATEMENT_RULES}
+"""
+${context}
+"""
+
+SCOPE
+Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
+}
+
+function citingCrossPrompt(game: string, work: string, context: string, want: number): string {
+  return `${crossOpening(game, work, want)}
+
+SOURCE
+Use only the text between the triple quotes. Its sentences are numbered in square brackets. ${RETELL_RULES} Each line retells ONE numbered sentence: ${STATEMENT_RULES}
 """
 ${numberedReference(context)}
 """
@@ -269,7 +299,7 @@ ${numberedReference(context)}
 SCOPE
 Exactly ${want} lines. Start each line with the number of the sentence it retells, then " | ", then the caption, like this:
 4 | The caption.
-Each caption is one sentence, under 120 characters, in plain words anyone can follow. No bullets, headings or wrapping quotes. Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
+Each caption is one sentence, under 120 characters, in plain words anyone can follow. No bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
 }
 
 function groundedPrompt(song: SSLSong, context: string, want: number): string {

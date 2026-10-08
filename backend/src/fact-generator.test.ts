@@ -68,6 +68,7 @@ beforeEach(() => {
   mockCreate.mockReset().mockResolvedValue(reply(MODEL_LINES));
   (fetchGrounding as jest.Mock).mockClear();
   (config as { factVerification: boolean }).factVerification = false;
+  delete process.env.CITE_SENTENCES;
 });
 
 describe("generateFacts", () => {
@@ -186,6 +187,7 @@ describe("generateFacts", () => {
   it("puts facts about the song first when the article is only about the artist", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
+    process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply(citing(MODEL_LINES, 2)));
     (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
     const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
@@ -340,6 +342,7 @@ describe("generateFacts", () => {
     (config as { factVerification: boolean }).factVerification = true;
     const article = "Dana Reyes\nDana Reyes is an English singer and pianist. In 2005 Reyes wrote the music for Harbor Lights the Musical. Opening to strong reviews, the show won four stage awards, including Best New Musical. Her ballad Paper Lanterns reached number two in 1974.";
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply([
       "3 | The musical won four stage awards, including Best New Musical.",
       "2 | Dana Reyes wrote the music for Harbor Lights the Musical in 2005.",
@@ -355,6 +358,7 @@ describe("generateFacts", () => {
   it("gives each article fact a link and the sentence it rests on, for the dashboard", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);
+    process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
     const facts = await generateFacts({ title: "Sourced Song", artist: "Someone" });
     expect(facts[0].source).toBe("Wikipedia: Sourced Song (song)");
@@ -366,9 +370,21 @@ describe("generateFacts", () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Ranked Song (song)\n${MODEL_LINES}`);
     const exact = MODEL_LINES.split("\n").slice(1, 6);
+    process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply(["1 | The soundtrack was taped quickly with a small string section.", ...exact.map((l, i) => `${i + 2} | ${l}`)].join("\n")));
     const facts = await generateFacts({ title: "Ranked Song", artist: "Someone" });
     expect(facts.map((f) => f.text)).toEqual(exact);
+  });
+
+  it("leaves the reference unnumbered and takes plain captions unless CITE_SENTENCES is on", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Plain Song (song)\n${MODEL_LINES}`);
+    const facts = await generateFacts({ title: "Plain Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).not.toMatch(/\[1\]/);
+    expect(prompt).not.toContain(" | ");
+    expect(facts.map((f) => f.text)).toEqual(MODEL_LINES.split("\n").slice(0, facts.length));
+    expect(facts.length).toBeGreaterThan(0);
   });
 
   it("gives the AI the same system prompt as every other provider (the built-in model had node-llama-cpp's own)", async () => {
@@ -423,6 +439,7 @@ describe("generateFacts", () => {
     expect(liveLearnLookup({ title: "Some Tune", artist: "Jane Composer", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Jane Composer" });
 
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);
+    process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
     const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
     const facts = await generateFacts(request);

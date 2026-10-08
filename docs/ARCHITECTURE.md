@@ -215,8 +215,10 @@ sign-ins and the built-in AI. Its design decisions are in
    ("B scored the games" when the source says A did, and B scored only the
    film); for those the prompt asks to keep each statement's subject, verb
    and details together.
-   **Cite the sentence.** The reference's sentences are numbered for the
-   model (`numberedReference`), and each line it writes starts with the
+   **Cite the sentence** (`CITE_SENTENCES=on`; off by default, because the
+   3B model miscounts the numbers and the screen then dropped about five true
+   captions for each wrong one it caught). The reference's sentences are
+   numbered for the model (`numberedReference`), and each line it writes starts with the
    number of the one sentence it retells: `4 | caption`. "The sentence it
    retells" above is then that sentence, not a guess by shared words, which
    let merges and swapped subjects through. A line with no number, or one
