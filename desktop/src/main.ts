@@ -390,6 +390,9 @@ function asset(name: string): string {
   return path.join(ROOT, "desktop/build", name);
 }
 
+/** How long to wait for the window before reading the keychain anyway (see the unlock below). */
+const UNLOCK_WAIT_FALLBACK_MS = 120_000;
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 980,
@@ -993,9 +996,13 @@ app.whenReady().then(async () => {
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
   if (secretsWaiting()) {
+    // Reading the keychain blocks this process until the prompt is answered, and a window that
+    // isn't up by then can't appear at all. So wait for the window to say it's showing; the first
+    // launch after an update can take well over a few seconds while macOS checks the new app.
+    // The long fallback only covers a window that never loads.
     await new Promise<void>((resolve) => {
       ipcMain.once("unlock-ready", () => resolve());
-      setTimeout(resolve, 4000);
+      setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
     });
     settings = unlockSecrets(settings);
     send("state", state());
