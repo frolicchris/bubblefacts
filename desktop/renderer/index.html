@@ -124,6 +124,7 @@
           <button class="ghost" data-goto-step="1">Back</button>
           <button id="stream-next" class="ghost">I'll add it later</button>
         </div>
+        <p class="fine">Streaming vertically too, to TikTok, YouTube Shorts or Instagram Live? Once setup is done, the vertical overlay is in <strong>Settings</strong>, under <strong>Vertical stream</strong>.</p>
         <p class="fine"><button class="link" id="stream-customize">Play your own compositions, or do live learns? Set that up first</button> (optional; it's also in Settings).</p>
         <p id="stream-result" class="result" role="status"></p>
       </div>
@@ -360,6 +361,40 @@
           </select>
           <p class="fine">Press it during a song and the bubble on stream now comes off as <strong>Wrong</strong>. With none up, it's the last one shown. It works with BubbleFacts in the background, and nothing on stream shows it happened. The dashboard says which fact it was, with <strong>Undo</strong>.</p>
           <div role="status"><p id="s-wrongkey-problem" class="result bad" hidden></p></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Vertical stream</legend>
+          <p class="fine">Streaming phone-shaped to TikTok, YouTube Shorts or Instagram Live? Add the vertical overlay to that scene. Its bubbles stay clear of the buttons and chat those apps show over your video, and it runs beside the usual one.</p>
+          <div class="drag-tile" draggable="true" data-drag-overlay="vertical" title="Drag onto the Sources list in OBS">
+            <img src="../build/tray@2x.png" alt="" width="32" height="32">
+            <span><strong>Drag this into your vertical scene</strong><br><span class="hint">When OBS's canvas is vertical (1080 by 1920), OBS sizes it for you.</span></span>
+          </div>
+          <details class="help">
+            <summary>Using Aitum Vertical, or a second canvas?</summary>
+            <p class="fine">Its Sources list doesn't take a dragged file, so add it there like this, once:</p>
+            <ol class="howto">
+              <li>In the vertical <strong>Sources</strong> list, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts Vertical".</li>
+              <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
+                <div class="pathbox"><code class="vertical-overlay-path"></code><button class="ghost" type="button" data-copy-path="vertical">Copy</button></div>
+              </li>
+              <li>Set <strong>Width</strong> to <strong>1080</strong> and <strong>Height</strong> to <strong>1920</strong>. Click <strong>OK</strong>.</li>
+            </ol>
+            <p class="fine">If the overlay asks you to set the size, it's this step: open the source's properties and set 1080 and 1920.</p>
+          </details>
+          <label for="s-vsize">Bubble size on the vertical stream</label>
+          <select id="s-vsize" name="verticalBubbleSize">
+            <option value="standard">Standard</option>
+            <option value="large">Large</option>
+            <option value="larger">Larger</option>
+          </select>
+          <label for="s-varea">Where bubbles appear on the vertical stream</label>
+          <select id="s-varea" name="verticalArea">
+            <option value="top">Near the top</option>
+            <option value="above-chat">Just above the chat</option>
+          </select>
+          <p class="hint">One bubble at a time: a new one replaces the last. After changing the size, right-click the source in OBS and choose <strong>Refresh</strong>.</p>
+          <button class="ghost" type="button" data-test-overlay="vertical">Test the vertical overlay in your browser</button>
         </fieldset>
 
         <fieldset>
