@@ -74,6 +74,8 @@ export const config = {
   liveLearns: oneOf("LIVE_LEARNS", ["on", "off"] as const, "on") === "on",
   // The part of the screen bubbles keep to, or one spot they always use.
   bubbleArea: oneOf("BUBBLE_AREA", ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
+  // Where bubbles go in the vertical overlay (BubbleFacts Vertical.html), for phone-shaped streams.
+  verticalArea: oneOf("VERTICAL_AREA", ["top", "above-chat"] as const, "top"),
   // The NOW PLAYING bubble on a song change. Off for streamers whose own overlay already shows the song.
   nowPlaying: oneOf("NOW_PLAYING", ["on", "off"] as const, "on") === "on",
   liveLearnBanner: oneOf("LIVE_LEARN_BANNER", ["on", "off"] as const, "on") === "on",

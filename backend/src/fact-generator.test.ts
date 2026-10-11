@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -129,6 +129,39 @@ describe("generateFacts", () => {
     const facts = await generateFacts({ title: "Area Song", artist: "Area Artist" });
     (config as { bubbleArea?: string }).bubbleArea = "anywhere";
     expect(facts.every((f) => f.position.left === "3%")).toBe(true);
+  });
+
+  it("gives every bubble a spot in the vertical overlay too, clear of the phone apps' own buttons and chat (issue #175)", async () => {
+    const pct = (v: string) => Number(v.replace("%", ""));
+    for (const area of ["top", "above-chat"]) {
+      for (const p of verticalPositionsFor(area, false)) {
+        // Centered between the safe side margins by the overlay: no left or right of its own.
+        expect(p.left ?? p.right).toBeUndefined();
+        if (p.top) expect(pct(p.top)).toBeGreaterThanOrEqual(VERTICAL_SAFE.top);
+        // A bubble that grows upward from the chat line never starts inside the chat.
+        if (p.bottom) expect(pct(p.bottom)).toBeGreaterThanOrEqual(VERTICAL_SAFE.bottom);
+      }
+    }
+    // One spot each: the clear area is too short for two long bubbles at once.
+    expect(verticalPositionsFor("top")).toEqual([{ top: "15%" }]);
+    expect(verticalPositionsFor("above-chat", false)).toEqual([{ bottom: "39%" }]);
+    expect(verticalPositionsFor("nonsense")).toEqual(verticalPositionsFor("top"));
+    // Above the vertical Now Playing bubble while it shows, which sits on the chat line.
+    const [above] = verticalPositionsFor("above-chat", true);
+    expect(above.bottom).toMatch(/^calc\(39% \+ [\d.]+vw \* var\(--bf-vertical-scale, 1\)\)$/);
+
+    // Separate from the landscape setting, so both scenes can run at once.
+    const c = config as { bubbleArea?: string; verticalArea?: string };
+    c.bubbleArea = "left";
+    c.verticalArea = "above-chat";
+    try {
+      const facts = await generateFacts({ title: "Tall Song", artist: "Tall Artist" });
+      expect(facts.length).toBeGreaterThan(0);
+      expect(facts.every((f) => f.position.left === "3%" && f.vertical?.bottom !== undefined)).toBe(true);
+    } finally {
+      c.bubbleArea = "anywhere";
+      c.verticalArea = "top";
+    }
   });
 
   it("can keep every bubble in one spot the streamer chose", async () => {

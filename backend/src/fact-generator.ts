@@ -87,10 +87,51 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
  */
 export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
   area === "bottom-center" && banner ? [{ bottom: NOW_PLAYING_CLEARANCE }] : AREAS[area] ?? POSITIONS;
+/**
+ * The vertical overlay (BubbleFacts Vertical.html), 1080x1920, for TikTok, YouTube Shorts and
+ * Instagram Live. Phone apps cover parts of the picture with their own buttons and live chat,
+ * so every spot keeps to the area all three leave clear (VERTICAL_SAFE, mirrored in
+ * obs-overlay.css): below their top bar, above their chat, and left of the buttons on the right.
+ * Spots have no left or right: the overlay centers each bubble between the safe side margins.
+ */
+export const VERTICAL_SAFE = { top: 14, bottom: 38, left: 6, right: 12 } as const;
+
+/**
+ * Top of the vertical Now Playing bubble, from obs-overlay.css: it sits on the chat line
+ * (39% up), and is at most three lines of 3.2vw text at line-height 1.35 with its padding, plus a gap.
+ */
+const VERTICAL_NOW_PLAYING_CLEARANCE = "calc(39% + 20vw * var(--bf-vertical-scale, 1))";
+
+/**
+ * VERTICAL_AREA. One spot each: the area clear of the apps' own buttons and chat is about
+ * 900 pixels tall, and a long fact at a bigger size fills a third of it, so a new bubble
+ * replaces the last there (as with the landscape fixed spots). With the default timing only
+ * one bubble is up at a time anyway.
+ */
+const VERTICAL_AREAS: Record<string, Array<Fact["position"]>> = {
+  // Just below the apps' top bar, growing down.
+  top: [{ top: "15%" }],
+  // Sits on the chat line and grows upward, for streamers whose face is in the upper part.
+  "above-chat": [{ bottom: "39%" }],
+};
+
+/**
+ * The vertical overlay's spots for the chosen area. Its Now Playing bubble sits on the chat line,
+ * so "above-chat" waits just above it while it shows, like bottom-center in the landscape overlay.
+ */
+export const verticalPositionsFor = (area: string = config.verticalArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
+  area === "above-chat" && banner ? [{ bottom: VERTICAL_NOW_PLAYING_CLEARANCE }] : VERTICAL_AREAS[area] ?? VERTICAL_AREAS.top;
+
 /** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off. */
 export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying);
 /** The spots for a song's bubbles, clear of its banner while it shows. */
 export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
+/** Both overlays' spots for a song's bubble number `i`: the landscape one and the vertical one. */
+export const spotsForSong = (song: SSLSong) => {
+  const landscape = positionsForSong(song);
+  const vertical = verticalPositionsFor(config.verticalArea, showsBanner(song));
+  return (i: number): Pick<Fact, "position" | "vertical"> => ({ position: landscape[i % landscape.length], vertical: vertical[i % vertical.length] });
+};
 
 type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
@@ -194,7 +235,7 @@ function toFacts(
     return false;
   });
   const page = context.split("\n")[0];
-  const spots = positionsForSong(song);
+  const spotFor = spotsForSong(song);
   return told.map((text, i) => {
     const source = sourceOf(text);
     const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
@@ -206,7 +247,7 @@ function toFacts(
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
-      position: spots[i % spots.length],
+      ...spotFor(i),
     };
   });
 }

@@ -10,6 +10,8 @@
  */
 :root {
   --bf-scale: 1;
+  /* The vertical overlay's own Bubble size, set apart so both overlays can run at once. */
+  --bf-vertical-scale: 1;
   --fact-font-size: calc(2.222vh * var(--bf-scale));
   --toast-font-size: calc(1.944vh * var(--bf-scale));
   --bubble-max-width: calc(51.85vh * var(--bf-scale));
@@ -304,4 +306,64 @@ html, body {
 
 #connection-status.connected {
   opacity: 0;
+}
+
+/* ============================================================
+   VERTICAL — BubbleFacts Vertical.html, a 1080x1920 source for
+   TikTok, YouTube Shorts and Instagram Live (issue #175)
+   ============================================================
+   Phone apps draw their own top bar, live chat and buttons over the
+   picture. Everything here stays inside the area all three leave clear:
+   14% from the top, 38% from the bottom, 6% from the left and 12% from
+   the right (VERTICAL_SAFE in backend/src/fact-generator.ts).
+   Sizes follow the source's width: the text is 40px on a 1080-wide
+   canvas, about 17px on a phone screen. */
+html[data-layout="vertical"] {
+  --fact-font-size: calc(3.7vw * var(--bf-vertical-scale));
+  --toast-font-size: calc(3.2vw * var(--bf-vertical-scale));
+  /* The width of the safe area, whatever the bubble size: bigger text wraps instead. */
+  --bubble-max-width: 82vw;
+  --bubble-min-width: 50vw;
+}
+
+/* Centered between the safe side margins: the buttons on the right are wider than the left margin. */
+html[data-layout="vertical"] .popup-bubble.centered {
+  left: 6%;
+  right: 12%;
+}
+
+/* On the chat line, centered between the safe side margins. Layout only: it fades with opacity.
+   At most three lines, so a bubble placed just above it (VERTICAL_NOW_PLAYING_CLEARANCE) never
+   overlaps it: a very long title ends in "...". */
+html[data-layout="vertical"] .song-toast {
+  bottom: 39%;
+  left: 6%;
+  right: 12%;
+  width: fit-content;
+  max-width: none;
+  margin: 0 auto;
+  transform: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  /* Clipped at the text, not the padding, so no part of a fourth line shows. */
+  overflow: clip;
+  overflow-clip-margin: content-box;
+}
+
+/* Shown only when the vertical overlay's source is wider than tall: a setup slip, not a stream state. */
+.size-note {
+  position: absolute;
+  top: 8%;
+  left: 5%;
+  right: 5%;
+  padding: 1em 1.2em;
+  background: rgba(10, 10, 60, 0.94);
+  border: 3px solid #ffd700;
+  border-radius: 6px;
+  color: #f2f2f2;
+  font-size: 4vh;
+  font-weight: 600;
+  line-height: 1.4;
+  z-index: 1003;
 }

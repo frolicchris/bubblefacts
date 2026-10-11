@@ -44,9 +44,10 @@
 
   // The main process starts a real file drag, which OBS turns into a Browser source.
   document.addEventListener("dragstart", (e) => {
-    if (!e.target.closest?.("[data-drag-overlay]")) return;
+    const tile = e.target.closest?.("[data-drag-overlay]");
+    if (!tile) return;
     e.preventDefault();
-    api.startDrag();
+    api.startDrag(tile.dataset.dragOverlay === "vertical");
   });
 
   document.addEventListener("click", (e) => {
@@ -56,9 +57,9 @@
     if (t.dataset.view && !t.classList.contains("navlink")) show(t.dataset.view);
     if (t.id === "open-notices") api.openNotices();
     if ("openLicense" in t.dataset) api.openExternal(state.modelLicense);
-    if ("testOverlay" in t.dataset) api.testOverlay();
+    if ("testOverlay" in t.dataset) api.testOverlay(t.dataset.testOverlay === "vertical");
     if ("copyPath" in t.dataset) {
-      api.copy(state.overlayPath);
+      api.copy(t.dataset.copyPath === "vertical" ? state.verticalOverlayPath : state.overlayPath);
       flash(t, "Copied");
     }
     if ("copyCredit" in t.dataset) {
@@ -296,6 +297,7 @@
 
   function renderPaths() {
     for (const c of $$(".overlay-path")) c.textContent = state.overlayPath;
+    for (const c of $$(".vertical-overlay-path")) c.textContent = state.verticalOverlayPath;
   }
 
   // --- Dashboard -----------------------------------------------------------

@@ -7,7 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { positionsFor, spotsForSong, verticalPositionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
@@ -193,8 +193,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   if (before && sameRequest(before.song, song)) {
     if (Date.now() - (before.shownAt || before.savedAt) < RESUME_WITHIN_MS) {
       // Spots from the current setting: the restart may be the streamer changing where bubbles go.
-      const spots = positionsForSong(song);
-      before.facts = before.facts.map((f, i) => ({ ...f, position: spots[i % spots.length] }));
+      const spotFor = spotsForSong(song);
+      before.facts = before.facts.map((f, i) => ({ ...f, ...spotFor(i) }));
       console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
       primeFacts(song, before.facts);
       broadcast(song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
@@ -243,6 +243,7 @@ control.post("/test", (_req, res) => {
     delaySeconds: 0,
     durationSeconds: 8,
     position: positionsFor()[0],
+    vertical: verticalPositionsFor()[0],
   }];
   // Shown even while paused: the streamer asked for it. Not recorded as "on stream now", and
   // on top of the song that's playing: its remaining bubbles, and Wrong on them, carry on.
