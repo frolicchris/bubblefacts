@@ -422,9 +422,16 @@ describe("generateFacts", () => {
   });
 
   it("gives the AI the same system prompt as every other provider (the built-in model had node-llama-cpp's own)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "System Song", artist: "System Artist" });
     expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
     expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
+  });
+
+  it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
+    await generateFacts({ title: "Unchecked Song", artist: "System Artist" });
+    expect(mockCreate.mock.calls[0][0].system).not.toMatch(/reference/);
   });
 
   it("caches a song's facts", async () => {
