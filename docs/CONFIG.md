@@ -107,7 +107,7 @@ The overlay chooses automatically: Anthropic if you've set
 
 ### Groq, OpenRouter, Gemini and similar services
 
-These all use the same "OpenAI-compatible" connection. Groq is set up by default.
+These all use the same "OpenAI-compatible" connection. Groq is set up by default. BubbleFacts sends a short system message with every request, so choose a model that accepts one: Gemma models through Gemini's API, for example, don't.
 
 | Setting | Default | What it does |
 |---|---|---|
