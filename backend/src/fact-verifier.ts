@@ -2461,9 +2461,16 @@ export function citedMismatch(fact: string, sentences: string[], at: number, tit
 const MONTH_DAY = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "g");
 const DAY_MONTH = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTHS})\\b`, "g");
 /** The days a text names, as "November 22", whichever way round it writes them. */
+/** Several days of one month: "3 and 5 June", "June 3, 4 and 5". A comma alone isn't a list: "On July 4, 10,000 fans". */
+const DAY_LIST = String.raw`((?:\d{1,2}(?!\d)(?:st|nd|rd|th)?\s*,\s*)*\d{1,2}(?!\d)(?:st|nd|rd|th)?\s*,?\s*(?:and|&|to|–|-)\s*\d{1,2}(?!\d)(?:st|nd|rd|th)?)`;
+const DAYS_MONTH = new RegExp(`\\b${DAY_LIST}\\s+(?:of\\s+)?(${MONTHS})\\b`, "g");
+const MONTH_DAYS = new RegExp(`\\b(${MONTHS})\\s+${DAY_LIST}`, "g");
+const daysOf = (list: string, month: string) => (list.match(/\d{1,2}/g) ?? []).map((d) => `${month} ${Number(d)}`);
 const daysIn = (text: string) => [
   ...[...text.matchAll(MONTH_DAY)].map((m) => `${m[1]} ${Number(m[2])}`),
   ...[...text.matchAll(DAY_MONTH)].map((m) => `${m[2]} ${Number(m[1])}`),
+  ...[...text.matchAll(DAYS_MONTH)].flatMap((m) => daysOf(m[1], m[2])),
+  ...[...text.matchAll(MONTH_DAYS)].flatMap((m) => daysOf(m[2], m[1])),
 ];
 
 /**
@@ -2810,7 +2817,10 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     // "He combined two words": a viewer can't tell who.
     if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
     // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
-    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact)) return "doesn't say who is speaking";
+    // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
+    const titles = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), opts.track ?? ""].filter(Boolean);
+    const isTitle = titles.some((t) => new RegExp(`^${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
     // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
     const other = (opts.otherParts ?? []).find((p) => hasWord(p, fact, ""));
