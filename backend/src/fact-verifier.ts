@@ -2031,7 +2031,10 @@ const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.sli
  */
 function withoutTitles(fact: string, context: string, titles: string[]): string {
   const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3);
+  // Two words or more: a one-word title such as "Because" would blank every capitalized use of the word.
+  const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
+  // A run counts as a name only where the source has it mid-sentence, not where it merely opens a sentence.
+  const midSentence = (span: string) => new RegExp(`[\\p{L}\\p{N},;:'’"”)]\\s+${escape(span)}(?![\\p{L}\\d])`, "u").test(context);
   let out = fact;
   for (const t of own) out = out.replace(new RegExp(`(?<![\\p{L}\\d])${escape(t)}(?![\\p{L}\\d])`, "gu"), "Title");
   for (const run of out.match(/\p{Lu}[\p{L}'’-]*(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|you|me)\s+)*\p{Lu}[\p{L}'’-]*)+/gu) ?? []) {
@@ -2039,7 +2042,7 @@ function withoutTitles(fact: string, context: string, titles: string[]): string 
     for (let i = 0; i < words.length - 1; i++) {
       for (let j = words.length; j > i + 1; j--) {
         const span = words.slice(i, j).join(" ");
-        if (!context.includes(span) || !CONNECTIVES.some((c) => c.fact.test(span))) continue;
+        if (!midSentence(span) || !CONNECTIVES.some((c) => c.fact.test(span))) continue;
         out = out.replace(span, "Title");
         break;
       }
@@ -2065,10 +2068,10 @@ export function unsupportedConnective(fact: string, context: string, titles: str
   const related = bodySentences(context).filter((s) => share(fact, s) >= 0.3);
   for (const c of used) {
     if ((c.label === "a first" ? [...retold, ...related] : retold).some((s) => c.source.test(s))) {
-      if (c.fact.source === "\\bafter\\b" && afterReversed(fact, retold)) return "after (the other way round)";
+      if (c.fact.source === "\\bafter\\b" && afterReversed(worded, retold)) return "after (the other way round)";
       continue;
     }
-    if (c.fact.source === "\\bafter\\b" && afterFollowsSource(fact, context)) continue;
+    if (c.fact.source === "\\bafter\\b" && afterFollowsSource(worded, context)) continue;
     return c.fact.exec(worded)?.[0] ?? c.label;
   }
   for (const n of numbers) if (![...retold, ...related].some((s) => hasNumber(n, s))) return n;

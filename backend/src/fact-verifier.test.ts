@@ -1698,6 +1698,14 @@ describe("a connective word inside a title is part of the name (#188)", () => {
     // A capital letter at the start of a sentence isn't a title.
     expect(unsupportedConnective("After Mira Okafor left Northwind, she wrote the theme.", glow)).toBe("After");
   });
+
+  it("judges the joining word itself, with the title set aside (independent review)", () => {
+    const theme = "After Glow (video game)\nThe theme of After Glow was composed by Mira Okafor after the director died.";
+    expect(unsupportedConnective("The theme of After Glow was composed by Mira Okafor after the director died.", theme)).toBeNull();
+    // A one-word title doesn't blank the word everywhere.
+    const because = "Because (song)\nBecause is a 2001 song by Nightjar. The band was short of time and cut it to two minutes.";
+    expect(unsupportedConnective("Because the band was short of time, they cut it to two minutes.", because, ["Because"])).not.toBeNull();
+  });
 });
 
 describe("relationship and role words must be stated for those people", () => {
