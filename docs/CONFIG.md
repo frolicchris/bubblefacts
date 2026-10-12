@@ -93,7 +93,7 @@ The overlay chooses automatically: Anthropic if you've set
 | Setting | Default | What it does |
 |---|---|---|
 | `AI_PROVIDER` | *automatic* | Force a choice: `ollama`, `openai` or `anthropic`. `none` uses no AI: songs get Wikidata, MusicBrainz and custom facts only. (`builtin` is the desktop app's.) |
-| `TEMPERATURE` | `0.2` | How freely the AI writes, from 0 to 2. Keep it low: its job is to rephrase an article faithfully, and higher values make it wander. |
+| `TEMPERATURE` | `0` | How freely the AI writes, from 0 to 2. Keep it at or near 0: its job is to rephrase an article faithfully, and higher values make it wander. |
 
 ### Ollama (on your own computer)
 
@@ -130,6 +130,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | Setting | Default | What it does |
 |---|---|---|
 | `PROMPT_STYLE` | *unset* | How the AI's instructions are laid out. The default is CROSS (Context, Role, Objective, Source, Scope). `rules` switches to the older numbered rule list. In trials of 72 songs each, CROSS gave about three times as many chart and award facts and broke fewer rules; a few more of its captions were screened out, so one extra is requested. |
+| `CITE_SENTENCES` | `off` | `on` numbers the article's sentences and has the AI name the one each caption retells, so screening checks the caption against that sentence. Off by default: small models miscount the numbers, and true captions get dropped. |
 | `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claim the article doesn't state, no repeats). |
 | `GROUNDING_TIMEOUT_MS` | `5000` | How long to wait for a Wikipedia search. |
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |

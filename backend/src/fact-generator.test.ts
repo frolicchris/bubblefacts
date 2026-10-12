@@ -15,7 +15,7 @@ jest.mock("./config", () => ({
     aiProvider: "anthropic",
     anthropicApiKey: "test-key",
     anthropicModel: "test-model",
-    temperature: 0.2,
+    temperature: 0,
     factVerification: false,
     factsPerSong: 5,
     factIntervalSeconds: 15,
@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { SYSTEM_PROMPT, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -51,6 +51,8 @@ const MODEL_LINES = [
 ].join("\n");
 
 const reply = (text: string) => ({ content: [{ type: "text", text }] });
+/** The model's lines citing reference sentences, as the grounded prompt asks: sentence `from + i` for line i. */
+const citing = (lines: string, from = 1) => lines.split("\n").map((l, i) => `${from + i} | ${l}`).join("\n");
 const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
 
 function entry(song: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> = {}): SSLQueueItem {
@@ -66,6 +68,7 @@ beforeEach(() => {
   mockCreate.mockReset().mockResolvedValue(reply(MODEL_LINES));
   (fetchGrounding as jest.Mock).mockClear();
   (config as { factVerification: boolean }).factVerification = false;
+  delete process.env.CITE_SENTENCES;
 });
 
 describe("generateFacts", () => {
@@ -182,6 +185,17 @@ describe("generateFacts", () => {
   });
 
   it("puts facts about the song first when the article is only about the artist", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
+    process.env.CITE_SENTENCES = "on";
+    mockCreate.mockResolvedValue(reply(citing(MODEL_LINES, 2)));
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
+    const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
+    expect(facts[0]).toBe('"Whatever Happens" came out in 2001.');
+    expect(facts.length).toBeGreaterThan(1);
+  });
+
+  it("puts facts about the song first when the article is only about the artist (citations off, the default)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
     (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
@@ -337,6 +351,23 @@ describe("generateFacts", () => {
     (config as { factVerification: boolean }).factVerification = true;
     const article = "Dana Reyes\nDana Reyes is an English singer and pianist. In 2005 Reyes wrote the music for Harbor Lights the Musical. Opening to strong reviews, the show won four stage awards, including Best New Musical. Her ballad Paper Lanterns reached number two in 1974.";
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    process.env.CITE_SENTENCES = "on";
+    mockCreate.mockResolvedValue(reply([
+      "3 | The musical won four stage awards, including Best New Musical.",
+      "2 | Dana Reyes wrote the music for Harbor Lights the Musical in 2005.",
+      "4 | The song reached number two in 1974.",
+    ].join("\n")));
+    const shown = (await generateFacts({ title: "Glass Harbor", artist: "Dana Reyes" })).map((f) => f.text);
+    expect(shown).toContain("Dana Reyes wrote the music for Harbor Lights the Musical in 2005.");
+    expect(shown).not.toContain("The musical won four stage awards, including Best New Musical.");
+    // "The song" retelling a sentence about another of her songs reads as this one too.
+    expect(shown).not.toContain("The song reached number two in 1974.");
+  });
+
+  it("on the artist's article, drops a caption about an unnamed musical: it reads as this song's (second fact check) (citations off, the default)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const article = "Dana Reyes\nDana Reyes is an English singer and pianist. In 2005 Reyes wrote the music for Harbor Lights the Musical. Opening to strong reviews, the show won four stage awards, including Best New Musical. Her ballad Paper Lanterns reached number two in 1974.";
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
     mockCreate.mockResolvedValue(reply([
       "The musical won four stage awards, including Best New Musical.",
       "Dana Reyes wrote the music for Harbor Lights the Musical in 2005.",
@@ -352,10 +383,48 @@ describe("generateFacts", () => {
   it("gives each article fact a link and the sentence it rests on, for the dashboard", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);
+    process.env.CITE_SENTENCES = "on";
+    mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
     const facts = await generateFacts({ title: "Sourced Song", artist: "Someone" });
     expect(facts[0].source).toBe("Wikipedia: Sourced Song (song)");
     expect(facts[0].url).toBe("https://en.wikipedia.org/wiki/Sourced_Song_(song)");
     expect(facts[0].evidence).toBe(facts[0].text);
+  });
+
+  it("gives each article fact a link and the sentence it rests on, for the dashboard (citations off, the default)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);
+    const facts = await generateFacts({ title: "Sourced Song", artist: "Someone" });
+    expect(facts[0].source).toBe("Wikipedia: Sourced Song (song)");
+    expect(facts[0].url).toBe("https://en.wikipedia.org/wiki/Sourced_Song_(song)");
+    expect(facts[0].evidence).toBe(facts[0].text);
+  });
+
+  it("shows the captions their cited sentences support best, in the order written", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Ranked Song (song)\n${MODEL_LINES}`);
+    const exact = MODEL_LINES.split("\n").slice(1, 6);
+    process.env.CITE_SENTENCES = "on";
+    mockCreate.mockResolvedValue(reply(["1 | The soundtrack was taped quickly with a small string section.", ...exact.map((l, i) => `${i + 2} | ${l}`)].join("\n")));
+    const facts = await generateFacts({ title: "Ranked Song", artist: "Someone" });
+    expect(facts.map((f) => f.text)).toEqual(exact);
+  });
+
+  it("leaves the reference unnumbered and takes plain captions unless CITE_SENTENCES is on", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Plain Song (song)\n${MODEL_LINES}`);
+    const facts = await generateFacts({ title: "Plain Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).not.toMatch(/\[1\]/);
+    expect(prompt).not.toContain(" | ");
+    expect(facts.map((f) => f.text)).toEqual(MODEL_LINES.split("\n").slice(0, facts.length));
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it("gives the AI the same system prompt as every other provider (the built-in model had node-llama-cpp's own)", async () => {
+    await generateFacts({ title: "System Song", artist: "System Artist" });
+    expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
+    expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
   });
 
   it("caches a song's facts", async () => {
@@ -398,6 +467,25 @@ describe("generateFacts", () => {
   });
 
   it("looks up a live learn typed as a video title, and shows its facts (issue #45)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    expect(liveLearnLookup({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true }))
+      .toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
+    expect(liveLearnLookup({ title: "Some Tune", artist: "Unknown", liveLearn: true })).toBeNull();
+    expect(liveLearnLookup({ title: "Some Tune", artist: "Jane Composer", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Jane Composer" });
+
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);
+    process.env.CITE_SENTENCES = "on";
+    mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
+    const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
+    const facts = await generateFacts(request);
+    expect(facts).toHaveLength(5);
+    // The work is filed under the request, not the reading: under the reading's name the
+    // built-in model saw a song that wasn't playing and refused (review).
+    expect(outcomeFor(request)).not.toBe("");
+    expect((fetchGrounding as jest.Mock).mock.calls.at(-1)?.[0]).toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
+  });
+
+  it("looks up a live learn typed as a video title, and shows its facts (issue #45) (citations off, the default)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     expect(liveLearnLookup({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true }))
       .toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
