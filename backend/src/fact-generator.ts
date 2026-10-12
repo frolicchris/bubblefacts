@@ -246,10 +246,10 @@ function crossPrompt(song: SSLSong, context: string, want: number): string {
 A musician is playing ${work} live on a stream right now. Short captions about the song pop up on screen, one at a time, in small bubbles. The readers are the viewers in chat: music fans of every level, not experts.
 
 ROLE
-Act as a music trivia writer for live streams, who knows what makes a chat say "wait, really?".
+Act as a music trivia writer for live streams, who retells what a text says plainly and exactly.
 
 OBJECTIVE
-Write ${want} captions about ${game} or its music that chat would find surprising, funny or fascinating. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
+Write ${want} captions about ${game} or its music that chat would enjoy learning. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
 
 SOURCE
 Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like. Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.
