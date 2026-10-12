@@ -212,11 +212,6 @@ function markWhatsNewSeen(): void {
   saveSettings(settings);
 }
 
-ipcMain.handle("whats-new-seen", () => {
-  markWhatsNewSeen();
-  return state();
-});
-
 // --- Supervisor events -------------------------------------------------
 
 supervisor.on("status", (status: Status) => {
@@ -597,6 +592,11 @@ ipcMain.handle = (channel, listener) =>
         throw new Error(shown(channel, err));
       });
   });
+
+ipcMain.handle("whats-new-seen", () => {
+  markWhatsNewSeen();
+  return state();
+});
 
 ipcMain.handle("test-bubble", () => control("test"));
 ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
