@@ -2136,3 +2136,19 @@ describe("cite the sentence (fourth fact check)", () => {
     expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 4, "Paper Lanterns")).not.toBeNull();
   });
 });
+
+describe("true captions the screen dropped (#206, #207)", () => {
+  it("reads every day in a list like 3 and 5 June", () => {
+    const ref = "Nightjar\nThe EP was released on 3 and 5 June 2001, and again on July 8, 9 and 10.";
+    expect(unsupportedDay("The EP came out on June 3, 2001.", ref)).toBeNull();
+    expect(unsupportedDay("The EP came out again on July 9.", ref)).toBeNull();
+    expect(unsupportedDay("The EP came out on June 4, 2001.", ref)).toBe("June 4");
+  });
+
+  it("keeps a caption that opens with the song's title, and still drops unnamed first-person words", () => {
+    const ref = "My Glass Harbor\nMy Glass Harbor is a 2019 song by Dana Reyes. It was released as a single in 2019.";
+    const reasons = (fact: string) => screenClaims([fact], ref, { track: "My Glass Harbor" }).rejected.map((r) => r.reason);
+    expect(reasons("My glass harbor was released as a single in 2019.")).not.toContain("doesn't say who is speaking");
+    expect(reasons("My heart was in it from the first take.")).toContain("doesn't say who is speaking");
+  });
+});
