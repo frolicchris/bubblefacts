@@ -1,4 +1,9 @@
 {
+  "2.0.0-rc.2": [
+    "Facts read more plainly, and fewer wrong ones get through on the default Standard AI.",
+    "On a Mac, the window now opens before the sign-in prompt after an update.",
+    "Send a beta test report from Help and troubleshooting."
+  ],
   "2.0.0-rc.1": [
     "High quality AI: fewer wrong facts on computers that can run it. Settings, under Advanced.",
     "More songs find their article, and fewer wrong facts get through.",
