@@ -15,7 +15,7 @@ jest.mock("./config", () => ({
     aiProvider: "anthropic",
     anthropicApiKey: "test-key",
     anthropicModel: "test-model",
-    temperature: 0.2,
+    temperature: 0,
     factVerification: false,
     factsPerSong: 5,
     factIntervalSeconds: 15,
@@ -87,6 +87,11 @@ describe("generateFacts", () => {
     const prompt = JSON.stringify(mockCreate.mock.calls[0]);
     expect(prompt).toContain("Prompt Song");
     expect(prompt).not.toContain("Test Streamer");
+  });
+
+  it("sends the same system prompt as every other provider, at the configured temperature", async () => {
+    await generateFacts({ title: "Prompt Song", artist: "Prompt Artist" });
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ system: SYSTEM_PROMPT, temperature: 0 });
   });
 
   it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
