@@ -1666,6 +1666,48 @@ describe("cause, order and count words must be in the sentence retold", () => {
   });
 });
 
+describe("a connective word inside a title is part of the name (#188)", () => {
+  const glow = "After Glow (video game)\nThe game was released by Northwind in 1988. It is the fourth cabinet to use a hydraulic motion simulator.";
+
+  it("keeps a fact whose only connective is the article's own title", () => {
+    expect(unsupportedConnective("After Glow is the fourth cabinet to use a hydraulic motion simulator.", glow)).toBeNull();
+    expect(unsupportedConnective('"After Glow" was released by Northwind in 1988.', glow)).toBeNull();
+  });
+
+  it("keeps a title that is quoted or sits mid-sentence", () => {
+    expect(unsupportedConnective('Northwind\'s "After Glow" is the fourth cabinet to use a hydraulic motion simulator.', glow)).toBeNull();
+    expect(unsupportedConnective("Northwind released After Glow in 1988.", glow)).toBeNull();
+  });
+
+  it("keeps a title named by the song request, or found verbatim in the source", () => {
+    const artist = "Mira Okafor\nOkafor wrote the theme in 1990. Her album Because of Moonlight came out the same year.";
+    expect(unsupportedConnective("Mira Okafor released the album Because of Moonlight in 1990.", artist)).toBeNull();
+    expect(unsupportedConnective("The game Before the Storm has a theme written in 1990.", "Music of Northwind\nThe theme was written in 1990.", ["Before the Storm"])).toBeNull();
+  });
+
+  it("covers other connective words in titles", () => {
+    expect(unsupportedConnective("While You Were Gone has a theme written in 1990.", "While You Were Gone\nThe theme was written in 1990.")).toBeNull();
+    expect(unsupportedConnective("Because of You has a theme written in 1990.", "Because of You\nThe theme was written in 1990.")).toBeNull();
+    expect(unsupportedConnective("Thanks to You was written in 1990.", "Thanks to You (song)\nIt was written in 1990.")).toBeNull();
+  });
+
+  it("still drops a real connective, with or without a title that has the same word", () => {
+    expect(unsupportedConnective("The theme was composed after the director died.", glow)).toBe("after");
+    expect(unsupportedConnective("After Glow was composed after the director died.", glow)).toBe("after");
+    expect(unsupportedConnective("After Glow was released because of the arcade boom.", glow)).toBe("because");
+    // A capital letter at the start of a sentence isn't a title.
+    expect(unsupportedConnective("After Mira Okafor left Northwind, she wrote the theme.", glow)).toBe("After");
+  });
+
+  it("judges the joining word itself, with the title set aside (independent review)", () => {
+    const theme = "After Glow (video game)\nThe theme of After Glow was composed by Mira Okafor after the director died.";
+    expect(unsupportedConnective("The theme of After Glow was composed by Mira Okafor after the director died.", theme)).toBeNull();
+    // A one-word title doesn't blank the word everywhere.
+    const because = "Because (song)\nBecause is a 2001 song by Nightjar. The band was short of time and cut it to two minutes.";
+    expect(unsupportedConnective("Because the band was short of time, they cut it to two minutes.", because, ["Because"])).not.toBeNull();
+  });
+});
+
 describe("relationship and role words must be stated for those people", () => {
   it("drops an invented kinship, instrument or 'self-titled'", () => {
     const ware = "I Wanna Be Where You Are\nIt was written by Arthur 'T-Boy' Ross and Leon Ware. Ross, the younger brother of Diana Ross, later wrote for Marvin Gaye.";
