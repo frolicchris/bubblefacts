@@ -344,3 +344,16 @@ describe("SongListClient", () => {
     });
   });
 });
+
+describe("an edited off-list request (#168)", () => {
+  it("counts as a new song when only the newer artist field changes", () => {
+    const client = new SongListClient();
+    const changes = jest.fn();
+    client.onCurrentSongChange(changes);
+    const apply = (item: unknown) => (client as unknown as { applyNowPlaying(i: unknown): void }).applyNowPlaying(item);
+    apply({ id: 7, nonlistTitle: "Glass Harbor", nonlistArtist: "Dana Reyes" });
+    apply({ id: 7, nonlistTitle: "Glass Harbor", nonlistArtist: "Dana Reyes" });
+    apply({ id: 7, nonlistTitle: "Glass Harbor", nonlistArtist: "The Harbor Band" });
+    expect(changes).toHaveBeenCalledTimes(2);
+  });
+});
