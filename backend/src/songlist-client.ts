@@ -149,7 +149,7 @@ export class SongListClient implements SongSource {
 
   /** Content, not just id: editing an entry's artist mid-song should regenerate. */
   private static identity(item: SSLQueueItem | null): string | null {
-    return item && [item.id, item.nonlistSong ?? "", item.song?.title ?? "", item.song?.artist ?? ""].join("\0");
+    return item && [item.id, item.nonlistSong ?? "", item.nonlistTitle ?? "", item.nonlistArtist ?? "", item.song?.title ?? "", item.song?.artist ?? ""].join("\0");
   }
 
   // --- REST --------------------------------------------------------------
