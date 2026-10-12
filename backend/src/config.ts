@@ -118,7 +118,8 @@ export const config = {
   logDir: process.env.BUBBLEFACTS_LOG_DIR || path.resolve(__dirname, "../../logs"),
   // Where facts marked wrong are remembered. The desktop app points this at its data folder.
   dataDir: process.env.BUBBLEFACTS_DATA_DIR || path.resolve(__dirname, "../../data"),
-  temperature: numberEnv("TEMPERATURE", 0.2, 0, 2),
+  // 0: the model retells a reference, so its likeliest wording is the most faithful one (and runs repeat).
+  temperature: numberEnv("TEMPERATURE", 0, 0, 2),
   ollamaBaseUrl: trimSlash(process.env.OLLAMA_BASE_URL || "http://localhost:11434"),
   ollamaFallbackUrl: trimSlash(process.env.OLLAMA_FALLBACK_URL || ""),
   ollamaModel: process.env.OLLAMA_MODEL || "llama3.2",

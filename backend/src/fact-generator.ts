@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -186,7 +186,9 @@ function toFacts(
   lines: string[],
   sourceOf: (text: string) => string | undefined = () => undefined,
   /** The Wikipedia reference the captions were written from, to show the streamer what each rests on. */
-  context = ""
+  context = "",
+  /** The sentence each caption cites, when the model cited one. */
+  cites: ReadonlyMap<string, string> = new Map()
 ): Fact[] {
   const told = lines.filter((text) => {
     if (WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
@@ -198,7 +200,7 @@ function toFacts(
   return told.map((text, i) => {
     const source = sourceOf(text);
     const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
-    const evidence = fromArticle ? supportingSentence(text, context) : "";
+    const evidence = fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
@@ -240,25 +242,64 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
  * The prompt, laid out as CROSS: Context, Role, Objective, Source, Scope.
  * PROMPT_STYLE=rules switches back to the numbered rule list below.
  */
+/**
+ * CITE_SENTENCES=on: the CROSS prompt numbers the reference's sentences and has
+ * the model cite the one each caption retells ("4 | caption"), so the screen
+ * checks the caption against that sentence instead of guessing it
+ * (`screenClaims` with `cited`). Off by default: a 3B model miscounts the
+ * numbers, and the screen then dropped about five true captions for each wrong
+ * one it caught. The rules prompt never cites.
+ */
+export const citesSentences = () => process.env.CITE_SENTENCES === "on" && process.env.PROMPT_STYLE !== "rules";
+
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
+  return citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want);
+}
+
+/** The CROSS prompt's opening, the same with or without citations. */
+function crossOpening(game: string, work: string, want: number): string {
   return `CONTEXT
 A musician is playing ${work} live on a stream right now. Short captions about the song pop up on screen, one at a time, in small bubbles. The readers are the viewers in chat: music fans of every level, not experts.
 
 ROLE
-Act as a music trivia writer for live streams, who knows what makes a chat say "wait, really?".
+Act as a music trivia writer for live streams, who retells what a text says plainly and exactly.
 
 OBJECTIVE
-Write ${want} captions about ${game} or its music that chat would find surprising, funny or fascinating. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.
+Write ${want} captions about ${game} or its music that chat would enjoy learning. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.`;
+}
+
+/** The CROSS prompt's rules for retelling the text and for the captions, the same with or without citations. */
+const RETELL_RULES = `Every person, year, number and title you write must appear in it, spelled the same way.`;
+const STATEMENT_RULES = `never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like. Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.`;
+const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
+
+function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
+  return `${crossOpening(game, work, want)}
 
 SOURCE
-Use only the text between the triple quotes. Every person, year, number and title you write must appear in it, spelled the same way. Each line retells ONE statement from the text: never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like. Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.
+Use only the text between the triple quotes. ${RETELL_RULES} Each line retells ONE statement from the text: ${STATEMENT_RULES}
 """
 ${context}
 """
 
 SCOPE
-Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
+Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
+}
+
+function citingCrossPrompt(game: string, work: string, context: string, want: number): string {
+  return `${crossOpening(game, work, want)}
+
+SOURCE
+Use only the text between the triple quotes. Its sentences are numbered in square brackets. ${RETELL_RULES} Each line retells ONE numbered sentence: ${STATEMENT_RULES}
+"""
+${numberedReference(context)}
+"""
+
+SCOPE
+Exactly ${want} lines. Start each line with the number of the sentence it retells, then " | ", then the caption, like this:
+4 | The caption.
+Each caption is one sentence, under 120 characters, in plain words anyone can follow. No bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
 }
 
 function groundedPrompt(song: SSLSong, context: string, want: number): string {
@@ -307,6 +348,14 @@ Follow every rule:
 
 // --- Providers ---------------------------------------------------------
 
+/**
+ * The system prompt every provider gets. Without one, node-llama-cpp gives the
+ * built-in model its own "helpful assistant" prompt, which Ollama never sends,
+ * so the shipped model and the one measured through Ollama were told different things.
+ */
+export const SYSTEM_PROMPT =
+  "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
+
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
 async function askAnthropic(prompt: string): Promise<string> {
@@ -318,6 +367,7 @@ async function askAnthropic(prompt: string): Promise<string> {
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
     temperature: config.temperature,
+    system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -340,7 +390,10 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
     `${config.openaiBaseUrl}/chat/completions`,
     {
       model: config.openaiModel,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
       temperature: config.temperature,
       max_tokens: HOSTED_MAX_TOKENS,
     },
@@ -360,6 +413,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
+          system: SYSTEM_PROMPT,
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -390,7 +444,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence() });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {
@@ -772,13 +826,27 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
     const { track } = resolveGameAndTrack(read);
-    const { kept, rejected } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track });
+    const cited = Boolean(context) && citesSentences();
+    const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
-    // Music terms get a few fixed plain words, so any viewer can follow.
-    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f))).map(explainMusicTerms);
+    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
-    // A spare takes the place of a line that only repeats the title and artist.
-    const shown = [...songFacts.filter((f) => !recentFacts.includes(f)), ...fresh].filter((f) => !restatesRequest(f, song)).slice(0, want);
+    // Music terms get a few fixed plain words, so any viewer can follow.
+    const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
+    const structured = songFacts.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    // A spare takes the place of a line that only repeats the title and artist. With more left than
+    // bubbles, the ones their source sentence supports best are shown, in the order written.
+    const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
+    const room = Math.max(0, want - structured.length);
+    const best = new Set(
+      usable
+        .map((f, i) => ({ f, i, score: context ? support(f, context, citedSentence?.get(f)) : 0 }))
+        .sort((a, b) => b.score - a.score || a.i - b.i)
+        .slice(0, room)
+        .map((x) => x.f)
+    );
+    const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));
+    const shown = [...structured, ...usable.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
     remember(shown);
     console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
@@ -786,7 +854,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       record(asked, "grounded", shown.length);
       sources.set(songKey(asked), context.split("\n")[0]);
       const article = `Wikipedia: ${context.split("\n")[0]}`;
-      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context), ttlMs: Infinity };
+      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
     }
     if (sourcedOnly) return none;
     const fallback = entryFacts(entry, want);
@@ -915,7 +983,7 @@ export async function selfTest(variant = 0): Promise<{ generated: number; kept: 
     "It was recorded with a string quartet in Lisbon. The game was directed by John Smith and released for the Nintendo Switch.";
   const song: SSLSong = { title, artist: "Starfall" };
   const lines = (await askModel(groundedPrompt(song, context, 4))).split("\n").map((l) => l.trim()).filter(Boolean);
-  const { kept } = screenClaims(lines, context);
+  const { kept } = screenClaims(lines, context, { cited: citesSentences() });
   return { generated: lines.length, kept, ms: Date.now() - started };
 }
 
