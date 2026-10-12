@@ -914,6 +914,8 @@ export interface Reading {
   trackOnly?: boolean;
   fromTitle?: boolean;
   aPerformer?: boolean;
+  /** Read from the song with its list notes dropped (`lookupForm`): cached apart from the reading as listed. */
+  cleaned?: boolean;
 }
 
 /** An artist field naming a kind of work: "Star Trek TV", "NieR Series", "Super Mario Franchise". */
@@ -1014,6 +1016,31 @@ export function readings(song: SSLSong): Reading[] {
     ...namedInTitle(title, start[0]),
     ...others.filter(looksLikeArtistName).map((name) => ({ ...resolveGameAndTrack({ ...song, artist: name }), trackOnly: false, aPerformer: true })),
   ];
+}
+
+/** A year in brackets, "(1979)": when the song came out or was added, not part of its name. */
+const YEAR_TAG = /\s*[([]\s*(?:19|20)\d\d\s*[)\]]/g;
+/** A featured credit in brackets, "(feat. Some Singer)": another reading's job, not the song's name. */
+const FEATURED_TAG = /\s*[([]\s*(?:feat|ft|featuring)\b[^)\]]*[)\]]/gi;
+/** A note after the name, closed or not: "(Australian)", "(Cherokee/Irish)", "(LGBTQ+". */
+const TRAILING_NOTE = /\s*[([][^)\]]*(?:[)\]]|$)\s*$/;
+
+/**
+ * The song as a lookup can read it once a song list's own notes are dropped:
+ * brackets after the artist ("Some Band (Australian)"), a year tag or a
+ * featured credit in the title. Null when nothing is dropped. Only a lookup
+ * tries this, and after the song as listed, so what works today is unchanged;
+ * the song itself, shown and kept as listed, is never altered. A bracket that
+ * starts a name or sits inside one stays: "(Don't Fear) The Reaper".
+ */
+export function lookupForm(song: SSLSong): SSLSong | null {
+  let artist = (song.artist ?? "").trim();
+  for (let m: RegExpExecArray | null; (m = TRAILING_NOTE.exec(artist)) && /\p{L}/u.test(artist.slice(0, m.index)); ) {
+    artist = artist.slice(0, m.index).trim();
+  }
+  const title = song.title.replace(YEAR_TAG, "").replace(FEATURED_TAG, "").trim();
+  if (!/\p{L}|\p{N}/u.test(title.replace(/[()[\]]/g, "")) || (title === song.title.trim() && artist === (song.artist ?? "").trim())) return null;
+  return { ...song, title, artist };
 }
 
 /**
@@ -1268,13 +1295,18 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
   const usable = (title: string) => !blocked.has(title);
   const tried = new Set<string>();
   const attempt = async (reading: Reading): Promise<Grounded> => {
-    const key = `${reading.songAlone ? "alone" : ""}${reading.trackOnly ? "track" : ""}\0${normalizeTitle(reading.game)}\0${normalizeTitle(reading.track)}`;
+    const key = `${reading.songAlone ? "alone" : ""}${reading.trackOnly ? "track" : ""}${reading.cleaned ? "cleaned" : ""}\0${normalizeTitle(reading.game)}\0${normalizeTitle(reading.track)}`;
     if (tried.has(key)) return { text: "", unreachable: false };
     tried.add(key);
     if (tried.size > 1) console.log(`[Grounding] "${song.title}": trying ${reading.songAlone ? "the title alone" : `"${reading.track}" from "${reading.game}"`}`);
     return reading.songAlone ? groundSongAlone(song, reading.track, usable) : groundReading(song, reading, blocked);
   };
-  for (let reading of readings(song)) {
+  // The list's text as written first; then, for notes and tags it carries, the same without them.
+  const listed = readings(song);
+  const stripped = lookupForm(song);
+  const same = (a: Reading, b: Reading) => a.game === b.game && a.track === b.track && !a.songAlone === !b.songAlone && !a.trackOnly === !b.trackOnly;
+  const extra = stripped ? readings(stripped).filter((r) => !listed.some((l) => same(l, r))).map((r) => ({ ...r, cleaned: true })) : [];
+  for (let reading of [...listed, ...extra]) {
     if (/ series$/.test(reading.game)) {
       try {
         const page = await seriesPage(reading.game.slice(0, -" series".length));
@@ -1363,7 +1395,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   const { game, track } = reading;
   // A subject pinned to one page is remembered apart: another song's search may have found another page for the name.
   // A lookup for the song's own article alone says nothing about the subject's article.
-  const gameKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "");
+  const gameKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "") + (reading.cleaned ? "\0cleaned" : "");
   const songKey = `${gameKey}\0${normalizeTitle(track)}`;
 
   // A game's tracks share one lookup. An artist's songs never share: each may
