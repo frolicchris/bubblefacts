@@ -234,7 +234,7 @@ export function sanitize(s: Settings): Settings {
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
     wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
     updateChannel: oneOf(s.updateChannel, ["stable", "beta"] as const, "stable"),
-    port: clamp(s.port, 1024, 65525, DEFAULTS.port),
+    port: clamp(s.port, 1024, 65535, DEFAULTS.port),
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
     seJwt: s.seJwt.trim(),
