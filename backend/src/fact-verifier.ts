@@ -1977,14 +1977,41 @@ const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
 const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.slice(0, 19).map((w, i) => [w, String(i + 2)]), ["thirty", "30"], ["forty", "40"], ["fifty", "50"], ...ORDINALS.map((w, i) => [w, `${i + 2}`])]);
 
 /**
+ * The caption with the names of works blanked out, so a joining word inside
+ * a title ("After Burner", "Because of You") isn't read as one. A title is
+ * known when it is the article's own (first line), the song's, or a run of
+ * capitalized words that starts at the joining word and is in the source
+ * exactly as written.
+ */
+function withoutTitles(fact: string, context: string, titles: string[]): string {
+  const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3);
+  let out = fact;
+  for (const t of own) out = out.replace(new RegExp(`(?<![\\p{L}\\d])${escape(t)}(?![\\p{L}\\d])`, "gu"), "Title");
+  for (const run of out.match(/\p{Lu}[\p{L}'’-]*(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|you|me)\s+)*\p{Lu}[\p{L}'’-]*)+/gu) ?? []) {
+    const words = run.split(/\s+/);
+    for (let i = 0; i < words.length - 1; i++) {
+      for (let j = words.length; j > i + 1; j--) {
+        const span = words.slice(i, j).join(" ");
+        if (!context.includes(span) || !CONNECTIVES.some((c) => c.fact.test(span))) continue;
+        out = out.replace(span, "Title");
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * A joining word or a number the sentence the caption retells doesn't have,
  * or null. Numbers (words or figures, not years) must be in that sentence too:
  * "reached number one twice", "the collection's three pieces" when it has five.
  */
-export function unsupportedConnective(fact: string, context: string): string | null {
+export function unsupportedConnective(fact: string, context: string, titles: string[] = []): string | null {
   const retold = retoldSentences(fact, context);
+  const worded = withoutTitles(fact, context, titles);
   // "first" is too common to drop when the caption retells no sentence at all; the other checks judge that.
-  const used = CONNECTIVES.filter((c) => c.fact.test(fact) && (c.label !== "a first" || retold.length > 0));
+  const used = CONNECTIVES.filter((c) => c.fact.test(worded) && (c.label !== "a first" || retold.length > 0));
   const numbers = [
     // Lowercase only: "Two Worlds" is a title.
     ...(fact.match(new RegExp(`\\b(${[...NUMBER_WORDS, ...ORDINALS].join("|")})\\b`, "g")) ?? []),
@@ -1994,7 +2021,7 @@ export function unsupportedConnective(fact: string, context: string): string | n
       .map((m) => m[0]),
   ];
   if (!used.length && !numbers.length) return null;
-  if (!retold.length) return used[0]?.fact.exec(fact)?.[0] ?? numbers[0];
+  if (!retold.length) return used[0]?.fact.exec(worded)?.[0] ?? numbers[0];
   // A number, or "first", may sit in any sentence the caption draws on, not only the closest: "their third film together".
   const related = bodySentences(context).filter((s) => share(fact, s) >= 0.3);
   for (const c of used) {
@@ -2003,7 +2030,7 @@ export function unsupportedConnective(fact: string, context: string): string | n
       continue;
     }
     if (c.fact.source === "\\bafter\\b" && afterFollowsSource(fact, context)) continue;
-    return c.fact.exec(fact)?.[0] ?? c.label;
+    return c.fact.exec(worded)?.[0] ?? c.label;
   }
   for (const n of numbers) {
     const forms = [n, DIGIT_OF[n], ...Object.entries(DIGIT_OF).filter(([, d]) => d === n).map(([w]) => w)].filter(Boolean) as string[];
@@ -2641,7 +2668,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
       if (winner) return `award not given to "${winner}" in the source`;
       const quote = alteredQuote(fact, context);
       if (quote) return `quote not in the source: "${quote}"`;
-      const joined = unsupportedConnective(fact, context);
+      const joined = unsupportedConnective(fact, context, opts.track ? [opts.track] : []);
       if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
       const relation = unsupportedRelation(fact, context);
       if (relation) return `"${relation}" isn't stated for them in the source`;
