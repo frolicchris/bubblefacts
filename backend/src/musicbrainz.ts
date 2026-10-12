@@ -250,7 +250,3 @@ export async function musicbrainzFacts(song: SSLSong): Promise<string[]> {
     return [];
   }
 }
-
-export function clearMusicBrainzCache(): void {
-  cache.clear();
-}

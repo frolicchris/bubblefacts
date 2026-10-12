@@ -7,6 +7,6 @@
 
 ## Which versions get help
 
-While BubbleFacts is in beta, only the newest beta is supported. A beta stops being supported as soon as a newer one is out, so please update first: **Update now** in the app, or the [download page](https://bubblefacts.frolic.org/download.html).
+Only the newest version is supported, including during testing, so please update first: **Update now** in the app, or the [download page](https://bubblefacts.frolic.org/download.html).
 
 BubbleFacts is made by one person, so replies can take a few days. Thank you for your patience.

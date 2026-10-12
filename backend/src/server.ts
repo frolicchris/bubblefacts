@@ -313,11 +313,12 @@ function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
   return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source) };
 }
 
+/** When a hands-free Wrong last marked a bubble: the next press only counts bubbles that appeared after it. */
+let handsfreeAt = 0;
+
 // Hands-free Wrong (a key from a foot pedal or Stream Deck): the bubble on stream now, or the
 // one shown last for this song. The server knows when each went out, so the app needn't guess.
 // The test bubble is never in lastSent, so it's never the one marked.
-/** When a hands-free Wrong last marked a bubble: the next press only counts bubbles that appeared after it. */
-let handsfreeAt = 0;
 control.post("/wrong-current", (_req, res) => {
   const song = lastSent.song;
   const facts = lastSent.facts ?? [];

@@ -93,11 +93,6 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .choice:has(input:checked) { border-color: var(--gold); background: #1c2152; }
 .choice-body { display: grid; gap: 2px; }
 .choice-body span { color: var(--muted); }
-.badge { font-style: normal; font-size: 11px; color: #111; background: var(--gold); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
-.ai-detail { margin-top: 16px; }
-
-.progress { height: 10px; background: #0a0c22; border: 1px solid #3a4290; border-radius: 6px; margin-top: 14px; overflow: hidden; }
-.progress .bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--border), var(--gold)); transform-origin: left; }
 
 .howto li { margin: 10px 0; }
 .check { display: flex; gap: 10px; align-items: center; padding: 12px 14px; margin: 8px 0 4px; border-radius: 8px; background: #0e1233; }
@@ -180,7 +175,6 @@ legend { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 4
 .indent { margin: 0 0 8px 28px; }
 .subhead { margin-top: 22px; }
 textarea { resize: vertical; line-height: 1.45; }
-.disclaimer { background: #1c2152; border-left: 3px solid var(--warn); border-radius: 4px; padding: 10px 14px; font-size: 14px; }
 .about { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 24px 24px; }
 
 @media (max-width: 760px) {

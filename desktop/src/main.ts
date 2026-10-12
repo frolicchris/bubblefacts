@@ -174,7 +174,6 @@ function state() {
     modelReady: activeModel() !== null,
     // Downloading the newly chosen quality while the other model keeps writing facts.
     modelSwitching: activeModel() === otherModel(),
-    modelBytes: chosenModel().bytes,
     modelLicense: chosenModel().license,
     // High quality needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
     totalMemory: os.totalmem(),
@@ -391,6 +390,9 @@ function asset(name: string): string {
   return path.join(ROOT, "desktop/build", name);
 }
 
+/** How long to wait for the window before reading the keychain anyway (see the unlock below). */
+const UNLOCK_WAIT_FALLBACK_MS = 120_000;
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 980,
@@ -571,8 +573,9 @@ const wrongKey = new WrongKeyListener(globalShortcut, () => {
 /**
  * Only BubbleFacts' own window may ask for anything. Navigation is already
  * blocked, so this is a second lock: if a page ever got into the window, it
- * still couldn't press Remove my data or install an update. Every handler
- * below goes through it, including ones added later.
+ * still couldn't press Remove my data or install an update. Every
+ * ipcMain.handle below goes through it, including ones added later;
+ * start-drag, an ipcMain.on, checks for itself.
  */
 const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean => {
   try {
@@ -746,7 +749,7 @@ ipcMain.handle("sign-in", async () => {
     scheduleRefresh();
     startServer(true);
     showWindow();
-    return { ok: true, channel: settings.channel, state: state() };
+    return { ok: true, state: state() };
   } catch (err) {
     return { ok: false, reason: shown("Sign-in", err, { service: "StreamerSongList", fallback: "The sign-in didn't finish. Click Sign in to try again." }) };
   } finally {
@@ -755,7 +758,6 @@ ipcMain.handle("sign-in", async () => {
 });
 ipcMain.handle("cancel-sign-in", () => signingIn?.abort());
 
-/** The first half of uninstalling, without hunting for hidden folders. */
 // --- Backup -----------------------------------------------------------------
 
 const readJson = (name: string): unknown => {
@@ -819,6 +821,7 @@ ipcMain.handle("backup-restore", async () => {
   return { ok: true, message: "Restored." };
 });
 
+/** The first half of uninstalling, without hunting for hidden folders. */
 ipcMain.handle("remove-data", async () => {
   const options = {
     type: "warning" as const,
@@ -993,9 +996,13 @@ app.whenReady().then(async () => {
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
   if (secretsWaiting()) {
+    // Reading the keychain blocks this process until the prompt is answered, and a window that
+    // isn't up by then can't appear at all. So wait for the window to say it's showing; the first
+    // launch after an update can take well over a few seconds while macOS checks the new app.
+    // The long fallback only covers a window that never loads.
     await new Promise<void>((resolve) => {
       ipcMain.once("unlock-ready", () => resolve());
-      setTimeout(resolve, 4000);
+      setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
     });
     settings = unlockSecrets(settings);
     send("state", state());

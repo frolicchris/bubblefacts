@@ -1277,7 +1277,7 @@
     // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;
-    $("#report-beta").hidden = $("#copy-beta-report").hidden = !(/-beta/.test(state.version) || state.testBuild);
+    $("#report-beta").hidden = $("#copy-beta-report").hidden = !(/-(beta|rc)\./.test(state.version) || state.testBuild);
     renderNotices();
     renderWhatsNew();
     renderPaths();

@@ -117,11 +117,6 @@ function fold(s: string): string {
   return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-/**
- * The artist an uploader's name gives, when it's an official channel:
- * "CiaraVEVO" is Ciara, "Ciara - Topic" is YouTube's auto-generated channel
- * for Ciara. Anything else is only a guess (it may be a cover channel).
- */
 /** YouTube names auto-generated channels in the viewer's language: "Ciara - Topic", "Ciara - Tema". */
 const TOPIC_CHANNEL = /^(.+?)\s+[-–]\s+(?:topic|tema|thema|thème|tópico|argomento|temat|onderwerp|konu|aihe|emne|тема|トピック|主题|主題|주제)$/i;
 
@@ -130,6 +125,11 @@ export function isTopicChannel(channel: string | undefined | null): boolean {
   return TOPIC_CHANNEL.test((channel ?? "").trim());
 }
 
+/**
+ * The artist an uploader's name gives, when it's an official channel:
+ * "CiaraVEVO" is Ciara, "Ciara - Topic" is YouTube's auto-generated channel
+ * for Ciara. Anything else is only a guess (it may be a cover channel).
+ */
 export function artistFromChannel(channel: string | undefined | null): { artist: string; official: boolean } {
   const name = (channel ?? "").trim();
   if (!name) return { artist: "", official: false };
@@ -253,20 +253,21 @@ function stripFeaturing(s: string): string {
   return tidy(s.replace(FEATURING, ""));
 }
 
-/**
- * Uploaders put "Artist - Song" nearly always, but game and film music often
- * comes as "Track - Work". Swap only on a clear sign:
- *  - the channel is the right side's artist and not the left's;
- *  - the right side is a soundtrack ("... OST");
- *  - the right side has a subtitle ("The Legend of Zelda: Ocarina of Time")
- *    and the left doesn't, which is how works are titled, not songs.
- */
 /** "Saturday Night Live" -> "snl". */
 function initials(name: string): string {
   const words = name.split(/\s+/).filter(Boolean);
   return words.length >= 2 ? words.map((w) => w[0]).join("").toLowerCase() : "";
 }
 
+/**
+ * Uploaders put "Artist - Song" nearly always, but game and film music often
+ * comes as "Track - Work". Swap only on a clear sign:
+ *  - the channel is the right side's artist and not the left's;
+ *  - the right side is the channel's initials ("SNL" from Saturday Night Live);
+ *  - the right side is a soundtrack ("... OST");
+ *  - the right side has a subtitle ("The Legend of Zelda: Ocarina of Time")
+ *    and the left doesn't, which is how works are titled, not songs.
+ */
 function shouldSwap(left: string, right: string, channelArtist: string): boolean {
   const ch = fold(channelArtist);
   if (ch) {

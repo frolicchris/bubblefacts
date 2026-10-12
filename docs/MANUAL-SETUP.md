@@ -193,8 +193,7 @@ the overlay, then right-click the source and choose **Refresh**.
 > added as a **Local file** (`frontend/obs/obs-overlay.html` in the overlay
 > folder), which keeps retrying until the overlay is running. **Version 1.0.0
 > can't:** as a Local file it never connects, and shows a red dot even while
-> the overlay is running. The ZIP in step 1 comes from the newest full
-> release, not a beta, and that's still version 1.0.0, so use the URL above.
+> the overlay is running. The URL above works with every version.
 
 ### 7. Check it works
 
@@ -379,13 +378,14 @@ your token removed.
   the article; it can't tell whether the article is right.
 - **Well-known works do best.** Famous games, films, pop songs and classical
   pieces have articles. Obscure tracks and small indie games often don't, so
-  they get the hand-checked facts instead.
+  they get Wikidata or MusicBrainz facts, or your custom facts, instead.
 - **English Wikipedia only**, and one streamer per copy of the overlay.
 - **The overlay only accepts connections from your own computer**, because it
   has no password. Running OBS on a second computer is possible; see `HOST` in
   [CONFIG.md](CONFIG.md).
 - **Built for StreamerSongList as it worked in 2026.** If their service
   changes, the overlay may need an update.
+
 ---
 
 ## For developers

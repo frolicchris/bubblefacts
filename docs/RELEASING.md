@@ -165,7 +165,14 @@ merges.
 5. At least one tester streams with it, twice, with no new blocker.
 
 **Making the final release:** 2.0.0 is the last release candidate's code with
-only the version number changed. Before tagging it, go or no-go:
+only the version number changed.
+
+**rc.2 is the last release candidate for 2.0.0.** So everything it needs is
+proven before it's tagged, on a test build of the exact commit: the fact check
+under 5% on both lists, every fix since rc.1 checked again, the in-app update
+from rc.1, and a tester streaming the test build. No release blocker may be
+open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
+change; anything else found goes to the 2.0.1 milestone. Before tagging it, go or no-go:
 
 - [ ] No open release blockers.
 - [ ] The fact check of the last release candidate met the under-5% bar.

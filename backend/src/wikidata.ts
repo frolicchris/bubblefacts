@@ -169,7 +169,3 @@ export async function wikidataFacts(song: SSLSong): Promise<string[]> {
     return [];
   }
 }
-
-export function clearWikidataCache(): void {
-  cache.clear();
-}

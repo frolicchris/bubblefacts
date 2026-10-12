@@ -53,8 +53,7 @@ export class SongListClient implements SongSource {
   private rejected = false;
   /** Set from Retry-After when StreamerSongList says to slow down (429) or is down for maintenance (503). */
   private backoffUntil = 0;
-  /** The song list as read at start, for the song facts editor's search. */
-  /** Null until the list has been read. */
+  /** The song list as read at start, for the song facts editor's search. Null until it has been read. */
   private listSongs: ListSong[] | null = null;
   private listFailedAt = 0;
   private listReading = false;
@@ -125,7 +124,7 @@ export class SongListClient implements SongSource {
     return cleanRequestText(item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "") || "Unknown";
   }
 
-  /** An off-list request: the API sets `nonlistSong` to the typed-in title. */
+  /** An off-list request: the API sets `nonlistSong`, or the newer `nonlistTitle`, to the typed-in title. */
   static isLiveLearn(item: SSLQueueItem): boolean {
     return Boolean(item.nonlistSong?.trim() || item.nonlistTitle?.trim());
   }

@@ -1,4 +1,4 @@
-import { app, utilityProcess } from "electron";
+import { utilityProcess } from "electron";
 import { fork } from "child_process";
 import { EventEmitter } from "events";
 import fs from "fs";
@@ -271,7 +271,6 @@ export class Supervisor extends EventEmitter {
       if (/Built-in model failed to load/.test(line)) this.modelFailed("failed to load");
       this.lines.push(line);
       if (this.lines.length > LOG_LINES_KEPT) this.lines.shift();
-      this.emit("line", line);
       try {
         fs.mkdirSync(this.logDir, { recursive: true });
         fs.appendFileSync(path.join(this.logDir, `bubblefacts-${new Date().toISOString().slice(0, 10)}.log`), line + "\n");
@@ -291,5 +290,3 @@ export function pruneLogs(logDir: string, keep = 7): void {
     // Nothing to prune yet.
   }
 }
-
-export const appVersion = () => app.getVersion();

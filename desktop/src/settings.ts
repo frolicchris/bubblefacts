@@ -191,8 +191,6 @@ export function loadSettings(readSecrets = true): Settings {
       // Worked out again next time.
     }
   }
-  // Older versions could save example packs under "topics". The app no
-  // longer uses them: the musician's own custom facts are the only ones (the key is dropped on save).
   const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
   secretsPending = !readSecrets && SECRET_KEYS.some((key) => saved(key).startsWith("enc:"));
   for (const key of SECRET_KEYS) settings[key] = secretsPending ? "" : decrypt(saved(key));
@@ -299,7 +297,10 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
 
 /** The settings file's format. Raise it when a later version must convert older files. */
 export const SETTINGS_VERSION = 1;
-/** Keys older versions saved that are no longer used, so they aren't carried forward. */
+/**
+ * Keys older versions saved that are no longer used, so they aren't carried forward:
+ * "topics" held example packs; the musician's own custom facts are the only ones now.
+ */
 const RETIRED_KEYS = new Set(["topics"]);
 
 export function saveSettings(settings: Settings): void {
@@ -320,7 +321,6 @@ export function saveSettings(settings: Settings): void {
   writeFileAtomic(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
 }
 
-/** True when secrets can only be stored unencrypted (some Linux desktops without a keyring). */
 /**
  * Whether saved secrets lack real protection. On Linux, Electron can "encrypt"
  * with a fixed built-in password when no keyring (GNOME Keyring, KWallet) is

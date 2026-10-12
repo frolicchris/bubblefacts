@@ -71,10 +71,6 @@ export function setListProfile(next: ListProfile | null): void {
   profile = next ?? EMPTY;
 }
 
-export function listProfile(): ListProfile {
-  return profile;
-}
-
 /**
  * Other ways to read a song, as { title: track, artist: source }: the form
  * the rest of the pipeline already understands. Most likely first. Empty

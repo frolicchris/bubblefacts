@@ -53,7 +53,7 @@ released:
    was addressed.
 3. **Real-world testing.** Releases are tested in a real copy of OBS and on
    live streams, following the release checklist in
-   [CONTRIBUTING.md](../.github/CONTRIBUTING.md). Installers are smoke-tested on each
+   [RELEASING.md](RELEASING.md#release-checklist). Installers are smoke-tested on each
    operating system.
 4. **Release.** The maintainer reviews each draft release before publishing
    it. Release files carry SHA-256 checksums and build-provenance attestations.
