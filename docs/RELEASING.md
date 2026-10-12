@@ -156,6 +156,8 @@ merges.
    own source. **The bar: under 5% of the facts that come from a source are
    wrong or misleading, on each list, with no new kind of mistake.** (A
    small AI never reaches zero; Wrong and Hands-free Wrong catch the rest.)
+   For 2.0.0 this bar moved to 2.1.0 (#172): Standard ships as measured,
+   and its rate is in the known issues (#36).
    Keep the lists and results out of the repository.
 2. A hands-on pass on real computers: Mac and Windows by a tester each. Linux
    relies on the smoke test unless a tester has it; say so in the notes.
@@ -169,13 +171,14 @@ only the version number changed.
 
 **rc.2 is the last release candidate for 2.0.0.** So everything it needs is
 proven before it's tagged, on a test build of the exact commit: the fact check
-under 5% on both lists, every fix since rc.1 checked again, the in-app update
-from rc.1, and a tester streaming the test build. No release blocker may be
-open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
+on both lists (measured and stated, see #172), every fix since rc.1 checked
+again, the in-app update from rc.1, and a tester streaming the test build. No
+release blocker may be open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
 change; anything else found goes to the 2.0.1 milestone. Before tagging it, go or no-go:
 
 - [ ] No open release blockers.
-- [ ] The fact check of the last release candidate met the under-5% bar.
+- [ ] The fact check of the last release candidate met the under-5% bar
+      (for 2.0.0: measured and stated in the known issues, #172).
 - [ ] The last release candidate was out at least three days, and testers
       streamed with it.
 - [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than
