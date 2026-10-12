@@ -80,6 +80,21 @@ describe("StreamElementsClient", () => {
   const quiet = jest.spyOn(console, "error").mockImplementation(() => undefined);
   afterAll(() => quiet.mockRestore());
 
+  it("keeps one poll loop, and none after disconnect (#167)", () => {
+    jest.useFakeTimers();
+    try {
+      const schedule = () => (client as unknown as { schedulePoll(): void }).schedulePoll();
+      schedule();
+      schedule();
+      expect(jest.getTimerCount()).toBe(1);
+      client.disconnect();
+      schedule();
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("finds the channel by name, sends the JWT, and follows the playing song", async () => {
     mockFetch.mockResolvedValueOnce(ok(CHANNEL));
     player("playing", CIARA);
