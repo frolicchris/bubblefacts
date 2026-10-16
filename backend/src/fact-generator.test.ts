@@ -430,6 +430,15 @@ describe("generateFacts", () => {
     expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
   });
 
+  it("drops a caption that copies an example's sales figure instead of the reference", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Figure Song (song)\n${MODEL_LINES}`);
+    const copied = "In Japan, the song sold 40,000 copies by March 2009.";
+    mockCreate.mockResolvedValue(reply([copied, ...MODEL_LINES.split("\n")].join("\n")));
+    const facts = await generateFacts({ title: "Figure Song", artist: "Someone" });
+    expect(facts.map((f) => f.text)).not.toContain(copied);
+  });
+
   it("drops a caption that copies an example's made-up names instead of the reference", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Copy Song (song)\n${MODEL_LINES}`);
