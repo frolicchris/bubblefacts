@@ -438,8 +438,8 @@ html.site-beta [data-stable-only] {
   display: none !important;
 }
 
-/* SITE DEFAULT: beta. */
-html:not(.site-stable):not(.site-beta) [data-stable-only] {
+/* SITE DEFAULT: stable. */
+html:not(.site-stable):not(.site-beta) [data-beta-only] {
   display: none !important;
 }
 
