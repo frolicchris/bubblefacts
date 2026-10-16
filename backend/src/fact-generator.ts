@@ -298,6 +298,31 @@ Wrong: "Paper Lanterns" sold 40,000 copies and reached the top 10.
 Right: In Japan, "Paper Lanterns" sold 40,000 copies by March 2009.
 Always name who said, wrote or thought something, and keep where, when and on which chart. Never start with "it", "they", "these" or "the records": use the name the text gives, or skip the statement.`;
 
+/** Words too common to tell an example's wording from the reference's: three of them in a row prove nothing. */
+const COMMON_WORDS = new Set("the of a an s are is was were to in on and it its that by for with as about lyrics album song band said wrote".split(" "));
+const words = (text: string) => text.toLowerCase().replace(/(\d),(\d)/g, "$1$2").match(/[a-z0-9]+/g) ?? [];
+const threeWords = (list: string[]) => list.slice(0, -2).map((w, i) => `${w} ${list[i + 1]} ${list[i + 2]}`);
+/** Every run of three words in the examples' lines that isn't all common words. */
+const EXAMPLE_WORDING = new Set(
+  RETELL_EXAMPLES.split("\n")
+    .filter((l) => /^(Text|Wrong|Right): /.test(l))
+    .flatMap((l) => threeWords(words(l.replace(/^\w+: /, ""))))
+    .filter((g) => g.split(" ").some((w) => !COMMON_WORDS.has(w)))
+);
+
+/**
+ * A caption that copies the examples instead of the reference: three words in
+ * a row from an example ("sound like a storm", "reached number 9") that the
+ * reference doesn't have. A 3B model sometimes pins an example's made-up
+ * story on a real name ("<the game's composer> said the band wanted the
+ * chorus to sound like a storm"), which no other screen catches when the
+ * name is in the reference.
+ */
+export function copiesExample(caption: string, context: string): boolean {
+  const source = ` ${words(context).join(" ")} `;
+  return threeWords(words(caption)).some((g) => EXAMPLE_WORDING.has(g) && !source.includes(` ${g} `));
+}
+
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
@@ -858,7 +883,12 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
-    const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
+    const written = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = written.filter((l) => {
+      if (!context || !copiesExample(l, context)) return true;
+      console.log(`[Screen] DROP (copies an example): ${l.slice(0, 90)}`);
+      return false;
+    });
     const { track } = resolveGameAndTrack(read);
     const cited = Boolean(context) && citesSentences();
     const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });

@@ -140,6 +140,15 @@ sign-ins and the built-in AI. Its design decisions are in
    assistant" prompt, which Ollama never sends). Its instructions are laid out as CROSS (Context,
    Role, Objective, Source, Scope); `PROMPT_STYLE=rules` uses the older
    numbered list.
+   Before the reference, the CROSS prompt shows worked examples with made-up
+   names (`RETELL_EXAMPLES`): a sentence, a wrong retelling and a right one,
+   for the three slips the 3B model makes most: dropping who said or thought
+   something, keeping an "it" or "these" whose subject was left behind, and
+   dropping where, when or on which chart. A model that small copies an
+   example better than it applies a rule. It sometimes copies the example
+   itself, even onto a real name from the reference, so a line with three
+   words in a row from the examples that the reference doesn't have is
+   dropped before screening (`copiesExample`).
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
