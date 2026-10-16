@@ -21,7 +21,7 @@ const MAX_CONTEXT_CHARS = 3000;
 /** Shorter extracts are stubs; the entry's own data beats restating one. */
 const MIN_CONTEXT_CHARS = 600;
 /** Longest fact that fits a bubble. */
-const MAX_FACT_CHARS = 160;
+export const MAX_FACT_CHARS = 160;
 /** How long "no article" is trusted before the lookup is retried. */
 const NEGATIVE_TTL_MS = 10 * 60 * 1000;
 
@@ -406,7 +406,7 @@ const CRITIC_NAMES =
   /\b(IGN|GameSpot|GameSpy|GamePro|Game Informer|Nintendo Power|Edge|1UP|Destructoid|Tom's Guide|AllMusic|Pitchfork|Rolling Stone|Billboard|NME|Kotaku|Polygon|RPGFan|Eurogamer|Famitsu|Stereogum|MTV|NPR|BBC|USA Today|Variety|Melody Maker|[A-Z]\w+ (?:Times|News|Post|Tribune|Herald|Guardian|Telegraph))\b/;
 const CRITIC = { test: (s: string) => CRITIC_WORDS.test(s) || CRITIC_NAMES.test(s) };
 /** A sentence that leans on the one before it can't be retold on its own. */
-const LEANS_BACK = /^["“]?(?:I|We|He|She|They|It|His|Her|Their|This|These|That|Those|Hence|However|Instead|Meanwhile|Therefore|The same|A similar|Despite|Asked|When asked)\b/;
+export const LEANS_BACK = /^["“]?(?:I|We|He|She|They|It|His|Her|Their|This|These|That|Those|Hence|However|Instead|Meanwhile|Therefore|The same|A similar|Despite|Asked|When asked)\b/;
 const MAX_COLOR_SENTENCES = 5;
 const MAX_COLOR_CHARS = 900;
 
@@ -1920,7 +1920,7 @@ const REFERENCE_LABEL = /^(About this piece|From the people who made it|How the 
 const SENTENCE_BREAK = /(?<!(?:^|[^\p{L}])\p{Lu}\.)(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u;
 
 /** One line of a reference split into its sentences, without the label. */
-const lineSentences = (line: string) =>
+export const lineSentences = (line: string) =>
   line.replace(REFERENCE_LABEL, "").split(SENTENCE_BREAK).map((s) => s.trim()).filter((s) => s && !/^==/.test(s));
 
 /**
