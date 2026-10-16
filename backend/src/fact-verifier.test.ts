@@ -2011,6 +2011,17 @@ describe("third fact check: hedges, years and owners", () => {
     expect(droppedHedge("Lee Rosen described Marek's Concerto No. 9 as a breakthrough.", ctx)).toBeNull();
   });
 
+  it("knows the standard hedge cues", () => {
+    const ctx = "Velmora Days\nThe demo was likely recorded at Pell Studio in 1994. Sales of the single were approximately 40,000 copies. Tamsin Ruell appears to have written the bridge. Early drafts suggest that the chorus came first. The tune is said to be based on a sea shanty. The band claimed the album took nine days.";
+    expect(droppedHedge("The demo was recorded at Pell Studio in 1994.", ctx)).toBe("likely");
+    expect(droppedHedge("The single sold 40,000 copies.", ctx)).toBe("approximately");
+    expect(droppedHedge("Tamsin Ruell wrote the bridge.", ctx)).toBe("appears to");
+    expect(droppedHedge("The chorus came first in the early drafts.", ctx)).toBe("suggest that");
+    expect(droppedHedge("The tune is based on a sea shanty.", ctx)).toBe("is said to");
+    expect(droppedHedge("The demo was likely recorded at Pell Studio in 1994.", ctx)).toBeNull();
+    expect(droppedHedge("The tune is said to be based on a sea shanty.", ctx)).toBeNull();
+  });
+
   it("drops a year the retold sentence doesn't place there", () => {
     const ctx = "Ivo Marek\nWhen the symphony premiered in early 1805 it got a mixed reception. Some listeners disliked its length. In 1807, after a concert in Leipzig, the public demanded it again a week later.";
     expect(misplacedYear("The public demanded the symphony again a week after its premiere in 1805.", ctx)).toBe("1805");
