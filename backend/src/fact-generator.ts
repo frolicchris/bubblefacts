@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
+import { cleanSource } from "./source-cleaner";
 import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
@@ -881,6 +882,12 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // the song come first when Wikidata or MusicBrainz has any ("describe the
     // song, then tell about it").
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
+    const { track } = resolveGameAndTrack(read);
+    if (context) {
+      const stats = { resolved: 0, marked: 0, softened: 0, attributed: 0, dropped: 0 };
+      context = cleanSource(context, { track, ownSong: aboutTheSong(read, context) }, stats);
+      if (Object.values(stats).some(Boolean)) console.log(`[Grounding] Cleaned the source: ${stats.resolved} subjects named, ${stats.marked} lines marked as about something else, ${stats.softened} puff words taken out, ${stats.attributed} views attributed, ${stats.dropped} sentences left out`);
+    }
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const written = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
@@ -889,7 +896,6 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       console.log(`[Screen] DROP (copies an example): ${l.slice(0, 90)}`);
       return false;
     });
-    const { track } = resolveGameAndTrack(read);
     const cited = Boolean(context) && citesSentences();
     const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
