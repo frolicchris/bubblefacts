@@ -2540,13 +2540,9 @@ export function unnamedReference(fact: string, context: string): string | null {
   return sourceSentences(context).some((s) => isOne.test(s)) ? null : `the ${group[1].toLowerCase()}`;
 }
 
-/**
- * Words that keep a statement uncertain, with the standard hedge cues
- * (CoNLL-2010): "suggests that", "appears to", "likely", "approximately",
- * "believed", "said to". "Suggested" alone is a proposal, not a hedge.
- */
+/** Words that keep a statement uncertain. */
 const HEDGE =
-  /\b(?:may|might|could) have\b|\b(?:possibly|possible|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|likely|perhaps|presumably|approximately|unconfirmed|disputed|believed|claimed)\b|\b(?:suggest(?:s|ed)?|indicat(?:es?|ed)) that\b|\bappear(?:s|ed)? to\b|\b(?:said|thought) to (?:be|have)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b/i;
+  /\b(?:may|might|could) have\b|\b(?:possibly|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b/i;
 
 /**
  * A hedge the caption drops: "General Ardent suggested the symphony" when the
