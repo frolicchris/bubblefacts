@@ -42,7 +42,7 @@ import { SSLQueueItem, SSLSong } from "./types";
 
 const MODEL_LINES = [
   "The soundtrack was recorded with a small string section in one weekend.",
-  "The main melody was first sketched on an upright piano at the studio.",
+  "Its main melody was first sketched on an upright piano at the studio.",
   "The composer later arranged the theme for a full orchestra.",
   "An acoustic guitar carries the melody in the quieter second half.",
   "The final track fades out on a sustained organ chord.",
