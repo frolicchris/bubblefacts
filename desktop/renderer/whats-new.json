@@ -1,4 +1,9 @@
 {
+  "2.0.0": [
+    "BubbleFacts 2.0 is here: the first stable release.",
+    "Facts come only from the song's own article and are screened before they show. Press Wrong, or use Hands-free Wrong, to take one off your stream.",
+    "Playing originals or other music content creators' songs? Add your own facts in Settings."
+  ],
   "2.0.0-rc.2": [
     "Facts read more plainly, and fewer wrong ones get through on the default Standard AI.",
     "On a Mac, the window now opens before the sign-in prompt after an update.",
