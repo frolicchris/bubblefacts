@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { SYSTEM_PROMPT, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -418,6 +418,25 @@ describe("generateFacts", () => {
     expect(prompt).not.toMatch(/\[1\]/);
     expect(prompt).not.toContain(" | ");
     expect(facts.map((f) => f.text)).toEqual(MODEL_LINES.split("\n").slice(0, facts.length));
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it("shows the AI worked examples of keeping who said it and naming the subject, before the reference", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Example Song (song)\n${MODEL_LINES}`);
+    await generateFacts({ title: "Example Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain(RETELL_EXAMPLES);
+    expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
+  });
+
+  it("drops a caption that copies an example's made-up names instead of the reference", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Copy Song (song)\n${MODEL_LINES}`);
+    const copied = "Producer Dana Reyes said the band wanted the chorus to sound like a storm.";
+    mockCreate.mockResolvedValue(reply([copied, ...MODEL_LINES.split("\n")].join("\n")));
+    const facts = await generateFacts({ title: "Copy Song", artist: "Someone" });
+    expect(facts.map((f) => f.text)).not.toContain(copied);
     expect(facts.length).toBeGreaterThan(0);
   });
 
