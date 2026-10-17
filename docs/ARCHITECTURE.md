@@ -158,6 +158,17 @@ sign-ins and the built-in AI. Its design decisions are in
    only sentences that name the game itself (not a sequel or the series named
    after it) or the track. With fewer than 2 such sentences, the lead alone.
    Read whole, it filled a first game's track with a sequel's composers.
+   Within what section-aware selection keeps, sentences are offered in tiers
+   (`tieredExtract`; `TIERED_SELECTION=off` turns it off): 1, the lead; 2,
+   clean body sentences that open their paragraph; 3, other clean body
+   sentences; 4, the rest, only when tiers 1 to 3 give fewer than 8 usable
+   sentences. Clean means under 30 words, no quoted speech of 4 or more words
+   (a quoted title is fine) and no reporting verb (said, wrote, according to,
+   told, described, called, stated, noted, claimed, recalled, explained). In
+   2,898 judged captions, lead sentences erred 4.8% of the time, clean body
+   sentences 8.7% and the rest 18.9%. A caption retold from a tier-4 sentence
+   that reports what someone said is dropped unless it keeps the speaker's
+   name and a reporting verb or quote marks (`keepsAttribution`).
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
