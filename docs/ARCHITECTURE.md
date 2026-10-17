@@ -151,6 +151,13 @@ sign-ins and the built-in AI. Its design decisions are in
    keep those and awards won or nominated for, never a critic's ranking;
    legacy and release sections keep everything but critics' opinions. A small
    model drops the "a reviewer called it", and the opinion reads as fact.
+   A music article about a whole series (`isSeriesWide`: a "Music of" page
+   named for the series, a first sentence about a series' music, or a section
+   per game) is cut to what is about the requested game (`seriesScope`;
+   `SERIES_SCOPE=off` turns it off): that game's own section, and elsewhere
+   only sentences that name the game itself (not a sequel or the series named
+   after it) or the track. With fewer than 2 such sentences, the lead alone.
+   Read whole, it filled a first game's track with a sequel's composers.
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
@@ -265,6 +272,14 @@ sign-ins and the built-in AI. Its design decisions are in
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
+   A limit the model dropped goes back in (`repairScope`; `SCOPE_REPAIR=off`
+   turns it off), from a closed list: one country or region ("in Japan"), a
+   named chart, "in its first week", the year "the same year" means, and an
+   edition ("the Mega Drive/Genesis version"). Only when the caption retells
+   one sentence (half its words, and a number it has, in the same clause as
+   the limit), lacks the limit, and the sentence has exactly one of that kind
+   with a clear place for it; otherwise the caption is left as written. A
+   broad repair broke correct captions before, so this one stays narrow.
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
    fill fixed sentences, with no AI and so no screening. When the article is
    the artist's or the game's rather than the song's, structured facts about
