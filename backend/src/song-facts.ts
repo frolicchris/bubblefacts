@@ -56,8 +56,7 @@ function load(): SongFacts[] {
  */
 export const songIdentity = (s: string) =>
   s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-const ident = songIdentity;
-const key = (artist: string, title: string) => `${ident(artist)}\0${ident(title)}`;
+const key = (artist: string, title: string) => `${songIdentity(artist)}\0${songIdentity(title)}`;
 
 function matches(entry: SongFacts, song: SSLSong): boolean {
   if (entry.songId && song.songId) return entry.songId === song.songId;

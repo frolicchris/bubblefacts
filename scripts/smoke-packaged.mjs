@@ -30,7 +30,7 @@ function start(env) {
       SSL_ACCESS_TOKEN: "not-a-real-token",
       PORT,
       HOST: "127.0.0.1",
-      STREAM_FACTS_LOG_DIR: process.env.RUNNER_TEMP || ".",
+      BUBBLEFACTS_LOG_DIR: process.env.RUNNER_TEMP || ".",
       ...env,
     },
   });

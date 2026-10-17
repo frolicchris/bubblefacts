@@ -33,18 +33,18 @@ describe("song facts", () => {
       songFactLines({ title: "Evening Rain", artist: "Jane Composer", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["Written in one night."] })
     ).toEqual(['"Evening Rain" was written by Jane Composer.', "Written in one night.", "More from Jane Composer: twitch.tv/jane"]);
     expect(
-      songFactLines({ title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], facts: [] })
+      songFactLines({ title: "Evening Rain", artist: "Robin", songwriters: ["Jane Composer"], facts: [] })
     ).toEqual(['"Evening Rain" was written by Jane Composer.']);
   });
 
   it("keeps a fact typed with line breaks as one fact", () => {
-    saveSongFacts({ title: "Water in the Moonlight", artist: "Chris", facts: ["Written at the lake\r\nin the summer of 2019.\n", "  "] });
-    expect(findSongFacts({ title: "Water in the Moonlight", artist: "Chris" })?.facts).toEqual(["Written at the lake in the summer of 2019."]);
-    saveSongFacts({ title: "Water in the Moonlight", artist: "Chris", facts: [] });
+    saveSongFacts({ title: "Water in the Moonlight", artist: "Robin", facts: ["Written at the lake\r\nin the summer of 2019.\n", "  "] });
+    expect(findSongFacts({ title: "Water in the Moonlight", artist: "Robin" })?.facts).toEqual(["Written at the lake in the summer of 2019."]);
+    saveSongFacts({ title: "Water in the Moonlight", artist: "Robin", facts: [] });
   });
 
   it("keeps the creator's link when the facts fill every slot (final QA #4)", () => {
-    const entry = { title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["One.", "Two.", "Three.", "Four."] };
+    const entry = { title: "Evening Rain", artist: "Robin", songwriters: ["Jane Composer"], link: "twitch.tv/jane", facts: ["One.", "Two.", "Three.", "Four."] };
     const lines = songFactLines(entry, 5);
     expect(lines).toHaveLength(5);
     expect(lines[0]).toBe('"Evening Rain" was written by Jane Composer.');
@@ -52,24 +52,24 @@ describe("song facts", () => {
   });
 
   it("gives a link with no songwriter its own bubble, naming no one as the writer (musician review #4)", () => {
-    expect(songFactLines({ title: "Evening Rain", artist: "Chris", link: "twitch.tv/jane", facts: ["Written in one night."] })).toEqual([
+    expect(songFactLines({ title: "Evening Rain", artist: "Robin", link: "twitch.tv/jane", facts: ["Written in one night."] })).toEqual([
       "Written in one night.",
       "More from this song's creator: twitch.tv/jane",
     ]);
-    expect(songFactLines({ title: "Evening Rain", artist: "Chris", link: "twitch.tv/jane", facts: ["One.", "Two."] }, 2)).toEqual([
+    expect(songFactLines({ title: "Evening Rain", artist: "Robin", link: "twitch.tv/jane", facts: ["One.", "Two."] }, 2)).toEqual([
       "One.",
       "More from this song's creator: twitch.tv/jane",
     ]);
   });
 
   it("saves a song that has only a link (musician review #4)", () => {
-    saveSongFacts({ title: "Evening Rain", artist: "Chris", link: " twitch.tv/jane ", songwriters: [], facts: [] });
+    saveSongFacts({ title: "Evening Rain", artist: "Robin", link: " twitch.tv/jane ", songwriters: [], facts: [] });
     resetSongFacts();
-    const saved = findSongFacts({ title: "Evening Rain", artist: "Chris" });
+    const saved = findSongFacts({ title: "Evening Rain", artist: "Robin" });
     expect(saved?.link).toBe("twitch.tv/jane");
     expect(songFactLines(saved!)).toEqual(["More from this song's creator: twitch.tv/jane"]);
-    saveSongFacts({ title: "Evening Rain", artist: "Chris", link: "", facts: [] });
-    expect(findSongFacts({ title: "Evening Rain", artist: "Chris" })).toBeNull();
+    saveSongFacts({ title: "Evening Rain", artist: "Robin", link: "", facts: [] });
+    expect(findSongFacts({ title: "Evening Rain", artist: "Robin" })).toBeNull();
   });
 
   it("refuses too many or too long facts with the reason, instead of cutting them (musician review #2)", () => {

@@ -208,7 +208,7 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 
 | When | On screen |
 |---|---|
-| A song starts | A gold **NOW PLAYING** bubble for five seconds (`NOW_PLAYING=off` hides it), then up to five fact bubbles, one every 15 seconds. |
+| A song starts | A gold **NOW PLAYING** bubble for five seconds (`NOW_PLAYING=off` hides it), then up to five fact bubbles, one every 15 seconds (both can be changed). |
 | A song with no Wikipedia article | Plain facts from Wikidata or MusicBrainz, such as the year and the album. If they don't know it either: bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus your custom facts. |
 | One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
 | A **live learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it, up until the next song. Fact bubbles show only when a source knows the song. |

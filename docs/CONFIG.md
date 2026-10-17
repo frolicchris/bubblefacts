@@ -29,7 +29,7 @@ which one. Names and web addresses are used as written, so double-check those.
 | `SSL_STREAMER_NAME` | *required* | Your channel name on streamersonglist.com. |
 | `SSL_ACCESS_TOKEN` | *required* | Lets the overlay read your queue. Create one under **Settings → Access**. Keep it private. |
 | `SSL_TOKEN_KIND` | `streamer` | Only change this if you use a different kind of token: `user` for one from **Profile → API Access** (it covers every channel you manage), or `bearer` for an OAuth token. |
-| `SSL_PLATFORM` | `twitch` | The platform your channel is on. |
+| `SSL_PLATFORM` | `twitch` | The platform your channel is on, as StreamerSongList names it (`twitch` for Twitch). |
 | `SSL_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks your queue in case it missed a change. Between 2000 and 300000. |
 | `SSL_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamerSongList before giving up on one check. |
 | `SSL_ENV`, `SSL_API_BASE`, `SSL_EVENTS_URL` | *production* | For testing against StreamerSongList's test servers. Leave them out. |
@@ -51,7 +51,7 @@ To find your JWT token:
 | Setting | Default | What it does |
 |---|---|---|
 | `SONG_SOURCE` | `streamersonglist` | Where song requests come from: `streamersonglist` or `streamelements`. |
-| `SE_CHANNEL` | the token's channel | Your StreamElements channel name. BubbleFacts also uses it as your name, for spotting your own compositions. |
+| `SE_CHANNEL` | the token's channel | Your StreamElements channel name (optional: the token already says which channel). BubbleFacts also uses it as your name, for spotting your own compositions. |
 | `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
 | `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
 | `SE_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamElements before giving up on one check. |
@@ -107,13 +107,13 @@ The overlay chooses automatically: Anthropic if you've set
 
 ### Groq, OpenRouter, Gemini and similar services
 
-These all use the same "OpenAI-compatible" connection. Groq is set up by default.
+These all use the same "OpenAI-compatible" connection. Groq is set up by default. BubbleFacts sends a short system message with every request, so choose a model that accepts one: Gemma models through Gemini's API, for example, don't.
 
 | Setting | Default | What it does |
 |---|---|---|
 | `OPENAI_API_KEY` | *none* | Your key from the service. Setting it switches the overlay to this option. |
 | `OPENAI_BASE_URL` | Groq | The service's address. OpenRouter: `https://openrouter.ai/api/v1`. Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`. |
-| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, with a limit of 1,000 requests a day as of 2026. |
+| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, within its [daily limits](https://console.groq.com/docs/rate-limits). |
 | `OPENAI_TIMEOUT_MS` | `30000` | How long to wait for an answer. |
 
 ### Anthropic Claude
@@ -143,8 +143,8 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | Setting | Default | What it does |
 |---|---|---|
 | `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Songs with short articles may get fewer. |
-| `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. |
-| `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
+| `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. From 3 to 300. |
+| `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up, from 2 to 120. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
 `BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
 `anywhere`) keeps bubbles to one part of the screen. To put every bubble in
