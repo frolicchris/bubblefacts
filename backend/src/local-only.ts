@@ -21,7 +21,7 @@ export function allowedHost(hostHeader: string | undefined, port: number, bindHo
  * File address, a page this server served itself (the Browser source URL in
  * the manual setup), and programs other than browsers, which send no Origin.
  */
-export const OBS_LOCAL_FILE = "http://absolute";
+const OBS_LOCAL_FILE = "http://absolute";
 
 export function allowedOrigin(origin: string | undefined, hostHeader: string | undefined): boolean {
   if (origin === undefined) return true;

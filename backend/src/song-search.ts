@@ -14,7 +14,7 @@ export interface ListSong {
   artist: string;
 }
 
-export const DEFAULT_SEARCH_LIMIT = 8;
+const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 20;
 const MAX_QUERY = 100;
 
