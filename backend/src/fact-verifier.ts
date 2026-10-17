@@ -642,6 +642,153 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
   return [colorBlock, rest, lead].filter(Boolean).join("\n\n");
 }
 
+// --- Section-aware selection ------------------------------------------------
+
+/**
+ * SECTION_SELECT=off turns it off. Judged captions err far more often when
+ * written from narrative sections (background, development, history) than
+ * from the lead, which Wikipedia writes to stand alone, or from sections that
+ * report checkable things (composition, release, charts, awards).
+ */
+export const sectionSelection = { on: process.env.SECTION_SELECT !== "off" };
+
+/** Narrative sections: who did what before or around the work, or a game's story. */
+const NARRATIVE_HEADING =
+  /\b(background|antecedents?|influences?|development|history|conception|creation|production|early (?:life|years)|plot|gameplay|synopsis|story(?: ?line)?|premise)\b/i;
+/** "Release history" and "Chart history" are lists of dates and peaks, not a story. */
+const DATA_HISTORY = /\b(release|chart|sales|publication|broadcast) history\b/gi;
+/** Sections that report checkable things: how it's built, released, charted, awarded, performed or covered. */
+const DATA_HEADING =
+  /\b(composition|music and lyrics|lyrics|lyrical content|releases?|charts?|commercial|performances?|sales|certifications?|accolades?|awards?|honou?rs|live|cover versions?|covers|versions|track ?listings?)\b/i;
+/** Sections on the music's style and sound. */
+const STYLE_HEADING = /\b(music|musical|style|sound|soundtracks?|score|audio|genre|instrumentation|arrangements?|structure)\b/i;
+/** Sections with nothing to write from. */
+const SKIP_HEADING = /^(references|notes|footnotes|citations|sources|external links|see also|further reading|bibliography)$/i;
+/** A sentence about the music, for keeping one from a narrative section. */
+const MUSIC_WORD = /\b(compos\w*|scor(?:e|es|ed|ing)|soundtracks?|themes?|songs?|tracks?|melod(?:y|ies|ic))\b/i;
+
+/** Lead first, then checkable sections, then style, then the rest; narrative sections only for what names the song or its composer. */
+const RANK = { lead: 0, data: 1, style: 2, other: 3, narrative: 4 } as const;
+
+function headingRank(heading: string): number | null {
+  const h = heading.replace(DATA_HISTORY, "$1");
+  if (NARRATIVE_HEADING.test(h)) return RANK.narrative;
+  if (DATA_HEADING.test(h)) return RANK.data;
+  if (STYLE_HEADING.test(h)) return RANK.style;
+  return null;
+}
+
+const PERSON = String.raw`\p{Lu}[\p{L}'’.-]+(?:\s+(?:de |van |von |da |di |le )?\p{Lu}[\p{L}'’.-]+){0,3}`;
+const PEOPLE = String.raw`${PERSON}(?:(?:,\s*|,?\s+and\s+)${PERSON})*`;
+const COMPOSER_CUE = new RegExp(
+  String.raw`\b(?:(?:composed|scored|written|co-written|arranged)(?: and (?:composed|written|produced|arranged|performed))?|music(?: was)?) by (${PEOPLE})|\bcomposers?,? (${PEOPLE})`,
+  "gu"
+);
+
+/**
+ * Who the article says wrote the music: "composed by Ann Example and Bo
+ * Sample", "composer Cy Person", "written by ...". Full names and surnames,
+ * normalized.
+ */
+export function composerNames(full: string): string[] {
+  const out = new Set<string>();
+  for (const m of full.matchAll(COMPOSER_CUE)) {
+    for (const name of (m[1] ?? m[2]).split(/,\s*|,?\s+and\s+/)) {
+      const n = normalizeTitle(name);
+      if (!n) continue;
+      out.add(n);
+      const last = n.split(" ").pop() ?? "";
+      if (n.includes(" ") && last.length >= 4) out.add(last);
+    }
+  }
+  return [...out];
+}
+
+/** A body's sentences that can be written from: whole sentences, not list items or table rows. */
+function sectionSentences(body: string): string[] {
+  return body
+    .split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 25 && /[.!?]["”)]?$/.test(s));
+}
+
+/**
+ * The article's sections in the order a writer should read them, each with
+ * the sentences kept: the lead, then sections that report checkable things,
+ * then style, then the rest. From a narrative section (background, history,
+ * development, plot) only a sentence that names the song (`names[0]`) or its
+ * composer and is about music is kept. Subsections without a telling heading
+ * go with the section they sit under; music-video sections are left out.
+ */
+export function selectSections(full: string, names: string[] = []): Array<{ heading: string; rank: number; sentences: string[] }> {
+  full = withoutVideoSections(full);
+  const song = names[0] ? normalizeTitle(names[0]) : "";
+  const makers = composerNames(full);
+  const namesIt = (s: string) => mentionsName(normalizeTitle(s), [...(song ? [song] : []), ...makers]);
+  const out: Array<{ heading: string; rank: number; sentences: string[] }> = [{ heading: "", rank: RANK.lead, sentences: sectionSentences(full.split(/\n==/)[0]) }];
+  const open: Array<{ level: number; rank: number | null }> = [];
+  for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
+    const level = marks.length;
+    while (open.length && open[open.length - 1].level >= level) open.pop();
+    const rank = SKIP_HEADING.test(heading.trim()) ? null : (headingRank(heading) ?? open[open.length - 1]?.rank ?? RANK.other);
+    open.push({ level, rank });
+    if (rank === null) continue;
+    let sentences = sectionSentences(body);
+    if (rank === RANK.narrative) sentences = sentences.filter((s) => MUSIC_WORD.test(s) && namesIt(s));
+    if (sentences.length) out.push({ heading, rank, sentences });
+  }
+  // A stable sort: article order within a rank.
+  return out.sort((a, b) => a.rank - b.rank);
+}
+
+/** Sentences long enough to make a caption from. */
+const usableSentences = (sentences: string[]) => sentences.filter((s) => s.length >= 40).length;
+
+/**
+ * Up to `budget` characters in the `selectSections` order, whole sentences,
+ * "Heading: " before each section's first one; sentences in `skip` (already
+ * given elsewhere) left out. "" when fewer than 2 usable sentences are kept,
+ * so the caller falls back to `orderExtract`.
+ */
+export function sectionExtract(full: string, budget: number, names: string[] = [], skip: Set<string> = new Set()): string {
+  const blocks: string[] = [];
+  const kept: string[] = [];
+  let used = 0;
+  outer: for (const part of selectSections(full, names)) {
+    const take: string[] = [];
+    for (const s of part.sentences) {
+      if (skip.has(s)) continue;
+      const add = s.length + 1 + (take.length ? 0 : part.heading.length + 4);
+      if (used + add > budget) {
+        if (take.length) blocks.push(`${part.heading ? `${part.heading}: ` : ""}${take.join(" ")}`);
+        kept.push(...take);
+        break outer;
+      }
+      take.push(s);
+      used += add;
+    }
+    if (take.length) blocks.push(`${part.heading ? `${part.heading}: ` : ""}${take.join(" ")}`);
+    kept.push(...take);
+  }
+  return usableSentences(kept) >= 2 ? blocks.join("\n\n") : "";
+}
+
+/** Every sentence `selectSections` keeps, unbudgeted: what a piece's own sentences are looked for in. */
+export function selectedText(full: string, names: string[] = []): string {
+  return selectSections(full, names).flatMap((p) => p.sentences).join("\n");
+}
+
+/**
+ * The text the writer reads from an article: the section-aware selection
+ * when it's on and keeps 2+ usable sentences, else `fallback`, the usual
+ * ordering. Whether the article is long enough to use is still decided on
+ * `fallback`, so the same articles are used either way.
+ */
+function writingText(full: string, fallback: string, budget: number, names: string[]): string {
+  if (!sectionSelection.on) return fallback;
+  return sectionExtract(full, budget, names) || fallback;
+}
+
 /** The article's full plain text, or null for a disambiguation page. */
 async function wikiExtract(pageTitle: string): Promise<string | null> {
   // exsectionformat=wiki keeps the "==" headings orderExtract relies on.
@@ -927,9 +1074,12 @@ export function gameTrackText(a: GameArticles, track: string, usable: (title: st
   // "Liyue: Relaxation in Liyue" from "Music of Genshin Impact": the lead and the Liyue section, nothing about Mondstadt.
   const part = soundtrackPart(base.full, track);
   const full = part ? part.text : withoutVideoSections(base.full);
-  const about = trackSentences(full, track);
+  // With section-aware selection, a narrative section's sentence about this piece counts only when it's about its music.
+  const about = trackSentences(sectionSelection.on ? selectedText(full, [track]) : full, track);
   const block = about.length ? `About this piece: ${about.join(" ")}\n\n` : "";
   const budget = MAX_CONTEXT_CHARS - base.page.length - 1 - block.length;
+  const picked = sectionSelection.on ? sectionExtract(full, budget, [track], new Set(about)) : "";
+  if (picked) return `${base.page}\n${block}${picked}`;
   if (part) return `${base.page}\n${block}${orderExtract(full, budget, [track], true, NOT_A_LIST)}`;
   let body = orderExtract(base.full, budget, [track], base !== a, base !== a ? MAKING_OF_MUSIC : MUSIC_HEADING);
   // A music article with no section on how the music was made: take its other sections, bar the lists.
@@ -1285,7 +1435,7 @@ async function groundSongAlone(song: SSLSong, title: string, usable: (title: str
         }
         const extract = ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [title]);
         if (extract.length < MIN_CONTEXT_CHARS) continue;
-        const text = `${page}\n${extract}`;
+        const text = `${page}\n${writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, [title])}`;
         console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars, the song by its title alone)`);
         groundingCache.set(key, { text, at: Date.now() });
         return { text, unreachable: false };
@@ -1436,8 +1586,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
       const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
       const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? ownArticleExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
-      if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
-        const text = `${own}\n${extract}`;
+      if (own && full && extract && extract.length >= MIN_CONTEXT_CHARS) {
+        const text = `${own}\n${writingText(full, extract, MAX_CONTEXT_CHARS - own.length - 1, [track, game])}`;
         console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
         groundingCache.set(songKey, { text, at: Date.now() });
         return { text, unreachable: false };
@@ -1570,7 +1720,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
         continue;
       }
-      let text = `${page}\n${extract}`;
+      let text = `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`;
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
       const aGame = !artist || /game\)$/i.test(page) || /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i.test(full?.slice(0, 600) ?? "");
       if (byGame && aGame && !song.performer && !ownArticle && !installment && full) {
