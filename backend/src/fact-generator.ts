@@ -11,8 +11,6 @@ import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
-import { pickCaptions, picker } from "./picker";
-import { attributeCaption, captionGrammar, cleanCaption, hedgeOf, holderOf, perSentence, pickSentences, SENTENCE_EXAMPLE_LINES, sentencePrompt } from "./per-sentence";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -306,8 +304,9 @@ const words = (text: string) => text.toLowerCase().replace(/(\d),(\d)/g, "$1$2")
 const threeWords = (list: string[]) => list.slice(0, -2).map((w, i) => `${w} ${list[i + 1]} ${list[i + 2]}`);
 /** Every run of three words in the examples' lines that isn't all common words. */
 const EXAMPLE_WORDING = new Set(
-  [...RETELL_EXAMPLES.split("\n").filter((l) => /^(Text|Wrong|Right): /.test(l)).map((l) => l.replace(/^\w+: /, "")), ...SENTENCE_EXAMPLE_LINES]
-    .flatMap((l) => threeWords(words(l)))
+  RETELL_EXAMPLES.split("\n")
+    .filter((l) => /^(Text|Wrong|Right): /.test(l))
+    .flatMap((l) => threeWords(words(l.replace(/^\w+: /, ""))))
     .filter((g) => g.split(" ").some((w) => !COMMON_WORDS.has(w)))
 );
 
@@ -464,7 +463,7 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
 }
 
 /** Primary Ollama host, then the fallback host if one is configured. Returns the text and the host that answered. */
-async function askOllama(prompt: string, grammar?: string): Promise<[string, string]> {
+async function askOllama(prompt: string): Promise<[string, string]> {
   const hosts = [config.ollamaBaseUrl, config.ollamaFallbackUrl].filter(Boolean);
   let lastError: unknown;
   for (const host of hosts) {
@@ -478,8 +477,6 @@ async function askOllama(prompt: string, grammar?: string): Promise<[string, str
           stream: false,
           keep_alive: config.ollamaKeepAlive,
           options: { temperature: config.temperature, num_predict: MAX_TOKENS },
-          // Per-sentence mode's GBNF. Ollama ignores it; a llama.cpp-style server (and the test harness) applies it.
-          ...(grammar ? { grammar } : {}),
         },
         config.ollamaTimeoutMs
       );
@@ -497,9 +494,9 @@ async function askOllama(prompt: string, grammar?: string): Promise<[string, str
 const importModule = new Function("specifier", "return import(specifier)") as (s: string) => Promise<any>;
 
 /** The loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
-let builtin: Promise<{ session: any; llama: any }> | undefined;
+let builtin: Promise<{ session: any }> | undefined;
 
-function loadBuiltin(): Promise<{ session: any; llama: any }> {
+function loadBuiltin(): Promise<{ session: any }> {
   builtin ??= (async () => {
     const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
     // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
@@ -508,7 +505,7 @@ function loadBuiltin(): Promise<{ session: any; llama: any }> {
     const context = await model.createContext({ contextSize: 4096 });
     const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: systemPrompt() });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
-    return { session, llama };
+    return { session };
   })().catch((err) => {
     builtin = undefined; // Let the next song retry the load.
     throw err;
@@ -559,12 +556,11 @@ const obsolete = (key: string | null) => key !== null && currentKey !== null && 
  * song's conversation. Each turn is cut off after BUILTIN_TIMEOUT_MS; what
  * was written so far is still screened like any other output.
  */
-function askBuiltin(prompt: string, key: string | null = null, grammar?: string): Promise<string> {
+function askBuiltin(prompt: string, key: string | null = null): Promise<string> {
   const run = async () => {
     if (obsolete(key)) throw new Obsolete();
-    const { session, llama } = await loadBuiltin();
+    const { session } = await loadBuiltin();
     session.resetChatHistory();
-    const forced = grammar ? await llama.createGrammar({ grammar }) : undefined;
     const stop = new AbortController();
     running = { key, stop };
     try {
@@ -573,7 +569,6 @@ function askBuiltin(prompt: string, key: string | null = null, grammar?: string)
         maxTokens: MAX_TOKENS,
         signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal]),
         stopOnAbortSignal: true,
-        ...(forced ? { grammar: forced } : {}),
       })) as string;
       if (stop.signal.aborted) throw new Obsolete();
       return text;
@@ -586,12 +581,12 @@ function askBuiltin(prompt: string, key: string | null = null, grammar?: string)
   return turn;
 }
 
-async function askModel(prompt: string, key: string | null = null, grammar?: string): Promise<string> {
+async function askModel(prompt: string, key: string | null = null): Promise<string> {
   const started = Date.now();
   let text: string;
   let endpoint: string;
   if (config.aiProvider === "builtin") {
-    text = await askBuiltin(prompt, key, grammar);
+    text = await askBuiltin(prompt, key);
     endpoint = "built-in model";
   } else if (config.aiProvider === "anthropic") {
     text = await askAnthropic(prompt);
@@ -600,47 +595,12 @@ async function askModel(prompt: string, key: string | null = null, grammar?: str
     text = await askOpenAICompatible(prompt);
     endpoint = `${config.openaiBaseUrl} (${config.openaiModel})`;
   } else {
-    [text, endpoint] = await askOllama(prompt, grammar);
+    [text, endpoint] = await askOllama(prompt);
   }
   factStats.lastEndpoint = endpoint;
   factStats.lastDurationMs = Date.now() - started;
   console.log(`[FactGen] ${endpoint} answered in ${(factStats.lastDurationMs / 1000).toFixed(1)}s`);
   return text;
-}
-
-/**
- * PER_SENTENCE=on: one caption per source sentence, each with its own grammar
- * (see per-sentence.ts). The grammar only binds the built-in model; with any
- * other provider, and wherever no grammar applied, the precise attribution
- * fallback still runs. The lines then go through the same screens and ranking.
- */
-async function writePerSentence(context: string, n: number, key: string): Promise<string[]> {
-  const article = context.split("\n")[0];
-  const lines: string[] = [];
-  for (const source of pickSentences(context, n)) {
-    const holder = holderOf(source.sentence);
-    const cue = hedgeOf(source.sentence);
-    const caption = cleanCaption(await askModel(sentencePrompt(article, source), key, captionGrammar({ holder, cue })));
-    if (!caption) continue;
-    // A no-op when the grammar already opened it with "According to".
-    const fixed = attributeCaption(caption, source.sentence);
-    if (fixed !== caption) console.log(`[Screen] ATTRIBUTED: ${fixed.slice(0, 90)}`);
-    lines.push(fixed);
-  }
-  return lines;
-}
-
-/**
- * PICKER=on: the model picks, code writes (see picker.ts). The model only
- * answers grammar-forced multiple-choice questions about each source
- * sentence; the captions are its clauses, verbatim, with referring phrases
- * named and opinions attributed by code. They then go through the same
- * screens and ranking.
- */
-async function writePicked(context: string, song: SSLSong, n: number, key: string): Promise<string[]> {
-  const { captions, log } = await pickCaptions(context, { title: song.title, artist: song.artist ?? "" }, n, (prompt, grammar) => askModel(prompt, key, grammar));
-  for (const l of log) console.log(`[Picker] ${l.outcome.slice(0, 100)}`);
-  return captions;
 }
 
 // --- Pipeline ----------------------------------------------------------
@@ -922,12 +882,8 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // song, then tell about it").
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
 
-    const written =
-      context && picker()
-        ? await writePicked(context, song, want + OVERGENERATE, songKey(asked))
-        : context && perSentence()
-        ? await writePerSentence(context, want + OVERGENERATE, songKey(asked))
-        : (await askModel(context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want), songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
+    const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
+    const written = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
     const lines = written.filter((l) => {
       if (!context || !copiesExample(l, context)) return true;
       console.log(`[Screen] DROP (copies an example): ${l.slice(0, 90)}`);
