@@ -73,7 +73,7 @@ export function readingSeconds(fact: Pick<Fact, "text" | "durationSeconds">): nu
 }
 
 /** A pedal press this soon after a new bubble pops up was meant for the one before it, if that one is still up. */
-export const JUST_APPEARED_SECONDS = 1.5;
+const JUST_APPEARED_SECONDS = 1.5;
 
 /**
  * The bubble a hands-free Wrong is for: the one on stream now, or when none

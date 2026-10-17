@@ -18,7 +18,7 @@ import { SSLSong } from "./types";
  * are queued to keep to that.
  */
 
-const API = "https://musicbrainz.org/ws/2/recording";
+const API_BASE = "https://musicbrainz.org/ws/2";
 const MIN_GAP_MS = 1100;
 /** Recordings checked for a composer link, two lookups each. */
 const MAX_CANDIDATES = 2;
@@ -69,22 +69,21 @@ async function mbFetch(url: string): Promise<Response> {
   return res;
 }
 
-async function lookup<T>(path: string, inc: string): Promise<T> {
+/** One throttled request to the MusicBrainz API, as JSON. */
+function mbGet<T>(path: string, params: Record<string, string>): Promise<T> {
   return throttled(async () => {
-    const url = `https://musicbrainz.org/ws/2/${path}?${new URLSearchParams(inc ? { inc, fmt: "json" } : { fmt: "json" })}`;
-    const res = await mbFetch(url);
+    const res = await mbFetch(`${API_BASE}/${path}?${new URLSearchParams({ ...params, fmt: "json" })}`);
     if (!res.ok) throw new Error(`MusicBrainz HTTP ${res.status}`);
     return (await res.json()) as T;
   });
 }
 
+function lookup<T>(path: string, inc: string): Promise<T> {
+  return mbGet<T>(path, inc ? { inc } : {});
+}
+
 async function search(query: string): Promise<Recording[]> {
-  return throttled(async () => {
-    const url = `${API}?${new URLSearchParams({ query, fmt: "json", limit: "25" })}`;
-    const res = await mbFetch(url);
-    if (!res.ok) throw new Error(`MusicBrainz HTTP ${res.status}`);
-    return ((await res.json()) as { recordings?: Recording[] }).recordings ?? [];
-  });
+  return (await mbGet<{ recordings?: Recording[] }>("recording", { query, limit: "25" })).recordings ?? [];
 }
 
 const quote = (s: string) => `"${s.replace(/["\\]/g, " ")}"`;
@@ -100,7 +99,8 @@ export function readableName(credit: { name?: string; artist?: { name?: string; 
   return `${first} ${last}`;
 }
 
-function names(list: string[]): string {
+/** "A", "A and B" or "A, B and C": at most three names, without repeats. */
+function joinNames(list: string[]): string {
   const n = [...new Set(list.filter(Boolean))].slice(0, 3);
   return n.length <= 1 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
 }
@@ -111,10 +111,10 @@ const REISSUE_TYPES = /^(compilation|live|dj-mix|remix|mixtape\/street)$/i;
 /** The recordings of this title credited to this artist, earliest first. */
 function matchingRecordings(recordings: Recording[], title: string, artist: string): Recording[] {
   const want = normalizeTitle(title);
-  const names = artistNames(artist);
+  const artistKeys = artistNames(artist);
   return recordings
     .filter((r) => (r.score ?? 0) >= 90 && normalizeTitle(r.title ?? "") === want)
-    .filter((r) => (r["artist-credit"] ?? []).some((c) => names.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
+    .filter((r) => (r["artist-credit"] ?? []).some((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
     .sort((a, b) => date(a).localeCompare(date(b)));
 }
 
@@ -140,8 +140,8 @@ export function firstYear(matches: Recording[], diedIn?: number): string | undef
 
 /** The credited artist's MusicBrainz id, to look up when they died. */
 export function creditedArtistId(recordings: Recording[], title: string, artist: string): string | undefined {
-  const names = artistNames(artist);
-  return matchingRecordings(recordings, title, artist)[0]?.["artist-credit"]?.find((c) => names.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))?.artist?.id;
+  const artistKeys = artistNames(artist);
+  return matchingRecordings(recordings, title, artist)[0]?.["artist-credit"]?.find((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))?.artist?.id;
 }
 
 /** Facts for a performer's song from the matching recordings. `diedIn`: the year the credited artist died, if they have. */
@@ -205,7 +205,7 @@ export function composersOf(work: { relations?: Array<{ type?: string; "target-t
  * The composer of a game's track, only from an explicit composer
  * relationship: recording -> the work it performs -> that work's composer.
  * Recording credits name performers, and fan covers crowd the results, so a
- * credit is never taken as composition (issue from review). Most game tracks
+ * credit is never taken as composition. Most game tracks
  * have no such link yet; then nothing is said.
  */
 async function gameComposer(recordings: Recording[], title: string, game: string): Promise<string[]> {
@@ -214,7 +214,7 @@ async function gameComposer(recordings: Recording[], title: string, game: string
     const workId = rec.relations?.find((r) => r["target-type"] === "work" && r.work?.id)?.work?.id;
     if (!workId) continue;
     const composers = composersOf(await lookup(`work/${workId}`, "artist-rels"));
-    if (composers.length) return [`"${title}" from ${game} was composed by ${names(composers)}.`];
+    if (composers.length) return [`"${title}" from ${game} was composed by ${joinNames(composers)}.`];
   }
   return [];
 }
