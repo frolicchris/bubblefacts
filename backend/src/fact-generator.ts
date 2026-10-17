@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -892,7 +892,11 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
     // And the article's own infobox: who wrote the song or made the game, when it came out.
     const page = context.split("\n")[0];
-    const boxFacts: BoxFact[] = context && !blockedArticles(song).has(STRUCTURED) ? await infoboxFacts(page) : [];
+    // Not for an edition the article's title doesn't name: "Some Game Royal" read from "Some Game" would get
+    // the original's credits and year. The article still serves the captions.
+    const edition = context ? editionNotInTitle(read.artist ?? "", page) : null;
+    if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
+    const boxFacts: BoxFact[] = context && !edition && !blockedArticles(song).has(STRUCTURED) ? await infoboxFacts(page) : [];
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const written = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
