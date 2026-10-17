@@ -1,5 +1,4 @@
-import { config } from "./config";
-import { USER_AGENT } from "./fact-verifier";
+import { loadWikitext } from "./fact-verifier";
 
 /**
  * Plain facts from the infobox of the article a song's captions are written
@@ -10,7 +9,6 @@ import { USER_AGENT } from "./fact-verifier";
  * passed the lookup's relevance checks before this is asked.
  */
 
-const WIKI_API = "https://en.wikipedia.org/w/api.php";
 const MAX_NAMES = 3;
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 
@@ -212,11 +210,7 @@ export async function infoboxFacts(page: string): Promise<BoxFact[]> {
   const hit = cache.get(page);
   if (hit && (hit.facts.length || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.facts;
   try {
-    const url = `${WIKI_API}?${new URLSearchParams({ action: "query", prop: "revisions", rvprop: "content", rvslots: "main", titles: page, redirects: "1", format: "json", formatversion: "2" })}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { query?: { pages?: Array<{ revisions?: Array<{ slots?: { main?: { content?: string } } }> }> } };
-    const wikitext = data.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content ?? "";
+    const wikitext = await loadWikitext(page);
     const box = parseInfobox(wikitext);
     const facts = box ? factsFromInfobox(page, box) : [];
     console.log(`[Infobox] "${page}": ${box ? box.type : "none"}, ${facts.length} facts`);

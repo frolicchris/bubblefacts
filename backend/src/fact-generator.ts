@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isPlaceholderRequest, keepsAttribution, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -896,7 +896,10 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // the original's credits and year. The article still serves the captions.
     const edition = context ? editionNotInTitle(read.artist ?? "", page) : null;
     if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
-    const boxFacts: BoxFact[] = context && !edition && !blockedArticles(song).has(STRUCTURED) ? await infoboxFacts(page) : [];
+    const allBox: BoxFact[] = context && !edition && !blockedArticles(song).has(STRUCTURED) ? await infoboxFacts(page) : [];
+    // A cover read from the original's article: who wrote it holds for the cover; the original's release, label and producers don't.
+    const cover = context ? isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
+    const boxFacts = cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox;
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const written = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
@@ -915,17 +918,24 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       console.log(`[Screen] DROP (drops who said it): ${f.slice(0, 90)}`);
       return false;
     });
-    const fresh = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
-    if (fresh.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - fresh.length} already shown for an earlier song`);
+    const unseen = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+    if (unseen.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - unseen.length} already shown for an earlier song`);
+    // A limit the source sets ("in Japan", "the arcade version", "over", "usually") goes back in when the
+    // model dropped it; a caption with no clear place for it is dropped.
+    const repaired = new Map<string, string>();
+    const fresh = unseen.filter((f) => {
+      const scoped = context && scopeRepair.on ? repairScope(f, context) : f;
+      const fixed = context && qualifierRepair.on ? repairQualifier(scoped, context) : { text: scoped };
+      if ("drop" in fixed) {
+        console.log(`[Screen] DROP (${fixed.drop}): ${f.slice(0, 90)}`);
+        return false;
+      }
+      if (fixed.text !== f) console.log(`[Screen] SCOPE: ${f.slice(0, 70)} -> ${fixed.text.slice(0, 110)}`);
+      repaired.set(f, fixed.text);
+      return true;
+    });
     // Music terms get a few fixed plain words, so any viewer can follow.
-    // A limit the source sets ("in Japan", "the arcade version") goes back in when the model dropped it.
-    const plain = new Map(
-      fresh.map((f) => {
-        const scoped = context && scopeRepair.on ? repairScope(f, context) : f;
-        if (scoped !== f) console.log(`[Screen] SCOPE: ${f.slice(0, 70)} -> ${scoped.slice(0, 110)}`);
-        return [f, explainMusicTerms(scoped)];
-      })
-    );
+    const plain = new Map(fresh.map((f) => [f, explainMusicTerms(repaired.get(f) as string)]));
     // Data facts: the song's own first, then the infobox's; at most MAX_DATA_FACTS, none a caption already says.
     const candidates = [...songFacts.map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
     const structured: string[] = [];

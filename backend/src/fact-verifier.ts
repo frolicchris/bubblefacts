@@ -787,7 +787,10 @@ export function selectSections(full: string, names: string[] = []): Array<{ head
   const namesIt = (s: string) => mentionsName(normalizeTitle(s), [...(song ? [song] : []), ...makers]);
   const opensOf = (body: string) => new Set(sectionSentencesWithOpens(body).filter((x) => x.opens).map((x) => x.text));
   const leadText = full.split(/\n==/)[0];
-  const out: Array<{ heading: string; rank: number; sentences: string[]; opens: Set<string> }> = [{ heading: "", rank: RANK.lead, sentences: sectionSentences(leadText), opens: opensOf(leadText) }];
+  // Sentences about another work (a sequel, a remake) or, for a cover, the original's record: left out (`withoutSentences`).
+  const scope = activeDrop;
+  const inScope = (list: string[]) => (scope ? list.filter((s) => !scope.drop.has(s) || (scope.trackSaves && !!names[0] && namesTrack(s, names[0]))) : list);
+  const out: Array<{ heading: string; rank: number; sentences: string[]; opens: Set<string> }> = [{ heading: "", rank: RANK.lead, sentences: inScope(sectionSentences(leadText)), opens: opensOf(leadText) }];
   const open: Array<{ level: number; rank: number | null; keep: ((s: string) => boolean) | null }> = [];
   for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
     const level = marks.length;
@@ -797,7 +800,7 @@ export function selectSections(full: string, names: string[] = []): Array<{ head
     const keep = own === undefined ? (open[open.length - 1]?.keep ?? null) : own;
     open.push({ level, rank, keep });
     if (rank === null) continue;
-    let sentences = sectionSentences(body);
+    let sentences = inScope(sectionSentences(body));
     if (rank === RANK.narrative) sentences = sentences.filter((s) => MUSIC_WORD.test(s) && namesIt(s));
     // Critics' verdicts read as facts on stream (issue #21): a 3B drops the "a reviewer called it".
     if (receptionFilter.on && keep) sentences = sentences.filter(keep);
@@ -934,6 +937,348 @@ export function keepsAttribution(caption: string, context: string): boolean {
   const words = new Set(caption.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []);
   const named = !speakers.size || [...speakers].some((w) => words.has(w));
   return named && KEEPS_REPORTING.test(caption);
+}
+
+// --- Work scope: italic titles ----------------------------------------------
+
+/** WORK_SCOPE=off reads every sentence of a game's or a work's article, as before. */
+export const workScope = { on: process.env.WORK_SCOPE !== "off" };
+
+/**
+ * Sentences left out of the next reference built (set around one synchronous
+ * build, then cleared). `trackSaves`: a sentence that names the track stays.
+ */
+let activeDrop: { drop: Set<string>; trackSaves: boolean } | null = null;
+
+/** Build `fn`'s reference without the sentences in `drop`. */
+export function withoutSentences<T>(drop: Set<string> | null, trackSaves: boolean, fn: () => T): T {
+  if (!drop?.size) return fn();
+  activeDrop = { drop, trackSaves };
+  try {
+    return fn();
+  } finally {
+    activeDrop = null;
+  }
+}
+
+/** One sentence of an article's wikitext as plain words, with the titles it sets in italics. */
+export interface ItalicSentence {
+  text: string;
+  /** Each italic title as shown, its link target when the italics are one link, and whether it's bold too (the article's own subject). */
+  works: Array<{ title: string; target: string; subject: boolean }>;
+  /** The paragraph the sentence sits in, counted through the article. */
+  para: number;
+}
+
+/** Inline templates whose text is part of the sentence, and which argument holds it. */
+const TEXT_TEMPLATES: Record<string, number> = { nihongo: 1, nihongo2: 1, nihongo3: 1, "nihongo foot": 1, lang: 2, nowrap: 1, nobr: 1, small: 1, ill: 1, "interlanguage link": 1, "not a typo": 1, vgy: 1, "'": -1 };
+
+/** Remove `[[File:...]]` and similar links, which nest other links inside them. */
+function withoutFileLinks(t: string): string {
+  let out = "";
+  let i = 0;
+  while (i < t.length) {
+    const m = /\[\[(?:File|Image|Category):/i.exec(t.slice(i));
+    if (!m) return out + t.slice(i);
+    out += t.slice(i, i + m.index);
+    let depth = 0;
+    let j = i + m.index;
+    for (; j < t.length - 1; j++) {
+      if (t.startsWith("[[", j)) { depth++; j++; } else if (t.startsWith("]]", j)) { depth--; j++; if (depth === 0) break; }
+    }
+    i = j + 1;
+  }
+  return out;
+}
+
+/**
+ * An article's wikitext as sentences of plain words, each with its italic
+ * titles. Wikipedia's style puts the titles of games, albums, films, shows
+ * and books in italics (''Title''); the article's own subject in bold
+ * italics in its lead. Approximate on purpose: references, tables and other
+ * templates are dropped, so the words are matched to the plain text loosely.
+ */
+export function italicSentences(wikitext: string): ItalicSentence[] {
+  let t = wikitext.replace(/<!--[\s\S]*?-->/g, "").replace(/<ref[^>/]*\/>/gi, "").replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, "");
+  t = withoutFileLinks(t);
+  // A link's "|" isn't a template's.
+  t = t.replace(/\[\[([^[\]]*)\]\]/g, (m) => m.replace(/\|/g, "\u0003"));
+  for (let guard = 0; guard < 20 && /\{\{[^{}]*\}\}/.test(t); guard++) {
+    t = t.replace(/\{\{([^{}]*)\}\}/g, (_, body: string) => {
+      const parts = body.split("|");
+      const at = TEXT_TEMPLATES[parts[0].trim().toLowerCase()];
+      return at === undefined ? "" : at < 0 ? "'" : (parts[at] ?? "").replace(/^\s*\d+\s*=\s*/, "");
+    });
+  }
+  t = t.replace(/\{\|[\s\S]*?\|\}/g, "").replace(/<[^>]+>/g, "");
+  // Bold italics: the subject's own title. Then bold alone is dropped, and italics marked.
+  t = t.replace(/'''''([^'\n][^\n]*?)'''''/g, "\u0001\u0004$1\u0002").replace(/'''/g, "").replace(/''([^'\n][^\n]*?)''/g, "\u0001$1\u0002");
+  const linkText = (s: string) => s.replace(/\[\[([^\]\u0003]*)(?:\u0003([^\]]*))?\]\]/g, (_, target: string, shown?: string) => shown ?? target.replace(/#.*$/, "")).replace(/\[https?:\/\/\S+\s*([^\]]*)\]/g, "$1");
+  const out: ItalicSentence[] = [];
+  let para = 0;
+  for (const line of t.split("\n")) {
+    if (/^\s*=+[^=]+=+\s*$/.test(line) || !line.trim()) {
+      para++;
+      continue;
+    }
+    para++;
+    for (const raw of line.split(/(?<=[.!?]["”]?\u0002?)\s+(?=["“\u0001]?\p{Lu})/u)) {
+      const works: ItalicSentence["works"] = [];
+      for (const m of raw.matchAll(/\u0001(\u0004?)([^\u0002]*)\u0002/g)) {
+        const one = /^\[\[([^\]\u0003]+)(?:\u0003([^\]]+))?\]\]$/.exec(m[2].trim());
+        const title = linkText(m[2]).replace(/[\u0001-\u0004]/g, "").trim();
+        if (title) works.push({ title, target: one ? one[1].replace(/#.*$/, "").trim() : "", subject: !!m[1] });
+      }
+      const text = linkText(raw).replace(/[\u0001-\u0004]/g, "").replace(/^[*#:;]+\s*/, "").replace(/\s+/g, " ").trim();
+      if (text) out.push({ text, works, para });
+    }
+  }
+  return out;
+}
+
+/** Words shared by too many titles to say two works are related. */
+const GENERIC_TITLE_WORDS = new Set("music game games video series soundtrack soundtracks original edition version theme album songs song live best greatest hits collection volume part chapter story world legend super".split(" "));
+
+/** A title's distinctive words: 4+ letters, not generic. */
+const titleWords = (s: string) => normalizeTitle(s).split(" ").filter((w) => w.length >= 4 && !GENERIC_TITLE_WORDS.has(w));
+
+/** "Music of Some Game", "Some Game (soundtrack)", "Some Game (video game)": the work a page is about. */
+export function workOfPage(page: string): string {
+  return page.replace(/\s*\([^)]*\)\s*$/, "").replace(/^(?:the )?(?:music|soundtracks?|scores?) (?:of|from|for) (?:the )?/i, "").replace(/\s+(?:series|franchise)$/i, "").trim();
+}
+
+/**
+ * The requested work's names, normalized: the request's game or work field,
+ * the work the article is about, and the titles the article's lead sets in
+ * bold italics (its subject's own names, by Wikipedia's style).
+ */
+export function requestedWork(game: string, page: string, sentences: ItalicSentence[] = []): string[] {
+  const firstPara = sentences.find((s) => s.works.some((w) => w.subject))?.para;
+  const subject = sentences.filter((s) => s.para === firstPara).flatMap((s) => s.works.filter((w) => w.subject).map((w) => w.title));
+  const plain = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
+  const titles = [game, plain, workOfPage(page), ...subject];
+  // "Dark Moon" for "Some Mansion: Dark Moon": a subtitle of two words or more is the work's short name.
+  const subtitles = titles.map((t) => /:\s*(.+)$/.exec(t)?.[1] ?? "").filter((t) => t.trim().split(/\s+/).length >= 2);
+  // Paired versions: "Some Red, Blue and Yellow" is also "Some Red", "Red and Blue" and, in italics, "Blue".
+  const versions = titles.flatMap((t) => {
+    const m = /^(.*?)\b((?:[\p{L}\p{N}'’-]+,\s+)*[\p{L}\p{N}'’-]+,?\s+(?:and|&)\s+[\p{L}\p{N}'’-]+)$/u.exec(t.trim());
+    if (!m) return [];
+    const items = m[2].split(/,?\s+(?:and|&)\s+|,\s+/);
+    const pairs = items.flatMap((a, i) => items.slice(i + 1).map((b) => `${a} and ${b}`));
+    return [...items, ...items.map((i) => `${m[1]}${i}`), ...pairs];
+  });
+  return [...new Set([...titles, ...subtitles, ...versions].map((t) => normalizeTitle(t).replace(/^the /, "")).filter((n) => n.length >= 3))];
+}
+
+/** What an album of a work's own music is called: "Original Soundtrack", "Original Sound Version", "Piano Collections". */
+const MUSIC_ALBUM = /\b(?:soundtracks?|OST|OSV|original sound|sound version|music|arranged|arrange|piano|orchestral|orchestra|symphonic|remix(?:es)?|album|tracks|collections?|grand finale|concert|melodies)\b/i;
+/** A spoken album or radio play of a work: not its music. */
+const NOT_MUSIC_ALBUM = /\b(?:drama|radio)\b/i;
+
+/** Words that make a mention of the requested work one of its editions: "the 2019 remake of Some Game". */
+const EDITION_WORD = /\b(?:remake|remaster(?:ed)?|reboot|re-?release|reimagining|sequel|prequel|spin-?off|port|follow-?up|successor)\b/i;
+/** A section about other works: "Sequels", "Remake", "Spin-offs". */
+const EDITION_HEADING = /\b(?:sequels?|prequels?|remakes?|remasters?|reboots?|spin-?offs?|successors?)\b/i;
+/** A sentence about an edition, not the work: "The remake adds ...", "Its 2019 remaster ...". */
+const EDITION_LED = /^(?:In \d{4}, )?(?:The|A|An|This|Its|Their) (?:\d{4} |later |enhanced |HD |high-definition |3D |Western |English )?(?:remake|remaster|remastered version|reboot|re-?release|sequel|prequel|spin-?off|port|follow-?up|reimagining)\b/;
+/** A sentence that goes on about what the one before it named. */
+const LEANS_ON_PREVIOUS = /^["“]?(?:It|Its|They|Their|This|These|The (?:game|remake|remaster|sequel|prequel|port|reboot|film|album|soundtrack|version|release|title))\b/;
+
+/**
+ * Whether a plain sentence names a work by its words: the name with word
+ * edges, not as part of a longer title the sentence also has in italics,
+ * and not next to an edition word ("the remake of Some Game").
+ */
+function namesWorkPlainly(sentence: string, allNames: string[], longer: string[], exempt = ""): { clean: boolean; edition: boolean } {
+  // One word ("red") is too common to be the work's name in plain text; in italics it is.
+  const names = allNames.filter((n) => n.includes(" ") || n.length >= 8);
+  let text = ` ${normalizeTitle(sentence)} `;
+  for (const l of longer.map(normalizeTitle).filter(Boolean).sort((a, b) => b.length - a.length)) text = text.split(` ${l} `).join(" \u0005 ");
+  let clean = false;
+  let edition = false;
+  for (const n of names) {
+    let from = 0;
+    for (let at = text.indexOf(` ${n} `, from); at >= 0; at = text.indexOf(` ${n} `, from)) {
+      const before = text.slice(Math.max(0, at - 40), at).split(" ").slice(-4).join(" ");
+      const after = text.slice(at + n.length + 2).split(" ").slice(0, 2).join(" ");
+      if (n !== exempt && (EDITION_WORD.test(before) || /^(?:remastered|remaster|remake|hd|dx|deluxe|definitive|royal|zero|plus|reloaded|redux)\b/.test(after))) edition = true;
+      else clean = true;
+      from = at + n.length + 1;
+    }
+  }
+  return { clean, edition };
+}
+
+/**
+ * The article's plain sentences that are about another work than the one
+ * requested: a sentence that names, in italics, a related work (a sequel, a
+ * remake, an edition, another game of the series: a title sharing a
+ * distinctive word with the requested one) and doesn't name the requested
+ * work itself; a sentence about "the remake" or "the sequel"; and the
+ * sentences right after one of those that go on with "It" or "The game".
+ * A series named as a series ("the Some Game series") is not another work.
+ * Unrelated titles (a magazine, the composer's other game) are left alone.
+ */
+export function otherWorkSentences(full: string, wikitext: string, game: string, page: string): Set<string> {
+  const wiki = italicSentences(wikitext);
+  const names = requestedWork(game, page, wiki);
+  const out = new Set<string>();
+  if (!names.length || !wiki.length) return out;
+  const own = new Set(names.flatMap(titleWords));
+  const index = wiki.map((w) => contentTokens(w.text));
+  const namesEdition = EDITION_WORD.test(game);
+  const norm = (t: string) => normalizeTitle(t).replace(/^the /, "");
+  // An album of the requested work's own music: "Some Game Original Soundtrack", "Piano Collections Some Game".
+  // Not an album of a related game's music: "Melodies of Some Game Advance" for "Some Game".
+  const games = [...new Set(wiki.flatMap((x) => x.works).map((w) => norm(w.title)).filter((t) => !names.includes(t) && !MUSIC_ALBUM.test(t) && titleWords(t).some((x) => own.has(x))))];
+  const ownAlbum = (t: string) => {
+    const n = ` ${norm(t)} `;
+    return names.some((x) => x.includes(" ") && n.includes(` ${x} `)) && MUSIC_ALBUM.test(t) && !NOT_MUSIC_ALBUM.test(t) && !games.some((g) => n.includes(` ${g} `));
+  };
+  // A link to "Some Game (TV series)" from "Some Game (video game)" is the show, not the game.
+  const qualifier = (t: string) => /\(([^)]*)\)\s*$/.exec(t)?.[1]?.toLowerCase() ?? "";
+  const isRequested = (w: { title: string; target: string }) =>
+    (w.target
+      ? names.includes(norm(w.target)) || (names.includes(norm(workOfPage(w.target))) && (!qualifier(w.target) || qualifier(w.target) === qualifier(page)))
+      : names.includes(norm(w.title))) || ownAlbum(w.title);
+  // A series named by one word ("Some" for "Some Mania"), or as a kind of game: "the early Some games", "a Some fangame".
+  const asSeries = (w: { title: string }, s: string) => {
+    const t = norm(w.title);
+    if (!t.includes(" ") && names.some((n) => n.startsWith(`${t} `))) return true;
+    return new RegExp(String.raw`${escapeRe(w.title)}['’]?s?\s+(?:video game\s+)?(?:series|franchise|saga|games|titles|fans|fangames?|community|universe|characters?|mascot)\b`, "i").test(s);
+  };
+  const related = (w: { title: string }) => titleWords(w.title).some((x) => own.has(x));
+  // Every related work the article names in italics, to tell a section headed with one ("=== Some Game Zero ===").
+  const otherTitles = new Set(wiki.flatMap((x) => x.works).filter((w) => !isRequested(w) && related(w)).map((w) => norm(w.title)));
+  // A request for "Some Game Zero" from the article on "Some Game": "a remake, Some Game Zero" names the request itself.
+  const requestIsEdition = norm(game) !== norm(workOfPage(page)) ? norm(game) : "";
+  const heads: Array<{ level: number; other: boolean }> = [];
+  for (const line of full.split("\n")) {
+    const head = /^(=+)\s*(.+?)\s*=+\s*$/.exec(line.trim());
+    if (head) {
+      while (heads.length && heads[heads.length - 1].level >= head[1].length) heads.pop();
+      const h = norm(head[2]);
+      heads.push({ level: head[1].length, other: (otherTitles.has(h) && !names.includes(h)) || (!namesEdition && EDITION_HEADING.test(head[2])) });
+      continue;
+    }
+    const inOther = heads.some((x) => x.other);
+    let carry: boolean = false;
+    for (const s of line.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).map((x) => x.trim()).filter(Boolean)) {
+      if (inOther) {
+        out.add(s);
+        continue;
+      }
+      const want = contentTokens(s);
+      let best = -1;
+      let share = 0;
+      if (want.size >= 4) {
+        index.forEach((have, i) => {
+          let n = 0;
+          for (const t of want) if (have.has(t)) n++;
+          // Shared words over the longer of the two: a short sentence doesn't match a long one that contains it.
+          const fit = n / Math.max(want.size, have.size);
+          if (fit > share) [best, share] = [i, fit];
+        });
+      }
+      const works = best >= 0 && share >= 0.5 ? wiki[best].works : [];
+      const series = (w: { title: string; target: string }) => /\b(?:series|franchise)\b/i.test(w.target) || asSeries(w, s);
+      const others = works.filter((w) => !isRequested(w) && !series(w) && related(w));
+      // The work named in words or italics, not as part of another title and not as "the remake of Some Game".
+      const plainly = namesWorkPlainly(s, [...names, ...works.filter(isRequested).map((w) => norm(w.title))], works.filter((w) => !isRequested(w)).map((w) => w.title), requestIsEdition);
+      // "It was a hit, outselling Some Game 11": a sentence led by "It" or "The game" is about the article's own work,
+      // unless the one before it was about another, or it says it is a remake.
+      const subjectLed: boolean =
+        !carry && !plainly.edition && (/^["“]?(?:It|Its|The game|This game)\b/.test(s) || /^[^.;]{0,80}?,\s+(?:it|the game) (?:is|was|became|remains)\b/.test(s));
+      const namesIt: boolean = plainly.clean || subjectLed;
+      const edition: boolean = !namesEdition && !namesIt && (EDITION_LED.test(s) || plainly.edition);
+      const leansBack: boolean = carry && !namesIt && !works.length && LEANS_ON_PREVIOUS.test(s);
+      const drop: boolean = (others.length > 0 && !namesIt) || edition || leansBack;
+      if (drop) out.add(s);
+      carry = drop;
+    }
+  }
+  return out;
+}
+
+/** Wikitext by page, for the infobox facts and the italic titles: one request per article. */
+const wikitextCache = new Map<string, { text: string; at: number }>();
+
+/** An article's wikitext ("" for a missing page), remembered; throws when Wikipedia can't be reached. */
+export async function loadWikitext(page: string): Promise<string> {
+  const hit = wikitextCache.get(page);
+  if (hit) return hit.text;
+  const url = `${WIKI_API}?${new URLSearchParams({ action: "query", prop: "revisions", rvprop: "content", rvslots: "main", titles: page, redirects: "1", format: "json", formatversion: "2" })}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { query?: { pages?: Array<{ revisions?: Array<{ slots?: { main?: { content?: string } } }> }> } };
+  const text = data.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content ?? "";
+  if (wikitextCache.size > 60) wikitextCache.delete(wikitextCache.keys().next().value as string);
+  wikitextCache.set(page, { text, at: Date.now() });
+  return text;
+}
+
+/** An article's wikitext, or "" when it can't be had. Never throws. */
+export async function wikitextOf(page: string): Promise<string> {
+  if (!page) return "";
+  try {
+    return await loadWikitext(page);
+  } catch (err) {
+    console.warn(`[Grounding] Wikitext lookup failed for "${page}": ${err instanceof Error ? err.message : err}`);
+    return "";
+  }
+}
+
+const workScopeCache = new Map<string, Set<string>>();
+/** Five apostrophes: bold italics, how Wikipedia's style names a work's article subject. */
+const BOLD_ITALIC = new RegExp(`${"'".repeat(5)}[^'\n]`);
+
+/** The sentences of these articles about another work than `game`, from their wikitext. */
+async function otherWorkScope(articles: Array<{ page: string; full: string } | null | undefined>, game: string): Promise<Set<string> | null> {
+  if (!workScope.on || !game.trim()) return null;
+  const out = new Set<string>();
+  for (const a of articles) {
+    if (!a?.full) continue;
+    const key = `${a.page}\0${normalizeTitle(game)}`;
+    let drop = workScopeCache.get(key);
+    if (!drop) {
+      const wikitext = await wikitextOf(a.page);
+      // Only a work's article: its lead names it in bold italics. A person's or a band's is in bold alone.
+      const aWork = BOLD_ITALIC.test(wikitext.split(/\n==/)[0]) || /^(?:music|soundtracks?|scores?) (?:of|from|for)\b|\((?:[^)]*\s)?(?:soundtrack|score|album)\)$/i.test(a.page);
+      drop = wikitext && aWork ? otherWorkSentences(a.full, wikitext, game, a.page) : new Set<string>();
+      if (workScopeCache.size > 200) workScopeCache.clear();
+      workScopeCache.set(key, drop);
+      if (drop.size) console.log(`[Grounding] "${a.page}": ${drop.size} sentences about another work than "${game}" left out`);
+    }
+    for (const s of drop) out.add(s);
+  }
+  return out.size ? out : null;
+}
+
+// --- Covers ------------------------------------------------------------------
+
+/** COVER_SCOPE=off reads a covered song's article whole, as before. */
+export const coverScope = { on: process.env.COVER_SCOPE !== "off" };
+
+/** What a cover must not take from the original's article: its release, charts, sales, video and the band's own moves. */
+const ORIGINALS_RECORD = /\b(?:charts?|charted|peak(?:ed|s)?|number(?:-| )(?:one|\d+)|No\. ?\d+|top (?:\d+|ten|forty)|Hot 100|Billboard|certifi\w+|platinum|gold|sold|sales|copies|single|singles|released|release|reissue\w*|B-side|music video|video|award\w*|Grammy|nominat\w+|performed|performance|tour\w*|live|concert|the (?:band|group|duo|trio|singer)|(?:their|his|her) (?:album|version|recording))\b/i;
+
+/**
+ * Whether the request is a cover of the song an article is about: the
+ * request says "cover", or the article is a song's and its lead never names
+ * the requested artist (who appears only further down, among the covers).
+ */
+export function isCoverOf(page: string, full: string, artist: string, title: string): boolean {
+  if (!coverScope.on || !full || !artist.trim()) return false;
+  if (/\bcover(?:ed)?\b/i.test(title)) return true;
+  if (!isAPiece(page, full)) return false;
+  const names = artistNames(artist.replace(/\s*\([^)]*\)\s*$/, ""));
+  const lead = normalizeTitle(full.split(/\n==/)[0]);
+  return names.length > 0 && !mentionsName(lead, names) && mentionsName(normalizeTitle(full), names);
+}
+
+/** For a cover: the original's sentences that would read as the cover's: its release, charts, sales, video, performers' moves. */
+export function originalsRecord(full: string): Set<string> {
+  return new Set(full.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).map((s) => s.trim())).filter((s) => ORIGINALS_RECORD.test(s)));
 }
 
 /** Every sentence `selectSections` keeps, unbudgeted: what a piece's own sentences are looked for in. */
@@ -1829,6 +2174,20 @@ export function isNonMusicWork(page: string, full: string): boolean {
   return NON_MUSIC_WORK.test(what) && !MUSIC_OR_GAME_WORK.test(what);
 }
 
+/** A film or video of a performance or about performers: "a 2025 concert documentary film", "(live video)". */
+const CONCERT_FILM =
+  /\b(?:concert (?:films?|documentar(?:y|ies)|videos?|movies?|specials?)|documentar(?:y|ies)|rockumentar(?:y|ies)|live (?:films?|videos?|video albums?|DVDs?)|video albums?|tour films?|music films?)\b/i;
+
+/**
+ * Whether an article is about a concert film, a documentary or a live
+ * video, by its brackets or its first sentence. Its lead names the band
+ * because it is about them; its facts are still the film's.
+ */
+export function isConcertFilm(page: string, full: string): boolean {
+  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  return CONCERT_FILM.test(qualifier ?? "") || CONCERT_FILM.test(openingSays(full));
+}
+
 /**
  * Whether an article's lead names the performer as one, not just as its own
  * title: "a film about the British rock band Some Band" does, "Some Band is a
@@ -1916,7 +2275,8 @@ async function performerArticle(
 ): Promise<{ page: string; subject: boolean } | "reject" | null> {
   const { game, track } = reading;
   if (/game\)$/i.test(page) || /\b(?:video )?games?\b/i.test(openingSays(full))) return null;
-  const nonMusic = isNonMusicWork(page, full);
+  const concert = isConcertFilm(page, full);
+  const nonMusic = isNonMusicWork(page, full) || concert;
   const told = !!song.performer || !!reading.aPerformer || looksLikeArtistName(game) || PERFORMER_BRACKET.test(game);
   if (!nonMusic && !told) return null;
   const artist = game.replace(/\s*\([^)]*\)\s*$/, "").trim();
@@ -1924,7 +2284,10 @@ async function performerArticle(
   if (found.song && found.song !== page && usable(found.song)) return { page: found.song, subject: false };
   if (!nonMusic || !(told || found.performer)) return null;
   const name = normalizeTitle(track);
-  if (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name]))) return null;
+  // A concert film or documentary names the band throughout: only its lead naming the track keeps it.
+  if (concert) {
+    if (name.length >= 5 && mentionsName(normalizeTitle(full.split(/\n==/)[0]), [name])) return null;
+  } else if (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name]))) return null;
   if (found.performer && found.performer !== page && usable(found.performer)) return { page: found.performer, subject: true };
   return "reject";
 }
@@ -1974,7 +2337,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   // A game already looked up: this track's reference is built from the kept articles.
   const kept = !song.performer && track !== game ? gameArticles.get(gameKey) : undefined;
   if (kept && usable(kept.page)) {
-    const text = gameTrackText(kept, track, usable, game);
+    const drop = isAPerformer(kept.page, kept.full) ? null : await otherWorkScope([kept, kept.music], game);
+    const text = withoutSentences(drop, !!track && track !== game && !generic, () => gameTrackText(kept, track, usable, game));
     groundingCache.set(songKey, { text, at: Date.now() });
     return { text, unreachable: false };
   }
@@ -2064,6 +2428,11 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
           toPerformer = swap.subject;
         }
       }
+      // A concert film or documentary named for the song or the band is the film's article, not the song's.
+      if (!byGame && full && artist && isConcertFilm(page, full)) {
+        console.log(`[Grounding] "${page}" is a concert film or documentary that shares the song's name, skipping`);
+        continue;
+      }
       // An installment or spin-off is only right when it's the song's own game: it must name the track.
       const installment = byGame && extendsGame(page) && track !== game && !reading.page;
       // A generic name ("Main Theme") is in every installment's article, so it names none of them.
@@ -2110,9 +2479,19 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       }
       // A series' music article found for one of its games: only what is about that game.
       const scoped = full && byGame && !ownArticle && seriesFilter.on && isSeriesWide(page, full, game) ? seriesScope(full, game, track) : "";
-      let text = scoped
-        ? `${page}\n${writingText(scoped, orderExtract(scoped, MAX_CONTEXT_CHARS - page.length - 1, [track], false), MAX_CONTEXT_CHARS - page.length - 1, [track])}`
-        : `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`;
+      // A game's or a work's article: not its sentences about a sequel, a remake or an edition.
+      const ofWork = byGame && !ownArticle && !toPerformer && !song.performer && !!full && !isAPerformer(page, full);
+      const saves = !!track && track !== game && !generic;
+      const otherWork = ofWork ? await otherWorkScope([{ page, full: full! }], game) : null;
+      // A cover's request read from the original's article: not the original's release, charts or video.
+      const cover = !byGame && ownArticle && artist && !!full && isCoverOf(page, full, game, song.title);
+      if (cover) console.log(`[Grounding] "${page}": the request is a cover; the original's release and charts left out`);
+      const drop = cover ? originalsRecord(full!) : otherWork;
+      let text = withoutSentences(drop, saves && !cover, () =>
+        scoped
+          ? `${page}\n${writingText(scoped, orderExtract(scoped, MAX_CONTEXT_CHARS - page.length - 1, [track], false), MAX_CONTEXT_CHARS - page.length - 1, [track])}`
+          : `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`
+      );
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
       const aGame = !artist || /game\)$/i.test(page) || /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i.test(full?.slice(0, 600) ?? "");
       if (byGame && aGame && !toPerformer && !song.performer && !ownArticle && !installment && full) {
@@ -2125,7 +2504,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         const articles = { page, full, music };
         // Shared by the game's tracks, unless this track has blocked articles of its own.
         if (!blocked.size) gameArticles.set(gameKey, articles);
-        text = gameTrackText(articles, track, usable, game);
+        const both = ofWork ? await otherWorkScope([articles, music], game) : null;
+        text = withoutSentences(both, saves, () => gameTrackText(articles, track, usable, game));
         if (music) console.log(`[Grounding] "${game}" has a music article: ${music.page}${music.series ? " (series-wide: used for tracks it names)" : ""}`);
       }
       console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
@@ -2152,6 +2532,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
 
 export function clearGroundingCache(): void {
   noOwnArticle.clear();
+  wikitextCache.clear();
+  workScopeCache.clear();
   performerPagesCache.clear();
   wikipediaNames.clear();
   gameArticles.clear();
@@ -3576,6 +3958,114 @@ function withPhrase(caption: string, sentence: string, at: number, phrase: strin
     return `${phrase[0].toUpperCase()}${phrase.slice(1)}, ${first}`;
   }
   return insertAfterAnchor(caption, sentence, at, phrase);
+}
+
+// --- Qualifiers a 3B drops ------------------------------------------------
+
+/** QUALIFIER_REPAIR=off shows captions without putting back "about", "usually" or a release's region. */
+export const qualifierRepair = { on: process.env.QUALIFIER_REPAIR !== "off" };
+
+/** A limit on a number: "over 200 million", "an estimated 5,000", "about 40%". */
+const NUMBER_LIMIT = /\b(an estimated|estimated|approximately|roughly|about|around|nearly|almost|over|more than|less than|fewer than|under|up to)\s+((?:US)?[$£€]?\d[\d,]*(?:\.\d+)?)/gi;
+/** Any limit word a caption may already put before its number. */
+const ANY_NUMBER_LIMIT = /\b(?:estimated|approximately|roughly|about|around|nearly|almost|over|more than|less than|fewer than|under|up to|some|at least|close to|just)\s+(?:of\s+)?(?:US)?[$£€]?$/i;
+/** A word that says a claim holds in general or for the most part: a caption without it says always or all. */
+const SCOPE_ADVERB = /\b(usually|typically|mostly|largely|estimated|approximately)\b/gi;
+/** Words that already say the same limit: "most of the music" keeps "mostly". */
+const SAME_LIMIT: Record<string, RegExp> = {
+  usually: /\b(?:usually|typically|often|generally|normally|commonly|tends?)\b/i,
+  typically: /\b(?:usually|typically|often|generally|normally|commonly|tends?)\b/i,
+  mostly: /\b(?:most|mostly|majority|largely|mainly|primarily|chiefly)\b/i,
+  largely: /\b(?:most|mostly|majority|largely|mainly|primarily|chiefly)\b/i,
+  estimated: /\b(?:estimat\w*|about|around|roughly|nearly|approximately|some)\b/i,
+  approximately: /\b(?:about|around|roughly|nearly|approximately|estimat\w*|some)\b/i,
+};
+/** A release limited to regions: "in North America", "exclusive to Japan", "Japan-only". */
+const RELEASE_REGION = new RegExp(String.raw`\b(?:(?:only |exclusively )?(?:in|across|throughout) (?:the )?(?:${REGION_NAMES})|exclusive to (?:the )?(?:${REGION_NAMES}))\b`, "g");
+
+/** The reference sentence a caption retells: half its words or more, else null. */
+function retoldScopeSentence(caption: string, context: string): { text: string; before: string } | null {
+  const want = contentTokens(caption.replace(/\([^()]*\)/g, " "));
+  if (!want.size) return null;
+  let best: { text: string; before: string } | null = null;
+  let bestShare = 0;
+  for (const s of scopeSentences(context)) {
+    const have = contentTokens(s.text);
+    let shared = 0;
+    for (const t of want) if (have.has(t)) shared++;
+    if (shared / want.size > bestShare) [best, bestShare] = [s, shared / want.size];
+  }
+  return best && bestShare >= 0.5 ? best : null;
+}
+
+/**
+ * Put back, or else drop for, a limit the caption's source sentence puts on
+ * the claim it keeps, from a closed list: a limit on a number ("over",
+ * "about", "an estimated"); "usually", "typically", "mostly", "largely",
+ * "estimated", "approximately"; and a release's region when the
+ * sentence names several ("in North America in October 2014 and in Europe
+ * in 2015"). Put back when the place for it is clear (the number or the
+ * word after it appears once in the caption); dropped when the caption
+ * keeps the claim but there is no clear place; unchanged when the caption
+ * doesn't retell that part. Returns the caption to show, or why it's dropped.
+ */
+export function repairQualifier(caption: string, context: string): { text: string } | { drop: string } {
+  const best = retoldScopeSentence(caption, context);
+  if (!best) return { text: caption };
+  const sentence = best.text.replace(/["“][^"”]*["”]/g, (q) => " ".repeat(q.length));
+  let out = caption;
+
+  // A number's limit.
+  for (const m of sentence.matchAll(NUMBER_LIMIT)) {
+    const num = m[2];
+    const plain = num.replace(/[$£€,]|US/g, "");
+    const hits = [...out.matchAll(/(?:US)?[$£€]?\d[\d,]*(?:\.\d+)?/g)].filter((h) => h[0].replace(/[$£€,]|US/g, "") === plain);
+    if (!hits.length) continue;
+    if (hits.some((h) => ANY_NUMBER_LIMIT.test(out.slice(0, h.index)))) continue;
+    if (hits.length !== 1) return { drop: `"${m[1]} ${num}" without "${m[1]}"` };
+    const at = hits[0].index ?? 0;
+    const word = m[1].toLowerCase() === "estimated" ? "an estimated" : m[1].toLowerCase();
+    out = `${out.slice(0, at)}${at === 0 ? word[0].toUpperCase() + word.slice(1) : word} ${out.slice(at)}`;
+  }
+
+  // A word that says "for the most part".
+  const said = ` ${normalizeTitle(out)} `;
+  for (const m of sentence.matchAll(SCOPE_ADVERB)) {
+    const word = m[1].toLowerCase();
+    if (said.includes(` ${word.slice(0, 7)}`) || SAME_LIMIT[word]?.test(out)) continue;
+    const after = sentence.slice((m.index ?? 0) + m[0].length);
+    // "an estimated 5,000": the number step's.
+    if (word === "estimated" && /^\s+(?:US)?[$£€]?\d/.test(after)) continue;
+    const next = after.split(/[,;.:!?]/)[0].match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? [];
+    const content = next.filter((w) => !SMALL_WORDS.has(w.toLowerCase()) && w.length > 2).slice(0, 3);
+    const has = (w: string) => [...out.matchAll(new RegExp(String.raw`(^|[^\p{L}\p{N}])${escapeRe(w)}(?=[^\p{L}\p{N}]|$)`, "giu"))];
+    if (!content.some((w) => has(w).length)) continue; // the caption doesn't retell this part
+    // "usually armed" told as "armed": put it back before the word right after it. "usually the small fox Pip" told as "Pip": no clear place.
+    const hits = content[0] && next[0] === content[0] ? has(content[0]) : [];
+    const at = hits.length === 1 ? (hits[0].index ?? 0) + hits[0][1].length : 0;
+    if (at > 0 && word !== "estimated") {
+      out = `${out.slice(0, at)}${word} ${out.slice(at)}`;
+      continue;
+    }
+    return { drop: `"${word}" left out` };
+  }
+
+  // A release's region when the sentence names several: the one in the caption's part of it.
+  const regionWords = REGIONS.flatMap(([, f]) => f);
+  const capSaid = ` ${normalizeTitle(out)} `;
+  const regions = [...sentence.matchAll(RELEASE_REGION)];
+  const capNums = [...figuresIn(out)].filter((n) => n.length >= 2);
+  if (regions.length >= 2 && capNums.length && !regionWords.some((w) => capSaid.includes(` ${w} `)) && !WIDER_SCOPE.test(out)) {
+    const parts = [...sentence.matchAll(/[^;,]+?(?=[;,]\s|\s(?:and|while|whereas|but|although)\s|$)/g)];
+    const mine = parts.filter((p) => [...figuresIn(p[0])].some((n) => capNums.includes(n)));
+    const inMine = regions.filter((r) => mine.some((p) => (r.index ?? 0) >= (p.index ?? 0) && (r.index ?? 0) < (p.index ?? 0) + p[0].length));
+    if (mine.length && new Set(inMine.map((r) => r[0])).size === 1) {
+      const fixed = withPhrase(out, sentence, inMine[0].index ?? 0, inMine[0][0]);
+      if (fixed) out = fixed;
+      else return { drop: `"${inMine[0][0]}" left out` };
+    } else if (mine.length && inMine.length >= 2) return { drop: "a date the source gives for one region" };
+  }
+  return out.length <= MAX_FACT_CHARS ? { text: out } : { drop: "too long with its limit" };
 }
 
 /** Text naming the track, small words aside: "Through the Fire and Flames" names "Through the Fire and the Flames". */
