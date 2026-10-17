@@ -243,7 +243,7 @@ export class StreamElementsClient implements SongSource {
 
   /** One request pair at a time; a refresh asked for meanwhile fetches again afterward. */
   private refresh(): Promise<void> {
-    if (Date.now() < this.backoffUntil || this.channelId === null) return Promise.resolve();
+    if (this.backingOff() || this.channelId === null) return Promise.resolve();
     if (this.inFlight) {
       this.refreshAgain = true;
       return this.inFlight;

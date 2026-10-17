@@ -1,6 +1,7 @@
 import { config } from "./config";
 import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
 import { SSLSong } from "./types";
+import { escapeRe } from "./text";
 
 /**
  * Plain facts from Wikidata, for songs with no Wikipedia article (issue #23).
@@ -36,7 +37,7 @@ export function searchLanguage(title: string): string {
 /** A Latin-script name in text of any script: "LiSA" in "LiSAの楽曲", but not "Sia" in "Asia". */
 function namesArtist(text: string, names: string[]): boolean {
   const t = normalizeTitle(text);
-  return names.some((n) => new RegExp(`(^|[^\\p{Script=Latin}\\p{N}])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{Script=Latin}\\p{N}])`, "u").test(t));
+  return names.some((n) => new RegExp(`(^|[^\\p{Script=Latin}\\p{N}])${escapeRe(n)}($|[^\\p{Script=Latin}\\p{N}])`, "u").test(t));
 }
 const MAX_NAMES = 3;
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;

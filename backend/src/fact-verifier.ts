@@ -2030,13 +2030,12 @@ const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.sli
  * exactly as written.
  */
 function withoutTitles(fact: string, context: string, titles: string[]): string {
-  const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Two words or more: a one-word title such as "Because" would blank every capitalized use of the word.
   const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
   // A run counts as a name only where the source has it mid-sentence, not where it merely opens a sentence.
-  const midSentence = (span: string) => new RegExp(`[\\p{L}\\p{N},;:'’"”)]\\s+${escape(span)}(?![\\p{L}\\d])`, "u").test(context);
+  const midSentence = (span: string) => new RegExp(`[\\p{L}\\p{N},;:'’"”)]\\s+${escapeRe(span)}(?![\\p{L}\\d])`, "u").test(context);
   let out = fact;
-  for (const t of own) out = out.replace(new RegExp(`(?<![\\p{L}\\d])${escape(t)}(?![\\p{L}\\d])`, "gu"), "Title");
+  for (const t of own) out = out.replace(new RegExp(`(?<![\\p{L}\\d])${escapeRe(t)}(?![\\p{L}\\d])`, "gu"), "Title");
   for (const run of out.match(/\p{Lu}[\p{L}'’-]*(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|you|me)\s+)*\p{Lu}[\p{L}'’-]*)+/gu) ?? []) {
     const words = run.split(/\s+/);
     for (let i = 0; i < words.length - 1; i++) {
@@ -2849,7 +2848,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
     // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
     const titles = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), opts.track ?? ""].filter(Boolean);
-    const isTitle = titles.some((t) => new RegExp(`^${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+    const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
     if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
     // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
