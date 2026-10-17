@@ -38,6 +38,7 @@ import {
   fetchGrounding,
   clearGroundingCache,
   readings,
+  lookupForm,
   isRespelling,
   isSameWorkRedirect,
   editDistance,
@@ -909,6 +910,78 @@ describe("fetchGrounding", () => {
   it("keeps the whole reference within the context budget", async () => {
     pages = { "Celeste video game": ["Celeste (video game)"] };
     expect((await fetchGrounding({ title: "First Steps", artist: "Celeste" })).length).toBeLessThanOrEqual(2400);
+  });
+
+  describe("notes and year tags in the list's text (issue #186)", () => {
+    beforeEach(() => {
+      pages = { "Glass Anthem Velvet Foxes": ["Glass Anthem"] };
+      mentions = { "Glass Anthem": "a song by Velvet Foxes" };
+    });
+
+    it("finds the song when the artist carries a bracketed note", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toMatch(/^Glass Anthem\n/);
+      expect(await fetchGrounding({ title: "Glass Anthem (1979)", artist: "Velvet Foxes (Ally) (Welsh-Irish)" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("finds the song when the bracket is never closed", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (LGBTQ+" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("does not split a note at a slash inside its brackets", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Cherokee/Irish)" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("finds the song when a featured credit and a year tag follow the title", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem (feat. Pale Rivers) (2020)", artist: "Velvet Foxes" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("tries the list's own text first, so what works today is unchanged", async () => {
+      pages = { "Glass Anthem Velvet Foxes (Australian)": ["Glass Anthem (Velvet Foxes song)"], "Glass Anthem Velvet Foxes": ["Glass Anthem"] };
+      mentions = { "Glass Anthem (Velvet Foxes song)": "a song by Velvet Foxes", "Glass Anthem": "a song by Velvet Foxes" };
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toMatch(/^Glass Anthem \(Velvet Foxes song\)\n/);
+    });
+
+    it("keeps the song's name and the artist as listed for display (no mutation)", async () => {
+      const song = { title: "Glass Anthem (2020)", artist: "Velvet Foxes (Australian)" };
+      await fetchGrounding(song);
+      expect(song).toEqual({ title: "Glass Anthem (2020)", artist: "Velvet Foxes (Australian)" });
+    });
+  });
+});
+
+describe("lookupForm (issue #186)", () => {
+  it("drops notes in brackets from the artist, closed or not", () => {
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes" });
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Ally) (Welsh-Irish)" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Cherokee/Irish)" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (LGBTQ+" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes [Ally]" })?.artist).toBe("Velvet Foxes");
+  });
+
+  it("drops a year tag and a featured credit in brackets from the title", () => {
+    expect(lookupForm({ title: "Glass Anthem (1979)", artist: "Velvet Foxes" })).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes" });
+    expect(lookupForm({ title: "Glass Anthem (feat. Pale Rivers) (2020)", artist: "Velvet Foxes" })?.title).toBe("Glass Anthem");
+    expect(lookupForm({ title: "Glass Anthem (1979) - Live", artist: "Velvet Foxes" })?.title).toBe("Glass Anthem - Live");
+  });
+
+  it("returns nothing when there is nothing to drop", () => {
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem (Remastered 1999)", artist: "Velvet Foxes" })).toBeNull();
+  });
+
+  it("keeps brackets that are part of a real name", () => {
+    expect(lookupForm({ title: "(Don't Fear) The Reaper", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "(I Can't Get No) Satisfaction", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "(hed) p.e." })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet (Foxes) Quartet" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "(Ally)" })).toBeNull();
+    expect(lookupForm({ title: "(1984)", artist: "Velvet Foxes" })).toBeNull();
+  });
+
+  it("leaves the song as listed", () => {
+    const song = { title: "Glass Anthem (1979)", artist: "Velvet Foxes (Australian)", performer: true };
+    expect(lookupForm(song)).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes", performer: true });
+    expect(song.title).toBe("Glass Anthem (1979)");
   });
 });
 
