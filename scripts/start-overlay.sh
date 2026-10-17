@@ -30,8 +30,15 @@ command -v node >/dev/null || fail "Node.js not found. Install Node 20 or newer"
 PORT="${PORT:-$(env_get PORT)}"
 PORT="${PORT:-3000}"
 
+# Same default as the server: an Anthropic key, then an OpenAI-compatible key (Groq), then Ollama.
 provider="$(env_get AI_PROVIDER)"
-if [ "${provider:-ollama}" = "ollama" ]; then
+if [ -z "$provider" ]; then
+  if [ -n "$(env_get ANTHROPIC_API_KEY)" ]; then provider=anthropic
+  elif [ -n "$(env_get OPENAI_API_KEY)" ]; then provider=openai
+  else provider=ollama
+  fi
+fi
+if [ "$provider" = "ollama" ]; then
   url="$(env_get OLLAMA_BASE_URL)"; url="${url:-http://localhost:11434}"
   model="$(env_get OLLAMA_MODEL)"; model="${model:-llama3.2}"
   if ! curl -s --max-time 3 "$url/" >/dev/null && command -v ollama >/dev/null; then
@@ -46,27 +53,32 @@ else
   ok "AI provider: $provider"
 fi
 
-# The StreamerSongList API needs the token on every call, so this doubles as a token check.
-name="$(env_get SSL_STREAMER_NAME)"
-token="$(env_get SSL_ACCESS_TOKEN)"
-[ -n "$name" ] || fail "SSL_STREAMER_NAME is not set in .env"
-[ -n "$token" ] || fail "SSL_ACCESS_TOKEN is not set in .env (streamersonglist.com > Settings > Access)"
-case "$(env_get SSL_TOKEN_KIND)" in
-  user)   scheme=User ;;
-  bearer) scheme=Bearer ;;
-  *)      scheme=Streamer ;;
-esac
-api="$(env_get SSL_API_BASE)"
-[ "$(env_get SSL_ENV)" = staging ] && api="${api:-https://api.staging.streamersonglist.com}"
-api="${api:-https://api.streamersonglist.com}"
-platform="$(env_get SSL_PLATFORM)"
-code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 -H "Authorization: $scheme $token" \
-  "$api/streamers?streamer_name=$name&platform=${platform:-twitch}")"
-case "$code" in
-  200)     ok "StreamerSongList accepted the token for $name" ;;
-  401|403) fail "StreamerSongList rejected the token ($code). Check SSL_ACCESS_TOKEN and SSL_TOKEN_KIND" ;;
-  *)       printf '  ! StreamerSongList returned %s for %s; continuing, the server will retry\n' "$code" "$name" ;;
-esac
+if [ "$(env_get SONG_SOURCE)" = streamelements ]; then
+  # StreamElements needs no StreamerSongList name or token; the server checks the JWT when it connects.
+  ok "Song source: StreamElements"
+else
+  # The StreamerSongList API needs the token on every call, so this doubles as a token check.
+  name="$(env_get SSL_STREAMER_NAME)"
+  token="$(env_get SSL_ACCESS_TOKEN)"
+  [ -n "$name" ] || fail "SSL_STREAMER_NAME is not set in .env"
+  [ -n "$token" ] || fail "SSL_ACCESS_TOKEN is not set in .env (streamersonglist.com > Settings > Access)"
+  case "$(env_get SSL_TOKEN_KIND)" in
+    user)   scheme=User ;;
+    bearer) scheme=Bearer ;;
+    *)      scheme=Streamer ;;
+  esac
+  api="$(env_get SSL_API_BASE)"
+  [ "$(env_get SSL_ENV)" = staging ] && api="${api:-https://api.staging.streamersonglist.com}"
+  api="${api:-https://api.streamersonglist.com}"
+  platform="$(env_get SSL_PLATFORM)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 -H "Authorization: $scheme $token" \
+    "$api/streamers?streamer_name=$name&platform=${platform:-twitch}")"
+  case "$code" in
+    200)     ok "StreamerSongList accepted the token for $name" ;;
+    401|403) fail "StreamerSongList rejected the token ($code). Check SSL_ACCESS_TOKEN and SSL_TOKEN_KIND" ;;
+    *)       printf '  ! StreamerSongList returned %s for %s; continuing, the server will retry\n' "$code" "$name" ;;
+  esac
+fi
 
 if lsof -i ":$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   fail "Port $PORT is in use. Stop that process or set PORT to another value"
