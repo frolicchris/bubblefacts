@@ -762,6 +762,16 @@ function sectionSentences(body: string): string[] {
     .filter((s) => s.length >= 25 && /[.!?]["”)]?$/.test(s));
 }
 
+/** The same sentences, each with whether it opens its paragraph (the extract's paragraphs are lines). */
+function sectionSentencesWithOpens(body: string): Array<{ text: string; opens: boolean }> {
+  return body.split(/\n+/).flatMap((para) =>
+    para
+      .split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u)
+      .map((s, i) => ({ text: s.trim(), opens: i === 0 }))
+      .filter((s) => s.text.length >= 25 && /[.!?]["”)]?$/.test(s.text))
+  );
+}
+
 /**
  * The article's sections in the order a writer should read them, each with
  * the sentences kept: the lead, then sections that report checkable things,
@@ -770,12 +780,14 @@ function sectionSentences(body: string): string[] {
  * composer and is about music is kept. Subsections without a telling heading
  * go with the section they sit under; music-video sections are left out.
  */
-export function selectSections(full: string, names: string[] = []): Array<{ heading: string; rank: number; sentences: string[] }> {
+export function selectSections(full: string, names: string[] = []): Array<{ heading: string; rank: number; sentences: string[]; opens: Set<string> }> {
   full = withoutVideoSections(full);
   const song = names[0] ? normalizeTitle(names[0]) : "";
   const makers = composerNames(full);
   const namesIt = (s: string) => mentionsName(normalizeTitle(s), [...(song ? [song] : []), ...makers]);
-  const out: Array<{ heading: string; rank: number; sentences: string[] }> = [{ heading: "", rank: RANK.lead, sentences: sectionSentences(full.split(/\n==/)[0]) }];
+  const opensOf = (body: string) => new Set(sectionSentencesWithOpens(body).filter((x) => x.opens).map((x) => x.text));
+  const leadText = full.split(/\n==/)[0];
+  const out: Array<{ heading: string; rank: number; sentences: string[]; opens: Set<string> }> = [{ heading: "", rank: RANK.lead, sentences: sectionSentences(leadText), opens: opensOf(leadText) }];
   const open: Array<{ level: number; rank: number | null; keep: ((s: string) => boolean) | null }> = [];
   for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
     const level = marks.length;
@@ -789,7 +801,7 @@ export function selectSections(full: string, names: string[] = []): Array<{ head
     if (rank === RANK.narrative) sentences = sentences.filter((s) => MUSIC_WORD.test(s) && namesIt(s));
     // Critics' verdicts read as facts on stream (issue #21): a 3B drops the "a reviewer called it".
     if (receptionFilter.on && keep) sentences = sentences.filter(keep);
-    if (sentences.length) out.push({ heading, rank, sentences });
+    if (sentences.length) out.push({ heading, rank, sentences, opens: opensOf(body) });
   }
   // A stable sort: article order within a rank.
   return out.sort((a, b) => a.rank - b.rank);
@@ -805,6 +817,7 @@ const usableSentences = (sentences: string[]) => sentences.filter((s) => s.lengt
  * so the caller falls back to `orderExtract`.
  */
 export function sectionExtract(full: string, budget: number, names: string[] = [], skip: Set<string> = new Set()): string {
+  if (tieredSelection.on) return tieredExtract(full, budget, names, skip);
   const blocks: string[] = [];
   const kept: string[] = [];
   let used = 0;
@@ -825,6 +838,102 @@ export function sectionExtract(full: string, budget: number, names: string[] = [
     kept.push(...take);
   }
   return usableSentences(kept) >= 2 ? blocks.join("\n\n") : "";
+}
+
+// --- Tiered source selection ---------------------------------------------
+
+/** TIERED_SELECTION=off orders the reference by section only, as before. */
+export const tieredSelection = { on: process.env.TIERED_SELECTION !== "off" };
+
+/** Someone reported as saying or judging something: the sentence a 3B retells without the "who said it". */
+const REPORTING = /\b(?:said|says|wrote|writes|according to|told|described|called|stated|noted|claimed|recalled|explained)\b/i;
+/** A caption that kept a reporting verb (any tense) or quote marks. */
+const KEEPS_REPORTING = /\b(?:say|says|said|write|writes|wrote|written|according|tell|tells|told|describe[sd]?|call(?:s|ed)?|state[sd]?|note[sd]?|claim(?:s|ed)?|recall(?:s|ed)?|explain(?:s|ed)?)\b|["“”]/i;
+/** Fewer sentences than this in the clean tiers, and the rest of the article is offered too: the writer is asked for 5 captions and 3 spares. */
+const TIER_ENOUGH = 8;
+/** Body sentences offered last that report what someone said: a caption from one must keep who said it. */
+const reportedSentences = new Set<string>();
+
+/** A body sentence a small model retells safely: under 30 words, no quoted speech of 4+ words (a quoted title is fine), no reporting verb. */
+export function isCleanSentence(s: string): boolean {
+  if (s.split(/\s+/).length >= 30 || REPORTING.test(s)) return false;
+  return ![...s.matchAll(/["“]([^"”]{1,400})["”]/g)].some((m) => m[1].trim().split(/\s+/).length >= 4);
+}
+
+/**
+ * The reference in tiers, from what an offline look at 2,898 judged captions
+ * found safest to retell: 1, the lead (any shape); 2, clean body sentences
+ * that open their paragraph; 3, other clean body sentences; 4, the rest, only
+ * when tiers 1 to 3 give fewer than 8 usable sentences. Section-aware
+ * selection's exclusions (narrative, verdicts) still apply; within a tier,
+ * sections keep their `selectSections` order. "" when fewer than 2 usable.
+ */
+export function tieredExtract(full: string, budget: number, names: string[] = [], skip: Set<string> = new Set()): string {
+  const parts = selectSections(full, names);
+  const items: Array<{ tier: number; heading: string; text: string }> = [];
+  for (const part of parts) {
+    for (const text of part.sentences) {
+      if (skip.has(text)) continue;
+      const tier = part.rank === RANK.lead ? 1 : !isCleanSentence(text) ? 4 : part.opens.has(text) ? 2 : 3;
+      items.push({ tier, heading: part.heading, text });
+    }
+  }
+  const clean = items.filter((x) => x.tier < 4);
+  const offered = usableSentences(clean.map((x) => x.text)) >= TIER_ENOUGH ? clean : items;
+  const ordered = [1, 2, 3, 4].flatMap((t) => offered.filter((x) => x.tier === t));
+  const blocks: Array<{ key: string; heading: string; texts: string[] }> = [];
+  const kept: string[] = [];
+  let used = 0;
+  for (const x of ordered) {
+    const key = `${x.tier}\0${x.heading}`;
+    const last = blocks[blocks.length - 1];
+    const add = x.text.length + 1 + (last?.key === key ? 0 : x.heading.length + 4);
+    if (used + add > budget) break;
+    if (last?.key === key) last.texts.push(x.text);
+    else blocks.push({ key, heading: x.heading, texts: [x.text] });
+    kept.push(x.text);
+    used += add;
+    if (x.tier === 4 && REPORTING.test(x.text)) {
+      if (reportedSentences.size > 5000) reportedSentences.clear();
+      reportedSentences.add(x.text);
+    }
+  }
+  if (usableSentences(kept) < 2) return "";
+  return blocks.map((b) => `${b.heading ? `${b.heading}: ` : ""}${b.texts.join(" ")}`).join("\n\n");
+}
+
+/** Capitalized words that can name a speaker, not sentence openers or the article's own title. */
+const NOT_A_SPEAKER = new Set("The A An In On It At By For As When While After Before During This That These Those His Her Their He She They However Also Its According".split(" "));
+
+/**
+ * Whether a caption may be shown: true unless the sentence it retells is a
+ * tier-4 sentence reporting what someone said, and the caption lost the
+ * speaker's name, or kept the name but neither a reporting verb nor quote
+ * marks. Offline, captions that kept both erred 12.6%; neither, 45.6%.
+ */
+export function keepsAttribution(caption: string, context: string): boolean {
+  if (!reportedSentences.size) return true;
+  const want = contentTokens(caption.replace(/\([^()]*\)/g, " "));
+  if (!want.size) return true;
+  let best = "";
+  let bestShare = 0;
+  for (const s of scopeSentences(context)) {
+    const have = contentTokens(s.text);
+    let shared = 0;
+    for (const t of want) if (have.has(t)) shared++;
+    if (shared / want.size > bestShare) [best, bestShare] = [s.text, shared / want.size];
+  }
+  if (bestShare < 0.5 || !reportedSentences.has(best) || !REPORTING.test(best)) return true;
+  const title = new Set(normalizeTitle(context.split("\n")[0]).split(" "));
+  const before = best.split(/["“]/)[0];
+  const speakers = new Set(
+    [...before.matchAll(/\p{Lu}[\p{L}'’.-]+(?:\s+\p{Lu}[\p{L}'’.-]+)*/gu)].flatMap((m) =>
+      m[0].split(/\s+/).map((w) => w.replace(/[.'’]+$/, "")).filter((w) => !NOT_A_SPEAKER.has(w) && w.length > 2 && !title.has(w.toLowerCase()))
+    ).map((w) => w.toLowerCase())
+  );
+  const words = new Set(caption.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []);
+  const named = !speakers.size || [...speakers].some((w) => words.has(w));
+  return named && KEEPS_REPORTING.test(caption);
 }
 
 /** Every sentence `selectSections` keeps, unbudgeted: what a piece's own sentences are looked for in. */

@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isPlaceholderRequest, keepsAttribution, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -909,8 +909,14 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const cited = Boolean(context) && citesSentences();
     const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
     for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
-    const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
-    if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
+    // A caption from a "someone said" sentence offered only because the clean ones ran short must keep who said it.
+    const attributed = kept.filter((f) => {
+      if (!context || keepsAttribution(f, context)) return true;
+      console.log(`[Screen] DROP (drops who said it): ${f.slice(0, 90)}`);
+      return false;
+    });
+    const fresh = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+    if (fresh.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - fresh.length} already shown for an earlier song`);
     // Music terms get a few fixed plain words, so any viewer can follow.
     // A limit the source sets ("in Japan", "the arcade version") goes back in when the model dropped it.
     const plain = new Map(
