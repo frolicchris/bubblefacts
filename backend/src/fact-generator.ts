@@ -9,6 +9,7 @@ import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
+import { alreadySaid, BoxFact, infoboxFacts, valuesIn } from "./infobox";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 
@@ -176,7 +177,14 @@ export const SOURCE = {
   custom: "Your custom facts",
   wikidata: "Wikidata",
   musicbrainz: "MusicBrainz",
+  /** Followed by the article: "Wikipedia infobox: <article>". */
+  infobox: "Wikipedia infobox: ",
 } as const;
+
+/** At most this many data facts (Wikidata, MusicBrainz, infobox) beside the captions written from an article. */
+export const MAX_DATA_FACTS = 2;
+/** The infobox field each infobox sentence was filled from, for the dashboard. */
+const boxEvidence = new Map<string, string>();
 
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
 const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
@@ -199,8 +207,9 @@ function toFacts(
   const spots = positionsForSong(song);
   return told.map((text, i) => {
     const source = sourceOf(text);
-    const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
-    const evidence = fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
+    const fromBox = Boolean(page) && source === `${SOURCE.infobox}${page}`;
+    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox;
+    const evidence = fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
@@ -881,6 +890,9 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // the song come first when Wikidata or MusicBrainz has any ("describe the
     // song, then tell about it").
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
+    // And the article's own infobox: who wrote the song or made the game, when it came out.
+    const page = context.split("\n")[0];
+    const boxFacts: BoxFact[] = context && !blockedArticles(song).has(STRUCTURED) ? await infoboxFacts(page) : [];
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const written = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
@@ -897,7 +909,19 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
     // Music terms get a few fixed plain words, so any viewer can follow.
     const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
-    const structured = songFacts.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    // Data facts: the song's own first, then the infobox's; at most MAX_DATA_FACTS, none a caption already says.
+    const candidates = [...songFacts.map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
+    const structured: string[] = [];
+    for (const c of candidates) {
+      if (structured.length >= MAX_DATA_FACTS) break;
+      if (recentFacts.includes(c.text) || restatesRequest(c.text, song)) continue;
+      if (alreadySaid(c.values, [...fresh, ...structured])) continue;
+      structured.push(c.text);
+      if (c.evidence) {
+        structuredLabel.set(c.text, `${SOURCE.infobox}${page}`);
+        boxEvidence.set(c.text, c.evidence);
+      }
+    }
     // A spare takes the place of a line that only repeats the title and artist. With more left than
     // bubbles, the ones their source sentence supports best are shown, in the order written.
     const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
@@ -1001,6 +1025,8 @@ function blockedAs(song: SSLSong): SSLSong[] {
 export function blockFor(label: string | undefined): string | null | undefined {
   if (!label) return undefined;
   if (label.startsWith("Wikipedia: ")) return label.slice("Wikipedia: ".length);
+  // A wrong infobox fact most often means the wrong article: the article is blocked.
+  if (label.startsWith(SOURCE.infobox)) return label.slice(SOURCE.infobox.length);
   if (label === SOURCE.wikidata || label === SOURCE.musicbrainz) return STRUCTURED;
   return null;
 }
