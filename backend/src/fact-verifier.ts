@@ -653,6 +653,8 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
 export const sectionSelection = { on: process.env.SECTION_SELECT !== "off" };
 /** RECEPTION_FILTER=off keeps reception, legacy and accolades sentences as section-select first did. */
 export const receptionFilter = { on: process.env.RECEPTION_FILTER !== "off" };
+/** SERIES_SCOPE=off reads a series-wide music article whole, as before. */
+export const seriesFilter = { on: process.env.SERIES_SCOPE !== "off" };
 
 /** Narrative sections: who did what before or around the work, or a game's story. */
 const NARRATIVE_HEADING =
@@ -1021,6 +1023,86 @@ export function isMusicArticleFor(title: string, game: string): boolean {
 const isThisGames = (title: string, game: string) =>
   normalizeTitle(title.replace(/^Music of (?:the )?/i, "").replace(/ series$| (?:Original )?Soundtrack$| \(soundtrack\)$/i, "")) === normalizeTitle(game);
 
+/** After a game's name, a word that makes it another game or the series: "Some Quest 2", "Some Quest series". */
+const ANOTHER_ENTRY = /^(?:\d+\w*|i{2,3}|iv|vi{0,3}|ix|x|series|franchise|games|video|media|universe|saga|collection|trilogy)$/;
+
+/**
+ * Whether normalized text names this game itself, not a sequel or the series
+ * named after it. `others`: other games' names (normalized) that begin with
+ * this one's, such as the article's section headings ("Some Quest Zero").
+ */
+export function namesThisGame(normalizedText: string, game: string, others: string[] = []): boolean {
+  const g = normalizeTitle(game);
+  if (!g) return false;
+  const words = ` ${normalizedText} `;
+  for (let at = words.indexOf(` ${g} `); at >= 0; at = words.indexOf(` ${g} `, at + 1)) {
+    const after = words.slice(at + 1);
+    const next = words.slice(at + g.length + 2).split(" ")[0];
+    if (!ANOTHER_ENTRY.test(next) && !others.some((o) => after.startsWith(`${o} `))) return true;
+  }
+  return false;
+}
+
+/** "The music for Some Studio's Some Quest video game series": the music of a series, named right after "music of/for". Not "composed by regular series composer". */
+const SERIES_MUSIC = /\b(?:music|soundtracks?|scores?|songs) (?:of|for|from) (?:(?:\p{Lu}[\p{L}\p{N}'’:&.-]*|\d+|the|video|game|media|and|of) ){0,8}(?:series|franchise)\b/u;
+
+/**
+ * Whether an article is about a whole series' music, not one game's: a
+ * "Music of" or series page named for something other than the game, one
+ * whose first sentence is about a series' or franchise's music, or one with
+ * a section per game ("Some Quest 2 (1992)", "Some Quest 3 (1994)"). The
+ * first game often shares the series' name, so the title alone can't tell.
+ */
+export function isSeriesWide(page: string, full: string, game: string): boolean {
+  const g = normalizeTitle(game);
+  if (!g) return false;
+  const named = /^Music of (?:the )?(.+?)(?: series)?$/i.exec(page)?.[1] ?? /^(.+?) (?:series|franchise)$/i.exec(page)?.[1];
+  if (named && normalizeTitle(named) !== g) return true;
+  if (!named && !/\b(soundtracks?|music|score)\b/i.test(page)) return false;
+  const first = full.split(/(?<=[.!?])\s+/)[0] ?? "";
+  if (SERIES_MUSIC.test(first)) return true;
+  const perGame = new Set([...full.matchAll(/^==+\s*(.+?)\s*\(\d{4}\)\s*==+\s*$/gm)].map((m) => normalizeTitle(m[1])));
+  return perGame.size >= 3;
+}
+
+/**
+ * A series-wide music article cut to what is about this game: its own
+ * section (and subsections) whole, and elsewhere only sentences that name
+ * the game itself or the track. Kept sections are flattened to one level, so
+ * a game's section under "History" isn't read as narrative. With fewer than
+ * 2 such sentences, the lead alone: the series' introduction, nothing about
+ * another game. Otherwise a 3B fills captions about the series' other games
+ * (FRESH test: a later game's composers shown for the first game's track).
+ */
+export function seriesScope(full: string, game: string, track: string): string {
+  const g = normalizeTitle(game);
+  const t = normalizeTitle(track);
+  const trackNamed = t.length >= 5 && !GENERIC_TRACK.test(t);
+  const [leadText, ...rest] = full.split(/\n(?===)/);
+  // Other games whose names begin with this one's: "Some Quest Zero" for "Some Quest".
+  const others = [...full.matchAll(/^==+\s*([^=\n]+?)\s*==+\s*$/gm)].map((m) => normalizeTitle(m[1])).filter((h) => h.startsWith(`${g} `));
+  const keeps = (s: string) => namesThisGame(normalizeTitle(s), game, others) || (trackNamed && mentionsName(normalizeTitle(s), [t]));
+  const lead = sectionSentences(leadText).filter(keeps);
+  const parts: string[] = [];
+  let kept = lead.length;
+  const open: Array<{ level: number; ours: boolean }> = [];
+  for (const chunk of rest) {
+    const h = /^(==+)\s*([^=\n]+?)\s*==+\s*\n?([\s\S]*)$/.exec(chunk);
+    if (!h) continue;
+    const level = h[1].length;
+    while (open.length && open[open.length - 1].level >= level) open.pop();
+    const ours = normalizeTitle(h[2]) === g || Boolean(open[open.length - 1]?.ours);
+    open.push({ level, ours });
+    if (SKIP_HEADING.test(h[2].trim())) continue;
+    const sentences = sectionSentences(h[3]).filter((s) => ours || keeps(s));
+    if (!sentences.length) continue;
+    kept += sentences.length;
+    parts.push(`== ${h[2]} ==\n${sentences.join(" ")}`);
+  }
+  if (kept < 2) return leadText.trim();
+  return [lead.join(" "), ...parts].filter(Boolean).join("\n\n");
+}
+
 /**
  * The game's music article, or null. One search. The game's own article is
  * taken as it is; a series-wide one ("Music of the Final Fantasy series")
@@ -1120,9 +1202,15 @@ const MAKING_OF_MUSIC = /creation|development|concept|influence|composition|writ
  * very track first, then the usual ordering. Built from the music article
  * when there is one, since the game's article is mostly about the game.
  */
-export function gameTrackText(a: GameArticles, track: string, usable: (title: string) => boolean = () => true): string {
+export function gameTrackText(a: GameArticles, track: string, usable: (title: string) => boolean = () => true, game = ""): string {
   const fits = a.music && usable(a.music.page) && (!a.music.series || trackSentences(a.music.full, track).length > 0);
-  const base = fits && a.music ? a.music : a;
+  const fromMusic = Boolean(fits && a.music);
+  let base = fits && a.music ? a.music : a;
+  // A series-wide music article: only what is about this game ("Music of Some Quest" for "Some Quest", the first of several).
+  const name = game || a.page.replace(/\s*\([^)]*\)\s*$/, "");
+  if (seriesFilter.on && base.full && ((fromMusic && a.music?.series) || isSeriesWide(base.page, base.full, name))) {
+    base = { ...base, full: seriesScope(base.full, name, track) };
+  }
   // "Liyue: Relaxation in Liyue" from "Music of Genshin Impact": the lead and the Liyue section, nothing about Mondstadt.
   const part = soundtrackPart(base.full, track);
   const full = part ? part.text : withoutVideoSections(base.full);
@@ -1133,9 +1221,9 @@ export function gameTrackText(a: GameArticles, track: string, usable: (title: st
   const picked = sectionSelection.on ? sectionExtract(full, budget, [track], new Set(about)) : "";
   if (picked) return `${base.page}\n${block}${picked}`;
   if (part) return `${base.page}\n${block}${orderExtract(full, budget, [track], true, NOT_A_LIST)}`;
-  let body = orderExtract(base.full, budget, [track], base !== a, base !== a ? MAKING_OF_MUSIC : MUSIC_HEADING);
+  let body = orderExtract(base.full, budget, [track], fromMusic, fromMusic ? MAKING_OF_MUSIC : MUSIC_HEADING);
   // A music article with no section on how the music was made: take its other sections, bar the lists.
-  if (base !== a && body.length < MIN_CONTEXT_CHARS * 2) body = orderExtract(base.full, budget, [track], true, NOT_A_LIST);
+  if (fromMusic && body.length < MIN_CONTEXT_CHARS * 2) body = orderExtract(base.full, budget, [track], true, NOT_A_LIST);
   return `${base.page}\n${block}${body}`;
 }
 
@@ -1777,7 +1865,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   // A game already looked up: this track's reference is built from the kept articles.
   const kept = !song.performer && track !== game ? gameArticles.get(gameKey) : undefined;
   if (kept && usable(kept.page)) {
-    const text = gameTrackText(kept, track, usable);
+    const text = gameTrackText(kept, track, usable, game);
     groundingCache.set(songKey, { text, at: Date.now() });
     return { text, unreachable: false };
   }
@@ -1911,7 +1999,11 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
         continue;
       }
-      let text = `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`;
+      // A series' music article found for one of its games: only what is about that game.
+      const scoped = full && byGame && !ownArticle && seriesFilter.on && isSeriesWide(page, full, game) ? seriesScope(full, game, track) : "";
+      let text = scoped
+        ? `${page}\n${writingText(scoped, orderExtract(scoped, MAX_CONTEXT_CHARS - page.length - 1, [track], false), MAX_CONTEXT_CHARS - page.length - 1, [track])}`
+        : `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`;
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
       const aGame = !artist || /game\)$/i.test(page) || /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i.test(full?.slice(0, 600) ?? "");
       if (byGame && aGame && !toPerformer && !song.performer && !ownArticle && !installment && full) {
@@ -1924,7 +2016,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         const articles = { page, full, music };
         // Shared by the game's tracks, unless this track has blocked articles of its own.
         if (!blocked.size) gameArticles.set(gameKey, articles);
-        text = gameTrackText(articles, track, usable);
+        text = gameTrackText(articles, track, usable, game);
         if (music) console.log(`[Grounding] "${game}" has a music article: ${music.page}${music.series ? " (series-wide: used for tracks it names)" : ""}`);
       }
       console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
@@ -3184,6 +3276,197 @@ export function supportingSentence(fact: string, context: string): string {
     if (share > bestShare) [best, bestShare] = [sentence, share];
   }
   return bestShare >= 0.5 ? (best.length > 320 ? `${best.slice(0, 317)}…` : best) : "";
+}
+
+// --- Scope words a 3B drops ---------------------------------------------
+
+/** SCOPE_REPAIR=off shows captions as written, without putting back a dropped "in Japan" or "the arcade version". */
+export const scopeRepair = { on: process.env.SCOPE_REPAIR !== "off" };
+
+/** Countries and regions, with the words a caption may already use for them. */
+const REGIONS: Array<[string, string[]]> = [
+  ["Japan", ["japan", "japanese"]],
+  ["North America", ["north america", "north american"]],
+  ["Europe", ["europe", "european"]],
+  ["the United States", ["united states", "us", "u s", "american", "america"]],
+  ["the US", ["united states", "us", "u s", "american", "america"]],
+  ["the United Kingdom", ["united kingdom", "uk", "u k", "britain", "british"]],
+  ["the UK", ["united kingdom", "uk", "u k", "britain", "british"]],
+  ["Australia", ["australia", "australian"]],
+  ["Canada", ["canada", "canadian"]],
+  ["Germany", ["germany", "german"]],
+  ["France", ["france", "french"]],
+  ["Italy", ["italy", "italian"]],
+  ["Spain", ["spain", "spanish"]],
+  ["South Korea", ["korea", "korean"]],
+  ["China", ["china", "chinese"]],
+  ["Taiwan", ["taiwan", "taiwanese"]],
+  ["Brazil", ["brazil", "brazilian"]],
+  ["Mexico", ["mexico", "mexican"]],
+  ["Ireland", ["ireland", "irish"]],
+  ["New Zealand", ["new zealand"]],
+  ["Sweden", ["sweden", "swedish"]],
+  ["Norway", ["norway", "norwegian"]],
+  ["the Netherlands", ["netherlands", "dutch"]],
+  ["Asia", ["asia", "asian"]],
+];
+const REGION_NAMES = REGIONS.map(([r]) => r.replace(/^the /, "")).sort((a, b) => b.length - a.length).join("|");
+const REGION_PHRASE = new RegExp(String.raw`\b(?:in|across|throughout) (?:the )?(${REGION_NAMES})(?: alone)?\b`, "g");
+/** Any mention of a region, to tell whether a sentence names only one. */
+const ANY_REGION = new RegExp(String.raw`\b(?:${REGION_NAMES}|Japanese|North American|European|American|British)\b`, "g");
+/** "on the Billboard Hot 100", "on the UK Singles Chart", "on the Oricon weekly charts": a named chart. */
+const CHART_PHRASE = /\bon the ((?:[\w.&'+-]+ ){0,5}?(?:[Cc]harts?|Hot 100|Billboard 200|Top 40))\b/g;
+const FIRST_WEEK = /\b(?:in|during) (?:its|their|the) first week(?: of (?:release|sales|its release))?\b/gi;
+const SAME_YEAR = /\b(?:(in|during) )?(?:that|the) same year\b/i;
+/** Platforms and editions a sentence may limit a claim to: "the Mega Drive/Genesis version", "the Japanese version". */
+const PLATFORM = String.raw`(?:Mega Drive|Genesis|Super NES|SNES|Super Famicom|NES|Famicom|Game Boy(?: Color| Advance)?|Game Gear|Master System|Sega CD|Mega-CD|Sega Saturn|Saturn|Dreamcast|PlayStation(?: \d| Portable)?|PSP|PS\d|Nintendo 64|N64|GameCube|Wii U|Wii|Switch|Nintendo DS|DS|3DS|Xbox(?: 360| One)?|PC|Windows|Mac|MS-DOS|DOS|Amiga|Commodore 64|ZX Spectrum|arcade|Neo Geo|TurboGrafx-16|PC Engine|32X|mobile|iOS|Android|8-bit|16-bit|Japanese|North American|European|English|Western|PAL|NTSC|international)`;
+const VERSION_PHRASE = new RegExp(String.raw`\b(?:[Tt]he|[Ii]ts) (${PLATFORM}(?:\s*\/\s*${PLATFORM})*) (version|release|port)\b`, "g");
+
+/** Words that widen or split a sentence's scope: a region repair can't tell which part a caption kept. */
+const WIDER_SCOPE = /\b(?:internationally|worldwide|globally|overseas|abroad|elsewhere|other (?:regions|countries|territories|markets)|outside (?:of )?(?:the )?\p{Lu}\w+)\b/iu;
+
+/** Whether the clause a phrase sits in has one of the caption's numbers (always, for a caption without numbers). */
+function sameClause(sentence: string, at: number, capNums: Set<string>): boolean {
+  if (!capNums.size) return true;
+  const starts = [0, ...[...sentence.matchAll(/[;,]\s|\s(?:while|whereas|but|although)\s/g)].map((m) => (m.index ?? 0) + m[0].length)];
+  const from = Math.max(...starts.filter((i) => i <= at));
+  const next = starts.find((i) => i > at) ?? sentence.length;
+  const clause = sentence.slice(from, next);
+  return [...figuresIn(clause)].some((n) => capNums.has(n));
+}
+
+/** Numbers in a text, commas and "No." aside: "16,000", "3". */
+const figuresIn = (s: string) => new Set([...s.matchAll(/\d[\d,]*(?:\.\d+)?/g)].map((m) => m[0].replace(/,/g, "")));
+const SMALL_WORDS = new Set(["the", "a", "an", "and", "or", "of", "in", "on", "at", "to", "for", "by", "with", "was", "were", "is", "it", "its", "as", "from", "also"]);
+
+/** The reference's sentences, each with the one before it in its paragraph and without a "Heading: " label. */
+function scopeSentences(context: string): Array<{ text: string; before: string }> {
+  const out: Array<{ text: string; before: string }> = [];
+  for (const para of context.split("\n").slice(1)) {
+    let before = "";
+    for (const [i, raw] of para.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).entries()) {
+      const text = (i === 0 ? raw.replace(/^(?:About this piece|[^:.!?"“]{1,80}): (?=["“]?\p{Lu})/u, "") : raw).trim();
+      if (text.length >= 20) out.push({ text, before });
+      before = text;
+    }
+  }
+  return out;
+}
+
+/** Insert `phrase` after the word or two the source puts before it, when the caption has them once. */
+function insertAfterAnchor(caption: string, sentence: string, at: number, phrase: string): string | null {
+  const words = sentence.slice(0, at).trim().split(/\s+/);
+  for (const n of [1, 2]) {
+    const anchor = words.slice(-n).join(" ").replace(/[,;:]$/, "");
+    if (!anchor || (n === 1 && SMALL_WORDS.has(anchor.toLowerCase()))) continue;
+    const re = new RegExp(String.raw`(^|[^\p{L}\p{N}])(${anchor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?=[^\p{L}\p{N}]|$)`, "giu");
+    const hits = [...caption.matchAll(re)];
+    if (hits.length !== 1) continue;
+    const end = (hits[0].index ?? 0) + hits[0][1].length + hits[0][2].length;
+    return `${caption.slice(0, end)} ${phrase}${caption.slice(end)}`;
+  }
+  return null;
+}
+
+/**
+ * Put back a limit the caption's source sentence sets on a claim the caption
+ * keeps, from a closed list: a country or region ("in Japan"), a named chart
+ * ("on the Oricon weekly charts"), "in its first week", the year "the same
+ * year" means, and an edition ("the Mega Drive/Genesis version"). Only when
+ * the caption retells that sentence (half its words, and a number it has),
+ * lacks the limit, and the sentence has exactly one limit of that kind with
+ * a clear place for it in the caption; otherwise the caption is unchanged.
+ * Precise on purpose: a broad repair broke correct captions before.
+ */
+export function repairScope(caption: string, context: string): string {
+  const want = contentTokens(caption.replace(/\([^()]*\)/g, " "));
+  if (!want.size) return caption;
+  let best: { text: string; before: string } | null = null;
+  let bestShare = 0;
+  for (const s of scopeSentences(context)) {
+    const have = contentTokens(s.text);
+    let shared = 0;
+    for (const t of want) if (have.has(t)) shared++;
+    if (shared / want.size > bestShare) [best, bestShare] = [s, shared / want.size];
+  }
+  if (!best || bestShare < 0.5) return caption;
+  const sentence = best.text;
+  // It keeps the sentence's claim: a number the sentence has, when it has any.
+  const nums = figuresIn(sentence);
+  const capNums = figuresIn(caption);
+  if (nums.size && ![...capNums].some((n) => nums.has(n))) return caption;
+  const said = ` ${normalizeTitle(caption)} `;
+  let out = caption;
+
+  // "the same year": the one year the words before it name.
+  const same = SAME_YEAR.exec(out);
+  if (same && SAME_YEAR.test(sentence)) {
+    const inSentence = sentence.slice(0, sentence.search(SAME_YEAR));
+    const years = (t: string) => [...new Set(t.match(/\b(?:1[89]\d\d|20\d\d)\b/g) ?? [])];
+    const year = years(inSentence).length ? (years(inSentence).length === 1 ? years(inSentence)[0] : "") : years(best.before).length === 1 ? years(best.before)[0] : "";
+    if (year && !capNums.has(year)) {
+      const lead = same.index === 0;
+      out = `${out.slice(0, same.index)}${same[1] ? `${same[1]} ` : lead ? "In " : "in "}${year}${out.slice(same.index + same[0].length)}`;
+    }
+  }
+
+  // A country or region, when the sentence names only one.
+  // "internationally", "in other regions": the sentence sets more than one scope, so which one a caption keeps isn't clear.
+  const regions = WIDER_SCOPE.test(sentence) || WIDER_SCOPE.test(caption) ? [] : [...sentence.matchAll(REGION_PHRASE)];
+  if (regions.length === 1 && new Set([...sentence.matchAll(ANY_REGION)].map((m) => m[0])).size === 1 && sameClause(sentence, regions[0].index ?? 0, capNums)) {
+    const region = regions[0];
+    const forms = REGIONS.find(([r]) => r.replace(/^the /, "") === region[1])?.[1] ?? [];
+    const anyRegion = REGIONS.some(([, f]) => f.some((w) => said.includes(` ${w} `)));
+    if (!forms.some((w) => said.includes(` ${w} `)) && !anyRegion) {
+      out = withPhrase(out, sentence, region.index ?? 0, region[0]) ?? out;
+    }
+  }
+
+  // A named chart, when the caption keeps the peak but not the chart.
+  const charts = [...sentence.matchAll(CHART_PHRASE)].filter((m) => /\p{Lu}/u.test(m[1]));
+  if (charts.length === 1 && sameClause(sentence, charts[0].index ?? 0, capNums)) {
+    const chart = charts[0];
+    const names = chart[1].split(" ").filter((w) => /^\p{Lu}/u.test(w) && !/^charts?$/i.test(w));
+    if (names.length && !names.some((w) => said.includes(` ${normalizeTitle(w)} `))) {
+      const vague = /\bon (?:the|a) (?:\w+ )?charts?\b/i.exec(out);
+      if (vague) out = `${out.slice(0, vague.index)}${chart[0]}${out.slice(vague.index + vague[0].length)}`;
+      else if (!/\bcharts?\b/i.test(out)) out = withPhrase(out, sentence, chart.index ?? 0, chart[0]) ?? out;
+    }
+  }
+
+  // "in its first week".
+  const weeks = [...sentence.matchAll(FIRST_WEEK)];
+  if (weeks.length === 1 && !/\bfirst week\b/i.test(out) && sameClause(sentence, weeks[0].index ?? 0, capNums)) {
+    out = withPhrase(out, sentence, weeks[0].index ?? 0, weeks[0][0]) ?? out;
+  }
+
+  // An edition: "The Mega Drive/Genesis version of the game was released ..." retold as "The game was released ...".
+  const versions = [...sentence.matchAll(VERSION_PHRASE)];
+  if (versions.length === 1 && !/\b(?:version|port|release)\b/i.test(out)) {
+    const v = versions[0];
+    const platformWords = v[1].split(/\s*\/\s*|\s+/).map((w) => normalizeTitle(w));
+    if (!platformWords.some((w) => said.includes(` ${w} `))) {
+      const subject = new RegExp(String.raw`^(?:[^:.!?"“]{1,80}: )?the ${v[1].replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")} ${v[2]} of (the game|the album|the soundtrack)\b`, "i").exec(sentence);
+      const forPart = new RegExp(String.raw`\b(\p{L}+ \p{L}+) (for|of|in) the ${v[1].replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")} ${v[2]}( of the game)?`, "iu").exec(sentence);
+      if (subject && new RegExp(`^${subject[1]}\\b`, "i").test(out)) {
+        out = `The ${v[1]} ${v[2]} of ${subject[1].toLowerCase()}${out.slice(subject[1].length)}`;
+      } else if (forPart && !SMALL_WORDS.has(forPart[1].split(" ")[0].toLowerCase())) {
+        const hits = out.match(new RegExp(String.raw`\b${forPart[1]}\b`, "gi")) ?? [];
+        if (hits.length === 1) out = out.replace(new RegExp(String.raw`\b(${forPart[1]})\b`, "i"), `$1 ${forPart[2]} the ${v[1]} ${v[2]}${forPart[3] ?? ""}`);
+      }
+    }
+  }
+  return out.length <= MAX_FACT_CHARS ? out : caption;
+}
+
+/** Put a phrase from the sentence into the caption: after its anchor word, or first with a comma when it opens the sentence. */
+function withPhrase(caption: string, sentence: string, at: number, phrase: string): string | null {
+  const opens = sentence.slice(0, at).replace(/^[^:.!?"“]{1,80}: /, "").trim() === "" && sentence.slice(at + phrase.length).startsWith(",");
+  if (opens) {
+    const first = /^(The|It|Its|A|An|This)\b/.test(caption) ? caption[0].toLowerCase() + caption.slice(1) : caption;
+    return `${phrase[0].toUpperCase()}${phrase.slice(1)}, ${first}`;
+  }
+  return insertAfterAnchor(caption, sentence, at, phrase);
 }
 
 /** Text naming the track, small words aside: "Through the Fire and Flames" names "Through the Fire and the Flames". */

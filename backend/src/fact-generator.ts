@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -912,7 +912,14 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
     // Music terms get a few fixed plain words, so any viewer can follow.
-    const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
+    // A limit the source sets ("in Japan", "the arcade version") goes back in when the model dropped it.
+    const plain = new Map(
+      fresh.map((f) => {
+        const scoped = context && scopeRepair.on ? repairScope(f, context) : f;
+        if (scoped !== f) console.log(`[Screen] SCOPE: ${f.slice(0, 70)} -> ${scoped.slice(0, 110)}`);
+        return [f, explainMusicTerms(scoped)];
+      })
+    );
     // Data facts: the song's own first, then the infobox's; at most MAX_DATA_FACTS, none a caption already says.
     const candidates = [...songFacts.map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
     const structured: string[] = [];
