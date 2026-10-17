@@ -608,12 +608,8 @@ ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unk
 ipcMain.handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // Read from the file, so the list works even before the songs are connected.
 ipcMain.handle("list-song-facts", () => {
-  try {
-    const list: unknown = JSON.parse(fs.readFileSync(path.join(DATA, "song-facts.json"), "utf8"));
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
+  const list = readJson("song-facts.json");
+  return Array.isArray(list) ? list : [];
 });
 // "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
 ipcMain.handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));

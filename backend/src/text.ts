@@ -13,3 +13,12 @@ export function cleanRequestText(s: string): string {
   // eslint-disable-next-line no-control-regex
   return s.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_REQUEST_TEXT).trim();
 }
+
+/**
+ * Identity for the streamer's own records: case, accents and punctuation
+ * don't count, but the words do, including a version in brackets. "Night
+ * Drive (Acoustic)" isn't "Night Drive (Remix)"; Wikipedia's lookup
+ * normalization, which drops brackets, is deliberately not used here.
+ */
+export const songIdentity = (s: string): string =>
+  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
