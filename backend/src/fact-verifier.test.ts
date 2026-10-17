@@ -18,6 +18,8 @@ import {
   splitGameAndTrack,
   resolveGameAndTrack,
   isRelevantArticle,
+  numeralStyleDiffers,
+  editionNotInTitle,
   unsupportedName,
   platformSupported,
   looksLikeArtistName,
@@ -339,13 +341,58 @@ describe("isRelevantArticle — franchise siblings and false friends", () => {
     ["Ys VIII", "Ys VIII: Lacrimosa of Dana"],
     ["Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana"],
     ["Undertale", "Undertale"],
-    // Roman and arabic numerals must compare equal, or a legitimate match
-    // is rejected for a cosmetic difference.
-    ["Final Fantasy VI", "Final Fantasy 6"],
+    // The same numeral written the same way still matches.
+    ["Final Fantasy VI", "Final Fantasy VI"],
   ];
 
   it.each(MUST_ACCEPT)("accepts %s -> %s", (subject, page) => {
     expect(isRelevantArticle(subject, page)).toBe(true);
+  });
+});
+
+describe("numerals written differently name different works", () => {
+  it("never matches an arabic number to a roman numeral", () => {
+    expect(isRelevantArticle("Rocket Robo 5", "Rocket Robo V (1994 video game)")).toBe(false);
+    expect(isRelevantArticle("Rocket Robo V", "Rocket Robo 5")).toBe(false);
+    // "10" and "X" are both ten, and two different games.
+    expect(isRelevantArticle("Rocket Robo 10", "Rocket Robo X (video game)")).toBe(false);
+    expect(isRelevantArticle("Sky Quest 7", "Sky Quest VII")).toBe(false);
+  });
+
+  it("still matches the same number written the same way, and keeps the sequel rules", () => {
+    expect(isRelevantArticle("Sky Quest VII", "Sky Quest VII")).toBe(true);
+    expect(isRelevantArticle("Rocket Robo 5", "Rocket Robo 5")).toBe(true);
+    expect(isRelevantArticle("Rocket Robo X", "Rocket Robo X (video game)")).toBe(true);
+    expect(isRelevantArticle("Sky Quest VII", "Sky Quest VIII")).toBe(false);
+    expect(isRelevantArticle("Sky Quest VII", "Sky Quest (video game)")).toBe(false);
+  });
+
+  it("tells numeral styles apart", () => {
+    expect(numeralStyleDiffers("Rocket Robo 5", "Rocket Robo V")).toBe(true);
+    expect(numeralStyleDiffers("Rocket Robo 5", "Rocket Robo 5: The Return")).toBe(false);
+    expect(numeralStyleDiffers("Sky Quest VII", "Sky Quest VII (video game)")).toBe(false);
+    expect(numeralStyleDiffers("Sky Quest", "Sky Quest 2")).toBe(false);
+  });
+
+  it("is no respelling", () => {
+    expect(isRespelling("Rocket Robo 5", "Rocket Robo V")).toBe(false);
+  });
+});
+
+describe("editionNotInTitle", () => {
+  it("names the edition a request has and the article title lacks", () => {
+    expect(editionNotInTitle("Phantom Heist 5 Royal", "Phantom Heist 5")).toBe("royal");
+    expect(editionNotInTitle("Star Saga Director's Cut", "Star Saga (video game)")).toBe("director s cut");
+    expect(editionNotInTitle("Moon Garden Remastered", "Moon Garden")).toBe("remastered");
+    expect(editionNotInTitle("Moon Garden HD", "Moon Garden")).toBe("hd");
+  });
+
+  it("is null when the title has it, or the request names none", () => {
+    expect(editionNotInTitle("Phantom Heist 5 Royal", "Phantom Heist 5 Royal")).toBeNull();
+    expect(editionNotInTitle("Moon Garden", "Moon Garden (video game)")).toBeNull();
+    // A first word is the name, not an edition.
+    expect(editionNotInTitle("Golden Lantern", "Golden Lantern (video game)")).toBeNull();
+    expect(editionNotInTitle("Golden Lantern", "Lantern")).toBeNull();
   });
 });
 
@@ -1413,6 +1460,28 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Aladdin soundtrack": ["Aladdin"], Aladdin: ["Aladdin"] };
     extracts = { Aladdin: `Aladdin is a Middle Eastern folk tale, later made into films.${LONG}` };
     expect(await fetchGrounding({ title: "Prince Ali - Aladdin", artist: "Some Remixer" })).toBe("");
+  });
+
+  it("follows Wikipedia's redirect from an arabic number to a roman numeral, never a search hit", async () => {
+    hits = { "Sky Quest 7 video game": ["Sky Quest VII"], "Sky Quest 7 soundtrack": ["Sky Quest VII"], "Sky Quest 7": ["Sky Quest VII"], "Sky Quest VII": ["Sky Quest VII"] };
+    extracts = { "Sky Quest VII": `Sky Quest VII is a 1997 role-playing video game. Starlit Road plays on the map.${LONG}` };
+    expect(await fetchGrounding({ title: "Starlit Road", artist: "Sky Quest 7" })).toBe("");
+    clearGroundingCache();
+    redirects = { "Sky Quest 7": "Sky Quest VII" };
+    expect(await fetchGrounding({ title: "Starlit Road", artist: "Sky Quest 7" })).toMatch(/^Sky Quest VII\n/);
+  });
+
+  it("prefers an edition's own article to the original's", async () => {
+    hits = { "Phantom Heist 5 Royal video game": ["Phantom Heist 5", "Phantom Heist 5 Royal"] };
+    extracts = {
+      "Phantom Heist 5": `Phantom Heist 5 is a 2016 role-playing video game.${LONG}`,
+      "Phantom Heist 5 Royal": `Phantom Heist 5 Royal is a 2019 enhanced version of Phantom Heist 5.${LONG}`,
+    };
+    expect(await fetchGrounding({ title: "Last Night Song", artist: "Phantom Heist 5 Royal" })).toMatch(/^Phantom Heist 5 Royal\n/);
+    // With no edition article, the original's still serves the captions.
+    clearGroundingCache();
+    hits = { "Phantom Heist 5 Royal video game": ["Phantom Heist 5"] };
+    expect(await fetchGrounding({ title: "Last Night Song", artist: "Phantom Heist 5 Royal" })).toMatch(/^Phantom Heist 5\n/);
   });
 
   it("follows a redirect from a game's initials (FFVII)", async () => {

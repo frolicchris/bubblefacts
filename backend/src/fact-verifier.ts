@@ -185,6 +185,52 @@ function significantTokens(s: string): string[] {
   return (kept.length ? kept : words).map((t) => ROMAN[t] ?? t);
 }
 
+/**
+ * Installment numbers with the way each is written, "5" or "v": "Some Game 5"
+ * gives ["5:arabic"], "Some Game V" ["5:roman"].
+ */
+function numeralForms(normalized: string): string[] {
+  return normalized
+    .split(" ")
+    .filter((t) => t && !STOPWORDS.has(t) && (/^\d+$/.test(t) || t in ROMAN))
+    .map((t) => (t in ROMAN ? `${ROMAN[t]}:roman` : `${Number(t)}:arabic`));
+}
+
+/**
+ * Whether two titles write the same installment number differently: "Some
+ * Game 5" and "Some Game V" may be two different games, and so may "Some
+ * Game 10" and "Some Game X". Only Wikipedia's own redirect from the other form says
+ * they are one work; the lookup follows that separately.
+ */
+export function numeralStyleDiffers(a: string, b: string): boolean {
+  const fa = numeralForms(normalizeTitle(a));
+  const fb = numeralForms(normalizeTitle(b));
+  const value = (f: string) => f.split(":")[0];
+  const clash = (x: string[], y: string[]) => x.some((f) => y.some((g) => value(g) === value(f)) && !y.includes(f));
+  return clash(fa, fb) || clash(fb, fa);
+}
+
+/**
+ * Edition words: a version of a game with its own credits and release year.
+ * Matched on normalized titles ("director's cut" is "director s cut").
+ */
+const EDITION_WORDS =
+  /\b(royal|golden|reload|remastered|remaster|remake|definitive edition|complete edition|special edition|anniversary edition|director s cut|final mix|hd|dx|deluxe|portable|cd)\b/g;
+
+/**
+ * The edition a request names that an article's title doesn't: "Some Game
+ * Royal" read from "Some Game" gives "royal". The article may still be about
+ * the game, but its infobox credits and year are the original's. Never the
+ * first word ("Golden Sun" is a name, not an edition). Null when none.
+ */
+export function editionNotInTitle(subject: string, pageTitle: string): string | null {
+  const want = normalizeTitle(subject);
+  const got = ` ${normalizeTitle(pageTitle)} `;
+  const rest = want.split(" ").slice(1).join(" ");
+  for (const m of rest.matchAll(EDITION_WORDS)) if (!got.includes(` ${m[1]} `)) return m[1];
+  return null;
+}
+
 /** "Firstname Lastname", or a well-known composer or band. */
 export function looksLikeArtistName(subject: string): boolean {
   if (!subject) return false;
@@ -269,6 +315,9 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   const wantNums = wantTokens.filter((t) => /^\d+$/.test(t));
   const gotNums = gotTokens.filter((t) => /^\d+$/.test(t));
   if (wantNums.length && !wantNums.some((n) => gotNums.includes(n))) return false;
+  // The same number written the other way is another work: "Some Game 5" is not "Some Game V".
+  // A Wikipedia redirect from one form to the other is followed by the lookup, never guessed here.
+  if (numeralStyleDiffers(subject, pageTitle)) return false;
 
   const wantSeq = wantTokens.join(" ");
   const gotSeq = gotTokens.join(" ");
@@ -1066,7 +1115,7 @@ export function isRespelling(name: string, page: string): boolean {
   if (a === `${b}s` || b === `${a}s`) return false;
   const d = editDistance(a.replace(/ /g, ""), b.replace(/ /g, ""));
   if (d > 2 || d > a.replace(/ /g, "").length * 0.2) return false;
-  if (numerals(name).join(" ") !== numerals(page).join(" ")) return false;
+  if (numerals(name).join(" ") !== numerals(page).join(" ") || numeralStyleDiffers(name, page)) return false;
   const wa = a.split(" ");
   const wb = b.split(" ");
   if (wa.length !== wb.length) return d === 0;
@@ -1468,6 +1517,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         ofTrack.find((t) => /\((?:[^)]*\b)?(song|composition|instrumental|theme)\)$/i.test(t)) ??
         ofTrack.find((t) => !/\((?:[^)]*\b)?(album|EP|soundtrack|film|musical)\)$/i.test(t)) ??
         ofTrack[0] ??
+        // An edition's own article beats the original's: "Some Game Remake" over "Some Game".
+        titles.find((t) => usable(t) && matchedGame(t) && !editionNotInTitle(game, t)) ??
         titles.find((t) => usable(t) && matchedGame(t));
       if (!page) {
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
