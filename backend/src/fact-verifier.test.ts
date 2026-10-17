@@ -954,10 +954,10 @@ describe("restatesRequest", () => {
   });
 
   it("drops an originals credit that names the artist the request showed", () => {
-    const song = { title: "Water in the Moonlight", artist: "Chris" };
-    expect(restatesRequest('"Water in the Moonlight" is an original composition by Chris.', song)).toBe(true);
+    const song = { title: "Water in the Moonlight", artist: "Robin" };
+    expect(restatesRequest('"Water in the Moonlight" is an original composition by Robin.', song)).toBe(true);
     expect(restatesRequest("You're hearing this one straight from the person who wrote it.", song)).toBe(true);
-    expect(restatesRequest("Chris has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
+    expect(restatesRequest("Robin has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
   });
 });
 
