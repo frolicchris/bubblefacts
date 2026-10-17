@@ -252,7 +252,7 @@ export class SongListClient implements SongSource {
    * request may have started before the change it was asked about.
    */
   private refresh(): Promise<void> {
-    if (Date.now() < this.backoffUntil) return Promise.resolve();
+    if (this.backingOff()) return Promise.resolve();
     if (this.inFlight) {
       this.refreshAgain = true;
       return this.inFlight;
