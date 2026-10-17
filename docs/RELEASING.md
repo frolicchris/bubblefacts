@@ -88,6 +88,13 @@ and puts it in problem, beta test and Wrong reports:
 Before publishing a draft release, check the packaged app, not only the source.
 The tests can't see what OBS or an installer does.
 
+**Before tagging, skim the song sources' changelogs:** StreamerSongList's
+public changelog, and StreamElements' release notes if they publish any,
+since the last release. Look for changes to the queue, the song that's
+playing, sign-in or rate limits. Note what you checked in the release
+pull request, and file an issue for anything that touches what the app
+reads.
+
 1. The version was set with `npm run bump` (above) and matches the tag, and
    `desktop/renderer/whats-new.json` has that version's two to four
    highlights (plain words, like the changelog's top lines), added before
