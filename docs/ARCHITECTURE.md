@@ -134,6 +134,18 @@ sign-ins and the built-in AI. Its design decisions are in
    certifications, sales, never opinions). In an article about a whole game
    or artist, only sentences that name the track or are plainly about music
    are lifted, and no reception.
+   With section-aware selection (on by default; `SECTION_SELECT=off` turns
+   it off) the reference is built differently (`selectSections`,
+   `sectionExtract`): the lead first, which Wikipedia writes to stand alone,
+   then sections that report checkable things (composition, release, charts,
+   awards, live performances, cover versions), then style and sound, then the
+   rest. Narrative sections (background, influences, development, history,
+   production, plot, gameplay) are left out, except a sentence that names the
+   song or its composer and is about the music: in judged captions, those
+   sections erred three to seven times as often as the lead. Whether an article is
+   long enough is still decided on the usual ordering, so the same articles are
+   used, and when fewer than 2 usable sentences remain the usual ordering is
+   the reference.
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
