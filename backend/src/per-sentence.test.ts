@@ -34,19 +34,17 @@ describe("hedgeOf", () => {
 });
 
 describe("captionGrammar", () => {
-  it("is free text on one line, held to the bubble length, when nothing is forced", () => {
-    expect(captionGrammar({ limit: 160 })).toBe("root ::= body\nbody ::= [^\\r\\n]{1,160}");
+  it("is free text on one line with no length cap when nothing is forced", () => {
+    expect(captionGrammar({})).toBe("root ::= body\nbody ::= [^\\r\\n]+");
   });
 
-  it("opens with According to and keeps the room left for the rest", () => {
-    const g = captionGrammar({ holder: "Mira Holt", limit: 100 });
-    expect(g).toContain('root ::= "According to Mira Holt, " body');
-    expect(g).toContain(`{1,${100 - "According to Mira Holt, ".length}}`);
+  it("opens with According to", () => {
+    expect(captionGrammar({ holder: "Mira Holt" })).toContain('root ::= "According to Mira Holt, " body');
   });
 
   it("requires the hedge cue, in either case at its first letter", () => {
-    const g = captionGrammar({ cue: "reportedly", limit: 60 });
-    expect(g).toContain("body ::= [^\\r\\n]{0,50} cue [^\\r\\n]{0,50}");
+    const g = captionGrammar({ cue: "reportedly" });
+    expect(g).toContain("body ::= [^\\r\\n]* cue [^\\r\\n]*");
     expect(g).toContain('cue ::= ("R" | "r") "eportedly"');
   });
 

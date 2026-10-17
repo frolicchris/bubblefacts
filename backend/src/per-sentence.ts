@@ -1,4 +1,4 @@
-import { LEANS_BACK, MAX_FACT_CHARS, lineSentences } from "./fact-verifier";
+import { LEANS_BACK, lineSentences } from "./fact-verifier";
 
 /**
  * Per-sentence writing (PER_SENTENCE=on, off by default; experiment for #172).
@@ -70,20 +70,16 @@ const cueRule = (cue: string) => {
 };
 
 /**
- * The grammar for one caption: free text on one line, at most `limit`
- * characters, opening with "According to <holder>, " and containing `cue`
- * when they're given. GBNF can't count across rules, so with a cue each side
- * of it is held to the room left; the bubble-length screen still drops the
- * rare line that ends up longer.
+ * The grammar for one caption: free text on one line, opening with
+ * "According to <holder>, " and containing `cue` when they're given. No
+ * length cap: a cap cut lines off mid-word (the forced-tokens round), so a
+ * line that runs long is left whole and the bubble-length screen drops it.
  */
-export function captionGrammar({ holder, cue, limit = MAX_FACT_CHARS }: { holder?: string; cue?: string; limit?: number }): string {
+export function captionGrammar({ holder, cue }: { holder?: string; cue?: string }): string {
   const prefix = holder ? `According to ${holder}, ` : "";
-  const room = Math.max(1, limit - prefix.length);
   const rules = [`root ::= ${prefix ? `${literal(prefix)} ` : ""}body`];
-  if (cue) {
-    const side = Math.max(0, room - cue.length);
-    rules.push(`body ::= [^\\r\\n]{0,${side}} cue [^\\r\\n]{0,${side}}`, `cue ::= ${cueRule(cue)}`);
-  } else rules.push(`body ::= [^\\r\\n]{1,${room}}`);
+  if (cue) rules.push(`body ::= [^\\r\\n]* cue [^\\r\\n]*`, `cue ::= ${cueRule(cue)}`);
+  else rules.push(`body ::= [^\\r\\n]+`);
   return rules.join("\n");
 }
 

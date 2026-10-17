@@ -11,6 +11,7 @@ import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
+import { pickCaptions, picker } from "./picker";
 import { attributeCaption, captionGrammar, cleanCaption, hedgeOf, holderOf, perSentence, pickSentences, SENTENCE_EXAMPLE_LINES, sentencePrompt } from "./per-sentence";
 
 /**
@@ -629,6 +630,19 @@ async function writePerSentence(context: string, n: number, key: string): Promis
   return lines;
 }
 
+/**
+ * PICKER=on: the model picks, code writes (see picker.ts). The model only
+ * answers grammar-forced multiple-choice questions about each source
+ * sentence; the captions are its clauses, verbatim, with referring phrases
+ * named and opinions attributed by code. They then go through the same
+ * screens and ranking.
+ */
+async function writePicked(context: string, song: SSLSong, n: number, key: string): Promise<string[]> {
+  const { captions, log } = await pickCaptions(context, { title: song.title, artist: song.artist ?? "" }, n, (prompt, grammar) => askModel(prompt, key, grammar));
+  for (const l of log) console.log(`[Picker] ${l.outcome.slice(0, 100)}`);
+  return captions;
+}
+
 // --- Pipeline ----------------------------------------------------------
 
 /** Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it. */
@@ -909,7 +923,9 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
 
     const written =
-      context && perSentence()
+      context && picker()
+        ? await writePicked(context, song, want + OVERGENERATE, songKey(asked))
+        : context && perSentence()
         ? await writePerSentence(context, want + OVERGENERATE, songKey(asked))
         : (await askModel(context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want), songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
     const lines = written.filter((l) => {
