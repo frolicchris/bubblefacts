@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
+import { songIdentity } from "./text";
 import { SSLSong } from "./types";
 
 /**
@@ -48,14 +49,7 @@ function load(): SongFacts[] {
   return store;
 }
 
-/**
- * Identity for the streamer's own records: case, accents and punctuation
- * don't count, but the words do, including a version in brackets. "Night
- * Drive (Acoustic)" isn't "Night Drive (Remix)"; Wikipedia's lookup
- * normalization, which drops brackets, is deliberately not used here.
- */
-export const songIdentity = (s: string) =>
-  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+export { songIdentity };
 const key = (artist: string, title: string) => `${songIdentity(artist)}\0${songIdentity(title)}`;
 
 function matches(entry: SongFacts, song: SSLSong): boolean {

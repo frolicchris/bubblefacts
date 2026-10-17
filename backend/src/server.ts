@@ -473,22 +473,11 @@ app.get("/health", (_req, res) => {
   });
 });
 
-/** What the overlay is showing now. Read-only, unlike /current-facts. */
+/** What the overlay is showing now. Read-only. */
 app.get("/recent", (_req, res) => {
   // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
   const song = songFrom(lastSent.song);
   res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier });
-});
-
-/** Facts for whatever is playing now, for testing without OBS. */
-app.get("/current-facts", async (_req, res) => {
-  const current = songList.getCurrentSong();
-  if (!current) {
-    res.json({ song: null, facts: [] });
-    return;
-  }
-  const song = songList.toSong(current);
-  res.json({ song, facts: await generateFacts(song, current) });
 });
 
 // --- Start -----------------------------------------------------------------
