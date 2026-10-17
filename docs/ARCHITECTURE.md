@@ -30,6 +30,7 @@ StreamElements ───┴──────────────► Server 
 
 | File | Job |
 |---|---|
+| `backend/src/config.ts` | Every setting from `.env`, with its default and allowed range (documented in [CONFIG.md](CONFIG.md)). |
 | `backend/src/song-source.ts` | The `SongSource` interface the server needs from a song source. `SONG_SOURCE` picks one. |
 | `backend/src/songlist-client.ts` | StreamerSongList: reads the queue and works out what's playing. |
 | `backend/src/centrifugo-client.ts` | StreamerSongList's live "the queue changed" events. |
@@ -39,6 +40,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
+| `backend/src/list-profile.ts` | How one streamer writes their song list (a dash or brackets for the game), worked out from the list itself. |
 | `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts when there's no article about the song. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
@@ -48,6 +50,8 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
+| `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
+| `backend/src/atomic-write.ts`, `text.ts`, `types.ts` | Crash-safe file writes, small text helpers, and the shared song and fact shapes. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
 
@@ -76,6 +80,9 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
+| `desktop/src/plain-errors.ts` | Turns errors into plain words: what happened and what to do. |
+| `desktop/src/whats-new.ts` | The "What's new" highlights shown once after an update, from `desktop/renderer/whats-new.json`. |
+| `desktop/src/build.ts`, `autostart.ts`, `atomic-write.ts` | Which build this is (release or test build), starting at login on Linux, and crash-safe file writes. |
 
 ## The life of one song
 
@@ -258,7 +265,8 @@ sign-ins and the built-in AI. Its design decisions are in
     clicked.
 
 Facts are kept in memory for the rest of the session, so a repeated song is
-instant; nothing generated is ever written to disk. Several requests for the
+instant. Only what the stream has shown is saved, in `session.json`, and
+only for 6 hours (see above). Several requests for the
 same song at once (two overlays, or one reconnecting mid-song) share a single
 generation. Songs that fell back are retried after ten minutes, and song facts
 and originals are rebuilt every time, so edits, the play count and the
