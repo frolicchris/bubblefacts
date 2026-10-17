@@ -651,6 +651,8 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
  * report checkable things (composition, release, charts, awards).
  */
 export const sectionSelection = { on: process.env.SECTION_SELECT !== "off" };
+/** RECEPTION_FILTER=off keeps reception, legacy and accolades sentences as section-select first did. */
+export const receptionFilter = { on: process.env.RECEPTION_FILTER !== "off" };
 
 /** Narrative sections: who did what before or around the work, or a game's story. */
 const NARRATIVE_HEADING =
@@ -666,6 +668,52 @@ const STYLE_HEADING = /\b(music|musical|style|sound|soundtracks?|score|audio|gen
 const SKIP_HEADING = /^(references|notes|footnotes|citations|sources|external links|see also|further reading|bibliography)$/i;
 /** A sentence about the music, for keeping one from a narrative section. */
 const MUSIC_WORD = /\b(compos\w*|scor(?:e|es|ed|ing)|soundtracks?|themes?|songs?|tracks?|melod(?:y|ies|ic))\b/i;
+
+/** Sections of other people's verdicts: reviews and reception. Only their chart, sales and certification numbers are kept. */
+const RECEPTION_HEADING = /\b(reception|reviews?|critical|critics|response|reaction|retrospective|appraisal)\b/i;
+/** Sections where opinions sit among facts: legacy, accolades, release. Their opinion sentences are left out. */
+const LEGACY_HEADING = /\b(legacy|impact|influence|aftermath)\b/i;
+const ACCOLADE_HEADING = /\b(accolades?|awards?|honou?rs|rankings?|lists?)\b/i;
+const RELEASE_HEADING = /\b(releases?|promotion|singles?)\b/i;
+/** A chart peak, a sales figure or a certification: checkable even in a reception section. */
+const CHART_WORD =
+  /\b(charts?|charted|peak(?:ed|ing)?|Billboard|Hot 100|Oricon|top (?:ten|forty|\d+)|number (?:one|\d+)|No\. ?\d+|sold|sales|copies|units|shipped|certified|certifications?|gold|platinum|diamond)\b/i;
+/** A ranking on someone's list is a verdict, not a chart. */
+const LIST_RANKING = /\b(ranked|ranking|lists?|greatest|best|favou?rite)\b/i;
+/** A critic or a publication judging the work. */
+const REVIEW_CUE =
+  /\b(critics?|critical(?:ly)?|reviewers?|reviews?|reviewed|praised|praise|acclaim(?:ed)?|hailed|lauded|panned|called (?:it|the (?:song|track|single|album|game|record))|described (?:it|the (?:song|track|single|album|game|record)) as|wrote that|opined|felt (?:that|it)|rated|ranked|listed|gave (?:it|the)|out of (?:five|ten|\d+)|stars|magazine|Cash Box|Record World|Melody Maker|AllMusic|Pitchfork|Rolling Stone|NME|Stereogum|IGN|GameSpot|GamesRadar\+?|Famitsu|Nintendo Power|Game Informer|Eurogamer|Kotaku|Polygon|Destructoid|RPGFan)(?![\p{L}])/iu;
+/** An award won or a nomination, the checkable part of an accolades section. */
+const AWARD_FACT = /\b(won|wins|winning|nominated|nominations?|awarded|inducted|received (?:an?|the) [^.]*\b(?:award|prize|honou?r))\b/i;
+
+/** A sentence with a chart peak, a sales figure or a certification and a number. */
+export function isChartFact(s: string): boolean {
+  if (!CHART_WORD.test(s) || LIST_RANKING.test(s)) return false;
+  return /\d|\bnumber one\b|\bcertified (?:gold|platinum|diamond)\b/i.test(s);
+}
+
+/** Opinion sentences, by a critic or in a critic's words. */
+const opinionated = (s: string) => REVIEW_CUE.test(s) || OPINION.test(s);
+
+/**
+ * Which sentences a section of verdicts keeps, or null for a section that
+ * keeps them all, or undefined when the heading doesn't say (a subsection
+ * then follows the section it sits under):
+ * - reception and reviews: only chart, sales and certification sentences with numbers;
+ * - accolades: those, and awards won or nominated for, never a critic's ranking;
+ * - legacy and release: everything but opinions.
+ */
+function verdictFilter(heading: string): ((s: string) => boolean) | null | undefined {
+  const h = heading.replace(DATA_HISTORY, "$1");
+  const release = RELEASE_HEADING.test(h);
+  if (RECEPTION_HEADING.test(h)) {
+    // "Release and reception": the release half is facts.
+    return release ? (s) => isChartFact(s) || !opinionated(s) : isChartFact;
+  }
+  if (ACCOLADE_HEADING.test(h)) return (s) => isChartFact(s) || (AWARD_FACT.test(s) && !opinionated(s));
+  if (LEGACY_HEADING.test(h) || release) return (s) => isChartFact(s) || !opinionated(s);
+  return headingRank(heading) === null ? undefined : null;
+}
 
 /** Lead first, then checkable sections, then style, then the rest; narrative sections only for what names the song or its composer. */
 const RANK = { lead: 0, data: 1, style: 2, other: 3, narrative: 4 } as const;
@@ -726,15 +774,19 @@ export function selectSections(full: string, names: string[] = []): Array<{ head
   const makers = composerNames(full);
   const namesIt = (s: string) => mentionsName(normalizeTitle(s), [...(song ? [song] : []), ...makers]);
   const out: Array<{ heading: string; rank: number; sentences: string[] }> = [{ heading: "", rank: RANK.lead, sentences: sectionSentences(full.split(/\n==/)[0]) }];
-  const open: Array<{ level: number; rank: number | null }> = [];
+  const open: Array<{ level: number; rank: number | null; keep: ((s: string) => boolean) | null }> = [];
   for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
     const level = marks.length;
     while (open.length && open[open.length - 1].level >= level) open.pop();
     const rank = SKIP_HEADING.test(heading.trim()) ? null : (headingRank(heading) ?? open[open.length - 1]?.rank ?? RANK.other);
-    open.push({ level, rank });
+    const own = verdictFilter(heading);
+    const keep = own === undefined ? (open[open.length - 1]?.keep ?? null) : own;
+    open.push({ level, rank, keep });
     if (rank === null) continue;
     let sentences = sectionSentences(body);
     if (rank === RANK.narrative) sentences = sentences.filter((s) => MUSIC_WORD.test(s) && namesIt(s));
+    // Critics' verdicts read as facts on stream (issue #21): a 3B drops the "a reviewer called it".
+    if (receptionFilter.on && keep) sentences = sentences.filter(keep);
     if (sentences.length) out.push({ heading, rank, sentences });
   }
   // A stable sort: article order within a rank.
@@ -1557,6 +1609,129 @@ export function isAPerformer(page: string, full: string): boolean {
   return A_PERFORMER.test(openingSays(full));
 }
 
+// --- A performer's name shared with a film or a book ------------------------
+
+/** An artist field's own bracket saying it is a performer: "Some Band (British)", "Some Name (singer)". */
+const PERFORMER_BRACKET =
+  /\((?:[^)]*\s)?(?:band|singer|rapper|musician|group|duo|trio|DJ|British|English|American|Canadian|Australian|Irish|Scottish|Welsh|Swedish|Norwegian|Finnish|Danish|German|French|Italian|Spanish|Dutch|UK|US)\)\s*$/i;
+/** Works that aren't music: a film, a show, a book, a play, a tale, a character. */
+const NON_MUSIC_WORK =
+  /\b(films?|movies?|television|TV|miniseries|sitcoms?|soap operas?|web series|anime|novels?|novellas?|books?|plays?|short stor(?:y|ies)|comics?|manga|fairy tales?|folk tales?|tales?|poems?|paintings?|characters?)\b/i;
+/** What makes an article about music or a game after all: "(Some Band song)", "a 1990 single", "a video game". */
+const MUSIC_OR_GAME_WORK =
+  /\b(songs?|singles?|albums?|EPs?|soundtracks?|bands?|singers?|rappers?|musicians?|groups?|duo|operas?|video games?|games?)\b/i;
+
+/**
+ * Whether an article is about a film, a show, a book, a play or another
+ * work that isn't music or a game, by its brackets ("(1963 film)") or its
+ * first sentence ("is a 1950 American animated musical fantasy film").
+ */
+export function isNonMusicWork(page: string, full: string): boolean {
+  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const what = qualifier ?? openingSays(full);
+  return NON_MUSIC_WORK.test(what) && !MUSIC_OR_GAME_WORK.test(what);
+}
+
+/**
+ * Whether an article's lead names the performer as one, not just as its own
+ * title: "a film about the British rock band Some Band" does, "Some Band is a
+ * 1963 film" doesn't.
+ */
+export function leadNamesPerformer(page: string, full: string, artist: string): boolean {
+  const lead = normalizeTitle(full.split(/\n==/)[0]);
+  const own = normalizeTitle(page);
+  const names = artistNames(artist);
+  if (!names.includes(own)) return mentionsName(lead, names);
+  const as = String.raw`(?:band|singer|rapper|musician|group|duo|by|performed by|recorded by)`;
+  return names.some((n) => new RegExp(String.raw`(?:^| )${as} (?:the )?${escapeRe(n)}(?: |$)|(?:^| )${escapeRe(n)} s? ?(?:frontman|singer|members?|album|song|single)(?: |$)`).test(lead));
+}
+
+interface PerformerPages {
+  /** The performer's own article: the plain name, or "(band)", "(singer)" and so on. */
+  performer: string | null;
+  /** The song's own article, "<Title> (<Artist> song)", or "<Title> (song)" when its description names the artist. */
+  song: string | null;
+}
+const performerPagesCache = new Map<string, PerformerPages>();
+
+/**
+ * One title lookup with Wikipedia's short descriptions: the performer's own
+ * article and the song's disambiguated one, when they exist.
+ */
+export async function performerPages(artist: string, track: string): Promise<PerformerPages> {
+  const key = `${normalizeTitle(artist)}\0${normalizeTitle(track)}`;
+  const hit = performerPagesCache.get(key);
+  if (hit) return hit;
+  const forms = ["", " (band)", " (singer)", " (musician)", " (rapper)", " (group)"].map((q) => artist + q);
+  const songs = [`${track} (${artist} song)`, `${track} (song)`];
+  const names = [...forms, ...songs];
+  const data = await wikiGet<{
+    query?: {
+      normalized?: Array<{ from: string; to: string }>;
+      redirects?: Array<{ from: string; to: string }>;
+      pages?: Record<string, { title?: string; missing?: string; invalid?: string; description?: string }>;
+    };
+  }>(`action=query&redirects=1&prop=description&titles=${encodeURIComponent(names.join("|"))}`, config.groundingTimeoutMs, "titles");
+  const q = data.query ?? {};
+  const pages = new Map(
+    Object.values(q.pages ?? {})
+      .filter((p) => p.title && p.missing === undefined && p.invalid === undefined)
+      .map((p) => [p.title!, p.description ?? ""])
+  );
+  const resolve = (name: string) => {
+    const title = q.normalized?.find((n) => n.from === name)?.to ?? name;
+    const page = q.redirects?.find((r) => r.from === title)?.to ?? title;
+    return pages.has(page) ? { page, description: pages.get(page)! } : null;
+  };
+  const who = artistNames(artist);
+  const performer =
+    forms.map(resolve).find((r) => r && A_PERFORMER.test(r.description) && !NON_MUSIC_WORK.test(r.description))?.page ?? null;
+  // Named for the track, not a redirect to the album or the artist: "Some Song (Some Band song)" -> "Some Album" isn't the song's.
+  const ofTrack = (r: { page: string; description: string } | null) =>
+    r && normalizeTitle(r.page) === normalizeTitle(track) ? r : null;
+  const [byArtist, plain] = songs.map(resolve).map(ofTrack);
+  const song =
+    (byArtist && !NON_MUSIC_WORK.test(byArtist.description) ? byArtist.page : null) ??
+    (plain && /\b(song|single)\b/i.test(plain.description) && mentionsName(normalizeTitle(plain.description), who) ? plain.page : null);
+  const out = { performer, song };
+  performerPagesCache.set(key, out);
+  return out;
+}
+
+/**
+ * For a performer's song, what to do with the subject's article a search
+ * found: null to keep it; the song's own article when Wikipedia has one;
+ * the performer's article, or "reject", for a film, a show or a book that
+ * only shares the performer's name ("Some Band (1963 film)").
+ *
+ * The artist is a performer when the request says so (a music video, a
+ * bracket like "(British)", a person's name) or Wikipedia has a performer's
+ * article under the name. Games keep the usual lookup: game music lists put
+ * the game in the artist field. A film that names the requested track (its
+ * own score) is kept too.
+ */
+async function performerArticle(
+  song: SSLSong,
+  reading: Reading,
+  page: string,
+  full: string,
+  usable: (title: string) => boolean
+): Promise<{ page: string; subject: boolean } | "reject" | null> {
+  const { game, track } = reading;
+  if (/game\)$/i.test(page) || /\b(?:video )?games?\b/i.test(openingSays(full))) return null;
+  const nonMusic = isNonMusicWork(page, full);
+  const told = !!song.performer || !!reading.aPerformer || looksLikeArtistName(game) || PERFORMER_BRACKET.test(game);
+  if (!nonMusic && !told) return null;
+  const artist = game.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const found = await performerPages(artist, track);
+  if (found.song && found.song !== page && usable(found.song)) return { page: found.song, subject: false };
+  if (!nonMusic || !(told || found.performer)) return null;
+  const name = normalizeTitle(track);
+  if (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name]))) return null;
+  if (found.performer && found.performer !== page && usable(found.performer)) return { page: found.performer, subject: true };
+  return "reject";
+}
+
 /** One reading of the request, looked up the usual way. */
 async function groundReading(song: SSLSong, reading: Reading, blocked: Set<string>): Promise<Grounded> {
   const { game, track } = reading;
@@ -1663,7 +1838,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // The same for a game's track that has an article of its own: "Megalovania" over "Undertale".
       // Among articles named for the track, the song's beats the album's: "Let It Be (song)" over "Let It Be (album)".
       const ofTrack = titles.filter((t) => usable(t) && matchedTrack(t));
-      const page =
+      let page =
         ofTrack.find((t) => /\((?:[^)]*\b)?(song|composition|instrumental|theme)\)$/i.test(t)) ??
         ofTrack.find((t) => !/\((?:[^)]*\b)?(album|EP|soundtrack|film|musical)\)$/i.test(t)) ??
         ofTrack[0] ??
@@ -1674,8 +1849,24 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
         continue;
       }
-      const byGame = matchedGame(page);
-      const full = await wikiExtract(page);
+      let byGame = matchedGame(page);
+      let full = await wikiExtract(page);
+      let toPerformer = false;
+      // A performer's song: its own article if Wikipedia has one, and never a film or a book that shares the name.
+      if (byGame && full && track && track !== game && !generic && !reading.fromTitle && !reading.notGame && !song.artistUncertain) {
+        const swap = await performerArticle(song, reading, page, full, usable);
+        if (swap === "reject") {
+          console.log(`[Grounding] "${page}" is a work that only shares the performer's name, skipping`);
+          continue;
+        }
+        if (swap) {
+          console.log(`[Grounding] "${page}" -> ${swap.page} (${swap.subject ? "the performer's article" : "the song's own article"})`);
+          page = swap.page;
+          full = await wikiExtract(page);
+          byGame = swap.subject;
+          toPerformer = swap.subject;
+        }
+      }
       // An installment or spin-off is only right when it's the song's own game: it must name the track.
       const installment = byGame && extendsGame(page) && track !== game && !reading.page;
       // A generic name ("Main Theme") is in every installment's article, so it names none of them.
@@ -1723,7 +1914,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       let text = `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`;
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
       const aGame = !artist || /game\)$/i.test(page) || /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i.test(full?.slice(0, 600) ?? "");
-      if (byGame && aGame && !song.performer && !ownArticle && !installment && full) {
+      if (byGame && aGame && !toPerformer && !song.performer && !ownArticle && !installment && full) {
         let music: GameArticles["music"] = null;
         try {
           music = await findMusicArticle(game, usable);
@@ -1738,7 +1929,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       }
       console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
       // Shared by the game's tracks, unless this track has blocked articles of its own.
-      groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameKey : songKey, { text, at: Date.now() });
+      groundingCache.set(byGame && !artist && !toPerformer && !blocked.size && !installment ? gameKey : songKey, { text, at: Date.now() });
       return { text, unreachable: false };
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -1760,6 +1951,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
 
 export function clearGroundingCache(): void {
   noOwnArticle.clear();
+  performerPagesCache.clear();
   wikipediaNames.clear();
   gameArticles.clear();
   groundingCache.clear();

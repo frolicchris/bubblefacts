@@ -2,7 +2,7 @@ jest.mock("./config", () => ({
   config: { factsPerSong: 5, dataDir: process.env.BUBBLEFACTS_DATA_DIR, groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, topic: "general" },
 }));
 
-import { composerNames, gameTrackText, sectionExtract, sectionSelection, selectSections } from "./fact-verifier";
+import { composerNames, gameTrackText, isChartFact, receptionFilter, sectionExtract, sectionSelection, selectSections } from "./fact-verifier";
 
 // Made-up song, people and game.
 const SONG = [
@@ -58,7 +58,8 @@ const GAME = [
 describe("section-aware selection", () => {
   it("puts the lead first, then checkable sections, then the rest", () => {
     const parts = selectSections(SONG, ["Paper Lanterns"]);
-    expect(parts.map((p) => p.heading)).toEqual(["", "Composition", "Release history", "Charts", "Critical reception", "Background"]);
+    // "Critical reception" has only a reviewer's verdict, so nothing of it is kept.
+    expect(parts.map((p) => p.heading)).toEqual(["", "Composition", "Release history", "Charts", "Background"]);
   });
 
   it("keeps a narrative sentence only when it names the song or its composer and is about music", () => {
@@ -122,5 +123,79 @@ describe("section-aware selection", () => {
     } finally {
       sectionSelection.on = true;
     }
+  });
+
+  describe("verdict sections", () => {
+    // Made-up song, band, critics and publications.
+    const VERDICTS = [
+      `"Copper Kite" is a song by the band Low Meridian, released in 1984 as a single from their album Northbound.`,
+      "",
+      "== Release ==",
+      "The single was released in May 1984 with a live version of another song on the B-side.",
+      `An imaginary trade weekly described the song as "a breezy little gem".`,
+      "",
+      "== Reception ==",
+      "Critic Ada Fenwick wrote that the chorus was the band's finest moment.",
+      "The single peaked at number 7 on the national chart and sold 250,000 copies.",
+      "",
+      "=== Commercial performance ===",
+      "It spent eleven weeks on the chart, the band's longest run at the time.",
+      "",
+      "=== Year-end lists ===",
+      "An imaginary monthly ranked it the 4th best single of 1984.",
+      "",
+      "== Accolades ==",
+      "The song won the Silver Reel Award for Best Rock Single in 1985.",
+      "A later poll listed it among the greatest singles of the decade.",
+      "",
+      "== Legacy ==",
+      "The song has been covered by more than twenty artists since its release.",
+      "It is widely regarded as one of the best songs of its era.",
+    ].join("\n");
+    const kept = () => selectSections(VERDICTS, ["Copper Kite"]).flatMap((p) => p.sentences);
+
+    it("keeps only chart, sales and certification numbers from reception", () => {
+      expect(kept()).toContain("The single peaked at number 7 on the national chart and sold 250,000 copies.");
+      expect(kept().some((s) => s.startsWith("Critic Ada Fenwick"))).toBe(false);
+      // A subsection with its own telling heading keeps everything; one under Reception follows it.
+      expect(kept()).toContain("It spent eleven weeks on the chart, the band's longest run at the time.");
+      expect(kept().some((s) => s.includes("4th best single"))).toBe(false);
+    });
+
+    it("drops opinions from release, accolades and legacy, and keeps their facts", () => {
+      expect(kept()).toContain("The single was released in May 1984 with a live version of another song on the B-side.");
+      expect(kept().some((s) => s.includes("breezy little gem"))).toBe(false);
+      expect(kept()).toContain("The song won the Silver Reel Award for Best Rock Single in 1985.");
+      expect(kept().some((s) => s.includes("greatest singles"))).toBe(false);
+      expect(kept()).toContain("The song has been covered by more than twenty artists since its release.");
+      expect(kept().some((s) => s.includes("widely regarded"))).toBe(false);
+    });
+
+    it("tells chart facts from a critic's list", () => {
+      expect(isChartFact("It was certified platinum in three countries.")).toBe(true);
+      expect(isChartFact("The album reached number one in Japan.")).toBe(true);
+      expect(isChartFact("The magazine ranked it number 3 on its list of the best songs.")).toBe(false);
+      expect(isChartFact("Reviewers called the chart-topping band's song a triumph.")).toBe(false);
+    });
+
+    it("falls back to the usual ordering when reception was all there was", () => {
+      const thin = [
+        "Glass Bell is a 1979 song by Ann Example.",
+        "",
+        "== Reception ==",
+        "A reviewer called it the best song Example ever recorded.",
+        "Another critic praised its arrangement and its restraint.",
+      ].join("\n");
+      expect(sectionExtract(thin, 3000, ["Glass Bell"])).toBe("");
+    });
+
+    it("keeps everything when switched off", () => {
+      receptionFilter.on = false;
+      try {
+        expect(kept().some((s) => s.startsWith("Critic Ada Fenwick"))).toBe(true);
+      } finally {
+        receptionFilter.on = true;
+      }
+    });
   });
 });

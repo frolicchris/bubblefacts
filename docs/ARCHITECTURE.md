@@ -145,7 +145,12 @@ sign-ins and the built-in AI. Its design decisions are in
    sections erred three to seven times as often as the lead. Whether an article is
    long enough is still decided on the usual ordering, so the same articles are
    used, and when fewer than 2 usable sentences remain the usual ordering is
-   the reference.
+   the reference. Verdict sections are filtered too (`verdictFilter`;
+   `RECEPTION_FILTER=off` turns it off): reception and review sections keep
+   only chart, sales and certification sentences with a number; accolades
+   keep those and awards won or nominated for, never a critic's ranking;
+   legacy and release sections keep everything but critics' opinions. A small
+   model drops the "a reviewer called it", and the opinion reads as fact.
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
@@ -374,6 +379,17 @@ other ways to read one, each checked by all the rules above:
   ("Kingdom Hearts / Some Remixer"). A short tag of one or two capitals after the names ("Some
   Singer - AB") is a list's own mark and is dropped; with one name left,
   that name is simply the artist.
+- **A performer whose name is also a film or a book** ("Some Band
+  (British)", or a band named like a fairy tale): when the subject's article
+  a search finds is a film, a show, a book, a play or a tale (`isNonMusicWork`),
+  or the artist reads as a performer, one title lookup with Wikipedia's short
+  descriptions (`performerPages`) looks for the song's own article ("<Title>
+  (<Artist> song)", or "<Title> (song)" when its description names the
+  artist, never a redirect to the album) and the performer's ("(band)",
+  "(singer)" and so on). The song's article is taken first; a film whose lead
+  doesn't name the band as a band, and which never names the requested piece,
+  gives way to the performer's article or is skipped. A game's article is
+  never questioned this way: game music lists put the game in the artist field.
 - **No one** ("Traditional", "Italian Folk Song"): the title alone, and only
   an article that opens by calling it a song ("Santa Lucia" is also a town).
 - **Someone else's song in the title** ("Baby (Justin Bieber)" by a cover
