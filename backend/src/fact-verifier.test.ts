@@ -22,6 +22,7 @@ import {
   platformSupported,
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
+  foldSymbols,
   dropVersionTags,
   normalizeTitle,
   tooSimilar,
@@ -2199,5 +2200,23 @@ describe("true captions the screen dropped (#206, #207)", () => {
     // The whole title, not just its first words.
     const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
     expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
+  });
+});
+
+describe("artist names written with symbols (#245)", () => {
+  it("reads a symbol between letters as the letter it stands for", () => {
+    expect(foldSymbols("R!ver")).toBe("River");
+    expect(foldSymbols("Ma$on Jar")).toBe("Mason Jar");
+    expect(artistNames("R!ver")).toEqual(expect.arrayContaining(["r ver", "river"]));
+  });
+
+  it('leaves a trailing "!" and a leading "$" alone', () => {
+    expect(foldSymbols("Lantern Run!!")).toBe("Lantern Run!!");
+    expect(foldSymbols("$5 Band")).toBe("$5 Band");
+  });
+
+  it("does not call the folded name another artist", () => {
+    expect(qualifierNamesAnotherArtist("Paper Boats (River song)", "R!ver")).toBe(false);
+    expect(qualifierNamesAnotherArtist("Paper Boats (Jane Composer song)", "R!ver")).toBe(true);
   });
 });

@@ -122,6 +122,9 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
  * Only commas and "feat." split a credit: "&", "and" and "x" are often part
  * of a name.
  */
+/** "P!nk" and "Ke$ha" are written "Pink" and "Kesha" in their articles: a symbol between letters stands for a letter. */
+export const foldSymbols = (name: string): string => name.replace(/(?<=\p{L})!(?=\p{L})/gu, "i").replace(/(?<=\p{L})\$(?=\p{L})/gu, "s");
+
 export function artistNames(artist: string): string[] {
   const lead = artist.split(/\s*,\s*|\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0] ?? "";
   // Two full names joined by "and": an article may name each alone. Only when
@@ -130,7 +133,8 @@ export function artistNames(artist: string): string[] {
   const people = pair.length === 2 && pair.every((p) => p.trim().split(/\s+/).length >= 2) ? pair : [];
   // "Simon and Garfunkel" is written "Simon & Garfunkel" in its articles, and the other way round.
   const joined = [lead.replace(/\s+and\s+/gi, " & "), lead.replace(/\s+&\s+/g, " and ")];
-  return [...new Set([artist, lead, ...people, ...joined].map(normalizeTitle).filter(Boolean))];
+  const folded = [artist, lead].map(foldSymbols);
+  return [...new Set([artist, lead, ...people, ...joined, ...folded].map(normalizeTitle).filter(Boolean))];
 }
 
 /** Whether normalized text names one of these as whole words: "Sia" isn't in "Asia". */
@@ -219,7 +223,7 @@ export function qualifierNamesAnotherArtist(pageTitle: string, subject: string, 
     .filter((w) => !/^(song|single|album|soundtrack|composition|video|game|series|film|instrumental|suite)$/i.test(w))
     .join(" ");
   const qualifierTokens = normalizeTitle(named).split(" ").filter(Boolean);
-  const subjectTokens = new Set(normalizeTitle(subject).split(" ").filter(Boolean));
+  const subjectTokens = new Set([subject, foldSymbols(subject)].flatMap((s) => normalizeTitle(s).split(" ")).filter(Boolean));
   if (!qualifierTokens.length || !subjectTokens.size) return false;
 
   return !qualifierTokens.some((t) => subjectTokens.has(t));
@@ -318,7 +322,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
  */
 function searchTerms(game: string, track: string, artist: boolean, notGame = false): string[] {
   const hasTrack = track && track !== game;
-  const trackTerms = hasTrack ? [`${track} ${game}`, ...(artist ? [track] : [])] : [];
+  const trackTerms = hasTrack ? [`${track} ${game}`, `${track} ${foldSymbols(game)}`, ...(artist ? [track] : [])] : [];
   const subjectTerms = game ? [...(artist || notGame ? [] : [`${game} video game`]), `${game} soundtrack`, game] : [];
   const terms = artist ? [...trackTerms, ...subjectTerms] : [...subjectTerms, ...trackTerms];
   return [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
