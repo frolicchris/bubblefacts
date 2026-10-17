@@ -134,12 +134,81 @@ sign-ins and the built-in AI. Its design decisions are in
    certifications, sales, never opinions). In an article about a whole game
    or artist, only sentences that name the track or are plainly about music
    are lifted, and no reception.
+   With section-aware selection (on by default; `SECTION_SELECT=off` turns
+   it off) the reference is built differently (`selectSections`,
+   `sectionExtract`): the lead first, which Wikipedia writes to stand alone,
+   then sections that report checkable things (composition, release, charts,
+   awards, live performances, cover versions), then style and sound, then the
+   rest. Narrative sections (background, influences, development, history,
+   production, plot, gameplay) are left out, except a sentence that names the
+   song or its composer and is about the music: in judged captions, those
+   sections erred three to seven times as often as the lead. Whether an article is
+   long enough is still decided on the usual ordering, so the same articles are
+   used, and when fewer than 2 usable sentences remain the usual ordering is
+   the reference. Verdict sections are filtered too (`verdictFilter`;
+   `RECEPTION_FILTER=off` turns it off): reception and review sections keep
+   only chart, sales and certification sentences with a number; accolades
+   keep those and awards won or nominated for, never a critic's ranking;
+   legacy and release sections keep everything but critics' opinions. A small
+   model drops the "a reviewer called it", and the opinion reads as fact.
+   A music article about a whole series (`isSeriesWide`: a "Music of" page
+   named for the series, a first sentence about a series' music, or a section
+   per game) is cut to what is about the requested game (`seriesScope`;
+   `SERIES_SCOPE=off` turns it off): that game's own section, and elsewhere
+   only sentences that name the game itself (not a sequel or the series named
+   after it) or the track. With fewer than 2 such sentences, the lead alone.
+   Read whole, it filled a first game's track with a sequel's composers.
+   Within what section-aware selection keeps, sentences are offered in tiers
+   (`tieredExtract`; `TIERED_SELECTION=off` turns it off): 1, the lead; 2,
+   clean body sentences that open their paragraph; 3, other clean body
+   sentences; 4, the rest, only when tiers 1 to 3 give fewer than 8 usable
+   sentences. Clean means under 30 words, no quoted speech of 4 or more words
+   (a quoted title is fine) and no reporting verb (said, wrote, according to,
+   told, described, called, stated, noted, claimed, recalled, explained). In
+   2,898 judged captions, lead sentences erred 4.8% of the time, clean body
+   sentences 8.7% and the rest 18.9%. A caption retold from a tier-4 sentence
+   that reports what someone said is dropped unless it keeps the speaker's
+   name and a reporting verb or quote marks (`keepsAttribution`).
+   A game's or another work's article (its lead names it in bold italics)
+   leaves out what is about another work (`otherWorkSentences`;
+   `WORK_SCOPE=off` turns it off). Wikipedia's style sets the titles of
+   games, albums, films and shows in italics, so the article's wikitext
+   (fetched once and shared with the infobox facts) tells which titles each
+   sentence names (`italicSentences`). Left out: a sentence that names in
+   italics a related work (a title sharing a distinctive word with the
+   requested one: a sequel, a remake, an edition, another game of the
+   series) and not the requested work itself; a sentence about "the remake"
+   or "the sequel", or that names the requested work only as "the remake of
+   Some Game"; a section headed with another work's title, or "Sequels" or
+   "Remakes"; and a sentence right after one of those that goes on with
+   "It" or "The game". Kept: a sentence that names the track, the series
+   named as a series, unrelated titles (a magazine, the composer's other
+   work), albums of the work's own music, and a sentence led by "It" or "The
+   game" (the article's own subject). The requested work is the request's
+   game or work field, the article's own work and the names its lead sets in
+   bold italics (`requestedWork`); a request for an edition keeps that
+   edition. Read whole, a game's article filled its tracks with a remake's
+   release date and a sequel's credits.
+   A cover (`isCoverOf`: the request says "cover", or the song's article
+   never names the requested artist in its lead) is read without the
+   original's release, charts, sales, video and the band's own doings
+   (`originalsRecord`; `COVER_SCOPE=off` turns it off), and of the infobox
+   facts only who wrote it is kept: the rest would read as the cover's.
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
    assistant" prompt, which Ollama never sends). Its instructions are laid out as CROSS (Context,
    Role, Objective, Source, Scope); `PROMPT_STYLE=rules` uses the older
    numbered list.
+   Before the reference, the CROSS prompt shows worked examples with made-up
+   names (`RETELL_EXAMPLES`): a sentence, a wrong retelling and a right one,
+   for the three slips the 3B model makes most: dropping who said or thought
+   something, keeping an "it" or "these" whose subject was left behind, and
+   dropping where, when or on which chart. A model that small copies an
+   example better than it applies a rule. It sometimes copies the example
+   itself, even onto a real name from the reference, so a line with three
+   words in a row from the examples that the reference doesn't have is
+   dropped before screening (`copiesExample`).
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
@@ -239,6 +308,23 @@ sign-ins and the built-in AI. Its design decisions are in
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
+   A limit the model dropped goes back in (`repairScope`; `SCOPE_REPAIR=off`
+   turns it off), from a closed list: one country or region ("in Japan"), a
+   named chart, "in its first week", the year "the same year" means, and an
+   edition ("the Mega Drive/Genesis version"). Only when the caption retells
+   one sentence (half its words, and a number it has, in the same clause as
+   the limit), lacks the limit, and the sentence has exactly one of that kind
+   with a clear place for it; otherwise the caption is left as written. A
+   broad repair broke correct captions before, so this one stays narrow.
+   A second closed list puts back, or else drops the caption for, a limit
+   on a claim the caption keeps (`repairQualifier`; `QUALIFIER_REPAIR=off`
+   turns it off): a limit on a number ("over 200 million", "about",
+   "nearly", "an estimated"); "usually", "typically", "mostly", "largely",
+   "estimated" and "approximately"; and a release's region when the
+   sentence names several ("in North America in October 2014 and in Europe
+   in 2015"). Put back where the place is clear (the number, or the word
+   right after the limit, appears once in the caption); dropped when the
+   caption retells that part but there is no clear place; otherwise left.
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
    fill fixed sentences, with no AI and so no screening. When the article is
    the artist's or the game's rather than the song's, structured facts about
@@ -353,6 +439,20 @@ other ways to read one, each checked by all the rules above:
   ("Kingdom Hearts / Some Remixer"). A short tag of one or two capitals after the names ("Some
   Singer - AB") is a list's own mark and is dropped; with one name left,
   that name is simply the artist.
+- **A performer whose name is also a film or a book** ("Some Band
+  (British)", or a band named like a fairy tale): when the subject's article
+  a search finds is a film, a show, a book, a play or a tale (`isNonMusicWork`),
+  or the artist reads as a performer, one title lookup with Wikipedia's short
+  descriptions (`performerPages`) looks for the song's own article ("<Title>
+  (<Artist> song)", or "<Title> (song)" when its description names the
+  artist, never a redirect to the album) and the performer's ("(band)",
+  "(singer)" and so on). The song's article is taken first; a film whose lead
+  doesn't name the band as a band, and which never names the requested piece,
+  gives way to the performer's article or is skipped. A concert film, a
+  documentary or a live video (`isConcertFilm`) names the band throughout,
+  so only its lead naming the track keeps it; one named for the song is
+  skipped as the song's own article. A game's article is never questioned
+  this way: game music lists put the game in the artist field.
 - **No one** ("Traditional", "Italian Folk Song"): the title alone, and only
   an article that opens by calling it a song ("Santa Lucia" is also a town).
 - **Someone else's song in the title** ("Baby (Justin Bieber)" by a cover

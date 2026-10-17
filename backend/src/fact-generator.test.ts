@@ -32,7 +32,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { SYSTEM_PROMPT, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
@@ -421,6 +421,44 @@ describe("generateFacts", () => {
     expect(facts.length).toBeGreaterThan(0);
   });
 
+  it("shows the AI worked examples of keeping who said it and naming the subject, before the reference", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Example Song (song)\n${MODEL_LINES}`);
+    await generateFacts({ title: "Example Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain(RETELL_EXAMPLES);
+    expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
+  });
+
+  it("drops a caption that pins an example's story on a name the reference has", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Pinned Song (song)\nMara Quinn composed the score in 2011.\n${MODEL_LINES}`);
+    const copied = "Mara Quinn said the band wanted the chorus to sound like a storm.";
+    mockCreate.mockResolvedValue(reply([copied, ...MODEL_LINES.split("\n")].join("\n")));
+    const facts = await generateFacts({ title: "Pinned Song", artist: "Someone" });
+    expect(facts.map((f) => f.text)).not.toContain(copied);
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it("drops a caption that copies an example's sales figure instead of the reference", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Figure Song (song)\n${MODEL_LINES}`);
+    const copied = "In Japan, the song sold 40,000 copies by March 2009.";
+    mockCreate.mockResolvedValue(reply([copied, ...MODEL_LINES.split("\n")].join("\n")));
+    const facts = await generateFacts({ title: "Figure Song", artist: "Someone" });
+    expect(facts.map((f) => f.text)).not.toContain(copied);
+  });
+
+  it("drops a caption that copies an example's made-up names instead of the reference", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Copy Song (song)\n${MODEL_LINES}`);
+    const copied = "Producer Dana Reyes said the band wanted the chorus to sound like a storm.";
+    mockCreate.mockResolvedValue(reply([copied, ...MODEL_LINES.split("\n")].join("\n")));
+    const facts = await generateFacts({ title: "Copy Song", artist: "Someone" });
+    expect(facts.map((f) => f.text)).not.toContain(copied);
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
   it("gives the AI the same system prompt as every other provider (the built-in model had node-llama-cpp's own)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
@@ -594,5 +632,19 @@ describe("Wrong decides what to block from the fact's own label (audit)", () => 
     expect(blockedArticles(lookup).has("Some Song")).toBe(true);
     unmarkWrong(request, "Some Song");
     expect(blockedArticles(lookup).size).toBe(0);
+  });
+});
+
+describe("copiesExample", () => {
+  it("catches the examples' wording when the reference doesn't have it", () => {
+    const ref = "Mara Quinn composed the score in 2011. The album reached number 4 in Canada.";
+    expect(copiesExample("Mara Quinn said the band wanted the chorus to sound like a storm.", ref)).toBe(true);
+    expect(copiesExample("The album reached number 9 on the Oricon chart.", ref)).toBe(true);
+  });
+
+  it("lets through common wording and wording the reference has", () => {
+    expect(copiesExample("The band's lyrics are about loss and distance.", "Its lyrics are about loss and distance.")).toBe(false);
+    expect(copiesExample("Lee wanted the chorus to sound like a storm.", "Lee said she wanted the chorus to sound like a storm at sea.")).toBe(false);
+    expect(copiesExample("The album reached number 4 in Canada.", "The album reached number 4 in Canada.")).toBe(false);
   });
 });
