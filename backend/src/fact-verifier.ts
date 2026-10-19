@@ -278,11 +278,11 @@ const MUSICAL_QUALIFIER =
   /video game|game\b|series|soundtrack|album|franchise|film|score|song|single|composition|opera|ballet|suite|sonata|symphony|concerto|musical|anime|television|tv series|novel/i;
 /** Disambiguators for people and groups: right only when we searched for one. */
 const PERFORMER_QUALIFIER = /band|singer|musician|composer|pianist|rapper|duo|group|orchestra/i;
-/** Words marking a different kind of work under the same name. */
 /** An article's opening that describes a performer or a recording. */
 const PERFORMER_LEAD = /\b(band|singer|rapper|musician|group|duo|trio|songwriter|record(ing)? artist|vocalist|album|song|single|DJ|producer)\b/i;
 /** Disambiguators that can't be a performer. */
 const NOT_A_PERFORMER = /\((?:[^)]*\b)?(video game|game|film|television|tv series|novel|manga|anime)\)\s*$/i;
+/** Words marking a different kind of work under the same name. */
 const MEDIUM_SHIFT = /\b(movie|film|musical|discography|anime|manga|novel|list|awards|tour|concert)\b/i;
 
 const KNOWN_ARTIST =
@@ -308,6 +308,16 @@ export function normalizeTitle(s: string): string {
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** A page's trailing qualifier: "song" for "Let It Be (song)", undefined when it has none. */
+function qualifierOf(title: string): string | undefined {
+  return /\(([^)]*)\)\s*$/.exec(title)?.[1];
+}
+
+/** A page title without its trailing qualifier: "Let It Be (song)" is "Let It Be". */
+function withoutQualifier(title: string): string {
+  return title.replace(/\s*\([^)]*\)\s*$/, "");
 }
 
 /** Content words plus every numeral, roman numerals normalized to arabic. */
@@ -340,7 +350,7 @@ const WORK_TYPE = /\b(song|single|album|soundtrack|composition|video|game|series
  * subtitle too; the caller must then check the article names the artist.
  */
 export function qualifierNamesAnotherArtist(pageTitle: string, subject: string, track = "", bareSubtitlesOk = false): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
+  const qualifier = qualifierOf(pageTitle);
   if (!qualifier) return false;
   const fold = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   if (track && ` ${fold(track)} `.includes(` ${fold(qualifier)} `)) return false;
@@ -375,7 +385,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   // Never a single installment: "Nier (video game)" isn't the series.
   const series = /^(.+) (?:series|franchise)$/.exec(want);
   if (series) {
-    const q = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
+    const q = qualifierOf(pageTitle);
     if (significantTokens(series[1]).join(" ") === gotTokens.join(" ")) return !q || /\b(series|franchise)\b/i.test(q);
   }
 
@@ -383,7 +393,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   // Club" or "Wangan Midnight", though dropping "the" would leave only "midnight".
   if (/^the\s/.test(want) && !/^the\s/.test(got)) return false;
 
-  const qualifier = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
+  const qualifier = qualifierOf(pageTitle);
   if (qualifier) {
     // A work dated in the future (an announced remake) is not what's on air.
     const year = /\b(20\d{2})\b/.exec(qualifier)?.[1];
@@ -412,7 +422,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
     // A topic joined to it is another subject: "Overwatch and pornography" (but "Pokémon Red and Blue" is a pair of games).
     if (got.startsWith(want + " and ") && /\sand\s+\p{Ll}/u.test(pageTitle)) return false;
     // A company named for it: "Qumu Corporation" isn't the musician "Qumu".
-    if (COMPANY.test(pageTitle.replace(/\s*\([^)]*\)\s*$/, "")) && !COMPANY.test(subject)) return false;
+    if (COMPANY.test(withoutQualifier(pageTitle)) && !COMPANY.test(subject)) return false;
     return !(MEDIUM_SHIFT.test(got) && !MEDIUM_SHIFT.test(want));
   }
   // The article truncates the subject: safe only at a subtitle break ("Ys VIII:
@@ -848,7 +858,7 @@ export function articleMisfit(song: SSLSong, text: string): string {
   const page = text.split("\n")[0];
   const full = articleText(page);
   if (full && !opensAboutMusicOrWork(full)) return "doesn't open like an article about a song, a performer or a work";
-  const own = page.replace(/\s*\([^)]*\)\s*$/, "");
+  const own = withoutQualifier(page);
   const haystack = ` ${normalizeTitle(own)} ${normalizeTitle(full || text)} `;
   // "Reprise (Spirited Away)" by Joe Hisaishi: for a person's piece, the bracket may be a film, a translation or a nickname.
   if (looksLikeArtistName((song.artist ?? "").trim())) return "";
@@ -921,8 +931,8 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   const sure = (reason: string): WorkMatch => ({ level: "sure", reason });
   const page = grounding.split("\n")[0];
   const full = articleText(page) || grounding.slice(page.length + 1);
-  const base = page.replace(/\s*\([^)]*\)\s*$/, "");
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
+  const base = withoutQualifier(page);
+  const qualifier = qualifierOf(page) ?? "";
   const says = openingSays(full);
   const { game, track } = resolveGameAndTrack(song);
   const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? track : "";
@@ -932,7 +942,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   const noted = /\([^)]*\)\s*$/.test(asked.artist ?? "") || /[([][^)\]]*\bcover\b[^)\]]*[)\]]/i.test(asked.title);
 
   if (/^About this piece: .* is originally by .*\bcover\b/m.test(grounding)) return unsure("the article is about the original of a cover");
-  if (linkedPages.has(page) && isAPerformer(page, full)) return unsure("MusicBrainz's link led to the artist's article, not the song's");
+  if (linkedPages.has(page) && isPerformerArticle(page, full)) return unsure("MusicBrainz's link led to the artist's article, not the song's");
   // A classical piece found through its Wikidata item (issue #260): its own article, or its parent work's.
   const classical = classicalPages.get(classicalKey(page, asked.title)) ?? classicalPages.get(classicalKey(page, song.title));
   if (classical) {
@@ -943,7 +953,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   // The song's own article, by its title.
   const own = piece && (normalizeTitle(base) === normalizeTitle(piece) || isRespelling(piece, base) || aboutThePiece(page, full, piece));
   // "Walk This Way" for "Walk This Way - feat. A Guest": a song's article under part of the title.
-  const partOf = piece && !own && isAPiece(page, full) && significantTokens(normalizeTitle(base)).length >= 2 &&
+  const partOf = piece && !own && isPieceArticle(page, full) && significantTokens(normalizeTitle(base)).length >= 2 &&
     mentionsName(`${normalizeTitle(piece)} ${normalizeTitle(dropVersionTags(asked.title))}`, [normalizeTitle(base)]);
   if (own || partOf) {
     if ((AN_ALBUM.test(qualifier) || AN_ALBUM.test(says)) && !/\bsoundtrack\b/i.test(qualifier + says)) return unsure(`"${page}" is an album's article, not the song's`);
@@ -961,10 +971,10 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
     return sure(seriesWide ? "the series' music article" : "the game's music article");
   }
   // Another piece's article: "Song B" for "Song A".
-  if (piece && isAPiece(page, full)) return unsure(`"${page}" is another piece's article`);
+  if (piece && isPieceArticle(page, full)) return unsure(`"${page}" is another piece's article`);
 
   // The artist's article.
-  const theArtist = isAPerformer(page, full) || (names.includes(normalizeTitle(base)) && !isAWork(page, full));
+  const theArtist = isPerformerArticle(page, full) || (names.includes(normalizeTitle(base)) && !isWorkArticle(page, full));
   if (theArtist) {
     if (piece && !named && noted) return unsure("the artist's article never names the song, and was found only after dropping a note");
     return sure(named ? "the artist's article names the song" : "the artist's article");
@@ -989,9 +999,9 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
 
 /** Whether a page is a piece of music's own article under another spelling of its title. */
 function aboutThePiece(page: string, full: string, piece: string): boolean {
-  const base = normalizeTitle(page.replace(/\s*\([^)]*\)\s*$/, ""));
+  const base = normalizeTitle(withoutQualifier(page));
   const want = normalizeTitle(piece);
-  if (!want || !isAPiece(page, full)) return false;
+  if (!want || !isPieceArticle(page, full)) return false;
   // Under another name: "Song (also known as Another Song) is a song by...".
   if (mentionsName(normalizeTitle(leadSentences(full, 2)), [want])) return true;
   return editDistance(base.replace(/ /g, ""), want.replace(/ /g, "")) <= Math.max(1, Math.floor(want.length * 0.15));
@@ -1377,7 +1387,7 @@ export function isSameWorkRedirect(from: string, to: string): boolean {
   const f = normalizeTitle(from);
   const t = normalizeTitle(to);
   if (t.endsWith(` ${f}`)) {
-    const head = to.replace(/\s*\([^)]*\)\s*$/, "");
+    const head = withoutQualifier(to);
     if (!/[:–—]\s*$/.test(head.slice(0, Math.max(0, head.length - from.length)))) return false;
   }
   const fromNumbers = numerals(from);
@@ -1492,7 +1502,7 @@ export function ownArticleExtract(full: string, budget: number, names: string[])
 }
 
 /** What a song is, in its article's opening: "a traditional English folk song". */
-const A_SONG = /\b(song|ballad|hymn|carol|tune|melody|lullaby|anthem|folk ?song|canzone|chanson)s?\b/i;
+const SONG_WORDS = /\b(song|ballad|hymn|carol|tune|melody|lullaby|anthem|folk ?song|canzone|chanson)s?\b/i;
 
 /**
  * A song by no one in particular ("Traditional", "Italian Folk Song"): its
@@ -1511,7 +1521,7 @@ async function groundSongAlone(song: SSLSong, title: string, usable: (title: str
       for (const page of [...titles.filter((t) => /\((?:[^)]*\b)?song\)$/i.test(t)), ...titles.filter((t) => !/\((?:[^)]*\b)?song\)$/i.test(t))]) {
         tried.add(page);
         const full = await wikiExtract(page);
-        if (!full || !A_SONG.test(full.slice(0, 300))) {
+        if (!full || !SONG_WORDS.test(full.slice(0, 300))) {
           console.log(`[Grounding] "${page}" isn't about a song, skipping`);
           continue;
         }
@@ -1742,13 +1752,13 @@ const sectionBlock = (heading: string, text: string, max = 1100) => `${heading}:
 
 /** What a page can't be for a classical piece: a film, a show or a book, a person who isn't a musician, or a piece in another key. "" when it can. */
 export function notForAPiece(page: string, full: string, parsed: ClassicalTitle): string {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
+  const qualifier = qualifierOf(page) ?? "";
   const says = openingSays(full);
   const musical = (t: string) => FORM_WORDS.test(t) || /\b(operas?|operettas?|ballets?|musicals?|pieces?|compositions?|works?|songs?|arias?|soundtracks?|scores?|movements?|sets?)\b/i.test(t);
   if (SCREEN_OR_BOOK.test(qualifier) || (SCREEN_OR_BOOK.test(says) && !musical(says))) return "is a film's, a show's or a book's article";
   // A person's article opens with their dates: "Edwin Marrow (1790–1850) was an English painter".
   const dated = /^[^.(]{0,80}\((?:[^()]*;\s*)?(?:born\b[^)]*|[^)]*\b1\d{3}\s*[–-]\s*(?:1\d|20)\d{2})\)/.test(full.slice(0, 300));
-  if (dated && !isAPerformer(page, full) && !musical(says) && !opensAboutMusicOrWork(full)) return "is about a person who isn't a musician";
+  if (dated && !isPerformerArticle(page, full) && !musical(says) && !opensAboutMusicOrWork(full)) return "is about a person who isn't a musician";
   const wanted = parsed.key ? normalizeTitle(normalizeKeys(parsed.key)) : "";
   const got = keyIn(page);
   if (wanted && got && got !== wanted && !(!/major|minor/.test(wanted) && got.startsWith(`${wanted} `))) return `is in ${got}, not ${parsed.key}`;
@@ -1977,11 +1987,11 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
 }
 
 /** What a game, a film or a show is called in its article's first sentence or its title's brackets. */
-const A_WORK =
+const WORK_WORDS =
   /\b(video games?|games?|films?|movies?|television (?:series|programs?|programmes?|shows?|films?)|tv series|animated series|anime|web series|sitcom|musical|soundtrack|franchise|series)\b/i;
 
 /** Who or what else an article opens by naming: "a German film score composer", "a Middle Eastern folk tale". */
-const NOT_A_WORK =
+const NOT_WORK_WORDS =
   /\b(singer|band|composer|musician|rapper|songwriter|producer|actor|actress|director|DJ|duo|group|orchestra|person|character|company|developer|publisher|studio|label|tale|song|single|album|EP)s?\b/i;
 
 /**
@@ -1989,11 +1999,11 @@ const NOT_A_WORK =
  * by what its first sentence says it is ("a 1997 role-playing video game"),
  * up to who made it.
  */
-export function isAWork(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
-  if (qualifier) return A_WORK.test(qualifier) && !NOT_A_WORK.test(qualifier.replace(/\bsoundtrack album\b/i, "soundtrack"));
+export function isWorkArticle(page: string, full: string): boolean {
+  const qualifier = qualifierOf(page);
+  if (qualifier) return WORK_WORDS.test(qualifier) && !NOT_WORK_WORDS.test(qualifier.replace(/\bsoundtrack album\b/i, "soundtrack"));
   const what = openingSays(full);
-  return A_WORK.test(what) && !NOT_A_WORK.test(what.replace(/\bsoundtrack album\b/i, "soundtrack"));
+  return WORK_WORDS.test(what) && !NOT_WORK_WORDS.test(what.replace(/\bsoundtrack album\b/i, "soundtrack"));
 }
 
 /** What an article's first sentence says its subject is, up to who made it: "a 1997 role-playing video game". */
@@ -2005,16 +2015,21 @@ export function openingSays(full: string): string {
 }
 
 /** What a piece of music is called in its brackets or its first sentence. */
-const A_PIECE = /\b(song|single|ballad|anthem|theme|instrumental|track|piece|composition|aria|hymn|tune|jingle)s?\b/i;
+const PIECE_WORDS = /\b(song|single|ballad|anthem|theme|instrumental|track|piece|composition|aria|hymn|tune|jingle)s?\b/i;
 
 /** Whether an article is about a piece of music: "(Bee Gees song)", or "a song from the film Aladdin". */
-export function isAPiece(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
-  if (qualifier && A_PIECE.test(qualifier)) return true;
-  return A_PIECE.test(openingSays(full));
+export function isPieceArticle(page: string, full: string): boolean {
+  const qualifier = qualifierOf(page);
+  if (qualifier && PIECE_WORDS.test(qualifier)) return true;
+  return PIECE_WORDS.test(openingSays(full));
 }
 
-const A_PERFORMER =
+/**
+ * What a performer is called in an article's first sentence. The three performer lists differ by where
+ * they look: PERFORMER_QUALIFIER reads a title's brackets, PERFORMER_LEAD an article's opening, where a
+ * recording counts too, and this one only what the first sentence says the subject is.
+ */
+const PERFORMER_WORDS =
   /\b(singers?|bands?|rappers?|musicians?|composers?|songwriters?|producers?|DJs?|disc jockeys?|duo|trio|group|vocalists?|pianists?|guitarists?|drummers?|violinists?|saxophonists?|orchestra|ensemble|choir|entertainers?|performers?|YouTuber)\b/i;
 
 /**
@@ -2022,95 +2037,49 @@ const A_PERFORMER =
  * what its first sentence says ("an American singer"). "Black Caviar" is a
  * duo's name and a racehorse's article.
  */
-export function isAPerformer(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+export function isPerformerArticle(page: string, full: string): boolean {
+  const qualifier = qualifierOf(page);
   if (qualifier) return PERFORMER_QUALIFIER.test(qualifier);
-  return A_PERFORMER.test(openingSays(full));
+  return PERFORMER_WORDS.test(openingSays(full));
 }
 
-/** One reading of the request, looked up the usual way. */
-async function groundReading(song: SSLSong, reading: Reading, blocked: Set<string>): Promise<Grounded> {
-  const { game, track } = reading;
-  // A subject pinned to one page is remembered apart: another song's search may have found another page for the name.
-  // A lookup for the song's own article alone says nothing about the subject's article.
-  const gameKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "");
-  const songKey = `${gameKey}\0${normalizeTitle(track)}`;
-
-  // A game's tracks share one lookup. An artist's songs never share: each may
-  // have its own article. The artist test is a heuristic, and guessing
-  // "artist" for a game only costs extra lookups, never wrong facts.
-  // A music video's artist counts as one too (issue: "Muse - Starlight" must
-  // search for Starlight, not reuse Muse's article cached for another song).
-  const artist = looksLikeArtistName(game) || !!song.performer;
-  const usable = (title: string) => !blocked.has(title);
-  // A game's track with an article of its own ("Megalovania", "Baba Yetu") is
-  // far richer than the game's article, so it's tried first: one search per
-  // track, remembered either way (issue #48).
-  // A generic name ("Theme") has no article of its own: "Theme from Star Trek" is another show's.
-  const generic = GENERIC_TRACK.test(normalizeTitle(track));
-  if (!artist && track && track !== game && !generic && !song.artistUncertain && !noOwnArticle.has(songKey) && !groundingCache.get(songKey)?.text) {
-    try {
-      const own = (await wikiSearch(`${track} ${game}`)).find(
-        (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
-      );
-      const full = own ? await wikiExtract(own) : null;
-      // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
-      const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
-      const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? ownArticleExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
-      if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
-        const text = `${own}\n${extract}`;
-        console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
-        groundingCache.set(songKey, { text, at: Date.now() });
-        return { text, unreachable: false };
-      }
-      noOwnArticle.add(songKey);
-    } catch {
-      // Throttled or unreachable: the game's article below still serves, and this is tried again next time.
+/**
+ * A game's track with an article of its own ("Megalovania", "Baba Yetu"): the reference, or "" when
+ * it has none, or null when Wikipedia couldn't be asked (throttled or unreachable).
+ */
+async function trackOwnArticle(song: SSLSong, game: string, track: string, usable: (title: string) => boolean): Promise<string | null> {
+  try {
+    const own = (await wikiSearch(`${track} ${game}`)).find(
+      (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
+    );
+    const full = own ? await wikiExtract(own) : null;
+    // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
+    const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
+    const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? ownArticleExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
+    if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
+      console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
+      return `${own}\n${extract}`;
     }
+    return "";
+  } catch {
+    return null;
   }
-  const ownHit = groundingCache.get(songKey);
-  if (!artist && ownHit?.text && usable(ownHit.text.split("\n")[0])) return { text: ownHit.text, unreachable: false };
-  // A game already looked up: this track's reference is built from the kept articles.
-  const kept = !song.performer && track !== game ? gameArticles.get(gameKey) : undefined;
-  if (kept && usable(kept.page)) {
-    const text = gameTrackText(kept, track, usable);
-    groundingCache.set(songKey, { text, at: Date.now() });
-    return { text, unreachable: false };
-  }
-  for (const key of artist ? [songKey] : [gameKey, songKey]) {
-    const hit = key && groundingCache.get(key);
-    if (hit && hit.text && !usable(hit.text.split("\n")[0])) continue;
-    if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return { text: hit.text, unreachable: false };
-  }
+}
 
-  // Which way an article matched decides how widely it may be shared. A
-  // track article must not be attributed to another artist, and its text
-  // must mention the game or artist: "Overture" alone is a generic article.
-  // A music video's artist is a band or singer, never a game or film of the same name.
-  // An artist that's only a guess from the uploader's channel is never looked up
-  // as the subject: an uploader called "Apollo" isn't the god (issue from review).
-  // "Ecco the Dolphin CD" is the game "Ecco the Dolphin": an edition word isn't part of its name.
-  const edition = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
-  const matchedGame = (title: string) =>
-    !song.artistUncertain &&
-    // Only the piece's own article for a name that may be an arranger's or a fellow musician's.
-    !reading.trackOnly &&
-    // A film or a show is never a video game of the same name.
-    !(reading.notGame && /\((?:[^)]*\b)?games?\b[^)]*\)\s*$/i.test(title)) &&
-    // The page Wikipedia gave for the name, and only that one.
-    (reading.page
-      ? title === reading.page
-      : isRelevantArticle(game, title, artist || !!song.performer) || (edition !== game && isRelevantArticle(edition, title, artist || !!song.performer))) &&
-    !(song.performer && NOT_A_PERFORMER.test(title));
-  // A longer title than the subject: "Final Fantasy" -> "Final Fantasy VII".
-  const gameTokens = significantTokens(normalizeTitle(game)).length;
-  const extendsGame = (title: string) => significantTokens(normalizeTitle(title)).length > gameTokens;
-  const matchedTrack = (title: string) =>
-    track !== game &&
-    !generic && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game, track);
+/**
+ * What the grounding cache holds under a key, if it can be used: the reference, "" for a
+ * recent miss, or undefined when there's nothing (a blocked article, an expired miss).
+ */
+function cachedGrounding(key: string, usable: (title: string) => boolean): string | undefined {
+  const hit = groundingCache.get(key);
+  if (!hit) return undefined;
+  if (hit.text) return usable(hit.text.split("\n")[0]) ? hit.text : undefined;
+  return Date.now() - hit.at < NEGATIVE_TTL_MS ? "" : undefined;
+}
 
-  // "Lil Nas X, Jack Harlow": a song's article may name only its lead artist.
-  const names = artistNames(game);
+/** What to search Wikipedia for, in order, for one reading of the request. */
+function groundingTerms(song: SSLSong, reading: Reading, artist: boolean): string[] {
+  const { game, track } = reading;
   const terms = song.artistUncertain && track !== game
     ? [track]
     : searchTerms(game, track, artist || !!song.performer, reading.notGame || reading.fromTitle);
@@ -2124,6 +2093,127 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
     const at = terms.indexOf(game);
     terms.splice(at < 0 ? terms.length : at, 0, `${game} band`);
   }
+  return terms;
+}
+
+/**
+ * Why a search result doesn't fit this reading, or "" when it does. `byGame`: it matched as the
+ * game's or artist's article, not the track's; `installment`: as a longer title than the game's.
+ */
+function pageMisfit(
+  song: SSLSong,
+  reading: Reading,
+  page: string,
+  full: string | null,
+  how: { byGame: boolean; installment: boolean; names: string[]; classical: ClassicalTitle | null }
+): string {
+  if (!full) return "";
+  const { game, track } = reading;
+  const { byGame, installment, names, classical } = how;
+  // An installment or spin-off is only right when it's the song's own game: it must name the track.
+  // A generic name ("Main Theme") is in every installment's article, so it names none of them.
+  if (installment && (GENERIC_TRACK.test(normalizeTitle(track)) || !mentionsName(normalizeTitle(full), [normalizeTitle(track)]))) return `never mentions "${track}"`;
+  // A performer's name alone can be an everyday word: "Milestone" is about road markers.
+  if (byGame && song.performer && !/\(/.test(page) && !PERFORMER_LEAD.test(full.slice(0, 400))) return "isn't about a performer";
+  // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
+  // A game's or a show's own article under that very name serves too: "Kingdom Hearts / Some Remixer".
+  const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isWorkArticle(page, full);
+  if (byGame && reading.aPerformer && !isPerformerArticle(page, full) && !workByName()) return "isn't about a performer";
+  // A piece read from the title must be one: "Overwatch" read as a track name isn't "Overwatch and pornography".
+  if (!byGame && reading.fromTitle && !isPieceArticle(page, full)) return "isn't about a piece of music";
+  // A work read from the title must be a game, a film or a show: "Aladdin" is also a folk tale.
+  if (byGame && reading.fromTitle && !isWorkArticle(page, full)) return "isn't a game, a film or a show";
+  // "Passacaglia (Handel/Halvorsen)" names its composers in its title.
+  const qualifier = qualifierOf(page) ?? "";
+  if (!byGame && !mentionsName(`${normalizeTitle(full)} ${normalizeTitle(qualifier)}`, names)) return `never mentions "${game}"`;
+  return classical ? notForAPiece(page, full, classical) : "";
+}
+
+/**
+ * The part of an article to write from: the song's own article whole, or a game's or an artist's
+ * cut to what's about the track. `ownArticle`: the article is the song's own (or the request is the game).
+ */
+function articleExtract(page: string, full: string | null, ownArticle: boolean, byGame: boolean, game: string, track: string): string {
+  if (!full) return "";
+  return ownArticle && !byGame
+    ? ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [track, game])
+    : orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track], ownArticle);
+}
+
+/** One reading of the request, looked up the usual way. */
+async function groundReading(song: SSLSong, reading: Reading, blocked: Set<string>): Promise<Grounded> {
+  const { game, track } = reading;
+  // A subject pinned to one page is remembered apart: another song's search may have found another page for the name.
+  // A lookup for the song's own article alone says nothing about the subject's article.
+  const gameCacheKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "");
+  const trackCacheKey = `${gameCacheKey}\0${normalizeTitle(track)}`;
+
+  // A game's tracks share one lookup. An artist's songs never share: each may
+  // have its own article. The artist test is a heuristic, and guessing
+  // "artist" for a game only costs extra lookups, never wrong facts.
+  // A music video's artist counts as one too (issue: "Muse - Starlight" must
+  // search for Starlight, not reuse Muse's article cached for another song).
+  const artist = looksLikeArtistName(game) || !!song.performer;
+  const usable = (title: string) => !blocked.has(title);
+  // A game's track with an article of its own ("Megalovania", "Baba Yetu") is
+  // far richer than the game's article, so it's tried first: one search per
+  // track, remembered either way (issue #48).
+  // A generic name ("Theme") has no article of its own: "Theme from Star Trek" is another show's.
+  const generic = GENERIC_TRACK.test(normalizeTitle(track));
+  if (!artist && track && track !== game && !generic && !song.artistUncertain && !noOwnArticle.has(trackCacheKey) && !groundingCache.get(trackCacheKey)?.text) {
+    const own = await trackOwnArticle(song, game, track, usable);
+    if (own) {
+      groundingCache.set(trackCacheKey, { text: own, at: Date.now() });
+      return { text: own, unreachable: false };
+    }
+    // Null when throttled or unreachable: the game's article below still serves, and this is tried again next time.
+    if (own === "") noOwnArticle.add(trackCacheKey);
+  }
+  // The track's own article, found before.
+  const ownHit = artist ? undefined : cachedGrounding(trackCacheKey, usable);
+  if (ownHit) return { text: ownHit, unreachable: false };
+  // A game already looked up: this track's reference is built from the kept articles.
+  const kept = !song.performer && track !== game ? gameArticles.get(gameCacheKey) : undefined;
+  if (kept && usable(kept.page)) {
+    const text = gameTrackText(kept, track, usable);
+    groundingCache.set(trackCacheKey, { text, at: Date.now() });
+    return { text, unreachable: false };
+  }
+  // The game's reference or the track's, or a recent miss.
+  for (const key of artist ? [trackCacheKey] : [gameCacheKey, trackCacheKey]) {
+    const hit = key ? cachedGrounding(key, usable) : undefined;
+    if (hit !== undefined) return { text: hit, unreachable: false };
+  }
+
+  // "Ecco the Dolphin CD" is the game "Ecco the Dolphin": an edition word isn't part of its name.
+  const edition = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
+  // Which way an article matched decides how widely it may be shared. A
+  // track article must not be attributed to another artist, and its text
+  // must mention the game or artist: "Overture" alone is a generic article.
+  const matchedGame = (title: string) =>
+    // An artist that's only a guess from the uploader's channel is never looked up
+    // as the subject: an uploader called "Apollo" isn't the god (issue from review).
+    !song.artistUncertain &&
+    // Only the piece's own article for a name that may be an arranger's or a fellow musician's.
+    !reading.trackOnly &&
+    // A film or a show is never a video game of the same name.
+    !(reading.notGame && /\((?:[^)]*\b)?games?\b[^)]*\)\s*$/i.test(title)) &&
+    // The page Wikipedia gave for the name, and only that one.
+    (reading.page
+      ? title === reading.page
+      : isRelevantArticle(game, title, artist || !!song.performer) || (edition !== game && isRelevantArticle(edition, title, artist || !!song.performer))) &&
+    // A music video's artist is a band or singer, never a game or film of the same name.
+    !(song.performer && NOT_A_PERFORMER.test(title));
+  // A longer title than the subject: "Final Fantasy" -> "Final Fantasy VII".
+  const gameTokens = significantTokens(normalizeTitle(game)).length;
+  const extendsGame = (title: string) => significantTokens(normalizeTitle(title)).length > gameTokens;
+  const matchedTrack = (title: string) =>
+    track !== game &&
+    !generic && isRelevantArticle(track, title) && !qualifierNamesAnotherArtist(title, game, track);
+
+  // "Lil Nas X, Jack Harlow": a song's article may name only its lead artist.
+  const names = artistNames(game);
+  const terms = groundingTerms(song, reading, artist);
   let unreachable = "";
   // A classical piece is never read from a film's, a show's or a non-musician's article, or another key's piece (issue #260).
   const classical = classicalAsk(song);
@@ -2147,53 +2237,17 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       }
       const byGame = matchedGame(page);
       const full = await wikiExtract(page);
-      // An installment or spin-off is only right when it's the song's own game: it must name the track.
       const installment = byGame && extendsGame(page) && track !== game && !reading.page;
-      // A generic name ("Main Theme") is in every installment's article, so it names none of them.
-      if (installment && full && (GENERIC_TRACK.test(normalizeTitle(track)) || !mentionsName(normalizeTitle(full), [normalizeTitle(track)]))) {
-        console.log(`[Grounding] "${page}" never mentions "${track}", skipping`);
-        continue;
-      }
-      // A performer's name alone can be an everyday word: "Milestone" is about road markers.
-      if (byGame && song.performer && !/\(/.test(page) && full && !PERFORMER_LEAD.test(full.slice(0, 400))) {
-        console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
-        continue;
-      }
-      // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
-      // A game's or a show's own article under that very name serves too: "Kingdom Hearts / Some Remixer".
-      const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isAWork(page, full ?? "");
-      if (byGame && reading.aPerformer && full && !isAPerformer(page, full) && !workByName()) {
-        console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
-        continue;
-      }
-      // A piece read from the title must be one: "Overwatch" read as a track name isn't "Overwatch and pornography".
-      if (!byGame && reading.fromTitle && full && !isAPiece(page, full)) {
-        console.log(`[Grounding] "${page}" isn't about a piece of music, skipping`);
-        continue;
-      }
-      // A work read from the title must be a game, a film or a show: "Aladdin" is also a folk tale.
-      if (byGame && reading.fromTitle && full && !isAWork(page, full)) {
-        console.log(`[Grounding] "${page}" isn't a game, a film or a show, skipping`);
-        continue;
-      }
-      // "Passacaglia (Handel/Halvorsen)" names its composers in its title.
-      const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
-      if (!byGame && full && !mentionsName(`${normalizeTitle(full)} ${normalizeTitle(qualifier)}`, names)) {
-        console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
-        continue;
-      }
-      const notAPiece = classical && full ? notForAPiece(page, full, classical) : "";
-      if (notAPiece) {
-        console.log(`[Grounding] "${page}" ${notAPiece}, skipping`);
+      const why = pageMisfit(song, reading, page, full, { byGame, installment, names, classical });
+      if (why) {
+        console.log(`[Grounding] "${page}" ${why}, skipping`);
         continue;
       }
       // The song's own article, or one about the whole game or artist?
       const ownArticle = !byGame || track === game || matchedTrack(page);
-      const extract = full && (ownArticle && !byGame
-        ? ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [track, game])
-        : orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track], ownArticle));
-      if (!extract || extract.length < MIN_CONTEXT_CHARS) {
-        console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
+      const extract = articleExtract(page, full, ownArticle, byGame, game, track);
+      if (extract.length < MIN_CONTEXT_CHARS) {
+        console.log(`[Grounding] "${page}" is too short to write from (${extract.length} chars)`);
         continue;
       }
       let text = `${page}\n${extract}`;
@@ -2208,13 +2262,13 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         }
         const articles = { page, full, music };
         // Shared by the game's tracks, unless this track has blocked articles of its own.
-        if (!blocked.size) gameArticles.set(gameKey, articles);
+        if (!blocked.size) gameArticles.set(gameCacheKey, articles);
         text = gameTrackText(articles, track, usable);
         if (music) console.log(`[Grounding] "${game}" has a music article: ${music.page}${music.series ? " (series-wide: used for tracks it names)" : ""}`);
       }
       console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
       // Shared by the game's tracks, unless this track has blocked articles of its own.
-      groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameKey : songKey, { text, at: Date.now() });
+      groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameCacheKey : trackCacheKey, { text, at: Date.now() });
       return { text, unreachable: false };
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -2230,7 +2284,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       ` — tried: ${terms.join(" | ")}`
   );
   // A miss caused by this song's blocked articles says nothing about the game's other tracks.
-  if (!unreachable) groundingCache.set(artist || blocked.size ? songKey : gameKey, { text: "", at: Date.now() });
+  if (!unreachable) groundingCache.set(artist || blocked.size ? trackCacheKey : gameCacheKey, { text: "", at: Date.now() });
   return { text: "", unreachable: !!unreachable };
 }
 
@@ -2669,6 +2723,10 @@ export function retoldSentences(fact: string, context: string): string[] {
 export const support = (fact: string, context: string, cited?: string) =>
   cited !== undefined ? share(fact, cited) : Math.max(0, ...bodySentences(context).map((s) => share(fact, s)));
 
+/** Counts and ordinals written as words, for reading the numbers in a caption (`DIGIT_OF`). */
+const NUMBER_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "hundred", "dozen"];
+const ORDINALS = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+
 /**
  * Words that join two statements into a cause, an order, an intention or a
  * count. Names and years in a merged caption are all in the source, so only
@@ -2677,8 +2735,6 @@ export const support = (fact: string, context: string, cited?: string) =>
  * localization. Each is kept only when the sentence the caption retells has
  * a word of the same kind.
  */
-const NUMBER_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "hundred", "dozen"];
-const ORDINALS = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
   { label: "a cause", fact: /\b(due to|because|owing to|thanks to|as a result)\b/i, source: /\b(due to|because|owing to|thanks to|as a result|since|so|as (?:he|she|they|it|the|a|his|her|their))\b/i },
   { label: "a consequence", fact: /\b(led to|leading to|lead to|resulted in|prompted|caused)\b/i, source: /\b(led|lead|leading|result\w*|prompt\w*|caus\w*)\b/i },
@@ -2711,7 +2767,7 @@ const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.sli
  */
 function withoutTitles(fact: string, context: string, titles: string[]): string {
   // Two words or more: a one-word title such as "Because" would blank every capitalized use of the word.
-  const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
+  const own = [withoutQualifier(context.split("\n")[0]), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
   // A run counts as a name only where the source has it mid-sentence, not where it merely opens a sentence.
   const midSentence = (span: string) => new RegExp(`[\\p{L}\\p{N},;:'’"”)]\\s+${escapeRe(span)}(?![\\p{L}\\d])`, "u").test(context);
   let out = fact;
@@ -3499,6 +3555,89 @@ export function parseCitation(line: string): { at: number; text: string } {
 }
 
 /**
+ * Why a caption can't go on screen whatever its reference says: unsafe for a stream, about the
+ * prompt, too short, an opinion, an unnamed speaker, the music video, or another part of the
+ * soundtrack. Null when none. `titles`: the article's and the song's, which a caption may open with.
+ */
+function captionReason(fact: string, titles: string[], otherParts: string[]): string | null {
+  const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
+  if (unsafe) return unsafe.label;
+  if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
+  if (fact.length < 20) return "too short";
+  if (OPINION.test(fact)) return "opinion";
+  // "GameSpy called the music incredible": a review outlet's verdict is an opinion too.
+  if (CRITIC_NAMES.test(fact) && /\b(called|wrote|said|described|praised|named|ranked|listed|rated|felt|thought|noted)\b/i.test(fact)) return "a critic's view";
+  // "He combined two words": a viewer can't tell who.
+  if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
+  // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
+  // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
+  const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+  if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
+  if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
+  // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
+  const other = otherParts.find((p) => hasWord(p, fact, ""));
+  if (other) return `about another part of the soundtrack ("${other}")`;
+  return null;
+}
+
+/**
+ * Why the reference doesn't back a caption: a risky claim it doesn't make, then, when there is a
+ * reference, each name, date, credit, quote and joining word checked against it. Null when none.
+ * `track`: set when the article isn't the track's own, as for `screenClaims`.
+ */
+function sourceReason(fact: string, context: string, track: string | undefined): string | null {
+  for (const { re, label } of RISKY_PATTERNS) {
+    const m = fact.match(re);
+    if (m && !hasWord(m[0].trim(), context)) return label;
+  }
+  if (!context) return null;
+  const year = (fact.match(YEAR) ?? []).find((y) => !hasWord(y, context));
+  if (year) return `unsupported year ${year}`;
+  const day = unsupportedDay(fact, context);
+  if (day) return `unsupported date "${day}"`;
+  const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
+  if (platform) return `unsupported platform "${platform}"`;
+  const name = unsupportedName(fact, context);
+  if (name) return `unsupported name "${name}"`;
+  const credit = unsupportedCredit(fact, context);
+  if (credit) return `unsupported credit for "${credit}"`;
+  const winner = unsupportedWinner(fact, context);
+  if (winner) return `award not given to "${winner}" in the source`;
+  const quote = alteredQuote(fact, context);
+  if (quote) return `quote not in the source: "${quote}"`;
+  const joined = unsupportedConnective(fact, context, track ? [track] : []);
+  if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
+  const relation = unsupportedRelation(fact, context);
+  if (relation) return `"${relation}" isn't stated for them in the source`;
+  const lost = lostQualifier(fact, context);
+  if (lost) return lost;
+  const owner = wrongOwner(fact, context);
+  if (owner) return `the source says this of ${owner}`;
+  const subject = swappedSubject(fact, context);
+  if (subject) return `the sentence it retells isn't about "${subject}"`;
+  const speaker = misattributedWords(fact, context);
+  if (speaker) return `words the source doesn't give to ${speaker}`;
+  const doer = otherDoer(fact, context);
+  if (doer) return `the sentence it retells is about ${doer}`;
+  const role = reversedRole(fact, context);
+  if (role) return `the source names someone else's ${role}`;
+  const hedge = droppedHedge(fact, context);
+  if (hedge) return `drops the source's "${hedge}"`;
+  const placed = misplacedYear(fact, context);
+  if (placed) return `${placed} isn't the year of the sentence it retells`;
+  if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
+  const unnamedOne = unnamedReference(fact, context);
+  if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
+  const view = unattributedView(fact, context);
+  if (view) return `a view the source gives to ${view}`;
+  // "The musical won four Olivier Awards" from an artist's article, shown during another of their songs.
+  const unnamed = UNNAMED_WORK.exec(fact);
+  if (unnamed && track && !namesTrack(context.split("\n")[0], track) && !retoldSentences(fact, context).some((s) => namesTrack(s, track)))
+    return `doesn't say which ${unnamed[1].toLowerCase()}`;
+  return null;
+}
+
+/**
  * Keep only facts the reference visibly supports. With no reference (only
  * when FACT_VERIFICATION=off) the source checks are skipped but formatting,
  * meta-commentary, risky claims, length and duplicates are still screened.
@@ -3515,78 +3654,11 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
   const plainHyphens = (t: string) => t.replace(/[\u2010\u2011\u2012]/g, "-");
   const context = plainHyphens(rawContext);
 
-  const reasonToDrop = (fact: string): string | null => {
-    const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
-    if (unsafe) return unsafe.label;
-    if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
-    if (fact.length < 20) return "too short";
-    if (OPINION.test(fact)) return "opinion";
-    // "GameSpy called the music incredible": a review outlet's verdict is an opinion too.
-    if (CRITIC_NAMES.test(fact) && /\b(called|wrote|said|described|praised|named|ranked|listed|rated|felt|thought|noted)\b/i.test(fact)) return "a critic's view";
-    // "He combined two words": a viewer can't tell who.
-    if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
-    // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
-    // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
-    const titles = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), opts.track ?? ""].filter(Boolean);
-    const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
-    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
-    if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
-    // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
-    const other = (opts.otherParts ?? []).find((p) => hasWord(p, fact, ""));
-    if (other) return `about another part of the soundtrack ("${other}")`;
-    for (const { re, label } of RISKY_PATTERNS) {
-      const m = fact.match(re);
-      if (m && !hasWord(m[0].trim(), context)) return label;
-    }
-    if (context) {
-      const year = (fact.match(YEAR) ?? []).find((y) => !hasWord(y, context));
-      if (year) return `unsupported year ${year}`;
-      const day = unsupportedDay(fact, context);
-      if (day) return `unsupported date "${day}"`;
-      const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
-      if (platform) return `unsupported platform "${platform}"`;
-      const name = unsupportedName(fact, context);
-      if (name) return `unsupported name "${name}"`;
-      const credit = unsupportedCredit(fact, context);
-      if (credit) return `unsupported credit for "${credit}"`;
-      const winner = unsupportedWinner(fact, context);
-      if (winner) return `award not given to "${winner}" in the source`;
-      const quote = alteredQuote(fact, context);
-      if (quote) return `quote not in the source: "${quote}"`;
-      const joined = unsupportedConnective(fact, context, opts.track ? [opts.track] : []);
-      if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
-      const relation = unsupportedRelation(fact, context);
-      if (relation) return `"${relation}" isn't stated for them in the source`;
-      const lost = lostQualifier(fact, context);
-      if (lost) return lost;
-      const owner = wrongOwner(fact, context);
-      if (owner) return `the source says this of ${owner}`;
-      const subject = swappedSubject(fact, context);
-      if (subject) return `the sentence it retells isn't about "${subject}"`;
-      const speaker = misattributedWords(fact, context);
-      if (speaker) return `words the source doesn't give to ${speaker}`;
-      const doer = otherDoer(fact, context);
-      if (doer) return `the sentence it retells is about ${doer}`;
-      const role = reversedRole(fact, context);
-      if (role) return `the source names someone else's ${role}`;
-      const hedge = droppedHedge(fact, context);
-      if (hedge) return `drops the source's "${hedge}"`;
-      const placed = misplacedYear(fact, context);
-      if (placed) return `${placed} isn't the year of the sentence it retells`;
-      if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
-      const unnamedOne = unnamedReference(fact, context);
-      if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
-      const view = unattributedView(fact, context);
-      if (view) return `a view the source gives to ${view}`;
-      // "The musical won four Olivier Awards" from an artist's article, shown during another of their songs.
-      const unnamed = UNNAMED_WORK.exec(fact);
-      const track = opts.track ?? "";
-      if (unnamed && track && !namesTrack(context.split("\n")[0], track) && !retoldSentences(fact, context).some((s) => namesTrack(s, track)))
-        return `doesn't say which ${unnamed[1].toLowerCase()}`;
-    }
-    if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
-    return null;
-  };
+  const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
+  const reasonToDrop = (fact: string): string | null =>
+    captionReason(fact, titles, opts.otherParts ?? []) ??
+    sourceReason(fact, context, opts.track) ??
+    (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
   // Told to cite, the model numbers each caption with the sentence it retells (`numberedReference`).
   // That sentence stands in for the guess by shared words, and the caption must match it (`citedMismatch`).
