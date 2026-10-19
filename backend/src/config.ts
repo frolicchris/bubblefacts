@@ -84,6 +84,13 @@ function nowPlayingFile(): string {
   return preset ? path.join(os.homedir(), ...preset.folder, raw) : path.resolve(__dirname, "../..", raw);
 }
 
+/**
+ * The streamer's name for stats and logs. With StreamerSongList it is the
+ * StreamerSongList channel; with StreamElements, the StreamElements channel
+ * stands in for it (SE_CHANNEL, unless SSL_STREAMER_NAME is also set).
+ */
+const streamerName = onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "";
+
 export const config = {
   port: intEnv("PORT", 3000, 1, 65535),
   // Loopback only by default: the server has no authentication.
@@ -91,11 +98,9 @@ export const config = {
 
   songSource,
 
-  // Performer and content. With StreamElements, the channel name stands in for the streamer's name.
-  sslStreamerName: onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "",
-  streamerDisplayName:
-    process.env.STREAMER_DISPLAY_NAME ||
-    (onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "the streamer"),
+  // Performer and content. The name keeps its StreamerSongList field name, but also holds the StreamElements channel (see streamerName).
+  sslStreamerName: streamerName,
+  streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || streamerName || "the streamer",
   instrument: (process.env.INSTRUMENT || "").trim(),
   // Empty means no custom facts: a song with no source gets none (the desktop app's default).
   topic: process.env.TOPIC ?? "video-game,classical,film,pop,general",
