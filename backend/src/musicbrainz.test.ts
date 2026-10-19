@@ -3,7 +3,7 @@ jest.mock("./config", () => ({
 }));
 
 import { config } from "./config";
-import { clearGroundingCache, fetchGrounding } from "./fact-verifier";
+import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
 import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, performerFacts, readableName } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
@@ -183,6 +183,16 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     expect(text.split("\n")[0]).toBe("Paper Comets");
     expect(text.split("\n")[1]).toBe('About this piece: "Paper Comets" is originally by Juniper Hale. The version playing is a cover.');
     expect(text).not.toContain("Night Ferns");
+  });
+
+  it("is unsure of the artist's page MusicBrainz's link led to, and of a cover's original (issue #255)", async () => {
+    scenario = fixtures.artist;
+    const song = { title: "Low Orbit", artist: "Kestrel Moon" };
+    const artist = await fetchGrounding(song);
+    expect(artist.split("\n")[0]).toBe("Kestrel Moon (band)");
+    expect(workMatchConfidence(song, artist)).toEqual({ level: "unsure", reason: "MusicBrainz's link led to the artist's article, not the song's" });
+    const cover = await run("cover", "Paper Comets", "The Night Ferns");
+    expect(workMatchConfidence({ title: "Paper Comets", artist: "The Night Ferns" }, cover)).toMatchObject({ level: "unsure", reason: "the article is about the original of a cover" });
   });
 
   it("runs from fetchGrounding only after every reading misses, and not with MB_LINK=off", async () => {

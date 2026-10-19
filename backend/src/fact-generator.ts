@@ -2,14 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isAPerformer, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
-import { wikidataFacts } from "./wikidata";
+import { artistFacts, wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -609,6 +609,26 @@ async function fittingGrounding(song: SSLSong, reading: SSLSong): Promise<string
   }
 }
 
+/**
+ * The reference for a request and the reading that found it ("" when none): each reading of
+ * the song list's habits is tried until one finds an article.
+ */
+export async function findReference(song: SSLSong): Promise<{ context: string; read: SSLSong }> {
+  let context = "";
+  let read = song;
+  for (const reading of readings(song)) {
+    const found = await fittingGrounding(song, reading);
+    if (!found) continue;
+    // The artist's life story is the weakest find: kept, but another reading may find the song or its game.
+    const onlyTheArtist = artistNames(reading.artist ?? "").includes(normalizeTitle(found.split("\n")[0]));
+    if (context && onlyTheArtist) continue;
+    context = found;
+    read = reading;
+    if (!onlyTheArtist) break;
+  }
+  return { context, read };
+}
+
 /** Facts from the queue entry, topped up from the topic packs. True by construction. */
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
@@ -795,16 +815,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const placeholder = isPlaceholderRequest(song);
     if (placeholder) console.log(`[FactGen] "${song.title}" is a request placeholder, not a song: not looked up`);
     if (config.aiProvider !== "none" && config.factVerification && !handle && !placeholder) {
-      for (const reading of readings(song)) {
-        const found = await fittingGrounding(song, reading);
-        if (!found) continue;
-        // The artist's life story is the weakest find: kept, but another reading may find the song or its game.
-        const onlyTheArtist = artistNames(reading.artist ?? "").includes(normalizeTitle(found.split("\n")[0]));
-        if (context && onlyTheArtist) continue;
-        context = found;
-        read = reading;
-        if (!onlyTheArtist) break;
-      }
+      ({ context, read } = await findReference(song));
       if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
     }
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
@@ -821,6 +832,30 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(asked, "noReference", lines.length);
       // Retried after the grounding negative cache expires.
+      return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+    }
+
+    // Not sure the article is about this song (issue #255): no AI captions, only facts from data.
+    const match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+    if (match?.level === "unsure") {
+      console.log(`[Grounding] unsure: ${match.reason} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
+      const fresh = (list: string[]) => list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+      const data = fresh(await structuredFacts(song, read));
+      // Too few to fill the song: up to two about its artist or game, from Wikidata too.
+      const { game } = resolveGameAndTrack(read);
+      const page = context.split("\n")[0];
+      const about = isAPerformer(page, articleText(page) || context) ? page : game;
+      const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(await artistFacts(about)).slice(0, 2) : [];
+      for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
+      const shown = [...data, ...extra.filter((f) => !data.includes(f))].slice(0, want);
+      if (shown.length) {
+        remember(shown);
+        record(asked, structuredLabel.get(shown[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shown.length);
+        return { facts: toFacts(song, shown, (t) => structuredLabel.get(t)), ttlMs: Infinity };
+      }
+      if (sourcedOnly) return none;
+      const lines = entryFacts(entry, want);
+      record(asked, "noReference", lines.length);
       return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
     }
 

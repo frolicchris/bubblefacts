@@ -730,6 +730,141 @@ export function articleMisfit(song: SSLSong, text: string): string {
   return missing ? `never mentions "${missing}"` : "";
 }
 
+// --- Is the article about the requested work? ----------------------------
+
+/**
+ * How sure the lookup is that its article is about the requested work
+ * (issue #255): `sure`, `unsure` with the reason, or `none` with no article.
+ * An unsure article gets no AI captions: a sequel, a series, a film named like
+ * the band or the original of a cover gives true captions about the wrong thing.
+ */
+export interface WorkMatch {
+  level: "sure" | "unsure" | "none";
+  reason: string;
+}
+
+/** Pages reached through MusicBrainz's link rather than a Wikipedia search (issue #245). */
+const linkedPages = new Set<string>();
+
+const SERIES_WORD = /\b(series|franchise)\b/i;
+/** A kind of work a song is not from when its artist is a performer: "(1961 film)", "a concert documentary film". */
+const SCREEN_OR_BOOK = /\b(film|movie|documentary|television|tv series|miniseries|sitcom|novel|manga|play)s?\b/i;
+const AN_ALBUM = /\b(album|EP|mixtape|compilation)s?\b/i;
+
+/** The first `n` sentences of an article's lead. */
+function leadSentences(full: string, n: number): string {
+  const lead = full.split(/\n==/)[0].replace(/\s+/g, " ").trim();
+  const ends = [...lead.matchAll(/[.!?](?=\s+[\p{Lu}"“(])/gu)].map((m) => (m.index ?? 0) + 1);
+  return ends.length >= n ? lead.slice(0, ends[n - 1]) : lead;
+}
+
+/** Whether normalized text names one of these, spelled a letter or two differently ("Colbie Cailat"). */
+function namesLoosely(text: string, names: string[]): boolean {
+  if (mentionsName(text, names)) return true;
+  const words = text.split(" ");
+  return names.some((name) => {
+    const want = name.replace(/ /g, "");
+    const n = name.split(" ").length;
+    if (want.length < 5) return false;
+    for (let size = Math.max(1, n - 1); size <= n + 1; size++) {
+      for (let i = 0; i + size <= words.length; i++) {
+        const got = words.slice(i, i + size).join("");
+        if (Math.abs(got.length - want.length) <= 2 && editDistance(got, want) <= Math.max(1, Math.floor(want.length * 0.15))) return true;
+      }
+    }
+    return false;
+  });
+}
+
+/**
+ * `song` is the reading that found the reference; `asked` is the request as typed.
+ * - `sure`: the song's own article naming its artist up front; a game's own article
+ *   or its music article (the expected unit for a game's track); the artist's article
+ *   that names the song, or that was found under the name as typed.
+ * - `unsure`: the original of a cover; MusicBrainz's link to the artist; an album's
+ *   article for a song; a song article that doesn't name the artist up front (only
+ *   its first sentence counts for a short title, "Cherry"); a game's parent article
+ *   for an edition or epilogue; a series' article, or its music article, for a track
+ *   it never names; a film's, a show's or a book's article that never names the song,
+ *   or one named after the artist; the artist's article that never names the song,
+ *   found only after dropping a note ("Some Singer (Tribute)", "Song (X cover)").
+ */
+export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSLSong = song): WorkMatch {
+  if (!grounding.trim()) return { level: "none", reason: "no article" };
+  const unsure = (reason: string): WorkMatch => ({ level: "unsure", reason });
+  const sure = (reason: string): WorkMatch => ({ level: "sure", reason });
+  const page = grounding.split("\n")[0];
+  const full = articleText(page) || grounding.slice(page.length + 1);
+  const base = page.replace(/\s*\([^)]*\)\s*$/, "");
+  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
+  const says = openingSays(full);
+  const { game, track } = resolveGameAndTrack(song);
+  const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? track : "";
+  const names = [...new Set([...artistNames(song.artist ?? ""), ...artistNames(asked.artist ?? "")])];
+  const named = Boolean(piece) && (/^About this piece:/m.test(grounding) || mentionsName(normalizeTitle(full), [normalizeTitle(piece)]));
+  // A note the lookup dropped: in brackets after the artist ("Some Singer (Tribute)"), or a cover's in the title.
+  const noted = /\([^)]*\)\s*$/.test(asked.artist ?? "") || /[([][^)\]]*\bcover\b[^)\]]*[)\]]/i.test(asked.title);
+
+  if (/^About this piece: .* is originally by .*\bcover\b/m.test(grounding)) return unsure("the article is about the original of a cover");
+  if (linkedPages.has(page) && isAPerformer(page, full)) return unsure("MusicBrainz's link led to the artist's article, not the song's");
+
+  // The song's own article, by its title.
+  const own = piece && (normalizeTitle(base) === normalizeTitle(piece) || isRespelling(piece, base) || aboutThePiece(page, full, piece));
+  // "Walk This Way" for "Walk This Way - feat. A Guest": a song's article under part of the title.
+  const partOf = piece && !own && isAPiece(page, full) && significantTokens(normalizeTitle(base)).length >= 2 &&
+    mentionsName(`${normalizeTitle(piece)} ${normalizeTitle(dropVersionTags(asked.title))}`, [normalizeTitle(base)]);
+  if (own || partOf) {
+    if ((AN_ALBUM.test(qualifier) || AN_ALBUM.test(says)) && !/\bsoundtrack\b/i.test(qualifier + says)) return unsure(`"${page}" is an album's article, not the song's`);
+    const short = significantTokens(normalizeTitle(piece)).length <= 1;
+    const upFront = normalizeTitle(`${qualifier} ${leadSentences(full, short ? 1 : 3)}`);
+    // A game's track: its own article names the game, the way a song's names its artist.
+    if (!namesLoosely(upFront, names)) return unsure(`the song's article never names ${asked.artist || song.artist} up front${short ? " (a short title)" : ""}`);
+    return sure("the song's own article");
+  }
+
+  // A game's music article ("Music of X", "X Soundtrack"): the expected unit for its tracks.
+  // A series-wide one counts too, even when it never names the track: its facts are about the music.
+  if (/^Music of /i.test(page) || /\bsoundtrack\b/i.test(`${qualifier} ${page}`)) {
+    const seriesWide = (/\bseries$/i.test(base) || SERIES_WORD.test(says)) && !SERIES_WORD.test(asked.artist ?? "");
+    return sure(seriesWide ? "the series' music article" : "the game's music article");
+  }
+  // Another piece's article: "Song B" for "Song A".
+  if (piece && isAPiece(page, full)) return unsure(`"${page}" is another piece's article`);
+
+  // The artist's article.
+  const theArtist = isAPerformer(page, full) || (names.includes(normalizeTitle(base)) && !isAWork(page, full));
+  if (theArtist) {
+    if (piece && !named && noted) return unsure("the artist's article never names the song, and was found only after dropping a note");
+    return sure(named ? "the artist's article names the song" : "the artist's article");
+  }
+
+  // A game's, a film's or a show's article.
+  const work = significantTokens(normalizeTitle(game));
+  const title = significantTokens(normalizeTitle(base));
+  const startsWith = (long: string[], short: string[]) => long.length > short.length && short.every((t, i) => long[i] === t);
+  // "Xenoblade Chronicles: Future Connected" from "Xenoblade Chronicles": the parent, unless its first sentence names the rest.
+  if (startsWith(work, title)) {
+    const rest = work.slice(title.length).join(" ");
+    if (!mentionsName(significantTokens(normalizeTitle(leadSentences(full, 1))).join(" "), [rest])) return unsure(`the article is about ${base}, not ${game}`);
+  }
+  // "Depeche Mode: M" for a Depeche Mode song: another work named after the artist.
+  if (piece && !named && startsWith(title, work) && !SERIES_WORD.test(game)) return unsure(`"${page}" is another work named after ${game}`);
+  if (piece && !named && SERIES_WORD.test(says) && !SERIES_WORD.test(asked.artist ?? "")) return unsure("a series' article for one game's track, which it never names");
+  const kind = (SCREEN_OR_BOOK.exec(qualifier) ?? (/\bgames?\b/i.test(says) ? null : SCREEN_OR_BOOK.exec(says)))?.[0];
+  if (piece && !named && kind && !SCREEN_OR_BOOK.test(asked.artist ?? "")) return unsure(`a ${kind.toLowerCase()}'s article that never names the song`);
+  return sure("the work's own article");
+}
+
+/** Whether a page is a piece of music's own article under another spelling of its title. */
+function aboutThePiece(page: string, full: string, piece: string): boolean {
+  const base = normalizeTitle(page.replace(/\s*\([^)]*\)\s*$/, ""));
+  const want = normalizeTitle(piece);
+  if (!want || !isAPiece(page, full)) return false;
+  // Under another name: "Song (also known as Another Song) is a song by...".
+  if (mentionsName(normalizeTitle(leadSentences(full, 2)), [want])) return true;
+  return editDistance(base.replace(/ /g, ""), want.replace(/ /g, "")) <= Math.max(1, Math.floor(want.length * 0.15));
+}
+
 /** Reference text for the song, or "" when no relevant article exists. */
 /** Game tracks already found to have no article of their own. */
 const noOwnArticle = new Set<string>();
@@ -1318,7 +1453,9 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
     if (renamed.text || renamed.unreachable) return renamed.text;
   }
   // Every reading missed: the article MusicBrainz's own Wikidata link names, gated (issue #245).
-  return config.mbLink && !isPlaceholderRequest(song) && !hasNoArtist(song.artist) ? linkedGrounding(song, usable) : "";
+  const linked = config.mbLink && !isPlaceholderRequest(song) && !hasNoArtist(song.artist) ? await linkedGrounding(song, usable) : "";
+  if (linked) linkedPages.add(linked.split("\n")[0]);
+  return linked;
 }
 
 /** What a game, a film or a show is called in its article's first sentence or its title's brackets. */
@@ -1573,6 +1710,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
 }
 
 export function clearGroundingCache(): void {
+  linkedPages.clear();
   noOwnArticle.clear();
   wikipediaNames.clear();
   gameArticles.clear();

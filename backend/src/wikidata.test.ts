@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { factsFromEntity, pickSong, plainDate, rankedClaims, searchLanguage, searchLanguages, wikidataFacts } from "./wikidata";
+import { artistFactsFromEntity, factsFromEntity, pickSong, plainDate, rankedClaims, searchLanguage, searchLanguages, wikidataFacts } from "./wikidata";
 
 describe("pickSong", () => {
   const lostBoy = [
@@ -95,6 +95,29 @@ describe("statement ranks (review)", () => {
     };
     expect(rankedClaims(e, "P577")).toHaveLength(1);
     expect(factsFromEntity(e, {}, "Song")).toEqual(['"Song" came out in 2000.']);
+  });
+});
+
+describe("artistFactsFromEntity (issue #255)", () => {
+  const ids = (...list: string[]) => list.map((id) => ({ mainsnak: { datavalue: { value: { id } } } }));
+  const time = (t: string) => [{ mainsnak: { datavalue: { value: { time: t } } } }];
+  const labels = Object.fromEntries(
+    [["Q10", "Harborview"], ["Q11", "dream pop"], ["Q12", "shoegaze"], ["Q13", "Kenji Arata"], ["Q14", "Hollow Pine Inc."], ["Q15", "Some Records"]].map(([id, value]) => [id, { id, labels: { mul: { value } } }])
+  );
+
+  it("tells when and where a band formed, then its genres: two facts at most", () => {
+    const band = { id: "Q1", labels: { en: { value: "Velvet Lark" } }, descriptions: { en: { value: "American dream pop band" } }, claims: { P31: ids("Q215380"), P571: time("+1994-00-00T00:00:00Z"), P740: ids("Q10"), P136: ids("Q11", "Q12"), P264: ids("Q15") } };
+    expect(artistFactsFromEntity(band, labels)).toEqual(["Velvet Lark formed in Harborview in 1994.", "Velvet Lark's genres include dream pop and shoegaze."]);
+  });
+
+  it("tells when a singer was born, and reads labels given for every language", () => {
+    const singer = { id: "Q2", labels: { mul: { value: "Dana Reyes" } }, descriptions: { en: { value: "English singer" } }, claims: { P31: ids("Q5"), P569: time("+1950-03-01T00:00:00Z"), P264: ids("Q15") } };
+    expect(artistFactsFromEntity(singer, labels)).toEqual(["Dana Reyes was born in 1950.", "Dana Reyes's record labels include Some Records."]);
+  });
+
+  it("tells who scored and made a game, without doubling a name's final period", () => {
+    const game = { id: "Q3", labels: { en: { value: "Starfall Saga" } }, descriptions: { en: { value: "1996 video game" } }, claims: { P86: ids("Q13"), P178: ids("Q14"), P577: time("+1996-05-01T00:00:00Z") } };
+    expect(artistFactsFromEntity(game, labels)).toEqual(["The music of Starfall Saga is by Kenji Arata.", "Starfall Saga was developed by Hollow Pine Inc."]);
   });
 });
 
