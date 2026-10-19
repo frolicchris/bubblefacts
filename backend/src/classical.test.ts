@@ -190,7 +190,7 @@ describe("classical pieces through Wikidata (issue #260)", () => {
   const fetchMock = jest.fn(async (input: string | URL) => {
     const url = decodeURIComponent(String(input)).replace(/\+/g, " ");
     asked.push(url);
-    if (url.includes("wikidata.org")) {
+    if (new URL(url).hostname === "www.wikidata.org") {
       if (busy) return { ok: true, status: 200, json: async () => JSON.parse("You are making too many requests to the API.") } as unknown as Response;
       const hit = fixtures.wikidata.find((e) => url.includes(e.match));
       return { ok: true, status: 200, json: async () => hit?.body ?? { search: [], query: { search: [] }, entities: {} } } as Response;
@@ -293,14 +293,14 @@ describe("classical pieces through Wikidata (issue #260)", () => {
   it("leaves a pop act's songs to the usual lookup: no work search for a singer-songwriter who plays the piano", async () => {
     await lookup("Paper Lanterns", "Tamsin Vale");
     expect(asked.some((u) => u.includes("wbsearchentities"))).toBe(true);
-    expect(asked.some((u) => u.includes("wikidata.org") && u.includes("list=search"))).toBe(false);
+    expect(asked.some((u) => new URL(u).hostname === "www.wikidata.org" && u.includes("list=search"))).toBe(false);
   });
 
   it("with CLASSICAL_LOOKUP=off, asks Wikidata nothing and the film is taken as before", async () => {
     (config as { classicalLookup: boolean }).classicalLookup = false;
     busy = true;
     expect(await lookup("Storm Sonata", "Marrow")).toMatch(/^Marrow \(film\)\n/);
-    expect(asked.some((u) => u.includes("wikidata.org"))).toBe(false);
+    expect(asked.some((u) => new URL(u).hostname === "www.wikidata.org")).toBe(false);
   });
 
   it("when Wikidata is busy, looks the song up the usual way and caches nothing", async () => {
