@@ -310,6 +310,16 @@ export function normalizeTitle(s: string): string {
     .trim();
 }
 
+/** A page's trailing qualifier: "song" for "Let It Be (song)", undefined when it has none. */
+function qualifierOf(title: string): string | undefined {
+  return /\(([^)]*)\)\s*$/.exec(title)?.[1];
+}
+
+/** A page title without its trailing qualifier: "Let It Be (song)" is "Let It Be". */
+function withoutQualifier(title: string): string {
+  return title.replace(/\s*\([^)]*\)\s*$/, "");
+}
+
 /** Content words plus every numeral, roman numerals normalized to arabic. */
 function significantTokens(s: string): string[] {
   const words = s.split(" ").filter((t) => t && !STOPWORDS.has(t));
@@ -340,7 +350,7 @@ const WORK_TYPE = /\b(song|single|album|soundtrack|composition|video|game|series
  * subtitle too; the caller must then check the article names the artist.
  */
 export function qualifierNamesAnotherArtist(pageTitle: string, subject: string, track = "", bareSubtitlesOk = false): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
+  const qualifier = qualifierOf(pageTitle);
   if (!qualifier) return false;
   const fold = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   if (track && ` ${fold(track)} `.includes(` ${fold(qualifier)} `)) return false;
@@ -375,7 +385,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   // Never a single installment: "Nier (video game)" isn't the series.
   const series = /^(.+) (?:series|franchise)$/.exec(want);
   if (series) {
-    const q = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
+    const q = qualifierOf(pageTitle);
     if (significantTokens(series[1]).join(" ") === gotTokens.join(" ")) return !q || /\b(series|franchise)\b/i.test(q);
   }
 
@@ -383,7 +393,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   // Club" or "Wangan Midnight", though dropping "the" would leave only "midnight".
   if (/^the\s/.test(want) && !/^the\s/.test(got)) return false;
 
-  const qualifier = /\(([^)]*)\)\s*$/.exec(pageTitle)?.[1];
+  const qualifier = qualifierOf(pageTitle);
   if (qualifier) {
     // A work dated in the future (an announced remake) is not what's on air.
     const year = /\b(20\d{2})\b/.exec(qualifier)?.[1];
@@ -412,7 +422,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
     // A topic joined to it is another subject: "Overwatch and pornography" (but "Pokémon Red and Blue" is a pair of games).
     if (got.startsWith(want + " and ") && /\sand\s+\p{Ll}/u.test(pageTitle)) return false;
     // A company named for it: "Qumu Corporation" isn't the musician "Qumu".
-    if (COMPANY.test(pageTitle.replace(/\s*\([^)]*\)\s*$/, "")) && !COMPANY.test(subject)) return false;
+    if (COMPANY.test(withoutQualifier(pageTitle)) && !COMPANY.test(subject)) return false;
     return !(MEDIUM_SHIFT.test(got) && !MEDIUM_SHIFT.test(want));
   }
   // The article truncates the subject: safe only at a subtitle break ("Ys VIII:
@@ -848,7 +858,7 @@ export function articleMisfit(song: SSLSong, text: string): string {
   const page = text.split("\n")[0];
   const full = articleText(page);
   if (full && !opensAboutMusicOrWork(full)) return "doesn't open like an article about a song, a performer or a work";
-  const own = page.replace(/\s*\([^)]*\)\s*$/, "");
+  const own = withoutQualifier(page);
   const haystack = ` ${normalizeTitle(own)} ${normalizeTitle(full || text)} `;
   // "Reprise (Spirited Away)" by Joe Hisaishi: for a person's piece, the bracket may be a film, a translation or a nickname.
   if (looksLikeArtistName((song.artist ?? "").trim())) return "";
@@ -921,8 +931,8 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   const sure = (reason: string): WorkMatch => ({ level: "sure", reason });
   const page = grounding.split("\n")[0];
   const full = articleText(page) || grounding.slice(page.length + 1);
-  const base = page.replace(/\s*\([^)]*\)\s*$/, "");
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
+  const base = withoutQualifier(page);
+  const qualifier = qualifierOf(page) ?? "";
   const says = openingSays(full);
   const { game, track } = resolveGameAndTrack(song);
   const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? track : "";
@@ -989,7 +999,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
 
 /** Whether a page is a piece of music's own article under another spelling of its title. */
 function aboutThePiece(page: string, full: string, piece: string): boolean {
-  const base = normalizeTitle(page.replace(/\s*\([^)]*\)\s*$/, ""));
+  const base = normalizeTitle(withoutQualifier(page));
   const want = normalizeTitle(piece);
   if (!want || !isAPiece(page, full)) return false;
   // Under another name: "Song (also known as Another Song) is a song by...".
@@ -1377,7 +1387,7 @@ export function isSameWorkRedirect(from: string, to: string): boolean {
   const f = normalizeTitle(from);
   const t = normalizeTitle(to);
   if (t.endsWith(` ${f}`)) {
-    const head = to.replace(/\s*\([^)]*\)\s*$/, "");
+    const head = withoutQualifier(to);
     if (!/[:–—]\s*$/.test(head.slice(0, Math.max(0, head.length - from.length)))) return false;
   }
   const fromNumbers = numerals(from);
@@ -1742,7 +1752,7 @@ const sectionBlock = (heading: string, text: string, max = 1100) => `${heading}:
 
 /** What a page can't be for a classical piece: a film, a show or a book, a person who isn't a musician, or a piece in another key. "" when it can. */
 export function notForAPiece(page: string, full: string, parsed: ClassicalTitle): string {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
+  const qualifier = qualifierOf(page) ?? "";
   const says = openingSays(full);
   const musical = (t: string) => FORM_WORDS.test(t) || /\b(operas?|operettas?|ballets?|musicals?|pieces?|compositions?|works?|songs?|arias?|soundtracks?|scores?|movements?|sets?)\b/i.test(t);
   if (SCREEN_OR_BOOK.test(qualifier) || (SCREEN_OR_BOOK.test(says) && !musical(says))) return "is a film's, a show's or a book's article";
@@ -1990,7 +2000,7 @@ const NOT_A_WORK =
  * up to who made it.
  */
 export function isAWork(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   if (qualifier) return A_WORK.test(qualifier) && !NOT_A_WORK.test(qualifier.replace(/\bsoundtrack album\b/i, "soundtrack"));
   const what = openingSays(full);
   return A_WORK.test(what) && !NOT_A_WORK.test(what.replace(/\bsoundtrack album\b/i, "soundtrack"));
@@ -2009,7 +2019,7 @@ const A_PIECE = /\b(song|single|ballad|anthem|theme|instrumental|track|piece|com
 
 /** Whether an article is about a piece of music: "(Bee Gees song)", or "a song from the film Aladdin". */
 export function isAPiece(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   if (qualifier && A_PIECE.test(qualifier)) return true;
   return A_PIECE.test(openingSays(full));
 }
@@ -2023,7 +2033,7 @@ const A_PERFORMER =
  * duo's name and a racehorse's article.
  */
 export function isAPerformer(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   if (qualifier) return PERFORMER_QUALIFIER.test(qualifier);
   return A_PERFORMER.test(openingSays(full));
 }
@@ -2177,7 +2187,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         continue;
       }
       // "Passacaglia (Handel/Halvorsen)" names its composers in its title.
-      const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
+      const qualifier = qualifierOf(page) ?? "";
       if (!byGame && full && !mentionsName(`${normalizeTitle(full)} ${normalizeTitle(qualifier)}`, names)) {
         console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
         continue;
@@ -2713,7 +2723,7 @@ const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.sli
  */
 function withoutTitles(fact: string, context: string, titles: string[]): string {
   // Two words or more: a one-word title such as "Because" would blank every capitalized use of the word.
-  const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
+  const own = [withoutQualifier(context.split("\n")[0]), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
   // A run counts as a name only where the source has it mid-sentence, not where it merely opens a sentence.
   const midSentence = (span: string) => new RegExp(`[\\p{L}\\p{N},;:'’"”)]\\s+${escapeRe(span)}(?![\\p{L}\\d])`, "u").test(context);
   let out = fact;
@@ -3529,7 +3539,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
     // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
     // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
-    const titles = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), opts.track ?? ""].filter(Boolean);
+    const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
     const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
     if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
