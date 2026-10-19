@@ -2,15 +2,17 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isAPerformer, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
-import { wikidataFacts } from "./wikidata";
+import { artistFacts, wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
+import { logWrong } from "./wrong-log";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -356,6 +358,10 @@ Follow every rule:
 export const SYSTEM_PROMPT =
   "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
 
+/** With FACT_VERIFICATION=off the AI gets no reference, so its system prompt doesn't mention one (#202). */
+const UNVERIFIED_SYSTEM_PROMPT = "You write short trivia captions for a live music stream, and you follow the instructions exactly.";
+export const systemPrompt = () => (config.factVerification ? SYSTEM_PROMPT : UNVERIFIED_SYSTEM_PROMPT);
+
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
 async function askAnthropic(prompt: string): Promise<string> {
@@ -367,7 +373,7 @@ async function askAnthropic(prompt: string): Promise<string> {
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
     temperature: config.temperature,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt(),
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -391,7 +397,7 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
     {
       model: config.openaiModel,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt() },
         { role: "user", content: prompt },
       ],
       temperature: config.temperature,
@@ -413,7 +419,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt(),
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -444,7 +450,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: systemPrompt() });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {
@@ -603,6 +609,26 @@ async function fittingGrounding(song: SSLSong, reading: SSLSong): Promise<string
   }
 }
 
+/**
+ * The reference for a request and the reading that found it ("" when none): each reading of
+ * the song list's habits is tried until one finds an article.
+ */
+export async function findReference(song: SSLSong): Promise<{ context: string; read: SSLSong }> {
+  let context = "";
+  let read = song;
+  for (const reading of readings(song)) {
+    const found = await fittingGrounding(song, reading);
+    if (!found) continue;
+    // The artist's life story is the weakest find: kept, but another reading may find the song or its game.
+    const onlyTheArtist = artistNames(reading.artist ?? "").includes(normalizeTitle(found.split("\n")[0]));
+    if (context && onlyTheArtist) continue;
+    context = found;
+    read = reading;
+    if (!onlyTheArtist) break;
+  }
+  return { context, read };
+}
+
 /** Facts from the queue entry, topped up from the topic packs. True by construction. */
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
@@ -716,7 +742,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
  */
 export function liveLearnLookup(song: SSLSong): SSLSong | null {
   const artist = (song.artist ?? "").trim();
-  if (artist && !/^unknown$/i.test(artist)) return { title: song.title, artist };
+  if (artist && !hasNoArtist(artist)) return { title: song.title, artist };
   const parsed = parseVideoTitle(song.title);
   if (!parsed.artist || !parsed.title) return null;
   return { title: parsed.title, artist: parsed.artist, ...(parsed.performer ? { performer: true } : {}), ...(parsed.confident ? {} : { artistUncertain: true }) };
@@ -789,16 +815,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     const placeholder = isPlaceholderRequest(song);
     if (placeholder) console.log(`[FactGen] "${song.title}" is a request placeholder, not a song: not looked up`);
     if (config.aiProvider !== "none" && config.factVerification && !handle && !placeholder) {
-      for (const reading of readings(song)) {
-        const found = await fittingGrounding(song, reading);
-        if (!found) continue;
-        // The artist's life story is the weakest find: kept, but another reading may find the song or its game.
-        const onlyTheArtist = artistNames(reading.artist ?? "").includes(normalizeTitle(found.split("\n")[0]));
-        if (context && onlyTheArtist) continue;
-        context = found;
-        read = reading;
-        if (!onlyTheArtist) break;
-      }
+      ({ context, read } = await findReference(song));
       if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
     }
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
@@ -815,6 +832,30 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
       record(asked, "noReference", lines.length);
       // Retried after the grounding negative cache expires.
+      return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+    }
+
+    // Not sure the article is about this song (issue #255): no AI captions, only facts from data.
+    const match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+    if (match?.level === "unsure") {
+      console.log(`[Grounding] unsure: ${match.reason} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
+      const fresh = (list: string[]) => list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+      const data = fresh(await structuredFacts(song, read));
+      // Too few to fill the song: up to two about its artist or game, from Wikidata too.
+      const { game } = resolveGameAndTrack(read);
+      const page = context.split("\n")[0];
+      const about = isAPerformer(page, articleText(page) || context) ? page : game;
+      const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(await artistFacts(about)).slice(0, 2) : [];
+      for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
+      const shown = [...data, ...extra.filter((f) => !data.includes(f))].slice(0, want);
+      if (shown.length) {
+        remember(shown);
+        record(asked, structuredLabel.get(shown[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shown.length);
+        return { facts: toFacts(song, shown, (t) => structuredLabel.get(t)), ttlMs: Infinity };
+      }
+      if (sourcedOnly) return none;
+      const lines = entryFacts(entry, want);
+      record(asked, "noReference", lines.length);
       return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
     }
 
@@ -966,6 +1007,7 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);
+  if (!ownFactKind(label)) logWrong(song, text, label, source); // a private test case for scripts/wrong-cases.mjs
   console.log(`[WrongFact] "${song.title}": ${source ? `won't use ${source === STRUCTURED ? source : `"${source}"`} again` : "not from a lookup"}`);
   return source;
 }

@@ -53,7 +53,6 @@
     const t = e.target.closest("button");
     if (!t) return;
     if (t.dataset.open) api.openExternal(t.dataset.open);
-    if (t.dataset.view && !t.classList.contains("navlink")) show(t.dataset.view);
     if (t.id === "open-notices") api.openNotices();
     if ("openLicense" in t.dataset) api.openExternal(state.modelLicense);
     if ("testOverlay" in t.dataset) api.testOverlay();
@@ -859,7 +858,7 @@
       const r = await call();
       if (r.message) setResult($("#backup-result"), r.message, r.ok ? "ok" : "bad");
       // A restore changed the settings: show them.
-      if (r.ok && id === "backup-restore") { state = await api.getState(); settingsDraft.clear(); fillSettings(); setResult($("#backup-result"), r.message, "ok"); }
+      if (r.ok && id === "backup-restore") { state = await api.getState(); settingsDraft.clear(); fillSettings(); }
     });
   }
   $("#report-problem").addEventListener("click", () => api.reportProblem());

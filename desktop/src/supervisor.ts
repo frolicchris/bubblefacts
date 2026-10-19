@@ -80,7 +80,7 @@ export class Supervisor extends EventEmitter {
     super();
   }
 
-  start(env: Record<string, string>): void {
+  private start(env: Record<string, string>): void {
     this.env = env;
     this.basePort = Number(env.PORT);
     this.status.port = this.basePort;

@@ -22,6 +22,7 @@ import {
   platformSupported,
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
+  foldSymbols,
   dropVersionTags,
   normalizeTitle,
   tooSimilar,
@@ -42,6 +43,7 @@ import {
   isSameWorkRedirect,
   editDistance,
   opensAboutMusicOrWork,
+  isDisambiguation,
   isPlaceholderRequest,
   requestNames,
   articleMisfit,
@@ -71,6 +73,7 @@ import {
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
@@ -967,10 +970,10 @@ describe("restatesRequest", () => {
   });
 
   it("drops an originals credit that names the artist the request showed", () => {
-    const song = { title: "Water in the Moonlight", artist: "Chris" };
-    expect(restatesRequest('"Water in the Moonlight" is an original composition by Chris.', song)).toBe(true);
+    const song = { title: "Water in the Moonlight", artist: "Robin" };
+    expect(restatesRequest('"Water in the Moonlight" is an original composition by Robin.', song)).toBe(true);
     expect(restatesRequest("You're hearing this one straight from the person who wrote it.", song)).toBe(true);
-    expect(restatesRequest("Chris has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
+    expect(restatesRequest("Robin has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
   });
 });
 
@@ -1556,6 +1559,20 @@ describe("the article must fit the request", () => {
     expect(opensAboutMusicOrWork("Erik Satie was a French composer and pianist.")).toBe(true);
   });
 
+  it("knows a classical piece by its form: a minuet, a mazurka, a work for piano", () => {
+    // A minuet's article named neither "composition" nor "piece", so it was skipped for a list page.
+    expect(opensAboutMusicOrWork("The Minuet in A minor, Op. 7, No. 3, is the third of the Seven Minuets by Robin Ashby. The set was published in 1801 as a work for solo piano.")).toBe(true);
+    expect(opensAboutMusicOrWork("The Mazurka in F major is one of the late mazurkas by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Harbor Lights Variations is a set of variations for string quartet by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Paper Lanterns is a town in the north of the county, on the river.")).toBe(false);
+  });
+
+  it('treats "can refer to" like "may refer to": a list page names other works', () => {
+    expect(isDisambiguation("Minuet in A minor can refer to numerous musical compositions, including:\nMinuet in A minor, by Jane Composer")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. It may also refer to:\nPaper Lanterns (album)")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. Critics called it her best single.")).toBe(false);
+  });
+
   it("knows a request placeholder from a song", () => {
     expect(isPlaceholderRequest({ title: "Off-List YouTube Request < 5 Min(Free). 4", artist: "YouTube" })).toBe(true);
     expect(isPlaceholderRequest({ title: "Any song request", artist: "Viewer" })).toBe(true);
@@ -1676,6 +1693,48 @@ describe("cause, order and count words must be in the sentence retold", () => {
     expect(unsupportedConnective('"Souvenirs du château" includes three pieces.', souvenirs)).toBe("three");
     // A number in a name is no count: "Expedition 33", "21 Savage".
     expect(unsupportedConnective("Testard scored Clair Obscur: Expedition 33.", "Music of Clair Obscur: Expedition 33\nTestard scored the game.")).toBeNull();
+  });
+});
+
+describe("a connective word inside a title is part of the name (#188)", () => {
+  const glow = "After Glow (video game)\nThe game was released by Northwind in 1988. It is the fourth cabinet to use a hydraulic motion simulator.";
+
+  it("keeps a fact whose only connective is the article's own title", () => {
+    expect(unsupportedConnective("After Glow is the fourth cabinet to use a hydraulic motion simulator.", glow)).toBeNull();
+    expect(unsupportedConnective('"After Glow" was released by Northwind in 1988.', glow)).toBeNull();
+  });
+
+  it("keeps a title that is quoted or sits mid-sentence", () => {
+    expect(unsupportedConnective('Northwind\'s "After Glow" is the fourth cabinet to use a hydraulic motion simulator.', glow)).toBeNull();
+    expect(unsupportedConnective("Northwind released After Glow in 1988.", glow)).toBeNull();
+  });
+
+  it("keeps a title named by the song request, or found verbatim in the source", () => {
+    const artist = "Mira Okafor\nOkafor wrote the theme in 1990. Her album Because of Moonlight came out the same year.";
+    expect(unsupportedConnective("Mira Okafor released the album Because of Moonlight in 1990.", artist)).toBeNull();
+    expect(unsupportedConnective("The game Before the Storm has a theme written in 1990.", "Music of Northwind\nThe theme was written in 1990.", ["Before the Storm"])).toBeNull();
+  });
+
+  it("covers other connective words in titles", () => {
+    expect(unsupportedConnective("While You Were Gone has a theme written in 1990.", "While You Were Gone\nThe theme was written in 1990.")).toBeNull();
+    expect(unsupportedConnective("Because of You has a theme written in 1990.", "Because of You\nThe theme was written in 1990.")).toBeNull();
+    expect(unsupportedConnective("Thanks to You was written in 1990.", "Thanks to You (song)\nIt was written in 1990.")).toBeNull();
+  });
+
+  it("still drops a real connective, with or without a title that has the same word", () => {
+    expect(unsupportedConnective("The theme was composed after the director died.", glow)).toBe("after");
+    expect(unsupportedConnective("After Glow was composed after the director died.", glow)).toBe("after");
+    expect(unsupportedConnective("After Glow was released because of the arcade boom.", glow)).toBe("because");
+    // A capital letter at the start of a sentence isn't a title.
+    expect(unsupportedConnective("After Mira Okafor left Northwind, she wrote the theme.", glow)).toBe("After");
+  });
+
+  it("judges the joining word itself, with the title set aside (independent review)", () => {
+    const theme = "After Glow (video game)\nThe theme of After Glow was composed by Mira Okafor after the director died.";
+    expect(unsupportedConnective("The theme of After Glow was composed by Mira Okafor after the director died.", theme)).toBeNull();
+    // A one-word title doesn't blank the word everywhere.
+    const because = "Because (song)\nBecause is a 2001 song by Nightjar. The band was short of time and cut it to two minutes.";
+    expect(unsupportedConnective("Because the band was short of time, they cut it to two minutes.", because, ["Because"])).not.toBeNull();
   });
 });
 
@@ -2147,5 +2206,83 @@ describe("cite the sentence (fourth fact check)", () => {
   it("checks the caption against the cited sentence only, not the closest one", () => {
     expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 5, "Paper Lanterns")).toBeNull();
     expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 4, "Paper Lanterns")).not.toBeNull();
+  });
+});
+
+describe("true captions the screen dropped (#206, #207)", () => {
+  it("reads every day in a list like 3 and 5 June", () => {
+    const ref = "Nightjar\nThe EP was released on 3 and 5 June 2001, and again on July 8, 9 and 10.";
+    expect(unsupportedDay("The EP came out on June 3, 2001.", ref)).toBeNull();
+    expect(unsupportedDay("The EP came out again on July 9.", ref)).toBeNull();
+    expect(unsupportedDay("The EP came out on June 4, 2001.", ref)).toBe("June 4");
+    expect(unsupportedDay("The EP came out on June 5.", "Nightjar\nShows ran on June 3, 4, and 5.")).toBeNull();
+    // A comma alone isn't a list of days.
+    expect(unsupportedDay("On July 4, 10,000 fans came.", "Nightjar\nOn July 4, 10,000 fans came to the show.")).toBeNull();
+    expect(unsupportedDay("The band played on June 20.", "Nightjar\nOn June 3, 20 people heard the band.")).toBe("June 20");
+  });
+
+  it("keeps a caption that opens with the song's title, and still drops unnamed first-person words", () => {
+    const ref = "My Glass Harbor\nMy Glass Harbor is a 2019 song by Dana Reyes. It was released as a single in 2019.";
+    const reasons = (fact: string) => screenClaims([fact], ref, { track: "My Glass Harbor" }).rejected.map((r) => r.reason);
+    expect(reasons("My glass harbor was released as a single in 2019.")).not.toContain("doesn't say who is speaking");
+    expect(reasons("My heart was in it from the first take.")).toContain("doesn't say who is speaking");
+    // The whole title, not just its first words.
+    const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
+    expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
+  });
+});
+
+describe("artist names written with symbols (#245)", () => {
+  it("reads a symbol between letters as the letter it stands for", () => {
+    expect(foldSymbols("R!ver")).toBe("River");
+    expect(foldSymbols("Ma$on Jar")).toBe("Mason Jar");
+    expect(artistNames("R!ver")).toEqual(expect.arrayContaining(["r ver", "river"]));
+  });
+
+  it('leaves a trailing "!" and a leading "$" alone', () => {
+    expect(foldSymbols("Lantern Run!!")).toBe("Lantern Run!!");
+    expect(foldSymbols("$5 Band")).toBe("$5 Band");
+  });
+
+  it("does not call the folded name another artist", () => {
+    expect(qualifierNamesAnotherArtist("Paper Boats (River song)", "R!ver")).toBe(false);
+    expect(qualifierNamesAnotherArtist("Paper Boats (Jane Composer song)", "R!ver")).toBe(true);
+  });
+});
+
+describe("artist fields that mean no artist (issue #261)", () => {
+  const NO_ARTIST = ["Traditional", "Trad.", "Trad", "Anon.", "Anon", "Anonymous", "Unknown", "Folk", "TRADITIONAL", " anonymous. "];
+  const REAL_ARTISTS = ["Folk Lanterns", "The Unknown Harbor", "Anonymous Choir", "Traditional Revival Band", "Unknown Mortal Orchestra"];
+
+  it("recognizes each value, whole field only", () => {
+    for (const a of NO_ARTIST) expect(hasNoArtist(a)).toBe(true);
+    for (const a of REAL_ARTISTS) expect(hasNoArtist(a)).toBe(false);
+    expect(hasNoArtist("")).toBe(false);
+    expect(hasNoArtist(undefined)).toBe(false);
+  });
+
+  it("gives no names to look for or require in an article", () => {
+    for (const a of NO_ARTIST) expect(artistNames(a)).toEqual([]);
+    expect(artistNames("Folk Lanterns")).toEqual(["folk lanterns"]);
+    expect(artistNames("The Unknown Harbor")).toEqual(["the unknown harbor"]);
+  });
+
+  it("reads the title alone, never the value as the game", () => {
+    for (const a of NO_ARTIST) expect(resolveGameAndTrack({ title: "Marigold Lane", artist: a })).toEqual({ game: "Marigold Lane", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual({ game: "Folk Lanterns", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual({ game: "The Unknown Harbor", track: "Marigold Lane" });
+  });
+
+  it("looks the song up by its title alone, and a real artist stays an artist", () => {
+    for (const a of NO_ARTIST.filter((x) => !/^unknown$/i.test(x.trim()))) {
+      expect(readings({ title: "Marigold Lane", artist: a })).toEqual([{ game: "", track: "Marigold Lane", songAlone: true }]);
+    }
+    expect(readings({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual([{ game: "Folk Lanterns", track: "Marigold Lane" }]);
+    expect(readings({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual([{ game: "The Unknown Harbor", track: "Marigold Lane" }]);
+  });
+
+  it("does not count the value as a name a caption repeats", () => {
+    expect(restatesRequest("Marigold Lane is a traditional song.", { title: "Marigold Lane", artist: "Traditional" })).toBe(false);
+    expect(restatesRequest("Folk Lanterns wrote Marigold Lane.", { title: "Marigold Lane", artist: "Folk Lanterns" })).toBe(true);
   });
 });

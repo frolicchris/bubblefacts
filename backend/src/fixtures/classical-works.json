@@ -1,0 +1,2241 @@
+{
+ "wikidata": [
+  {
+   "match": "haswbstatement:P86=Q9100001 Heron Dance",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100051"
+      },
+      {
+       "ns": 0,
+       "title": "Q9100050"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100051|Q9100050&",
+   "body": {
+    "entities": {
+     "Q9100050": {
+      "type": "item",
+      "id": "Q9100050",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Heron Dance"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100021,
+            "id": "Q9100021"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     },
+     "Q9100051": {
+      "type": "item",
+      "id": "Q9100051",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Heron dance"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100052,
+            "id": "Q9100052"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100052|Q9100021&",
+   "body": {
+    "entities": {
+     "Q9100021": {
+      "type": "item",
+      "id": "Q9100021",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Coastal Suite"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "40",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Coastal Suite",
+        "badges": []
+       }
+      }
+     },
+     "Q9100052": {
+      "type": "item",
+      "id": "Q9100052",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Coastal Suite for orchestra"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": []
+      },
+      "sitelinks": {}
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100050&",
+   "body": {
+    "entities": {
+     "Q9100050": {
+      "type": "item",
+      "id": "Q9100050",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Heron Dance"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100021,
+            "id": "Q9100021"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Mazurka F minor",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100040"
+      },
+      {
+       "ns": 0,
+       "title": "Q9100041"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Mazurka",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100041"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100040|Q9100041&",
+   "body": {
+    "entities": {
+     "Q9100040": {
+      "type": "item",
+      "id": "Q9100040",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Mazurka in F minor, Op. 6, No. 3"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100042,
+            "id": "Q9100042"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     },
+     "Q9100041": {
+      "type": "item",
+      "id": "Q9100041",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Mazurka in F minor, Op. 44, No. 1"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100043,
+            "id": "Q9100043"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100041&",
+   "body": {
+    "entities": {
+     "Q9100041": {
+      "type": "item",
+      "id": "Q9100041",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Mazurka in F minor, Op. 44, No. 1"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100043,
+            "id": "Q9100043"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P106=Q36834 Holloway",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100005"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P106=Q36834 Kestrel",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100006"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100005&",
+   "body": {
+    "entities": {
+     "Q9100005": {
+      "type": "item",
+      "id": "Q9100005",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Ada Holloway"
+       }
+      },
+      "descriptions": {
+       "en": {
+        "language": "en",
+        "value": "English composer (1790–1858)"
+       }
+      },
+      "claims": {
+       "P106": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 36834,
+            "id": "Q36834"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P569": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P569",
+          "datavalue": {
+           "value": {
+            "time": "+1790-01-01T00:00:00Z",
+            "precision": 11
+           },
+           "type": "time"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "w0wiki": {
+        "site": "w0wiki",
+        "title": "x"
+       },
+       "w1wiki": {
+        "site": "w1wiki",
+        "title": "x"
+       },
+       "w2wiki": {
+        "site": "w2wiki",
+        "title": "x"
+       },
+       "w3wiki": {
+        "site": "w3wiki",
+        "title": "x"
+       },
+       "w4wiki": {
+        "site": "w4wiki",
+        "title": "x"
+       },
+       "w5wiki": {
+        "site": "w5wiki",
+        "title": "x"
+       },
+       "w6wiki": {
+        "site": "w6wiki",
+        "title": "x"
+       },
+       "w7wiki": {
+        "site": "w7wiki",
+        "title": "x"
+       },
+       "w8wiki": {
+        "site": "w8wiki",
+        "title": "x"
+       },
+       "w9wiki": {
+        "site": "w9wiki",
+        "title": "x"
+       },
+       "w10wiki": {
+        "site": "w10wiki",
+        "title": "x"
+       },
+       "w11wiki": {
+        "site": "w11wiki",
+        "title": "x"
+       },
+       "w12wiki": {
+        "site": "w12wiki",
+        "title": "x"
+       },
+       "w13wiki": {
+        "site": "w13wiki",
+        "title": "x"
+       },
+       "w14wiki": {
+        "site": "w14wiki",
+        "title": "x"
+       },
+       "w15wiki": {
+        "site": "w15wiki",
+        "title": "x"
+       },
+       "w16wiki": {
+        "site": "w16wiki",
+        "title": "x"
+       },
+       "w17wiki": {
+        "site": "w17wiki",
+        "title": "x"
+       },
+       "w18wiki": {
+        "site": "w18wiki",
+        "title": "x"
+       },
+       "w19wiki": {
+        "site": "w19wiki",
+        "title": "x"
+       },
+       "w20wiki": {
+        "site": "w20wiki",
+        "title": "x"
+       },
+       "w21wiki": {
+        "site": "w21wiki",
+        "title": "x"
+       },
+       "w22wiki": {
+        "site": "w22wiki",
+        "title": "x"
+       },
+       "w23wiki": {
+        "site": "w23wiki",
+        "title": "x"
+       },
+       "w24wiki": {
+        "site": "w24wiki",
+        "title": "x"
+       },
+       "w25wiki": {
+        "site": "w25wiki",
+        "title": "x"
+       },
+       "w26wiki": {
+        "site": "w26wiki",
+        "title": "x"
+       },
+       "w27wiki": {
+        "site": "w27wiki",
+        "title": "x"
+       },
+       "w28wiki": {
+        "site": "w28wiki",
+        "title": "x"
+       },
+       "w29wiki": {
+        "site": "w29wiki",
+        "title": "x"
+       },
+       "w30wiki": {
+        "site": "w30wiki",
+        "title": "x"
+       },
+       "w31wiki": {
+        "site": "w31wiki",
+        "title": "x"
+       },
+       "w32wiki": {
+        "site": "w32wiki",
+        "title": "x"
+       },
+       "w33wiki": {
+        "site": "w33wiki",
+        "title": "x"
+       },
+       "w34wiki": {
+        "site": "w34wiki",
+        "title": "x"
+       },
+       "w35wiki": {
+        "site": "w35wiki",
+        "title": "x"
+       },
+       "w36wiki": {
+        "site": "w36wiki",
+        "title": "x"
+       },
+       "w37wiki": {
+        "site": "w37wiki",
+        "title": "x"
+       },
+       "w38wiki": {
+        "site": "w38wiki",
+        "title": "x"
+       },
+       "w39wiki": {
+        "site": "w39wiki",
+        "title": "x"
+       },
+       "w40wiki": {
+        "site": "w40wiki",
+        "title": "x"
+       },
+       "w41wiki": {
+        "site": "w41wiki",
+        "title": "x"
+       },
+       "w42wiki": {
+        "site": "w42wiki",
+        "title": "x"
+       },
+       "w43wiki": {
+        "site": "w43wiki",
+        "title": "x"
+       },
+       "w44wiki": {
+        "site": "w44wiki",
+        "title": "x"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100006&",
+   "body": {
+    "entities": {
+     "Q9100006": {
+      "type": "item",
+      "id": "Q9100006",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Jon Kestrel"
+       }
+      },
+      "descriptions": {
+       "en": {
+        "language": "en",
+        "value": "Canadian composer"
+       }
+      },
+      "claims": {
+       "P106": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 36834,
+            "id": "Q36834"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P569": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P569",
+          "datavalue": {
+           "value": {
+            "time": "+1890-01-01T00:00:00Z",
+            "precision": 11
+           },
+           "type": "time"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "w0wiki": {
+        "site": "w0wiki",
+        "title": "x"
+       },
+       "w1wiki": {
+        "site": "w1wiki",
+        "title": "x"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100005 Lighthouse Sonata",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100010"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "wbsearchentities&search=Marrow&",
+   "body": {
+    "searchinfo": {
+     "search": "x"
+    },
+    "search": [
+     {
+      "id": "Q9100001",
+      "label": "Edda Marrow",
+      "description": "English composer (1801–1870)",
+      "match": {
+       "type": "alias",
+       "language": "en",
+       "text": "Marrow"
+      }
+     },
+     {
+      "id": "Q9100099",
+      "label": "Marrow",
+      "description": "family name",
+      "match": {
+       "type": "label",
+       "language": "en",
+       "text": "Marrow"
+      }
+     }
+    ],
+    "success": 1
+   }
+  },
+  {
+   "match": "wbsearchentities&search=Ivo Brennan&",
+   "body": {
+    "searchinfo": {
+     "search": "x"
+    },
+    "search": [
+     {
+      "id": "Q9100002",
+      "label": "Ivo Brennan",
+      "description": "Irish pianist",
+      "match": {
+       "type": "label",
+       "language": "en",
+       "text": "Ivo Brennan"
+      }
+     }
+    ],
+    "success": 1
+   }
+  },
+  {
+   "match": "wbsearchentities&search=Tamsin Vale&",
+   "body": {
+    "searchinfo": {
+     "search": "x"
+    },
+    "search": [
+     {
+      "id": "Q9100003",
+      "label": "Tamsin Vale",
+      "description": "Welsh singer-songwriter and pianist",
+      "match": {
+       "type": "label",
+       "language": "en",
+       "text": "Tamsin Vale"
+      }
+     }
+    ],
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100001&",
+   "body": {
+    "entities": {
+     "Q9100001": {
+      "type": "item",
+      "id": "Q9100001",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Edda Marrow"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Marrow"
+        }
+       ]
+      },
+      "claims": {
+       "P106": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 36834,
+            "id": "Q36834"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        },
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 486748,
+            "id": "Q486748"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P569": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P569",
+          "datavalue": {
+           "value": {
+            "time": "+1801-03-04T00:00:00Z",
+            "precision": 11
+           },
+           "type": "time"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100002&",
+   "body": {
+    "entities": {
+     "Q9100002": {
+      "type": "item",
+      "id": "Q9100002",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Ivo Brennan"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P106": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 486748,
+            "id": "Q486748"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P569": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P569",
+          "datavalue": {
+           "value": {
+            "time": "+1984-06-01T00:00:00Z",
+            "precision": 11
+           },
+           "type": "time"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Lighthouse Sonata",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 2
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100011",
+       "pageid": 1000
+      },
+      {
+       "ns": 0,
+       "title": "Q9100010",
+       "pageid": 1001
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86 Lighthouse Sonata",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 1
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100010",
+       "pageid": 1000
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Sonata No. 4",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 2
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100010",
+       "pageid": 1000
+      },
+      {
+       "ns": 0,
+       "title": "Q9100011",
+       "pageid": 1001
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Tidewater",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 2
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100020",
+       "pageid": 1000
+      },
+      {
+       "ns": 0,
+       "title": "Q9100021",
+       "pageid": 1001
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Gull Song",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 1
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100022",
+       "pageid": 1000
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Thaw",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 1
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100030",
+       "pageid": 1000
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P527=Q9100030",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 1
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100031",
+       "pageid": 1000
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 Prelude L. 40",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 0
+     },
+     "search": []
+    }
+   }
+  },
+  {
+   "match": "haswbstatement:P86=Q9100001 L. 40",
+   "body": {
+    "batchcomplete": "",
+    "query": {
+     "searchinfo": {
+      "totalhits": 1
+     },
+     "search": [
+      {
+       "ns": 0,
+       "title": "Q9100021",
+       "pageid": 1000
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "ids=Q9100011|Q9100010&",
+   "body": {
+    "entities": {
+     "Q9100011": {
+      "type": "item",
+      "id": "Q9100011",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Piano Sonata No. 5"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Piano Sonata No. 5 in G minor, Op. 30"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Piano Sonata No. 5 (Marrow)",
+        "badges": []
+       }
+      }
+     },
+     "Q9100010": {
+      "type": "item",
+      "id": "Q9100010",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Piano Sonata No. 4"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Piano Sonata No. 4 in C-sharp minor, Op. 21"
+        },
+        {
+         "language": "en",
+         "value": "Lighthouse Sonata"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "M 21",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Piano Sonata No. 4 (Marrow)",
+        "badges": []
+       }
+      }
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100010|Q9100011&",
+   "body": {
+    "entities": {
+     "Q9100010": {
+      "type": "item",
+      "id": "Q9100010",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Piano Sonata No. 4"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Piano Sonata No. 4 in C-sharp minor, Op. 21"
+        },
+        {
+         "language": "en",
+         "value": "Lighthouse Sonata"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "M 21",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Piano Sonata No. 4 (Marrow)",
+        "badges": []
+       }
+      }
+     },
+     "Q9100011": {
+      "type": "item",
+      "id": "Q9100011",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Piano Sonata No. 5"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Piano Sonata No. 5 in G minor, Op. 30"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Piano Sonata No. 5 (Marrow)",
+        "badges": []
+       }
+      }
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100010&",
+   "body": {
+    "entities": {
+     "Q9100010": {
+      "type": "item",
+      "id": "Q9100010",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Piano Sonata No. 4"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Piano Sonata No. 4 in C-sharp minor, Op. 21"
+        },
+        {
+         "language": "en",
+         "value": "Lighthouse Sonata"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "M 21",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Piano Sonata No. 4 (Marrow)",
+        "badges": []
+       }
+      }
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100020|Q9100021&",
+   "body": {
+    "entities": {
+     "Q9100020": {
+      "type": "item",
+      "id": "Q9100020",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Tidewater"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Coastal Suite: 3. Tidewater"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100021,
+            "id": "Q9100021"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "40c",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     },
+     "Q9100021": {
+      "type": "item",
+      "id": "Q9100021",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Coastal Suite"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "40",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Coastal Suite",
+        "badges": []
+       }
+      }
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100022&",
+   "body": {
+    "entities": {
+     "Q9100022": {
+      "type": "item",
+      "id": "Q9100022",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Gull Song"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Coastal Suite: 4. Gull Song"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P361": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P361",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100021,
+            "id": "Q9100021"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100021&",
+   "body": {
+    "entities": {
+     "Q9100021": {
+      "type": "item",
+      "id": "Q9100021",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Coastal Suite"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P528": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P528",
+          "datavalue": {
+           "value": "40",
+           "type": "string"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Coastal Suite",
+        "badges": []
+       }
+      }
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100030&",
+   "body": {
+    "entities": {
+     "Q9100030": {
+      "type": "item",
+      "id": "Q9100030",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Concerto No. 2 in F major, Op. 5"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Thaw"
+        },
+        {
+         "language": "en",
+         "value": "Il disgelo"
+        }
+       ]
+      },
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P1449": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P1449",
+          "datavalue": {
+           "value": {
+            "text": "Thaw",
+            "language": "en"
+           },
+           "type": "monolingualtext"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100031&",
+   "body": {
+    "entities": {
+     "Q9100031": {
+      "type": "item",
+      "id": "Q9100031",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "The Turning Year"
+       }
+      },
+      "aliases": {},
+      "claims": {
+       "P31": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P31",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 105543609,
+            "id": "Q105543609"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P86": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P86",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100001,
+            "id": "Q9100001"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P527": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P527",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 9100030,
+            "id": "Q9100030"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "The Turning Year (Marrow)",
+        "badges": []
+       }
+      }
+     }
+    },
+    "success": 1
+   }
+  },
+  {
+   "match": "ids=Q9100001&props=labels",
+   "body": {
+    "entities": {
+     "Q9100001": {
+      "type": "item",
+      "id": "Q9100001",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Edda Marrow"
+       }
+      },
+      "aliases": {
+       "en": [
+        {
+         "language": "en",
+         "value": "Marrow"
+        }
+       ]
+      },
+      "claims": {
+       "P106": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 36834,
+            "id": "Q36834"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        },
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P106",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "numeric-id": 486748,
+            "id": "Q486748"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ],
+       "P569": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P569",
+          "datavalue": {
+           "value": {
+            "time": "+1801-03-04T00:00:00Z",
+            "precision": 11
+           },
+           "type": "time"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      },
+      "sitelinks": {}
+     }
+    },
+    "success": 1
+   }
+  }
+ ],
+ "wikipedia": [
+  {
+   "match": "srsearch=Lighthouse Sonata",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "title": "Marrow (film)"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "srsearch=Storm Sonata",
+   "body": {
+    "query": {
+     "search": [
+      {
+       "title": "Marrow (film)"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "match": "titles=Piano Sonata No. 4 (Marrow)",
+   "page": "Piano Sonata No. 4 (Marrow)",
+   "extract": "The Piano Sonata No. 4 in C-sharp minor, Op. 21, known as the Lighthouse Sonata, is a piano sonata by the English composer Edda Marrow, finished in 1832 and dedicated to her pupil Agnes Holt. Its nickname came from a reviewer who heard the lamp of a lighthouse in the slow opening chords. It is one of the most played of her works.\n\n== History ==\nMarrow wrote the sonata in the summer of 1832 at Whitby, where she stayed with her sister. The first performance was given by Agnes Holt in London in March 1833, and the score was printed by Novello the same year with a dedication to Holt.\n\n== Movements ==\n\n=== I. Adagio sostenuto ===\nThe first movement is a slow, quiet movement in C-sharp minor built over a steady triplet figure in the right hand, with the melody in the top voice.\n\n=== II. Allegretto ===\nThe second movement is a short minuet in D-flat major that Marrow called a flower between two abysses.\n\n=== III. Presto agitato ===\nThe third movement is a stormy presto in sonata form, the longest of the three. Its rising arpeggios end in two loud chords, and Marrow marked the whole movement to be played without pause.\n\n== Reception ==\nThe sonata sold well from its first printing, and pianists still program it in recitals."
+  },
+  {
+   "match": "titles=Coastal Suite",
+   "page": "Coastal Suite",
+   "extract": "Coastal Suite is a suite for solo piano in four movements by the English composer Edda Marrow, written in 1840 after a summer on the Yorkshire coast. It was first published in 1845, and its third movement became one of her best known pieces.\n\n== History ==\nMarrow began the suite in 1840 and revised it for publication five years later. The revised version changed the order of the middle movements.\n\n== Movements ==\n\n=== Harbor Dawn ===\nThe first movement opens the suite with a slow chorale that imitates church bells across the water.\n\n=== Tidewater ===\nTidewater, the third movement, is a gentle barcarolle in D-flat major. Its rocking left hand stands for the tide, and Marrow later arranged it for violin and piano. It was played at her funeral in 1870.\n\n=== Gull Dance ===\nThe last movement is a quick dance in the style of a jig, full of leaps in both hands.\n\n== Reception ==\nCritics of the time praised the suite, and the third movement was printed on its own many times."
+  },
+  {
+   "match": "titles=The Turning Year (Marrow)",
+   "page": "The Turning Year (Marrow)",
+   "extract": "The Turning Year is a set of four violin concertos by the English composer Edda Marrow, published in 1850. Each concerto paints a season, and the set opens with spring.\n\n== Concertos ==\n\n=== Concerto No. 2 in F major, Op. 5, \"Il disgelo\" (Thaw) ===\nThe second concerto paints the thaw at the end of winter: dripping ice in the violins, then a dance as the streams run again. Marrow printed a short poem above each movement.\n\n=== Concerto No. 3 in C major ===\nThe third concerto is about the harvest.\n\n== Reception ==\nThe set was popular in Marrow's lifetime and was revived in the 1950s."
+  },
+  {
+   "match": "titles=Marrow (film)",
+   "page": "Marrow (film)",
+   "extract": "Marrow is a 1994 British drama film about the life of the composer Edda Marrow, directed by Tom Ashby. It features the Lighthouse Sonata in its opening and closing scenes, played by the actress Clare Dunn, who studied the piano for the part.\n\n== Plot ==\nThe film follows Marrow from her childhood in Leeds to her last years in London, where she teaches the piano to the daughters of a banker. It ends with her funeral at which Tidewater is played.\n\n== Production ==\nThe film was shot in Whitby and London in 1993 on a small budget, and the score was arranged by Paul Kerr from Marrow's piano works.\n\n== Music ==\nThe music of the film is drawn from Marrow's piano works, arranged for a small string orchestra by Paul Kerr and recorded in London with the pianist Clare Dunn. The soundtrack album was released in 1994 and reached the classical chart in Britain. Kerr said he chose the Lighthouse Sonata and the Storm Sonata because they matched the moods of the film's opening and closing scenes, and he wrote only two short cues of his own for the funeral.\n\n== Reception ==\nThe film was well received in Britain, where critics praised Dunn's playing and the photography of the Yorkshire coast. It won a regional award for its costumes in 1995 and was shown on television the following winter. A restored print was released in 2014 for the composer's anniversary, with a new commentary by the director."
+  },
+  {
+   "match": "titles=Prelude in G minor (Marrow)",
+   "page": "Prelude in G minor (Marrow)",
+   "extract": "The Prelude in G minor is a piano piece by the English composer Edda Marrow, written in 1851 and published as the fifth of her Twelve Preludes. It is a short march in G minor that grows louder until its last bars, which return to the quiet opening.\n\n== History ==\nMarrow wrote the prelude for a charity concert in Bath in the spring of 1851, where she played it herself. It was printed the next year with the other preludes, and it was soon the best known of them.\n\n== Music ==\nThe piece is in ternary form, with a middle section in G major."
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
+import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, wrongLogLines } from "./backup";
 import { factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
@@ -128,6 +128,7 @@ function serverEnv(): Record<string, string> {
   else if (settings.ai === "builtin" && active) env.MODEL_PATH = modelPath(DIRS.models, active);
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
   env.BUBBLEFACTS_DATA_DIR = DATA;
+  env.BUBBLEFACTS_VERSION = app.getVersion();
   if (YOUTUBE_API_KEY) env.YOUTUBE_API_KEY = YOUTUBE_API_KEY;
   return env;
 }
@@ -211,11 +212,6 @@ function markWhatsNewSeen(): void {
   settings.lastVersionSeen = app.getVersion();
   saveSettings(settings);
 }
-
-ipcMain.handle("whats-new-seen", () => {
-  markWhatsNewSeen();
-  return state();
-});
 
 // --- Supervisor events -------------------------------------------------
 
@@ -598,6 +594,11 @@ ipcMain.handle = (channel, listener) =>
       });
   });
 
+ipcMain.handle("whats-new-seen", () => {
+  markWhatsNewSeen();
+  return state();
+});
+
 ipcMain.handle("test-bubble", () => control("test"));
 ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
   // Only a click in the On stream now list is live; one under Earlier songs never takes a bubble off.
@@ -608,12 +609,8 @@ ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unk
 ipcMain.handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // Read from the file, so the list works even before the songs are connected.
 ipcMain.handle("list-song-facts", () => {
-  try {
-    const list: unknown = JSON.parse(fs.readFileSync(path.join(DATA, "song-facts.json"), "utf8"));
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
+  const list = readJson("song-facts.json");
+  return Array.isArray(list) ? list : [];
 });
 // "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
 ipcMain.handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
@@ -768,7 +765,15 @@ const readJson = (name: string): unknown => {
   }
 };
 
-const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json") }, app.getVersion());
+const readWrongLog = (): unknown[] => {
+  try {
+    return wrongLogLines(fs.readFileSync(path.join(DATA, "wrong-log.jsonl"), "utf8"));
+  } catch {
+    return [];
+  }
+};
+
+const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json"), wrongLog: readWrongLog() }, app.getVersion());
 /** After anything that changes the streamer's facts or settings: a copy they never have to think about. */
 const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
 
@@ -812,6 +817,7 @@ ipcMain.handle("backup-restore", async () => {
   saveSettings(settings);
   if (backup.songFacts) writeFileAtomic(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
   if (backup.wrongFacts) writeFileAtomic(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
+  if (backup.wrongLog?.length) writeFileAtomic(path.join(DATA, "wrong-log.jsonl"), backup.wrongLog.map((l) => JSON.stringify(l)).join("\n") + "\n", { mode: 0o600 });
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
   void checkForUpdate();
@@ -830,7 +836,7 @@ ipcMain.handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB), your custom facts, the facts you added for particular songs, the sources you marked Wrong, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for High quality), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -842,7 +848,7 @@ ipcMain.handle("remove-data", async () => {
   settings = { ...settings, startAtLogin: false };
   applyStartAtLogin();
   await twitch.disconnect();
-  for (const name of ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "song-facts.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"]) {
+  for (const name of REMOVED_WITH_DATA) {
     fs.rmSync(path.join(DATA, name), { recursive: true, force: true });
   }
   app.quit();

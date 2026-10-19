@@ -1,0 +1,704 @@
+{
+ "song": [
+  {
+   "match": "ws/2/recording?",
+   "body": {
+    "created": "2026-10-18T00:00:00.000Z",
+    "count": 2,
+    "offset": 0,
+    "recordings": [
+     {
+      "id": "rec-gh-1",
+      "score": 100,
+      "title": "Glass Harbor",
+      "length": 214000,
+      "first-release-date": "2011-05-02",
+      "artist-credit": [
+       {
+        "name": "The Velvet Lanterns",
+        "joinphrase": "",
+        "artist": {
+         "id": "art-vl",
+         "name": "The Velvet Lanterns",
+         "sort-name": "The Velvet Lanterns"
+        }
+       }
+      ]
+     },
+     {
+      "id": "rec-other",
+      "score": 70,
+      "title": "Glass Harbor",
+      "length": 214000,
+      "first-release-date": "2011-05-02",
+      "artist-credit": [
+       {
+        "name": "Someone Else",
+        "joinphrase": "",
+        "artist": {
+         "id": "art-se",
+         "name": "Someone Else",
+         "sort-name": "Someone Else"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/recording/rec-gh-1",
+   "body": {
+    "id": "rec-gh-1",
+    "title": "Glass Harbor",
+    "relations": [
+     {
+      "type": "performance",
+      "target-type": "work",
+      "direction": "forward",
+      "attributes": [],
+      "work": {
+       "id": "work-gh",
+       "title": "Glass Harbor",
+       "type": "Song",
+       "disambiguation": ""
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/work/work-gh",
+   "body": {
+    "id": "work-gh",
+    "title": "Glass Harbor",
+    "type": "Song",
+    "relations": [
+     {
+      "type": "discogs",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-x",
+       "resource": "https://secondhandsongs.com/work/1"
+      }
+     },
+     {
+      "type": "wikidata",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-Q9000001",
+       "resource": "https://www.wikidata.org/wiki/Q9000001"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ids=Q9000001",
+   "body": {
+    "entities": {
+     "Q9000001": {
+      "type": "item",
+      "id": "Q9000001",
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Glass Harbor (song)",
+        "badges": []
+       }
+      },
+      "claims": {
+       "P175": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P175",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "id": "Q9000002"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9000002",
+   "body": {
+    "entities": {
+     "Q9000002": {
+      "type": "item",
+      "id": "Q9000002",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "The Velvet Lanterns"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "titles=Glass Harbor (song)",
+   "page": "Glass Harbor (song)",
+   "extract": "\"Glass Harbor\" is a song by English indie band The Velvet Lanterns, released in 2011 as the lead single from their second album. It reached number 14 on the UK Singles Chart.\n\n== Background ==\nSinger Ada Penhallow said she wrote the song after missing the last ferry home. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Composition ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Reception ==\nThe single reached number 14 in the United Kingdom and number 30 in Ireland. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. "
+  }
+ ],
+ "artist": [
+  {
+   "match": "ws/2/recording?",
+   "body": {
+    "created": "2026-10-18T00:00:00.000Z",
+    "count": 1,
+    "offset": 0,
+    "recordings": [
+     {
+      "id": "rec-lo-1",
+      "score": 100,
+      "title": "Low Orbit",
+      "length": 214000,
+      "first-release-date": "2011-05-02",
+      "artist-credit": [
+       {
+        "name": "Kestrel Moon",
+        "joinphrase": "",
+        "artist": {
+         "id": "art-km",
+         "name": "Kestrel Moon",
+         "sort-name": "Kestrel Moon"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/recording/rec-lo-1",
+   "body": {
+    "id": "rec-lo-1",
+    "title": "Low Orbit",
+    "relations": []
+   }
+  },
+  {
+   "match": "ws/2/artist/art-km",
+   "body": {
+    "id": "art-km",
+    "name": "Kestrel Moon",
+    "type": "Group",
+    "relations": [
+     {
+      "type": "discogs",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-x",
+       "resource": "https://www.discogs.com/artist/1"
+      }
+     },
+     {
+      "type": "wikidata",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-Q9000011",
+       "resource": "https://www.wikidata.org/wiki/Q9000011"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ids=Q9000011",
+   "body": {
+    "entities": {
+     "Q9000011": {
+      "type": "item",
+      "id": "Q9000011",
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Kestrel Moon (band)",
+        "badges": []
+       }
+      },
+      "claims": {
+       "P175": []
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "titles=Kestrel Moon (band)",
+   "page": "Kestrel Moon (band)",
+   "extract": "Kestrel Moon is an American indie rock band formed in Duluth, Minnesota, in 2009. The band consists of Mira Oakes and Teo Brand.\n\n== History ==\nMira Oakes and Teo Brand met at a record store. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Musical style ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. "
+  }
+ ],
+ "notAnAct": [
+  {
+   "match": "ws/2/recording?",
+   "body": {
+    "created": "2026-10-18T00:00:00.000Z",
+    "count": 1,
+    "offset": 0,
+    "recordings": [
+     {
+      "id": "rec-lo-2",
+      "score": 100,
+      "title": "Low Orbit",
+      "length": 214000,
+      "first-release-date": "2011-05-02",
+      "artist-credit": [
+       {
+        "name": "Kestrel Moon",
+        "joinphrase": "",
+        "artist": {
+         "id": "art-km2",
+         "name": "Kestrel Moon",
+         "sort-name": "Kestrel Moon"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/recording/rec-lo-2",
+   "body": {
+    "id": "rec-lo-2",
+    "title": "Low Orbit",
+    "relations": [
+     {
+      "type": "performance",
+      "target-type": "work",
+      "direction": "forward",
+      "attributes": [],
+      "work": {
+       "id": "work-lo",
+       "title": "Low Orbit",
+       "type": "Song",
+       "disambiguation": ""
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/work/work-lo",
+   "body": {
+    "id": "work-lo",
+    "title": "Low Orbit",
+    "type": "Song",
+    "relations": [
+     {
+      "type": "wikidata",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-Q9000021",
+       "resource": "https://www.wikidata.org/wiki/Q9000021"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ids=Q9000021",
+   "body": {
+    "entities": {
+     "Q9000021": {
+      "type": "item",
+      "id": "Q9000021",
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Low Orbit (album)",
+        "badges": []
+       }
+      },
+      "claims": {
+       "P175": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P175",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "id": "Q9000022"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9000022",
+   "body": {
+    "entities": {
+     "Q9000022": {
+      "type": "item",
+      "id": "Q9000022",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Kestrel Moon"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "titles=Low Orbit (album)",
+   "page": "Low Orbit (album)",
+   "extract": "Low Orbit is the debut studio album by American indie rock band Kestrel Moon, released in 2012.\n\n== Background ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Track listing ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Production ==\nThe album was recorded in Duluth over the winter, and the band said the cold shaped its sound. Producer Lena Marsh used tape loops and a borrowed organ on most tracks, and the band played every part live. The record was mixed in a single week, and its cover photo shows a frozen harbor at dawn.\n\n== Release ==\nThe record came out on a small label in Minneapolis and sold out its first pressing in a month. A tour of the Midwest followed, with the band playing in record stores and church basements. "
+  },
+  {
+   "match": "ws/2/artist/art-km2",
+   "body": {
+    "id": "art-km2",
+    "name": "Kestrel Moon",
+    "type": "Group",
+    "relations": [
+     {
+      "type": "wikidata",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-Q9000023",
+       "resource": "https://www.wikidata.org/wiki/Q9000023"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ids=Q9000023",
+   "body": {
+    "entities": {
+     "Q9000023": {
+      "type": "item",
+      "id": "Q9000023",
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Kestrel Moon (TV series)",
+        "badges": []
+       }
+      },
+      "claims": {
+       "P175": []
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "titles=Kestrel Moon (TV series)",
+   "page": "Kestrel Moon (TV series)",
+   "extract": "Kestrel Moon is a 2019 American television series about a lighthouse keeper, starring an indie rock band as itself.\n\n== Premise ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Episodes ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Production ==\nThe series was filmed on the north shore of Lake Superior, and its creator said the lighthouse was the real star. Each episode opens with the same theme played by the band, and the cast lived in the town during filming. The production used local crews and a single camera for most scenes.\n\n== Broadcast ==\nThe series aired on a regional network for two seasons and was later released on a streaming service. Critics noted the slow pace and the long shots of the lake in winter, and a third season was never made. \n\n== Music ==\nThe theme was written for the show by a local band, and the score uses a pump organ, a fiddle and field recordings of the lake. The composer said she wanted the music to sound like wind in the rigging, and recorded most cues in a church. A soundtrack album came out after the first season, with the theme and twelve cues from the score."
+  }
+ ],
+ "respelling": [
+  {
+   "match": "ws/2/recording?",
+   "body": {
+    "created": "2026-10-18T00:00:00.000Z",
+    "count": 1,
+    "offset": 0,
+    "recordings": [
+     {
+      "id": "rec-hd-1",
+      "score": 100,
+      "title": "Halcyon Drift",
+      "length": 214000,
+      "first-release-date": "2011-05-02",
+      "artist-credit": [
+       {
+        "name": "Brisa Vail",
+        "joinphrase": "",
+        "artist": {
+         "id": "art-bv",
+         "name": "Brisa Vail",
+         "sort-name": "Brisa Vail"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/artist?",
+   "body": {
+    "count": 1,
+    "offset": 0,
+    "artists": [
+     {
+      "id": "art-bvale",
+      "score": 100,
+      "name": "Brisa Vale",
+      "sort-name": "Vale, Brisa"
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/recording/rec-hd-1",
+   "body": {
+    "id": "rec-hd-1",
+    "title": "Halcyon Drift",
+    "relations": [
+     {
+      "type": "performance",
+      "target-type": "work",
+      "direction": "forward",
+      "attributes": [],
+      "work": {
+       "id": "work-hd",
+       "title": "Halcyon Drift",
+       "type": "Song",
+       "disambiguation": ""
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/work/work-hd",
+   "body": {
+    "id": "work-hd",
+    "title": "Halcyon Drift",
+    "relations": [
+     {
+      "type": "wikidata",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-Q9000031",
+       "resource": "https://www.wikidata.org/wiki/Q9000031"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ids=Q9000031",
+   "body": {
+    "entities": {
+     "Q9000031": {
+      "type": "item",
+      "id": "Q9000031",
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Halcyon Drift",
+        "badges": []
+       }
+      },
+      "claims": {
+       "P175": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P175",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "id": "Q9000032"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9000032",
+   "body": {
+    "entities": {
+     "Q9000032": {
+      "type": "item",
+      "id": "Q9000032",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Brisa Vail"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "titles=Halcyon Drift",
+   "page": "Halcyon Drift",
+   "extract": "\"Halcyon Drift\" is a song by Canadian singer Brisa Vail, released in 2015.\n\n== Background ==\nThe recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. "
+  }
+ ],
+ "cover": [
+  {
+   "match": "ws/2/recording?",
+   "body": {
+    "created": "2026-10-18T00:00:00.000Z",
+    "count": 1,
+    "offset": 0,
+    "recordings": [
+     {
+      "id": "rec-pc-1",
+      "score": 100,
+      "title": "Paper Comets",
+      "length": 214000,
+      "first-release-date": "2011-05-02",
+      "artist-credit": [
+       {
+        "name": "The Night Ferns",
+        "joinphrase": "",
+        "artist": {
+         "id": "art-nf",
+         "name": "The Night Ferns",
+         "sort-name": "The Night Ferns"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/recording/rec-pc-1",
+   "body": {
+    "id": "rec-pc-1",
+    "title": "Paper Comets",
+    "relations": [
+     {
+      "type": "performance",
+      "target-type": "work",
+      "direction": "forward",
+      "attributes": [],
+      "work": {
+       "id": "work-pc",
+       "title": "Paper Comets",
+       "type": "Song",
+       "disambiguation": ""
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ws/2/work/work-pc",
+   "body": {
+    "id": "work-pc",
+    "title": "Paper Comets",
+    "type": "Song",
+    "relations": [
+     {
+      "type": "wikidata",
+      "target-type": "url",
+      "direction": "backward",
+      "attributes": [],
+      "url": {
+       "id": "u-Q9000041",
+       "resource": "https://www.wikidata.org/wiki/Q9000041"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "match": "ids=Q9000041",
+   "body": {
+    "entities": {
+     "Q9000041": {
+      "type": "item",
+      "id": "Q9000041",
+      "sitelinks": {
+       "enwiki": {
+        "site": "enwiki",
+        "title": "Paper Comets",
+        "badges": []
+       }
+      },
+      "claims": {
+       "P175": [
+        {
+         "mainsnak": {
+          "snaktype": "value",
+          "property": "P175",
+          "datavalue": {
+           "value": {
+            "entity-type": "item",
+            "id": "Q9000042"
+           },
+           "type": "wikibase-entityid"
+          }
+         },
+         "type": "statement",
+         "rank": "normal"
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "ids=Q9000042",
+   "body": {
+    "entities": {
+     "Q9000042": {
+      "type": "item",
+      "id": "Q9000042",
+      "labels": {
+       "en": {
+        "language": "en",
+        "value": "Juniper Hale"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "match": "titles=Paper Comets",
+   "page": "Paper Comets",
+   "extract": "\"Paper Comets\" is a song by American singer-songwriter Juniper Hale, released in 1998 as the second single from her debut album.\n\n== Writing and recording ==\nJuniper Hale wrote the song in one evening on a borrowed piano. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. \n\n== Chart performance ==\nThe song peaked at number 22 on the Billboard Hot 100. The recording took place over two weeks in a converted barn, with the band playing live in one room. The arrangement uses a twelve-string guitar, a string quartet and a drum machine borrowed from a friend. The lyrics describe a night ferry crossing, and the chorus repeats a line from an old sea shanty. "
+  }
+ ]
+}

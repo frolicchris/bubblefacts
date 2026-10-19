@@ -46,7 +46,7 @@ command-line overlay. In particular:
   removed from the log lines. You read it over before anything is posted.
 - **Downloads.** Release files come with a `SHA256SUMS.txt` file and a
   build-provenance attestation, so you can check a file came from this
-  project's release workflow, built from a release tag on `main`, so only from
+  project's release workflow, built from a release tag on `main` (or a maintenance branch), so only from
   reviewed code (use the version you downloaded for `vX.Y.Z`):
 
   ```
@@ -72,7 +72,7 @@ command-line overlay. In particular:
 ## Keeping your own setup safe
 
 - **Never paste a StreamerSongList or StreamElements token, or an API key,**
-  into an issue, a discussion, Discord or a screenshot. If one leaks, delete it on the service's
+  into an issue, a discussion, a chat or a screenshot. If one leaks, delete it on the service's
   website and create a new one. With the command-line version, never share
   your `.env` file.
 - **Read a report before you submit it.** The app removes your secrets, but

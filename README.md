@@ -1,4 +1,4 @@
-# BubbleFacts
+# BubbleFacts™
 
 [![Check](https://github.com/frolicchris/bubblefacts/actions/workflows/check.yml/badge.svg)](https://github.com/frolicchris/bubblefacts/actions/workflows/check.yml)
 [![Release](https://img.shields.io/github/v/release/frolicchris/bubblefacts?include_prereleases)](https://github.com/frolicchris/bubblefacts/releases)
