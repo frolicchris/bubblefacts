@@ -218,14 +218,14 @@ describe("generateFacts", () => {
   });
 
   it("shows the streamer's own facts for a song first, exactly as written, and labels every source", async () => {
-    saveSongFacts({ title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
-    const facts = await generateFacts({ title: "Evening Rain", artist: "Chris" });
+    saveSongFacts({ title: "Evening Rain", artist: "Robin", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
+    const facts = await generateFacts({ title: "Evening Rain", artist: "Robin" });
     expect(facts.map((f) => [f.text, f.source])).toEqual([
       ['"Evening Rain" was written by Jane Composer.', SOURCE.yours],
       ["Jane wrote it in one night.", SOURCE.yours],
     ]);
     expect(mockCreate).not.toHaveBeenCalled();
-    saveSongFacts({ title: "Evening Rain", artist: "Chris", facts: [] });
+    saveSongFacts({ title: "Evening Rain", artist: "Robin", facts: [] });
   });
 
   it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {
@@ -422,9 +422,16 @@ describe("generateFacts", () => {
   });
 
   it("gives the AI the same system prompt as every other provider (the built-in model had node-llama-cpp's own)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "System Song", artist: "System Artist" });
     expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
     expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
+  });
+
+  it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
+    await generateFacts({ title: "Unchecked Song", artist: "System Artist" });
+    expect(mockCreate.mock.calls[0][0].system).not.toMatch(/reference/);
   });
 
   it("caches a song's facts", async () => {

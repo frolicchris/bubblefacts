@@ -385,3 +385,10 @@ describe("the keychain isn't touched to draw the window (issue #62)", () => {
     expect(secretsUnprotected()).toBe(true);
   });
 });
+
+describe("port", () => {
+  it("keeps any port the Settings field allows, up to 65535 (#165)", () => {
+    expect(sanitize({ ...DEFAULTS, port: 65535 }).port).toBe(65535);
+    expect(sanitize({ ...DEFAULTS, port: 80 }).port).toBe(1024);
+  });
+});

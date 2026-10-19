@@ -122,6 +122,9 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
  * Only commas and "feat." split a credit: "&", "and" and "x" are often part
  * of a name.
  */
+/** "P!nk" and "Ke$ha" are written "Pink" and "Kesha" in their articles: a symbol between letters stands for a letter. */
+export const foldSymbols = (name: string): string => name.replace(/(?<=\p{L})!(?=\p{L})/gu, "i").replace(/(?<=\p{L})\$(?=\p{L})/gu, "s");
+
 export function artistNames(artist: string): string[] {
   const lead = artist.split(/\s*,\s*|\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0] ?? "";
   // Two full names joined by "and": an article may name each alone. Only when
@@ -130,7 +133,8 @@ export function artistNames(artist: string): string[] {
   const people = pair.length === 2 && pair.every((p) => p.trim().split(/\s+/).length >= 2) ? pair : [];
   // "Simon and Garfunkel" is written "Simon & Garfunkel" in its articles, and the other way round.
   const joined = [lead.replace(/\s+and\s+/gi, " & "), lead.replace(/\s+&\s+/g, " and ")];
-  return [...new Set([artist, lead, ...people, ...joined].map(normalizeTitle).filter(Boolean))];
+  const folded = [artist, lead].map(foldSymbols);
+  return [...new Set([artist, lead, ...people, ...joined, ...folded].map(normalizeTitle).filter(Boolean))];
 }
 
 /** Whether normalized text names one of these as whole words: "Sia" isn't in "Asia". */
@@ -219,7 +223,7 @@ export function qualifierNamesAnotherArtist(pageTitle: string, subject: string, 
     .filter((w) => !/^(song|single|album|soundtrack|composition|video|game|series|film|instrumental|suite)$/i.test(w))
     .join(" ");
   const qualifierTokens = normalizeTitle(named).split(" ").filter(Boolean);
-  const subjectTokens = new Set(normalizeTitle(subject).split(" ").filter(Boolean));
+  const subjectTokens = new Set([subject, foldSymbols(subject)].flatMap((s) => normalizeTitle(s).split(" ")).filter(Boolean));
   if (!qualifierTokens.length || !subjectTokens.size) return false;
 
   return !qualifierTokens.some((t) => subjectTokens.has(t));
@@ -318,7 +322,7 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
  */
 function searchTerms(game: string, track: string, artist: boolean, notGame = false): string[] {
   const hasTrack = track && track !== game;
-  const trackTerms = hasTrack ? [`${track} ${game}`, ...(artist ? [track] : [])] : [];
+  const trackTerms = hasTrack ? [`${track} ${game}`, `${track} ${foldSymbols(game)}`, ...(artist ? [track] : [])] : [];
   const subjectTerms = game ? [...(artist || notGame ? [] : [`${game} video game`]), `${game} soundtrack`, game] : [];
   const terms = artist ? [...trackTerms, ...subjectTerms] : [...subjectTerms, ...trackTerms];
   return [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
@@ -603,8 +607,16 @@ async function wikiExtract(pageTitle: string): Promise<string | null> {
   );
   const full = Object.values(data.query?.pages ?? {})[0]?.extract;
   if (full) rememberArticle(pageTitle, full);
-  // A disambiguation page, even one that opens with its main meaning: "2 A.M. is a time ... may also refer to:".
-  return full && !/may (?:also )?refer to:/i.test(full.slice(0, 300)) ? full : null;
+  return full && !isDisambiguation(full) ? full : null;
+}
+
+/**
+ * A disambiguation or list page, even one that opens with its main meaning:
+ * "2 A.M. is a time ... may also refer to:", "Minuet in G major can refer to
+ * numerous musical compositions, including:". Its facts are about other works.
+ */
+export function isDisambiguation(full: string): boolean {
+  return /\b(?:may|can) (?:also )?refer to\b/i.test(full.slice(0, 300));
 }
 
 // --- Does the article fit the request? -----------------------------------
@@ -643,7 +655,7 @@ export function articleText(page: string): string {
  * written from them are true but about the wrong thing.
  */
 const MUSIC_OR_WORK =
-  /\b(songs?|singles?|albums?|EPs?|mixtapes?|records?|recordings?|bands?|groups?|duo|trio|quartet|singers?|singer-songwriters?|rappers?|musicians?|composers?|pianists?|guitarists?|drummers?|bassists?|violinists?|cellists?|organists?|songwriters?|DJs?|disc jockey|producers?|vocalists?|lyricists?|conductors?|orchestras?|ensembles?|choirs?|idols?|YouTuber|entertainers?|performers?|soundtracks?|scores?|instrumentals?|compositions?|pieces?|suites?|sonatas?|symphon(?:y|ies)|concert[oi]s?|operas?|operettas?|ballets?|musicals?|hymns?|anthems?|ballads?|carols?|march(?:es)?|waltz(?:es)?|rhapsod(?:y|ies)|[eé]tudes?|nocturnes?|preludes?|fugues?|serenades?|overtures?|requiems?|cantatas?|arias?|tunes?|melod(?:y|ies)|tangos?|games?|films?|movies?|television|TV|series|shows?|sitcoms?|anime|manga|novels?|franchises?)\b/i;
+  /\b(songs?|singles?|albums?|EPs?|mixtapes?|records?|recordings?|bands?|groups?|duo|trio|quartet|singers?|singer-songwriters?|rappers?|musicians?|composers?|pianists?|guitarists?|drummers?|bassists?|violinists?|cellists?|organists?|songwriters?|DJs?|disc jockey|producers?|vocalists?|lyricists?|conductors?|orchestras?|ensembles?|choirs?|idols?|YouTuber|entertainers?|performers?|soundtracks?|scores?|instrumentals?|compositions?|pieces?|suites?|sonatas?|symphon(?:y|ies)|concert[oi]s?|operas?|operettas?|ballets?|musicals?|hymns?|anthems?|ballads?|carols?|march(?:es)?|waltz(?:es)?|rhapsod(?:y|ies)|[eé]tudes?|nocturnes?|preludes?|fugues?|minuets?|mazurkas?|polonaises?|gavottes?|sarabandes?|gigues?|impromptus?|bagatelles?|ballades?|scherz(?:o|os|i)|rondos?|variations|dances?|lullab(?:y|ies)|works? for|serenades?|overtures?|requiems?|cantatas?|arias?|tunes?|melod(?:y|ies)|tangos?|games?|films?|movies?|television|TV|series|shows?|sitcoms?|anime|manga|novels?|franchises?)\b/i;
 
 /** The article's opening: its first two sentences, or its first 400 characters. */
 function openingOf(full: string): string {
@@ -2023,26 +2035,55 @@ const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
 const DIGIT_OF: Record<string, string> = Object.fromEntries([...NUMBER_WORDS.slice(0, 19).map((w, i) => [w, String(i + 2)]), ["thirty", "30"], ["forty", "40"], ["fifty", "50"], ...ORDINALS.map((w, i) => [w, `${i + 2}`])]);
 
 /**
+ * The caption with the names of works blanked out, so a joining word inside
+ * a title ("After Burner", "Because of You") isn't read as one. A title is
+ * known when it is the article's own (first line), the song's, or a run of
+ * capitalized words that starts at the joining word and is in the source
+ * exactly as written.
+ */
+function withoutTitles(fact: string, context: string, titles: string[]): string {
+  // Two words or more: a one-word title such as "Because" would blank every capitalized use of the word.
+  const own = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), ...titles].map((t) => t.trim()).filter((t) => t.length >= 3 && /\s/.test(t));
+  // A run counts as a name only where the source has it mid-sentence, not where it merely opens a sentence.
+  const midSentence = (span: string) => new RegExp(`[\\p{L}\\p{N},;:'’"”)]\\s+${escapeRe(span)}(?![\\p{L}\\d])`, "u").test(context);
+  let out = fact;
+  for (const t of own) out = out.replace(new RegExp(`(?<![\\p{L}\\d])${escapeRe(t)}(?![\\p{L}\\d])`, "gu"), "Title");
+  for (const run of out.match(/\p{Lu}[\p{L}'’-]*(?:\s+(?:(?:of|the|a|an|and|in|on|to|for|you|me)\s+)*\p{Lu}[\p{L}'’-]*)+/gu) ?? []) {
+    const words = run.split(/\s+/);
+    for (let i = 0; i < words.length - 1; i++) {
+      for (let j = words.length; j > i + 1; j--) {
+        const span = words.slice(i, j).join(" ");
+        if (!midSentence(span) || !CONNECTIVES.some((c) => c.fact.test(span))) continue;
+        out = out.replace(span, "Title");
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * A joining word or a number the sentence the caption retells doesn't have,
  * or null. Numbers (words or figures, not years) must be in that sentence too:
  * "reached number one twice", "the collection's three pieces" when it has five.
  */
-export function unsupportedConnective(fact: string, context: string): string | null {
+export function unsupportedConnective(fact: string, context: string, titles: string[] = []): string | null {
   const retold = retoldSentences(fact, context);
+  const worded = withoutTitles(fact, context, titles);
   // "first" is too common to drop when the caption retells no sentence at all; the other checks judge that.
-  const used = CONNECTIVES.filter((c) => c.fact.test(fact) && (c.label !== "a first" || retold.length > 0));
+  const used = CONNECTIVES.filter((c) => c.fact.test(worded) && (c.label !== "a first" || retold.length > 0));
   const numbers = numbersIn(fact);
   if (!used.length && !numbers.length) return null;
-  if (!retold.length) return used[0]?.fact.exec(fact)?.[0] ?? numbers[0];
+  if (!retold.length) return used[0]?.fact.exec(worded)?.[0] ?? numbers[0];
   // A number, or "first", may sit in any sentence the caption draws on, not only the closest: "their third film together".
   const related = bodySentences(context).filter((s) => share(fact, s) >= 0.3);
   for (const c of used) {
     if ((c.label === "a first" ? [...retold, ...related] : retold).some((s) => c.source.test(s))) {
-      if (c.fact.source === "\\bafter\\b" && afterReversed(fact, retold)) return "after (the other way round)";
+      if (c.fact.source === "\\bafter\\b" && afterReversed(worded, retold)) return "after (the other way round)";
       continue;
     }
-    if (c.fact.source === "\\bafter\\b" && afterFollowsSource(fact, context)) continue;
-    return c.fact.exec(fact)?.[0] ?? c.label;
+    if (c.fact.source === "\\bafter\\b" && afterFollowsSource(worded, context)) continue;
+    return c.fact.exec(worded)?.[0] ?? c.label;
   }
   for (const n of numbers) if (![...retold, ...related].some((s) => hasNumber(n, s))) return n;
   return null;
@@ -2461,9 +2502,16 @@ export function citedMismatch(fact: string, sentences: string[], at: number, tit
 const MONTH_DAY = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "g");
 const DAY_MONTH = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTHS})\\b`, "g");
 /** The days a text names, as "November 22", whichever way round it writes them. */
+/** Several days of one month: "3 and 5 June", "June 3, 4 and 5". A comma alone isn't a list: "On July 4, 10,000 fans". */
+const DAY_LIST = String.raw`((?:\d{1,2}(?!\d)(?:st|nd|rd|th)?\s*,\s*)*\d{1,2}(?!\d)(?:st|nd|rd|th)?\s*,?\s*(?:and|&|to|–|-)\s*\d{1,2}(?!\d)(?:st|nd|rd|th)?)`;
+const DAYS_MONTH = new RegExp(`\\b${DAY_LIST}\\s+(?:of\\s+)?(${MONTHS})\\b`, "g");
+const MONTH_DAYS = new RegExp(`\\b(${MONTHS})\\s+${DAY_LIST}`, "g");
+const daysOf = (list: string, month: string) => (list.match(/\d{1,2}/g) ?? []).map((d) => `${month} ${Number(d)}`);
 const daysIn = (text: string) => [
   ...[...text.matchAll(MONTH_DAY)].map((m) => `${m[1]} ${Number(m[2])}`),
   ...[...text.matchAll(DAY_MONTH)].map((m) => `${m[2]} ${Number(m[1])}`),
+  ...[...text.matchAll(DAYS_MONTH)].flatMap((m) => daysOf(m[1], m[2])),
+  ...[...text.matchAll(MONTH_DAYS)].flatMap((m) => daysOf(m[2], m[1])),
 ];
 
 /**
@@ -2810,7 +2858,10 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     // "He combined two words": a viewer can't tell who.
     if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
     // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
-    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact)) return "doesn't say who is speaking";
+    // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
+    const titles = [context.split("\n")[0].replace(/\s*\([^)]*\)\s*$/, ""), opts.track ?? ""].filter(Boolean);
+    const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
     if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
     // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
     const other = (opts.otherParts ?? []).find((p) => hasWord(p, fact, ""));
@@ -2834,7 +2885,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
       if (winner) return `award not given to "${winner}" in the source`;
       const quote = alteredQuote(fact, context);
       if (quote) return `quote not in the source: "${quote}"`;
-      const joined = unsupportedConnective(fact, context);
+      const joined = unsupportedConnective(fact, context, opts.track ? [opts.track] : []);
       if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
       const relation = unsupportedRelation(fact, context);
       if (relation) return `"${relation}" isn't stated for them in the source`;

@@ -72,10 +72,11 @@ the approach before you spend time on it.
 The commands, one by one:
 
 ```bash
-npm run check       # all of the below; also runs on every push and pull request
-npm run typecheck   # TypeScript in strict mode, tests included
+npm run check       # typecheck, lint, tests and script tests (not the build); also runs on every push and pull request
+npm run typecheck   # TypeScript in strict mode, the server and the desktop app, tests included
 npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts
 npm test            # jest, a few seconds: the server and the desktop app
+npm run test:scripts # the release scripts' own tests
 npm run build       # compile the server to dist/
 ```
 

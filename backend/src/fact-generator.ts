@@ -356,6 +356,10 @@ Follow every rule:
 export const SYSTEM_PROMPT =
   "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
 
+/** With FACT_VERIFICATION=off the AI gets no reference, so its system prompt doesn't mention one (#202). */
+const UNVERIFIED_SYSTEM_PROMPT = "You write short trivia captions for a live music stream, and you follow the instructions exactly.";
+export const systemPrompt = () => (config.factVerification ? SYSTEM_PROMPT : UNVERIFIED_SYSTEM_PROMPT);
+
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
 async function askAnthropic(prompt: string): Promise<string> {
@@ -367,7 +371,7 @@ async function askAnthropic(prompt: string): Promise<string> {
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
     temperature: config.temperature,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt(),
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -391,7 +395,7 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
     {
       model: config.openaiModel,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt() },
         { role: "user", content: prompt },
       ],
       temperature: config.temperature,
@@ -413,7 +417,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt(),
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -444,7 +448,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: systemPrompt() });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {

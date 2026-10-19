@@ -7,7 +7,7 @@ body:
       value: |
         Accuracy is the point of this project, so these reports are especially useful. In the app, click **Wrong** next to the fact, then **Report it (opens GitHub)**, and this form is filled in for you.
 
-        This form is for facts from Wikipedia, Wikidata or MusicBrainz. Your own facts and the example topic packs aren't checked by BubbleFacts, so fix those yourself: in the app, **Wrong** next to one of your facts offers **Edit it**.
+        This form is for facts from Wikipedia, Wikidata or MusicBrainz. Your own facts aren't checked by BubbleFacts, so fix those yourself: in the app, **Wrong** next to one of your facts offers **Edit it**.
   - type: input
     id: song
     attributes:
