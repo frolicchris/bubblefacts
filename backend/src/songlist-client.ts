@@ -4,6 +4,7 @@ import { CentrifugoStream } from "./centrifugo-client";
 import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 import { cleanRequestText } from "./text";
+import { displayTitle, toSong } from "./song-mapping";
 import { ListSong, searchSongs } from "./song-search";
 import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
@@ -116,41 +117,14 @@ export class SongListClient implements SongSource {
   }
 
   toSong(item: SSLQueueItem): SSLSong {
-    return SongListClient.toSong(item);
+    return toSong(item);
   }
 
   displayTitle(item: SSLQueueItem): string {
-    return SongListClient.displayTitle(item);
+    return displayTitle(item);
   }
 
-  // --- Song mapping ------------------------------------------------------
-
-  static displayTitle(item: SSLQueueItem): string {
-    return cleanRequestText(item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "") || "Unknown";
-  }
-
-  /** An off-list request: the API sets `nonlistSong`, or the newer `nonlistTitle`, to the typed-in title. */
-  static isLiveLearn(item: SSLQueueItem): boolean {
-    return Boolean(item.nonlistSong?.trim() || item.nonlistTitle?.trim());
-  }
-
-  static requesterName(item: SSLQueueItem): string | undefined {
-    const r = item.requests?.[0];
-    return cleanRequestText(r?.name || r?.user?.username || "") || undefined;
-  }
-
-  /** The song object broadcast to the overlay. */
-  static toSong(item: SSLQueueItem): SSLSong {
-    const song: SSLSong = {
-      title: SongListClient.displayTitle(item),
-      artist: cleanRequestText((SongListClient.isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || "") || "Unknown",
-    };
-    if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
-    const by = SongListClient.requesterName(item);
-    if (by) song.requestedBy = by;
-    if (typeof item.songId === "number" && item.songId > 0) song.songId = item.songId;
-    return song;
-  }
+  // --- Change detection --------------------------------------------------
 
   /** Content, not just id: editing an entry's artist mid-song should regenerate. */
   private static identity(item: SSLQueueItem | null): string | null {
@@ -268,7 +242,7 @@ export class SongListClient implements SongSource {
 
   private applyNowPlaying(next: SSLQueueItem | null): void {
     if (SongListClient.identity(this.currentSong) === SongListClient.identity(next)) return;
-    const label = (s: SSLQueueItem | null) => (s ? SongListClient.displayTitle(s) : "none");
+    const label = (s: SSLQueueItem | null) => (s ? displayTitle(s) : "none");
     console.log(`[SSL] Song changed: "${label(this.currentSong)}" -> "${label(next)}"`);
     this.currentSong = next;
     this.onSongChange?.(next);

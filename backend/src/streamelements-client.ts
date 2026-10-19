@@ -1,7 +1,7 @@
 import { config } from "./config";
 import { AstroStream } from "./astro-client";
 import { SongSource } from "./song-source";
-import { SongListClient } from "./songlist-client";
+import { displayTitle, toSong } from "./song-mapping";
 import { SSLQueueItem, SSLSong } from "./types";
 import { isTopicChannel, parseVideoTitle } from "./youtube-title";
 import { songFromYouTube, YouTubeSong } from "./youtube-metadata";
@@ -139,7 +139,7 @@ export class StreamElementsClient implements SongSource {
 
   toSong(item: SSLQueueItem): SSLSong {
     // No live learns on StreamElements: an entry never has the off-list fields.
-    const song = SongListClient.toSong(item);
+    const song = toSong(item);
     return {
       ...song,
       ...(item.song?.performer ? { performer: true } : {}),
@@ -149,7 +149,7 @@ export class StreamElementsClient implements SongSource {
   }
 
   displayTitle(item: SSLQueueItem): string {
-    return SongListClient.displayTitle(item);
+    return displayTitle(item);
   }
 
   /** Polling starts before anything that can fail, so a failed startup recovers on the next poll. */

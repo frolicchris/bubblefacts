@@ -34,6 +34,8 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/song-source.ts` | The `SongSource` interface the server needs from a song source. `SONG_SOURCE` picks one. |
 | `backend/src/songlist-client.ts` | StreamerSongList: reads the queue and works out what's playing. |
 | `backend/src/centrifugo-client.ts` | StreamerSongList's live "the queue changed" events. |
+| `backend/src/song-mapping.ts` | Turns a queue entry into the song the pipeline and overlay read (`toSong`, `displayTitle`); every source uses it. |
+| `backend/src/source-polling.ts` | What the two web clients share: Retry-After backoff, one fetch at a time, debounce, the polling loop. |
 | `backend/src/streamelements-client.ts` | StreamElements: reads the song request player and works out what's playing. |
 | `backend/src/astro-client.ts` | StreamElements' live song request events. |
 | `backend/src/now-playing-file.ts` | A text file a now-playing app (such as Streamling) keeps up to date. |
@@ -790,7 +792,7 @@ sends anything, so messages over 1 KB close the connection, and at most 16
 overlays can connect.
 
 Request titles, artists and requester names are cleaned once, in
-`SongListClient.toSong` (`cleanRequestText`): one line, at most 200
+`toSong` in `song-mapping.ts` (`cleanRequestText`): one line, at most 200
 characters. In prompts, a title's double quotes become single quotes so it
 can't close the quotes around it. Whatever the source says, `screenClaims`
 drops a caption with a link, a chat command or an `@mention`.
