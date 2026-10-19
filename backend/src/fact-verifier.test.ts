@@ -136,6 +136,19 @@ describe("splitGameAndTrack", () => {
   it("does not split on a hyphenated word", () => {
     expect(splitGameAndTrack("Well-Worn Dirt Road").game).toBe("Well-Worn Dirt Road");
   });
+
+  it("never reads a featured artist or a length tag as the game (#244)", () => {
+    for (const title of ["Paper Lanterns (feat. Jane Composer)", "Paper Lanterns (ft. Jane Composer)", "Paper Lanterns (featuring Jane Composer)", "Paper Lanterns (with Jane Composer)", "Paper Lanterns (TV Size)", "Paper Lanterns (From The Vault)"]) {
+      expect(splitGameAndTrack(dropVersionTags(title))).toEqual({ game: "Paper Lanterns", track: "Paper Lanterns" });
+      expect(dropVersionTags(title)).toBe("Paper Lanterns");
+    }
+  });
+
+  it('reads the work after "From" in a tag (#244)', () => {
+    expect(splitGameAndTrack('Paper Lanterns (From "Harbor Lights")')).toEqual({ game: "Harbor Lights", track: "Paper Lanterns" });
+    expect(splitGameAndTrack("Paper Lanterns (From Harbor Lights)").game).toBe("Harbor Lights");
+    expect(splitGameAndTrack("Paper Lanterns (Harbor Lights)").game).toBe("Harbor Lights");
+  });
 });
 
 describe("screenClaims", () => {

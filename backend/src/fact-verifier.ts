@@ -42,7 +42,7 @@ const groundingCache = new Map<string, { text: string; at: number }>();
 
 /** A trailing parenthetical that marks a variant rather than naming the game. */
 const VARIANT_MARKER =
-  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b|\d0'?s\b|live\b|acoustic\b|piano\b|vocal\b|instrumental\b|jazzy\b|original\b|a\s?cc?app?ella\b|lo-?fi\b|ext\b|extended\b|unplugged\b|npr\b|tiny desk\b)/i;
+  /^\s*(arr\b|arr\.|arrange|arranged|arrangement|remix|cover|medley|reprise|remaster|remastered|ost\b|ver\b|ver\.|version|act\s*\d|part\s*\d|\d{4}\b|\d0'?s\b|live\b|acoustic\b|piano\b|vocal\b|instrumental\b|jazzy\b|original\b|a\s?cc?app?ella\b|lo-?fi\b|ext\b|extended\b|unplugged\b|npr\b|tiny desk\b|feat\b|feat\.|ft\b|ft\.|featuring\b|with\s|tv\s*size\b|full\s*size\b|from the vault\b)/i;
 /** A tag that ends by saying it's a version: "(Chill Version)", "(Children's Choir Remix)", "(2020 Performance)". */
 const VARIANT_END = /\b(remix|mix|version|ver\.?|cover|arrangement|performance|rendition|edit)(?:\s+\d+)?\.?\s*$/i;
 /** "(Day)" and "(Night)" are variants only on their own; "(Night in the Woods)" is a game. */
@@ -209,7 +209,9 @@ export function splitGameAndTrack(title: string): { game: string; track: string 
 
   const paren = clean.match(/^(.+?)\s*[([]([^)\]]{2,})[)\]]\s*$/);
   if (paren && !isVariantTag(paren[2]) && !VARIANT_WORD.test(paren[2])) {
-    return { game: paren[2].trim(), track: paren[1].trim() };
+    // "Let It Go (From "Frozen")": the work is what follows "From".
+    const from = /^\s*from\s+["“'‘]?(.+?)["”'’]?\s*$/i.exec(paren[2]);
+    return { game: (from ? from[1] : paren[2]).trim(), track: paren[1].trim() };
   }
 
   const sep = clean.match(/^(.+?)\s*(?::|\s[-–—]\s)\s*(.+)$/);
