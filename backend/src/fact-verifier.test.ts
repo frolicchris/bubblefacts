@@ -73,6 +73,7 @@ import {
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { topic } from "./topic";
 
 describe("resolveGameAndTrack", () => {
@@ -2233,5 +2234,42 @@ describe("artist names written with symbols (#245)", () => {
   it("does not call the folded name another artist", () => {
     expect(qualifierNamesAnotherArtist("Paper Boats (River song)", "R!ver")).toBe(false);
     expect(qualifierNamesAnotherArtist("Paper Boats (Jane Composer song)", "R!ver")).toBe(true);
+  });
+});
+
+describe("artist fields that mean no artist (issue #261)", () => {
+  const NO_ARTIST = ["Traditional", "Trad.", "Trad", "Anon.", "Anon", "Anonymous", "Unknown", "Folk", "TRADITIONAL", " anonymous. "];
+  const REAL_ARTISTS = ["Folk Lanterns", "The Unknown Harbor", "Anonymous Choir", "Traditional Revival Band", "Unknown Mortal Orchestra"];
+
+  it("recognizes each value, whole field only", () => {
+    for (const a of NO_ARTIST) expect(hasNoArtist(a)).toBe(true);
+    for (const a of REAL_ARTISTS) expect(hasNoArtist(a)).toBe(false);
+    expect(hasNoArtist("")).toBe(false);
+    expect(hasNoArtist(undefined)).toBe(false);
+  });
+
+  it("gives no names to look for or require in an article", () => {
+    for (const a of NO_ARTIST) expect(artistNames(a)).toEqual([]);
+    expect(artistNames("Folk Lanterns")).toEqual(["folk lanterns"]);
+    expect(artistNames("The Unknown Harbor")).toEqual(["the unknown harbor"]);
+  });
+
+  it("reads the title alone, never the value as the game", () => {
+    for (const a of NO_ARTIST) expect(resolveGameAndTrack({ title: "Marigold Lane", artist: a })).toEqual({ game: "Marigold Lane", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual({ game: "Folk Lanterns", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual({ game: "The Unknown Harbor", track: "Marigold Lane" });
+  });
+
+  it("looks the song up by its title alone, and a real artist stays an artist", () => {
+    for (const a of NO_ARTIST.filter((x) => !/^unknown$/i.test(x.trim()))) {
+      expect(readings({ title: "Marigold Lane", artist: a })).toEqual([{ game: "", track: "Marigold Lane", songAlone: true }]);
+    }
+    expect(readings({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual([{ game: "Folk Lanterns", track: "Marigold Lane" }]);
+    expect(readings({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual([{ game: "The Unknown Harbor", track: "Marigold Lane" }]);
+  });
+
+  it("does not count the value as a name a caption repeats", () => {
+    expect(restatesRequest("Marigold Lane is a traditional song.", { title: "Marigold Lane", artist: "Traditional" })).toBe(false);
+    expect(restatesRequest("Folk Lanterns wrote Marigold Lane.", { title: "Marigold Lane", artist: "Folk Lanterns" })).toBe(true);
   });
 });

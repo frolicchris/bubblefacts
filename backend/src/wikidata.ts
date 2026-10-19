@@ -143,6 +143,8 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
 export async function wikidataFacts(song: SSLSong): Promise<string[]> {
   const { game, track } = resolveGameAndTrack(song);
   const title = track || game;
+  // No artist to match the item's description against: any "traditional folk song" would do.
+  if (!game || title === game) return [];
   const key = `${normalizeTitle(game)}\0${normalizeTitle(title)}`;
   const hit = cache.get(key);
   if (hit && (hit.facts.length || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.facts;
