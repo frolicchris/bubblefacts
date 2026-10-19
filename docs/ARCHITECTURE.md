@@ -46,6 +46,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
+| `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. |
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
