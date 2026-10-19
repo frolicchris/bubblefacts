@@ -5,6 +5,7 @@ import { SongListClient } from "./songlist-client";
 import { SSLQueueItem, SSLSong } from "./types";
 import { isTopicChannel, parseVideoTitle } from "./youtube-title";
 import { songFromYouTube, YouTubeSong } from "./youtube-metadata";
+import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
 /**
  * StreamElements song requests ("Media Request"): REST for data, Astro for
@@ -51,10 +52,15 @@ export class StreamElementsClient implements SongSource {
   private currentSong: SSLQueueItem | null = null;
   private currentKey: string | null = null;
   private onSongChange: ((current: SSLQueueItem | null) => void) | null = null;
-  private pollTimer: ReturnType<typeof setTimeout> | null = null;
-  private refetchTimer: ReturnType<typeof setTimeout> | null = null;
-  private inFlight: Promise<void> | null = null;
-  private refreshAgain = false;
+  private readonly poll = pollLoop({
+    isStopped: () => this.stopped,
+    intervalMs: () => this.pollIntervalMs(),
+    backoffUntil: () => this.backoffUntil,
+    tick: () => this.pollOnce(),
+  });
+  /** Every event (play, pause, skip, queue changes) and every reconnect means "fetch again": a burst becomes one. */
+  private readonly refetch = debounce(REFETCH_DEBOUNCE_MS, () => void this.refresh());
+  private readonly fetchOneAtATime = singleFlight(() => this.fetchPlayer(), () => this.stopped);
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
   private rejected = false;
@@ -159,9 +165,8 @@ export class StreamElementsClient implements SongSource {
     this.stopped = true;
     this.stream?.stop();
     this.stream = null;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    if (this.refetchTimer) clearTimeout(this.refetchTimer);
-    this.pollTimer = this.refetchTimer = null;
+    this.poll.cancel();
+    this.refetch.cancel();
   }
 
   // --- Song mapping ------------------------------------------------------
@@ -213,10 +218,8 @@ export class StreamElementsClient implements SongSource {
           "StreamElements dashboard (Account, then Channels, then Show secrets)."
       );
     }
-    if (res.status === 429 || res.status === 503) {
-      const wait = Number(res.headers?.get("retry-after")) || (res.status === 429 ? 60 : 120);
-      this.backoffUntil = Date.now() + Math.min(wait, 600) * 1000;
-    }
+    const wait = retryAfterMs(res);
+    if (wait) this.backoffUntil = Date.now() + wait;
     // No song requests yet.
     if (res.status === 404) return null;
     if (!res.ok) {
@@ -241,30 +244,23 @@ export class StreamElementsClient implements SongSource {
     console.log(`[SE] Resolved channel "${info.username ?? wanted}" -> ID ${info._id}`);
   }
 
-  /** One request pair at a time; a refresh asked for meanwhile fetches again afterward. */
+  /** One request pair at a time; a refresh asked for meanwhile fetches again afterward (see singleFlight). */
   private refresh(): Promise<void> {
     if (this.backingOff() || this.channelId === null) return Promise.resolve();
-    if (this.inFlight) {
-      this.refreshAgain = true;
-      return this.inFlight;
+    return this.fetchOneAtATime();
+  }
+
+  private async fetchPlayer(): Promise<void> {
+    try {
+      const id = encodeURIComponent(this.channelId as string);
+      // One after the other, so a refused token on either one is what authRejected() reports.
+      const player = await this.getJSON<{ state?: string }>(`/songrequest/${id}/player`, "player");
+      const playing = await this.getJSON<SESong>(`/songrequest/${id}/playing`, "playing song");
+      this.lastSuccessfulFetchAt = Date.now();
+      await this.apply(player?.state, playing);
+    } catch (err) {
+      console.error(`[SE] Error fetching the song request player: ${err instanceof Error ? err.message : err}`);
     }
-    this.inFlight = (async () => {
-      do {
-        this.refreshAgain = false;
-        try {
-          const id = encodeURIComponent(this.channelId as string);
-          // One after the other, so a refused token on either one is what authRejected() reports.
-          const player = await this.getJSON<{ state?: string }>(`/songrequest/${id}/player`, "player");
-          const playing = await this.getJSON<SESong>(`/songrequest/${id}/playing`, "playing song");
-          this.lastSuccessfulFetchAt = Date.now();
-          await this.apply(player?.state, playing);
-        } catch (err) {
-          console.error(`[SE] Error fetching the song request player: ${err instanceof Error ? err.message : err}`);
-        }
-      } while (this.refreshAgain && !this.stopped);
-      this.inFlight = null;
-    })();
-    return this.inFlight;
   }
 
   private async apply(restState: string | undefined, playing: SESong | null): Promise<void> {
@@ -343,31 +339,22 @@ export class StreamElementsClient implements SongSource {
       else if (name === "pause") this.eventState = "paused";
       if (!/^(volume|queue\.|history\.|song\.position|song\.voteskip|settings\.)/.test(name)) console.log(`[SE] Event: ${name}`);
     }
-    if (this.refetchTimer) return;
-    this.refetchTimer = setTimeout(() => {
-      this.refetchTimer = null;
-      void this.refresh();
-    }, REFETCH_DEBOUNCE_MS);
+    this.refetch.run();
   }
 
   private schedulePoll(): void {
-    // A poll that finishes after disconnect() mustn't start another.
-    if (this.stopped) return;
-    const delay = Math.max(this.pollIntervalMs(), this.backoffUntil - Date.now());
-    // One poll loop at a time: connecting again replaces the old timer rather than leaving it running.
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(async () => {
-      if (this.stopped) return;
-      if (this.channelId === null) {
-        try {
-          await this.resolveChannel();
-          this.connectEvents();
-        } catch {
-          // Still unreachable; try again next poll.
-        }
+    this.poll.schedule();
+  }
+
+  private async pollOnce(): Promise<void> {
+    if (this.channelId === null) {
+      try {
+        await this.resolveChannel();
+        this.connectEvents();
+      } catch {
+        // Still unreachable; try again next poll.
       }
-      await this.refresh();
-      if (!this.stopped) this.schedulePoll();
-    }, delay);
+    }
+    await this.refresh();
   }
 }
