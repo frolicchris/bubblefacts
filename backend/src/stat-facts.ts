@@ -1,4 +1,4 @@
-import { escapeRe } from "./text";
+import { escapeRe, hasNoArtist } from "./text";
 import { SSLQueueItem } from "./types";
 
 /**
@@ -87,9 +87,9 @@ export function buildStatFacts(
 
   if (opts.isOriginalSong) {
     // Only the song list's artist field names a writer; a tag alone never does.
-    // A missing or "Unknown" credit stays unknown: no writer is named or implied.
+    // A missing credit or one that means no artist ("Unknown", "Traditional", "Anon.") stays unknown: no writer is named or implied.
     const credit = (song.artist ?? "").trim();
-    const known = Boolean(credit) && !/^unknown$/i.test(credit);
+    const known = Boolean(credit) && !hasNoArtist(credit);
     if (known && creditedToStreamer(entry, [who, ...(opts.names ?? [])])) {
       facts.push(`"${display}" is an original composition by ${credit.replace(/\s*@\S+/, "")}.`);
       facts.push("You're hearing this one straight from the person who wrote it.");
