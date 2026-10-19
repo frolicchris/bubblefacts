@@ -2033,8 +2033,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   const { game, track } = reading;
   // A subject pinned to one page is remembered apart: another song's search may have found another page for the name.
   // A lookup for the song's own article alone says nothing about the subject's article.
-  const gameKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "");
-  const songKey = `${gameKey}\0${normalizeTitle(track)}`;
+  const gameCacheKey = normalizeTitle(game) + (reading.page ? `\0${reading.page}` : "") + (reading.trackOnly ? "\0track" : "");
+  const trackCacheKey = `${gameCacheKey}\0${normalizeTitle(track)}`;
 
   // A game's tracks share one lookup. An artist's songs never share: each may
   // have its own article. The artist test is a heuristic, and guessing
@@ -2048,7 +2048,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   // track, remembered either way (issue #48).
   // A generic name ("Theme") has no article of its own: "Theme from Star Trek" is another show's.
   const generic = GENERIC_TRACK.test(normalizeTitle(track));
-  if (!artist && track && track !== game && !generic && !song.artistUncertain && !noOwnArticle.has(songKey) && !groundingCache.get(songKey)?.text) {
+  if (!artist && track && track !== game && !generic && !song.artistUncertain && !noOwnArticle.has(trackCacheKey) && !groundingCache.get(trackCacheKey)?.text) {
     try {
       const own = (await wikiSearch(`${track} ${game}`)).find(
         (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
@@ -2060,24 +2060,24 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
         const text = `${own}\n${extract}`;
         console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
-        groundingCache.set(songKey, { text, at: Date.now() });
+        groundingCache.set(trackCacheKey, { text, at: Date.now() });
         return { text, unreachable: false };
       }
-      noOwnArticle.add(songKey);
+      noOwnArticle.add(trackCacheKey);
     } catch {
       // Throttled or unreachable: the game's article below still serves, and this is tried again next time.
     }
   }
-  const ownHit = groundingCache.get(songKey);
+  const ownHit = groundingCache.get(trackCacheKey);
   if (!artist && ownHit?.text && usable(ownHit.text.split("\n")[0])) return { text: ownHit.text, unreachable: false };
   // A game already looked up: this track's reference is built from the kept articles.
-  const kept = !song.performer && track !== game ? gameArticles.get(gameKey) : undefined;
+  const kept = !song.performer && track !== game ? gameArticles.get(gameCacheKey) : undefined;
   if (kept && usable(kept.page)) {
     const text = gameTrackText(kept, track, usable);
-    groundingCache.set(songKey, { text, at: Date.now() });
+    groundingCache.set(trackCacheKey, { text, at: Date.now() });
     return { text, unreachable: false };
   }
-  for (const key of artist ? [songKey] : [gameKey, songKey]) {
+  for (const key of artist ? [trackCacheKey] : [gameCacheKey, trackCacheKey]) {
     const hit = key && groundingCache.get(key);
     if (hit && hit.text && !usable(hit.text.split("\n")[0])) continue;
     if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return { text: hit.text, unreachable: false };
@@ -2208,13 +2208,13 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         }
         const articles = { page, full, music };
         // Shared by the game's tracks, unless this track has blocked articles of its own.
-        if (!blocked.size) gameArticles.set(gameKey, articles);
+        if (!blocked.size) gameArticles.set(gameCacheKey, articles);
         text = gameTrackText(articles, track, usable);
         if (music) console.log(`[Grounding] "${game}" has a music article: ${music.page}${music.series ? " (series-wide: used for tracks it names)" : ""}`);
       }
       console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
       // Shared by the game's tracks, unless this track has blocked articles of its own.
-      groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameKey : songKey, { text, at: Date.now() });
+      groundingCache.set(byGame && !artist && !blocked.size && !installment ? gameCacheKey : trackCacheKey, { text, at: Date.now() });
       return { text, unreachable: false };
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -2230,7 +2230,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       ` — tried: ${terms.join(" | ")}`
   );
   // A miss caused by this song's blocked articles says nothing about the game's other tracks.
-  if (!unreachable) groundingCache.set(artist || blocked.size ? songKey : gameKey, { text: "", at: Date.now() });
+  if (!unreachable) groundingCache.set(artist || blocked.size ? trackCacheKey : gameCacheKey, { text: "", at: Date.now() });
   return { text: "", unreachable: !!unreachable };
 }
 

@@ -198,7 +198,7 @@ function toFacts(
     return false;
   });
   const page = context.split("\n")[0];
-  const spots = positionsForSong(song);
+  const positions = positionsForSong(song);
   return told.map((text, i) => {
     const source = sourceOf(text);
     const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
@@ -210,7 +210,7 @@ function toFacts(
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
-      position: spots[i % spots.length],
+      position: positions[i % positions.length],
     };
   });
 }
@@ -554,12 +554,12 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
 
 /**
  * Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it.
- * `as` is the reading of the song to look up; the bookkeeping stays with the song as requested.
+ * `reading` is the reading of the song to look up; the bookkeeping stays with the song as requested.
  */
-async function structuredFacts(song: SSLSong, as: SSLSong = song): Promise<string[]> {
+async function structuredFacts(song: SSLSong, reading: SSLSong = song): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
-  const data = await wikidataFacts(as);
-  const facts = data.length ? data : await musicbrainzFacts(as);
+  const data = await wikidataFacts(reading);
+  const facts = data.length ? data : await musicbrainzFacts(reading);
   structuredShown.set(songKey(song), new Set(facts));
   for (const f of facts) structuredLabel.set(f, data.length ? SOURCE.wikidata : SOURCE.musicbrainz);
   return facts;
@@ -757,16 +757,16 @@ export function liveLearnLookup(song: SSLSong): SSLSong | null {
  * the reading's name the built-in model took it for a song no longer playing and refused.
  */
 async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = song): Promise<{ facts: Fact[]; ttlMs: number }> {
-  const keep = { facts: [] as Fact[], ttlMs: Infinity };
+  const nothingToLookUp = { facts: [] as Fact[], ttlMs: Infinity };
 
   // Facts the streamer wrote for this very song come first, exactly as written,
   // with no lookup, even for a live learn: often another music content creator's off-list original.
-  const yours = findSongFacts(song);
-  if (yours) {
-    const lines = songFactLines(yours, want);
+  const ownRecord = findSongFacts(song);
+  if (ownRecord) {
+    const lines = songFactLines(ownRecord, want);
     // With room left, one fact from its artist's or game's pool, ahead of the creator's link.
     const pool = lines.length < want ? takeTurns(taggedFor(song).pool, 1) : [];
-    lines.splice(yours.link?.trim() ? lines.length - 1 : lines.length, 0, ...pool);
+    lines.splice(ownRecord.link?.trim() ? lines.length - 1 : lines.length, 0, ...pool);
     console.log(`[FactGen] "${song.title}": ${lines.length} of the streamer's own facts for this song`);
     record(asked, "songFacts", lines.length);
     // Not cached: an edit in the app applies the next time it plays.
@@ -777,7 +777,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // The LIVE LEARN banner still shows. A well-known song gets its facts too (issue #45);
     // one no source knows gets none, never filler.
     const lookup = config.factVerification && config.aiProvider !== "none" ? liveLearnLookup(song) : null;
-    const found = lookup ? await generateRest(lookup, null, want, true, song) : keep;
+    const found = lookup ? await generateRest(lookup, null, want, true, song) : nothingToLookUp;
     if (found.facts.length) {
       console.log(`[FactGen] "${song.title}" is a live learn: ${found.facts.length} facts, looked up as "${lookup?.title}" by ${lookup?.artist}`);
       return found;
@@ -864,7 +864,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     // An article about the artist or game, not the song itself: facts about
     // the song come first when Wikidata or MusicBrainz has any ("describe the
     // song, then tell about it").
-    const songFacts = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
+    const structuredFirst = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
 
     const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
     const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
@@ -876,7 +876,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
     if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
     // Music terms get a few fixed plain words, so any viewer can follow.
     const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
-    const structured = songFacts.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    const structured = structuredFirst.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
     // A spare takes the place of a line that only repeats the title and artist. With more left than
     // bubbles, the ones their source sentence supports best are shown, in the order written.
     const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
@@ -929,13 +929,13 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
     factStats.cacheHits++;
     return Promise.resolve(cached.facts);
   }
-  const rev = revisions.get(key) ?? 0;
+  const revisionAtStart = revisions.get(key) ?? 0;
   let pending = inFlight.get(key);
   if (!pending) {
     pending = generate(song, entry)
       .then(({ facts, ttlMs }) => {
         // A generation started before the song's facts changed may not overwrite them.
-        if ((revisions.get(key) ?? 0) === rev) factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        if ((revisions.get(key) ?? 0) === revisionAtStart) factCache.set(key, { facts, expires: Date.now() + ttlMs });
         return facts;
       })
       .finally(() => {
@@ -944,7 +944,7 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
     inFlight.set(key, pending);
   }
   // Superseded while it ran (the streamer saved facts for this song): start over.
-  return pending.then((facts) => ((revisions.get(key) ?? 0) === rev ? facts : generateFacts(song, entry)));
+  return pending.then((facts) => ((revisions.get(key) ?? 0) === revisionAtStart ? facts : generateFacts(song, entry)));
 }
 
 /** Bumped when a song's facts change; a generation from an older revision is discarded. */
