@@ -54,9 +54,9 @@ import {
   unsupportedConnective,
   unsupportedRelation,
   unsupportedCredit,
-  isAWork,
-  isAPerformer,
-  isAPiece,
+  isWorkArticle,
+  isPerformerArticle,
+  isPieceArticle,
   isInitials,
   lostQualifier,
   swappedSubject,
@@ -1415,8 +1415,8 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Victory Overwatch": ["Overwatch and fan art"], "Overwatch Victory": ["Overwatch and fan art"] };
     extracts = { "Overwatch and fan art": `The Overwatch franchise inspired fan art. Players celebrate a victory.${LONG}` };
     expect(await fetchGrounding({ title: "Victory - Overwatch", artist: "Some Remixer" })).toBe("");
-    expect(isAPiece("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
-    expect(isAPiece("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
+    expect(isPieceArticle("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
+    expect(isPieceArticle("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
   });
 
   it("reads a work after a dash in the title when the artist is a remixer", async () => {
@@ -1513,21 +1513,21 @@ describe("glued and dashed version tags, credits of several names (a second song
   });
 
   it("tells a game, a film or a show from a person, a song or a tale", () => {
-    expect(isAWork("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
-    expect(isAWork("The Mask (1994 film)", "")).toBe(true);
-    expect(isAWork("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
-    expect(isAWork("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
-    expect(isAWork("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
-    expect(isAWork("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
-    expect(isAWork("Queen (band)", "")).toBe(false);
+    expect(isWorkArticle("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
+    expect(isWorkArticle("The Mask (1994 film)", "")).toBe(true);
+    expect(isWorkArticle("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
+    expect(isWorkArticle("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
+    expect(isWorkArticle("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
+    expect(isWorkArticle("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
+    expect(isWorkArticle("Queen (band)", "")).toBe(false);
   });
 
   it("tells a performer from a racehorse or a show's season", () => {
-    expect(isAPerformer("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
-    expect(isAPerformer("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
-    expect(isAPerformer("Some Name (singer)", "")).toBe(true);
-    expect(isAPerformer("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
-    expect(isAPerformer("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
+    expect(isPerformerArticle("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
+    expect(isPerformerArticle("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
+    expect(isPerformerArticle("Some Name (singer)", "")).toBe(true);
+    expect(isPerformerArticle("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
+    expect(isPerformerArticle("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
   });
 
   it("never takes a company or a plural for a name", () => {

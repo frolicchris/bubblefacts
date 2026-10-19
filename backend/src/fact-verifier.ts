@@ -942,7 +942,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   const noted = /\([^)]*\)\s*$/.test(asked.artist ?? "") || /[([][^)\]]*\bcover\b[^)\]]*[)\]]/i.test(asked.title);
 
   if (/^About this piece: .* is originally by .*\bcover\b/m.test(grounding)) return unsure("the article is about the original of a cover");
-  if (linkedPages.has(page) && isAPerformer(page, full)) return unsure("MusicBrainz's link led to the artist's article, not the song's");
+  if (linkedPages.has(page) && isPerformerArticle(page, full)) return unsure("MusicBrainz's link led to the artist's article, not the song's");
   // A classical piece found through its Wikidata item (issue #260): its own article, or its parent work's.
   const classical = classicalPages.get(classicalKey(page, asked.title)) ?? classicalPages.get(classicalKey(page, song.title));
   if (classical) {
@@ -953,7 +953,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   // The song's own article, by its title.
   const own = piece && (normalizeTitle(base) === normalizeTitle(piece) || isRespelling(piece, base) || aboutThePiece(page, full, piece));
   // "Walk This Way" for "Walk This Way - feat. A Guest": a song's article under part of the title.
-  const partOf = piece && !own && isAPiece(page, full) && significantTokens(normalizeTitle(base)).length >= 2 &&
+  const partOf = piece && !own && isPieceArticle(page, full) && significantTokens(normalizeTitle(base)).length >= 2 &&
     mentionsName(`${normalizeTitle(piece)} ${normalizeTitle(dropVersionTags(asked.title))}`, [normalizeTitle(base)]);
   if (own || partOf) {
     if ((AN_ALBUM.test(qualifier) || AN_ALBUM.test(says)) && !/\bsoundtrack\b/i.test(qualifier + says)) return unsure(`"${page}" is an album's article, not the song's`);
@@ -971,10 +971,10 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
     return sure(seriesWide ? "the series' music article" : "the game's music article");
   }
   // Another piece's article: "Song B" for "Song A".
-  if (piece && isAPiece(page, full)) return unsure(`"${page}" is another piece's article`);
+  if (piece && isPieceArticle(page, full)) return unsure(`"${page}" is another piece's article`);
 
   // The artist's article.
-  const theArtist = isAPerformer(page, full) || (names.includes(normalizeTitle(base)) && !isAWork(page, full));
+  const theArtist = isPerformerArticle(page, full) || (names.includes(normalizeTitle(base)) && !isWorkArticle(page, full));
   if (theArtist) {
     if (piece && !named && noted) return unsure("the artist's article never names the song, and was found only after dropping a note");
     return sure(named ? "the artist's article names the song" : "the artist's article");
@@ -1001,7 +1001,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
 function aboutThePiece(page: string, full: string, piece: string): boolean {
   const base = normalizeTitle(withoutQualifier(page));
   const want = normalizeTitle(piece);
-  if (!want || !isAPiece(page, full)) return false;
+  if (!want || !isPieceArticle(page, full)) return false;
   // Under another name: "Song (also known as Another Song) is a song by...".
   if (mentionsName(normalizeTitle(leadSentences(full, 2)), [want])) return true;
   return editDistance(base.replace(/ /g, ""), want.replace(/ /g, "")) <= Math.max(1, Math.floor(want.length * 0.15));
@@ -1502,7 +1502,7 @@ export function ownArticleExtract(full: string, budget: number, names: string[])
 }
 
 /** What a song is, in its article's opening: "a traditional English folk song". */
-const A_SONG = /\b(song|ballad|hymn|carol|tune|melody|lullaby|anthem|folk ?song|canzone|chanson)s?\b/i;
+const SONG_WORDS = /\b(song|ballad|hymn|carol|tune|melody|lullaby|anthem|folk ?song|canzone|chanson)s?\b/i;
 
 /**
  * A song by no one in particular ("Traditional", "Italian Folk Song"): its
@@ -1521,7 +1521,7 @@ async function groundSongAlone(song: SSLSong, title: string, usable: (title: str
       for (const page of [...titles.filter((t) => /\((?:[^)]*\b)?song\)$/i.test(t)), ...titles.filter((t) => !/\((?:[^)]*\b)?song\)$/i.test(t))]) {
         tried.add(page);
         const full = await wikiExtract(page);
-        if (!full || !A_SONG.test(full.slice(0, 300))) {
+        if (!full || !SONG_WORDS.test(full.slice(0, 300))) {
           console.log(`[Grounding] "${page}" isn't about a song, skipping`);
           continue;
         }
@@ -1758,7 +1758,7 @@ export function notForAPiece(page: string, full: string, parsed: ClassicalTitle)
   if (SCREEN_OR_BOOK.test(qualifier) || (SCREEN_OR_BOOK.test(says) && !musical(says))) return "is a film's, a show's or a book's article";
   // A person's article opens with their dates: "Edwin Marrow (1790–1850) was an English painter".
   const dated = /^[^.(]{0,80}\((?:[^()]*;\s*)?(?:born\b[^)]*|[^)]*\b1\d{3}\s*[–-]\s*(?:1\d|20)\d{2})\)/.test(full.slice(0, 300));
-  if (dated && !isAPerformer(page, full) && !musical(says) && !opensAboutMusicOrWork(full)) return "is about a person who isn't a musician";
+  if (dated && !isPerformerArticle(page, full) && !musical(says) && !opensAboutMusicOrWork(full)) return "is about a person who isn't a musician";
   const wanted = parsed.key ? normalizeTitle(normalizeKeys(parsed.key)) : "";
   const got = keyIn(page);
   if (wanted && got && got !== wanted && !(!/major|minor/.test(wanted) && got.startsWith(`${wanted} `))) return `is in ${got}, not ${parsed.key}`;
@@ -1987,11 +1987,11 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
 }
 
 /** What a game, a film or a show is called in its article's first sentence or its title's brackets. */
-const A_WORK =
+const WORK_WORDS =
   /\b(video games?|games?|films?|movies?|television (?:series|programs?|programmes?|shows?|films?)|tv series|animated series|anime|web series|sitcom|musical|soundtrack|franchise|series)\b/i;
 
 /** Who or what else an article opens by naming: "a German film score composer", "a Middle Eastern folk tale". */
-const NOT_A_WORK =
+const NOT_WORK_WORDS =
   /\b(singer|band|composer|musician|rapper|songwriter|producer|actor|actress|director|DJ|duo|group|orchestra|person|character|company|developer|publisher|studio|label|tale|song|single|album|EP)s?\b/i;
 
 /**
@@ -1999,11 +1999,11 @@ const NOT_A_WORK =
  * by what its first sentence says it is ("a 1997 role-playing video game"),
  * up to who made it.
  */
-export function isAWork(page: string, full: string): boolean {
+export function isWorkArticle(page: string, full: string): boolean {
   const qualifier = qualifierOf(page);
-  if (qualifier) return A_WORK.test(qualifier) && !NOT_A_WORK.test(qualifier.replace(/\bsoundtrack album\b/i, "soundtrack"));
+  if (qualifier) return WORK_WORDS.test(qualifier) && !NOT_WORK_WORDS.test(qualifier.replace(/\bsoundtrack album\b/i, "soundtrack"));
   const what = openingSays(full);
-  return A_WORK.test(what) && !NOT_A_WORK.test(what.replace(/\bsoundtrack album\b/i, "soundtrack"));
+  return WORK_WORDS.test(what) && !NOT_WORK_WORDS.test(what.replace(/\bsoundtrack album\b/i, "soundtrack"));
 }
 
 /** What an article's first sentence says its subject is, up to who made it: "a 1997 role-playing video game". */
@@ -2015,16 +2015,21 @@ export function openingSays(full: string): string {
 }
 
 /** What a piece of music is called in its brackets or its first sentence. */
-const A_PIECE = /\b(song|single|ballad|anthem|theme|instrumental|track|piece|composition|aria|hymn|tune|jingle)s?\b/i;
+const PIECE_WORDS = /\b(song|single|ballad|anthem|theme|instrumental|track|piece|composition|aria|hymn|tune|jingle)s?\b/i;
 
 /** Whether an article is about a piece of music: "(Bee Gees song)", or "a song from the film Aladdin". */
-export function isAPiece(page: string, full: string): boolean {
+export function isPieceArticle(page: string, full: string): boolean {
   const qualifier = qualifierOf(page);
-  if (qualifier && A_PIECE.test(qualifier)) return true;
-  return A_PIECE.test(openingSays(full));
+  if (qualifier && PIECE_WORDS.test(qualifier)) return true;
+  return PIECE_WORDS.test(openingSays(full));
 }
 
-const A_PERFORMER =
+/**
+ * What a performer is called in an article's first sentence. The three performer lists differ by where
+ * they look: PERFORMER_QUALIFIER reads a title's brackets, PERFORMER_LEAD an article's opening, where a
+ * recording counts too, and this one only what the first sentence says the subject is.
+ */
+const PERFORMER_WORDS =
   /\b(singers?|bands?|rappers?|musicians?|composers?|songwriters?|producers?|DJs?|disc jockeys?|duo|trio|group|vocalists?|pianists?|guitarists?|drummers?|violinists?|saxophonists?|orchestra|ensemble|choir|entertainers?|performers?|YouTuber)\b/i;
 
 /**
@@ -2032,10 +2037,10 @@ const A_PERFORMER =
  * what its first sentence says ("an American singer"). "Black Caviar" is a
  * duo's name and a racehorse's article.
  */
-export function isAPerformer(page: string, full: string): boolean {
+export function isPerformerArticle(page: string, full: string): boolean {
   const qualifier = qualifierOf(page);
   if (qualifier) return PERFORMER_QUALIFIER.test(qualifier);
-  return A_PERFORMER.test(openingSays(full));
+  return PERFORMER_WORDS.test(openingSays(full));
 }
 
 /** One reading of the request, looked up the usual way. */
@@ -2171,18 +2176,18 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       }
       // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
       // A game's or a show's own article under that very name serves too: "Kingdom Hearts / Some Remixer".
-      const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isAWork(page, full ?? "");
-      if (byGame && reading.aPerformer && full && !isAPerformer(page, full) && !workByName()) {
+      const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isWorkArticle(page, full ?? "");
+      if (byGame && reading.aPerformer && full && !isPerformerArticle(page, full) && !workByName()) {
         console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
         continue;
       }
       // A piece read from the title must be one: "Overwatch" read as a track name isn't "Overwatch and pornography".
-      if (!byGame && reading.fromTitle && full && !isAPiece(page, full)) {
+      if (!byGame && reading.fromTitle && full && !isPieceArticle(page, full)) {
         console.log(`[Grounding] "${page}" isn't about a piece of music, skipping`);
         continue;
       }
       // A work read from the title must be a game, a film or a show: "Aladdin" is also a folk tale.
-      if (byGame && reading.fromTitle && full && !isAWork(page, full)) {
+      if (byGame && reading.fromTitle && full && !isWorkArticle(page, full)) {
         console.log(`[Grounding] "${page}" isn't a game, a film or a show, skipping`);
         continue;
       }

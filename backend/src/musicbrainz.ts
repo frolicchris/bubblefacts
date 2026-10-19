@@ -3,7 +3,7 @@ import {
   artistNames,
   editDistance,
   foldSymbols,
-  isAPiece,
+  isPieceArticle,
   isInitials,
   looksLikeArtistName,
   MAX_CONTEXT_CHARS,
@@ -397,7 +397,7 @@ const withoutQualifier = (page: string) => page.replace(/\s*\([^)]*\)\s*$/, "");
  * who it is by (the intro must name them too).
  */
 export function songPageFit(page: string, full: string, titles: string[], artists: string[], performers: string[]): { ok: boolean; original?: string; why?: string } {
-  if (!isAPiece(page, full)) return { ok: false, why: "isn't about a piece of music" };
+  if (!isPieceArticle(page, full)) return { ok: false, why: "isn't about a piece of music" };
   const base = withoutQualifier(page);
   const titled = titles.some((t) => closeName(t, base) || (normalizeTitle(t).split(" ").length >= 2 && mentionsName(normalizeTitle(base), [normalizeTitle(t)])));
   if (!titled) return { ok: false, why: "is another title" };

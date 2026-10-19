@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isAPerformer, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
@@ -846,7 +846,7 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       // Too few to fill the song: up to two about its artist or game, from Wikidata too.
       const { game } = resolveGameAndTrack(read);
       const page = context.split("\n")[0];
-      const about = isAPerformer(page, articleText(page) || context) ? page : game;
+      const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
       const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(await artistFacts(about)).slice(0, 2) : [];
       for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
       const shown = [...data, ...extra.filter((f) => !data.includes(f))].slice(0, want);
