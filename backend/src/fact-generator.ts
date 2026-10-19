@@ -237,14 +237,6 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
 }
 
 /**
- * Written for a 3B model: the source comes first, and every rule is a test
- * the model can apply to its own sentence rather than "be accurate".
- */
-/**
- * The prompt, laid out as CROSS: Context, Role, Objective, Source, Scope.
- * PROMPT_STYLE=rules switches back to the numbered rule list below.
- */
-/**
  * CITE_SENTENCES=on: the CROSS prompt numbers the reference's sentences and has
  * the model cite the one each caption retells ("4 | caption"), so the screen
  * checks the caption against that sentence instead of guessing it
@@ -254,6 +246,10 @@ function subjectLine(song: SSLSong): { game: string; intro: string } {
  */
 export const citesSentences = () => process.env.CITE_SENTENCES === "on" && process.env.PROMPT_STYLE !== "rules";
 
+/**
+ * The prompt, laid out as CROSS: Context, Role, Objective, Source, Scope.
+ * PROMPT_STYLE=rules switches back to the numbered rule list in `groundedPrompt`.
+ */
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
   return citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want);
@@ -304,6 +300,10 @@ Exactly ${want} lines. Start each line with the number of the sentence it retell
 Each caption is one sentence, under 120 characters, in plain words anyone can follow. No bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
 }
 
+/**
+ * Written for a 3B model: the source comes first, and every rule is a test
+ * the model can apply to its own sentence rather than "be accurate".
+ */
 function groundedPrompt(song: SSLSong, context: string, want: number): string {
   // CROSS is the default: in trials it followed the rules better and gave more reception facts (issue #48).
   if (process.env.PROMPT_STYLE !== "rules") return crossPrompt(song, context, want);
@@ -552,8 +552,10 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
 
 // --- Pipeline ----------------------------------------------------------
 
-/** Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it. */
-/** `as` is the reading of the song to look up; the bookkeeping stays with the song as requested. */
+/**
+ * Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it.
+ * `as` is the reading of the song to look up; the bookkeeping stays with the song as requested.
+ */
 async function structuredFacts(song: SSLSong, as: SSLSong = song): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
   const data = await wikidataFacts(as);
@@ -802,8 +804,6 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       return { facts, ttlMs: 0 };
     }
 
-    // No AI available (the desktop app's fallback when its model can't run):
-    // song-list and hand-picked facts only, with no lookup.
     // Streamers write their lists differently ("Game - Track" with the composer as artist,
     // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
     let context = "";
@@ -818,6 +818,8 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
       ({ context, read } = await findReference(song));
       if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
     }
+    // No AI available (the desktop app's fallback when its model can't run):
+    // song-list and hand-picked facts only, with no lookup.
     if (config.aiProvider === "none" || (config.factVerification && !context)) {
       // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
       const data = config.factVerification && !handle && !placeholder ? await structuredFacts(song, read) : [];
@@ -957,13 +959,6 @@ export function clearFactCache(): void {
   structuredShown.clear();
 }
 
-/**
- * The streamer marked one of this song's facts wrong. Its source is blocked
- * for the song: the Wikipedia article, or Wikidata and MusicBrainz when the
- * fact came from them. The song's cached facts are dropped and forgotten as
- * "already shown", so the next time it plays BubbleFacts looks again.
- * Returns what was blocked, or null for custom, song-list or the streamer's own song facts.
- */
 /** The songs a block is saved under: the request, and for a live learn also the song it was looked up as. */
 function blockedAs(song: SSLSong): SSLSong[] {
   const lookup = song.liveLearn ? liveLearnLookup(song) : null;
@@ -995,7 +990,11 @@ export function ownFactKind(label: string | undefined): "song" | "custom" | null
  * The streamer marked one of a song's facts wrong. Its source is blocked for
  * that song: decided by the fact's own label when it has one, so it's right
  * after a restart and for a song that already ended, and Wrong on the
- * streamer's own fact never blocks the article shown beside it.
+ * streamer's own fact never blocks the article shown beside it. The blocked
+ * source is the Wikipedia article, or Wikidata and MusicBrainz when the fact
+ * came from them. The song's cached facts are dropped and forgotten as
+ * "already shown", so the next time it plays BubbleFacts looks again.
+ * Returns what was blocked, or null for custom, song-list or the streamer's own song facts.
  */
 export function markWrong(song: SSLSong, text: string, label?: string): string | null {
   const key = songKey(song);

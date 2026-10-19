@@ -278,11 +278,11 @@ const MUSICAL_QUALIFIER =
   /video game|game\b|series|soundtrack|album|franchise|film|score|song|single|composition|opera|ballet|suite|sonata|symphony|concerto|musical|anime|television|tv series|novel/i;
 /** Disambiguators for people and groups: right only when we searched for one. */
 const PERFORMER_QUALIFIER = /band|singer|musician|composer|pianist|rapper|duo|group|orchestra/i;
-/** Words marking a different kind of work under the same name. */
 /** An article's opening that describes a performer or a recording. */
 const PERFORMER_LEAD = /\b(band|singer|rapper|musician|group|duo|trio|songwriter|record(ing)? artist|vocalist|album|song|single|DJ|producer)\b/i;
 /** Disambiguators that can't be a performer. */
 const NOT_A_PERFORMER = /\((?:[^)]*\b)?(video game|game|film|television|tv series|novel|manga|anime)\)\s*$/i;
+/** Words marking a different kind of work under the same name. */
 const MEDIUM_SHIFT = /\b(movie|film|musical|discography|anime|manga|novel|list|awards|tour|concert)\b/i;
 
 const KNOWN_ARTIST =
@@ -2083,15 +2083,14 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
     if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return { text: hit.text, unreachable: false };
   }
 
+  // "Ecco the Dolphin CD" is the game "Ecco the Dolphin": an edition word isn't part of its name.
+  const edition = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
   // Which way an article matched decides how widely it may be shared. A
   // track article must not be attributed to another artist, and its text
   // must mention the game or artist: "Overture" alone is a generic article.
-  // A music video's artist is a band or singer, never a game or film of the same name.
-  // An artist that's only a guess from the uploader's channel is never looked up
-  // as the subject: an uploader called "Apollo" isn't the god (issue from review).
-  // "Ecco the Dolphin CD" is the game "Ecco the Dolphin": an edition word isn't part of its name.
-  const edition = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
   const matchedGame = (title: string) =>
+    // An artist that's only a guess from the uploader's channel is never looked up
+    // as the subject: an uploader called "Apollo" isn't the god (issue from review).
     !song.artistUncertain &&
     // Only the piece's own article for a name that may be an arranger's or a fellow musician's.
     !reading.trackOnly &&
@@ -2101,6 +2100,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
     (reading.page
       ? title === reading.page
       : isRelevantArticle(game, title, artist || !!song.performer) || (edition !== game && isRelevantArticle(edition, title, artist || !!song.performer))) &&
+    // A music video's artist is a band or singer, never a game or film of the same name.
     !(song.performer && NOT_A_PERFORMER.test(title));
   // A longer title than the subject: "Final Fantasy" -> "Final Fantasy VII".
   const gameTokens = significantTokens(normalizeTitle(game)).length;
@@ -2669,6 +2669,10 @@ export function retoldSentences(fact: string, context: string): string[] {
 export const support = (fact: string, context: string, cited?: string) =>
   cited !== undefined ? share(fact, cited) : Math.max(0, ...bodySentences(context).map((s) => share(fact, s)));
 
+/** Counts and ordinals written as words, for reading the numbers in a caption (`DIGIT_OF`). */
+const NUMBER_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "hundred", "dozen"];
+const ORDINALS = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+
 /**
  * Words that join two statements into a cause, an order, an intention or a
  * count. Names and years in a merged caption are all in the source, so only
@@ -2677,8 +2681,6 @@ export const support = (fact: string, context: string, cited?: string) =>
  * localization. Each is kept only when the sentence the caption retells has
  * a word of the same kind.
  */
-const NUMBER_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "hundred", "dozen"];
-const ORDINALS = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
   { label: "a cause", fact: /\b(due to|because|owing to|thanks to|as a result)\b/i, source: /\b(due to|because|owing to|thanks to|as a result|since|so|as (?:he|she|they|it|the|a|his|her|their))\b/i },
   { label: "a consequence", fact: /\b(led to|leading to|lead to|resulted in|prompted|caused)\b/i, source: /\b(led|lead|leading|result\w*|prompt\w*|caus\w*)\b/i },
