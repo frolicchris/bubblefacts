@@ -197,4 +197,14 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     expect(await fetchGrounding({ title: "Glass Harbour", artist: "The Velvet Lanterns" })).toBe("");
     expect(asked.some((u) => u.includes("musicbrainz.org"))).toBe(false);
   });
+
+  it("doesn't ask MusicBrainz for an artist called Traditional or Anon. (#261)", async () => {
+    scenario = fixtures.song;
+    (config as { mbLink: boolean }).mbLink = true;
+    clearLinkCache();
+    clearGroundingCache();
+    asked.length = 0;
+    await fetchGrounding({ title: "Glass Harbour", artist: "Traditional" });
+    expect(asked.some((u) => u.includes("musicbrainz.org"))).toBe(false);
+  });
 });

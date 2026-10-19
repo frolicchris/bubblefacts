@@ -50,7 +50,7 @@ To find your JWT token:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `SONG_SOURCE` | `streamersonglist` | Where song requests come from: `streamersonglist` or `streamelements`. |
+| `SONG_SOURCE` | `streamersonglist` | Where song requests come from: `streamersonglist` or `streamelements` (or `nowplaying`, see [A now playing file](#a-now-playing-file)). |
 | `SE_CHANNEL` | the token's channel | Your StreamElements channel name (optional: the token already says which channel). BubbleFacts also uses it as your name, for spotting your own compositions. |
 | `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
 | `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
@@ -63,6 +63,27 @@ Good to know:
 - If StreamElements says a song is playing but the overlay can't see which one for 30 seconds, it reports the connection as degraded (the desktop app shows "Reconnecting to StreamElements" and, if it lasts, restarts the server).
 - StreamElements only knows each request's YouTube title, such as "Artist - Song (Official Video)". BubbleFacts reads the song and artist out of it, so a clearly titled video gets better facts than "my fav song!!".
 - There are no live learns with StreamElements, so `LIVE_LEARNS` does nothing. Your notes about your own compositions show only when a request's artist is your channel name or `STREAMER_DISPLAY_NAME`. A tag alone isn't enough, so a friend's piece never gets them.
+
+---
+
+## A now playing file
+
+Some apps write the song playing now into a text file, one line, for OBS to
+show. BubbleFacts can follow that file instead of a request queue. Set
+`SONG_SOURCE=nowplaying` and these:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `NOW_PLAYING_FILE` | *required with a now playing file* | The text file to follow. A full path, or with a preset just the file's name. |
+| `NOW_PLAYING_FORMAT` | `artist-title` | How the line reads: `artist-title` for "Artist - Title", or `title` for the title alone. |
+| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt`, so `NOW_PLAYING_FILE` can stay empty. |
+
+Good to know:
+
+- An empty or missing file means no song, and the overlay clears.
+- A file that hasn't changed for 15 minutes counts as no song too, so last night's song never comes back when you start streaming.
+- The file says nothing about who asked or how long the song is, so facts built from those don't appear. Neither do live learns.
+- The line is read every 2 seconds. A new song shows once two checks in a row agree, so expect about 2 to 4 seconds.
 
 ---
 

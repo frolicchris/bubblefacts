@@ -1,6 +1,10 @@
 /** Escape a string for use inside a RegExp. */
 export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Artist fields that mean no artist (whole field, any case, optional period): "Traditional", "Trad.", "Anon.", "Anonymous", "Unknown", "Folk". */
+const NO_ARTIST = /^(?:traditional|trad|anonymous|anon|unknown|folk)\.?$/i;
+export const hasNoArtist = (artist?: string | null): boolean => NO_ARTIST.test((artist ?? "").trim());
+
 /** Longest title, artist or name kept from a request. Real ones are far shorter. */
 export const MAX_REQUEST_TEXT = 200;
 
