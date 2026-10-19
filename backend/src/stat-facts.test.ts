@@ -127,6 +127,16 @@ describe("buildStatFacts", () => {
     expect(isOriginal(entry({ artist: "Robinson Lee", attributes: [{ name: "Robinson's Originals" }] }), ["robinplays", "Robin"])).toBe(false);
   });
 
+  it("names no writer or credit when the artist field means no artist (issue #261)", () => {
+    for (const artist of ["Traditional", "Trad.", "Anon.", "Anonymous", "Folk"]) {
+      const song = entry({ title: "Marigold Lane", artist, attributes: [{ name: "Originals" }] });
+      const f = buildStatFacts(song, { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays", "Robin"] });
+      expect(f.join(" ")).not.toMatch(/composition by|person who wrote it|credited to|original/i);
+    }
+    const f = buildStatFacts(entry({ title: "Marigold Lane", artist: "Folk Lanterns" }), { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays"] });
+    expect(f).toContain('"Marigold Lane" is an original, credited to Folk Lanterns.');
+  });
+
   it("never claims another streamer's original was written by the one playing it", () => {
     // From review: Robin plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
     const song = entry({ title: "Evening Rain", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] });

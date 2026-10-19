@@ -3,6 +3,7 @@ import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -721,7 +722,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
  */
 export function liveLearnLookup(song: SSLSong): SSLSong | null {
   const artist = (song.artist ?? "").trim();
-  if (artist && !/^unknown$/i.test(artist)) return { title: song.title, artist };
+  if (artist && !hasNoArtist(artist)) return { title: song.title, artist };
   const parsed = parseVideoTitle(song.title);
   if (!parsed.artist || !parsed.title) return null;
   return { title: parsed.title, artist: parsed.artist, ...(parsed.performer ? { performer: true } : {}), ...(parsed.confident ? {} : { artistUncertain: true }) };

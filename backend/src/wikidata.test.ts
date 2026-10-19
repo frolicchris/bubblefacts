@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { factsFromEntity, pickSong, rankedClaims, searchLanguage } from "./wikidata";
+import { factsFromEntity, pickSong, rankedClaims, searchLanguage, wikidataFacts } from "./wikidata";
 
 describe("pickSong", () => {
   const lostBoy = [
@@ -95,5 +95,21 @@ describe("statement ranks (review)", () => {
     };
     expect(rankedClaims(e, "P577")).toHaveLength(1);
     expect(factsFromEntity(e, {}, "Song")).toEqual(['"Song" came out in 2000.']);
+  });
+});
+
+describe("wikidataFacts with no artist (issue #261)", () => {
+  it("does not look up a song whose artist field means no artist", async () => {
+    const fetchMock = jest.fn(async () => { throw new Error("offline"); });
+    const real = global.fetch;
+    global.fetch = fetchMock as unknown as typeof fetch;
+    try {
+      for (const artist of ["Traditional", "Trad.", "Anon.", "Anonymous", "Unknown", "Folk"]) {
+        expect(await wikidataFacts({ title: "Marigold Lane", artist })).toEqual([]);
+      }
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = real;
+    }
   });
 });
