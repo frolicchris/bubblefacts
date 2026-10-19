@@ -3516,6 +3516,89 @@ export function parseCitation(line: string): { at: number; text: string } {
 }
 
 /**
+ * Why a caption can't go on screen whatever its reference says: unsafe for a stream, about the
+ * prompt, too short, an opinion, an unnamed speaker, the music video, or another part of the
+ * soundtrack. Null when none. `titles`: the article's and the song's, which a caption may open with.
+ */
+function captionReason(fact: string, titles: string[], otherParts: string[]): string | null {
+  const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
+  if (unsafe) return unsafe.label;
+  if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
+  if (fact.length < 20) return "too short";
+  if (OPINION.test(fact)) return "opinion";
+  // "GameSpy called the music incredible": a review outlet's verdict is an opinion too.
+  if (CRITIC_NAMES.test(fact) && /\b(called|wrote|said|described|praised|named|ranked|listed|rated|felt|thought|noted)\b/i.test(fact)) return "a critic's view";
+  // "He combined two words": a viewer can't tell who.
+  if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
+  // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
+  // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
+  const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+  if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
+  if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
+  // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
+  const other = otherParts.find((p) => hasWord(p, fact, ""));
+  if (other) return `about another part of the soundtrack ("${other}")`;
+  return null;
+}
+
+/**
+ * Why the reference doesn't back a caption: a risky claim it doesn't make, then, when there is a
+ * reference, each name, date, credit, quote and joining word checked against it. Null when none.
+ * `track`: set when the article isn't the track's own, as for `screenClaims`.
+ */
+function sourceReason(fact: string, context: string, track: string | undefined): string | null {
+  for (const { re, label } of RISKY_PATTERNS) {
+    const m = fact.match(re);
+    if (m && !hasWord(m[0].trim(), context)) return label;
+  }
+  if (!context) return null;
+  const year = (fact.match(YEAR) ?? []).find((y) => !hasWord(y, context));
+  if (year) return `unsupported year ${year}`;
+  const day = unsupportedDay(fact, context);
+  if (day) return `unsupported date "${day}"`;
+  const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
+  if (platform) return `unsupported platform "${platform}"`;
+  const name = unsupportedName(fact, context);
+  if (name) return `unsupported name "${name}"`;
+  const credit = unsupportedCredit(fact, context);
+  if (credit) return `unsupported credit for "${credit}"`;
+  const winner = unsupportedWinner(fact, context);
+  if (winner) return `award not given to "${winner}" in the source`;
+  const quote = alteredQuote(fact, context);
+  if (quote) return `quote not in the source: "${quote}"`;
+  const joined = unsupportedConnective(fact, context, track ? [track] : []);
+  if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
+  const relation = unsupportedRelation(fact, context);
+  if (relation) return `"${relation}" isn't stated for them in the source`;
+  const lost = lostQualifier(fact, context);
+  if (lost) return lost;
+  const owner = wrongOwner(fact, context);
+  if (owner) return `the source says this of ${owner}`;
+  const subject = swappedSubject(fact, context);
+  if (subject) return `the sentence it retells isn't about "${subject}"`;
+  const speaker = misattributedWords(fact, context);
+  if (speaker) return `words the source doesn't give to ${speaker}`;
+  const doer = otherDoer(fact, context);
+  if (doer) return `the sentence it retells is about ${doer}`;
+  const role = reversedRole(fact, context);
+  if (role) return `the source names someone else's ${role}`;
+  const hedge = droppedHedge(fact, context);
+  if (hedge) return `drops the source's "${hedge}"`;
+  const placed = misplacedYear(fact, context);
+  if (placed) return `${placed} isn't the year of the sentence it retells`;
+  if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
+  const unnamedOne = unnamedReference(fact, context);
+  if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
+  const view = unattributedView(fact, context);
+  if (view) return `a view the source gives to ${view}`;
+  // "The musical won four Olivier Awards" from an artist's article, shown during another of their songs.
+  const unnamed = UNNAMED_WORK.exec(fact);
+  if (unnamed && track && !namesTrack(context.split("\n")[0], track) && !retoldSentences(fact, context).some((s) => namesTrack(s, track)))
+    return `doesn't say which ${unnamed[1].toLowerCase()}`;
+  return null;
+}
+
+/**
  * Keep only facts the reference visibly supports. With no reference (only
  * when FACT_VERIFICATION=off) the source checks are skipped but formatting,
  * meta-commentary, risky claims, length and duplicates are still screened.
@@ -3532,78 +3615,11 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
   const plainHyphens = (t: string) => t.replace(/[\u2010\u2011\u2012]/g, "-");
   const context = plainHyphens(rawContext);
 
-  const reasonToDrop = (fact: string): string | null => {
-    const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
-    if (unsafe) return unsafe.label;
-    if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
-    if (fact.length < 20) return "too short";
-    if (OPINION.test(fact)) return "opinion";
-    // "GameSpy called the music incredible": a review outlet's verdict is an opinion too.
-    if (CRITIC_NAMES.test(fact) && /\b(called|wrote|said|described|praised|named|ranked|listed|rated|felt|thought|noted)\b/i.test(fact)) return "a critic's view";
-    // "He combined two words": a viewer can't tell who.
-    if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
-    // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
-    // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
-    const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
-    const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
-    if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
-    if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
-    // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
-    const other = (opts.otherParts ?? []).find((p) => hasWord(p, fact, ""));
-    if (other) return `about another part of the soundtrack ("${other}")`;
-    for (const { re, label } of RISKY_PATTERNS) {
-      const m = fact.match(re);
-      if (m && !hasWord(m[0].trim(), context)) return label;
-    }
-    if (context) {
-      const year = (fact.match(YEAR) ?? []).find((y) => !hasWord(y, context));
-      if (year) return `unsupported year ${year}`;
-      const day = unsupportedDay(fact, context);
-      if (day) return `unsupported date "${day}"`;
-      const platform = (fact.match(PLATFORM_PATTERN) ?? []).find((p) => !platformSupported(p, context));
-      if (platform) return `unsupported platform "${platform}"`;
-      const name = unsupportedName(fact, context);
-      if (name) return `unsupported name "${name}"`;
-      const credit = unsupportedCredit(fact, context);
-      if (credit) return `unsupported credit for "${credit}"`;
-      const winner = unsupportedWinner(fact, context);
-      if (winner) return `award not given to "${winner}" in the source`;
-      const quote = alteredQuote(fact, context);
-      if (quote) return `quote not in the source: "${quote}"`;
-      const joined = unsupportedConnective(fact, context, opts.track ? [opts.track] : []);
-      if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
-      const relation = unsupportedRelation(fact, context);
-      if (relation) return `"${relation}" isn't stated for them in the source`;
-      const lost = lostQualifier(fact, context);
-      if (lost) return lost;
-      const owner = wrongOwner(fact, context);
-      if (owner) return `the source says this of ${owner}`;
-      const subject = swappedSubject(fact, context);
-      if (subject) return `the sentence it retells isn't about "${subject}"`;
-      const speaker = misattributedWords(fact, context);
-      if (speaker) return `words the source doesn't give to ${speaker}`;
-      const doer = otherDoer(fact, context);
-      if (doer) return `the sentence it retells is about ${doer}`;
-      const role = reversedRole(fact, context);
-      if (role) return `the source names someone else's ${role}`;
-      const hedge = droppedHedge(fact, context);
-      if (hedge) return `drops the source's "${hedge}"`;
-      const placed = misplacedYear(fact, context);
-      if (placed) return `${placed} isn't the year of the sentence it retells`;
-      if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
-      const unnamedOne = unnamedReference(fact, context);
-      if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
-      const view = unattributedView(fact, context);
-      if (view) return `a view the source gives to ${view}`;
-      // "The musical won four Olivier Awards" from an artist's article, shown during another of their songs.
-      const unnamed = UNNAMED_WORK.exec(fact);
-      const track = opts.track ?? "";
-      if (unnamed && track && !namesTrack(context.split("\n")[0], track) && !retoldSentences(fact, context).some((s) => namesTrack(s, track)))
-        return `doesn't say which ${unnamed[1].toLowerCase()}`;
-    }
-    if (fact.length > MAX_FACT_CHARS) return `too long (${fact.length} chars)`;
-    return null;
-  };
+  const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
+  const reasonToDrop = (fact: string): string | null =>
+    captionReason(fact, titles, opts.otherParts ?? []) ??
+    sourceReason(fact, context, opts.track) ??
+    (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
   // Told to cite, the model numbers each caption with the sentence it retells (`numberedReference`).
   // That sentence stands in for the guess by shared words, and the caption must match it (`citedMismatch`).
