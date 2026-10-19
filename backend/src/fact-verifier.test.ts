@@ -43,6 +43,7 @@ import {
   isSameWorkRedirect,
   editDistance,
   opensAboutMusicOrWork,
+  isDisambiguation,
   isPlaceholderRequest,
   requestNames,
   articleMisfit,
@@ -1542,6 +1543,20 @@ describe("the article must fit the request", () => {
     expect(opensAboutMusicOrWork("The Touhou Project is a bullet hell shoot 'em up video game series created by ZUN.")).toBe(true);
     expect(opensAboutMusicOrWork("Star Trek: Voyager is an American science fiction television series created by Rick Berman, Michael Piller and Jeri Taylor.")).toBe(true);
     expect(opensAboutMusicOrWork("Erik Satie was a French composer and pianist.")).toBe(true);
+  });
+
+  it("knows a classical piece by its form: a minuet, a mazurka, a work for piano", () => {
+    // A minuet's article named neither "composition" nor "piece", so it was skipped for a list page.
+    expect(opensAboutMusicOrWork("The Minuet in A minor, Op. 7, No. 3, is the third of the Seven Minuets by Robin Ashby. The set was published in 1801 as a work for solo piano.")).toBe(true);
+    expect(opensAboutMusicOrWork("The Mazurka in F major is one of the late mazurkas by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Harbor Lights Variations is a set of variations for string quartet by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Paper Lanterns is a town in the north of the county, on the river.")).toBe(false);
+  });
+
+  it('treats "can refer to" like "may refer to": a list page names other works', () => {
+    expect(isDisambiguation("Minuet in A minor can refer to numerous musical compositions, including:\nMinuet in A minor, by Jane Composer")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. It may also refer to:\nPaper Lanterns (album)")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. Critics called it her best single.")).toBe(false);
   });
 
   it("knows a request placeholder from a song", () => {
