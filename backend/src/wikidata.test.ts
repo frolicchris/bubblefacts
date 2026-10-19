@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { factsFromEntity, pickSong, rankedClaims, searchLanguage } from "./wikidata";
+import { factsFromEntity, pickSong, rankedClaims, searchLanguage, searchLanguages, wikidataFacts } from "./wikidata";
 
 describe("pickSong", () => {
   const lostBoy = [
@@ -95,5 +95,81 @@ describe("statement ranks (review)", () => {
     };
     expect(rankedClaims(e, "P577")).toHaveLength(1);
     expect(factsFromEntity(e, {}, "Song")).toEqual(['"Song" came out in 2000.']);
+  });
+});
+
+describe("Han-only titles (#183)", () => {
+  it("tries Japanese, then Chinese, then English for Han characters alone", () => {
+    expect(searchLanguages("星空旋律")).toEqual(["ja", "zh", "en"]);
+    expect(searchLanguage("星空旋律")).toBe("ja");
+  });
+
+  it("keeps one language for titles with kana, Hangul or Cyrillic, and Latin titles", () => {
+    expect(searchLanguages("星空のワルツ")).toEqual(["ja"]); // kanji with kana is Japanese
+    expect(searchLanguages("별빛 노래")).toEqual(["ko"]);
+    expect(searchLanguages("Звёздная песня")).toEqual(["ru"]);
+    expect(searchLanguages("Starlight Waltz")).toEqual(["en"]);
+  });
+
+  it("matches a Chinese description that names the artist in Han characters", () => {
+    const hits = [{ id: "Q1", label: "星空旋律", description: "林小雨演唱的歌曲" }];
+    expect(pickSong(hits, "星空旋律", "林小雨")).toBe("Q1");
+    expect(pickSong(hits, "星空旋律", "陈大文")).toBeNull();
+    expect(pickSong([{ id: "Q2", label: "星空旋律", description: "1994年電影" }], "星空旋律", "林小雨")).toBeNull();
+    expect(pickSong([{ id: "Q3", label: "星空旋律", description: "林小雨的單曲" }], "星空旋律", "林小雨")).toBe("Q3");
+  });
+});
+
+describe("wikidataFacts for a Han-only title (#183)", () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  /** A fake Wikidata: searches answer by language, entity lookups answer with a small song item. */
+  function fakeWikidata(byLanguage: Record<string, unknown[]>) {
+    const languages: string[] = [];
+    global.fetch = jest.fn(async (url: string | URL | Request) => {
+      const u = new URL(String(url));
+      let body: unknown = {};
+      if (u.searchParams.get("action") === "wbsearchentities") {
+        languages.push(u.searchParams.get("language") ?? "");
+        body = { search: byLanguage[u.searchParams.get("language") ?? ""] ?? [] };
+      } else {
+        const ids = (u.searchParams.get("ids") ?? "").split("|");
+        body = {
+          entities: Object.fromEntries(
+            ids.map((id) => [
+              id,
+              id === "Q5001"
+                ? { id, claims: { P577: [{ mainsnak: { datavalue: { value: { time: "+1990-01-01T00:00:00Z" } } } }] } }
+                : { id },
+            ])
+          ),
+        };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as unknown as typeof fetch;
+    return languages;
+  }
+  const song = (title: string, artist: string) => ({ title, artist });
+  const hit = (label: string) => ({ id: "Q5001", label, description: "1990 single by Lin Xiaoyu" });
+
+  it("stops at Japanese when it finds the song", async () => {
+    const languages = fakeWikidata({ ja: [hit("星空旋律")] });
+    expect(await wikidataFacts(song("星空旋律", "Lin Xiaoyu"))).toEqual(['"星空旋律" came out in 1990.']);
+    expect(languages).toEqual(["ja"]);
+  });
+
+  it("goes on to Chinese when Japanese finds no song", async () => {
+    const languages = fakeWikidata({ ja: [{ id: "Q9", label: "月光小夜曲", description: "2001 film" }], zh: [hit("月光小夜曲")] });
+    expect(await wikidataFacts(song("月光小夜曲", "Lin Xiaoyu"))).toEqual(['"月光小夜曲" came out in 1990.']);
+    expect(languages).toEqual(["ja", "zh"]);
+  });
+
+  it("ends with English, and gives nothing when no search finds the song", async () => {
+    const languages = fakeWikidata({});
+    expect(await wikidataFacts(song("夜空之歌", "Lin Xiaoyu"))).toEqual([]);
+    expect(languages).toEqual(["ja", "zh", "en"]);
   });
 });

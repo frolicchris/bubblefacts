@@ -562,8 +562,10 @@ no screening, and are skipped for a song whose structured facts were marked
 **Wrong**.
 
 - **Wikidata** (`wikidata.ts`). `wbsearchentities` in the title's own
-  language (`searchLanguage`: Japanese, Korean or Russian when the title is in
-  that script, else English), so 紅蓮華 finds LiSA's song. `pickSong` takes
+  language (`searchLanguages`: Japanese, Korean or Russian when the title is in
+  that script, else English), so 紅蓮華 finds LiSA's song. A title of Han
+  characters alone tries Japanese, then Chinese, then English, and stops at
+  the first search that finds a song. `pickSong` takes
   only an item whose label is the title and whose description is a music
   item naming the artist or game ("2021 single by Lil Nas X"), so a
   same-named song by someone else never matches. Deprecated statements are

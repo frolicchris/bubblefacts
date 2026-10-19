@@ -19,24 +19,34 @@ import { escapeRe } from "./text";
 
 const API = "https://www.wikidata.org/w/api.php";
 /** A description that says the item is a piece of music. */
-const MUSIC_ITEM = /\b(song|single|track|instrumental|composition|recording|theme|piece|anthem)\b|楽曲|シングル|ソング|노래|싱글|歌曲|单曲|песня|сингл/i;
+const MUSIC_ITEM = /\b(song|single|track|instrumental|composition|recording|theme|piece|anthem)\b|楽曲|シングル|ソング|노래|싱글|歌曲|单曲|單曲|песня|сингл/i;
 
 /**
- * The language to search in for a title written in another script, so
- * 「紅蓮華」 finds LiSA's song by its real name instead of a guessed
- * transliteration ("Gurenge"). Latin-script titles search in English.
+ * The languages to search in, in order, for a title written in another
+ * script, so 「紅蓮華」 finds LiSA's song by its real name instead of a guessed
+ * transliteration ("Gurenge"). Latin-script titles search in English. A title
+ * of Han characters alone could be Japanese or Chinese: Japanese first (most
+ * kanji-only titles on music streams), then Chinese, then English (an item
+ * with no Japanese or Chinese label shows its title as written).
  */
+export function searchLanguages(title: string): string[] {
+  if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title)) return ["ja"];
+  if (/\p{Script=Hangul}/u.test(title)) return ["ko"];
+  if (/\p{Script=Han}/u.test(title)) return ["ja", "zh", "en"];
+  if (/\p{Script=Cyrillic}/u.test(title)) return ["ru"];
+  return ["en"];
+}
+
+/** The first language to search in. */
 export function searchLanguage(title: string): string {
-  if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title)) return "ja";
-  if (/\p{Script=Hangul}/u.test(title)) return "ko";
-  if (/\p{Script=Han}/u.test(title)) return "ja"; // kanji-only titles are most often Japanese on music streams
-  if (/\p{Script=Cyrillic}/u.test(title)) return "ru";
-  return "en";
+  return searchLanguages(title)[0] ?? "en";
 }
 
 /** A Latin-script name in text of any script: "LiSA" in "LiSAの楽曲", but not "Sia" in "Asia". */
 function namesArtist(text: string, names: string[]): boolean {
   const t = normalizeTitle(text);
+  // Han names have no spaces around them in Chinese or Japanese text: "鄧麗君演唱的歌曲".
+  if (names.some((n) => /\p{Script=Han}/u.test(n) && n.replace(/\s/g, "").length >= 2 && t.includes(n))) return true;
   return names.some((n) => new RegExp(`(^|[^\\p{Script=Latin}\\p{N}])${escapeRe(n)}($|[^\\p{Script=Latin}\\p{N}])`, "u").test(t));
 }
 const MAX_NAMES = 3;
@@ -148,10 +158,15 @@ export async function wikidataFacts(song: SSLSong): Promise<string[]> {
   if (hit && (hit.facts.length || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.facts;
 
   try {
-    const search = await get<{ search?: Array<{ id: string; label?: string; description?: string }> }>({
-      action: "wbsearchentities", search: title, language: searchLanguage(title), uselang: searchLanguage(title), type: "item", limit: "10",
-    });
-    const id = pickSong(search.search ?? [], title, game);
+    // The next language is tried only when the one before found no song.
+    let id: string | null = null;
+    for (const language of searchLanguages(title)) {
+      const search = await get<{ search?: Array<{ id: string; label?: string; description?: string }> }>({
+        action: "wbsearchentities", search: title, language, uselang: language, type: "item", limit: "10",
+      });
+      id = pickSong(search.search ?? [], title, game);
+      if (id) break;
+    }
     if (!id) {
       console.log(`[Wikidata] No song item for "${title}" by ${game}`);
       cache.set(key, { facts: [], at: Date.now() });
