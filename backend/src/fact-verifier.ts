@@ -2043,6 +2043,103 @@ export function isPerformerArticle(page: string, full: string): boolean {
   return PERFORMER_WORDS.test(openingSays(full));
 }
 
+/**
+ * A game's track with an article of its own ("Megalovania", "Baba Yetu"): the reference, or "" when
+ * it has none, or null when Wikipedia couldn't be asked (throttled or unreachable).
+ */
+async function trackOwnArticle(song: SSLSong, game: string, track: string, usable: (title: string) => boolean): Promise<string | null> {
+  try {
+    const own = (await wikiSearch(`${track} ${game}`)).find(
+      (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
+    );
+    const full = own ? await wikiExtract(own) : null;
+    // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
+    const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
+    const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? ownArticleExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
+    if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
+      console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
+      return `${own}\n${extract}`;
+    }
+    return "";
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the grounding cache holds under a key, if it can be used: the reference, "" for a
+ * recent miss, or undefined when there's nothing (a blocked article, an expired miss).
+ */
+function cachedGrounding(key: string, usable: (title: string) => boolean): string | undefined {
+  const hit = groundingCache.get(key);
+  if (!hit) return undefined;
+  if (hit.text) return usable(hit.text.split("\n")[0]) ? hit.text : undefined;
+  return Date.now() - hit.at < NEGATIVE_TTL_MS ? "" : undefined;
+}
+
+/** What to search Wikipedia for, in order, for one reading of the request. */
+function groundingTerms(song: SSLSong, reading: Reading, artist: boolean): string[] {
+  const { game, track } = reading;
+  const terms = song.artistUncertain && track !== game
+    ? [track]
+    : searchTerms(game, track, artist || !!song.performer, reading.notGame || reading.fromTitle);
+  // The page Wikipedia named is searched for by its own title; a series also by its bare name ("Star Trek").
+  const series = /^(.+) (?:series|franchise)$/i.exec(game)?.[1];
+  for (const extra of [reading.page, series]) {
+    if (extra && !terms.includes(extra)) terms.splice(terms.includes(game) ? terms.indexOf(game) : terms.length, 0, extra);
+  }
+  // A music video's artist may share a name with a game or film; ask for the performer.
+  if (song.performer && !looksLikeArtistName(game) && game.trim()) {
+    const at = terms.indexOf(game);
+    terms.splice(at < 0 ? terms.length : at, 0, `${game} band`);
+  }
+  return terms;
+}
+
+/**
+ * Why a search result doesn't fit this reading, or "" when it does. `byGame`: it matched as the
+ * game's or artist's article, not the track's; `installment`: as a longer title than the game's.
+ */
+function pageMisfit(
+  song: SSLSong,
+  reading: Reading,
+  page: string,
+  full: string | null,
+  how: { byGame: boolean; installment: boolean; names: string[]; classical: ClassicalTitle | null }
+): string {
+  if (!full) return "";
+  const { game, track } = reading;
+  const { byGame, installment, names, classical } = how;
+  // An installment or spin-off is only right when it's the song's own game: it must name the track.
+  // A generic name ("Main Theme") is in every installment's article, so it names none of them.
+  if (installment && (GENERIC_TRACK.test(normalizeTitle(track)) || !mentionsName(normalizeTitle(full), [normalizeTitle(track)]))) return `never mentions "${track}"`;
+  // A performer's name alone can be an everyday word: "Milestone" is about road markers.
+  if (byGame && song.performer && !/\(/.test(page) && !PERFORMER_LEAD.test(full.slice(0, 400))) return "isn't about a performer";
+  // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
+  // A game's or a show's own article under that very name serves too: "Kingdom Hearts / Some Remixer".
+  const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isWorkArticle(page, full);
+  if (byGame && reading.aPerformer && !isPerformerArticle(page, full) && !workByName()) return "isn't about a performer";
+  // A piece read from the title must be one: "Overwatch" read as a track name isn't "Overwatch and pornography".
+  if (!byGame && reading.fromTitle && !isPieceArticle(page, full)) return "isn't about a piece of music";
+  // A work read from the title must be a game, a film or a show: "Aladdin" is also a folk tale.
+  if (byGame && reading.fromTitle && !isWorkArticle(page, full)) return "isn't a game, a film or a show";
+  // "Passacaglia (Handel/Halvorsen)" names its composers in its title.
+  const qualifier = qualifierOf(page) ?? "";
+  if (!byGame && !mentionsName(`${normalizeTitle(full)} ${normalizeTitle(qualifier)}`, names)) return `never mentions "${game}"`;
+  return classical ? notForAPiece(page, full, classical) : "";
+}
+
+/**
+ * The part of an article to write from: the song's own article whole, or a game's or an artist's
+ * cut to what's about the track. `ownArticle`: the article is the song's own (or the request is the game).
+ */
+function articleExtract(page: string, full: string | null, ownArticle: boolean, byGame: boolean, game: string, track: string): string {
+  if (!full) return "";
+  return ownArticle && !byGame
+    ? ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [track, game])
+    : orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track], ownArticle);
+}
+
 /** One reading of the request, looked up the usual way. */
 async function groundReading(song: SSLSong, reading: Reading, blocked: Set<string>): Promise<Grounded> {
   const { game, track } = reading;
@@ -2064,27 +2161,17 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   // A generic name ("Theme") has no article of its own: "Theme from Star Trek" is another show's.
   const generic = GENERIC_TRACK.test(normalizeTitle(track));
   if (!artist && track && track !== game && !generic && !song.artistUncertain && !noOwnArticle.has(trackCacheKey) && !groundingCache.get(trackCacheKey)?.text) {
-    try {
-      const own = (await wikiSearch(`${track} ${game}`)).find(
-        (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
-      );
-      const full = own ? await wikiExtract(own) : null;
-      // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
-      const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
-      const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? ownArticleExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
-      if (own && extract && extract.length >= MIN_CONTEXT_CHARS) {
-        const text = `${own}\n${extract}`;
-        console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
-        groundingCache.set(trackCacheKey, { text, at: Date.now() });
-        return { text, unreachable: false };
-      }
-      noOwnArticle.add(trackCacheKey);
-    } catch {
-      // Throttled or unreachable: the game's article below still serves, and this is tried again next time.
+    const own = await trackOwnArticle(song, game, track, usable);
+    if (own) {
+      groundingCache.set(trackCacheKey, { text: own, at: Date.now() });
+      return { text: own, unreachable: false };
     }
+    // Null when throttled or unreachable: the game's article below still serves, and this is tried again next time.
+    if (own === "") noOwnArticle.add(trackCacheKey);
   }
-  const ownHit = groundingCache.get(trackCacheKey);
-  if (!artist && ownHit?.text && usable(ownHit.text.split("\n")[0])) return { text: ownHit.text, unreachable: false };
+  // The track's own article, found before.
+  const ownHit = artist ? undefined : cachedGrounding(trackCacheKey, usable);
+  if (ownHit) return { text: ownHit, unreachable: false };
   // A game already looked up: this track's reference is built from the kept articles.
   const kept = !song.performer && track !== game ? gameArticles.get(gameCacheKey) : undefined;
   if (kept && usable(kept.page)) {
@@ -2092,10 +2179,10 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
     groundingCache.set(trackCacheKey, { text, at: Date.now() });
     return { text, unreachable: false };
   }
+  // The game's reference or the track's, or a recent miss.
   for (const key of artist ? [trackCacheKey] : [gameCacheKey, trackCacheKey]) {
-    const hit = key && groundingCache.get(key);
-    if (hit && hit.text && !usable(hit.text.split("\n")[0])) continue;
-    if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return { text: hit.text, unreachable: false };
+    const hit = key ? cachedGrounding(key, usable) : undefined;
+    if (hit !== undefined) return { text: hit, unreachable: false };
   }
 
   // "Ecco the Dolphin CD" is the game "Ecco the Dolphin": an edition word isn't part of its name.
@@ -2126,19 +2213,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
 
   // "Lil Nas X, Jack Harlow": a song's article may name only its lead artist.
   const names = artistNames(game);
-  const terms = song.artistUncertain && track !== game
-    ? [track]
-    : searchTerms(game, track, artist || !!song.performer, reading.notGame || reading.fromTitle);
-  // The page Wikipedia named is searched for by its own title; a series also by its bare name ("Star Trek").
-  const series = /^(.+) (?:series|franchise)$/i.exec(game)?.[1];
-  for (const extra of [reading.page, series]) {
-    if (extra && !terms.includes(extra)) terms.splice(terms.includes(game) ? terms.indexOf(game) : terms.length, 0, extra);
-  }
-  // A music video's artist may share a name with a game or film; ask for the performer.
-  if (song.performer && !looksLikeArtistName(game) && game.trim()) {
-    const at = terms.indexOf(game);
-    terms.splice(at < 0 ? terms.length : at, 0, `${game} band`);
-  }
+  const terms = groundingTerms(song, reading, artist);
   let unreachable = "";
   // A classical piece is never read from a film's, a show's or a non-musician's article, or another key's piece (issue #260).
   const classical = classicalAsk(song);
@@ -2162,53 +2237,17 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       }
       const byGame = matchedGame(page);
       const full = await wikiExtract(page);
-      // An installment or spin-off is only right when it's the song's own game: it must name the track.
       const installment = byGame && extendsGame(page) && track !== game && !reading.page;
-      // A generic name ("Main Theme") is in every installment's article, so it names none of them.
-      if (installment && full && (GENERIC_TRACK.test(normalizeTitle(track)) || !mentionsName(normalizeTitle(full), [normalizeTitle(track)]))) {
-        console.log(`[Grounding] "${page}" never mentions "${track}", skipping`);
-        continue;
-      }
-      // A performer's name alone can be an everyday word: "Milestone" is about road markers.
-      if (byGame && song.performer && !/\(/.test(page) && full && !PERFORMER_LEAD.test(full.slice(0, 400))) {
-        console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
-        continue;
-      }
-      // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
-      // A game's or a show's own article under that very name serves too: "Kingdom Hearts / Some Remixer".
-      const workByName = () => !/\(/.test(page) && normalizeTitle(page) === normalizeTitle(game) && isWorkArticle(page, full ?? "");
-      if (byGame && reading.aPerformer && full && !isPerformerArticle(page, full) && !workByName()) {
-        console.log(`[Grounding] "${page}" isn't about a performer, skipping`);
-        continue;
-      }
-      // A piece read from the title must be one: "Overwatch" read as a track name isn't "Overwatch and pornography".
-      if (!byGame && reading.fromTitle && full && !isPieceArticle(page, full)) {
-        console.log(`[Grounding] "${page}" isn't about a piece of music, skipping`);
-        continue;
-      }
-      // A work read from the title must be a game, a film or a show: "Aladdin" is also a folk tale.
-      if (byGame && reading.fromTitle && full && !isWorkArticle(page, full)) {
-        console.log(`[Grounding] "${page}" isn't a game, a film or a show, skipping`);
-        continue;
-      }
-      // "Passacaglia (Handel/Halvorsen)" names its composers in its title.
-      const qualifier = qualifierOf(page) ?? "";
-      if (!byGame && full && !mentionsName(`${normalizeTitle(full)} ${normalizeTitle(qualifier)}`, names)) {
-        console.log(`[Grounding] "${page}" never mentions "${game}", skipping`);
-        continue;
-      }
-      const notAPiece = classical && full ? notForAPiece(page, full, classical) : "";
-      if (notAPiece) {
-        console.log(`[Grounding] "${page}" ${notAPiece}, skipping`);
+      const why = pageMisfit(song, reading, page, full, { byGame, installment, names, classical });
+      if (why) {
+        console.log(`[Grounding] "${page}" ${why}, skipping`);
         continue;
       }
       // The song's own article, or one about the whole game or artist?
       const ownArticle = !byGame || track === game || matchedTrack(page);
-      const extract = full && (ownArticle && !byGame
-        ? ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [track, game])
-        : orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track], ownArticle));
-      if (!extract || extract.length < MIN_CONTEXT_CHARS) {
-        console.log(`[Grounding] "${page}" is too short to write from (${extract?.length ?? 0} chars)`);
+      const extract = articleExtract(page, full, ownArticle, byGame, game, track);
+      if (extract.length < MIN_CONTEXT_CHARS) {
+        console.log(`[Grounding] "${page}" is too short to write from (${extract.length} chars)`);
         continue;
       }
       let text = `${page}\n${extract}`;
