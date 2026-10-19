@@ -167,8 +167,8 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     }
     if (HAS_SOUNDTRACK.test(inner)) {
       // "(Soundtrack by Ramin Djawadi)" credits a composer; it doesn't name the work.
-      const work = withoutSoundtrack(inner);
-      if (!/^by\s/i.test(work)) source ||= work;
+      const soundtrackWork = withoutSoundtrack(inner);
+      if (!/^by\s/i.test(soundtrackWork)) source ||= soundtrackWork;
       return " ";
     }
     // "(Live at Glastonbury 2016)", "(Acoustic Version)": a variant of the song, not its name.
