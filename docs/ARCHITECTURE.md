@@ -440,6 +440,43 @@ piece may carry a translated title. A misfit is passed over and the lookup
 tried again without it, twice at most. Queue placeholders ("Off-List YouTube
 Request < 5 Min (Free)") aren't looked up at all.
 
+**Classical pieces** (issue #260; `CLASSICAL_LOOKUP=off` skips this). A
+search for "Moonlight Sonata" or "Nocturne Op. 9 No. 2" finds a film called
+"Beethoven", another prelude, or nothing: the article is filed under "Piano
+Sonata No. 14 (Beethoven)". So before the usual readings, the artist field is
+looked up on Wikidata, and when it is a composer or a classical performer, the
+work is found there:
+
+- The title is read apart first (`parseClassicalTitle`): catalog numbers (Op.,
+  BWV, K./KV, D., Hob., RV, HWV, S., WoO, L.), "No.", the key however it is
+  written (E-flat, Eb, E♭, C#), and a movement ("3rd Movement", "2nd mvt",
+  "I. Allegro"), kept as a hint for which section to read first, never
+  searched. A bare "Prelude" or "Nocturne" names no one work and is skipped.
+- A composer's works are searched with the composer (P86), so a nickname in
+  the item's aliases or P1449 finds the work. Only an item whose names hold the
+  request's words, with every number it gives and the same key, counts: the
+  Prelude in G minor is not the Prelude in C-sharp minor. A catalog code on the
+  item (P528) is enough on its own ("BWV 1007 Prelude": "Prelude" is a movement).
+- A performer in the artist field (a pianist, an orchestra; never a pop act)
+  has the piece looked up by its title alone, and the reference says who wrote
+  it, so no caption calls the pianist the composer. So does a composer of our
+  time playing an older piece.
+- A piece with no article of its own is read from the work it is part of
+  (P361), or that lists it as a part (P527), or the set it is numbered in
+  ("Two Arabesques" for "Arabesque No. 1"): "Clair de lune" in "Suite
+  bergamasque", "Dance of the Sugar Plum Fairy" in "The Nutcracker". The
+  section about the piece leads (by its name, or by its number in a set: "No.
+  2 in E♭ major"), and `workMatchConfidence` is `sure` only when there is one.
+  A whole piece and one of its movements are cached apart.
+- A classical request is never read from a film's, a show's or a book's
+  article, a person who isn't a musician, or a piece in another key, by any
+  reading (`notForAPiece`).
+
+Wikidata's full-text search is rate-limited hard, so its requests are a
+second apart, and a throttled lookup is never cached: the usual lookup runs
+instead, and the work is tried again next time. The cost is two requests per
+artist per session, and two to four more for a classical request.
+
 **Is it the requested work?** On songs no fix had seen, almost half the wrong
 bubbles came from an article about another work: a sequel or an edition, a
 series, a film named like the band, the original of a cover. Screening can't
