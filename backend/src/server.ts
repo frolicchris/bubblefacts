@@ -7,6 +7,7 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
+import { NowPlayingFileSource } from "./now-playing-file";
 import { positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { findSongFacts, saveSongFacts, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
@@ -45,7 +46,10 @@ const wss = new WebSocketServer({
     return !refused;
   },
 });
-const songList: SongSource = config.songSource === "streamelements" ? new StreamElementsClient() : new SongListClient();
+const songList: SongSource =
+  config.songSource === "streamelements" ? new StreamElementsClient()
+  : config.songSource === "nowplaying" ? new NowPlayingFileSource()
+  : new SongListClient();
 
 interface Client {
   id: number;
@@ -473,22 +477,11 @@ app.get("/health", (_req, res) => {
   });
 });
 
-/** What the overlay is showing now. Read-only, unlike /current-facts. */
+/** What the overlay is showing now. Read-only. */
 app.get("/recent", (_req, res) => {
   // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
   const song = songFrom(lastSent.song);
   res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier });
-});
-
-/** Facts for whatever is playing now, for testing without OBS. */
-app.get("/current-facts", async (_req, res) => {
-  const current = songList.getCurrentSong();
-  if (!current) {
-    res.json({ song: null, facts: [] });
-    return;
-  }
-  const song = songList.toSong(current);
-  res.json({ song, facts: await generateFacts(song, current) });
 });
 
 // --- Start -----------------------------------------------------------------
@@ -500,7 +493,7 @@ songList.onCurrentSongChange((current) => {
 // Listen before connecting upstream, so a slow API never delays the overlay's socket.
 server.listen(config.port, config.host, () => {
   console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
-  console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || "(from the token)"}" on ${songList.name}`);
+  console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || (config.songSource === "nowplaying" ? config.streamerDisplayName : "(from the token)")}" on ${songList.name}`);
 });
 
 void warmUpBuiltin();

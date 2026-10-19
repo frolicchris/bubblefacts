@@ -23,7 +23,7 @@ jest.mock("./config", () => ({
   },
 }));
 
-jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]) }));
+jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]), artistFacts: jest.fn().mockResolvedValue([]) }));
 jest.mock("./musicbrainz", () => ({ musicbrainzFacts: jest.fn().mockResolvedValue([]) }));
 
 jest.mock("./fact-verifier", () => ({
@@ -37,7 +37,7 @@ import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
-import { wikidataFacts } from "./wikidata";
+import { artistFacts, wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
 
 const MODEL_LINES = [
@@ -218,14 +218,14 @@ describe("generateFacts", () => {
   });
 
   it("shows the streamer's own facts for a song first, exactly as written, and labels every source", async () => {
-    saveSongFacts({ title: "Evening Rain", artist: "Chris", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
-    const facts = await generateFacts({ title: "Evening Rain", artist: "Chris" });
+    saveSongFacts({ title: "Evening Rain", artist: "Robin", songwriters: ["Jane Composer"], facts: ["Jane wrote it in one night."] });
+    const facts = await generateFacts({ title: "Evening Rain", artist: "Robin" });
     expect(facts.map((f) => [f.text, f.source])).toEqual([
       ['"Evening Rain" was written by Jane Composer.', SOURCE.yours],
       ["Jane wrote it in one night.", SOURCE.yours],
     ]);
     expect(mockCreate).not.toHaveBeenCalled();
-    saveSongFacts({ title: "Evening Rain", artist: "Chris", facts: [] });
+    saveSongFacts({ title: "Evening Rain", artist: "Robin", facts: [] });
   });
 
   it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {
@@ -422,9 +422,16 @@ describe("generateFacts", () => {
   });
 
   it("gives the AI the same system prompt as every other provider (the built-in model had node-llama-cpp's own)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "System Song", artist: "System Artist" });
     expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
     expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
+  });
+
+  it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
+    await generateFacts({ title: "Unchecked Song", artist: "System Artist" });
+    expect(mockCreate.mock.calls[0][0].system).not.toMatch(/reference/);
   });
 
   it("caches a song's facts", async () => {
@@ -471,6 +478,8 @@ describe("generateFacts", () => {
     expect(liveLearnLookup({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true }))
       .toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
     expect(liveLearnLookup({ title: "Some Tune", artist: "Unknown", liveLearn: true })).toBeNull();
+    for (const artist of ["Traditional", "Trad.", "Anon.", "Anonymous", "Folk"]) expect(liveLearnLookup({ title: "Some Tune", artist, liveLearn: true })).toBeNull();
+    expect(liveLearnLookup({ title: "Some Tune", artist: "Folk Lanterns", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Folk Lanterns" });
     expect(liveLearnLookup({ title: "Some Tune", artist: "Jane Composer", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Jane Composer" });
 
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);
@@ -539,6 +548,60 @@ describe("generateFacts", () => {
     expect(fetchGrounding).toHaveBeenCalledTimes(1);
     expect(mockCreate).not.toHaveBeenCalled();
     expect(facts[0].text).toMatch(/First time on stream/);
+  });
+});
+
+describe("an article that may be about another work (issue #255)", () => {
+  const series = "Rocket Drift\nRocket Drift is a video game series developed by Pellmore. It began with a 1988 game, and a 2017 reboot followed with new levels and a new score by Ivo Marsh.";
+  const track = { title: "Area 3", artist: "Rocket Drift" };
+  const abstain = (on: boolean) => ((config as { abstain?: boolean }).abstain = on);
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    abstain(true);
+  });
+  afterAll(() => abstain(false));
+
+  it("writes no AI captions: the song's data facts, then two about its game", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series);
+    (artistFacts as jest.Mock).mockResolvedValueOnce(["The music of Rocket Drift is by Ada Penn.", "Rocket Drift was developed by Pellmore."]);
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts(track);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(facts.map((f) => f.text)).toEqual(["The music of Rocket Drift is by Ada Penn.", "Rocket Drift was developed by Pellmore."]);
+    expect(facts.every((f) => f.source === SOURCE.wikidata)).toBe(true);
+    expect(log.mock.calls.some(([line]) => /^\[Grounding\] unsure: a series' article/.test(String(line)))).toBe(true);
+    log.mockRestore();
+  });
+
+  it("asks for nothing about the artist when the song's own data fills two bubbles", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Area 3" came out in 1988.', '"Area 3" was composed by Ada Penn.']);
+    (artistFacts as jest.Mock).mockClear();
+    const facts = (await generateFacts(track)).map((f) => f.text);
+    expect(facts).toEqual(['"Area 3" came out in 1988.', '"Area 3" was composed by Ada Penn.']);
+    expect(artistFacts).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the song list and the streamer's facts when no data knows the song or its artist", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series);
+    const facts = await generateFacts(track, entry({ timesPlayed: 4 }));
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(facts.length).toBeGreaterThan(0);
+    expect(facts.some((f) => f.source === SOURCE.songList)).toBe(true);
+  });
+
+  it("still writes captions from a game's own article, and from the series' article only with ABSTAIN=off", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce("Starfall Saga\nStarfall Saga is a 1996 role-playing video game developed by Hollow Pine. " + MODEL_LINES);
+    expect((await generateFacts({ title: "Lunar Tide", artist: "Starfall Saga" })).length).toBeGreaterThan(1);
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series + " " + MODEL_LINES);
+    await generateFacts(track);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    abstain(false);
+    clearFactCache();
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series + " " + MODEL_LINES);
+    await generateFacts(track);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 });
 

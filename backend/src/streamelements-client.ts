@@ -243,7 +243,7 @@ export class StreamElementsClient implements SongSource {
 
   /** One request pair at a time; a refresh asked for meanwhile fetches again afterward. */
   private refresh(): Promise<void> {
-    if (Date.now() < this.backoffUntil || this.channelId === null) return Promise.resolve();
+    if (this.backingOff() || this.channelId === null) return Promise.resolve();
     if (this.inFlight) {
       this.refreshAgain = true;
       return this.inFlight;
@@ -351,7 +351,11 @@ export class StreamElementsClient implements SongSource {
   }
 
   private schedulePoll(): void {
+    // A poll that finishes after disconnect() mustn't start another.
+    if (this.stopped) return;
     const delay = Math.max(this.pollIntervalMs(), this.backoffUntil - Date.now());
+    // One poll loop at a time: connecting again replaces the old timer rather than leaving it running.
+    if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = setTimeout(async () => {
       if (this.stopped) return;
       if (this.channelId === null) {

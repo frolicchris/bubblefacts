@@ -45,16 +45,16 @@ The maintainer, Christopher Feyrer ([@frolicchris](https://github.com/frolicchri
 is responsible for everything this repository ships, whoever wrote it. Before a change is merged or
 released:
 
-1. **Checks.** Typecheck, lint and tests run on every pull request, on Linux,
-   macOS and Windows. `main` is protected, so changes can't skip them without
+1. **Checks.** Typecheck, lint and tests run on every pull request on Linux,
+   and typecheck, tests and a build on macOS and Windows. `main` is protected, so changes can't skip them without
    the maintainer's say-so.
 2. **Review.** The maintainer reviews every change. Before the 2.0 beta, the
    whole app also had an independent AI code review, and every issue it found
    was addressed.
 3. **Real-world testing.** Releases are tested in a real copy of OBS and on
    live streams, following the release checklist in
-   [RELEASING.md](RELEASING.md#release-checklist). Installers are smoke-tested on each
-   operating system.
+   [RELEASING.md](RELEASING.md#release-checklist). Installers are smoke-tested on Windows,
+   Linux (`.deb`) and Apple-silicon Mac.
 4. **Release.** The maintainer reviews each draft release before publishing
    it. Release files carry SHA-256 checksums and build-provenance attestations.
 
