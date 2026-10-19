@@ -822,9 +822,10 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   }
 
   // A game's music article ("Music of X", "X Soundtrack"): the expected unit for its tracks.
+  // A series-wide one counts too, even when it never names the track: its facts are about the music.
   if (/^Music of /i.test(page) || /\bsoundtrack\b/i.test(`${qualifier} ${page}`)) {
     const seriesWide = (/\bseries$/i.test(base) || SERIES_WORD.test(says)) && !SERIES_WORD.test(asked.artist ?? "");
-    return seriesWide && piece && !named ? unsure("a series' music article that never names the track") : sure("the game's music article");
+    return sure(seriesWide ? "the series' music article" : "the game's music article");
   }
   // Another piece's article: "Song B" for "Song A".
   if (piece && isAPiece(page, full)) return unsure(`"${page}" is another piece's article`);

@@ -456,8 +456,8 @@ log says why (`[Grounding] unsure: ...`). Unsure is:
   one singer is often another's);
 - a game's parent article for an edition or epilogue ("Some Game: An Epilogue"
   finding "Some Game"), unless its first sentence names the rest;
-- a series' article, or a series-wide music article, for a track it never
-  names (the rule `gameTrackText` already follows for series music);
+- a series' article for a track it never names (a series-wide music
+  article still counts as sure: its facts are about the music);
 - a film's, a show's or a book's article that never names the song, or one
   named after the artist ("Some Band: Live");
 - the artist's article that never names the song, found only after dropping a
