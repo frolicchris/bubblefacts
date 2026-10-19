@@ -58,13 +58,15 @@ async function get<T>(params: Record<string, string>): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function entities(ids: string[], props: string): Promise<Record<string, Entity>> {
+async function entities(ids: string[], props: string, languages = "en"): Promise<Record<string, Entity>> {
   if (!ids.length) return {};
-  const data = await get<{ entities?: Record<string, Entity> }>({ action: "wbgetentities", ids: ids.join("|"), props, languages: "en" });
+  const data = await get<{ entities?: Record<string, Entity> }>({ action: "wbgetentities", ids: ids.join("|"), props, languages });
   return data.entities ?? {};
 }
 
 const label = (e: Entity | undefined) => e?.labels?.en?.value ?? "";
+/** The English label, else the one for every language ("mul"), which many names now have instead. */
+const anyLabel = (e: Entity | undefined) => e?.labels?.en?.value ?? e?.labels?.mul?.value ?? "";
 type Claim = { rank?: string; mainsnak?: { datavalue?: { value?: unknown } } };
 
 /**
@@ -83,8 +85,8 @@ const itemIds = (e: Entity, prop: string): string[] =>
     .map((c) => (c.mainsnak?.datavalue?.value as { id?: string } | undefined)?.id)
     .filter((id): id is string => typeof id === "string");
 
-function year(e: Entity): string | null {
-  const times = rankedClaims(e, "P577")
+function year(e: Entity, prop = "P577"): string | null {
+  const times = rankedClaims(e, prop)
     .map((c) => (c.mainsnak?.datavalue?.value as { time?: string } | undefined)?.time)
     .filter((t): t is string => typeof t === "string")
     .map((t) => /^\+(\d{4})/.exec(t)?.[1])
@@ -167,6 +169,79 @@ export async function wikidataFacts(song: SSLSong): Promise<string[]> {
   } catch (err) {
     // Not cached: Wikidata may just be slow right now.
     console.warn(`[Wikidata] Lookup failed for "${title}": ${err instanceof Error ? err.message : err}`);
+    return [];
+  }
+}
+
+/** A description that says the item is a performer: "American singer-songwriter", "Australian rock band". */
+const PERFORMER_ITEM = /\b(band|singer|singer-songwriter|rapper|musician|composer|songwriter|duo|trio|quartet|group|DJ|producer|vocalist|pianist|guitarist|drummer|violinist|arranger|conductor|orchestra|ensemble)\b/i;
+/** One video game, not a series of them: "1988 NES game", "1993 videogame". */
+const GAME_ITEM = /\b(?:video ?game|game)s?\b/i;
+const SERIES_ITEM = /\b(series|franchise)\b/i;
+const artistCache = new Map<string, { facts: string[]; at: number }>();
+
+/** Up to two plain facts about a performer or a game from its Wikidata item. */
+export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>): string[] {
+  const name = anyLabel(e);
+  if (!name) return [];
+  const named = (prop: string) => itemIds(e, prop).map((id) => anyLabel(labels[id]).replace(/\.$/, "")).filter(Boolean);
+  const facts: string[] = [];
+  if (GAME_ITEM.test(e.descriptions?.en?.value ?? "")) {
+    const composers = named("P86");
+    if (composers.length) facts.push(`The music of ${name} is by ${names(composers)}.`);
+    const developers = named("P178");
+    if (developers.length) facts.push(`${name} was developed by ${names(developers)}.`);
+    const y = year(e);
+    if (y) facts.push(`${name} came out in ${y}.`);
+    return facts.slice(0, 2);
+  }
+  const person = itemIds(e, "P31").includes("Q5");
+  const when = year(e, person ? "P569" : "P571");
+  const where = named(person ? "P19" : "P740")[0];
+  const verb = person ? "was born" : "formed";
+  if (when || where) facts.push(`${name} ${verb}${where ? ` in ${where}` : ""}${when ? ` in ${when}` : ""}.`);
+  const genres = named("P136").slice(0, 2);
+  if (genres.length) facts.push(`${name}'s genres include ${names(genres)}.`);
+  const labelsOf = named("P264").slice(0, 2);
+  if (labelsOf.length) facts.push(`${name}'s record labels include ${names(labelsOf)}.`);
+  return facts.slice(0, 2);
+}
+
+/**
+ * Facts about the artist, or the game in the artist field, for a song whose
+ * article may be about another work (issue #255): never AI, and only from an
+ * item named exactly so whose description says it is a performer or one video
+ * game. [] when none clearly matches. Never throws.
+ */
+export async function artistFacts(name: string): Promise<string[]> {
+  const clean = name.replace(/\s*[([][^)\]]*[)\]]\s*$/, "").trim();
+  const want = normalizeTitle(clean);
+  if (!want) return [];
+  const hit = artistCache.get(want);
+  if (hit && (hit.facts.length || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.facts;
+  try {
+    const search = await get<{ search?: Array<{ id: string; label?: string; description?: string }> }>({
+      action: "wbsearchentities", search: clean, language: "en", uselang: "en", type: "item", limit: "10",
+    });
+    const item = (search.search ?? []).find((h) => {
+      const desc = h.description ?? "";
+      // The name itself, not an alias: "Some Game: An Epilogue" may be an alias of the whole edition.
+      return normalizeTitle(h.label ?? "") === want && (PERFORMER_ITEM.test(desc) || (GAME_ITEM.test(desc) && !SERIES_ITEM.test(desc)));
+    });
+    if (!item) {
+      console.log(`[Wikidata] No artist or game item for "${clean}"`);
+      artistCache.set(want, { facts: [], at: Date.now() });
+      return [];
+    }
+    const e = (await entities([item.id], "claims|labels|descriptions", "en|mul"))[item.id];
+    const refs = ["P86", "P178", "P19", "P740", "P136", "P264"].flatMap((p) => itemIds(e, p));
+    const labels = await entities([...new Set(refs)].slice(0, 50), "labels", "en|mul");
+    const facts = artistFactsFromEntity({ ...e, descriptions: { en: { value: item.description ?? "" } } }, labels);
+    console.log(`[Wikidata] "${clean}" -> ${item.id}: ${facts.length} facts about the artist or game`);
+    artistCache.set(want, { facts, at: Date.now() });
+    return facts;
+  } catch (err) {
+    console.warn(`[Wikidata] Artist lookup failed for "${clean}": ${err instanceof Error ? err.message : err}`);
     return [];
   }
 }

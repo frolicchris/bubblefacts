@@ -249,7 +249,8 @@ sign-ins and the built-in AI. Its design decisions are in
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
    fill fixed sentences, with no AI and so no screening. When the article is
    the artist's or the game's rather than the song's, structured facts about
-   the song go before the AI's captions.
+   the song go before the AI's captions. When the article may be about another
+   work, they are all that is shown (see "Is it the requested work?").
 9. **Fall back if needed.** No source, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus custom
    facts, or nothing when the streamer has none (the app's default). The AI is
@@ -436,6 +437,37 @@ isn't required, since a game's article rarely lists stages, and a person's
 piece may carry a translated title. A misfit is passed over and the lookup
 tried again without it, twice at most. Queue placeholders ("Off-List YouTube
 Request < 5 Min (Free)") aren't looked up at all.
+
+**Is it the requested work?** On songs no fix had seen, almost half the wrong
+bubbles came from an article about another work: a sequel or an edition, a
+series, a film named like the band, the original of a cover. Screening can't
+see that, since the captions match their reference. So the found article gets
+a confidence (`workMatchConfidence`, issue #255; `ABSTAIN=off` skips it), and
+an `unsure` one gets no AI captions: only the song's Wikidata or MusicBrainz
+facts, the streamer's own facts, and, when that leaves fewer than two, up to
+two Wikidata facts about the artist or the game (`artistFacts`: an item named
+exactly so, described as a performer or one video game, never a series). The
+log says why (`[Grounding] unsure: ...`). Unsure is:
+
+- the original of a cover (MusicBrainz's note), or MusicBrainz's link to the artist;
+- an album's article for a song, or another song's article;
+- a song's article that doesn't name the artist in its first three sentences
+  (only the first, or the title's brackets, for a one-word title: "Cherry" by
+  one singer is often another's);
+- a game's parent article for an edition or epilogue ("Some Game: An Epilogue"
+  finding "Some Game"), unless its first sentence names the rest;
+- a series' article, or a series-wide music article, for a track it never
+  names (the rule `gameTrackText` already follows for series music);
+- a film's, a show's or a book's article that never names the song, or one
+  named after the artist ("Some Band: Live");
+- the artist's article that never names the song, found only after dropping a
+  note ("Some Singer (Tribute)", "Song (Someone's cover)").
+
+A game's own article and its music article stay `sure` for its tracks: they
+are what a game's music is written about. So does an artist's article found
+under the name as typed, the fallback it has always been. Measured once on 80
+songs no fix had seen: 12 unsure (15%), five of the nine songs with captions
+about the wrong work among them, and about 8% fewer bubbles per song.
 
 ### Why is the game read from the artist field?
 
