@@ -76,7 +76,7 @@ show. BubbleFacts can follow that file instead of a request queue. Set
 |---|---|---|
 | `NOW_PLAYING_FILE` | *required with a now playing file* | The text file to follow. A full path, or with a preset just the file's name. |
 | `NOW_PLAYING_FORMAT` | `artist-title` | How the line reads: `artist-title` for "Artist - Title", or `title` for the title alone. |
-| `NOW_PLAYING_PRESET` | *none* | `streamling` looks for the file in Streamling's folder, `Documents\streamling\livetext`. |
+| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt`, so `NOW_PLAYING_FILE` can stay empty. |
 
 Good to know:
 

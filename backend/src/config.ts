@@ -61,7 +61,8 @@ const trimSlash = (s: string) => s.replace(/\/+$/, "");
  * Streamling's own page names the folder but not the file, so the file name is still a setting.
  */
 export const NOW_PLAYING_PRESETS = {
-  streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"] },
+  // Streamling's author recommends nowplaying-minimal.txt: one "Artist - Song" line, UTF-8 (v1.5 release notes).
+  streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"], file: "nowplaying-minimal.txt" },
 } as const;
 const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling"] as const, "none");
 
@@ -75,11 +76,8 @@ function nowPlayingFile(): string {
   const preset = nowPlayingPreset === "none" ? null : NOW_PLAYING_PRESETS[nowPlayingPreset];
   if (!raw) {
     if (!onFile) return "";
-    throw new Error(
-      preset
-        ? `Missing required setting NOW_PLAYING_FILE. Set it to the name of the text file ${preset.name} writes in ${path.join(...preset.folder)}.`
-        : "Missing required setting NOW_PLAYING_FILE. Set it to the full path of the text file your now-playing app writes."
-    );
+    if (preset) return path.join(os.homedir(), ...preset.folder, preset.file);
+    throw new Error("Missing required setting NOW_PLAYING_FILE. Set it to the full path of the text file your now-playing app writes.");
   }
   if (raw === "~" || /^~[\\/]/.test(raw)) return path.join(os.homedir(), raw.slice(1));
   if (path.isAbsolute(raw)) return raw;

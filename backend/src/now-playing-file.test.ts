@@ -7,7 +7,7 @@ jest.mock("./config", () => ({
     liveLearns: true,
     topic: "general",
   },
-  NOW_PLAYING_PRESETS: { streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"] } },
+  NOW_PLAYING_PRESETS: { streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"], file: "nowplaying-minimal.txt" } },
 }));
 
 import fs from "fs";

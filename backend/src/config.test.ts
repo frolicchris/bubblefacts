@@ -63,9 +63,9 @@ describe("config song source", () => {
     expect(() => load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_FILE: file, NOW_PLAYING_FORMAT: "title-artist" })).toThrow(/NOW_PLAYING_FORMAT must be one of/);
   });
 
-  it("finds a file name in Streamling's folder with the Streamling preset, and asks for the name", () => {
+  it("uses Streamling's own file with the Streamling preset, and finds another name in its folder", () => {
     const folder = path.join(os.homedir(), "Documents", "streamling", "livetext");
-    expect(() => load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling" })).toThrow(/NOW_PLAYING_FILE.*Streamling.*livetext/);
+    expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling" }).nowPlayingFile).toBe(path.join(folder, "nowplaying-minimal.txt"));
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FILE: "song.txt" }).nowPlayingFile).toBe(path.join(folder, "song.txt"));
     // A full path, or one from the home folder, is used as written.
     const elsewhere = path.join(os.tmpdir(), "song.txt");
