@@ -310,3 +310,14 @@ describe("classical pieces through Wikidata (issue #260)", () => {
     expect((await lookup("Lighthouse Sonata", "Marrow")).split("\n")[0]).toBe("Piano Sonata No. 4 (Marrow)");
   });
 });
+
+describe("parseClassicalTitle on hostile input", () => {
+  it("trims a long run of separators quickly (no exponential backtracking)", () => {
+    const title = "," + " ,".repeat(50000) + "x";
+    const start = Date.now();
+    expect(parseClassicalTitle(title).name).toBe("x");
+    expect(parseClassicalTitle("Nocturne ,;:- ").name).toBe("Nocturne");
+    expect(parseClassicalTitle("Nocturne, ()").name).toBe("Nocturne");
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+});

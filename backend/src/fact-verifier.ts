@@ -144,6 +144,16 @@ export function normalizeKeys(s: string): string {
  * for which part of its article to read first. Catalogs: Op., BWV, K./KV, D.,
  * Hob., RV, HWV, S., WoO, L. Keys: E-flat, Eb, E♭, C#, C sharp.
  */
+/** Drops separators and spaces from both ends ("Nocturne ,;- " is "Nocturne"). A loop, not a regex: linear on any input. */
+function trimSeparators(s: string): string {
+  const separator = (c: string) => /[\s,:;–—-]/.test(c);
+  let start = 0;
+  let end = s.length;
+  while (start < end && separator(s[start])) start++;
+  while (end > start && separator(s[end - 1])) end--;
+  return s.slice(start, end);
+}
+
 export function parseClassicalTitle(title: string): ClassicalTitle {
   let t = ` ${title.trim()} `;
   let movement: ClassicalTitle["movement"] = null;
@@ -183,13 +193,12 @@ export function parseClassicalTitle(title: string): ClassicalTitle {
   const bracket = /^(.*?)\s*[([]([^)\]]+)[)\]]\s*$/.exec(t.trim());
   const alias = bracket && !isVariantTag(bracket[2]) ? bracket[2].trim() : "";
   if (bracket && alias) t = bracket[1];
-  const name = t
-    .replace(/\s*[([]\s*[)\]]\s*/g, " ")
-    .replace(/(?:\s*[,:;–—-]\s*)+$/g, "")
-    .replace(/^(?:\s*[,:;–—-]\s*)+/g, "")
-    .replace(/\s*,\s*(?:,\s*)+/g, ", ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const name = trimSeparators(
+    t
+      .replace(/\s*[([]\s*[)\]]\s*/g, " ")
+      .replace(/\s*,\s*(?:,\s*)+/g, ", ")
+      .replace(/\s+/g, " ")
+  );
   const classical = catalogs.length > 0 || !!key || !!movement || FORM_WORDS.test(name);
   return { name, alias, catalogs, numbers: [...new Set(numbers)], key, movement, classical };
 }
