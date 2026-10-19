@@ -607,8 +607,16 @@ async function wikiExtract(pageTitle: string): Promise<string | null> {
   );
   const full = Object.values(data.query?.pages ?? {})[0]?.extract;
   if (full) rememberArticle(pageTitle, full);
-  // A disambiguation page, even one that opens with its main meaning: "2 A.M. is a time ... may also refer to:".
-  return full && !/may (?:also )?refer to:/i.test(full.slice(0, 300)) ? full : null;
+  return full && !isDisambiguation(full) ? full : null;
+}
+
+/**
+ * A disambiguation or list page, even one that opens with its main meaning:
+ * "2 A.M. is a time ... may also refer to:", "Minuet in G major can refer to
+ * numerous musical compositions, including:". Its facts are about other works.
+ */
+export function isDisambiguation(full: string): boolean {
+  return /\b(?:may|can) (?:also )?refer to\b/i.test(full.slice(0, 300));
 }
 
 // --- Does the article fit the request? -----------------------------------
@@ -647,7 +655,7 @@ export function articleText(page: string): string {
  * written from them are true but about the wrong thing.
  */
 const MUSIC_OR_WORK =
-  /\b(songs?|singles?|albums?|EPs?|mixtapes?|records?|recordings?|bands?|groups?|duo|trio|quartet|singers?|singer-songwriters?|rappers?|musicians?|composers?|pianists?|guitarists?|drummers?|bassists?|violinists?|cellists?|organists?|songwriters?|DJs?|disc jockey|producers?|vocalists?|lyricists?|conductors?|orchestras?|ensembles?|choirs?|idols?|YouTuber|entertainers?|performers?|soundtracks?|scores?|instrumentals?|compositions?|pieces?|suites?|sonatas?|symphon(?:y|ies)|concert[oi]s?|operas?|operettas?|ballets?|musicals?|hymns?|anthems?|ballads?|carols?|march(?:es)?|waltz(?:es)?|rhapsod(?:y|ies)|[eé]tudes?|nocturnes?|preludes?|fugues?|serenades?|overtures?|requiems?|cantatas?|arias?|tunes?|melod(?:y|ies)|tangos?|games?|films?|movies?|television|TV|series|shows?|sitcoms?|anime|manga|novels?|franchises?)\b/i;
+  /\b(songs?|singles?|albums?|EPs?|mixtapes?|records?|recordings?|bands?|groups?|duo|trio|quartet|singers?|singer-songwriters?|rappers?|musicians?|composers?|pianists?|guitarists?|drummers?|bassists?|violinists?|cellists?|organists?|songwriters?|DJs?|disc jockey|producers?|vocalists?|lyricists?|conductors?|orchestras?|ensembles?|choirs?|idols?|YouTuber|entertainers?|performers?|soundtracks?|scores?|instrumentals?|compositions?|pieces?|suites?|sonatas?|symphon(?:y|ies)|concert[oi]s?|operas?|operettas?|ballets?|musicals?|hymns?|anthems?|ballads?|carols?|march(?:es)?|waltz(?:es)?|rhapsod(?:y|ies)|[eé]tudes?|nocturnes?|preludes?|fugues?|minuets?|mazurkas?|polonaises?|gavottes?|sarabandes?|gigues?|impromptus?|bagatelles?|ballades?|scherz(?:o|os|i)|rondos?|variations|dances?|lullab(?:y|ies)|works? for|serenades?|overtures?|requiems?|cantatas?|arias?|tunes?|melod(?:y|ies)|tangos?|games?|films?|movies?|television|TV|series|shows?|sitcoms?|anime|manga|novels?|franchises?)\b/i;
 
 /** The article's opening: its first two sentences, or its first 400 characters. */
 function openingOf(full: string): string {
