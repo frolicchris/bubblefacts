@@ -155,6 +155,10 @@ export const secretsWaiting = () => secretsPending;
  * to read later. Reading them is what makes macOS show its keychain prompt,
  * and the app waits on it: the window has to be up first to say what to click.
  */
+/** Whether a saved value has its default's type: a list of strings, or the same primitive type. */
+const sameType = (value: unknown, fallback: unknown): boolean =>
+  Array.isArray(fallback) ? Array.isArray(value) && value.every((v) => typeof v === "string") : typeof value === typeof fallback;
+
 export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
   try {
@@ -176,9 +180,7 @@ export function loadSettings(readSecrets = true): Settings {
   // Each value must have the type its default has; anything else falls back to the default.
   for (const [key, fallback] of Object.entries(DEFAULTS)) {
     const value = raw[key];
-    const ok = Array.isArray(fallback)
-      ? Array.isArray(value) && value.every((v) => typeof v === "string")
-      : typeof value === typeof fallback;
+    const ok = sameType(value, fallback);
     if (ok) target[key] = value;
   }
   if (!("updateChannel" in raw)) {
@@ -287,9 +289,7 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
     if (!(key in changes)) continue;
     const value = changes[key];
     const fallback = DEFAULTS[key];
-    const ok = Array.isArray(fallback)
-      ? Array.isArray(value) && value.every((v) => typeof v === "string")
-      : typeof value === typeof fallback;
+    const ok = sameType(value, fallback);
     if (ok) out[key] = value;
   }
   return out as Partial<Settings>;
