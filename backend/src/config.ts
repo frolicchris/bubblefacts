@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import os from "os";
 import path from "path";
 
 /** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
@@ -45,13 +46,45 @@ const aiProvider = oneOf(
   ["builtin", "ollama", "openai", "anthropic", "none"] as const,
   process.env.ANTHROPIC_API_KEY ? "anthropic" : process.env.OPENAI_API_KEY ? "openai" : "ollama"
 );
-// Where song requests come from. StreamerSongList settings are only required when it's the source.
-const songSource = oneOf("SONG_SOURCE", ["streamersonglist", "streamelements"] as const, "streamersonglist");
+// Where songs come from. Each source's settings are only required when it's the source.
+const songSource = oneOf("SONG_SOURCE", ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist");
 const onSSL = songSource === "streamersonglist";
+const onSE = songSource === "streamelements";
+const onFile = songSource === "nowplaying";
 const sslHost = oneOf("SSL_ENV", ["production", "staging"] as const, "production") === "staging"
   ? "staging.streamersonglist.com"
   : "streamersonglist.com";
 const trimSlash = (s: string) => s.replace(/\/+$/, "");
+
+/**
+ * Apps that write the playing song to a text file, and the folder they write it in.
+ * Streamling's own page names the folder but not the file, so the file name is still a setting.
+ */
+export const NOW_PLAYING_PRESETS = {
+  streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"] },
+} as const;
+const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling"] as const, "none");
+
+/**
+ * The file a now-playing app writes. A preset's folder is the starting point for a
+ * name or relative path (otherwise the overlay folder, like .env); a full path, or one
+ * starting with ~, is used as written.
+ */
+function nowPlayingFile(): string {
+  const raw = process.env.NOW_PLAYING_FILE?.trim() || "";
+  const preset = nowPlayingPreset === "none" ? null : NOW_PLAYING_PRESETS[nowPlayingPreset];
+  if (!raw) {
+    if (!onFile) return "";
+    throw new Error(
+      preset
+        ? `Missing required setting NOW_PLAYING_FILE. Set it to the name of the text file ${preset.name} writes in ${path.join(...preset.folder)}.`
+        : "Missing required setting NOW_PLAYING_FILE. Set it to the full path of the text file your now-playing app writes."
+    );
+  }
+  if (raw === "~" || /^~[\\/]/.test(raw)) return path.join(os.homedir(), raw.slice(1));
+  if (path.isAbsolute(raw)) return raw;
+  return preset ? path.join(os.homedir(), ...preset.folder, raw) : path.resolve(__dirname, "../..", raw);
+}
 
 export const config = {
   port: intEnv("PORT", 3000, 1, 65535),
@@ -98,15 +131,21 @@ export const config = {
   // StreamElements (SONG_SOURCE=streamelements): its song request player, "Media Request".
   // SE_CHANNEL is a channel name or its 24-character ID; blank means the JWT's own channel.
   seChannel: process.env.SE_CHANNEL?.trim() || "",
-  seJwt: onSSL
-    ? ""
-    : requireEnv("SE_JWT", "Copy the JWT token from your StreamElements dashboard: Account, then Channels, then Show secrets."),
+  seJwt: onSE
+    ? requireEnv("SE_JWT", "Copy the JWT token from your StreamElements dashboard: Account, then Channels, then Show secrets.")
+    : "",
   seApiBase: trimSlash(process.env.SE_API_BASE || "https://api.streamelements.com/kappa/v2"),
   seEventsUrl: process.env.SE_EVENTS_URL || "wss://astro.streamelements.com",
   // YouTube Data API key, for the exact artist and track of auto-generated uploads. Optional.
   youtubeApiKey: (process.env.YOUTUBE_API_KEY || "").trim(),
   sePollIntervalMs: intEnv("SE_POLL_INTERVAL_MS", 15000, 5000, 300000),
   seRequestTimeoutMs: intEnv("SE_REQUEST_TIMEOUT_MS", 5000, 500, 60000),
+
+  // Now playing file (SONG_SOURCE=nowplaying): one line a now-playing app keeps up to date.
+  nowPlayingPreset,
+  nowPlayingFile: nowPlayingFile(),
+  // "artist-title" reads "Artist - Title"; "title" reads the whole line as the title.
+  nowPlayingFormat: oneOf("NOW_PLAYING_FORMAT", ["artist-title", "title"] as const, "artist-title"),
 
   // Model
   aiProvider,
