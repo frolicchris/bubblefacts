@@ -11,6 +11,7 @@ import { musicbrainzFacts } from "./musicbrainz";
 import { wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
+import { logWrong } from "./wrong-log";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -970,6 +971,7 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);
+  if (!ownFactKind(label)) logWrong(song, text, label, source); // a private test case for scripts/wrong-cases.mjs
   console.log(`[WrongFact] "${song.title}": ${source ? `won't use ${source === STRUCTURED ? source : `"${source}"`} again` : "not from a lookup"}`);
   return source;
 }
