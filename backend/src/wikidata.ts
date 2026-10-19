@@ -245,3 +245,205 @@ export async function artistFacts(name: string): Promise<string[]> {
     return [];
   }
 }
+
+// --- Classical works (issue #260) -----------------------------------------
+
+/** Wikidata asked us to slow down, or didn't answer: a miss says nothing, so nothing is cached. */
+export class WikidataBusy extends Error {}
+
+/** Time between Wikidata requests for classical works: its full-text search is rate-limited hard. Tests set 0. */
+export const classicalPace = { ms: 1000 };
+let lastClassical = 0;
+
+async function pacedGet<T>(params: Record<string, string>): Promise<T> {
+  const wait = lastClassical + classicalPace.ms - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastClassical = Date.now();
+  const url = `${API}?${new URLSearchParams({ format: "json", ...params })}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
+  if (res.status === 429) throw new WikidataBusy("Wikidata rate-limited");
+  if (!res.ok) throw new Error(`Wikidata HTTP ${res.status}`);
+  try {
+    return (await res.json()) as T;
+  } catch {
+    // "You are making too many requests to the API." comes back as plain text.
+    throw new WikidataBusy("Wikidata rate-limited");
+  }
+}
+
+type Hit = { id: string; label?: string; description?: string; match?: { text?: string } };
+
+/** A person in the artist field, as Wikidata knows them. */
+export interface Person {
+  id: string;
+  label: string;
+  /** Wikidata lists composer among their occupations. */
+  composer: boolean;
+  /** A composer born before 1920, or with no birth date: whose name in the artist field means their own piece. */
+  historic: boolean;
+  /** Plays classical music: a pianist, a violinist, a conductor, an orchestra. */
+  classicalPerformer: boolean;
+}
+
+/** Descriptions of people and groups who play classical pieces: "Chinese pianist", "South Korean pianist and composer". */
+const CLASSICAL_PERFORMER = /\b(pianist|violinist|cellist|violist|organist|harpsichordist|conductor|orchestra|string quartet|ensemble|classical guitarist)s?\b/i;
+/** A pop act that also plays the piano ("singer-songwriter and pianist"): its songs are looked up the usual way. */
+const POP_ACT = /\b(singer|songwriter|rapper|band|DJ|rock|pop|YouTuber|record producer)\b/i;
+const PERSON_ITEM = /\b(composer|pianist|violinist|cellist|violist|organist|harpsichordist|conductor|orchestra|quartet|ensemble|guitarist|musician)\b/i;
+const COMPOSER = "Q36834";
+
+/**
+ * The search hit that is the person named, and whether only by a surname
+ * ("Rachmaninoff" is Sergei Rachmaninoff): by label, an alias, or the end of
+ * the label.
+ */
+export function pickPerson(hits: Hit[], name: string): { hit: Hit; bySurname: boolean } | null {
+  const want = normalizeTitle(name);
+  if (!want) return null;
+  for (const h of hits) {
+    if (!PERSON_ITEM.test(h.description ?? "")) continue;
+    const label = normalizeTitle(h.label ?? "");
+    if (label === want || normalizeTitle(h.match?.text ?? "") === want) return { hit: h, bySurname: false };
+    if (label.endsWith(` ${want}`)) return { hit: h, bySurname: true };
+  }
+  return null;
+}
+
+/** Wikipedias with an article about a person named only by a surname: a famous composer has dozens, a namesake a few. */
+const FAMOUS_SITELINKS = 30;
+
+const personCache = new Map<string, { person: Person | null; at: number }>();
+
+/** What Wikidata says the artist is, when the artist is a composer or a classical performer, from the cache only. */
+export function knownPerson(name: string): Person | null | undefined {
+  return personCache.get(normalizeTitle(name))?.person;
+}
+
+type PersonEntity = Entity & { sitelinks?: Record<string, unknown> };
+
+/** A person from their item: a composer (P106) of the past, or of our time; a classical performer by their description. */
+export function personFrom(e: PersonEntity, description: string, fallback: string): Person {
+  const composer = itemIds(e, "P106").includes(COMPOSER);
+  const born = year(e, "P569");
+  return {
+    id: e.id,
+    label: anyLabel(e) || fallback,
+    composer,
+    historic: composer && (!born || Number(born) < 1920),
+    classicalPerformer: CLASSICAL_PERFORMER.test(description) && !POP_ACT.test(description),
+  };
+}
+
+/**
+ * The composer or classical performer in the artist field, or null. Wikidata's
+ * name search finds a label's start, so a surname alone ("Bizet") is also
+ * searched among composers. Throws WikidataBusy when throttled.
+ */
+export async function personItem(name: string): Promise<Person | null> {
+  const want = normalizeTitle(name);
+  const hit = personCache.get(want);
+  if (hit && (hit.person || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.person;
+  const search = await pacedGet<{ search?: Hit[] }>({ action: "wbsearchentities", search: name, language: "en", uselang: "en", type: "item", limit: "10" });
+  let picked = pickPerson(search.search ?? [], name);
+  let entity: PersonEntity | undefined;
+  const fetchOne = async (id: string) =>
+    (await pacedGet<{ entities?: Record<string, PersonEntity> }>({ action: "wbgetentities", ids: id, props: "claims|labels|descriptions|sitelinks", languages: "en|mul" })).entities?.[id];
+  if (!picked && !/\s/.test(name.trim())) {
+    const found = await pacedGet<{ query?: { search?: Array<{ title: string }> } }>({
+      action: "query", list: "search", srnamespace: "0", srlimit: "3", srsearch: `haswbstatement:P106=${COMPOSER} ${name}`,
+    });
+    const id = found.query?.search?.[0]?.title;
+    entity = id && /^Q\d+$/.test(id) ? await fetchOne(id) : undefined;
+    picked = entity ? pickPerson([{ id: entity.id, label: anyLabel(entity), description: entity.descriptions?.en?.value ?? "composer" }], name) : null;
+  } else if (picked) entity = await fetchOne(picked.hit.id);
+  let person: Person | null = null;
+  // A surname alone is only a famous composer's: "Kirby" isn't a namesake with three wikis.
+  const famous = !!entity && (!picked?.bySurname || Object.keys(entity.sitelinks ?? {}).length >= FAMOUS_SITELINKS);
+  if (picked && entity && famous) person = personFrom(entity, picked.hit.description ?? "", picked.hit.label || name);
+  console.log(`[Wikidata] "${name}" ${person ? `is ${person.label} (${person.id}${person.historic ? ", a composer of the past" : person.composer ? ", a composer" : ""}${person.classicalPerformer ? ", a classical performer" : ""})` : "is no composer or classical performer"}`);
+  personCache.set(want, { person, at: Date.now() });
+  return person;
+}
+
+/** A musical work's item, cut down to what choosing it needs. */
+export interface WorkItem {
+  id: string;
+  label: string;
+  /** Its label, aliases and nicknames (P1449), in English and for every language. */
+  names: string[];
+  /** Catalog codes (P528): "1007", "331/300i", "L. 75". */
+  catalogs: string[];
+  /** Composers (P86) and parent works (P361), as item ids. */
+  composers: string[];
+  parents: string[];
+  /** Its English Wikipedia article, or "". */
+  page: string;
+}
+
+const stringClaims = (e: Entity, prop: string): string[] =>
+  rankedClaims(e, prop)
+    .map((c) => c.mainsnak?.datavalue?.value)
+    .map((v) => (typeof v === "string" ? v : (v as { text?: string } | undefined)?.text))
+    .filter((v): v is string => typeof v === "string");
+
+type FullEntity = Entity & { aliases?: Record<string, Array<{ value: string }>>; sitelinks?: { enwiki?: { title?: string } } };
+
+/** A work's item from wbgetentities. */
+export function workItem(e: FullEntity): WorkItem {
+  const names = [
+    ...["en", "mul"].map((l) => e.labels?.[l]?.value ?? ""),
+    ...["en", "mul"].flatMap((l) => (e.aliases?.[l] ?? []).map((a) => a.value)),
+    ...stringClaims(e, "P1449"),
+  ].filter(Boolean);
+  return {
+    id: e.id,
+    label: anyLabel(e),
+    names: [...new Set(names)],
+    catalogs: stringClaims(e, "P528"),
+    composers: itemIds(e, "P86"),
+    parents: itemIds(e, "P361"),
+    page: e.sitelinks?.enwiki?.title ?? "",
+  };
+}
+
+/** Items by id, with what a work needs. Throws WikidataBusy when throttled. */
+export async function workItems(ids: string[]): Promise<WorkItem[]> {
+  if (!ids.length) return [];
+  const data = await pacedGet<{ entities?: Record<string, FullEntity> }>({
+    action: "wbgetentities", ids: ids.join("|"), props: "labels|aliases|claims|sitelinks", languages: "en|mul", sitefilter: "enwiki",
+  });
+  return ids.map((id) => data.entities?.[id]).filter((e): e is FullEntity => !!e && !!e.id).map(workItem);
+}
+
+/**
+ * Works matching a search, by one composer (P86) or, with none, by anyone:
+ * Wikidata's full-text search over labels and aliases, so a nickname
+ * ("Moonlight Sonata") finds the work it names. Throws WikidataBusy when throttled.
+ */
+export async function searchWorks(query: string, composer: string | null, limit = 5): Promise<WorkItem[]> {
+  const filter = composer ? `haswbstatement:P86=${composer}` : "haswbstatement:P86";
+  const data = await pacedGet<{ query?: { search?: Array<{ title: string }> } }>({
+    action: "query", list: "search", srnamespace: "0", srlimit: String(limit), srsearch: `${filter} ${query}`,
+  });
+  return workItems((data.query?.search ?? []).map((h) => h.title).filter((t) => /^Q\d+$/.test(t)));
+}
+
+/** Works that list this one as a part (P527): "The Four Seasons" for its first concerto, when the concerto doesn't say. */
+export async function wholesOf(id: string): Promise<WorkItem[]> {
+  const data = await pacedGet<{ query?: { search?: Array<{ title: string }> } }>({
+    action: "query", list: "search", srnamespace: "0", srlimit: "3", srsearch: `haswbstatement:P527=${id}`,
+  });
+  return workItems((data.query?.search ?? []).map((h) => h.title).filter((t) => /^Q\d+$/.test(t)));
+}
+
+/** English labels for items, by id. Throws WikidataBusy when throttled. */
+export async function itemLabels(ids: string[]): Promise<Record<string, string>> {
+  if (!ids.length) return {};
+  const data = await pacedGet<{ entities?: Record<string, Entity> }>({ action: "wbgetentities", ids: ids.slice(0, 20).join("|"), props: "labels", languages: "en|mul" });
+  return Object.fromEntries(Object.entries(data.entities ?? {}).map(([id, e]) => [id, anyLabel(e)]));
+}
+
+export function clearClassicalCache(): void {
+  personCache.clear();
+  lastClassical = 0;
+}
