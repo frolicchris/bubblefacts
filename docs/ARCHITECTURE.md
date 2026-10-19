@@ -36,6 +36,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/centrifugo-client.ts` | StreamerSongList's live "the queue changed" events. |
 | `backend/src/streamelements-client.ts` | StreamElements: reads the song request player and works out what's playing. |
 | `backend/src/astro-client.ts` | StreamElements' live song request events. |
+| `backend/src/now-playing-file.ts` | A text file a now-playing app (such as Streamling) keeps up to date. |
 | `backend/src/youtube-title.ts` | Reads a song and artist out of a YouTube video title. |
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
@@ -46,6 +47,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
+| `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. |
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
@@ -493,8 +495,8 @@ log says why (`[Grounding] unsure: ...`). Unsure is:
   one singer is often another's);
 - a game's parent article for an edition or epilogue ("Some Game: An Epilogue"
   finding "Some Game"), unless its first sentence names the rest;
-- a series' article, or a series-wide music article, for a track it never
-  names (the rule `gameTrackText` already follows for series music);
+- a series' article for a track it never names (a series-wide music
+  article still counts as sure: its facts are about the music);
 - a film's, a show's or a book's article that never names the song, or one
   named after the artist ("Some Band: Live");
 - the artist's article that never names the song, found only after dropping a
@@ -607,6 +609,32 @@ requests through its Media Request player:
 - The entry has a title, an artist, the requester and the length; no play
   count, note or live-learn flag, so facts built from those don't appear.
 
+**Now playing file** (`now-playing-file.ts`), `SONG_SOURCE=nowplaying`, for
+apps that write the playing song into one text file:
+
+- Polled every 2 s (`fs.stat`, then the first 4 KB), not watched: file events
+  are unreliable on synced folders and other drives, and one small file is cheap.
+- The file is the only word on what's playing, so the rules lean toward
+  nothing. Missing, empty, a line with no letters or digits (" - " from an
+  app's template), or a file not rewritten for 15 minutes (`STALE_AFTER_MS`:
+  left over from an earlier stream, or a player that stopped without
+  clearing it) all mean no song. An unreadable file ends the song too.
+- A reading counts once two checks in a row agree, so an app caught mid-rewrite
+  (empty for a moment) doesn't restart the bubbles. Identity is the line
+  alone: a rewrite of the same line is the same song.
+- `artist-title` splits at the first spaced dash, so "Artist - Song - Part 2"
+  keeps its title. A line without one is all title, with the artist
+  `Unknown`, as with `title`.
+- The entry has no requester, length, play count or note, as with a
+  StreamElements request missing them. `lastSuccessfulFetchAgeMs()` counts a
+  missing file as checked: the app may not have started, and a restart
+  wouldn't help. Logs name the file, never its folder, which holds the
+  computer's user name.
+- Presets (`NOW_PLAYING_PRESETS` in `config.ts`) give the folder; a name or
+  relative `NOW_PLAYING_FILE` is found in it. Streamling's page names its
+  folder (`Documents\streamling\livetext`) but not the file or its line
+  format, so the file name stays a setting until a real one is checked.
+
 **YouTube titles** (`youtube-title.ts`). StreamElements only knows each
 request's YouTube title and channel. `parseVideoTitle(title, channel)`:
 
@@ -654,13 +682,21 @@ no screening, and are skipped for a song whose structured facts were marked
 **Wrong**.
 
 - **Wikidata** (`wikidata.ts`). `wbsearchentities` in the title's own
-  language (`searchLanguage`: Japanese, Korean or Russian when the title is in
-  that script, else English), so 紅蓮華 finds LiSA's song. `pickSong` takes
+  language (`searchLanguages`: Japanese, Korean or Russian when the title is in
+  that script, else English), so 紅蓮華 finds LiSA's song. A title of Han
+  characters alone tries Japanese, then Chinese, then English, and stops at
+  the first search that finds a song. `pickSong` takes
   only an item whose label is the title and whose description is a music
   item naming the artist or game ("2021 single by Lil Nas X"), so a
   same-named song by someone else never matches. Deprecated statements are
   ignored; preferred ones win (`rankedClaims`). Statements used: composer,
-  lyricist, year, album or work, producer, up to two awards, charts.
+  lyricist, year, album or work, producer, up to two awards, charts, what the
+  song is based on, up to two derivative works, the single before and after
+  (only for an item described as a single), the language of the lyrics (not
+  when it is only English) and the date of the first performance. Other
+  works are named by label alone, never with an artist, so a cover or a
+  derivative work is never credited to the requested artist; a work with the
+  song's own name is left out.
 - **MusicBrainz** (`musicbrainz.ts`), only when Wikidata has nothing. One
   request at a time, at most about one a second, with a User-Agent naming
   the project, as MusicBrainz asks. For a game's track: a composer only from

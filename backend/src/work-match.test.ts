@@ -90,9 +90,9 @@ describe("workMatchConfidence (issue #255)", () => {
     expect(level("Lunar Tide", "Starfall Saga", album).level).toBe("sure");
   });
 
-  it("is unsure of a series-wide music article for a track it never names", () => {
+  it("is sure of a series-wide music article, even for a track it never names", () => {
     const music = ref("Music of the Starfall Saga series", "The music of the Starfall Saga series was composed by Kenji Arata.", "A sequel's score won an award.");
-    expect(level("Lunar Tide", "Starfall Saga", music)).toMatchObject({ level: "unsure", reason: "a series' music article that never names the track" });
+    expect(level("Lunar Tide", "Starfall Saga", music)).toMatchObject({ level: "sure", reason: "the series' music article" });
     const naming = ref("Music of the Starfall Saga series", 'About this piece: "Lunar Tide" opens the first game.', "", "The music of the Starfall Saga series was composed by Kenji Arata.");
     expect(level("Lunar Tide", "Starfall Saga", naming).level).toBe("sure");
   });
