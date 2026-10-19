@@ -27,6 +27,7 @@ export interface ListProfile {
 const EMPTY: ListProfile = { dash: null, parenSources: new Set() };
 let profile: ListProfile = EMPTY;
 
+/** The same identity the streamer's own facts use. */
 const key = songIdentity;
 const DASH = /\s[-–—]\s/;
 const PAREN = /^(.+?)\s*\(([^()]{3,})\)\s*$/;

@@ -1,6 +1,10 @@
 import { Fact, SSLSong } from "./types";
 
-/** The same request: title, artist, and the song or video ID when there is one. */
+/**
+ * The same song play: title and artist as `sameRequest` (session.ts) compares
+ * them, plus the song ID and the video ID when there is one. Two StreamElements
+ * requests with one title but different videos are different songs here.
+ */
 export const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
   !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
 

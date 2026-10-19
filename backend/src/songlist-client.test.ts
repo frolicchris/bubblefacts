@@ -29,6 +29,7 @@ const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 import { SongListClient, setAccessToken } from "./songlist-client";
+import { isLiveLearn, toSong } from "./song-mapping";
 import { config } from "./config";
 import { CentrifugoStream } from "./centrifugo-client";
 
@@ -71,8 +72,8 @@ describe("SongListClient", () => {
 
   it("marks an off-list (live learn) entry and carries the requester", () => {
     const live = entry(7, "", { songId: null, nonlistSong: "Never Gonna Learn This" });
-    expect(SongListClient.isLiveLearn(live)).toBe(true);
-    expect(SongListClient.toSong(live)).toEqual({
+    expect(isLiveLearn(live)).toBe(true);
+    expect(toSong(live)).toEqual({
       title: "Never Gonna Learn This",
       artist: "Test Artist",
       liveLearn: true,
@@ -81,14 +82,14 @@ describe("SongListClient", () => {
 
     (config as unknown as { liveLearns: boolean }).liveLearns = false;
     try {
-      expect(SongListClient.toSong(live).liveLearn).toBeUndefined();
+      expect(toSong(live).liveLearn).toBeUndefined();
     } finally {
       (config as unknown as { liveLearns: boolean }).liveLearns = true;
     }
 
     const listed = entry(8, "On The List");
-    expect(SongListClient.isLiveLearn(listed)).toBe(false);
-    expect(SongListClient.toSong(listed)).toEqual({
+    expect(isLiveLearn(listed)).toBe(false);
+    expect(toSong(listed)).toEqual({
       title: "On The List",
       artist: "Test Artist",
       requestedBy: "viewer1",
@@ -285,12 +286,12 @@ describe("SongListClient", () => {
 
   it("uses the newer live-learn title and artist fields", () => {
     const live = entry(9, "", { songId: null, nonlistSong: "old field", nonlistTitle: "Aerith's Theme", nonlistArtist: "Nobuo Uematsu" });
-    expect(SongListClient.toSong(live)).toMatchObject({ title: "Aerith's Theme", artist: "Nobuo Uematsu", liveLearn: true });
+    expect(toSong(live)).toMatchObject({ title: "Aerith's Theme", artist: "Nobuo Uematsu", liveLearn: true });
   });
 
   it("keeps a typed-in title to one short line", () => {
     const live = entry(10, "", { songId: null, nonlistTitle: "Aerith's Theme\n[Server] fake error\r\n", nonlistArtist: "x".repeat(500) });
-    const song = SongListClient.toSong(live);
+    const song = toSong(live);
     expect(song.title).toBe("Aerith's Theme [Server] fake error");
     expect(song.artist).toHaveLength(200);
   });

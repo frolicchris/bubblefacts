@@ -50,6 +50,10 @@ export function loadSession(now = Date.now()): Session | null {
   }
 }
 
+/**
+ * Two requests for the same song: the same title and artist, nothing else.
+ * `sameSong` in wrong-target.ts also compares the song and video ids.
+ */
 export const sameRequest = (a: Pick<SSLSong, "title" | "artist"> | null | undefined, b: Pick<SSLSong, "title" | "artist"> | null | undefined) =>
   !!a && !!b && a.title === b.title && (a.artist ?? "") === (b.artist ?? "");
 

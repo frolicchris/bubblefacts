@@ -1,4 +1,12 @@
-/** Shapes from the StreamerSongList API and the overlay's WebSocket protocol. */
+/**
+ * Shapes shared across the backend: the queue entry every song source hands
+ * over (StreamerSongList's API shape; StreamElements and the now playing file
+ * fill it in as far as they can, see song-source.ts), and the overlay's
+ * WebSocket protocol (`Fact`, `FactsPayload`). Fields marked "API shape, not
+ * read" are filled in or kept to match the API, but nothing reads them.
+ */
+
+// --- The song, as the sources and the overlay share it -------------------
 
 /** The song as the overlay sees it. */
 export interface SSLSong {
@@ -20,6 +28,8 @@ export interface SSLSong {
   videoId?: string;
 }
 
+// --- Queue shapes: StreamerSongList's API, filled by StreamElements and the now playing file too ---
+
 /** API `QueueSong`. Its id lives on the entry as `songId`. */
 export interface SSLQueueSong {
   title: string;
@@ -31,17 +41,22 @@ export interface SSLQueueSong {
   /** Set by StreamElements: the request's YouTube video ID. */
   videoId?: string;
   comment?: string | null;
+  /** API shape, not read. */
   duration?: number | null;
+  /** Filled by StreamElements (the video's length) and left null by the now playing file. API shape, not read. */
   durationSeconds?: number | null;
   timesPlayed?: number;
+  /** API shape, not read. */
   lastPlayed?: string | null;
   attributes?: Array<{ name?: string }> | null;
 }
 
 /** API `Request`. */
 export interface SSLRequest {
+  /** API shape, not read. */
   id: number;
   name: string;
+  /** `platform` is API shape, not read. */
   user?: { username: string; platform: string };
 }
 
@@ -56,7 +71,9 @@ export interface SSLQueueItem {
   nonlistTitle?: string | null;
   nonlistArtist?: string | null;
   note: string | null;
+  /** API shape, not read. */
   streamerId: number;
+  /** API shape, not read. */
   createdAt: string;
   requests: SSLRequest[] | null;
 }
@@ -65,6 +82,7 @@ export interface SSLQueueItem {
 export interface SSLQueueResponse {
   items: SSLQueueItem[] | null;
   playing?: SSLQueueItem | null;
+  /** API shape, not read. */
   total: number;
 }
 
@@ -73,6 +91,8 @@ export interface SSLStreamerInfo {
   id: number;
   promoteQueueToPlaying?: boolean;
 }
+
+// --- Overlay shapes --------------------------------------------------------
 
 /** One bubble. Shown `delaySeconds` after the batch arrives; `position` is CSS percentages. */
 export interface Fact {

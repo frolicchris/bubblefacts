@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { config, NOW_PLAYING_PRESETS } from "./config";
 import { SongSource } from "./song-source";
-import { SongListClient } from "./songlist-client";
+import { displayTitle, toSong } from "./song-mapping";
 import { SSLQueueItem, SSLSong } from "./types";
 
 /**
@@ -116,11 +116,11 @@ export class NowPlayingFileSource implements SongSource {
   }
 
   toSong(item: SSLQueueItem): SSLSong {
-    return SongListClient.toSong(item);
+    return toSong(item);
   }
 
   displayTitle(item: SSLQueueItem): string {
-    return SongListClient.displayTitle(item);
+    return displayTitle(item);
   }
 
   async connect(): Promise<void> {

@@ -279,11 +279,9 @@ function resumeSameSong(): boolean {
   const current = songList.getCurrentSong();
   const song = current && songList.toSong(current);
   if (!song || !lastSent.song || !factsShownAt || factsShownAt > pausedAt) return false;
-  if (`${song.artist}:::${song.title}` !== `${lastSent.song.artist}:::${lastSent.song.title}`) return false;
-  const elapsed = (pausedAt - factsShownAt) / 1000;
-  const facts = (lastSent.facts ?? [])
-    .filter((f) => f.delaySeconds > elapsed)
-    .map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
+  if (!sameRequest(song, lastSent.song)) return false;
+  // The facts left as of the pause, not as of now.
+  const facts = remainingFacts(lastSent.facts ?? [], factsShownAt, pausedAt);
   broadcast({ type: "new_song", song: lastSent.song, quiet: true });
   broadcast({ type: "facts_ready", song: lastSent.song, facts });
   return true;
