@@ -85,10 +85,14 @@
   }
 
   const onSE = () => state?.settings.songSource === "streamelements";
+  /** A text file another app writes the song to: nothing to sign in to. */
+  const onFile = () => state?.settings.songSource === "nowplaying";
+  /** Streamling's file needs no choosing; any other app's does. */
+  const fileChosen = () => state.settings.nowPlayingPreset === "streamling" || !!state.settings.nowPlayingFile;
   /** The channel name for the song source in use. */
-  const channelName = () => (onSE() ? state.settings.seChannel : state.settings.channel);
-  /** The song source has its token saved. */
-  const connected = () => (onSE() ? state.settings.seJwtSet : state.settings.tokenSet);
+  const channelName = () => (onFile() ? "" : onSE() ? state.settings.seChannel : state.settings.channel);
+  /** The song source has what it needs to start: its token saved, or its file chosen. */
+  const connected = () => (onFile() ? fileChosen() : onSE() ? state.settings.seJwtSet : state.settings.tokenSet);
 
   // --- Setup: step 1, connect ------------------------------------------------
 
@@ -131,13 +135,44 @@
     toStreamStep();
   });
 
-  // Where the requests come from: StreamerSongList (sign in) or StreamElements (paste a token).
+  // Where the songs come from: StreamerSongList (sign in), StreamElements (paste a token) or a now playing file.
   function showSourceBox() {
-    const se = $('input[name="setup-source"]:checked').value === "streamelements";
-    $("#se-box").hidden = !se;
-    $("#ssl-box").hidden = se;
+    const source = $('input[name="setup-source"]:checked').value;
+    $("#se-box").hidden = source !== "streamelements";
+    $("#np-box").hidden = source !== "nowplaying";
+    $("#ssl-box").hidden = source !== "streamersonglist";
   }
   for (const r of $$('input[name="setup-source"]')) r.addEventListener("change", showSourceBox);
+
+  // Now playing file: Streamling (nothing to choose), or the file another app writes.
+  let setupFile = "";
+  function showNowPlayingBox() {
+    const other = $('input[name="setup-np"]:checked').value === "none";
+    $("#setup-np-streamling").hidden = other;
+    $("#setup-np-other").hidden = !other;
+    $("#setup-np-file").textContent = setupFile || "No file chosen yet.";
+  }
+  for (const r of $$('input[name="setup-np"]')) r.addEventListener("change", showNowPlayingBox);
+  $("#setup-np-choose").addEventListener("click", async () => {
+    const r = await api.chooseNowPlayingFile();
+    if (!r?.ok) return;
+    setupFile = r.path;
+    setResult($("#setup-np-result"), "");
+    showNowPlayingBox();
+  });
+  $("#setup-np-connect").addEventListener("click", async () => {
+    const result = $("#setup-np-result");
+    const preset = $('input[name="setup-np"]:checked').value;
+    if (preset === "none" && !setupFile) return setResult(result, "Choose the file first.", "bad");
+    const saved = await api.saveSettings({
+      songSource: "nowplaying",
+      nowPlayingPreset: preset,
+      ...(preset === "none" ? { nowPlayingFile: setupFile, nowPlayingFormat: $("#setup-np-format").value } : {}),
+    });
+    if (saved.error) return setResult(result, saved.error, "bad");
+    state = saved;
+    toStreamStep();
+  });
 
   $("#setup-se-test").addEventListener("click", async () => {
     const result = $("#setup-se-result");
@@ -158,9 +193,11 @@
   let obsConfirmed = false;
 
   function toStreamStep() {
-    $("#connected-as").textContent = onSE()
-      ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
-      : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
+    $("#connected-as").textContent = onFile()
+      ? (state.settings.nowPlayingPreset === "streamling" ? "✓ Following Streamling's file." : "✓ Following your file.")
+      : onSE()
+        ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
+        : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
     renderPaths();
     goStep(2);
     renderObsCheck();
@@ -203,8 +240,8 @@
   function toMusicStep() {
     $("#setup-originals").checked = state.settings.originals;
     $("#setup-livelearns").checked = state.settings.liveLearns;
-    // Live learns are a StreamerSongList idea: StreamElements requests are always videos.
-    $("#setup-livelearns-row").hidden = onSE();
+    // Live learns are a StreamerSongList idea: StreamElements requests are always videos, and a file has no list.
+    $("#setup-livelearns-row").hidden = onSE() || onFile();
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
     renderSetupOriginals();
     $("#setup-originals-box").hidden = !state.settings.originals;
@@ -320,13 +357,15 @@
     const obs = obsConnected(status);
     const otherClient = h && h.obsClients > 0 && !obs;
     const downloading = state.settings.ai === "builtin" && !state.modelReady;
-    const rejected = state.signInExpired || h?.status === "unauthorized";
+    const rejected = !onFile() && (state.signInExpired || h?.status === "unauthorized");
 
     // Songs
     if (!h) light("light-songlist", "", "Starting");
     else if (rejected) light("light-songlist", "bad", onSE() ? "Paste a new token in Settings" : "Sign in again");
     else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) {
-      light("light-songlist", "ok", h.currentSong ? (onSE() ? "Following your song requests" : "Following your queue") : "Connected");
+      light("light-songlist", "ok", h.currentSong
+        ? (onFile() ? "Following your file" : onSE() ? "Following your song requests" : "Following your queue")
+        : (onFile() ? "Watching your file" : "Connected"));
     }
     else light("light-songlist", "warn", "Reconnecting");
 
@@ -355,7 +394,8 @@
     }
     else if (status.state === "stopped") {
       title = "Connect your songs";
-      detail = onSE() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
+      detail = onFile() ? "Choose your now playing file in Settings to start."
+        : onSE() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
     }
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
     else if (status.state === "running" && !obs && obsGrace) { title = "Connecting to OBS"; detail = "If BubbleFacts is already in OBS, this takes a few seconds."; }
@@ -781,7 +821,8 @@
       closeSongList();
       $("#song-facts-title").textContent = "a song";
       // StreamElements has no song list to pick from.
-      $("#sf-title-hint").textContent = onSE() ? "as it appears on the request" : "type a few letters to pick it from your song list";
+      $("#sf-title-hint").textContent = onFile() ? "as it appears in your file"
+        : onSE() ? "as it appears on the request" : "type a few letters to pick it from your song list";
       for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link"]) $(id).value = "";
       setFactBoxes([]);
       $("#sf-twitch-row").hidden = true;
@@ -887,7 +928,9 @@
       e.currentTarget.before(result);
       if (await doSignIn(e.currentTarget, result)) renderNotices();
     });
-    if (onSE()) {
+    if (onFile()) {
+      // Nothing to sign in to.
+    } else if (onSE()) {
       if (state.signInExpired) add("warn", "BubbleFacts couldn't read your saved StreamElements token. Paste it again in Settings.", "Open Settings", () => show("settings"));
       else if (state.status?.health?.status === "unauthorized") add("warn", "StreamElements didn't accept your JWT token. Paste a new one in Settings.", "Open Settings", () => show("settings"));
     }
@@ -1030,6 +1073,7 @@
     renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
+    $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
       ? (s.seJwtSet ? `✓ Connected to StreamElements${s.seChannel ? " as " + s.seChannel : ""}.` : "Not connected.")
       : signedIn ? (s.channel ? `✓ Signed in as ${s.channel}.` : "✓ Signed in.") : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
@@ -1130,7 +1174,13 @@
     if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return setResult($("#settings-result"), "Add your Groq key first.", "bad");
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return setResult($("#settings-result"), "Add your Anthropic key first.", "bad");
     const switching = changes.songSource !== state.settings.songSource;
-    if (changes.songSource === "streamelements") {
+    if (changes.songSource === "nowplaying") {
+      delete changes.token; // The StreamerSongList and StreamElements fields are hidden; keep what's saved there.
+      delete changes.seJwt;
+      if (changes.nowPlayingPreset === "none" && !changes.nowPlayingFile) {
+        return setResult($("#settings-result"), "Choose the file your music app writes the song to first.", "bad");
+      }
+    } else if (changes.songSource === "streamelements") {
       delete changes.token; // The StreamerSongList fields are hidden; keep what's saved there.
       if (!changes.seJwt && !state.settings.seJwtSet) return setResult($("#settings-result"), "Paste your StreamElements JWT token first.", "bad");
       if (changes.seJwt || switching || changes.seChannel !== state.settings.seChannel) {
@@ -1202,14 +1252,29 @@
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
 
   function showSettingsSource() {
-    const se = form.elements.songSource.value === "streamelements";
+    const source = form.elements.songSource.value;
+    const se = source === "streamelements";
+    const file = source === "nowplaying";
     $("#s-se-box").hidden = !se;
-    $("#s-ssl-box").hidden = se;
-    $("#s-livelearns-row").hidden = se;
-    // The saved connection's line only describes the source it belongs to.
-    $("#s-signed-in").hidden = se !== onSE();
+    $("#s-ssl-box").hidden = se || file;
+    $("#s-np-box").hidden = !file;
+    $("#s-np-other").hidden = form.elements.nowPlayingPreset.value !== "none";
+    $("#s-livelearns-row").hidden = se || file;
+    // The saved connection's line only describes the source it belongs to; a file's choices say it themselves.
+    $("#s-signed-in").hidden = file || source !== state.settings.songSource;
   }
   for (const r of form.elements.songSource) r.addEventListener("change", showSettingsSource);
+  for (const r of form.elements.nowPlayingPreset) r.addEventListener("change", showSettingsSource);
+
+  $("#s-np-choose").addEventListener("click", async () => {
+    const r = await api.chooseNowPlayingFile();
+    if (!r?.ok) return;
+    const field = $("#s-np-file");
+    field.value = r.path;
+    field.title = r.path;
+    // Counts as an edit not yet saved, like typing in any other field.
+    field.dispatchEvent(new window.Event("input", { bubbles: true }));
+  });
 
   $("#s-sign-in").addEventListener("click", async (e) => {
     if (await doSignIn(e.currentTarget, $("#settings-result"))) {
@@ -1292,6 +1357,11 @@
       if (!state.signInAvailable) $("#token-summary").textContent = "Connect with a token";
       $("#setup-se-channel").value = state.settings.seChannel || "";
       if (onSE()) $('input[name="setup-source"][value="streamelements"]').checked = true;
+      if (onFile()) $('input[name="setup-source"][value="nowplaying"]').checked = true;
+      setupFile = state.settings.nowPlayingFile;
+      $(`input[name="setup-np"][value="${state.settings.nowPlayingPreset}"]`).checked = true;
+      $("#setup-np-format").value = state.settings.nowPlayingFormat;
+      showNowPlayingBox();
       showSourceBox();
       if (connected()) toStreamStep();
       else goStep(1);

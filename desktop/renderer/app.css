@@ -180,7 +180,8 @@ textarea { resize: vertical; line-height: 1.45; }
 @media (max-width: 760px) {
   .lights, .grid3, .checks { grid-template-columns: 1fr; }
 }
-#ssl-box, #se-box { margin-top: 18px; }
+#ssl-box, #se-box, #np-box { margin-top: 18px; }
+.filepath { overflow-wrap: anywhere; }
 
 /* Shown while the Mac's keychain prompt may be up. Fades in late, so a start with no prompt never flashes it. */
 #unlocking { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(11, 13, 31, 0.94); animation: unlocking-in 0.2s 0.6s both; }

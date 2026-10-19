@@ -371,6 +371,8 @@ async function doRefresh(): Promise<void> {
   } catch (err) {
     if (settings.refreshToken !== used) return;
     if (err instanceof SignInExpired) {
+      // A now playing file doesn't use the sign-in, so there's nothing to ask the musician to redo.
+      if (settings.songSource === "nowplaying") return;
       signInExpired = true;
       send("state", state());
       notify("Sign in to StreamerSongList again", "BubbleFacts can't see your queue until you do. Open BubbleFacts and click Sign in.");
@@ -641,6 +643,19 @@ ipcMain.handle("test-connection", async (_e, channel: string, token: string, kin
 ipcMain.handle("test-streamelements", async (_e, channel: string, jwt: string) =>
   logged("StreamElements test", await testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt))
 );
+
+/** Choose the text file another app writes the playing song to. The window saves the path with the other settings. */
+ipcMain.handle("choose-now-playing-file", async () => {
+  const options = {
+    title: "Choose the file your music app writes the song to",
+    defaultPath: app.getPath("documents"),
+    properties: ["openFile" as const],
+    filters: [{ name: "Text files", extensions: ["txt"] }, { name: "All files", extensions: ["*"] }],
+  };
+  const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  if (canceled || !filePaths[0]) return { ok: false, path: "" };
+  return { ok: true, path: filePaths[0] };
+});
 
 ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
@@ -1017,7 +1032,8 @@ app.whenReady().then(async () => {
   checkWhatsNew();
   send("state", state());
   // A secret the keychain could no longer read comes back blank.
-  if (settings.setupComplete && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
+  // A now playing file has no sign-in to lose.
+  if (settings.setupComplete && settings.songSource !== "nowplaying" && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
   powerMonitor.on("resume", () => scheduleRefresh());
   // Refresh a sign-in that ran out while the app was closed before the server needs it.
   if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {

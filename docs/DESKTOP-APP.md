@@ -11,7 +11,7 @@ project into an app you download, open, and click through: no Terminal, no
 | App framework | **Electron** | Reuses the existing TypeScript server unchanged. Bundles its own Node.js and browser, so nothing else needs installing. Mature installers and updates on all three systems. |
 | Platforms | **macOS 13+** (Apple silicon and Intel), **Windows 10 and 11** (x64), **Linux** x64 | Exactly where OBS 32 runs. |
 | Installers | macOS `.dmg`, Windows `.exe` (NSIS, per-user, no admin), Linux `.AppImage` and `.deb` | The standard format on each system. |
-| Setup | **Two steps**: 1) connect your songs (sign in with StreamerSongList, or paste a StreamElements token), 2) put BubbleFacts on your stream (drag it into OBS). The test bubble ends setup with **Start using BubbleFacts**. Originals and live learns are a link from step 2 and in Settings; custom facts are in Settings only. Everything else has a default and lives in Settings. | Every question in setup is a place to get stuck. |
+| Setup | **Two steps**: 1) connect your songs (sign in with StreamerSongList, paste a StreamElements token, or follow a now playing file), 2) put BubbleFacts on your stream (drag it into OBS). The test bubble ends setup with **Start using BubbleFacts**. Originals and live learns are a link from step 2 and in Settings; custom facts are in Settings only. Everything else has a default and lives in Settings. | Every question in setup is a place to get stuck. |
 | Starting up | The server starts as soon as the song list is connected. Until the built-in AI is ready, it runs with `AI_PROVIDER=none`: songs get Wikidata, MusicBrainz, song-list and custom facts. The dashboard calls the download "Getting BubbleFacts ready". | The overlay works on the first stream, even while the model is still downloading. |
 | Adding to OBS | A tile in the app that you **drag into OBS's Sources list**, which makes a Browser source at the canvas size. When OBS connects, the app sends a test bubble and confirms with "It's on your stream!" The overlay reconnects within about 4 seconds (it retries every 1 to 4 seconds), so for 15 seconds after the fact server starts the dashboard says **Connecting to OBS** instead of asking to add it. | No file paths or settings to copy, and immediate proof that it worked. |
 | Overlay size | Everything in the overlay scales with the height of the Browser source, with a Bubble size setting on top. **Where bubbles appear** keeps them to the top, bottom, left or right, or in one fixed spot (a new bubble there replaces the last), and the Now Playing bubble can be turned off. | Looks the same on a 720p, 1080p or 4K canvas, whatever size OBS gives the source. |
@@ -51,6 +51,17 @@ What's different with StreamElements:
 - StreamElements only has each video's YouTube title, so BubbleFacts works out the song and artist from it ("Ciara - 1, 2 Step (Official Video)" becomes "1, 2 Step" by Ciara). Clearly titled videos get the best facts. With a YouTube key built in, auto-generated uploads are read exactly instead (see YouTube lookups above). How titles are read: [ARCHITECTURE.md](ARCHITECTURE.md#song-sources-and-youtube-titles).
 - There are no live learns, so that setting is hidden.
 - If StreamElements stops accepting the token (you reset it, say), the Songs light says **Paste a new token in Settings**, and the dashboard asks for a new one.
+
+## Following a now playing file instead
+
+A third song source, **Now playing file**, for musicians whose music app writes the song that's playing to a text file. It's in the first setup step and in Settings. The steps for streamers are in the setup guide, under
+[Follow a now playing file instead](https://bubblefacts.frolic.org/guide.html#song-list-file).
+
+- **Streamling** is one click: the server reads Streamling's own file in the Documents folder (`NOW_PLAYING_PRESET=streamling`), which is always "Artist - Title". The app shows the folder it reads and says it's Windows only.
+- **Another app's file** opens a file picker (`dialog.showOpenDialog`, through the `choose-now-playing-file` message, which like every message from the window is refused unless it comes from the app's own page) and asks whether the line reads "Artist - Title" or is the title alone.
+- The chosen file and format are saved in Settings but left out of backups, as the sign-ins are, because a path belongs to one computer.
+- Nothing to sign in to, so no sign-in notices. There are no live learns, so that setting is hidden. Beta test reports name the source as "Now playing file".
+- The file's rules (an empty, missing or stale file means no song) are in [CONFIG.md](CONFIG.md#a-now-playing-file).
 
 ## What stays the same
 

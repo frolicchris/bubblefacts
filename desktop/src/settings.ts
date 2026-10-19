@@ -8,7 +8,7 @@ import { AiQuality, modelFor, modelPath } from "./model";
 export interface Settings {
   setupComplete: boolean;
   /** Where song requests come from. StreamerSongList is the default. */
-  songSource: "streamersonglist" | "streamelements";
+  songSource: "streamersonglist" | "streamelements" | "nowplaying";
   /** StreamerSongList channel name. */
   channel: string;
   token: string;
@@ -27,6 +27,12 @@ export interface Settings {
   seChannel: string;
   /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
   seJwt: string;
+  /** Now playing file: "streamling" reads Streamling's own file; "none" reads the file in `nowPlayingFile`. */
+  nowPlayingPreset: "streamling" | "none";
+  /** The text file another app writes the song to, chosen with the file picker. */
+  nowPlayingFile: string;
+  /** How its line reads: "Artist - Title", or the title alone. */
+  nowPlayingFormat: "artist-title" | "title";
   displayName: string;
   instrument: string;
   /** "I play my own compositions" and "I do live learns", from setup. */
@@ -94,6 +100,9 @@ export const DEFAULTS: Settings = {
   twitchLogin: "",
   seChannel: "",
   seJwt: "",
+  nowPlayingPreset: "streamling",
+  nowPlayingFile: "",
+  nowPlayingFormat: "artist-title",
   displayName: "",
   instrument: "",
   originals: false,
@@ -223,7 +232,10 @@ export function sanitize(s: Settings): Settings {
   const lines = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
   return {
     ...s,
-    songSource: oneOf(s.songSource, ["streamersonglist", "streamelements"] as const, "streamersonglist"),
+    songSource: oneOf(s.songSource, ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist"),
+    nowPlayingPreset: oneOf(s.nowPlayingPreset, ["streamling", "none"] as const, "streamling"),
+    nowPlayingFormat: oneOf(s.nowPlayingFormat, ["artist-title", "title"] as const, "artist-title"),
+    nowPlayingFile: s.nowPlayingFile.trim(),
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     aiQuality: oneOf(s.aiQuality, ["standard", "high"] as const, "standard"),
@@ -276,7 +288,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "liveLearnBanner",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "liveLearnBanner",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
@@ -363,6 +375,14 @@ export function toServerEnv(
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;
+  } else if (s.songSource === "nowplaying") {
+    env.SONG_SOURCE = "nowplaying";
+    if (s.nowPlayingPreset === "streamling") {
+      // Streamling's file is in a known folder and always reads "Artist - Song", so there's nothing to choose.
+      Object.assign(env, { NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "artist-title" });
+    } else {
+      Object.assign(env, { NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: s.nowPlayingFile, NOW_PLAYING_FORMAT: s.nowPlayingFormat });
+    }
   } else {
     Object.assign(env, {
       // The server needs a name to talk about the streamer; the ID, when signed in, is what it follows.
@@ -384,6 +404,8 @@ export function toServerEnv(
 /** The chosen song source has what it needs to start. */
 export function songSourceReady(s: Settings): boolean {
   if (s.songSource === "streamelements") return !!s.seJwt;
+  // Streamling's file is where the server already looks; any other app's needs a file chosen.
+  if (s.songSource === "nowplaying") return s.nowPlayingPreset === "streamling" || !!s.nowPlayingFile;
   // The app's own sign-in follows the channel by its ID, so a missing name doesn't hold it up.
   return !!s.token && (!!s.channel || (s.tokenKind === "oauth" && s.streamerId > 0));
 }

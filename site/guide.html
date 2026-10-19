@@ -62,7 +62,7 @@
             <li><a href="#streaming">While you stream</a></li>
             <li><a href="#make-it-yours">Make it yours (any time)</a></li>
           </ul>
-          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#custom-facts">Custom facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
+          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#song-list-file">Follow a now playing file</a>, <a href="#custom-facts">Custom facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
           <p>Stuck? See <a href="troubleshooting.html">Troubleshooting</a>.</p>
         </nav>
 
@@ -159,6 +159,17 @@
             <p>The JWT token works like a password. Keep it off your stream and out of screenshots.</p>
             <p>StreamElements only knows each request's YouTube video title, such as "Artist - Song (Official Video)". BubbleFacts reads the artist and song out of it, so clearly titled videos get the best facts. There are no live learns with StreamElements, so that setting is hidden.</p>
             <p>To switch later, or to paste a new token, open <span class="ui">Settings</span>, then <span class="ui">Your song list</span>, and click <span class="ui">Save</span>.</p>
+
+            <h3 id="song-list-file">Follow a now playing file instead</h3>
+            <p>Does your music app write the song that's playing to a text file? BubbleFacts can follow that file, with no sign-in and no token.</p>
+            <ol>
+              <li>Under <span class="ui">Where do your song requests come from?</span>, choose <span class="ui">Now playing file</span>.</li>
+              <li>Using Streamling on Windows? Leave <span class="ui">Streamling</span> picked. BubbleFacts reads the file Streamling keeps in your Documents folder, so there is nothing to choose.</li>
+              <li>Using another app? Pick <span class="ui">Another app's file</span>, click <span class="ui">Choose file</span>, and select the text file your app writes the song to.</li>
+              <li>Tell BubbleFacts how the line reads: <span class="ui">Artist - Title</span>, or <span class="ui">Title only</span>.</li>
+              <li>Click <span class="ui">Continue</span>, and setup moves on.</li>
+            </ol>
+            <p>An empty file means no song is playing, and so does a file that hasn't changed in 15 minutes. A file says nothing about who requested a song, so there are no live learns with it.</p>
 
             <div class="note">
               <p class="note-title">Your sign-in stays private</p>
