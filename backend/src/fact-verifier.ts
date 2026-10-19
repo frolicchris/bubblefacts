@@ -2,7 +2,7 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
-import { escapeRe } from "./text";
+import { escapeRe, hasNoArtist } from "./text";
 import { linkedGrounding } from "./musicbrainz";
 
 /**
@@ -103,7 +103,7 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
   const artist = song.artist?.trim();
   const title = dropVersionTags(song.title.trim());
 
-  if (!artist || /^unknown$/i.test(artist) || artist.toLowerCase() === title.toLowerCase()) {
+  if (!artist || hasNoArtist(artist) || artist.toLowerCase() === title.toLowerCase()) {
     return splitGameAndTrack(title);
   }
 
@@ -127,6 +127,7 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
 export const foldSymbols = (name: string): string => name.replace(/(?<=\p{L})!(?=\p{L})/gu, "i").replace(/(?<=\p{L})\$(?=\p{L})/gu, "s");
 
 export function artistNames(artist: string): string[] {
+  if (hasNoArtist(artist)) return [];
   const lead = artist.split(/\s*,\s*|\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0] ?? "";
   // Two full names joined by "and": an article may name each alone. Only when
   // both sides are full names, so "Simon and Garfunkel" stays one.
@@ -1139,7 +1140,7 @@ export function readings(song: SSLSong): Reading[] {
     return [...inTitle, ...installment, ...series];
   }
 
-  if (NO_ONE.test(artist)) {
+  if (hasNoArtist(artist) || NO_ONE.test(artist)) {
     // "Unknown" has long meant "read the title": that comes first.
     return [...(/^unknown$/i.test(artist) ? [first] : []), { game: "", track: title, songAlone: true }];
   }
@@ -1452,7 +1453,7 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
     if (renamed.text || renamed.unreachable) return renamed.text;
   }
   // Every reading missed: the article MusicBrainz's own Wikidata link names, gated (issue #245).
-  const linked = config.mbLink && !isPlaceholderRequest(song) ? await linkedGrounding(song, usable) : "";
+  const linked = config.mbLink && !isPlaceholderRequest(song) && !hasNoArtist(song.artist) ? await linkedGrounding(song, usable) : "";
   if (linked) linkedPages.add(linked.split("\n")[0]);
   return linked;
 }
@@ -2852,7 +2853,7 @@ export function restatesRequest(fact: string, song: SSLSong): boolean {
   const { game, track } = resolveGameAndTrack(song);
   const known = new Set(
     // Apostrophes go on both sides, so "Laura's" in the title is "Lauras" in the caption too.
-    [song.title, song.artist, game, track].flatMap((s) => normalizeTitle((s ?? "").replace(/['’]/g, "")).split(" ")).filter(Boolean)
+    [song.title, hasNoArtist(song.artist) ? "" : song.artist, game, track].flatMap((s) => normalizeTitle((s ?? "").replace(/['’]/g, "")).split(" ")).filter(Boolean)
   );
   const left = normalizeTitle(fact.replace(/['’]/g, ""))
     .split(" ")

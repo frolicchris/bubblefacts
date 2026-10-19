@@ -478,6 +478,8 @@ describe("generateFacts", () => {
     expect(liveLearnLookup({ title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true }))
       .toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
     expect(liveLearnLookup({ title: "Some Tune", artist: "Unknown", liveLearn: true })).toBeNull();
+    for (const artist of ["Traditional", "Trad.", "Anon.", "Anonymous", "Folk"]) expect(liveLearnLookup({ title: "Some Tune", artist, liveLearn: true })).toBeNull();
+    expect(liveLearnLookup({ title: "Some Tune", artist: "Folk Lanterns", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Folk Lanterns" });
     expect(liveLearnLookup({ title: "Some Tune", artist: "Jane Composer", liveLearn: true })).toEqual({ title: "Some Tune", artist: "Jane Composer" });
 
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);

@@ -3,6 +3,7 @@ import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isAPerformer, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -11,6 +12,7 @@ import { musicbrainzFacts } from "./musicbrainz";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
+import { logWrong } from "./wrong-log";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -740,7 +742,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ fa
  */
 export function liveLearnLookup(song: SSLSong): SSLSong | null {
   const artist = (song.artist ?? "").trim();
-  if (artist && !/^unknown$/i.test(artist)) return { title: song.title, artist };
+  if (artist && !hasNoArtist(artist)) return { title: song.title, artist };
   const parsed = parseVideoTitle(song.title);
   if (!parsed.artist || !parsed.title) return null;
   return { title: parsed.title, artist: parsed.artist, ...(parsed.performer ? { performer: true } : {}), ...(parsed.confident ? {} : { artistUncertain: true }) };
@@ -1005,6 +1007,7 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);
+  if (!ownFactKind(label)) logWrong(song, text, label, source); // a private test case for scripts/wrong-cases.mjs
   console.log(`[WrongFact] "${song.title}": ${source ? `won't use ${source === STRUCTURED ? source : `"${source}"`} again` : "not from a lookup"}`);
   return source;
 }

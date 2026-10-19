@@ -3,14 +3,15 @@ import type { ListSong } from "./song-search";
 
 /**
  * Where the server learns what's playing. StreamerSongList is the default;
- * StreamElements' song request player is the other choice (SONG_SOURCE).
+ * StreamElements' song request player and a now playing text file are the
+ * other choices (SONG_SOURCE).
  *
  * Every source hands the server a queue entry in StreamerSongList's shape,
  * because that's what the fact pipeline reads (title, artist field,
  * requester, duration). A source that has less to say leaves fields empty.
  */
 export interface SongSource {
-  /** For logs, /health and the desktop app: "StreamerSongList" or "StreamElements". */
+  /** For logs, /health and the desktop app: "StreamerSongList", "StreamElements", "Streamling" or "Now playing file". */
   readonly name: string;
   connect(): Promise<void>;
   disconnect(): void;
