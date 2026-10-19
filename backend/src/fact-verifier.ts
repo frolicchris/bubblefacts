@@ -3,6 +3,7 @@ import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { escapeRe } from "./text";
+import { linkedGrounding } from "./musicbrainz";
 
 /**
  * Grounding and screening.
@@ -17,9 +18,9 @@ const WIKI_API = "https://en.wikipedia.org/w/api.php";
 export const USER_AGENT =
   `bubblefacts/1.0 (${process.env.WIKIPEDIA_CONTACT || "https://github.com/frolicchris/bubblefacts"})`;
 
-const MAX_CONTEXT_CHARS = 3000;
+export const MAX_CONTEXT_CHARS = 3000;
 /** Shorter extracts are stubs; the entry's own data beats restating one. */
-const MIN_CONTEXT_CHARS = 600;
+export const MIN_CONTEXT_CHARS = 600;
 /** Longest fact that fits a bubble. */
 const MAX_FACT_CHARS = 160;
 /** How long "no article" is trusted before the lookup is retried. */
@@ -598,7 +599,7 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
 }
 
 /** The article's full plain text, or null for a disambiguation page. */
-async function wikiExtract(pageTitle: string): Promise<string | null> {
+export async function wikiExtract(pageTitle: string): Promise<string | null> {
   // exsectionformat=wiki keeps the "==" headings orderExtract relies on.
   const data = await wikiGet<{ query?: { pages?: Record<string, { extract?: string }> } }>(
     `action=query&prop=extracts&explaintext=1&exsectionformat=wiki&titles=${encodeURIComponent(pageTitle)}`,
@@ -1217,7 +1218,7 @@ async function wikipediaName(name: string): Promise<string | null> {
  * the usual ordering doesn't look for ("Origin", "Form"), it would keep little
  * more than the lead: then every section but the lists is read instead.
  */
-function ownArticleExtract(full: string, budget: number, names: string[]): string {
+export function ownArticleExtract(full: string, budget: number, names: string[]): string {
   const extract = orderExtract(full, budget, names);
   return extract.length >= MIN_CONTEXT_CHARS ? extract : orderExtract(full, budget, names, true, NOT_A_LIST);
 }
@@ -1315,7 +1316,8 @@ export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = 
     const renamed = await attempt({ ...reading, game, track, page: game === reading.game ? reading.page : game });
     if (renamed.text || renamed.unreachable) return renamed.text;
   }
-  return "";
+  // Every reading missed: the article MusicBrainz's own Wikidata link names, gated (issue #245).
+  return config.mbLink && !isPlaceholderRequest(song) ? linkedGrounding(song, usable) : "";
 }
 
 /** What a game, a film or a show is called in its article's first sentence or its title's brackets. */
@@ -1339,7 +1341,7 @@ export function isAWork(page: string, full: string): boolean {
 }
 
 /** What an article's first sentence says its subject is, up to who made it: "a 1997 role-playing video game". */
-function openingSays(full: string): string {
+export function openingSays(full: string): string {
   // "Dwayne Michael Carter Jr. (born 1982), known professionally as Lil Wayne, is an American rapper".
   const opening = full.slice(0, 600).replace(/\s*\([^()]*\)/g, "");
   const says = /\b(?:is|was|are|were)\s+((?:an?|the|one)\b[^.]*)/.exec(opening)?.[1] ?? "";

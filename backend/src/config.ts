@@ -138,6 +138,8 @@ export const config = {
   groundingTimeoutMs: intEnv("GROUNDING_TIMEOUT_MS", 5000, 500, 60000),
   // Larger: the extract call downloads the full article text.
   groundingExtractTimeoutMs: intEnv("GROUNDING_EXTRACT_TIMEOUT_MS", 15000, 1000, 120000),
+  // When no article is found, follow MusicBrainz's own Wikidata link to the song's or artist's article (issue #245).
+  mbLink: oneOf("MB_LINK", ["on", "off"] as const, "on") === "on",
 
   // Display
   factsPerSong: intEnv("FACTS_PER_SONG", 5, 1, 12),

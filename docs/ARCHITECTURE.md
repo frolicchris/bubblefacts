@@ -402,6 +402,29 @@ Satie"). Not our fuzzy guessing, and still careful:
 - The renamed subject is that very page, not whatever a search for its name
   finds first ("Pirates of the Caribbean", not its video game).
 
+When every reading still misses, MusicBrainz's own link is followed
+(`linkedGrounding` in `musicbrainz.ts`, issue #245; `MB_LINK=off` skips it).
+MusicBrainz is searched for the recording, forgiving a typo or two; a result
+counts with a score of at least 80, a title within a third of the edits of
+the typed one, and a credit naming the typed artist, a respelling of it, or
+what its initials stand for ("CCR"). Then only the English article named by
+the Wikidata link of the recording, its work, or else its artist is read.
+Never a search on what MusicBrainz returns: "Halocene" searched on Wikipedia
+finds "Holocene (song)". The page must still pass a gate:
+
+- A song's page must have the request's title, open as a piece of music
+  (not an album, a film or a show), and name the artist in its intro.
+- A song Wikidata credits only to someone else is the original of a cover.
+  Its intro must name that performer, and the reference opens with "originally
+  by" them, so no caption credits it to the artist on the list.
+- An artist's page must open as a band's, singer's or musician's, under the
+  typed name, a close respelling, or its initials.
+- A respelled credit is never followed when MusicBrainz also knows an artist
+  under the typed spelling: that one is someone else.
+
+The cost is three to seven MusicBrainz requests, one a second, only for a song
+nothing else found.
+
 **Does the article fit the request?** A found article is checked once more
 against the request as typed (`articleMisfit`), on the whole article read
 this session. Its opening must say it is about a song, a record, a
