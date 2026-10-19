@@ -126,6 +126,8 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
   const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/musicbrainz-link.json"), "utf8")) as Record<string, Entry[]>;
   let scenario: Entry[] = [];
   const asked: string[] = [];
+  const host = (url: string) => new URL(url).hostname;
+  const toMusicBrainz = (url: string) => host(url) === "musicbrainz.org";
   const fetchMock = jest.fn(async (input: string | URL) => {
     const url = decodeURIComponent(String(input)).replace(/\+/g, " ");
     asked.push(url);
@@ -133,7 +135,7 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     let body: unknown = hit?.body;
     if (hit?.extract !== undefined) body = { query: { pages: { 1: { title: hit.page, extract: hit.extract } } } };
     // Wikipedia knows none of these names: every ordinary lookup misses.
-    body ??= url.includes("wikipedia.org") ? { query: { search: [], pages: {} } } : url.includes("musicbrainz.org/ws/2/artist?") ? { artists: [] } : {};
+    body ??= host(url).endsWith(".wikipedia.org") ? { query: { search: [], pages: {} } } : toMusicBrainz(url) && new URL(url).pathname === "/ws/2/artist" ? { artists: [] } : {};
     return { ok: true, status: 200, json: async () => body } as Response;
   });
   const run = (name: string, title: string, artist: string) => {
@@ -187,7 +189,7 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     scenario = fixtures.song;
     const text = await fetchGrounding({ title: "Glass Harbour", artist: "The Velvet Lanterns" });
     expect(text.split("\n")[0]).toBe("Glass Harbor (song)");
-    const firstMb = asked.findIndex((u) => u.includes("musicbrainz.org"));
+    const firstMb = asked.findIndex((u) => toMusicBrainz(u));
     expect(asked.slice(0, firstMb).some((u) => u.includes("list=search"))).toBe(true);
 
     clearLinkCache();
@@ -195,7 +197,7 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     asked.length = 0;
     (config as { mbLink: boolean }).mbLink = false;
     expect(await fetchGrounding({ title: "Glass Harbour", artist: "The Velvet Lanterns" })).toBe("");
-    expect(asked.some((u) => u.includes("musicbrainz.org"))).toBe(false);
+    expect(asked.some((u) => toMusicBrainz(u))).toBe(false);
   });
 
   it("doesn't ask MusicBrainz for an artist called Traditional or Anon. (#261)", async () => {
@@ -205,6 +207,6 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     clearGroundingCache();
     asked.length = 0;
     await fetchGrounding({ title: "Glass Harbour", artist: "Traditional" });
-    expect(asked.some((u) => u.includes("musicbrainz.org"))).toBe(false);
+    expect(asked.some((u) => toMusicBrainz(u))).toBe(false);
   });
 });
