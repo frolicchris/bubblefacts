@@ -570,7 +570,13 @@ no screening, and are skipped for a song whose structured facts were marked
   item naming the artist or game ("2021 single by Lil Nas X"), so a
   same-named song by someone else never matches. Deprecated statements are
   ignored; preferred ones win (`rankedClaims`). Statements used: composer,
-  lyricist, year, album or work, producer, up to two awards, charts.
+  lyricist, year, album or work, producer, up to two awards, charts, what the
+  song is based on, up to two derivative works, the single before and after
+  (only for an item described as a single), the language of the lyrics (not
+  when it is only English) and the date of the first performance. Other
+  works are named by label alone, never with an artist, so a cover or a
+  derivative work is never credited to the requested artist; a work with the
+  song's own name is left out.
 - **MusicBrainz** (`musicbrainz.ts`), only when Wikidata has nothing. One
   request at a time, at most about one a second, with a User-Agent naming
   the project, as MusicBrainz asks. For a game's track: a composer only from
