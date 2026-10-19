@@ -974,6 +974,14 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
 /** Bumped when a song's facts change; a generation from an older revision is discarded. */
 const revisions = new Map<string, number>();
 
+/**
+ * Forget every song's facts and what was shown. Only the tests call this, between cases; the app
+ * never resets mid-session. It deliberately leaves three things alone. `outcomes`: a song's next
+ * lookup records its own again, and until then the last one is still the true answer
+ * for /recent. `structuredLabel`: it says which database a sentence came from, which doesn't
+ * change, and it's set again each time the sentence is looked up. The Wrong blocks
+ * (wrong-facts.ts): the streamer's own decisions, saved to disk; only Undo lifts one.
+ */
 export function clearFactCache(): void {
   factCache.clear();
   recentFacts.length = 0;
