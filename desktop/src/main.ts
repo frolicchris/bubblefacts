@@ -394,6 +394,46 @@ function asset(name: string): string {
 /** How long to wait for the window before reading the keychain anyway (see the unlock below). */
 const UNLOCK_WAIT_FALLBACK_MS = 120_000;
 
+/**
+ * Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
+ * on Windows and Linux to do it. Steps are a browser's, up to 300%.
+ */
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
+function addZoomKeys(window: BrowserWindow): void {
+  window.webContents.on("before-input-event", (e, input) => {
+    const mod = process.platform === "darwin" ? input.meta : input.control;
+    if (input.type !== "keyDown" || !mod || input.alt) return;
+    const contents = window.webContents;
+    const now = contents.getZoomFactor();
+    let next: number | undefined;
+    if (input.key === "=" || input.key === "+") next = ZOOM_STEPS.find((s) => s > now + 0.001);
+    else if (input.key === "-" || input.key === "_") next = [...ZOOM_STEPS].reverse().find((s) => s < now - 0.001);
+    else if (input.key === "0") next = 1;
+    else return;
+    e.preventDefault();
+    if (next !== undefined) contents.setZoomFactor(next);
+  });
+}
+
+/** Closing the window hides it; the app keeps running in the menu bar or tray. The first time, say where to find it. */
+function hideToTrayOnClose(window: BrowserWindow): void {
+  window.on("close", (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    window.hide();
+    if (toldAboutTray) return;
+    toldAboutTray = true;
+    // Windows hides tray icons behind the ^ next to the clock.
+    const where = process.platform === "darwin"
+      ? "the BubbleFacts icon in the menu bar"
+      : process.platform === "win32"
+        ? "the ^ next to the clock, then the BubbleFacts icon"
+        : "the BubbleFacts icon in the system tray";
+    notify("BubbleFacts is still running", `Facts keep appearing on stream. To quit, click ${where}.`);
+  });
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 980,
@@ -415,42 +455,12 @@ function createWindow(): void {
   win.loadFile(path.join(ROOT, "desktop/renderer/index.html"));
   win.once("ready-to-show", () => win?.show());
   win.webContents.on("will-navigate", (e) => e.preventDefault());
-  // Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
-  // on Windows and Linux to do it. Steps are a browser's, up to 300%.
-  win.webContents.on("before-input-event", (e, input) => {
-    const mod = process.platform === "darwin" ? input.meta : input.control;
-    if (input.type !== "keyDown" || !mod || input.alt) return;
-    const contents = win?.webContents;
-    if (!contents) return;
-    const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-    const now = contents.getZoomFactor();
-    let next: number | undefined;
-    if (input.key === "=" || input.key === "+") next = steps.find((s) => s > now + 0.001);
-    else if (input.key === "-" || input.key === "_") next = [...steps].reverse().find((s) => s < now - 0.001);
-    else if (input.key === "0") next = 1;
-    else return;
-    e.preventDefault();
-    if (next !== undefined) contents.setZoomFactor(next);
-  });
+  addZoomKeys(win);
   win.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url);
     return { action: "deny" };
   });
-  win.on("close", (e) => {
-    if (quitting) return;
-    e.preventDefault();
-    win?.hide();
-    if (!toldAboutTray) {
-      toldAboutTray = true;
-      // Windows hides tray icons behind the ^ next to the clock.
-      const where = process.platform === "darwin"
-        ? "the BubbleFacts icon in the menu bar"
-        : process.platform === "win32"
-          ? "the ^ next to the clock, then the BubbleFacts icon"
-          : "the BubbleFacts icon in the system tray";
-      notify("BubbleFacts is still running", `Facts keep appearing on stream. To quit, click ${where}.`);
-    }
-  });
+  hideToTrayOnClose(win);
 }
 
 /** The About page in the window: the same on every system (Windows has no About panel of its own here). */
@@ -575,8 +585,8 @@ const wrongKey = new WrongKeyListener(globalShortcut, () => {
  * Only BubbleFacts' own window may ask for anything. Navigation is already
  * blocked, so this is a second lock: if a page ever got into the window, it
  * still couldn't press Remove my data or install an update. Every
- * ipcMain.handle below goes through it, including ones added later;
- * start-drag, an ipcMain.on, checks for itself.
+ * message registered with handle() below goes through it, including ones
+ * added later; start-drag, an ipcMain.on, checks for itself.
  */
 const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean => {
   try {
@@ -587,9 +597,9 @@ const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): bo
     return false;
   }
 };
-const handleAny = ipcMain.handle.bind(ipcMain);
-ipcMain.handle = (channel, listener) =>
-  handleAny(channel, (e, ...args) => {
+/** Register a message from the window: refused from any other page, and a failure reaches the window in plain words. */
+function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
+  ipcMain.handle(channel, (e, ...args) => {
     if (!fromOurPage(e)) throw new Error(`"${channel}" isn't available to this page`);
     // Anything that slips through still reaches the window in plain words.
     return Promise.resolve()
@@ -598,40 +608,41 @@ ipcMain.handle = (channel, listener) =>
         throw new Error(shown(channel, err));
       });
   });
+}
 
-ipcMain.handle("whats-new-seen", () => {
+handle("whats-new-seen", () => {
   markWhatsNewSeen();
   return state();
 });
 
-ipcMain.handle("test-bubble", () => control("test"));
-ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
+handle("test-bubble", () => control("test"));
+handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
   // Only a click in the On stream now list is live; one under Earlier songs never takes a bubble off.
   const result = await control("wrong", { text: String(text), song, live: live === true });
   backUpNow();
   return result;
 });
-ipcMain.handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
+handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // Read from the file, so the list works even before the songs are connected.
-ipcMain.handle("list-song-facts", () => {
+handle("list-song-facts", () => {
   const list = readJson("song-facts.json");
   return Array.isArray(list) ? list : [];
 });
 // "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
-ipcMain.handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
-ipcMain.handle("save-song-facts", async (_e, data: unknown) => {
+handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
+handle("save-song-facts", async (_e, data: unknown) => {
   const result = await control("song-facts", data);
   backUpNow();
   return result;
 });
-ipcMain.handle("unwrong-fact", async (_e, article: string, song: unknown) => {
+handle("unwrong-fact", async (_e, article: string, song: unknown) => {
   const result = await control("unwrong", { article: String(article), song });
   backUpNow();
   return result;
 });
-ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
+handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
-ipcMain.handle("get-state", () => state());
+handle("get-state", () => state());
 
 /** A connection test's technical side goes in the log; the window gets the plain reason. */
 const logged = <T extends { ok: boolean; detail?: string }>(where: string, r: T): T => {
@@ -639,16 +650,16 @@ const logged = <T extends { ok: boolean; detail?: string }>(where: string, r: T)
   return r;
 };
 
-ipcMain.handle("test-connection", async (_e, channel: string, token: string, kind: string) =>
+handle("test-connection", async (_e, channel: string, token: string, kind: string) =>
   logged("StreamerSongList test", await testSongList(channel, token || settings.token, kind))
 );
 
-ipcMain.handle("test-streamelements", async (_e, channel: string, jwt: string) =>
+handle("test-streamelements", async (_e, channel: string, jwt: string) =>
   logged("StreamElements test", await testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt))
 );
 
 /** Choose the text file another app writes the playing song to. The window saves the path with the other settings. */
-ipcMain.handle("choose-now-playing-file", async () => {
+handle("choose-now-playing-file", async () => {
   const options = {
     title: "Choose the file your music app writes the song to",
     defaultPath: app.getPath("documents"),
@@ -660,40 +671,47 @@ ipcMain.handle("choose-now-playing-file", async () => {
   return { ok: true, path: filePaths[0] };
 });
 
-ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
-  const changes = fromWindow(raw ?? {});
-  // The window checks first; this is the backstop, so an over-long fact is never saved.
-  const problem = customFactsProblem(changes);
-  if (problem) return { error: problem };
+/** The settings with the window's changes in: a blank secret field keeps the one already saved, and a pasted token replaces the sign-in. */
+function mergeSettings(changes: Partial<Settings>): Settings {
   const next: Settings = sanitize({ ...settings, ...changes });
-  // Blank secret fields mean "keep the one already saved".
   for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
-  // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
-  const aiChanged = next.ai !== settings.ai;
-  const qualityChanged = next.aiQuality !== settings.aiQuality;
-  const channelChanged = next.updateChannel !== settings.updateChannel;
-  const sourceChanged = next.songSource !== settings.songSource;
-  settings = next;
+  return next;
+}
+
+/** After a save: make what changed take effect. `settings` already holds the new values; `previous` is what they replaced. */
+function applySettingsChange(previous: Settings, changes: Partial<Settings>): void {
+  const aiChanged = settings.ai !== previous.ai;
+  const qualityChanged = settings.aiQuality !== previous.aiQuality;
+  const channelChanged = settings.updateChannel !== previous.updateChannel;
+  const sourceChanged = settings.songSource !== previous.songSource;
+  // A new token (pasted, or a StreamElements one) or a switch of source starts over; health reports if it's still refused.
+  const newSignIn = Boolean(changes.token || changes.seJwt || sourceChanged);
   if (aiChanged || qualityChanged) builtinFailed = false;
   saveSettings(settings);
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
-  if (changes.token) {
-    signInExpired = false;
-    scheduleRefresh(); // Stops refreshing the replaced sign-in.
-  }
-  // A new StreamElements token, or a switch of source, starts over; health reports if it's still refused.
-  if (changes.seJwt || sourceChanged) signInExpired = false;
+  if (newSignIn) signInExpired = false;
+  if (changes.token) scheduleRefresh(); // Stops refreshing the replaced sign-in.
   // A download of the quality no longer chosen stops; ensureModel then starts the chosen one.
   if (qualityChanged) stopModelDownload();
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();
-  // A new token or song source always starts over; anything else only if the server would notice.
-  startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
+  // A new sign-in always starts the server over; anything else only if the server would notice.
+  startServer(newSignIn);
   backUpNow();
   if (channelChanged) void checkForUpdate();
+}
+
+handle("save-settings", (_e, raw: Record<string, unknown>) => {
+  const changes = fromWindow(raw ?? {});
+  // The window checks first; this is the backstop, so an over-long fact is never saved.
+  const problem = customFactsProblem(changes);
+  if (problem) return { error: problem };
+  const previous = settings;
+  settings = mergeSettings(changes);
+  applySettingsChange(previous, changes);
   return state();
 });
 
@@ -710,21 +728,21 @@ const twitch = new TwitchSession(
   (line) => supervisor.note(line)
 );
 
-ipcMain.handle("twitch-connect", async () => {
+handle("connect-twitch", async () => {
   await twitch.connect(openExternal, () => send("state", state()));
   return state();
 });
 
-ipcMain.handle("twitch-disconnect", async () => {
+handle("disconnect-twitch", async () => {
   await twitch.disconnect();
   return state();
 });
 
 /** The Twitch channel a song points to, for the window to offer Fill: one rule, in twitch.ts. */
-ipcMain.handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
+handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
 
 /** Their Twitch About, as fact boxes for the streamer to review in the song facts editor. */
-ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
+handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
   const login = twitchLoginFrom(String(artist ?? ""), String(link ?? ""));
   if (!login) return { ok: false, message: "Put their Twitch link in \"Their link\" first, like twitch.tv/theirname." };
   try {
@@ -743,7 +761,7 @@ ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
   }
 });
 
-ipcMain.handle("sign-in", async () => {
+handle("sign-in", async () => {
   signingIn?.abort();
   const mine = new AbortController();
   signingIn = mine;
@@ -771,7 +789,7 @@ ipcMain.handle("sign-in", async () => {
     if (signingIn === mine) signingIn = null;
   }
 });
-ipcMain.handle("cancel-sign-in", () => signingIn?.abort());
+handle("cancel-sign-in", () => signingIn?.abort());
 
 // --- Backup -----------------------------------------------------------------
 
@@ -795,7 +813,7 @@ const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-fac
 /** After anything that changes the streamer's facts or settings: a copy they never have to think about. */
 const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
 
-ipcMain.handle("backup-save", async () => {
+handle("save-backup", async () => {
   const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
@@ -807,7 +825,7 @@ ipcMain.handle("backup-save", async () => {
   return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
 });
 
-ipcMain.handle("backup-restore", async () => {
+handle("restore-backup", async () => {
   // Opens where the automatic backups are, so the newest is a click away.
   const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
@@ -846,7 +864,7 @@ ipcMain.handle("backup-restore", async () => {
 });
 
 /** The first half of uninstalling, without hunting for hidden folders. */
-ipcMain.handle("remove-data", async () => {
+handle("remove-data", async () => {
   const options = {
     type: "warning" as const,
     buttons: ["Remove and quit", "Cancel"],
@@ -873,28 +891,28 @@ ipcMain.handle("remove-data", async () => {
   return true;
 });
 
-ipcMain.handle("download-model", () => {
+handle("download-model", () => {
   downloadFailures = 0;
   void ensureModel();
   void ensureOllamaModel();
 });
-ipcMain.handle("copy", (_e, text: string) => clipboard.writeText(text));
+handle("copy", (_e, text: string) => clipboard.writeText(text));
 // Dragging the overlay file onto OBS's Sources list makes a Browser source at the canvas size.
 ipcMain.on("start-drag", (e) => fromOurPage(e) && e.sender.startDrag({ file: overlayFile(), icon: asset("tray@2x.png") }));
-ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
-ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
-ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
-ipcMain.handle("show-backups", () => {
+handle("open-external", (_e, url: string) => openExternal(url));
+handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
+handle("show-logs", () => shell.openPath(DIRS.logs));
+handle("show-backups", () => {
   fs.mkdirSync(DIRS.backups, { recursive: true });
   return shell.openPath(DIRS.backups);
 });
 // Inside the app's archive other programs can't read it, so a copy goes in the data folder first.
-ipcMain.handle("open-notices", () => {
+handle("open-notices", () => {
   const copy = path.join(DATA, "THIRD-PARTY-NOTICES.md");
   fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), copy);
   return shell.openPath(copy);
 });
-ipcMain.handle("recent", async () => {
+handle("recent", async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/recent`, { signal: AbortSignal.timeout(2000) });
     return await res.json();
@@ -916,7 +934,7 @@ async function checkForUpdate(): Promise<void> {
   send("state", state());
 }
 
-ipcMain.handle("update-download", async () => {
+handle("download-update", async () => {
   if (!update?.download || updating.stage === "downloading") return;
   updating = { stage: "downloading", progress: 0, file: "", error: "" };
   send("state", state());
@@ -936,7 +954,7 @@ ipcMain.handle("update-download", async () => {
   send("state", state());
 });
 
-ipcMain.handle("update-install", () => {
+handle("install-update", () => {
   if (updating.stage !== "ready") return;
   fs.mkdirSync(DIRS.logs, { recursive: true });
   const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
@@ -952,10 +970,10 @@ ipcMain.handle("update-install", () => {
   app.quit();
 });
 
-ipcMain.handle("report-problem", () =>
+handle("report-problem", () =>
   openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
-ipcMain.handle("report-beta", () =>
+handle("report-beta", () =>
   openExternal(
     betaReportUrl({
       version: app.getVersion(),
@@ -969,7 +987,7 @@ ipcMain.handle("report-beta", () =>
   )
 );
 /** The same reports, as text to paste anywhere: no GitHub account needed. */
-ipcMain.handle("copy-report", (_e, kind: unknown) => {
+handle("copy-report", (_e, kind: unknown) => {
   const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
   clipboard.writeText(
     kind === "beta"
@@ -977,7 +995,7 @@ ipcMain.handle("copy-report", (_e, kind: unknown) => {
       : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai })
   );
 });
-ipcMain.handle("report-fact", (_e, song: string, fact: string) =>
+handle("report-fact", (_e, song: string, fact: string) =>
   openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 
@@ -996,10 +1014,8 @@ app.on("window-all-closed", () => {
   // Stay running in the tray; quitting is explicit.
 });
 
-app.whenReady().then(async () => {
-  if (!primaryInstance) return;
-  app.setAppUserModelId("org.frolic.bubblefacts");
-  // The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer.
+/** The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer. */
+function setAboutPanel(): void {
   app.setAboutPanelOptions({
     applicationName: "BubbleFacts",
     // A Mac shows "Version <applicationVersion> (<version>)"; the other systems show applicationVersion alone.
@@ -1011,6 +1027,44 @@ app.whenReady().then(async () => {
     authors: ["Christopher Feyrer (creator and maintainer)", "Claude Code by Anthropic (AI coding agent)"],
     website: "https://bubblefacts.frolic.org/",
   });
+}
+
+/**
+ * Reading the keychain blocks this process until the prompt is answered, and a window that
+ * isn't up by then can't appear at all. So wait for the window to say it's showing; the first
+ * launch after an update can take well over a few seconds while macOS checks the new app.
+ * The long fallback only covers a window that never loads.
+ */
+async function unlockSecretsOnceWindowIsUp(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    ipcMain.once("unlock-ready", () => resolve());
+    setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
+  });
+  settings = unlockSecrets(settings);
+  send("state", state());
+}
+
+/** Setup is done but the keychain gave nothing back: ask for the sign-in again. */
+function checkSignInSurvived(): void {
+  // A now playing file has no sign-in to lose.
+  if (!settings.setupComplete || settings.songSource === "nowplaying") return;
+  const saved = settings.songSource === "streamelements" ? settings.seJwt : settings.token;
+  if (!saved) signInExpired = true;
+}
+
+/** Refresh a sign-in that ran out while the app was closed before the server needs it. */
+async function refreshSignInIfDue(): Promise<void> {
+  if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {
+    await refreshSignIn();
+  } else {
+    scheduleRefresh();
+  }
+}
+
+async function startApp(): Promise<void> {
+  if (!primaryInstance) return;
+  app.setAppUserModelId("org.frolic.bubblefacts");
+  setAboutPanel();
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
   // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the
   // app waits on that prompt. The window goes up first, saying what to click (issue #62).
@@ -1020,35 +1074,19 @@ app.whenReady().then(async () => {
   supervisor.note(`[App] BubbleFacts ${versionWithBuild()} starting on ${process.platform} ${process.arch}`);
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
-  if (secretsWaiting()) {
-    // Reading the keychain blocks this process until the prompt is answered, and a window that
-    // isn't up by then can't appear at all. So wait for the window to say it's showing; the first
-    // launch after an update can take well over a few seconds while macOS checks the new app.
-    // The long fallback only covers a window that never loads.
-    await new Promise<void>((resolve) => {
-      ipcMain.once("unlock-ready", () => resolve());
-      setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
-    });
-    settings = unlockSecrets(settings);
-    send("state", state());
-  }
+  if (secretsWaiting()) await unlockSecretsOnceWindowIsUp();
   // After the secrets are read: settings can't be saved before then.
   checkWhatsNew();
   send("state", state());
-  // A secret the keychain could no longer read comes back blank.
-  // A now playing file has no sign-in to lose.
-  if (settings.setupComplete && settings.songSource !== "nowplaying" && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
+  checkSignInSurvived();
   powerMonitor.on("resume", () => scheduleRefresh());
-  // Refresh a sign-in that ran out while the app was closed before the server needs it.
-  if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {
-    await refreshSignIn();
-  } else {
-    scheduleRefresh();
-  }
+  await refreshSignInIfDue();
   void ensureModel();
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);
   backUpNow();
   await checkForUpdate();
-});
+}
+
+app.whenReady().then(startApp);
