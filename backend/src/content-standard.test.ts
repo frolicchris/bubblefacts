@@ -17,7 +17,7 @@ import { htmlToText } from "./wiki-html";
 describe("the content standard's word lists (issue #242)", () => {
   const cases: Array<[string, string]> = [
     ["crime or lawsuits", "Mara Quillon was arrested in 1998 after a show in Dorrance."],
-    ["crime or lawsuits", "The Tinfoil Lanterns sued their label over the royalties in 2004."],
+    ["crime or lawsuits", "The Tinfoil Lanterns sued their label over unpaid fees in 2004."],
     ["drugs or addiction", "During the sessions, Tobin Varr struggled with heroin addiction."],
     ["sexual content", "A tabloid wrote about Lisette Moraine's sexual relationship with her manager."],
     ["private life", "Dax Holloway divorced his wife in 2003, a year after the album came out."],
