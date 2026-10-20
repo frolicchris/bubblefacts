@@ -30,6 +30,7 @@ jest.mock("./musicbrainz", () => ({ musicbrainzFacts: jest.fn().mockResolvedValu
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
   fetchGrounding: jest.fn().mockResolvedValue(""),
+  summaryGate: jest.fn().mockResolvedValue(""),
 }));
 
 import { config } from "./config";

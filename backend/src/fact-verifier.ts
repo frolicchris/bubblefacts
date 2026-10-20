@@ -1076,6 +1076,138 @@ function aboutThePiece(page: string, full: string, piece: string): boolean {
   return editDistance(base.replace(/ /g, ""), want.replace(/ /g, "")) <= Math.max(1, Math.floor(want.length * 0.15));
 }
 
+// --- Wikipedia's own summary of the article ------------------------------
+
+/**
+ * What Wikipedia's page summary says about an article (the REST endpoint
+ * page previews use): the kind of page, and its short description ("2018
+ * film directed by ...", "1975 song by Queen").
+ */
+export interface PageSummary {
+  title: string;
+  /** "standard" for an article; "disambiguation", "no-extract" or "mainpage" otherwise. */
+  type: string;
+  description: string;
+  extract: string;
+}
+
+const SUMMARY_API = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+/** Summaries read this session, by title, kept like the articles (null: no such page). */
+const summaries = new Map<string, PageSummary | null>();
+
+/** Wikipedia's summary of a page, or null when there is no such page. Throws when it can't be read. */
+export async function pageSummary(title: string): Promise<PageSummary | null> {
+  if (summaries.has(title)) return summaries.get(title) ?? null;
+  const res = await fetch(SUMMARY_API + encodeURIComponent(title.replace(/ /g, "_")), {
+    signal: AbortSignal.timeout(config.groundingTimeoutMs),
+    headers: { "User-Agent": USER_AGENT },
+  });
+  if (res.status === 429) throw new RateLimited("summary");
+  if (!res.ok && res.status !== 404) throw new Error(`summary HTTP ${res.status}`);
+  const data = res.ok ? ((await res.json()) as { title?: string; type?: string; description?: string; extract?: string }) : null;
+  const summary = data ? { title: data.title ?? title, type: data.type ?? "", description: data.description ?? "", extract: data.extract ?? "" } : null;
+  summaries.set(title, summary);
+  if (summaries.size > MAX_ARTICLE_TEXTS) summaries.delete(summaries.keys().next().value as string);
+  return summary;
+}
+
+/** What a short description calls its subject, by the kind word nearest its end before "by", "from", a comma... */
+export type DescribedKind = "song" | "album" | "person" | "tv" | "book" | "series" | "game" | "film" | "other";
+const DESCRIBED: Array<[DescribedKind, RegExp]> = [
+  ["tv", /\b(?:(?:television|tv|anime|web|animated|streaming) (?:series|shows?|programmes?|programs?|films?|specials?)|sitcoms?|miniseries|television)\b/gi],
+  ["book", /\b(?:(?:light )?novels?|novellas?|books?|manga(?: series)?|comics?|comic books?|graphic novels?|short stor(?:y|ies)|poems?|(?:novel|book|comic) series)\b/gi],
+  ["series", /\b(?:series|franchise)\b/gi],
+  ["game", /\b(?:video )?games?\b/gi],
+  ["film", /\b(?:films?|movies?|documentar(?:y|ies))\b/gi],
+  ["album", /\b(?:albums?|EPs?|mixtapes?|soundtracks?|scores?|compilations?|discograph(?:y|ies))\b/gi],
+  ["song", /\b(?:songs?|singles?|instrumentals?|compositions?|hymns?|anthems?|arias?|ballads?|carols?|pieces?|sonatas?|symphon(?:y|ies)|concert[oi]s?|overtures?|nocturnes?|[eé]tudes?|preludes?|waltz(?:es)?|jingles?|themes?)\b/giu],
+  ["person", /\b(?:bands?|singers?|singer-songwriters?|songwriters?|rappers?|musicians?|composers?|pianists?|guitarists?|drummers?|bassists?|violinists?|vocalists?|DJs?|disc jockeys?|producers?|groups?|duo|trio|quartet|orchestras?|ensembles?|choirs?|conductors?|actors?|actresses?|idols?|YouTubers?|entertainers?|performers?|artists?|lyricists?|arrangers?|people|person)\b/gi],
+];
+const DESCRIPTION_HEAD = /\s(?:by|from|of|for|in|on|at|about|featuring|directed|written|composed|created|developed|published|produced|released|recorded|performed|based|starring|with)\b|[,(;:]/i;
+
+/**
+ * The kind of thing a short description names: "2018 film directed by Bryan
+ * Singer" is a film, "Japanese video game composer" a person, "studio album
+ * by Queen" an album. The kind word that ends last before "by", "from" or a
+ * comma wins; a longer one at the same place ("television series") beats a
+ * shorter one ("series").
+ */
+export function describedKind(description: string): DescribedKind {
+  const head = description.split(DESCRIPTION_HEAD)[0];
+  let best: { kind: DescribedKind; end: number; length: number } | null = null;
+  for (const [kind, re] of DESCRIBED) {
+    for (const m of head.matchAll(re)) {
+      const end = (m.index ?? 0) + m[0].length;
+      if (!best || end > best.end || (end === best.end && m[0].length > best.length)) best = { kind, end, length: m[0].length };
+    }
+  }
+  return best?.kind ?? "other";
+}
+
+const SCREEN_KINDS = new Set<DescribedKind>(["film", "tv", "book", "game"]);
+
+/**
+ * Why Wikipedia's summary says the article isn't the requested work, or "":
+ * - a disambiguation page, or any page that isn't a standard article;
+ * - a page named like the song that Wikipedia describes as a film, a show, a
+ *   book, a game, an album or a person ("Bohemian Rhapsody (film)");
+ * - a film's, a show's, a book's or a game's article that is not the request's
+ *   own work (its game or artist field) and never names the song.
+ * The artist's article when the song has one of its own is checked by `summaryGate`.
+ */
+export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grounding: string, asked: SSLSong = song): string {
+  if (!summary) return "";
+  if (summary.type === "disambiguation") return "Wikipedia's summary calls it a disambiguation page";
+  if (summary.type && summary.type !== "standard") return `Wikipedia's summary calls it a "${summary.type}" page, not an article`;
+  const kind = describedKind(summary.description);
+  const page = grounding.split("\n")[0];
+  const base = normalizeTitle(withoutQualifier(page));
+  const { game, track } = resolveGameAndTrack(song);
+  const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? normalizeTitle(track) : "";
+  const described = `Wikipedia describes "${page}" as "${summary.description}"`;
+  if (piece && base === piece && kind !== "song" && kind !== "other" && kind !== "series") return `${described}, not the song`;
+  if (!SCREEN_KINDS.has(kind)) return "";
+  // The request's own work: its game or artist field, in whole words ("Pokemon Red" in "Pokémon Red and Blue").
+  const words = significantTokens(base);
+  const own = [game, song.artist ?? "", asked.artist ?? ""].some((n) => {
+    const want = significantTokens(normalizeTitle(n));
+    return want.length > 0 && (want.every((t) => words.includes(t)) || (words.length > 0 && words.every((t) => want.includes(t))));
+  });
+  if (own || !piece) return "";
+  const full = articleText(page) || grounding.slice(page.length + 1);
+  if (/^About this piece:/m.test(grounding) || mentionsName(normalizeTitle(full), [piece])) return "";
+  return `${described}, another work that never names the song`;
+}
+
+/**
+ * The work match after Wikipedia's page summary (`summaryMismatch`): the reason the
+ * article may not be the requested work, or "" when the summary doesn't say so or
+ * can't be read. On a person's or a band's article for a song, it also asks whether
+ * the song has an article of its own ("Song (Some Band song)", "Song (song)", "Song")
+ * that describes it as a song naming the artist: then the artist's article is not the song's.
+ */
+export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSong = song): Promise<string> {
+  const page = grounding.split("\n")[0];
+  try {
+    const summary = await pageSummary(page);
+    const why = summaryMismatch(summary, song, grounding, asked);
+    if (why || !summary || describedKind(summary.description) !== "person") return why;
+    const { game, track } = resolveGameAndTrack(song);
+    if (!track || normalizeTitle(track) === normalizeTitle(game)) return "";
+    const names = [...new Set([...artistNames(song.artist ?? ""), ...artistNames(asked.artist ?? "")])];
+    const blocked = blockedArticles(asked);
+    for (const title of [...new Set([`${track} (${withoutQualifier(page)} song)`, `${track} (song)`, track])]) {
+      if (title === page) continue;
+      const own = await pageSummary(title);
+      if (!own || own.type !== "standard" || describedKind(own.description) !== "song" || blocked.has(own.title)) continue;
+      if (mentionsName(normalizeTitle(`${own.description} ${own.extract}`), names)) return `the song has an article of its own ("${own.title}"), not "${page}"`;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 /** Reference text for the song, or "" when no relevant article exists. */
 /** Game tracks already found to have no article of their own. */
 const noOwnArticle = new Set<string>();
@@ -2369,6 +2501,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
 
 export function clearGroundingCache(): void {
   linkedPages.clear();
+  summaries.clear();
   classicalPages.clear();
   clearClassicalCache();
   noOwnArticle.clear();

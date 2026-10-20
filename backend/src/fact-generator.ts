@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -868,7 +868,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   }
 
   // Not sure the article is about this song (issue #255): no AI captions, only facts from data.
-  const match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+  // Wikipedia's own summary of the article can say so too: a disambiguation page, a film named like the song.
+  let match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+  if (match?.level === "sure") {
+    const why = await summaryGate(read, context, song);
+    if (why) match = { level: "unsure", reason: why };
+  }
   if (match?.level === "unsure") {
     console.log(`[Grounding] unsure: ${match.reason} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
     const fresh = (list: string[]) => list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));

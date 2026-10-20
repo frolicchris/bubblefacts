@@ -588,6 +588,24 @@ log says why (`[Grounding] unsure: ...`). Unsure is:
 - the artist's article that never names the song, found only after dropping a
   note ("Some Singer (Tribute)", "Song (Someone's cover)").
 
+A `sure` article is then checked against Wikipedia's own page summary
+(`summaryGate`, the REST `page/summary` endpoint page previews use, cached
+like the article; if it can't be read, nothing changes). Unsure is also:
+
+- a disambiguation page, or any page the summary doesn't call a standard
+  article;
+- a page named like the song that the summary describes as a film, a show,
+  a book, a game, an album or a person ("Some Song (film)": the song's own
+  article by its title, as far as the rules above can tell);
+- a film's, a show's, a book's or a game's article that isn't the request's
+  own work (its game or artist field) and never names the song;
+- a person's or a band's article for a song that has an article of its own
+  ("Song (Some Band song)", "Song (song)" or "Song", described as a song and
+  naming the artist).
+
+The summary's description comes from the current version, not the 72-hour
+one, but it can only take captions away, never add any.
+
 A game's own article and its music article stay `sure` for its tracks: they
 are what a game's music is written about. So does an artist's article found
 under the name as typed, the fallback it has always been. Measured once on 80
