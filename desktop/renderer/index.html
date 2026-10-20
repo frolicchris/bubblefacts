@@ -57,7 +57,7 @@
             <input type="radio" name="setup-source" value="nowplaying">
             <span class="choice-body">
               <strong>Now playing file</strong>
-              <span>The song your music app writes to a text file, such as Streamling.</span>
+              <span>The song your music app writes to a text file, such as Streamling or Nightbot.</span>
             </span>
           </label>
         </div>
@@ -73,6 +73,13 @@
               </span>
             </label>
             <label class="choice">
+              <input type="radio" name="setup-np" value="nightbot">
+              <span class="choice-body">
+                <strong>Nightbot</strong>
+                <span>Nothing to choose. BubbleFacts reads the song file Nightbot's desktop app keeps in your Documents folder. Windows and Mac.</span>
+              </span>
+            </label>
+            <label class="choice">
               <input type="radio" name="setup-np" value="none">
               <span class="choice-body">
                 <strong>Another app's file</strong>
@@ -80,7 +87,8 @@
               </span>
             </label>
           </div>
-          <p class="fine" id="setup-np-streamling">It reads <span class="filepath">Documents\streamling\livetext\nowplaying-minimal.txt</span></p>
+          <p class="fine" id="setup-np-streamling">It reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span></p>
+          <p class="fine" id="setup-np-nightbot" hidden>It reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span></p>
           <div id="setup-np-other" hidden>
             <div class="actions">
               <button type="button" class="ghost" id="setup-np-choose">Choose file...</button>
@@ -321,7 +329,8 @@
           </div>
           <div id="s-np-box">
             <div class="checks single" role="radiogroup" aria-label="Which app writes the file">
-              <label><input type="radio" name="nowPlayingPreset" value="streamling"> <span>Streamling<br><span class="fine">Reads <span class="filepath">Documents\streamling\livetext\nowplaying-minimal.txt</span>. Windows only.</span></span></label>
+              <label><input type="radio" name="nowPlayingPreset" value="streamling"> <span>Streamling<br><span class="fine">Reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span>. Windows only.</span></span></label>
+              <label><input type="radio" name="nowPlayingPreset" value="nightbot"> <span>Nightbot<br><span class="fine">Reads the newest .txt in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>. Windows and Mac.</span></span></label>
               <label><input type="radio" name="nowPlayingPreset" value="none"> <span>Another app's file</span></label>
             </div>
             <div id="s-np-other">

@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import os from "os";
 import path from "path";
+import { presetFolder } from "./now-playing-folder";
 
 /** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -57,14 +58,19 @@ const sslHost = oneOf("SSL_ENV", ["production", "staging"] as const, "production
 const trimSlash = (s: string) => s.replace(/\/+$/, "");
 
 /**
- * Apps that write the playing song to a text file, and the folder they write it in.
- * Streamling's own page names the folder but not the file, so the file name is still a setting.
+ * Apps that write the playing song to a text file, the folder they write it in
+ * (inside Documents, which may be in OneDrive: see presetFolder),
+ * the file's name (empty: the app's page doesn't name one, so the newest .txt
+ * in the folder is followed) and how its line reads.
  */
 export const NOW_PLAYING_PRESETS = {
   // Streamling's author recommends nowplaying-minimal.txt: one "Artist - Song" line, UTF-8 (v1.5 release notes).
-  streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"], file: "nowplaying-minimal.txt" },
+  streamling: { name: "Streamling", folder: ["streamling", "livetext"], file: "nowplaying-minimal.txt", format: "artist-title" },
+  // Nightbot's desktop app (Windows and Mac) writes the current song, a YouTube video, into this folder;
+  // its docs name neither the file nor the line, which is customizable.
+  nightbot: { name: "Nightbot", folder: ["Nightbot"], file: "", format: "youtube-title" },
 } as const;
-const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling"] as const, "none");
+const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling", "nightbot"] as const, "none");
 
 /**
  * The file a now-playing app writes. A preset's folder is the starting point for a
@@ -76,12 +82,20 @@ function nowPlayingFile(): string {
   const preset = nowPlayingPreset === "none" ? null : NOW_PLAYING_PRESETS[nowPlayingPreset];
   if (!raw) {
     if (!onFile) return "";
-    if (preset) return path.join(os.homedir(), ...preset.folder, preset.file);
+    // A preset with no file name follows its whole folder instead (see nowPlayingFolder).
+    if (preset) return preset.file ? path.join(presetFolder(preset.folder), preset.file) : "";
     throw new Error("Missing required setting NOW_PLAYING_FILE. Set it to the full path of the text file your now-playing app writes.");
   }
   if (raw === "~" || /^~[\\/]/.test(raw)) return path.join(os.homedir(), raw.slice(1));
   if (path.isAbsolute(raw)) return raw;
-  return preset ? path.join(os.homedir(), ...preset.folder, raw) : path.resolve(__dirname, "../..", raw);
+  return preset ? path.join(presetFolder(preset.folder), raw) : path.resolve(__dirname, "../..", raw);
+}
+
+/** The folder whose newest .txt is the song, for a preset that doesn't name its file and no file given. */
+function nowPlayingFolder(): string {
+  const preset = nowPlayingPreset === "none" ? null : NOW_PLAYING_PRESETS[nowPlayingPreset];
+  if (!onFile || !preset || preset.file || process.env.NOW_PLAYING_FILE?.trim()) return "";
+  return presetFolder(preset.folder);
 }
 
 /**
@@ -147,8 +161,14 @@ export const config = {
   // Now playing file (SONG_SOURCE=nowplaying): one line a now-playing app keeps up to date.
   nowPlayingPreset,
   nowPlayingFile: nowPlayingFile(),
-  // "artist-title" reads "Artist - Title"; "title" reads the whole line as the title.
-  nowPlayingFormat: oneOf("NOW_PLAYING_FORMAT", ["artist-title", "title"] as const, "artist-title"),
+  nowPlayingFolder: nowPlayingFolder(),
+  // "artist-title" reads "Artist - Title"; "title" reads the whole line as the title;
+  // "youtube-title" reads a YouTube video's title ("Artist - Song (Official Video)"), as Nightbot writes it.
+  nowPlayingFormat: oneOf(
+    "NOW_PLAYING_FORMAT",
+    ["artist-title", "title", "youtube-title"] as const,
+    nowPlayingPreset === "none" ? "artist-title" : NOW_PLAYING_PRESETS[nowPlayingPreset].format
+  ),
 
   // Model
   aiProvider,

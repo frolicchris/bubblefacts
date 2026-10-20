@@ -87,8 +87,8 @@
   const onSE = () => state?.settings.songSource === "streamelements";
   /** A text file another app writes the song to: nothing to sign in to. */
   const onFile = () => state?.settings.songSource === "nowplaying";
-  /** Streamling's file needs no choosing; any other app's does. */
-  const fileChosen = () => state.settings.nowPlayingPreset === "streamling" || !!state.settings.nowPlayingFile;
+  /** Streamling's and Nightbot's files need no choosing; any other app's does. */
+  const fileChosen = () => state.settings.nowPlayingPreset !== "none" || !!state.settings.nowPlayingFile;
   /** The channel name for the song source in use. */
   const channelName = () => (onFile() ? "" : onSE() ? state.settings.seChannel : state.settings.channel);
   /** The song source has what it needs to start: its token saved, or its file chosen. */
@@ -144,12 +144,13 @@
   }
   for (const r of $$('input[name="setup-source"]')) r.addEventListener("change", showSourceBox);
 
-  // Now playing file: Streamling (nothing to choose), or the file another app writes.
+  // Now playing file: Streamling or Nightbot (nothing to choose), or the file another app writes.
   let setupFile = "";
   function showNowPlayingBox() {
-    const other = $('input[name="setup-np"]:checked').value === "none";
-    $("#setup-np-streamling").hidden = other;
-    $("#setup-np-other").hidden = !other;
+    const preset = $('input[name="setup-np"]:checked').value;
+    $("#setup-np-streamling").hidden = preset !== "streamling";
+    $("#setup-np-nightbot").hidden = preset !== "nightbot";
+    $("#setup-np-other").hidden = preset !== "none";
     $("#setup-np-file").textContent = setupFile || "No file chosen yet.";
   }
   for (const r of $$('input[name="setup-np"]')) r.addEventListener("change", showNowPlayingBox);
@@ -194,7 +195,7 @@
 
   function toStreamStep() {
     $("#connected-as").textContent = onFile()
-      ? (state.settings.nowPlayingPreset === "streamling" ? "✓ Following Streamling's file." : "✓ Following your file.")
+      ? ({ streamling: "✓ Following Streamling's file.", nightbot: "✓ Following Nightbot's song file." }[state.settings.nowPlayingPreset] ?? "✓ Following your file.")
       : onSE()
         ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
         : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
@@ -332,6 +333,11 @@
 
   function renderPaths() {
     for (const c of $$(".overlay-path")) c.textContent = state.overlayPath;
+    // A preset's folder is shown as Documents\..., unless Documents lives somewhere else (OneDrive): then the real one.
+    for (const c of $$("[data-np-folder]")) {
+      c.dataset.usual ??= c.textContent;
+      c.textContent = state.nowPlayingFolders?.[c.dataset.npFolder] || c.dataset.usual;
+    }
   }
 
   // --- Dashboard -----------------------------------------------------------

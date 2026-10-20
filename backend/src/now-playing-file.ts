@@ -4,10 +4,11 @@ import { config, NOW_PLAYING_PRESETS } from "./config";
 import { SongSource } from "./song-source";
 import { displayTitle, toSong } from "./song-mapping";
 import { SSLQueueItem, SSLSong } from "./types";
+import { parseVideoTitle } from "./youtube-title";
 
 /**
  * A text file a now-playing app keeps up to date with the song on now
- * (SONG_SOURCE=nowplaying): Streamling, or any app that writes one line.
+ * (SONG_SOURCE=nowplaying): Streamling, Nightbot, or any app that writes one line.
  * Polled, because file watching is unreliable across folders that sync or
  * sit on other drives, and a 2-second look at one small file costs nothing.
  *
@@ -17,7 +18,7 @@ import { SSLQueueItem, SSLSong } from "./types";
  * or a player that stopped without clearing it) all mean no song.
  */
 
-export type NowPlayingFormat = "artist-title" | "title";
+export type NowPlayingFormat = "artist-title" | "title" | "youtube-title";
 
 const POLL_MS = 2000;
 /** Longer than nearly any song: a line older than this is left over, not playing. */
@@ -37,10 +38,21 @@ export function decodeNowPlaying(bytes: Buffer): string {
 }
 
 /**
+ * A requester a now-playing app may add after a YouTube title ("... - Requested
+ * by dana_k", "(added by dana_k)", "| requester: dana_k"). Only an explicit
+ * "requested/added/queued/submitted/suggested by" or "requester:" at the end
+ * counts: the format of the line is Nightbot's to customize, so nothing else
+ * is guessed. The line has had its runs of spaces collapsed, so single spaces will do.
+ */
+const REQUESTER_TAIL = / ?(?:[-–—|•·~] |[(\[{] ?)?(?:\b(?:request(?:ed)?|added|queued|submitted|suggested) by\b|\brequester ?:)[^)\]}]*[)\]}]?$/i;
+
+/**
  * The song in the file's first non-empty line, or null for none. "artist-title"
  * splits at the first spaced dash, so a dash later belongs to the title
- * ("Artist - Song - Part 2"); a line without one is all title. A line with no
- * letters or digits (" - " from an app's template with nothing playing) is no song.
+ * ("Artist - Song - Part 2"); a line without one is all title. "youtube-title"
+ * reads the line as a YouTube video's title ("Artist - Song (Official Video)")
+ * the way StreamElements requests are read. A line with no letters or digits
+ * (" - " from an app's template with nothing playing) is no song.
  */
 export function parseNowPlaying(text: string, format: NowPlayingFormat): NowPlayingLine | null {
   const line = text
@@ -48,6 +60,12 @@ export function parseNowPlaying(text: string, format: NowPlayingFormat): NowPlay
     .map((l) => l.replace(/\s+/g, " ").trim())
     .find(Boolean);
   if (!line || !/[\p{L}\p{N}]/u.test(line)) return null;
+  if (format === "youtube-title") {
+    const video = line.replace(REQUESTER_TAIL, "").trim() || line;
+    const parsed = parseVideoTitle(video);
+    if (!/[\p{L}\p{N}]/u.test(parsed.title)) return null;
+    return { title: parsed.title, artist: /[\p{L}\p{N}]/u.test(parsed.artist) ? parsed.artist : "Unknown" };
+  }
   if (format === "artist-title") {
     const at = line.indexOf(" - ");
     const artist = at > 0 ? line.slice(0, at).trim() : "";
@@ -57,8 +75,37 @@ export function parseNowPlaying(text: string, format: NowPlayingFormat): NowPlay
   return { title: line, artist: "Unknown" };
 }
 
+/**
+ * The most recently changed .txt file in a folder, or null for a missing or empty
+ * folder. Looked up on every check, so a new file takes over as soon as the app
+ * starts writing it; the folder holds a handful of files, so this stays cheap.
+ */
+export async function newestTextFile(folder: string): Promise<string | null> {
+  let names: string[];
+  try {
+    names = (await fs.promises.readdir(folder, { withFileTypes: true })).filter((e) => !e.isDirectory() && /\.txt$/i.test(e.name)).map((e) => e.name);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return null;
+    throw err;
+  }
+  let best: { file: string; mtime: number } | null = null;
+  for (const name of names.sort()) {
+    const file = path.join(folder, name);
+    try {
+      const stat = await fs.promises.stat(file);
+      if (stat.isFile() && (!best || stat.mtimeMs > best.mtime)) best = { file, mtime: stat.mtimeMs };
+    } catch {
+      // Removed between the listing and now: it isn't a candidate.
+    }
+  }
+  return best?.file ?? null;
+}
+
 export interface NowPlayingOptions {
   file?: string;
+  /** Follow the newest .txt in this folder instead of one file. */
+  folder?: string;
   format?: NowPlayingFormat;
   /** Tests only: a shorter wait between checks. */
   pollMs?: number;
@@ -67,6 +114,8 @@ export interface NowPlayingOptions {
 export class NowPlayingFileSource implements SongSource {
   readonly name: string;
   private readonly file: string;
+  /** Set when the newest .txt in a folder is the song (the Nightbot preset); `file` is empty then. */
+  private readonly folder: string;
   private readonly format: NowPlayingFormat;
   private readonly pollMs: number;
   private currentSong: SSLQueueItem | null = null;
@@ -84,6 +133,7 @@ export class NowPlayingFileSource implements SongSource {
 
   constructor(options: NowPlayingOptions = {}) {
     this.file = options.file ?? config.nowPlayingFile;
+    this.folder = options.folder ?? (options.file === undefined ? config.nowPlayingFolder ?? "" : "");
     this.format = options.format ?? config.nowPlayingFormat;
     this.pollMs = options.pollMs ?? POLL_MS;
     this.name = config.nowPlayingPreset === "none" ? "Now playing file" : NOW_PLAYING_PRESETS[config.nowPlayingPreset].name;
@@ -126,7 +176,9 @@ export class NowPlayingFileSource implements SongSource {
   async connect(): Promise<void> {
     this.stopped = false;
     // The file name only: the full path holds the computer's user name, and logs can end up on stream.
-    console.log(`[NowPlaying] Reading "${path.basename(this.file)}" every ${this.pollMs / 1000} s (${this.format === "title" ? "title only" : "Artist - Title"})`);
+    const what = this.folder ? `the newest .txt in "${path.basename(this.folder)}"` : `"${path.basename(this.file)}"`;
+    const how = { title: "title only", "artist-title": "Artist - Title", "youtube-title": "YouTube title" }[this.format];
+    console.log(`[NowPlaying] Reading ${what} every ${this.pollMs / 1000} s (${how})`);
     this.schedulePoll();
     await this.checkNow();
   }
@@ -178,22 +230,32 @@ export class NowPlayingFileSource implements SongSource {
 
   /** The cleaned first line, or null when the file says nothing is playing. */
   private async readLine(): Promise<string | null> {
+    let file = this.file;
+    if (this.folder) {
+      const newest = await newestTextFile(this.folder);
+      if (!newest) {
+        // No folder yet (the app may not be installed or run), or nothing written in it. Checked fine, just no song.
+        this.note("missing", () => console.warn(`[NowPlaying] No .txt file in "${path.basename(this.folder)}" yet; no song until there is`));
+        return null;
+      }
+      file = newest;
+    }
     let stat: fs.Stats;
     try {
-      stat = await fs.promises.stat(this.file);
+      stat = await fs.promises.stat(file);
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code !== "ENOENT" && code !== "ENOTDIR") throw err;
       // Not written yet: the app may not have started. Checked fine, just no song.
-      this.note("missing", () => console.warn(`[NowPlaying] "${path.basename(this.file)}" isn't there yet; no song until it is`));
+      this.note("missing", () => console.warn(`[NowPlaying] "${path.basename(file)}" isn't there yet; no song until it is`));
       return null;
     }
-    if (!stat.isFile()) throw new Error(`"${path.basename(this.file)}" is a folder, not a file. NOW_PLAYING_FILE names the file itself.`);
+    if (!stat.isFile()) throw new Error(`"${path.basename(file)}" is a folder, not a file. NOW_PLAYING_FILE names the file itself.`);
     if (Date.now() - stat.mtimeMs > STALE_AFTER_MS) {
-      this.note("stale", () => console.log(`[NowPlaying] "${path.basename(this.file)}" hasn't changed in ${STALE_AFTER_MS / 60_000} minutes; no song until it does`));
+      this.note("stale", () => console.log(`[NowPlaying] "${path.basename(file)}" hasn't changed in ${STALE_AFTER_MS / 60_000} minutes; no song until it does`));
       return null;
     }
-    const handle = await fs.promises.open(this.file, "r");
+    const handle = await fs.promises.open(file, "r");
     let bytes: Buffer;
     try {
       const buffer = Buffer.alloc(Math.min(stat.size, MAX_BYTES));

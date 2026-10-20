@@ -49,7 +49,7 @@ export function problemReportUrl(opts: { version: string; ai: string; logLines: 
  * The beta test form, with the answers the app knows filled in. Each dropdown answer must match a form
  * option exactly, so `version` is the plain version and `build` the label with the build (build.ts).
  */
-export function betaReportUrl(opts: { version: string; build: string; systemVersion: string; songSource: string; logLines: string[]; secrets: string[] }): string {
+export function betaReportUrl(opts: { version: string; build: string; systemVersion: string; songSource: string; nowPlayingPreset?: string; logLines: string[]; secrets: string[] }): string {
   const mac = process.arch === "arm64" ? "Mac with Apple silicon (M1 or newer)" : "Mac with Intel";
   const computer = ({ darwin: mac, win32: "Windows" } as Record<string, string>)[process.platform] ?? "Linux";
   const download =
@@ -60,7 +60,10 @@ export function betaReportUrl(opts: { version: string; build: string; systemVers
     build: opts.build,
     os: computer,
     download,
-    source: ({ streamelements: "StreamElements", nowplaying: "Now playing file" } as Record<string, string>)[opts.songSource] ?? "StreamerSongList",
+    source:
+      opts.songSource === "nowplaying" && opts.nowPlayingPreset === "nightbot"
+        ? "Now playing file (Nightbot)"
+        : ({ streamelements: "StreamElements", nowplaying: "Now playing file" } as Record<string, string>)[opts.songSource] ?? "StreamerSongList",
     osversion: `${osName()} ${opts.systemVersion}`,
     log: redact(opts.logLines.slice(-60).join("\n"), opts.secrets),
   });
