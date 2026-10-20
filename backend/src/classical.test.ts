@@ -196,7 +196,8 @@ describe("classical pieces through Wikidata (issue #260)", () => {
       return { ok: true, status: 200, json: async () => hit?.body ?? { search: [], query: { search: [] }, entities: {} } } as Response;
     }
     const hit = fixtures.wikipedia.find((e) => url.includes(e.match));
-    const body = hit?.extract !== undefined ? { query: { pages: { 1: { title: hit.page, extract: hit.extract } } } } : (hit?.body ?? { query: { search: [], pages: {} } });
+    // Last edited long ago: read as it is (issue #242).
+    const body = hit?.extract !== undefined ? { query: { pages: { 1: { title: hit.page, extract: hit.extract, revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } } : (hit?.body ?? { query: { search: [], pages: {} } });
     return { ok: true, status: 200, json: async () => body } as Response;
   });
   const lookup = (title: string, artist: string) => fetchGrounding({ title, artist });

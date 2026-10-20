@@ -133,7 +133,8 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     asked.push(url);
     const hit = scenario.find((e) => url.includes(e.match));
     let body: unknown = hit?.body;
-    if (hit?.extract !== undefined) body = { query: { pages: { 1: { title: hit.page, extract: hit.extract } } } };
+    // Last edited long ago: read as it is (issue #242).
+    if (hit?.extract !== undefined) body = { query: { pages: { 1: { title: hit.page, extract: hit.extract, revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } };
     // Wikipedia knows none of these names: every ordinary lookup misses.
     body ??= host(url).endsWith(".wikipedia.org") ? { query: { search: [], pages: {} } } : toMusicBrainz(url) && new URL(url).pathname === "/ws/2/artist" ? { artists: [] } : {};
     return { ok: true, status: 200, json: async () => body } as Response;

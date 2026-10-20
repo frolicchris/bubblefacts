@@ -76,6 +76,9 @@ import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
 import { hasNoArtist } from "./text";
 import { topic } from "./topic";
 
+/** Last edited long ago: an article read as it is (issue #242). */
+const OLD_ENOUGH = [{ timestamp: "2020-01-01T00:00:00Z" }];
+
 describe("resolveGameAndTrack", () => {
   it("treats the artist field as the game, which is how the song list is keyed", () => {
     expect(
@@ -829,7 +832,7 @@ describe("fetchGrounding", () => {
     const term = params.get("srsearch");
     const body = term !== null
       ? { query: { search: (pages[term] ?? []).map((title) => ({ title })) } }
-      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.` } } } };
+      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.`, revisions: OLD_ENOUGH } } } };
     return { ok: true, status: 200, json: async () => body } as Response;
   });
 
@@ -1297,7 +1300,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
       body = { query: { redirects: reds, pages: Object.fromEntries(pages.map((pg, i) => [String(i), pg])) } };
     } else {
       const t = p.get("titles") ?? "";
-      body = { query: { pages: { 1: { extract: extracts[t] ?? "" } } } };
+      body = { query: { pages: { 1: { extract: extracts[t] ?? "", revisions: OLD_ENOUGH } } } };
     }
     return { ok: true, status: 200, json: async () => body } as Response;
   });
