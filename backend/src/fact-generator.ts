@@ -9,6 +9,7 @@ import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
+import { isStandardReason, standardBreach } from "./content-standard";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
@@ -558,11 +559,24 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
  */
 async function structuredFacts(song: SSLSong, reading: SSLSong = song): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
-  const data = await wikidataFacts(reading);
-  const facts = data.length ? data : await musicbrainzFacts(reading);
+  const names = [reading.title, reading.artist ?? ""];
+  const data = onStandard(await wikidataFacts(reading), names);
+  const facts = data.length ? data : onStandard(await musicbrainzFacts(reading), names);
   structuredShown.set(songKey(song), new Set(facts));
   for (const f of facts) structuredLabel.set(f, data.length ? SOURCE.wikidata : SOURCE.musicbrainz);
   return facts;
+}
+
+/**
+ * Facts from data that meet the content standard, as captions must (issue #242). Logged by reason alone.
+ * `names`: the song's title and artist, read as names ("Smooth Criminal").
+ */
+function onStandard(facts: string[], names: string[] = []): string[] {
+  return facts.filter((f) => {
+    const reason = standardBreach(f, names);
+    if (reason) console.log(`[Screen] DROP data fact (${reason})`);
+    return !reason;
+  });
 }
 
 /** For the saved session: the recent facts, and putting them back after a restart. */
@@ -853,7 +867,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const { game } = resolveGameAndTrack(read);
     const page = context.split("\n")[0];
     const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
-    const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(await artistFacts(about)).slice(0, 2) : [];
+    const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
     const shown = [...data, ...extra.filter((f) => !data.includes(f))].slice(0, want);
     if (shown.length) {
@@ -877,7 +891,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const { track } = resolveGameAndTrack(read);
   const cited = Boolean(context) && citesSentences();
   const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
-  for (const r of rejected) console.log(`[Screen] DROP (${r.reason}): ${r.text.slice(0, 90)}`);
+  // A caption off the content standard is logged by its reason alone, so logs and reports can't spread it.
+  for (const r of rejected) console.log(`[Screen] DROP (${r.reason})${isStandardReason(r.reason) ? "" : `: ${r.text.slice(0, 90)}`}`);
   const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
   if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
   // Music terms get a few fixed plain words, so any viewer can follow.

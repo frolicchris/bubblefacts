@@ -3,6 +3,8 @@ import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { escapeRe, hasNoArtist } from "./text";
+import { standardBreach, withinStandard } from "./content-standard";
+import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
 import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, searchWorks, wholesOf, workItems } from "./wikidata";
 
@@ -735,15 +737,82 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
   return [colorBlock, rest, lead].filter(Boolean).join("\n\n");
 }
 
-/** The article's full plain text, or null for a disambiguation page. */
+/**
+ * How old an article version must be before it is read (issue #242). Most
+ * vandalism is reverted within hours; a version that stood for three days
+ * has been seen by the article's watchers.
+ */
+export const STABLE_AGE_MS = 72 * 60 * 60 * 1000;
+
+/** Older versions read this session, as plain text, by revision number. */
+const stableTexts = new Map<number, string>();
+const MAX_STABLE_TEXTS = 40;
+/** How many times an older version couldn't be read: `fetchGrounding` then skips Wikipedia for the song. */
+let olderVersionFailures = 0;
+
+/**
+ * The text of the newest version of an article that is at least
+ * `STABLE_AGE_MS` old, or null when the article is younger than that. Throws
+ * when it can't be read: then Wikipedia is skipped for the song this time.
+ */
+async function stableVersionText(pageTitle: string, now: number): Promise<string | null> {
+  const before = new Date(now - STABLE_AGE_MS).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const data = await wikiGet<{ query?: { pages?: Record<string, { revisions?: Array<{ revid?: number; timestamp?: string }> }> } }>(
+    `action=query&prop=revisions&rvlimit=1&rvdir=older&rvstart=${encodeURIComponent(before)}&rvprop=ids%7Ctimestamp&titles=${encodeURIComponent(pageTitle)}`,
+    config.groundingTimeoutMs,
+    "older version"
+  );
+  const rev = Object.values(data.query?.pages ?? {})[0]?.revisions?.[0];
+  if (!rev?.revid) return null;
+  const known = stableTexts.get(rev.revid);
+  if (known !== undefined) return known;
+  const parsed = await wikiGet<{ parse?: { text?: string } }>(
+    `action=parse&oldid=${rev.revid}&prop=text&formatversion=2&disableeditsection=1&disablelimitreport=1&disabletoc=1`,
+    config.groundingExtractTimeoutMs,
+    "older version"
+  );
+  if (typeof parsed.parse?.text !== "string") throw new Error("older version HTTP 200 without text");
+  const text = htmlToText(parsed.parse.text);
+  stableTexts.set(rev.revid, text);
+  if (stableTexts.size > MAX_STABLE_TEXTS) stableTexts.delete(stableTexts.keys().next().value as number);
+  return text;
+}
+
+/**
+ * The article's plain text as the model may read it, or null for a
+ * disambiguation page or one with no version old enough. Only a version at
+ * least 72 hours old is read (it throws when that version can't be read),
+ * and only what meets the content standard (`withinStandard`): private
+ * sections and sentences are left out here, so nothing downstream ever sees
+ * them.
+ */
 export async function wikiExtract(pageTitle: string): Promise<string | null> {
   // exsectionformat=wiki keeps the "==" headings orderExtract relies on.
-  const data = await wikiGet<{ query?: { pages?: Record<string, { extract?: string }> } }>(
-    `action=query&prop=extracts&explaintext=1&exsectionformat=wiki&titles=${encodeURIComponent(pageTitle)}`,
+  const data = await wikiGet<{ query?: { pages?: Record<string, { extract?: string; revisions?: Array<{ timestamp?: string }> }> } }>(
+    `action=query&prop=extracts%7Crevisions&rvprop=timestamp&explaintext=1&exsectionformat=wiki&titles=${encodeURIComponent(pageTitle)}`,
     config.groundingExtractTimeoutMs,
     "extract"
   );
-  const full = Object.values(data.query?.pages ?? {})[0]?.extract;
+  const page = Object.values(data.query?.pages ?? {})[0];
+  let raw = page?.extract;
+  const now = Date.now();
+  const edited = Date.parse(page?.revisions?.[0]?.timestamp ?? "");
+  // No date counts as a fresh edit: the article is never read unchecked.
+  if (raw && !(now - edited >= STABLE_AGE_MS)) {
+    try {
+      raw = (await stableVersionText(pageTitle, now)) ?? undefined;
+    } catch (err) {
+      olderVersionFailures++;
+      throw err;
+    }
+    console.log(`[Grounding] "${pageTitle}" was edited in the last 72 hours: ${raw ? "reading the version from before" : "no older version, skipping it"}`);
+  }
+  if (!raw) return null;
+  const kept = withinStandard(raw, pageTitle);
+  if (kept.dropped || kept.sections) {
+    console.log(`[Standard] "${pageTitle}": left out ${kept.dropped} of ${kept.sentences} sentences (${kept.sections} sections)`);
+  }
+  const full = kept.text.trim() ? kept.text : "";
   if (full) rememberArticle(pageTitle, full);
   return full && !isDisambiguation(full) ? full : null;
 }
@@ -1933,8 +2002,18 @@ interface Grounded {
 /**
  * Reference text for the song, or "" when no relevant article exists.
  * `skip`: articles already found not to fit this request (`articleMisfit`), passed over like blocked ones.
+ * When an article's older version couldn't be read on the way, Wikipedia is skipped for the song this
+ * time (issue #242): data facts show instead, and the lookup is tried again later.
  */
 export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+  const failedBefore = olderVersionFailures;
+  const text = await findGrounding(song, skip);
+  if (olderVersionFailures === failedBefore) return text;
+  console.log(`[Grounding] "${song.title}": an article's older version couldn't be read, skipping Wikipedia for now`);
+  return "";
+}
+
+async function findGrounding(song: SSLSong, skip: ReadonlySet<string>): Promise<string> {
   // Articles the streamer marked wrong for this song are never used for it again.
   const blocked = new Set([...blockedArticles(song), ...skip]);
   const usable = (title: string) => !blocked.has(title);
@@ -3555,13 +3634,17 @@ export function parseCitation(line: string): { at: number; text: string } {
 }
 
 /**
- * Why a caption can't go on screen whatever its reference says: unsafe for a stream, about the
- * prompt, too short, an opinion, an unnamed speaker, the music video, or another part of the
- * soundtrack. Null when none. `titles`: the article's and the song's, which a caption may open with.
+ * Why a caption can't go on screen whatever its reference says: unsafe for a stream, off the
+ * content standard, about the prompt, too short, an opinion, an unnamed speaker, the music video,
+ * or another part of the soundtrack. Null when none. `titles`: the article's and the song's, which
+ * a caption may open with; `names`: the request's artist. Both are read as names, not words.
  */
-function captionReason(fact: string, titles: string[], otherParts: string[]): string | null {
+function captionReason(fact: string, titles: string[], otherParts: string[], names: string[] = []): string | null {
   const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
   if (unsafe) return unsafe.label;
+  // The content standard, whatever the reference says: a retelling can add what its source didn't ("charged" told as "convicted").
+  const offStandard = standardBreach(fact, [...titles, ...names]);
+  if (offStandard) return offStandard;
   if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
   if (fact.length < 20) return "too short";
   if (OPINION.test(fact)) return "opinion";
@@ -3656,7 +3739,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
 
   const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
   const reasonToDrop = (fact: string): string | null =>
-    captionReason(fact, titles, opts.otherParts ?? []) ??
+    captionReason(fact, titles, opts.otherParts ?? [], opts.artists) ??
     sourceReason(fact, context, opts.track) ??
     (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
