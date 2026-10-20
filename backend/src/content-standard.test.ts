@@ -8,7 +8,7 @@ jest.mock("./config", () => ({
   },
 }));
 
-import { isPrivateHeading, isStandardReason, sentencesOf, standardBreach, withinStandard } from "./content-standard";
+import { IDENTITY_REASON, isPrivateHeading, isStandardReason, selfDescribes, sentencesOf, standardBreach, withinStandard } from "./content-standard";
 import { STABLE_AGE_MS, clearGroundingCache, fetchGrounding, screenClaims, wikiExtract } from "./fact-verifier";
 import { htmlToText } from "./wiki-html";
 
@@ -138,6 +138,86 @@ describe("captions under the content standard (issue #242)", () => {
   it("reads the artist's name as a name", () => {
     const { kept } = screenClaims(["Sober Harbor recorded it in two days at a church in Vellmar."], "Sober Harbor\nSober Harbor is a band. Sober Harbor recorded it in two days at a church in Vellmar.", { artists: ["Sober Harbor"] });
     expect(kept).toHaveLength(1);
+  });
+});
+
+describe("never who a person is, for anyone (issue #262)", () => {
+  const identity: Array<[string, string]> = [
+    ["ethnicity", "Tavi Marrow is of Irish and Cuban descent."],
+    ["ethnicity", "Tavi Marrow is a Korean American singer from Ohio."],
+    ["an Indigenous nation", "Arlo Pemberly is a member of the Example River Nation."],
+    ["Indigeneity", "Arlo Pemberly is an Indigenous songwriter from the north."],
+    ["race", "Dessa Vane was one of the first Black women to lead the orchestra."],
+    ["religion", "Corin Hale is a devout Christian and sings every Sunday."],
+    ["religion", "Corin Hale converted to Buddhism in 2010."],
+    ["sexuality", "Corin Hale is openly gay."],
+    ["gender identity", "Rue Calder is non-binary and uses they/them pronouns."],
+  ];
+
+  it.each(identity)("drops a caption or data fact stating %s", (_kind, sentence) => {
+    expect(standardBreach(sentence)).toBe(IDENTITY_REASON);
+    const kept = withinStandard(`Glass Orchard is a 1999 song by Tavi Marrow. ${sentence} The strings were added later.`, "Glass Orchard");
+    expect(kept.text).not.toContain(sentence);
+    expect(kept.text).toContain("The strings were added later.");
+  });
+
+  it("keeps where someone is from and anything about the music", () => {
+    for (const sentence of [
+      "Corin Hale is a Canadian singer born in Halifax.",
+      "Tavi Marrow grew up in the Example River Nation, where she first played fiddle.",
+      "The song blends Christian rock with Inuit throat singing.",
+      "The band's musical heritage shows in the fiddle parts.",
+      "The bridge is played on a Jew's harp.",
+      "Christian Varga produced the album in Lisbon.",
+      "The melody makes a slow descent into the low register.",
+      "Jewish liturgical music shaped the second movement.",
+      "It won the Native American Music Award in 2004.",
+    ]) {
+      expect([sentence, standardBreach(sentence)]).toEqual([sentence, null]);
+    }
+  });
+
+  it("reads a quoted title or the song's own name as a name", () => {
+    expect(standardBreach('Her cover of "Gay Paree" opened the set.')).toBeNull();
+    expect(standardBreach("Pilgrim Christian was recorded in 1991.", ["Pilgrim Christian"])).toBeNull();
+  });
+
+  it("keeps the artist's own words about who they are for the model, and drops someone else's", () => {
+    const own = "Corin Hale has described herself as queer in several interviews.";
+    const others = "Critics have called Corin Hale a queer icon.";
+    const passive = "Corin Hale was identified as Catholic by a magazine.";
+    const kept = withinStandard(`Corin Hale is a singer from Halifax. ${own} ${others} ${passive}`, "Corin Hale");
+    expect(kept.text).toContain(own);
+    expect(kept.text).not.toContain(others);
+    expect(kept.text).not.toContain(passive);
+    expect(selfDescribes(own)).toBe(true);
+    expect(selfDescribes("Corin Hale said she identifies as non-binary.")).toBe(true);
+    expect(selfDescribes("The trio calls itself a folk band.")).toBe(true);
+    expect(selfDescribes(others)).toBe(false);
+    expect(selfDescribes(passive)).toBe(false);
+  });
+
+  describe("a caption from the artist's own words", () => {
+    const context = "Corin Hale\nCorin Hale is a singer and fiddler from Halifax. Corin Hale has described herself as queer in several interviews. Her first album was recorded in a barn in 2015.";
+    const screen = (caption: string, ctx = context) => screenClaims([caption], ctx, { artists: ["corin hale"] });
+
+    it("is kept with the artist's name and the words that say she described herself", () => {
+      expect(screen("Corin Hale has described herself as queer in several interviews.").kept).toHaveLength(1);
+    });
+
+    it("is dropped when it loses who said it, or the artist's name", () => {
+      expect(screen("Corin Hale is queer.").rejected[0].reason).toBe(IDENTITY_REASON);
+      expect(screen("The fiddler has described herself as queer in interviews.").rejected[0].reason).toBe(IDENTITY_REASON);
+    });
+
+    it("is dropped when the source sentence is someone else's word for it", () => {
+      const theirs = "Corin Hale\nCorin Hale is a singer and fiddler from Halifax. Critics have described Corin Hale as queer in several interviews.";
+      expect(screen("Corin Hale has described herself as queer in several interviews.", theirs).rejected[0].reason).toBe(IDENTITY_REASON);
+    });
+
+    it("is dropped when it adds an identity word the artist never used", () => {
+      expect(screen("Corin Hale has described herself as a queer Christian in several interviews.").rejected[0].reason).toBe(IDENTITY_REASON);
+    });
   });
 });
 
