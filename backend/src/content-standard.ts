@@ -69,14 +69,18 @@ const LISTS: TopicList[] = [
     // privacy rules, and chat etiquette: no gossip about anyone's private life.
     label: "private life",
     words: [
-      "married", "remarried", "divorce", "divorced", "divorces", "divorcing", "spouse", "spouses", "wife",
-      "wives", "husband", "husbands", "ex-wife", "ex-husband", "widow", "widower", "girlfriend",
+      // A spouse alone ("with his wife Anne, he set the poem to music") is often how the music was made;
+      // getting married, divorced or separated is private life.
+      "married", "remarried", "divorce", "divorced", "divorces", "divorcing", "separated from his wife",
+      "separated from her husband", "separating from his wife", "separating from her husband", "his late wife",
+      "her late husband", "ex-wife", "ex-husband", "widow", "widower", "girlfriend",
       "girlfriends", "boyfriend", "boyfriends", "fiancée", "fiancee", "fiancé", "fiance", "engaged to",
       "began dating", "started dating", "was dating", "were dating", "been dating", "romantic relationship",
       "romantically", "love affair", "affair with", "extramarital",
       "infidelity", "pregnant", "pregnancy", "gave birth", "miscarriage", "custody", "estranged",
-      "came out as", "his son", "her son", "their son", "his sons", "her sons", "their sons",
-      "his daughter", "her daughter", "their daughter", "his daughters", "her daughters",
+      "came out as gay", "came out as lesbian", "came out as bisexual", "came out as transgender",
+      "came out as trans", "came out as queer", "came out as non-binary", "came out as nonbinary",
+      "his son", "her son", "their son", "his sons", "her sons", "their sons", "his daughter", "her daughter", "their daughter", "his daughters", "her daughters",
       "their daughters", "his child", "her child", "their child", "his children", "her children",
       "their children",
     ],
@@ -105,7 +109,7 @@ const LISTS: TopicList[] = [
       "died in an", "died while", "died by", "death by", "cause of death", "causes of death", "killed in",
       "was killed", "were killed", "killed himself", "killed herself", "suicide", "suicidal",
       "took his own life", "took her own life", "took their own life", "fatal", "fatally", "car crash",
-      "plane crash", "car accident", "traffic accident", "funeral", "autopsy", "coroner", "shot dead",
+      "plane crash", "car accident", "traffic accident", "autopsy", "coroner", "shot dead",
       "found dead", "gunshot", "drowned", "stabbed", "strangled", "death of his", "death of her",
       "death of their",
     ],
