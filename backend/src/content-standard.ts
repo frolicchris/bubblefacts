@@ -71,7 +71,10 @@ const LISTS: TopicList[] = [
     words: [
       // A spouse alone ("with his wife Anne, he set the poem to music") is often how the music was made;
       // getting married, divorced or separated is private life.
-      "married", "remarried", "divorce", "divorced", "divorces", "divorcing", "separated from his wife",
+      // "Divorced from the film, the score still works" is a critic's figure of speech.
+      "married", "remarried", "divorce", "divorces", "divorcing", "divorced in", "divorced his", "divorced her",
+      "was divorced", "were divorced", "got divorced", "and divorced", "later divorced", "they divorced",
+      "couple divorced", "separated from his wife",
       "separated from her husband", "separating from his wife", "separating from her husband", "his late wife",
       "her late husband", "ex-wife", "ex-husband", "widow", "widower", "girlfriend",
       "girlfriends", "boyfriend", "boyfriends", "fiancée", "fiancee", "fiancé", "fiance", "engaged to",

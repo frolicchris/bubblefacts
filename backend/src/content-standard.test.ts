@@ -43,10 +43,11 @@ describe("the content standard's word lists (issue #242)", () => {
     expect(withinStandard(`Ronan Vey was a fiddler. ${sentence}`).text).toContain(sentence);
   });
 
-  it("keeps how the music was made when it names a spouse, a funeral march or lines that came out long", () => {
+  it("keeps how the music was made when it names a spouse, a funeral march, lines that came out long or a score divorced from its film", () => {
     expect(standardBreach("Ivo Marsh set the poem to music with his wife Lena and the singer Ada Penn.")).toBeNull();
     expect(standardBreach("The bridge borrows from funeral-march jazz.")).toBeNull();
     expect(standardBreach("Some translated lines came out as longer than the originals.")).toBeNull();
+    expect(standardBreach("Divorced from the film, the score is still a fine listen.")).toBeNull();
     expect(standardBreach("In 1969, after separating from his wife, Ivo Marsh moved to Dorrance.")).not.toBeNull();
   });
 
