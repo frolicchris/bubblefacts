@@ -636,6 +636,12 @@ apps that write the playing song into one text file:
   relative `NOW_PLAYING_FILE` is found in it. Streamling's page names its
   folder (`Documents\streamling\livetext`) but not the file or its line
   format, so the file name stays a setting until a real one is checked.
+- Preset folders are looked up by `presetFolder` (`now-playing-folder.ts`):
+  `~/Documents/<folder>` first, then `Documents/<folder>` in each of the
+  `OneDrive`, `OneDriveConsumer` and `OneDriveCommercial` folders the computer
+  names (Windows often moves Documents into OneDrive). If none exists yet, the
+  usual path is used. The app has the same rule in `desktop/src/now-playing-folder.ts`
+  to show the folder actually read; keep the two alike.
 - Nightbot (`nightbot` preset): its docs name the folder (`Documents/Nightbot`,
   Windows and Mac) but neither the file nor the line, which is customizable,
   and its songs are YouTube videos. So the preset has no file: each check

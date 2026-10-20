@@ -11,6 +11,7 @@ import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
+import { presetFoldersShown } from "./now-playing-folder";
 import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
 import { errorDetail, plainError, PlainOptions } from "./plain-errors";
 import { buildInfo, versionLabel } from "./build";
@@ -163,6 +164,8 @@ function state() {
   return {
     settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
+    // Where the Streamling and Nightbot presets look when Documents isn't in the usual place; empty when it is.
+    nowPlayingFolders: presetFoldersShown(),
     twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitch.userCode, error: twitch.error },
     paused,
     ollama,

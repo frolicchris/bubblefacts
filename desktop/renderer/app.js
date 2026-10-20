@@ -333,6 +333,11 @@
 
   function renderPaths() {
     for (const c of $$(".overlay-path")) c.textContent = state.overlayPath;
+    // A preset's folder is shown as Documents\..., unless Documents lives somewhere else (OneDrive): then the real one.
+    for (const c of $$("[data-np-folder]")) {
+      c.dataset.usual ??= c.textContent;
+      c.textContent = state.nowPlayingFolders?.[c.dataset.npFolder] || c.dataset.usual;
+    }
   }
 
   // --- Dashboard -----------------------------------------------------------

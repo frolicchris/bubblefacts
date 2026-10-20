@@ -8,8 +8,8 @@ jest.mock("./config", () => ({
     liveLearns: true,
     topic: "general",
   },
-  NOW_PLAYING_PRESETS: { streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"], file: "nowplaying-minimal.txt" },
-    nightbot: { name: "Nightbot", folder: ["Documents", "Nightbot"], file: "" },
+  NOW_PLAYING_PRESETS: { streamling: { name: "Streamling", folder: ["streamling", "livetext"], file: "nowplaying-minimal.txt" },
+    nightbot: { name: "Nightbot", folder: ["Nightbot"], file: "" },
   },
 }));
 
