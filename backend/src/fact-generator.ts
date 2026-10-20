@@ -1125,6 +1125,17 @@ export function blockFor(label: string | undefined): string | null | undefined {
 }
 
 /**
+ * The bubbles Wrong takes off the song on now (issue #262): the one marked, and every other
+ * one this play from the source it blocks (the same article, or Wikidata and MusicBrainz),
+ * since a wrong fact usually means a wrong source. The streamer's own facts and song-list
+ * facts block nothing, so only the one marked comes off.
+ */
+export function pulledWithWrong(facts: Fact[], fact: Fact): Fact[] {
+  const source = blockFor(fact.source);
+  return facts.filter((f) => f.text === fact.text || (!!source && blockFor(f.source) === source));
+}
+
+/**
  * Whose fact this is, by its label: one the streamer wrote for this song
  * ("song"), one of their custom facts ("custom"), or neither (null). Wrong
  * can't block the streamer's own facts, so the app offers to edit them instead.

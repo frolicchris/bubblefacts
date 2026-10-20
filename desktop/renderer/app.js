@@ -614,7 +614,9 @@
       : result.article
         ? `BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
         : "";
-    showWrongNote(`${start} ${what}`.trim(), result.article);
+    // The song's other bubbles from that source came off with it (issue #262).
+    const rest = result.pulled > 0 ? "This song's other bubbles from that source are off too." : "";
+    showWrongNote(`${start} ${what} ${rest}`.trim(), result.article);
   }
 
   /** Settings, at the custom fact: in Your own facts, or About your own compositions. */

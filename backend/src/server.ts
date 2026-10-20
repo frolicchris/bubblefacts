@@ -8,7 +8,7 @@ import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
-import { allowedFacts, positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { allowedFacts, pulledWithWrong, positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
@@ -315,17 +315,26 @@ control.post("/wrong", (req, res) => {
   res.json(takeWrong(target.playing ? lastSent.song! : target.song, target.fact, target.playing));
 });
 
-/** Wrong on one fact: off the stream if its song is on, marked for an earlier one. Either way its source is blocked. */
+/**
+ * Wrong on one fact: off the stream if its song is on, with the rest of this play's bubbles from
+ * the same source (`pulledWithWrong`), so neither Resume nor a restart brings them back; marked
+ * for an earlier one. Either way its source is blocked.
+ */
 function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
   const text = fact.text;
-  if (playing) broadcast({ type: "remove_fact", song, text });
-  else {
+  let pulled = 0;
+  if (playing) {
+    const gone = pulledWithWrong(lastSent.facts ?? [], fact);
+    if (!gone.some((f) => f.text === text)) gone.push(fact);
+    for (const f of gone) broadcast({ type: "remove_fact", song, text: f.text });
+    pulled = gone.length - 1;
+  } else {
     earlier = earlier.map((e) => (sameSong(e.song, song) ? { ...e, facts: e.facts.filter((f) => f.text !== text) } : e));
     if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   }
   const article = markWrong(song, text, fact.source);
   // The streamer's own fact: nothing to block, and it shows again until they change it.
-  return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source) };
+  return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source), pulled };
 }
 
 /** When a hands-free Wrong last marked a bubble: the next press only counts bubbles that appeared after it. */

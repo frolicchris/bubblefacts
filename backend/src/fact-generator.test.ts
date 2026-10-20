@@ -34,12 +34,14 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { SYSTEM_PROMPT, allowedFacts, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
 import { topic } from "./topic";
 import { saveSongFacts, setFactsOff } from "./song-facts";
+import { loadSession, remainingFacts, saveSession } from "./session";
+import { Fact } from "./types";
 import { fetchGrounding } from "./fact-verifier";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
@@ -808,5 +810,44 @@ describe("no facts for this song, or for this artist (issue #262)", () => {
     expect(allowedFacts(glass, saved)).toEqual(saved);
     setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
     expect(allowedFacts(glass, saved).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+  });
+});
+
+describe("Wrong on the song that's on pulls the rest of its bubbles from that source (issue #262)", () => {
+  const bubble = (text: string, source: string, i: number): Fact => ({ text, source, delaySeconds: i * 15, durationSeconds: 8, position: {} });
+  const facts = [
+    bubble("First from the article.", "Wikipedia: Glass Orchard", 0),
+    bubble("From Wikidata.", SOURCE.wikidata, 1),
+    bubble("Second from the article.", "Wikipedia: Glass Orchard", 2),
+    bubble("From MusicBrainz.", SOURCE.musicbrainz, 3),
+    bubble("Wren wrote it on a porch.", SOURCE.yours, 4),
+    bubble("Requested by Robin.", SOURCE.songList, 5),
+    bubble("From another article.", "Wikipedia: Wren Halloway", 6),
+  ];
+  const texts = (list: Fact[]) => list.map((f) => f.text);
+
+  it("takes the marked bubble and every other one from the same article", () => {
+    expect(texts(pulledWithWrong(facts, facts[0]))).toEqual(["First from the article.", "Second from the article."]);
+  });
+
+  it("takes Wikidata and MusicBrainz together, as Wrong blocks them together", () => {
+    expect(texts(pulledWithWrong(facts, facts[3]))).toEqual(["From Wikidata.", "From MusicBrainz."]);
+  });
+
+  it("takes only the marked one when it's the streamer's own or from the song list", () => {
+    expect(texts(pulledWithWrong(facts, facts[4]))).toEqual(["Wren wrote it on a porch."]);
+    expect(texts(pulledWithWrong(facts, facts[5]))).toEqual(["Requested by Robin."]);
+  });
+
+  it("doesn't bring them back when the session resumes after a restart", () => {
+    const pulled = new Set(texts(pulledWithWrong(facts, facts[0])));
+    const left = facts.filter((f) => !pulled.has(f.text));
+    const shownAt = Date.now() - 5_000;
+    saveSession({ song: { title: "Glass Orchard", artist: "Wren Halloway" }, facts: left, shownAt, recent: [], savedAt: Date.now() });
+    const resumed = loadSession();
+    expect(resumed).not.toBeNull();
+    const toCome = texts(remainingFacts(resumed!.facts, resumed!.shownAt));
+    expect(toCome).not.toContain("Second from the article.");
+    expect(toCome).toContain("From another article.");
   });
 });
