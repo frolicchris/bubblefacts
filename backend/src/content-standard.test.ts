@@ -9,7 +9,7 @@ jest.mock("./config", () => ({
 }));
 
 import { isPrivateHeading, isStandardReason, sentencesOf, standardBreach, withinStandard } from "./content-standard";
-import { STABLE_AGE_MS, screenClaims, wikiExtract } from "./fact-verifier";
+import { STABLE_AGE_MS, clearGroundingCache, fetchGrounding, screenClaims, wikiExtract } from "./fact-verifier";
 import { htmlToText } from "./wiki-html";
 
 // Every person, band and song here is made up.
@@ -138,7 +138,7 @@ describe("only article versions at least 72 hours old (issue #242)", () => {
   let latest: { extract: string; timestamp?: string };
   let older: { revid?: number; html?: string; status?: number };
   const asked: URLSearchParams[] = [];
-  const fetchMock = jest.fn(async (url: string) => {
+  const defaultFetch = async (url: string) => {
     const p = new URL(url).searchParams;
     asked.push(p);
     let body: unknown;
@@ -151,7 +151,8 @@ describe("only article versions at least 72 hours old (issue #242)", () => {
       body = { query: { pages: { 1: { extract: latest.extract, ...(latest.timestamp ? { revisions: [{ timestamp: latest.timestamp }] } : {}) } } } };
     }
     return { ok: true, status: 200, json: async () => body } as Response;
-  });
+  };
+  const fetchMock = jest.fn(defaultFetch);
 
   beforeAll(() => {
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -205,6 +206,37 @@ describe("only article versions at least 72 hours old (issue #242)", () => {
     latest = { extract: OLD, timestamp: ago(3600e3) };
     older = { revid: 4545, status: 500 };
     await expect(wikiExtract("Glass Orchard")).rejects.toThrow();
+  });
+
+  it("skips Wikipedia for the whole song, not just that article, when an older version can't be read", async () => {
+    const LONG = " The strings were recorded in one take in a church in Vellmar.".repeat(12);
+    const articles: Record<string, { extract: string; timestamp: string }> = {
+      "Glass Orchard": { extract: OLD + LONG, timestamp: ago(3600e3) },
+      "Mara Quillon": { extract: `Mara Quillon is a singer and songwriter.${LONG}`, timestamp: ago(30 * 24 * 3600e3) },
+    };
+    const hits: Record<string, string[]> = { "Glass Orchard Mara Quillon": ["Glass Orchard"], "Glass Orchard": ["Glass Orchard"], "Mara Quillon": ["Mara Quillon"] };
+    fetchMock.mockImplementation(async (url: string) => {
+      const p = new URL(url).searchParams;
+      asked.push(p);
+      const term = p.get("srsearch");
+      let body: unknown = { query: { search: [], pages: {} } };
+      if (term !== null) body = { query: { search: (hits[term] ?? []).map((title) => ({ title })) } };
+      else if (p.get("action") === "parse") return { ok: false, status: 500, json: async () => ({}) } as Response;
+      else if (p.get("prop") === "revisions") body = { query: { pages: { 1: { revisions: [{ revid: 4747, timestamp: ago(4 * 24 * 3600e3) }] } } } };
+      else if (p.get("prop") === "extracts|revisions") {
+        const a = articles[p.get("titles") ?? ""];
+        body = { query: { pages: { 1: a ? { extract: a.extract, revisions: [{ timestamp: a.timestamp }] } : {} } } };
+      }
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    try {
+      expect(await fetchGrounding({ title: "Glass Orchard", artist: "Mara Quillon" })).toBe("");
+      // The artist's article was found and fits, but isn't used this time.
+      expect(asked.some((p) => p.get("titles") === "Mara Quillon")).toBe(true);
+    } finally {
+      fetchMock.mockImplementation(defaultFetch);
+      clearGroundingCache();
+    }
   });
 
   it("applies the content standard to the older version too", async () => {

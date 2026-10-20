@@ -747,6 +747,8 @@ export const STABLE_AGE_MS = 72 * 60 * 60 * 1000;
 /** Older versions read this session, as plain text, by revision number. */
 const stableTexts = new Map<number, string>();
 const MAX_STABLE_TEXTS = 40;
+/** How many times an older version couldn't be read: `fetchGrounding` then skips Wikipedia for the song. */
+let olderVersionFailures = 0;
 
 /**
  * The text of the newest version of an article that is at least
@@ -779,9 +781,10 @@ async function stableVersionText(pageTitle: string, now: number): Promise<string
 /**
  * The article's plain text as the model may read it, or null for a
  * disambiguation page or one with no version old enough. Only a version at
- * least 72 hours old is read, and only what meets the content standard
- * (`withinStandard`): private sections and sentences are left out here, so
- * nothing downstream ever sees them.
+ * least 72 hours old is read (it throws when that version can't be read),
+ * and only what meets the content standard (`withinStandard`): private
+ * sections and sentences are left out here, so nothing downstream ever sees
+ * them.
  */
 export async function wikiExtract(pageTitle: string): Promise<string | null> {
   // exsectionformat=wiki keeps the "==" headings orderExtract relies on.
@@ -796,7 +799,12 @@ export async function wikiExtract(pageTitle: string): Promise<string | null> {
   const edited = Date.parse(page?.revisions?.[0]?.timestamp ?? "");
   // No date counts as a fresh edit: the article is never read unchecked.
   if (raw && !(now - edited >= STABLE_AGE_MS)) {
-    raw = (await stableVersionText(pageTitle, now)) ?? undefined;
+    try {
+      raw = (await stableVersionText(pageTitle, now)) ?? undefined;
+    } catch (err) {
+      olderVersionFailures++;
+      throw err;
+    }
     console.log(`[Grounding] "${pageTitle}" was edited in the last 72 hours: ${raw ? "reading the version from before" : "no older version, skipping it"}`);
   }
   if (!raw) return null;
@@ -1994,8 +2002,18 @@ interface Grounded {
 /**
  * Reference text for the song, or "" when no relevant article exists.
  * `skip`: articles already found not to fit this request (`articleMisfit`), passed over like blocked ones.
+ * When an article's older version couldn't be read on the way, Wikipedia is skipped for the song this
+ * time (issue #242): data facts show instead, and the lookup is tried again later.
  */
 export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+  const failedBefore = olderVersionFailures;
+  const text = await findGrounding(song, skip);
+  if (olderVersionFailures === failedBefore) return text;
+  console.log(`[Grounding] "${song.title}": an article's older version couldn't be read, skipping Wikipedia for now`);
+  return "";
+}
+
+async function findGrounding(song: SSLSong, skip: ReadonlySet<string>): Promise<string> {
   // Articles the streamer marked wrong for this song are never used for it again.
   const blocked = new Set([...blockedArticles(song), ...skip]);
   const usable = (title: string) => !blocked.has(title);
