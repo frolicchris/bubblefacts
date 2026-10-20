@@ -248,12 +248,13 @@ sign-ins and the built-in AI. Its design decisions are in
    quarter of its words with the sentence. `PROMPT_STYLE=rules` doesn't cite.
    A caption opening "I", "We" or "My" is someone's words with no one named
    and reads as the streamer's. Days and months must be in the source too
-   (`unsupportedDay`), not just the year. Of the captions left, the ones
-   their sentences support best fill the bubbles, in the order written; the
-   spares are not just stand-ins for dropped lines.
+   (`unsupportedDay`), not just the year.
    `restatesRequest` then drops, on every path except the streamer's own
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
+   **Choose and order.** `rankFacts` decides which of the captions left, and
+   of the song's data facts, are shown, and in what order: at most four (see
+   [Which bubbles a song shows](#which-bubbles-a-song-shows)).
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
    fill fixed sentences, with no AI and so no screening but the content standard. When the article is
    the artist's or the game's rather than the song's, structured facts about
@@ -308,6 +309,41 @@ screening beyond the content standard: they're fixed sentences, and only the dat
 
 For the same reason, a short result is never padded. Four facts about the
 right song beat four plus one unrelated one.
+
+### Which bubbles a song shows
+
+The screens above drop captions their source doesn't support. Some captions
+pass every screen and are still wrong more often than the rest, because of
+the kind of sentence they retell. `rankFacts` (`fact-ranking.ts`,
+`SOURCE_RISK=off` skips it) holds those back, then puts the most interesting
+first. Every signal is a text comparison between a caption and its source
+sentence (the one it cites, or the one sharing at least half its words). No
+model is asked.
+
+1. **Unsure work match: no captions** (see "Is it the requested work?").
+2. **Held back** (`sourceRisk`): a caption whose source sentence has a
+   reporting verb ("said", "according to", "described"), a quote of four or
+   more words (a quoted title in Title Case doesn't count), 30 or more words
+   outside the lead, or a hedge ("usually", "about", "may") the caption lost;
+   or a caption keeping less than half of a sentence outside the lead (or
+   matching no sentence at all).
+3. **Floor of three.** With fewer than three bubbles left, held-back captions
+   come back, fewest flags first, after the others. Never one from step 1.
+4. **Interest** (`interest`): a number, an age or a place you can picture
+   ("in one afternoon", "at 16", "in a stairwell") and how it was made (a
+   sample, a borrowed instrument, what inspired it) count +2; a first or a
+   record +1, only when the source sentence says the same word (one it
+   doesn't say counts -2: a caption never upgrades a claim); a relatable fact
+   about a person (an age, a hometown, teaching themselves) +1; awards,
+   charts, sales and release details -1. Highest first; among equals, data
+   facts and lead captions, then the writer's order. On an artist's or a
+   game's article the song's own data facts still lead.
+5. **At most four**, and no two of the same kind in a row when another kind
+   is left.
+
+Why these: on judged runs, captions from the lead were about 5% wrong and
+those from the body about 13%, and release and sales sentences were both the
+dullest and the most often wrong, so accuracy and fun mostly pull the same way.
 
 ### The content standard
 

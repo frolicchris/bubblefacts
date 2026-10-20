@@ -206,6 +206,8 @@ export const config = {
   mbLink: oneOf("MB_LINK", ["on", "off"] as const, "on") === "on",
   // When the article may be about another work, show only facts from data, never AI captions (issue #255).
   abstain: oneOf("ABSTAIN", ["on", "off"] as const, "on") === "on",
+  // Hold back AI captions whose source sentence is risky to retell, and rank the rest by interest (fact-ranking.ts).
+  sourceRisk: oneOf("SOURCE_RISK", ["on", "off"] as const, "on") === "on",
   // Classical pieces: find the work through Wikidata by its composer, catalog number or nickname (issue #260).
   classicalLookup: oneOf("CLASSICAL_LOOKUP", ["on", "off"] as const, "on") === "on",
 

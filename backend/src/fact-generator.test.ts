@@ -17,6 +17,7 @@ jest.mock("./config", () => ({
     anthropicModel: "test-model",
     temperature: 0,
     factVerification: false,
+    sourceRisk: true,
     factsPerSong: 5,
     factIntervalSeconds: 15,
     factDurationSeconds: 8,
@@ -400,14 +401,17 @@ describe("generateFacts", () => {
     expect(facts[0].evidence).toBe(facts[0].text);
   });
 
-  it("shows the captions their cited sentences support best, in the order written", async () => {
+  it("shows at most four of an article's captions, the most interesting first (fact-ranking.ts)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Ranked Song (song)\n${MODEL_LINES}`);
     const exact = MODEL_LINES.split("\n").slice(1, 6);
     process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply(["1 | The soundtrack was taped quickly with a small string section.", ...exact.map((l, i) => `${i + 2} | ${l}`)].join("\n")));
-    const facts = await generateFacts({ title: "Ranked Song", artist: "Someone" });
-    expect(facts.map((f) => f.text)).toEqual(exact);
+    const facts = (await generateFacts({ title: "Ranked Song", artist: "Someone" })).map((f) => f.text);
+    expect(facts).toHaveLength(4);
+    // A first the source states, on a piano, beats a plain one.
+    expect(facts[0]).toBe("Its main melody was first sketched on an upright piano at the studio.");
+    expect(facts).not.toContain("The soundtrack was taped quickly with a small string section.");
   });
 
   it("leaves the reference unnumbered and takes plain captions unless CITE_SENTENCES is on", async () => {
@@ -417,7 +421,7 @@ describe("generateFacts", () => {
     const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
     expect(prompt).not.toMatch(/\[1\]/);
     expect(prompt).not.toContain(" | ");
-    expect(facts.map((f) => f.text)).toEqual(MODEL_LINES.split("\n").slice(0, facts.length));
+    expect(MODEL_LINES.split("\n")).toEqual(expect.arrayContaining(facts.map((f) => f.text)));
     expect(facts.length).toBeGreaterThan(0);
   });
 
@@ -487,7 +491,7 @@ describe("generateFacts", () => {
     mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
     const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
     const facts = await generateFacts(request);
-    expect(facts).toHaveLength(5);
+    expect(facts).toHaveLength(4);
     // The work is filed under the request, not the reading: under the reading's name the
     // built-in model saw a song that wasn't playing and refused (review).
     expect(outcomeFor(request)).not.toBe("");
@@ -504,7 +508,7 @@ describe("generateFacts", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Never Gonna Give You Up\n${MODEL_LINES}`);
     const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
     const facts = await generateFacts(request);
-    expect(facts).toHaveLength(5);
+    expect(facts).toHaveLength(4);
     // The work is filed under the request, not the reading: under the reading's name the
     // built-in model saw a song that wasn't playing and refused (review).
     expect(outcomeFor(request)).not.toBe("");

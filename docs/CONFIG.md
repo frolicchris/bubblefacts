@@ -156,6 +156,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claim the article doesn't state, no repeats). |
 | `MB_LINK` | `on` | When Wikipedia search finds no article for a song, `on` asks MusicBrainz for the recording and follows its own link (through Wikidata) to the song's or the artist's English Wikipedia article. The page must still be about that song or performer. `off` skips this step. |
 | `ABSTAIN` | `on` | When BubbleFacts isn't sure the article is about the song playing (a series' article for one game's track, a film named like the band, the artist's article found after dropping a note), `on` skips the AI's captions for that song and shows only facts from Wikidata or MusicBrainz and your own facts. `off` writes captions from that article anyway. |
+| `SOURCE_RISK` | `on` | `on` holds back the AI's captions that retell a risky sentence (someone's words or view, a long sentence, one the caption shortened a lot or lost a "usually" or "about" from), unless the song would show fewer than three bubbles, then shows the most interesting first, at most four. `off` shows the captions their sentences support best, in the order written, up to `FACTS_PER_SONG`. |
 | `CLASSICAL_LOOKUP` | `on` | For a classical piece ("Moonlight Sonata", "Nocturne Op. 9 No. 2", "Clair de Lune" by its composer or by a pianist), `on` finds the work on Wikidata by its composer, catalog number or nickname and reads its own Wikipedia article, or the article of the larger work it belongs to ("Clair de Lune" is in "Suite bergamasque"). A film, a show or someone else's piece never stands in for it. `off` looks classical pieces up like any other song. |
 | `GROUNDING_TIMEOUT_MS` | `5000` | How long to wait for a Wikipedia search. |
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |
@@ -167,7 +168,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 
 | Setting | Default | What it does |
 |---|---|---|
-| `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Songs with short articles may get fewer. |
+| `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Facts from Wikipedia, Wikidata or MusicBrainz stop at four (see `SOURCE_RISK`). Songs with short articles may get fewer. |
 | `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. From 3 to 300. |
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up, from 2 to 120. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 

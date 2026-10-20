@@ -3587,7 +3587,7 @@ export function explainMusicTerms(fact: string): string {
  * caption's content words, when it shares at least half; otherwise none:
  * showing a poor match as "the source" would mislead.
  */
-export function supportingSentence(fact: string, context: string): string {
+export function supportingSentence(fact: string, context: string, maxChars = 320): string {
   // The plain-word explanations in brackets are ours, not the article's. Only the words are
   // compared, so the space before a bracket can stay; this keeps the pattern linear on any text.
   const want = contentTokens(fact.replace(/\([^()]*\)/g, " "));
@@ -3604,7 +3604,7 @@ export function supportingSentence(fact: string, context: string): string {
     const share = shared / want.size;
     if (share > bestShare) [best, bestShare] = [sentence, share];
   }
-  return bestShare >= 0.5 ? (best.length > 320 ? `${best.slice(0, 317)}…` : best) : "";
+  return bestShare >= 0.5 ? (best.length > maxChars ? `${best.slice(0, maxChars - 3)}…` : best) : "";
 }
 
 /** Text naming the track, small words aside: "Through the Fire and Flames" names "Through the Fire and the Flames". */
