@@ -542,6 +542,26 @@ describe("generateFacts", () => {
     expect(later.some((f) => f.text.includes("2 times"))).toBe(true);
   });
 
+  it("logs a caption off the content standard by its reason alone, never its words (issue #242)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Glass Orchard\nGlass Orchard is a 1999 song by Mara Quillon. ${MODEL_LINES}`);
+    mockCreate.mockResolvedValue(reply(`Mara Quillon was arrested in 1998.\n${MODEL_LINES}`));
+    const log = console.log as unknown as jest.Mock;
+    log.mockClear();
+    const facts = (await generateFacts({ title: "Glass Orchard", artist: "Mara Quillon" })).map((f) => f.text);
+    expect(facts).not.toContain("Mara Quillon was arrested in 1998.");
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    expect(lines).toContain("[Screen] DROP (content standard: crime or lawsuits)");
+    expect(lines.some((l) => l.includes("arrested"))).toBe(false);
+  });
+
+  it("drops a data fact off the content standard, as it drops a caption (issue #242)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(["Glass Orchard came out in 1999.", "Mara Quillon was convicted of fraud in 2002."]);
+    const facts = (await generateFacts({ title: "Glass Orchard", artist: "Mara Quillon" })).map((f) => f.text);
+    expect(facts).toEqual(["Glass Orchard came out in 1999."]);
+  });
+
   it("uses entry and curated facts, with no model call, when there is no article", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     const facts = await generateFacts(song, entry({ timesPlayed: 0 }));
