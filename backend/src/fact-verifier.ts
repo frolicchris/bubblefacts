@@ -3,6 +3,7 @@ import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { escapeRe, hasNoArtist } from "./text";
+import { withinStandard } from "./content-standard";
 import { linkedGrounding } from "./musicbrainz";
 import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, searchWorks, wholesOf, workItems } from "./wikidata";
 
@@ -735,7 +736,12 @@ export function orderExtract(full: string, budget: number, names: string[] = [],
   return [colorBlock, rest, lead].filter(Boolean).join("\n\n");
 }
 
-/** The article's full plain text, or null for a disambiguation page. */
+/**
+ * The article's plain text as the model may read it, or null for a
+ * disambiguation page. Only what meets the content standard is kept
+ * (`withinStandard`): private sections and sentences are left out here, so
+ * nothing downstream ever sees them.
+ */
 export async function wikiExtract(pageTitle: string): Promise<string | null> {
   // exsectionformat=wiki keeps the "==" headings orderExtract relies on.
   const data = await wikiGet<{ query?: { pages?: Record<string, { extract?: string }> } }>(
@@ -743,7 +749,13 @@ export async function wikiExtract(pageTitle: string): Promise<string | null> {
     config.groundingExtractTimeoutMs,
     "extract"
   );
-  const full = Object.values(data.query?.pages ?? {})[0]?.extract;
+  const raw = Object.values(data.query?.pages ?? {})[0]?.extract;
+  if (!raw) return null;
+  const kept = withinStandard(raw, pageTitle);
+  if (kept.dropped || kept.sections) {
+    console.log(`[Standard] "${pageTitle}": left out ${kept.dropped} of ${kept.sentences} sentences (${kept.sections} sections)`);
+  }
+  const full = kept.text.trim() ? kept.text : "";
   if (full) rememberArticle(pageTitle, full);
   return full && !isDisambiguation(full) ? full : null;
 }
