@@ -19,3 +19,12 @@ it("registers the now playing file picker behind the own-window check", () => {
   const preload = fs.readFileSync(path.join(__dirname, "preload.ts"), "utf8");
   expect(preload).toContain('ipcRenderer.invoke("choose-now-playing-file")');
 });
+
+// A channel renamed on one side only would make a button do nothing, with no error until someone clicks it.
+it("has a handler in main.ts for every channel the preload bridge uses", () => {
+  const main = fs.readFileSync(path.join(__dirname, "main.ts"), "utf8");
+  const preload = fs.readFileSync(path.join(__dirname, "preload.ts"), "utf8");
+  const channels = [...preload.matchAll(/ipcRenderer\.(?:invoke|send)\("([^"]+)"/g)].map((m) => m[1]);
+  expect(channels.length).toBeGreaterThan(30);
+  for (const channel of channels) expect(main).toMatch(new RegExp(`(?:handle|ipcMain\\.(?:on|once))\\("${channel}"`));
+});

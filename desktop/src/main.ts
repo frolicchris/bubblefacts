@@ -728,12 +728,12 @@ const twitch = new TwitchSession(
   (line) => supervisor.note(line)
 );
 
-handle("twitch-connect", async () => {
+handle("connect-twitch", async () => {
   await twitch.connect(openExternal, () => send("state", state()));
   return state();
 });
 
-handle("twitch-disconnect", async () => {
+handle("disconnect-twitch", async () => {
   await twitch.disconnect();
   return state();
 });
@@ -813,7 +813,7 @@ const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-fac
 /** After anything that changes the streamer's facts or settings: a copy they never have to think about. */
 const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
 
-handle("backup-save", async () => {
+handle("save-backup", async () => {
   const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
@@ -825,7 +825,7 @@ handle("backup-save", async () => {
   return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
 });
 
-handle("backup-restore", async () => {
+handle("restore-backup", async () => {
   // Opens where the automatic backups are, so the newest is a click away.
   const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
@@ -934,7 +934,7 @@ async function checkForUpdate(): Promise<void> {
   send("state", state());
 }
 
-handle("update-download", async () => {
+handle("download-update", async () => {
   if (!update?.download || updating.stage === "downloading") return;
   updating = { stage: "downloading", progress: 0, file: "", error: "" };
   send("state", state());
@@ -954,7 +954,7 @@ handle("update-download", async () => {
   send("state", state());
 });
 
-handle("update-install", () => {
+handle("install-update", () => {
   if (updating.stage !== "ready") return;
   fs.mkdirSync(DIRS.logs, { recursive: true });
   const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
