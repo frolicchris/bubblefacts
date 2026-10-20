@@ -575,8 +575,8 @@ const wrongKey = new WrongKeyListener(globalShortcut, () => {
  * Only BubbleFacts' own window may ask for anything. Navigation is already
  * blocked, so this is a second lock: if a page ever got into the window, it
  * still couldn't press Remove my data or install an update. Every
- * ipcMain.handle below goes through it, including ones added later;
- * start-drag, an ipcMain.on, checks for itself.
+ * message registered with handle() below goes through it, including ones
+ * added later; start-drag, an ipcMain.on, checks for itself.
  */
 const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean => {
   try {
@@ -587,9 +587,9 @@ const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): bo
     return false;
   }
 };
-const handleAny = ipcMain.handle.bind(ipcMain);
-ipcMain.handle = (channel, listener) =>
-  handleAny(channel, (e, ...args) => {
+/** Register a message from the window: refused from any other page, and a failure reaches the window in plain words. */
+function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
+  ipcMain.handle(channel, (e, ...args) => {
     if (!fromOurPage(e)) throw new Error(`"${channel}" isn't available to this page`);
     // Anything that slips through still reaches the window in plain words.
     return Promise.resolve()
@@ -598,40 +598,41 @@ ipcMain.handle = (channel, listener) =>
         throw new Error(shown(channel, err));
       });
   });
+}
 
-ipcMain.handle("whats-new-seen", () => {
+handle("whats-new-seen", () => {
   markWhatsNewSeen();
   return state();
 });
 
-ipcMain.handle("test-bubble", () => control("test"));
-ipcMain.handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
+handle("test-bubble", () => control("test"));
+handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
   // Only a click in the On stream now list is live; one under Earlier songs never takes a bubble off.
   const result = await control("wrong", { text: String(text), song, live: live === true });
   backUpNow();
   return result;
 });
-ipcMain.handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
+handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // Read from the file, so the list works even before the songs are connected.
-ipcMain.handle("list-song-facts", () => {
+handle("list-song-facts", () => {
   const list = readJson("song-facts.json");
   return Array.isArray(list) ? list : [];
 });
 // "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
-ipcMain.handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
-ipcMain.handle("save-song-facts", async (_e, data: unknown) => {
+handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
+handle("save-song-facts", async (_e, data: unknown) => {
   const result = await control("song-facts", data);
   backUpNow();
   return result;
 });
-ipcMain.handle("unwrong-fact", async (_e, article: string, song: unknown) => {
+handle("unwrong-fact", async (_e, article: string, song: unknown) => {
   const result = await control("unwrong", { article: String(article), song });
   backUpNow();
   return result;
 });
-ipcMain.handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
+handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
-ipcMain.handle("get-state", () => state());
+handle("get-state", () => state());
 
 /** A connection test's technical side goes in the log; the window gets the plain reason. */
 const logged = <T extends { ok: boolean; detail?: string }>(where: string, r: T): T => {
@@ -639,16 +640,16 @@ const logged = <T extends { ok: boolean; detail?: string }>(where: string, r: T)
   return r;
 };
 
-ipcMain.handle("test-connection", async (_e, channel: string, token: string, kind: string) =>
+handle("test-connection", async (_e, channel: string, token: string, kind: string) =>
   logged("StreamerSongList test", await testSongList(channel, token || settings.token, kind))
 );
 
-ipcMain.handle("test-streamelements", async (_e, channel: string, jwt: string) =>
+handle("test-streamelements", async (_e, channel: string, jwt: string) =>
   logged("StreamElements test", await testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt))
 );
 
 /** Choose the text file another app writes the playing song to. The window saves the path with the other settings. */
-ipcMain.handle("choose-now-playing-file", async () => {
+handle("choose-now-playing-file", async () => {
   const options = {
     title: "Choose the file your music app writes the song to",
     defaultPath: app.getPath("documents"),
@@ -660,7 +661,7 @@ ipcMain.handle("choose-now-playing-file", async () => {
   return { ok: true, path: filePaths[0] };
 });
 
-ipcMain.handle("save-settings", (_e, raw: Record<string, unknown>) => {
+handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
   // The window checks first; this is the backstop, so an over-long fact is never saved.
   const problem = customFactsProblem(changes);
@@ -710,21 +711,21 @@ const twitch = new TwitchSession(
   (line) => supervisor.note(line)
 );
 
-ipcMain.handle("twitch-connect", async () => {
+handle("twitch-connect", async () => {
   await twitch.connect(openExternal, () => send("state", state()));
   return state();
 });
 
-ipcMain.handle("twitch-disconnect", async () => {
+handle("twitch-disconnect", async () => {
   await twitch.disconnect();
   return state();
 });
 
 /** The Twitch channel a song points to, for the window to offer Fill: one rule, in twitch.ts. */
-ipcMain.handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
+handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
 
 /** Their Twitch About, as fact boxes for the streamer to review in the song facts editor. */
-ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
+handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
   const login = twitchLoginFrom(String(artist ?? ""), String(link ?? ""));
   if (!login) return { ok: false, message: "Put their Twitch link in \"Their link\" first, like twitch.tv/theirname." };
   try {
@@ -743,7 +744,7 @@ ipcMain.handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
   }
 });
 
-ipcMain.handle("sign-in", async () => {
+handle("sign-in", async () => {
   signingIn?.abort();
   const mine = new AbortController();
   signingIn = mine;
@@ -771,7 +772,7 @@ ipcMain.handle("sign-in", async () => {
     if (signingIn === mine) signingIn = null;
   }
 });
-ipcMain.handle("cancel-sign-in", () => signingIn?.abort());
+handle("cancel-sign-in", () => signingIn?.abort());
 
 // --- Backup -----------------------------------------------------------------
 
@@ -795,7 +796,7 @@ const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-fac
 /** After anything that changes the streamer's facts or settings: a copy they never have to think about. */
 const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
 
-ipcMain.handle("backup-save", async () => {
+handle("backup-save", async () => {
   const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
@@ -807,7 +808,7 @@ ipcMain.handle("backup-save", async () => {
   return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
 });
 
-ipcMain.handle("backup-restore", async () => {
+handle("backup-restore", async () => {
   // Opens where the automatic backups are, so the newest is a click away.
   const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
@@ -846,7 +847,7 @@ ipcMain.handle("backup-restore", async () => {
 });
 
 /** The first half of uninstalling, without hunting for hidden folders. */
-ipcMain.handle("remove-data", async () => {
+handle("remove-data", async () => {
   const options = {
     type: "warning" as const,
     buttons: ["Remove and quit", "Cancel"],
@@ -873,28 +874,28 @@ ipcMain.handle("remove-data", async () => {
   return true;
 });
 
-ipcMain.handle("download-model", () => {
+handle("download-model", () => {
   downloadFailures = 0;
   void ensureModel();
   void ensureOllamaModel();
 });
-ipcMain.handle("copy", (_e, text: string) => clipboard.writeText(text));
+handle("copy", (_e, text: string) => clipboard.writeText(text));
 // Dragging the overlay file onto OBS's Sources list makes a Browser source at the canvas size.
 ipcMain.on("start-drag", (e) => fromOurPage(e) && e.sender.startDrag({ file: overlayFile(), icon: asset("tray@2x.png") }));
-ipcMain.handle("open-external", (_e, url: string) => openExternal(url));
-ipcMain.handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
-ipcMain.handle("show-logs", () => shell.openPath(DIRS.logs));
-ipcMain.handle("show-backups", () => {
+handle("open-external", (_e, url: string) => openExternal(url));
+handle("test-overlay", () => shell.openExternal(`${pathToFileURL(overlayFile())}?test=1`));
+handle("show-logs", () => shell.openPath(DIRS.logs));
+handle("show-backups", () => {
   fs.mkdirSync(DIRS.backups, { recursive: true });
   return shell.openPath(DIRS.backups);
 });
 // Inside the app's archive other programs can't read it, so a copy goes in the data folder first.
-ipcMain.handle("open-notices", () => {
+handle("open-notices", () => {
   const copy = path.join(DATA, "THIRD-PARTY-NOTICES.md");
   fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), copy);
   return shell.openPath(copy);
 });
-ipcMain.handle("recent", async () => {
+handle("recent", async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/recent`, { signal: AbortSignal.timeout(2000) });
     return await res.json();
@@ -916,7 +917,7 @@ async function checkForUpdate(): Promise<void> {
   send("state", state());
 }
 
-ipcMain.handle("update-download", async () => {
+handle("update-download", async () => {
   if (!update?.download || updating.stage === "downloading") return;
   updating = { stage: "downloading", progress: 0, file: "", error: "" };
   send("state", state());
@@ -936,7 +937,7 @@ ipcMain.handle("update-download", async () => {
   send("state", state());
 });
 
-ipcMain.handle("update-install", () => {
+handle("update-install", () => {
   if (updating.stage !== "ready") return;
   fs.mkdirSync(DIRS.logs, { recursive: true });
   const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
@@ -952,10 +953,10 @@ ipcMain.handle("update-install", () => {
   app.quit();
 });
 
-ipcMain.handle("report-problem", () =>
+handle("report-problem", () =>
   openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
-ipcMain.handle("report-beta", () =>
+handle("report-beta", () =>
   openExternal(
     betaReportUrl({
       version: app.getVersion(),
@@ -969,7 +970,7 @@ ipcMain.handle("report-beta", () =>
   )
 );
 /** The same reports, as text to paste anywhere: no GitHub account needed. */
-ipcMain.handle("copy-report", (_e, kind: unknown) => {
+handle("copy-report", (_e, kind: unknown) => {
   const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
   clipboard.writeText(
     kind === "beta"
@@ -977,7 +978,7 @@ ipcMain.handle("copy-report", (_e, kind: unknown) => {
       : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai })
   );
 });
-ipcMain.handle("report-fact", (_e, song: string, fact: string) =>
+handle("report-fact", (_e, song: string, fact: string) =>
   openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings) }))
 );
 
