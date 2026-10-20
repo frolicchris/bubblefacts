@@ -3,7 +3,7 @@ import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { escapeRe, hasNoArtist } from "./text";
-import { withinStandard } from "./content-standard";
+import { standardBreach, withinStandard } from "./content-standard";
 import { linkedGrounding } from "./musicbrainz";
 import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, searchWorks, wholesOf, workItems } from "./wikidata";
 
@@ -3567,13 +3567,17 @@ export function parseCitation(line: string): { at: number; text: string } {
 }
 
 /**
- * Why a caption can't go on screen whatever its reference says: unsafe for a stream, about the
- * prompt, too short, an opinion, an unnamed speaker, the music video, or another part of the
- * soundtrack. Null when none. `titles`: the article's and the song's, which a caption may open with.
+ * Why a caption can't go on screen whatever its reference says: unsafe for a stream, off the
+ * content standard, about the prompt, too short, an opinion, an unnamed speaker, the music video,
+ * or another part of the soundtrack. Null when none. `titles`: the article's and the song's, which
+ * a caption may open with; `names`: the request's artist. Both are read as names, not words.
  */
-function captionReason(fact: string, titles: string[], otherParts: string[]): string | null {
+function captionReason(fact: string, titles: string[], otherParts: string[], names: string[] = []): string | null {
   const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
   if (unsafe) return unsafe.label;
+  // The content standard, whatever the reference says: a retelling can add what its source didn't ("charged" told as "convicted").
+  const offStandard = standardBreach(fact, [...titles, ...names]);
+  if (offStandard) return offStandard;
   if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
   if (fact.length < 20) return "too short";
   if (OPINION.test(fact)) return "opinion";
@@ -3668,7 +3672,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
 
   const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
   const reasonToDrop = (fact: string): string | null =>
-    captionReason(fact, titles, opts.otherParts ?? []) ??
+    captionReason(fact, titles, opts.otherParts ?? [], opts.artists) ??
     sourceReason(fact, context, opts.track) ??
     (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
