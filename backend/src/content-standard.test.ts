@@ -48,6 +48,7 @@ describe("the content standard's word lists (issue #242)", () => {
     expect(standardBreach("The bridge borrows from funeral-march jazz.")).toBeNull();
     expect(standardBreach("Some translated lines came out as longer than the originals.")).toBeNull();
     expect(standardBreach("Divorced from the film, the score is still a fine listen.")).toBeNull();
+    expect(standardBreach("The band's name caused a controversy when a mayor kept it off a New Year's Eve bill.")).toBeNull();
     expect(standardBreach("In 1969, after separating from his wife, Ivo Marsh moved to Dorrance.")).not.toBeNull();
   });
 
@@ -104,11 +105,11 @@ describe("the content standard's word lists (issue #242)", () => {
     expect(kept.dropped).toBe(4);
   });
 
-  it("knows a private heading from a song's or a place's", () => {
-    for (const h of ["Personal life", "Family", "Legal issues", "Controversies", "Health", "Illness and death", "Death", "Arrest and trial", "Lawsuit"]) {
+  it("knows a private heading from a song's, a place's, gameplay's or a career period's", () => {
+    for (const h of ["Personal life", "Family", "Legal issues", "Controversies", "Health", "Health problems", "Health and death", "Illness and death", "Death", "Arrest and trial", "Lawsuit"]) {
       expect(isPrivateHeading(h)).toBe(true);
     }
-    for (const h of ["Recording", "Death Mountain", "Composition and lyrics", "Personnel", "Velvet Felony"]) {
+    for (const h of ["Recording", "Death Mountain", "Composition and lyrics", "Personnel", "Velvet Felony", "Health, lives, and power-ups", "2011–2018: Second album, tour and legal troubles"]) {
       expect(isPrivateHeading(h)).toBe(false);
     }
   });

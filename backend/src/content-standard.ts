@@ -37,7 +37,9 @@ const LISTS: TopicList[] = [
       "theft", "robbery", "burglary", "assaulted", "homicide", "murder", "murdered", "murders",
       "manslaughter", "extortion", "embezzlement", "domestic violence", "restraining order",
       "drunk driving", "DUI", "plagiarism", "plagiarized", "plagiarised", "copyright infringement",
-      "infringement", "infringed", "scandal", "scandals", "controversy", "controversies", "feud", "feuds",
+      // "Controversy" alone is too often about music: a band's name, a soundtrack's reception.
+      // A "Controversies" section is still left out whole.
+      "infringement", "infringed", "scandal", "scandals", "feud", "feuds",
     ],
   },
   {
@@ -130,25 +132,32 @@ const compiled = LISTS.map(({ label, words }) => ({
 
 /**
  * Section headings whose whole section is left out, subsections and all:
- * "Personal life", "Legal issues", "Controversies", "Health". Same rules as
- * the lists above.
+ * "Personal life", "Legal issues", "Controversies", "Health problems". Same
+ * rules as the lists above. A game's "Health, lives, and power-ups" is
+ * gameplay, so health counts only as a person's.
  */
 const PRIVATE_HEADING =
-  /(?<![\p{L}])(?:personal (?:life|history|relationships?|matters|issues|problems)|private life|family|relationships?|marriages?|legal|lawsuits?|litigation|court cases?|arrests?|criminal|crimes?|controvers(?:y|ies)|allegations?|accusations?|scandals?|health|illness(?:es)?|addiction|substance abuse|drug use|sexual|abuse)(?![\p{L}])/iu;
+  /(?<![\p{L}])(?:personal (?:life|history|relationships?|matters|issues|problems)|private life|family|relationships?|marriages?|legal|lawsuits?|litigation|court cases?|arrests?|criminal|crimes?|controvers(?:y|ies)|allegations?|accusations?|scandals?|health (?:problems|issues|decline)|ill health|illness(?:es)?|addiction|substance abuse|drug use|sexual|abuse)(?![\p{L}])/iu;
 /**
  * A heading about someone's death is made only of these words: "Death",
  * "Illness and death", "Death and legacy". "Death Mountain" and "Death Egg"
  * are places in games, and stay.
  */
 const DEATH_HEADING_WORDS = new Set([
-  "death", "deaths", "illness", "later", "last", "final", "life", "years", "and", "legacy", "funeral",
+  "death", "deaths", "illness", "health", "later", "last", "final", "life", "years", "and", "legacy", "funeral",
   "aftermath", "tributes", "burial", "his", "her", "their", "the", "early", "posthumous", "memorial",
   "memorials", "of",
 ]);
 
+/**
+ * A heading for a whole private section. A period of a career ("2011–2018:
+ * The Idler Wheel, tour, and legal troubles") is kept, sentence by sentence.
+ */
 export function isPrivateHeading(heading: string): boolean {
+  if (/\b(?:1\d{3}|20\d{2})\b/.test(heading)) return false;
   if (PRIVATE_HEADING.test(heading)) return true;
   const words = heading.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+  if (words.length === 1 && words[0] === "health") return true;
   if (words.some((w) => w === "death" || w === "deaths") && words.every((w) => DEATH_HEADING_WORDS.has(w))) return true;
   return breach(heading) !== null;
 }

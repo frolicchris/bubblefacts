@@ -325,8 +325,10 @@ or phrases, any case. It runs in three places:
 
 1. **The article, before anything reads it.** `wikiExtract` leaves out whole
    sections with private headings ("Personal life", "Legal issues",
-   "Controversies", "Health", "Death and legacy", but not "Death Mountain")
-   and every other sentence a list matches. A plain death year stays: "died
+   "Controversies", "Health", "Death and legacy", but not "Death Mountain" or
+   a game's "Health, lives, and power-ups") and every other sentence a list
+   matches. A heading with a year is a period of a career ("2011–2018: ...,
+   tour, and legal troubles"), filtered sentence by sentence. A plain death year stays: "died
    in 2004" is on no list, "died of" and "died in a" are.
 2. **Every caption.** `screenClaims` drops a caption a list matches, whatever
    its reference says, so a retelling can't add what its source didn't
