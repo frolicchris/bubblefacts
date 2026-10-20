@@ -3,17 +3,20 @@ jest.mock("./config", () => ({
     songSource: "nowplaying",
     nowPlayingPreset: "none",
     nowPlayingFile: "",
+    nowPlayingFolder: "",
     nowPlayingFormat: "artist-title",
     liveLearns: true,
     topic: "general",
   },
-  NOW_PLAYING_PRESETS: { streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"], file: "nowplaying-minimal.txt" } },
+  NOW_PLAYING_PRESETS: { streamling: { name: "Streamling", folder: ["Documents", "streamling", "livetext"], file: "nowplaying-minimal.txt" },
+    nightbot: { name: "Nightbot", folder: ["Documents", "Nightbot"], file: "" },
+  },
 }));
 
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { NowPlayingFileSource, NowPlayingFormat, parseNowPlaying, STALE_AFTER_MS } from "./now-playing-file";
+import { newestTextFile, NowPlayingFileSource, NowPlayingFormat, parseNowPlaying, STALE_AFTER_MS } from "./now-playing-file";
 import { SSLQueueItem } from "./types";
 
 /** Sample files as now-playing apps write them, with made-up songs. */
@@ -77,6 +80,136 @@ describe("parseNowPlaying", () => {
 
   it("uses the first line that has something on it", () => {
     expect(parseNowPlaying("\n  Juniper Reyes  -  Copper Moon \nnext: something else", "artist-title")).toEqual({ artist: "Juniper Reyes", title: "Copper Moon" });
+  });
+});
+
+describe("parseNowPlaying with a YouTube title", () => {
+  const read = (line: string) => parseNowPlaying(line, "youtube-title");
+
+  it("reads the artist and song out of a video title", () => {
+    expect(read("Marlow Finch - Harbor Lights (Official Video)")).toEqual({ artist: "Marlow Finch", title: "Harbor Lights" });
+    expect(read("Juniper Reyes - Copper Moon [Official Audio] ft. Tobias Vale")).toEqual({ artist: "Juniper Reyes", title: "Copper Moon" });
+    expect(read("Marlow Finch - Harbor Lights - Live (4K)")).toEqual({ artist: "Marlow Finch", title: "Harbor Lights" });
+  });
+
+  it("keeps the whole title with an unknown artist when the title has no artist", () => {
+    expect(read("Theme of the Glass Valley")).toEqual({ artist: "Unknown", title: "Theme of the Glass Valley" });
+  });
+
+  it.each([
+    "Marlow Finch - Harbor Lights (Official Video) - Requested by dana_k",
+    "Marlow Finch - Harbor Lights (Official Video) | requested by dana_k",
+    "Marlow Finch - Harbor Lights (Official Video) (requested by dana_k)",
+    "Marlow Finch - Harbor Lights (Official Video) [Requested by: dana_k]",
+    "Marlow Finch - Harbor Lights (Official Video) requested by @dana_k",
+    "Marlow Finch - Harbor Lights (Official Video) • Added by dana_k",
+    "Marlow Finch - Harbor Lights (Official Video) | Requester: dana_k",
+  ])("ignores a requester added at the end: %s", (line) => {
+    expect(read(line)).toEqual({ artist: "Marlow Finch", title: "Harbor Lights" });
+  });
+
+  it("does not guess at other text, and does not strip a title that only looks like one", () => {
+    // No explicit marker, so a bare name stays with the title: the line's format is Nightbot's to customize.
+    expect(read("Marlow Finch - Harbor Lights (Official Video) - dana_k")?.artist).toBe("Marlow Finch");
+    // A line that is only a requester note still shows something, not nothing.
+    expect(read("Requested by dana_k")).toEqual({ artist: "Unknown", title: "Requested by dana_k" });
+  });
+
+  it("has no song for an empty line or one with no words", () => {
+    expect(read("")).toBeNull();
+    expect(read(" - ")).toBeNull();
+    expect(read("(Official Video)")?.title).toBeTruthy();
+  });
+});
+
+describe("newestTextFile", () => {
+  it("is null for a missing folder and an empty one", async () => {
+    expect(await newestTextFile(path.join(dir, "no-such-folder"))).toBeNull();
+    expect(await newestTextFile(dir)).toBeNull();
+  });
+
+  it("picks the .txt changed last and ignores other files and folders", async () => {
+    const put = (name: string, ageMs: number) => {
+      const f = path.join(dir, name);
+      fs.writeFileSync(f, "x");
+      const when = new Date(Date.now() - ageMs);
+      fs.utimesSync(f, when, when);
+    };
+    put("old.txt", 60_000);
+    put("new.TXT", 1000);
+    put("newest.log", 0);
+    fs.mkdirSync(path.join(dir, "newest.txt"));
+    expect(await newestTextFile(dir)).toBe(path.join(dir, "new.TXT"));
+  });
+});
+
+describe("NowPlayingFileSource following a folder (Nightbot)", () => {
+  /** Nightbot's files, each written just now or `ageMs` ago. */
+  const put = (name: string, sample: string, ageMs = 0) => {
+    const f = path.join(dir, name);
+    fs.copyFileSync(path.join(SAMPLES, sample), f);
+    const when = new Date(Date.now() - ageMs);
+    fs.utimesSync(f, when, when);
+  };
+  const folderSource = (folder = dir) => {
+    const changes: Array<SSLQueueItem | null> = [];
+    const src = new NowPlayingFileSource({ folder, format: "youtube-title" });
+    src.onCurrentSongChange((s) => changes.push(s));
+    const settle = async () => {
+      await src.checkNow();
+      await src.checkNow();
+    };
+    return { src, changes, settle };
+  };
+
+  it("reads the newest .txt, and follows it when another file becomes the newest", async () => {
+    const { src, changes, settle } = folderSource();
+    put("songlist.txt", "youtube-title-next.txt", 5000);
+    put("currentsong.txt", "youtube-title.txt", 1000);
+    await settle();
+    expect(shown(src)).toMatchObject({ title: "Harbor Lights", artist: "Marlow Finch" });
+    put("songlist.txt", "youtube-title-next.txt", 0);
+    await settle();
+    expect(shown(src)).toMatchObject({ title: "Copper Moon", artist: "Juniper Reyes" });
+    expect(changes).toHaveLength(2);
+  });
+
+  it("shows no song for an empty folder, a missing folder, or a newest file that has gone stale", async () => {
+    const empty = folderSource();
+    await empty.settle();
+    expect(empty.src.getCurrentSong()).toBeNull();
+    expect(empty.changes).toEqual([]);
+
+    const missing = folderSource(path.join(dir, "Nightbot"));
+    await missing.settle();
+    expect(missing.src.getCurrentSong()).toBeNull();
+    expect(missing.src.lastSuccessfulFetchAgeMs()).not.toBeNull();
+
+    const stale = folderSource();
+    put("currentsong.txt", "youtube-title.txt", STALE_AFTER_MS + 1000);
+    await stale.settle();
+    expect(stale.src.getCurrentSong()).toBeNull();
+  });
+
+  it("reads a song once the folder appears, and drops it when the files go", async () => {
+    const folder = path.join(dir, "Nightbot");
+    const { src, changes, settle } = folderSource(folder);
+    await settle();
+    fs.mkdirSync(folder);
+    fs.copyFileSync(path.join(SAMPLES, "youtube-title-requester.txt"), path.join(folder, "currentsong.txt"));
+    await settle();
+    expect(shown(src)).toMatchObject({ title: "Harbor Lights", artist: "Marlow Finch" });
+    fs.rmSync(path.join(folder, "currentsong.txt"));
+    await settle();
+    expect(src.getCurrentSong()).toBeNull();
+    expect(changes.map((c) => c?.song.title ?? null)).toEqual(["Harbor Lights", null]);
+  });
+
+  it("reads a YouTube-style line from a single file, with the requester left off", async () => {
+    const { src, settle } = source("youtube-title");
+    write("youtube-title-requester.txt");
+    await settle();
+    expect(shown(src)).toMatchObject({ title: "Harbor Lights", artist: "Marlow Finch" });
   });
 });
 

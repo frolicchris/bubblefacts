@@ -27,8 +27,8 @@ export interface Settings {
   seChannel: string;
   /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
   seJwt: string;
-  /** Now playing file: "streamling" reads Streamling's own file; "none" reads the file in `nowPlayingFile`. */
-  nowPlayingPreset: "streamling" | "none";
+  /** Now playing file: "streamling" or "nightbot" read that app's own file or folder; "none" reads the file in `nowPlayingFile`. */
+  nowPlayingPreset: "streamling" | "nightbot" | "none";
   /** The text file another app writes the song to, chosen with the file picker. */
   nowPlayingFile: string;
   /** How its line reads: "Artist - Title", or the title alone. */
@@ -233,7 +233,7 @@ export function sanitize(s: Settings): Settings {
   return {
     ...s,
     songSource: oneOf(s.songSource, ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist"),
-    nowPlayingPreset: oneOf(s.nowPlayingPreset, ["streamling", "none"] as const, "streamling"),
+    nowPlayingPreset: oneOf(s.nowPlayingPreset, ["streamling", "nightbot", "none"] as const, "streamling"),
     nowPlayingFormat: oneOf(s.nowPlayingFormat, ["artist-title", "title"] as const, "artist-title"),
     nowPlayingFile: s.nowPlayingFile.trim(),
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
@@ -380,6 +380,9 @@ export function toServerEnv(
     if (s.nowPlayingPreset === "streamling") {
       // Streamling's file is in a known folder and always reads "Artist - Song", so there's nothing to choose.
       Object.assign(env, { NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "artist-title" });
+    } else if (s.nowPlayingPreset === "nightbot") {
+      // Nightbot's folder is known, but its file name and line are the streamer's to customize: the newest .txt is read as a YouTube title.
+      Object.assign(env, { NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
     } else {
       Object.assign(env, { NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: s.nowPlayingFile, NOW_PLAYING_FORMAT: s.nowPlayingFormat });
     }
@@ -404,8 +407,8 @@ export function toServerEnv(
 /** The chosen song source has what it needs to start. */
 export function songSourceReady(s: Settings): boolean {
   if (s.songSource === "streamelements") return !!s.seJwt;
-  // Streamling's file is where the server already looks; any other app's needs a file chosen.
-  if (s.songSource === "nowplaying") return s.nowPlayingPreset === "streamling" || !!s.nowPlayingFile;
+  // Streamling's and Nightbot's files are where the server already looks; any other app's needs a file chosen.
+  if (s.songSource === "nowplaying") return s.nowPlayingPreset !== "none" || !!s.nowPlayingFile;
   // The app's own sign-in follows the channel by its ID, so a missing name doesn't hold it up.
   return !!s.token && (!!s.channel || (s.tokenKind === "oauth" && s.streamerId > 0));
 }

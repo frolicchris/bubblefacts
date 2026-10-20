@@ -959,6 +959,7 @@ ipcMain.handle("report-beta", () =>
       build: versionWithBuild(),
       systemVersion: process.getSystemVersion(),
       songSource: settings.songSource,
+      nowPlayingPreset: settings.nowPlayingPreset,
       logLines: supervisor.lines,
       secrets: secretsOf(settings),
     })
@@ -969,7 +970,7 @@ ipcMain.handle("copy-report", (_e, kind: unknown) => {
   const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
   clipboard.writeText(
     kind === "beta"
-      ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource })
+      ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource, nowPlayingPreset: settings.nowPlayingPreset })
       : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai })
   );
 });

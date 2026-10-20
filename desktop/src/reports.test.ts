@@ -70,6 +70,14 @@ describe("beta test reports", () => {
     expect(fields.source).toBe("Now playing file");
   });
 
+  it("names Nightbot as the song source when its preset is chosen", () => {
+    const fields = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "nightbot", logLines: ["x"], secrets: [] }));
+    expect(options("source")).toContain(fields.source);
+    expect(fields.source).toBe("Now playing file (Nightbot)");
+    const other = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "streamling", logLines: ["x"], secrets: [] }));
+    expect(other.source).toBe("Now playing file");
+  });
+
   it("has a field for every answer the app fills in, in each form", () => {
     const ids = (file: string) =>
       [...fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE", file), "utf8").matchAll(/^\s+id: (\S+?)\r?$/gm)].map((m) => m[1]);

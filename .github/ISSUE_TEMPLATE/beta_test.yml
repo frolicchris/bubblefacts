@@ -73,6 +73,7 @@ body:
         - StreamerSongList
         - StreamElements
         - Now playing file
+        - Now playing file (Nightbot)
   - type: input
     id: osversion
     attributes:

@@ -74,7 +74,23 @@ describe("config song source", () => {
     expect(() => load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "lanternplayer", NOW_PLAYING_FILE: "x" })).toThrow(/NOW_PLAYING_PRESET must be one of/);
   });
 
+  it("follows Nightbot's whole folder with the Nightbot preset, reading YouTube titles", () => {
+    const folder = path.join(os.homedir(), "Documents", "Nightbot");
+    expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot" })).toMatchObject({
+      nowPlayingPreset: "nightbot",
+      nowPlayingFolder: folder,
+      nowPlayingFile: "",
+      nowPlayingFormat: "youtube-title",
+    });
+    // A file named in the settings is followed instead, found in that folder; the format can still be set.
+    const named = load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FILE: "song.txt", NOW_PLAYING_FORMAT: "artist-title" });
+    expect(named).toMatchObject({ nowPlayingFolder: "", nowPlayingFile: path.join(folder, "song.txt"), nowPlayingFormat: "artist-title" });
+    expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_FILE: path.join(os.tmpdir(), "song.txt") })).toMatchObject({ nowPlayingFolder: "", nowPlayingFormat: "artist-title" });
+    expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_FILE: path.join(os.tmpdir(), "song.txt"), NOW_PLAYING_FORMAT: "youtube-title" }).nowPlayingFormat).toBe("youtube-title");
+  });
+
   it("ignores the now playing settings with the other sources", () => {
+    expect(load({ SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", NOW_PLAYING_PRESET: "nightbot" })).toMatchObject({ nowPlayingFile: "", nowPlayingFolder: "" });
     expect(load({ SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", NOW_PLAYING_PRESET: "streamling" })).toMatchObject({ nowPlayingFile: "" });
   });
 

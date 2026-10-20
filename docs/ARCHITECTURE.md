@@ -636,6 +636,14 @@ apps that write the playing song into one text file:
   relative `NOW_PLAYING_FILE` is found in it. Streamling's page names its
   folder (`Documents\streamling\livetext`) but not the file or its line
   format, so the file name stays a setting until a real one is checked.
+- Nightbot (`nightbot` preset): its docs name the folder (`Documents/Nightbot`,
+  Windows and Mac) but neither the file nor the line, which is customizable,
+  and its songs are YouTube videos. So the preset has no file: each check
+  takes the most recently changed `.txt` in the folder (`newestTextFile`;
+  missing folder or no `.txt` is no song), and the `youtube-title` format
+  runs the line through `parseVideoTitle`. A trailing "requested by ...",
+  "added by ..." or "requester: ..." is dropped first, and nothing else is
+  guessed. Not yet tried against a real install.
 
 **YouTube titles** (`youtube-title.ts`). StreamElements only knows each
 request's YouTube title and channel. `parseVideoTitle(title, channel)`:

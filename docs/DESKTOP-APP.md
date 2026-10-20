@@ -58,6 +58,7 @@ A third song source, **Now playing file**, for musicians whose music app writes 
 [Follow a now playing file instead](https://bubblefacts.frolic.org/guide.html#song-list-file).
 
 - **Streamling** is one click: the server reads Streamling's own file in the Documents folder (`NOW_PLAYING_PRESET=streamling`), which is always "Artist - Title". The app shows the folder it reads and says it's Windows only.
+- **Nightbot** is one click too, on Windows and Mac: the server reads the newest `.txt` file in `Documents/Nightbot` (`NOW_PLAYING_PRESET=nightbot`) as a YouTube video's title, so "Artist - Song (Official Video)" becomes the artist and the song. The app shows the folder it reads, and beta test reports name it.
 - **Another app's file** opens a file picker (`dialog.showOpenDialog`, through the `choose-now-playing-file` message, which like every message from the window is refused unless it comes from the app's own page) and asks whether the line reads "Artist - Title" or is the title alone.
 - The chosen file and format are saved in Settings but left out of backups, as the sign-ins are, because a path belongs to one computer.
 - Nothing to sign in to, so no sign-in notices. There are no live learns, so that setting is hidden. Beta test reports name the source as "Now playing file".

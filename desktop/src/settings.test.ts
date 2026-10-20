@@ -253,6 +253,13 @@ describe("Now playing file", () => {
     expect(env.SE_JWT).toBeUndefined();
   });
 
+  it("starts the server on Nightbot's folder, read as YouTube titles, with nothing typed", () => {
+    const env = toServerEnv({ ...streamling, nowPlayingPreset: "nightbot", nowPlayingFile: "/left/over.txt", nowPlayingFormat: "title" }, paths);
+    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
+    expect(env.NOW_PLAYING_FILE).toBeUndefined();
+    expect(env.SSL_ACCESS_TOKEN).toBeUndefined();
+  });
+
   it("starts the server on the chosen file and format for another app", () => {
     const env = toServerEnv(other, paths);
     expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: "/music/now-playing.txt", NOW_PLAYING_FORMAT: "title" });
@@ -265,8 +272,9 @@ describe("Now playing file", () => {
     expect(sig({ ...other, nowPlayingFormat: "artist-title" })).not.toBe(sig(other));
   });
 
-  it("is ready with Streamling, or once a file is chosen", () => {
+  it("is ready with Streamling or Nightbot, or once a file is chosen", () => {
     expect(songSourceReady(streamling)).toBe(true);
+    expect(songSourceReady({ ...streamling, nowPlayingPreset: "nightbot" })).toBe(true);
     expect(songSourceReady({ ...other, nowPlayingFile: "" })).toBe(false);
     expect(songSourceReady(other)).toBe(true);
     // A sign-in saved for another source doesn't matter, and doesn't make an unchosen file ready.
@@ -284,7 +292,9 @@ describe("Now playing file", () => {
   });
 
   it("falls back to safe values for anything unknown", () => {
-    expect(sanitize({ ...DEFAULTS, nowPlayingPreset: "nightbot" as never, nowPlayingFormat: "json" as never, nowPlayingFile: "  /a.txt  " })).toMatchObject({
+    expect(fromWindow({ nowPlayingPreset: "nightbot" })).toEqual({ nowPlayingPreset: "nightbot" });
+    expect(sanitize({ ...DEFAULTS, nowPlayingPreset: "nightbot" }).nowPlayingPreset).toBe("nightbot");
+    expect(sanitize({ ...DEFAULTS, nowPlayingPreset: "lanternplayer" as never, nowPlayingFormat: "json" as never, nowPlayingFile: "  /a.txt  " })).toMatchObject({
       nowPlayingPreset: "streamling",
       nowPlayingFormat: "artist-title",
       nowPlayingFile: "/a.txt",
