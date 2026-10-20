@@ -8,7 +8,8 @@ import { escapeRe } from "./text";
  * everything on their stream, and YouTube and Kick have the same rules, so
  * an article's sentences about crime, lawsuits, drugs, sex, private
  * relationships, health and how someone died never reach the model, and a
- * caption or data fact that still says such a thing is dropped.
+ * caption or data fact that still says such a thing is dropped. Nor does
+ * anything saying who a person is (issue #262), unless in their own words.
  *
  * Word lists only: whole words or phrases, any case. No AI decides what is
  * safe, and nothing asks the streamer to check.
@@ -119,7 +120,54 @@ const LISTS: TopicList[] = [
       "death of their",
     ],
   },
+  {
+    // Issue #262: a bubble never states who a person is. Twitch's Hateful Conduct policy
+    // protects race, ethnicity, national origin, religion, sexual orientation and gender
+    // identity, YouTube's hate speech policy and Kick's community guidelines the same, and
+    // only the person can say who they are: an article's word for it is someone else's.
+    // So no ethnicity or Indigenous nation, race, religion, sexuality or gender identity, for
+    // anyone. Where someone is from ("a Canadian singer", "born in Oslo") and anything about
+    // the music ("Christian rock", "Inuit throat singing", a hymn) stay: see IDENTITY_MUSIC.
+    // Category words only, never a list of peoples: a people's name is also a song, a game's
+    // tribe or a band, and no list of them would be complete. The artist's own words about
+    // themselves are the one exception (`selfDescribes`).
+    label: "identity",
+    words: [
+      // Ethnicity, ancestry and Indigenous nations. "Member of the ... Nation", "of ... descent"
+      // and "<people> American" are read in `identityPhrases`.
+      "ethnic", "ethnicity", "ethnicities", "ethnically", "heritage", "ancestry", "Indigenous", "Aboriginal",
+      "First Nation", "First Nations", "Métis", "Metis", "Inuit", "Inuk", "Native American", "Native Americans",
+      "Native Hawaiian", "Alaska Native", "Torres Strait Islander", "tribe", "tribes", "tribal", "Latino", "Latina",
+      "Latinos", "Latinas", "Latinx", "Hispanic", "Chicano", "Chicana", "Afro-Latino", "Afro-Latina",
+      "Afro-Caribbean",
+      // Race. Bare "race" is racing, and bare "black" and "white" are colors and albums, so only phrases.
+      "racial", "racially", "biracial", "multiracial", "mixed-race", "mixed race", "people of color",
+      "person of color", "woman of color", "women of color", "artists of color", "musicians of color",
+      "Black woman", "Black women", "Black man", "Black men", "Black people", "Black person", "Black artist",
+      "Black artists", "Black musician", "Black musicians", "Black singer", "Black singers", "Black composer",
+      "Black composers", "Black community", "Black Americans", "white woman", "white women", "white man",
+      "white men", "white people", "white musicians", "white artists",
+      // Religion.
+      "religion", "religions", "religious", "devout", "atheist", "atheists", "atheism", "agnostic",
+      "born-again", "evangelical", "converted to", "Christian", "Christians", "Christianity", "Muslim",
+      "Muslims", "Islam", "Islamic", "Jewish", "Jew", "Jews", "Judaism", "Hindu", "Hindus", "Hinduism",
+      "Buddhist", "Buddhists", "Buddhism", "Sikh", "Sikhs", "Sikhism", "Catholic", "Catholics",
+      "Catholicism", "Protestant", "Protestants", "Mormon", "Mormons", "Latter-day Saint", "Latter-day Saints",
+      "Jehovah's Witness", "Jehovah's Witnesses", "Quaker", "Quakers", "Baptist", "Methodist", "Pentecostal",
+      "Lutheran", "Anglican", "Rastafarian", "Rastafari",
+      // Sexuality ("sexuality" and "sexual orientation" are on the sexual content list already).
+      "gay", "lesbian", "lesbians", "bisexual", "queer", "homosexual", "homosexuality", "heterosexual",
+      "asexual", "pansexual", "LGBT", "LGBTQ", "LGBTQ+", "LGBTQIA", "LGBTQIA+", "LGBTQ2S+",
+      // Gender identity.
+      "transgender", "trans woman", "trans women", "trans man", "trans men", "trans person", "trans people",
+      "non-binary", "nonbinary", "genderqueer", "genderfluid", "gender-fluid", "gender identity",
+      "gender nonconforming", "gender-nonconforming", "two-spirit", "cisgender", "agender", "intersex",
+      "pronouns",
+    ],
+  },
 ];
+
+const IDENTITY = "identity";
 
 /** A list's words as one pattern: whole words, any case, any spacing inside a phrase. */
 const compiled = LISTS.map(({ label, words }) => ({
@@ -129,6 +177,28 @@ const compiled = LISTS.map(({ label, words }) => ({
     "giu"
   ),
 }));
+
+/**
+ * After an identity word, these make it about the music, not a person: "Christian rock",
+ * "Indigenous instruments", "Inuit throat singing", "Jewish liturgical music". A person
+ * noun ("singer", "band") is not here, so "a Christian singer" is still dropped.
+ */
+const IDENTITY_MUSIC = new Set([
+  "music", "musical", "musics", "song", "songs", "hymn", "hymns", "hymnal", "hymnody", "chant", "chants",
+  "chanting", "rock", "pop", "metal", "rap", "punk", "folk", "gospel", "jazz", "choir", "choirs", "choral",
+  "liturgy", "liturgical", "worship", "mass", "album", "albums", "record", "records", "label", "chart", "charts",
+  "festival", "festivals", "radio", "flute", "flutes", "drum", "drums", "drumming", "instrument", "instruments",
+  "dance", "dances", "style", "styles", "scale", "scales", "mode", "modes", "melody", "melodies", "rhythm",
+  "rhythms", "singing", "throat", "harp", "harps", "repertoire", "canticle", "canticles", "psalm", "psalms",
+]);
+/** Before "heritage" or "ancestry": "the band's musical heritage" is about the music. */
+const IDENTITY_MUSIC_BEFORE = new Set(["music", "musical"]);
+/** A word for a people or a country, as it's written before "American": "Korean", "Irish", "Japanese", "Haitian". */
+const looksLikeDemonym = (w: string) => w.length >= 4 && /(?:an|ish|ese|i)$/i.test(w);
+/** Peoples whose word before "American" doesn't end like a demonym. */
+const BEFORE_AMERICAN = new Set(["arab", "filipino", "filipina", "black", "afro", "native"]);
+/** "Jew's harp" is an instrument. */
+const IDENTITY_NOT = /\bjew['’]s\s+harps?\b/giu;
 
 /**
  * Section headings whose whole section is left out, subsections and all:
@@ -197,21 +267,137 @@ function inAName(text: string, index: number, match: string): boolean {
   return isUpper(prev[0]) && !/[.!?]$/.test(prev);
 }
 
-/** Which list a text breaks, or null. `names` (titles, the artist) are read as names, not words. */
-function breach(text: string, names: string[] = []): string | null {
+/** `names` (titles, the artist) blanked out, so their words are read as names: "Velvet Felony". */
+function withoutNames(text: string, names: string[]): string {
   let plain = text;
   for (const name of names) {
     if (name.trim().length < 2) continue;
     plain = plain.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(name.trim())}(?![\\p{L}\\p{N}])`, "giu"), (m) => "x".repeat(m.length));
   }
-  for (const { label, re } of compiled) {
-    re.lastIndex = 0;
-    for (const m of plain.matchAll(re)) {
-      if (!inAName(plain, m.index ?? 0, m[0])) return label;
+  return plain.replace(IDENTITY_NOT, (m) => "x".repeat(m.length));
+}
+
+/** Small words that open a sentence with a capital: "In" in "In Christian tradition" is no first name. */
+const NOT_A_NAME = new Set(["the", "a", "an", "in", "as", "his", "her", "their", "its", "for", "on", "at", "by", "with", "from", "of", "and", "but", "to", "both", "many", "some", "most", "other", "this", "that", "while", "after", "before"]);
+
+/**
+ * An identity word that is about the music or part of a name, not a person: "Christian rock",
+ * "the band's musical heritage", a quoted "Cherokee", "Christian Varga" or "Yusuf Islam". A word
+ * for a people next to it isn't a name: "Jewish American", "Swedish Christian".
+ */
+function identityExempt(text: string, index: number, match: string): boolean {
+  if (index > 0 && QUOTES.has(text[index - 1])) return true;
+  const next = wordAfter(text, index + match.length);
+  if (IDENTITY_MUSIC.has(next.toLowerCase())) return true;
+  const prev = wordBefore(text, index);
+  if (IDENTITY_MUSIC_BEFORE.has(prev.toLowerCase())) return true;
+  if (!isUpper(match[0]) || match === match.toUpperCase()) return false;
+  if (isUpper(next[0]) && !looksLikeDemonym(next) && next !== next.toUpperCase()) return true;
+  return isUpper(prev[0]) && !/[.!?]$/.test(prev) && !looksLikeDemonym(prev) && !NOT_A_NAME.has(prev.toLowerCase());
+}
+
+/** Words, as written, for the phrases below: "Mexican-American" is two. */
+const WORD = /[\p{L}\p{N}'’]+/gu;
+
+/**
+ * Identity told in a phrase rather than one word: "a Korean American singer", "of Irish
+ * descent", "a member of the Example Nation". Where someone lives or comes from ("born in
+ * the Example Nation", "an American singer") isn't one.
+ */
+function identityPhrases(text: string): string[] {
+  const words = [...text.matchAll(WORD)].map((m) => m[0]);
+  const lower = words.map((w) => w.toLowerCase());
+  const found: string[] = [];
+  for (let i = 1; i < words.length; i++) {
+    const w = lower[i];
+    if ((w === "american" || w === "americans") && !IDENTITY_MUSIC.has(lower[i + 1] ?? "")) {
+      const p = words[i - 1];
+      if ((isUpper(p[0]) && looksLikeDemonym(p)) || BEFORE_AMERICAN.has(lower[i - 1])) found.push(`${lower[i - 1]} ${w}`);
+    } else if (w === "descent") {
+      // "of Irish descent", "of Irish and Cuban descent", "of mixed descent"; not "a descent into".
+      const of = lower.slice(Math.max(0, i - 4), i).lastIndexOf("of");
+      const between = of >= 0 ? words.slice(Math.max(0, i - 4) + of + 1, i) : [];
+      if (between.some((b) => isUpper(b[0]) || b.toLowerCase() === "mixed")) found.push("descent");
+    } else if ((w === "nation" || w === "tribe") && isUpper(words[i][0])) {
+      // "member of the Example Nation", "citizen of the Example River Tribe".
+      for (let j = i - 1; j >= Math.max(2, i - 5); j--) {
+        if (lower[j] === "the" && lower[j - 1] === "of" && /^(?:member|members|citizen|citizens|enrolled)$/.test(lower[j - 2] ?? "")) {
+          found.push(w);
+          break;
+        }
+      }
     }
   }
-  return null;
+  return found;
 }
+
+/** The identity words and phrases a text uses about a person, lowercased: [] when none. */
+export function identityTerms(text: string, names: string[] = []): string[] {
+  const plain = withoutNames(text, names);
+  const { re } = compiled.find((c) => c.label === IDENTITY)!;
+  re.lastIndex = 0;
+  const found: string[] = [];
+  for (const m of plain.matchAll(re)) {
+    if (!identityExempt(plain, m.index ?? 0, m[0])) found.push(m[0].toLowerCase().replace(/\s+/g, " "));
+  }
+  return [...found, ...identityPhrases(plain)];
+}
+
+/** Every list a text breaks, in list order. `names` (titles, the artist) are read as names, not words. */
+function breaches(text: string, names: string[] = []): string[] {
+  const plain = withoutNames(text, names);
+  const out: string[] = [];
+  for (const { label, re } of compiled) {
+    if (label === IDENTITY) continue;
+    re.lastIndex = 0;
+    for (const m of plain.matchAll(re)) {
+      if (!inAName(plain, m.index ?? 0, m[0])) {
+        out.push(label);
+        break;
+      }
+    }
+  }
+  if (identityTerms(text, names).length) out.push(IDENTITY);
+  return out;
+}
+
+/** Which list a text breaks, or null. `names` (titles, the artist) are read as names, not words. */
+function breach(text: string, names: string[] = []): string | null {
+  return breaches(text, names)[0] ?? null;
+}
+
+/**
+ * The artist's own words about who they are: "has described herself as", "calls himself",
+ * "said she identifies as". Someone else's word for it ("was identified as", "is considered")
+ * is not.
+ */
+const SELF_REFLEXIVE =
+  /\b(?:describe[sd]?|describing|call(?:s|ed|ing)?|consider(?:s|ed|ing)?|refer(?:s|red|ring)? to|define[sd]?|defining|sees?|saw|regard(?:s|ed)?|label(?:s|ed|led)?|identif(?:y|ies|ied|ying))\s+(?:himself|herself|themselves|themself|itself)\b/i;
+const IDENTIFIES_AS = /\b([\p{L}'’]+)\s+identif(?:y|ies|ied|ying)\s+as\b/iu;
+const PASSIVE = new Set(["was", "were", "been", "being", "be", "is", "are"]);
+
+export function selfDescribes(text: string): boolean {
+  if (SELF_REFLEXIVE.test(text)) return true;
+  const m = IDENTIFIES_AS.exec(text);
+  return Boolean(m && !PASSIVE.has(m[1].toLowerCase()));
+}
+
+/**
+ * The one exception to the identity rule (issue #262): a caption that keeps the artist's own
+ * words about themselves. It must say they described themselves ("has described herself as"),
+ * break no list but this one, and every identity word in it must come from a sentence of the
+ * reference where someone describes themselves. Whether it keeps the artist's name is checked
+ * where the artist is known (`captionReason` in fact-verifier.ts).
+ */
+export function selfDescribedIdentity(caption: string, reference: string, names: string[] = []): boolean {
+  const labels = breaches(caption, names);
+  if (labels.length !== 1 || labels[0] !== IDENTITY || !selfDescribes(caption)) return false;
+  const own = reference.split("\n").flatMap(sentencesOf).filter(selfDescribes).map((s) => identityTerms(s, names));
+  return identityTerms(caption, names).every((t) => own.some((terms) => terms.includes(t)));
+}
+
+/** The reason `standardBreach` gives for a statement of who someone is. */
+export const IDENTITY_REASON = `content standard: ${IDENTITY}`;
 
 /**
  * Why a caption or a data fact can't be shown under the content standard, or
@@ -286,7 +472,11 @@ export function withinStandard(full: string, page = ""): StandardText {
       dropped += parts.length;
       continue;
     }
-    const kept = parts.filter((s) => breach(s, names) === null);
+    // The artist's own words about who they are stay for the model (`selfDescribedIdentity`).
+    const kept = parts.filter((s) => {
+      const labels = breaches(s, names);
+      return !labels.length || (labels.length === 1 && labels[0] === IDENTITY && selfDescribes(s));
+    });
     dropped += parts.length - kept.length;
     if (kept.length || !line.trim()) out.push(kept.length === parts.length ? line : kept.join(" "));
   }

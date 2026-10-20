@@ -3,7 +3,7 @@ import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
 import { escapeRe, hasNoArtist } from "./text";
-import { standardBreach, withinStandard } from "./content-standard";
+import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
 import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, searchWorks, wholesOf, workItems } from "./wikidata";
@@ -3771,13 +3771,17 @@ export function parseCitation(line: string): { at: number; text: string } {
  * content standard, about the prompt, too short, an opinion, an unnamed speaker, the music video,
  * or another part of the soundtrack. Null when none. `titles`: the article's and the song's, which
  * a caption may open with; `names`: the request's artist. Both are read as names, not words.
+ * `context`: the reference, for the artist's own words about who they are.
  */
-function captionReason(fact: string, titles: string[], otherParts: string[], names: string[] = []): string | null {
+function captionReason(fact: string, titles: string[], otherParts: string[], names: string[] = [], context = ""): string | null {
   const unsafe = NOT_FOR_STREAM.find(({ re }) => re.test(fact));
   if (unsafe) return unsafe.label;
   // The content standard, whatever the reference says: a retelling can add what its source didn't ("charged" told as "convicted").
   const offStandard = standardBreach(fact, [...titles, ...names]);
-  if (offStandard) return offStandard;
+  // Who someone is, only in the artist's own words, with their name and the words that say so
+  // kept ("Jane Doe has described herself as ..."): issue #262.
+  const ownWords = offStandard === IDENTITY_REASON && mentionsName(normalizeTitle(fact), names.map(normalizeTitle).filter(Boolean)) && selfDescribedIdentity(fact, context, [...titles, ...names]);
+  if (offStandard && !ownWords) return offStandard;
   if (META_PATTERNS.some((re) => re.test(fact))) return "meta-commentary";
   if (fact.length < 20) return "too short";
   if (OPINION.test(fact)) return "opinion";
@@ -3872,7 +3876,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
 
   const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
   const reasonToDrop = (fact: string): string | null =>
-    captionReason(fact, titles, opts.otherParts ?? [], opts.artists) ??
+    captionReason(fact, titles, opts.otherParts ?? [], opts.artists, context) ??
     sourceReason(fact, context, opts.track) ??
     (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 

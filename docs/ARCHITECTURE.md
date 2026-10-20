@@ -101,7 +101,9 @@ sign-ins and the built-in AI. Its design decisions are in
 3. **The streamer's song facts come first.** If `findSongFacts` matches, those
    lines are shown exactly as written, with no lookup or AI, even for a live
    learn (often another music content creator's off-list original). Not cached, so an edit
-   applies on the next play.
+   applies on the next play. With **No facts for this song** or **No facts for
+   this artist** on, it stops here (see [Notes, switches and Wrong](#notes-switches-and-wrong)).
+   After this step a note in brackets after the artist's name is left out.
 4. **Special cases.** A live learn (a request that isn't on the song list)
    gets its banner, and facts only from a source (`liveLearnLookup` reads
    an artist and title out of a request typed like a video title), never
@@ -354,9 +356,10 @@ streamer responsible for everything on stream, and the riskiest true
 sentence in an artist's article is about a person, not the music: an
 arrest, an illness, a divorce, how someone died.
 
-`content-standard.ts` holds six word lists (crime or lawsuits, drugs or
-addiction, sexual content, private life, health, how someone died), each
-with a comment naming the platform rules it follows. Matching is whole words
+`content-standard.ts` holds seven word lists (crime or lawsuits, drugs or
+addiction, sexual content, private life, health, how someone died, and who
+someone is: ethnicity or an Indigenous nation, race, religion, sexuality,
+gender identity), each with a comment naming the platform rules it follows. Matching is whole words
 or phrases, any case. It runs in three places:
 
 1. **The article, before anything reads it.** `wikiExtract` leaves out whole
@@ -377,8 +380,45 @@ band called "The Crime Lords", a quoted "Heroin", the song's own title and the
 artist. A capitalized word next to another capitalized word, or right after
 a quotation mark, counts as a name; an all-capitals word ("LSD") doesn't.
 
+The identity list has its own name rule: a word right after it about the music
+keeps it ("Christian rock", "Inuit throat singing"), and a word for a people
+next to it is not a name ("Jewish American"). Where someone is from stays
+("a Canadian singer"). Only category words are listed, never peoples. The one
+exception is the artist's own words: a sentence where they describe themselves
+("has described herself as", "said he identifies as") stays in the reference,
+and a caption from it is kept only with the artist's name and those words
+(`selfDescribedIdentity`). Data facts get no exception.
+
 There is no setting: the standard is always on for sourced captions. The
 streamer's own facts are theirs and are never checked.
+
+### Notes, switches and Wrong
+
+Issue #262's rules, for when a fact must not be shown at all:
+
+- **A note after the artist's name** ("Some Band (note)") is the streamer's.
+  `generateRest` leaves it out once (`withoutArtistNote` in `text.ts`), right
+  after the streamer's own song facts are matched (a note may be how they wrote
+  an alias). Nothing after that sees it: no search, no prompt, no fact, no log
+  line, no report. The overlay's banner and the dashboard show the song as
+  listed. `songKey` leaves it out too, and Wrong marks saved with one are still
+  found. A handle ("Jane (@janeplayskeys)") is not a note.
+- **No facts for this song** and **No facts for this artist** (`noFacts`,
+  `noArtistFacts` in `song-facts.json`) leave only the streamer's own facts:
+  their facts for the song and their tagged custom facts. `generateFacts`
+  checks them before its cache, so they apply at once. The artist switch
+  matches the name without its note, and the lead of "A feat. B". On the song
+  on now, the found bubbles come off (`remove_fact`), and a restart keeps them
+  off (`allowedFacts`). They're in the editor and, one click each, under
+  Earlier songs.
+- **Wrong on the song on now** takes off the bubble and the rest of this play's
+  bubbles from the source it blocks (`pulledWithWrong`): the same article, or
+  Wikidata and MusicBrainz together.
+- **Logs give the reason a fact was dropped, never its words.** Logs go into
+  problem reports.
+
+BubbleFacts can't know a community's protocols. These rules lower the chance
+it repeats what it shouldn't; the switches are the streamer's own call.
 
 **Only settled versions.** Most vandalism is reverted within hours, so an
 article edited in the last 72 hours is read as it was before: the newest
@@ -624,7 +664,8 @@ music content creator's piece: nothing is looked up, and the streamer's own fact
 ### How do I see what a stream showed?
 
 Each fact sent to the overlay is logged as `[Shown] "Song" (source): text`,
-next to the `[Screen] DROP` lines for what was held back. It's logged where
+next to the `[Screen] DROP` lines for what was held back (the reason only,
+never the words). It's logged where
 the facts go out (`broadcast` in `server.ts` after the pause check, and an
 overlay's catch-up), not where they're written, so a skipped, paused or
 superseded song's facts aren't in it. Each fact is logged once per play of a
@@ -841,7 +882,8 @@ Wrong   → POST /control/wrong {text, song, live}
              the streamer's or song list's → blocks nothing
            a live learn is blocked under the song it was looked up as too
         → blockArticle() saves wrong-facts.json; the song's cached facts are dropped
-        → song on now: overlay gets remove_fact, even mid-bubble; session.json drops it
+        → song on now: overlay gets remove_fact, even mid-bubble, for it and the rest of
+          this play's bubbles from the same source; session.json drops them
         ← {removed, live, article, structured}
 Hands-free Wrong (a global key from a foot pedal or Stream Deck)
         → POST /control/wrong-current {}
@@ -951,7 +993,11 @@ folder; `data/` for the command-line version):
   song ID, YouTube video ID, else artist and title, or an alias. The match
   ignores case, accents and punctuation but keeps every word, so
   "Night Drive (Acoustic)" isn't "Night Drive (Remix)". A songwriter is
-  credited only when the streamer names one.
+  credited only when the streamer names one. An entry can also hold the two
+  switches, with or without facts.
+- `song-facts.before-switches.json`: the song facts as they were before the
+  first switch was saved, copied once, for going back to an older version
+  (which shows nothing for a song that has only a switch).
 - `wrong-facts.json`: sources marked **Wrong** (above).
 - `session.json`: the song that was showing, its facts, when they went out,
   and recent facts (see "What gets remembered between songs?").

@@ -4,15 +4,15 @@ import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
-import { hasNoArtist } from "./text";
+import { hasNoArtist, withoutArtistNote } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
-import { isStandardReason, standardBreach } from "./content-standard";
+import { standardBreach } from "./content-standard";
 import { artistFacts, wikidataFacts } from "./wikidata";
-import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
+import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
 
@@ -96,7 +96,7 @@ export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearn
 /** The spots for a song's bubbles, clear of its banner while it shows. */
 export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
 
-type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
+export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
@@ -109,6 +109,7 @@ export const factStats = {
   noReference: 0,
   generationFailed: 0,
   nothingSurvived: 0,
+  factsOff: 0,
   cacheHits: 0,
   lastDurationMs: 0,
   lastEndpoint: "",
@@ -154,23 +155,27 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   noReference: "curated",
   nothingSurvived: "curated",
   generationFailed: "curated",
+  factsOff: "off",
 };
 
 /** How each song's facts last turned out, so the dashboard can tell "nothing reliable" from "failed". */
 const outcomes = new Map<string, Outcome>();
 export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song)) ?? "";
 
-/** Count the outcome and append a line to logs/songs.log: time, title, artist field, outcome, count. */
+/** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
+export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
+  const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
+  return [now.toISOString(), clean(song.title), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
+}
+
+/** Count the outcome and append a line to logs/songs.log. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
   outcomes.set(songKey(song), outcome);
   if (process.env.NODE_ENV === "test") return;
-  const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
-  const line = [new Date().toISOString(), clean(song.title), clean(song.artist), SONGS_LOG_LABEL[outcome], count];
-  fs.mkdir(config.logDir, { recursive: true }, () =>
-    fs.appendFile(songsLog(), line.join("\t") + "\n", () => undefined)
-  );
+  const line = songsLogLine(song, outcome, count);
+  fs.mkdir(config.logDir, { recursive: true }, () => fs.appendFile(songsLog(), line, () => undefined));
 }
 
 /** Where each kind of fact comes from, as the dashboard labels it. */
@@ -196,7 +201,7 @@ function toFacts(
 ): Fact[] {
   const told = lines.filter((text) => {
     if (WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
-    console.log(`[Screen] DROP (repeats the request): ${text.slice(0, 90)}`);
+    console.log("[Screen] DROP (repeats the request)");
     return false;
   });
   const page = context.split("\n")[0];
@@ -784,7 +789,8 @@ type Generated = { facts: Fact[]; ttlMs: number };
  */
 function ownSongFacts(song: SSLSong, want: number, asked: SSLSong): Generated | null {
   const ownRecord = findSongFacts(song);
-  if (!ownRecord) return null;
+  // A record with only a switch on it ("No facts for this song") has nothing of its own to show.
+  if (!ownRecord || !hasOwnFacts(ownRecord)) return null;
   const lines = songFactLines(ownRecord, want);
   // With room left, one fact from its artist's or game's pool, ahead of the creator's link.
   const pool = lines.length < want ? takeTurns(taggedFor(song).pool, 1) : [];
@@ -906,8 +912,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const { track } = resolveGameAndTrack(read);
   const cited = Boolean(context) && citesSentences();
   const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
-  // A caption off the content standard is logged by its reason alone, so logs and reports can't spread it.
-  for (const r of rejected) console.log(`[Screen] DROP (${r.reason})${isStandardReason(r.reason) ? "" : `: ${r.text.slice(0, 90)}`}`);
+  // A dropped caption is logged by its reason alone, never its words, so logs and the reports
+  // made from them can't spread what was held back (issues #242 and #262).
+  for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
   const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
   if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
   // Music terms get a few fixed plain words, so any viewer can follow.
@@ -981,6 +988,12 @@ function bestSupported(
   return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
 }
 
+/** The song with its artist's note in brackets left out (`withoutArtistNote`): the same object when it has none. */
+export function withoutNote(song: SSLSong): SSLSong {
+  const artist = withoutArtistNote(song.artist ?? "");
+  return artist === (song.artist ?? "").trim() ? song : { ...song, artist };
+}
+
 /**
  * A song's facts, by the first step that has any: the streamer's own facts for it, a live
  * learn's, an original's, then facts from a reference (`groundedFacts`).
@@ -989,9 +1002,13 @@ function bestSupported(
  * looked up as its title and artist). The model's work and the outcome belong to the request: under
  * the reading's name the built-in model took it for a song no longer playing and refused.
  */
-async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = song): Promise<Generated> {
-  const own = ownSongFacts(song, want, asked);
+async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = listed): Promise<Generated> {
+  // Matched as listed: a note in brackets may be how the streamer wrote an alias.
+  const own = ownSongFacts(listed, want, asked);
   if (own) return own;
+  // From here on the artist is without its note ("Some Band (note)" is "Some Band"): a note is
+  // never searched, sent to the AI, put in a fact or logged (issue #262).
+  const song = withoutNote(listed);
   if (song.liveLearn) return liveLearnFacts(song, want, asked);
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
@@ -1012,10 +1029,40 @@ async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: num
 }
 
 /**
+ * "No facts for this song" or "No facts for this artist" (issue #262): the streamer's own
+ * facts only, their facts for this song and their custom facts tagged for it, its artist or
+ * its game. Nothing is looked up and the AI writes nothing; no song-list or untagged custom
+ * facts either. Null when neither switch is on. Logged by the song's title alone.
+ */
+export function ownFactsOnly(song: SSLSong): Fact[] | null {
+  const off = factsOff(song);
+  if (!off.song && !off.artist) return null;
+  const want = config.factsPerSong;
+  const theirs = findSongFacts(song);
+  const mine = theirs && hasOwnFacts(theirs) ? songFactLines(theirs, want) : [];
+  const tagged = taggedFor(song);
+  const custom = [...tagged.forSong, ...takeTurns(tagged.pool, Math.max(0, want - mine.length - tagged.forSong.length))]
+    .filter((t) => !mine.includes(t))
+    .slice(0, Math.max(0, want - mine.length));
+  console.log(`[FactGen] "${song.title}": facts are off for this ${off.song ? "song" : "artist"}, so only the streamer's own (${mine.length + custom.length})`);
+  record(song, "factsOff", mine.length + custom.length);
+  return toFacts(song, [...mine, ...custom], (t) => (mine.includes(t) ? SOURCE.yours : SOURCE.custom));
+}
+
+/** What may still show for a song after its switches changed: everything, or only the streamer's own facts. */
+export function allowedFacts(song: SSLSong, facts: Fact[]): Fact[] {
+  const off = factsOff(song);
+  return off.song || off.artist ? facts.filter((f) => WRITTEN_BY_STREAMER.has(f.source)) : facts;
+}
+
+/**
  * Facts for a song. Results are cached, and concurrent callers (several
  * overlays, a reconnect mid-generation) share one generation.
  */
 export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<Fact[]> {
+  // Checked before the cache, so a switch turned on applies at once, and off again brings the found facts back.
+  const own = ownFactsOnly(song);
+  if (own) return Promise.resolve(own);
   const key = songKey(song);
   const cached = factCache.get(key);
   if (cached && Date.now() < cached.expires) {
@@ -1076,6 +1123,17 @@ export function blockFor(label: string | undefined): string | null | undefined {
   if (label.startsWith("Wikipedia: ")) return label.slice("Wikipedia: ".length);
   if (label === SOURCE.wikidata || label === SOURCE.musicbrainz) return STRUCTURED;
   return null;
+}
+
+/**
+ * The bubbles Wrong takes off the song on now (issue #262): the one marked, and every other
+ * one this play from the source it blocks (the same article, or Wikidata and MusicBrainz),
+ * since a wrong fact usually means a wrong source. The streamer's own facts and song-list
+ * facts block nothing, so only the one marked comes off.
+ */
+export function pulledWithWrong(facts: Fact[], fact: Fact): Fact[] {
+  const source = blockFor(fact.source);
+  return facts.filter((f) => f.text === fact.text || (!!source && blockFor(f.source) === source));
 }
 
 /**

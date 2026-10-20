@@ -18,6 +18,29 @@ export function cleanRequestText(s: string): string {
   return s.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_REQUEST_TEXT).trim();
 }
 
+/**
+ * The artist field without the notes a song list adds after the name in brackets
+ * (issue #262): "Some Band (note)", "Some Band [note]", several, or one left open
+ * ("Some Band (note"). A note is the streamer's, kept only to show the song as listed and
+ * to match their own facts' aliases: it is never searched, sent to the AI, put in a
+ * fact or logged. A streamer's handle ("Jane (@janeplayskeys)") stays, since it says
+ * whose piece it is, and so does a name that is all brackets or ends in one it never
+ * opened ("Sunn O)))"). No regular expression, so nothing to backtrack.
+ */
+export function withoutArtistNote(artist: string): string {
+  let a = artist.trim();
+  for (;;) {
+    const closer = a.endsWith(")") ? "(" : a.endsWith("]") ? "[" : "";
+    const at = closer ? a.lastIndexOf(closer) : Math.max(a.lastIndexOf("("), a.lastIndexOf("["));
+    // Without a closing bracket at the end, only one left open counts: "A (b) c" has no note.
+    if (at < 0 || (!closer && (a.includes(")", at) || a.includes("]", at)))) return a;
+    const note = a.slice(at + 1).trimStart();
+    const rest = a.slice(0, at).trim();
+    if (note.startsWith("@") || !/[\p{L}\p{N}]/u.test(rest)) return a;
+    a = rest;
+  }
+}
+
 /** Lowercase, accents removed: the first step of every comparison key (`songIdentity` and the two search and title keys built on it). */
 export const foldCase = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 

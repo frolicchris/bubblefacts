@@ -221,3 +221,4 @@ textarea { resize: vertical; line-height: 1.45; }
 .earlier { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
 .earlier > summary { cursor: pointer; }
 .earlier .now-song { margin-top: 12px; }
+.earlier .earlier-off { margin: 2px 0 4px; font-size: 0.9em; }

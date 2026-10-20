@@ -34,10 +34,14 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { SYSTEM_PROMPT, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
-import { blockedArticles } from "./wrong-facts";
+import { SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { blockedArticles, resetWrongFacts } from "./wrong-facts";
+import fs from "fs";
+import path from "path";
 import { topic } from "./topic";
-import { saveSongFacts } from "./song-facts";
+import { saveSongFacts, setFactsOff } from "./song-facts";
+import { loadSession, remainingFacts, saveSession } from "./session";
+import { Fact } from "./types";
 import { fetchGrounding } from "./fact-verifier";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
@@ -675,5 +679,193 @@ describe("Wrong decides what to block from the fact's own label (audit)", () => 
     expect(blockedArticles(lookup).has("Some Song")).toBe(true);
     unmarkWrong(request, "Some Song");
     expect(blockedArticles(lookup).size).toBe(0);
+  });
+});
+
+describe("a note after the artist's name (issue #262)", () => {
+  const noted = { title: "Glass Orchard", artist: "Wren Halloway (note words)" };
+  const article = `Glass Orchard\nGlass Orchard is a 1999 song by Wren Halloway. ${MODEL_LINES}`;
+
+  it("is never searched, sent to the AI, put in a bubble or logged", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    (wikidataFacts as jest.Mock).mockClear();
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts(noted);
+    expect(facts.length).toBeGreaterThan(0);
+    const searched = JSON.stringify([(fetchGrounding as jest.Mock).mock.calls, (wikidataFacts as jest.Mock).mock.calls, (artistFacts as jest.Mock).mock.calls]);
+    expect(searched).toContain("Wren Halloway");
+    expect(searched).not.toContain("note words");
+    expect(JSON.stringify(mockCreate.mock.calls)).not.toContain("note words");
+    expect(JSON.stringify(facts)).not.toContain("note words");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("note words");
+    log.mockRestore();
+  });
+
+  it("is left out of a live learn's lookup too", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    await generateFacts({ ...noted, liveLearn: true });
+    expect(JSON.stringify((fetchGrounding as jest.Mock).mock.calls)).not.toContain("note words");
+  });
+
+  it("is left out of logs/songs.log", () => {
+    const line = songsLogLine(noted, "grounded", 4, new Date("2026-10-21T20:00:00Z"));
+    expect(line).toBe("2026-10-21T20:00:00.000Z\tGlass Orchard\tWren Halloway\tarticle\t4\n");
+  });
+
+  it("still finds the streamer's own facts saved under the note, or under an alias with it", async () => {
+    saveSongFacts({ title: "Glass Orchard", artist: "Wren Halloway (note words)", facts: ["Wren wrote it on a porch."] });
+    saveSongFacts({ title: "Night Ferry", artist: "Wren Halloway", aliases: ["Wren Halloway (other note) - Night Ferry"], facts: ["Recorded on a boat."] });
+    try {
+      expect((await generateFacts(noted)).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+      expect((await generateFacts({ title: "Night Ferry", artist: "Wren Halloway (other note)" })).map((f) => f.text)).toEqual(["Recorded on a boat."]);
+    } finally {
+      saveSongFacts({ title: "Glass Orchard", artist: "Wren Halloway (note words)", facts: [] });
+      saveSongFacts({ title: "Night Ferry", artist: "Wren Halloway", facts: [] });
+    }
+  });
+
+  it("doesn't split a song's Wrong marks: one saved with the note before is still found", () => {
+    const file = path.join(process.env.BUBBLEFACTS_DATA_DIR as string, "wrong-facts.json");
+    fs.writeFileSync(file, JSON.stringify({ "wren halloway (note words):::glass orchard": ["Old Article"] }));
+    resetWrongFacts();
+    try {
+      expect(blockedArticles({ title: "Glass Orchard", artist: "Wren Halloway" }).has("Old Article")).toBe(true);
+      expect(blockedArticles(noted).has("Old Article")).toBe(true);
+      markWrong(noted, "A fact.", "Wikipedia: New Article");
+      expect(blockedArticles({ title: "Glass Orchard", artist: "Wren Halloway" }).has("New Article")).toBe(true);
+      unmarkWrong(noted, "Old Article");
+      expect(blockedArticles(noted).has("Old Article")).toBe(false);
+    } finally {
+      fs.writeFileSync(file, "{}");
+      resetWrongFacts();
+    }
+  });
+});
+
+describe("no facts for this song, or for this artist (issue #262)", () => {
+  const glass = { title: "Glass Orchard", artist: "Wren Halloway" };
+  const article = `Glass Orchard\nGlass Orchard is a 1999 song by Wren Halloway. ${MODEL_LINES}`;
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (wikidataFacts as jest.Mock).mockClear();
+    (topic as { taggedFacts: unknown }).taggedFacts = [
+      { tag: "Glass Orchard", text: "Wren hums the bridge before every show." },
+      { tag: "Wren Halloway", text: "Wren learned fiddle from a neighbor." },
+    ];
+  });
+  afterEach(() => {
+    saveSongFacts({ ...glass, facts: [], noFacts: false, noArtistFacts: false });
+    saveSongFacts({ title: "Night Ferry", artist: "Wren Halloway", facts: [], noFacts: false, noArtistFacts: false });
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+  });
+
+  it("shows only the streamer's own facts for the song: nothing looked up or written", async () => {
+    saveSongFacts({ ...glass, facts: ["Wren wrote it on a porch."], noFacts: true });
+    const facts = await generateFacts(glass, entry({ ...glass, timesPlayed: 3 }));
+    expect(facts.map((f) => [f.text, f.source])).toEqual([
+      ["Wren wrote it on a porch.", SOURCE.yours],
+      ["Wren hums the bridge before every show.", SOURCE.custom],
+      ["Wren learned fiddle from a neighbor.", SOURCE.custom],
+    ]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(wikidataFacts).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(outcomeFor(glass)).toBe("factsOff");
+  });
+
+  it("shows nothing when the streamer has no facts of their own for it", async () => {
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+    setFactsOff(glass, "song", true);
+    expect(await generateFacts(glass, entry({ ...glass, timesPlayed: 3 }))).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+  });
+
+  it("covers every song by the artist, a live learn too, from the switch on one of their songs", async () => {
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+    setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
+    expect(await generateFacts({ title: "Harbor Lights", artist: "Wren Halloway (note words)" })).toEqual([]);
+    expect(await generateFacts({ title: "Harbor Lights", artist: "Wren Halloway", liveLearn: true })).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("applies at once to a song whose facts were already found, and lifts the same way", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    const found = await generateFacts(glass);
+    expect(found.some((f) => f.source === "Wikipedia: Glass Orchard")).toBe(true);
+    setFactsOff(glass, "song", true);
+    expect((await generateFacts(glass)).every((f) => f.source === SOURCE.custom)).toBe(true);
+    setFactsOff(glass, "song", false);
+    expect(await generateFacts(glass)).toEqual(found);
+  });
+
+  it("keeps only the streamer's own facts from a play saved before a restart", () => {
+    const saved = [
+      { text: "From the article.", source: "Wikipedia: Glass Orchard", delaySeconds: 0, durationSeconds: 8, position: {} },
+      { text: "From Wikidata.", source: SOURCE.wikidata, delaySeconds: 15, durationSeconds: 8, position: {} },
+      { text: "Wren wrote it on a porch.", source: SOURCE.yours, delaySeconds: 30, durationSeconds: 8, position: {} },
+      { text: "Requested by Robin.", source: SOURCE.songList, delaySeconds: 45, durationSeconds: 8, position: {} },
+    ];
+    expect(allowedFacts(glass, saved)).toEqual(saved);
+    setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
+    expect(allowedFacts(glass, saved).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+  });
+});
+
+describe("Wrong on the song that's on pulls the rest of its bubbles from that source (issue #262)", () => {
+  const bubble = (text: string, source: string, i: number): Fact => ({ text, source, delaySeconds: i * 15, durationSeconds: 8, position: {} });
+  const facts = [
+    bubble("First from the article.", "Wikipedia: Glass Orchard", 0),
+    bubble("From Wikidata.", SOURCE.wikidata, 1),
+    bubble("Second from the article.", "Wikipedia: Glass Orchard", 2),
+    bubble("From MusicBrainz.", SOURCE.musicbrainz, 3),
+    bubble("Wren wrote it on a porch.", SOURCE.yours, 4),
+    bubble("Requested by Robin.", SOURCE.songList, 5),
+    bubble("From another article.", "Wikipedia: Wren Halloway", 6),
+  ];
+  const texts = (list: Fact[]) => list.map((f) => f.text);
+
+  it("takes the marked bubble and every other one from the same article", () => {
+    expect(texts(pulledWithWrong(facts, facts[0]))).toEqual(["First from the article.", "Second from the article."]);
+  });
+
+  it("takes Wikidata and MusicBrainz together, as Wrong blocks them together", () => {
+    expect(texts(pulledWithWrong(facts, facts[3]))).toEqual(["From Wikidata.", "From MusicBrainz."]);
+  });
+
+  it("takes only the marked one when it's the streamer's own or from the song list", () => {
+    expect(texts(pulledWithWrong(facts, facts[4]))).toEqual(["Wren wrote it on a porch."]);
+    expect(texts(pulledWithWrong(facts, facts[5]))).toEqual(["Requested by Robin."]);
+  });
+
+  it("doesn't bring them back when the session resumes after a restart", () => {
+    const pulled = new Set(texts(pulledWithWrong(facts, facts[0])));
+    const left = facts.filter((f) => !pulled.has(f.text));
+    const shownAt = Date.now() - 5_000;
+    saveSession({ song: { title: "Glass Orchard", artist: "Wren Halloway" }, facts: left, shownAt, recent: [], savedAt: Date.now() });
+    const resumed = loadSession();
+    expect(resumed).not.toBeNull();
+    const toCome = texts(remainingFacts(resumed!.facts, resumed!.shownAt));
+    expect(toCome).not.toContain("Second from the article.");
+    expect(toCome).toContain("From another article.");
+  });
+});
+
+describe("logs say why a fact was dropped, never what it said (issue #262)", () => {
+  it("logs a dropped caption, data fact or restatement by its reason alone", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Glass Orchard\nGlass Orchard is a 1999 song by Wren Halloway. ${MODEL_LINES}`);
+    mockCreate.mockResolvedValue(reply(`Glass Orchard is widely considered a towering masterpiece of its decade.\nWren Halloway is a devout Quaker from Vellmar.\nGlass Orchard is a song by Wren Halloway.\n${MODEL_LINES}`));
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      await generateFacts({ title: "Glass Orchard", artist: "Wren Halloway" });
+      const lines = log.mock.calls.map((c) => String(c[0]));
+      expect(lines.filter((l) => l.startsWith("[Screen] DROP (")).length).toBeGreaterThanOrEqual(2);
+      expect(lines).toContain("[Screen] DROP (content standard: identity)");
+      expect(lines.some((l) => /masterpiece|Quaker/.test(l))).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
   });
 });

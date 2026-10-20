@@ -137,6 +137,14 @@ describe("buildStatFacts", () => {
     expect(f).toContain('"Marigold Lane" is an original, credited to Folk Lanterns.');
   });
 
+  it("never puts a note after the artist's name in a bubble (issue #262)", () => {
+    const theirs = buildStatFacts(entry({ title: "Marigold Lane", artist: "Folk Lanterns (note words)" }), { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays"] });
+    expect(theirs).toContain('"Marigold Lane" is an original, credited to Folk Lanterns.');
+    const own = buildStatFacts(entry({ title: "Laura's Wedding", artist: "Jane Composer (note words)" }), { streamerName: "janestreams", isOriginalSong: true, names: ["janestreams", "Jane Composer (note words)"] });
+    expect(own.join(" ")).toContain("composition by Jane Composer.");
+    expect([...theirs, ...own].join(" ")).not.toContain("note words");
+  });
+
   it("never claims another streamer's original was written by the one playing it", () => {
     // From review: Robin plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
     const song = entry({ title: "Evening Rain", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] });

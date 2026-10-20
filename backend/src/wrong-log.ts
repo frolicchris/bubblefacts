@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
+import { withoutArtistNote } from "./text";
 import { SSLSong } from "./types";
 
 /**
@@ -31,7 +32,8 @@ const file = () => path.join(config.dataDir, WRONG_LOG_FILE);
 /** Add one line. Never throws: a log that can't be written mustn't stop Wrong. */
 export function logWrong(song: SSLSong, caption: string, source: string | undefined, article: string | null, now = new Date()): void {
   const line: WrongLogLine = {
-    song: { title: song.title, artist: song.artist, ...(song.songId !== undefined ? { songId: song.songId } : {}), ...(song.videoId ? { videoId: song.videoId } : {}) },
+    // Without a note after the artist's name (issue #262): backups carrying this file get shared.
+    song: { title: song.title, artist: withoutArtistNote(song.artist ?? ""), ...(song.songId !== undefined ? { songId: song.songId } : {}), ...(song.videoId ? { videoId: song.videoId } : {}) },
     caption,
     source: source ?? null,
     article,

@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   getSongFacts: (song?: { title: string; artist: string; songId?: number }) => ipcRenderer.invoke("get-song-facts", song),
   saveSongFacts: (data: unknown) => ipcRenderer.invoke("save-song-facts", data),
   listSongFacts: () => ipcRenderer.invoke("list-song-facts"),
+  setFactsOff: (song: unknown, kind: "song" | "artist", on: boolean) => ipcRenderer.invoke("set-facts-off", song, kind, on),
   searchSongs: (query: string) => ipcRenderer.invoke("search-songs", query),
   openNotices: () => ipcRenderer.invoke("open-notices"),
   whatsNewSeen: () => ipcRenderer.invoke("whats-new-seen"),
