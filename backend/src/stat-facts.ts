@@ -1,4 +1,4 @@
-import { escapeRe, hasNoArtist } from "./text";
+import { escapeRe, hasNoArtist, withoutArtistNote } from "./text";
 import { SSLQueueItem } from "./types";
 
 /**
@@ -91,10 +91,11 @@ export function buildStatFacts(
     const credit = (song.artist ?? "").trim();
     const known = Boolean(credit) && !hasNoArtist(credit);
     if (known && creditedToStreamer(entry, [who, ...(opts.names ?? [])])) {
-      facts.push(`"${display}" is an original composition by ${credit.replace(/\s*@\S+/, "")}.`);
+      // A note in brackets after the name is the streamer's, never a fact's (issue #262).
+      facts.push(`"${display}" is an original composition by ${withoutArtistNote(credit.replace(/\s*@\S+/, ""))}.`);
       facts.push("You're hearing this one straight from the person who wrote it.");
     } else if (known) {
-      facts.push(`"${display}" is an original, credited to ${credit}.`);
+      facts.push(`"${display}" is an original, credited to ${withoutArtistNote(credit)}.`);
     }
   }
 

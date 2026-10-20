@@ -34,8 +34,10 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { SYSTEM_PROMPT, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
-import { blockedArticles } from "./wrong-facts";
+import { SYSTEM_PROMPT, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { blockedArticles, resetWrongFacts } from "./wrong-facts";
+import fs from "fs";
+import path from "path";
 import { topic } from "./topic";
 import { saveSongFacts } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
@@ -675,5 +677,66 @@ describe("Wrong decides what to block from the fact's own label (audit)", () => 
     expect(blockedArticles(lookup).has("Some Song")).toBe(true);
     unmarkWrong(request, "Some Song");
     expect(blockedArticles(lookup).size).toBe(0);
+  });
+});
+
+describe("a note after the artist's name (issue #262)", () => {
+  const noted = { title: "Glass Orchard", artist: "Wren Halloway (note words)" };
+  const article = `Glass Orchard\nGlass Orchard is a 1999 song by Wren Halloway. ${MODEL_LINES}`;
+
+  it("is never searched, sent to the AI, put in a bubble or logged", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    (wikidataFacts as jest.Mock).mockClear();
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts(noted);
+    expect(facts.length).toBeGreaterThan(0);
+    const searched = JSON.stringify([(fetchGrounding as jest.Mock).mock.calls, (wikidataFacts as jest.Mock).mock.calls, (artistFacts as jest.Mock).mock.calls]);
+    expect(searched).toContain("Wren Halloway");
+    expect(searched).not.toContain("note words");
+    expect(JSON.stringify(mockCreate.mock.calls)).not.toContain("note words");
+    expect(JSON.stringify(facts)).not.toContain("note words");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("note words");
+    log.mockRestore();
+  });
+
+  it("is left out of a live learn's lookup too", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    await generateFacts({ ...noted, liveLearn: true });
+    expect(JSON.stringify((fetchGrounding as jest.Mock).mock.calls)).not.toContain("note words");
+  });
+
+  it("is left out of logs/songs.log", () => {
+    const line = songsLogLine(noted, "grounded", 4, new Date("2026-10-21T20:00:00Z"));
+    expect(line).toBe("2026-10-21T20:00:00.000Z\tGlass Orchard\tWren Halloway\tarticle\t4\n");
+  });
+
+  it("still finds the streamer's own facts saved under the note, or under an alias with it", async () => {
+    saveSongFacts({ title: "Glass Orchard", artist: "Wren Halloway (note words)", facts: ["Wren wrote it on a porch."] });
+    saveSongFacts({ title: "Night Ferry", artist: "Wren Halloway", aliases: ["Wren Halloway (other note) - Night Ferry"], facts: ["Recorded on a boat."] });
+    try {
+      expect((await generateFacts(noted)).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+      expect((await generateFacts({ title: "Night Ferry", artist: "Wren Halloway (other note)" })).map((f) => f.text)).toEqual(["Recorded on a boat."]);
+    } finally {
+      saveSongFacts({ title: "Glass Orchard", artist: "Wren Halloway (note words)", facts: [] });
+      saveSongFacts({ title: "Night Ferry", artist: "Wren Halloway", facts: [] });
+    }
+  });
+
+  it("doesn't split a song's Wrong marks: one saved with the note before is still found", () => {
+    const file = path.join(process.env.BUBBLEFACTS_DATA_DIR as string, "wrong-facts.json");
+    fs.writeFileSync(file, JSON.stringify({ "wren halloway (note words):::glass orchard": ["Old Article"] }));
+    resetWrongFacts();
+    try {
+      expect(blockedArticles({ title: "Glass Orchard", artist: "Wren Halloway" }).has("Old Article")).toBe(true);
+      expect(blockedArticles(noted).has("Old Article")).toBe(true);
+      markWrong(noted, "A fact.", "Wikipedia: New Article");
+      expect(blockedArticles({ title: "Glass Orchard", artist: "Wren Halloway" }).has("New Article")).toBe(true);
+      unmarkWrong(noted, "Old Article");
+      expect(blockedArticles(noted).has("Old Article")).toBe(false);
+    } finally {
+      fs.writeFileSync(file, "{}");
+      resetWrongFacts();
+    }
   });
 });

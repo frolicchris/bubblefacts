@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
+import { withoutArtistNote } from "./text";
 import { SSLSong } from "./types";
 
 /**
@@ -19,13 +20,26 @@ let store: Store | null = null;
 /**
  * One song, for caches and Wrong marks: its StreamerSongList song ID or
  * YouTube video ID when it has one (so a renamed entry stays the same song),
- * otherwise artist and title.
+ * otherwise artist and title. A note after the artist's name ("Some Band (note)")
+ * isn't part of it (issue #262), so the song looked up and the song as listed are one.
  */
 export function songKey(song: SSLSong): string {
   if (song.songId) return `ssl:${song.songId}`;
   if (song.videoId) return `yt:${song.videoId}`;
-  return `${song.artist ?? ""}:::${song.title}`.toLowerCase();
+  return `${withoutArtistNote(song.artist ?? "")}:::${song.title}`.toLowerCase();
 }
+
+/**
+ * A key saved before notes were left out of `songKey` ("some band (note):::song"), as
+ * `songKey` writes it now. The file isn't rewritten: an older version reads it as before.
+ */
+function currentKey(saved: string): string {
+  const at = saved.indexOf(":::");
+  return saved.startsWith("ssl:") || saved.startsWith("yt:") || at < 0 ? saved : `${withoutArtistNote(saved.slice(0, at))}:::${saved.slice(at + 3)}`;
+}
+
+/** Every saved key that means this song: its own, and any saved with a note. */
+const keysFor = (s: Store, key: string) => Object.keys(s).filter((k) => k === key || currentKey(k) === key);
 
 function load(): Store {
   if (store) return store;
@@ -39,7 +53,8 @@ function load(): Store {
 }
 
 export function blockedArticles(song: SSLSong): Set<string> {
-  return new Set(load()[songKey(song)] ?? []);
+  const s = load();
+  return new Set(keysFor(s, songKey(song)).flatMap((k) => s[k] ?? []));
 }
 
 export function blockArticle(song: SSLSong, article: string): void {
@@ -63,10 +78,12 @@ function save(s: Store): void {
 
 export function unblockArticle(song: SSLSong, article: string): void {
   const s = load();
-  const key = songKey(song);
-  if (!s[key]?.includes(article)) return;
-  s[key] = s[key].filter((a) => a !== article);
-  if (!s[key].length) delete s[key];
+  const keys = keysFor(s, songKey(song)).filter((k) => s[k]?.includes(article));
+  if (!keys.length) return;
+  for (const key of keys) {
+    s[key] = s[key].filter((a) => a !== article);
+    if (!s[key].length) delete s[key];
+  }
   save(s);
 }
 

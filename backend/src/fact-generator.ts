@@ -4,7 +4,7 @@ import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
-import { hasNoArtist } from "./text";
+import { hasNoArtist, withoutArtistNote } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -96,7 +96,7 @@ export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearn
 /** The spots for a song's bubbles, clear of its banner while it shows. */
 export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
 
-type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
+export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
@@ -160,17 +160,20 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
 const outcomes = new Map<string, Outcome>();
 export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song)) ?? "";
 
-/** Count the outcome and append a line to logs/songs.log: time, title, artist field, outcome, count. */
+/** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
+export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
+  const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
+  return [now.toISOString(), clean(song.title), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
+}
+
+/** Count the outcome and append a line to logs/songs.log. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
   outcomes.set(songKey(song), outcome);
   if (process.env.NODE_ENV === "test") return;
-  const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
-  const line = [new Date().toISOString(), clean(song.title), clean(song.artist), SONGS_LOG_LABEL[outcome], count];
-  fs.mkdir(config.logDir, { recursive: true }, () =>
-    fs.appendFile(songsLog(), line.join("\t") + "\n", () => undefined)
-  );
+  const line = songsLogLine(song, outcome, count);
+  fs.mkdir(config.logDir, { recursive: true }, () => fs.appendFile(songsLog(), line, () => undefined));
 }
 
 /** Where each kind of fact comes from, as the dashboard labels it. */
@@ -981,6 +984,12 @@ function bestSupported(
   return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
 }
 
+/** The song with its artist's note in brackets left out (`withoutArtistNote`): the same object when it has none. */
+export function withoutNote(song: SSLSong): SSLSong {
+  const artist = withoutArtistNote(song.artist ?? "");
+  return artist === (song.artist ?? "").trim() ? song : { ...song, artist };
+}
+
 /**
  * A song's facts, by the first step that has any: the streamer's own facts for it, a live
  * learn's, an original's, then facts from a reference (`groundedFacts`).
@@ -989,9 +998,13 @@ function bestSupported(
  * looked up as its title and artist). The model's work and the outcome belong to the request: under
  * the reading's name the built-in model took it for a song no longer playing and refused.
  */
-async function generateRest(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = song): Promise<Generated> {
-  const own = ownSongFacts(song, want, asked);
+async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = listed): Promise<Generated> {
+  // Matched as listed: a note in brackets may be how the streamer wrote an alias.
+  const own = ownSongFacts(listed, want, asked);
   if (own) return own;
+  // From here on the artist is without its note ("Some Band (note)" is "Some Band"): a note is
+  // never searched, sent to the AI, put in a fact or logged (issue #262).
+  const song = withoutNote(listed);
   if (song.liveLearn) return liveLearnFacts(song, want, asked);
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
