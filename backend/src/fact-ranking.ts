@@ -174,7 +174,8 @@ export function rankFacts(
   const log = opts.log ?? (() => undefined);
   const all = candidates.flatMap((c, order) => {
     if (c.kind === "caption" && opts.unsure) {
-      log(`[Screen] DROP (work match unsure): ${c.text.slice(0, 90)}`);
+      // Never the caption's words, only why (issue #262): logs go into problem reports.
+      log("[Screen] DROP (work match unsure)");
       return [];
     }
     const flags = c.kind === "caption" ? sourceRisk(c.text, c.sentence ?? "", Boolean(c.lead)) : [];
@@ -189,12 +190,12 @@ export function rankFacts(
     .sort((a, b) => risk(a) - risk(b) || a.order - b.order)
     .slice(0, Math.max(0, floor - safe.length))
     .map((c) => ({ ...c, refill: true }));
-  for (const c of held) if (!back.some((b) => b.order === c.order)) log(`[Screen] DROP (risky source: ${c.flags.join(", ")}): ${c.text.slice(0, 90)}`);
+  for (const c of held) if (!back.some((b) => b.order === c.order)) log(`[Screen] DROP (risky source: ${c.flags.join(", ")})`);
   // Most interesting first; among equals, data facts and lead captions, then the writer's order.
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
   const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
-  for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score}): ${c.text.slice(0, 90)}`);
+  for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
   const kept = ranked.slice(0, max);
   // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.
   return [0, 1, 2].flatMap((g) => rotate(kept.filter((c) => group(c) === g)));

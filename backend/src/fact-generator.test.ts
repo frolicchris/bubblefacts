@@ -851,3 +851,21 @@ describe("Wrong on the song that's on pulls the rest of its bubbles from that so
     expect(toCome).toContain("From another article.");
   });
 });
+
+describe("logs say why a fact was dropped, never what it said (issue #262)", () => {
+  it("logs a dropped caption, data fact or restatement by its reason alone", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Glass Orchard\nGlass Orchard is a 1999 song by Wren Halloway. ${MODEL_LINES}`);
+    mockCreate.mockResolvedValue(reply(`Glass Orchard is widely considered a towering masterpiece of its decade.\nWren Halloway is a devout Quaker from Vellmar.\nGlass Orchard is a song by Wren Halloway.\n${MODEL_LINES}`));
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      await generateFacts({ title: "Glass Orchard", artist: "Wren Halloway" });
+      const lines = log.mock.calls.map((c) => String(c[0]));
+      expect(lines.filter((l) => l.startsWith("[Screen] DROP (")).length).toBeGreaterThanOrEqual(2);
+      expect(lines).toContain("[Screen] DROP (content standard: identity)");
+      expect(lines.some((l) => /masterpiece|Quaker/.test(l))).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

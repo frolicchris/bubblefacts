@@ -86,7 +86,9 @@ describe("rankFacts: safety first, then fun", () => {
     );
     expect(shown.map((c) => c.text)).not.toContain("The song is about a lighthouse.");
     expect(shown).toHaveLength(3);
-    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[Screen\] DROP \(risky source: reporting verb\): The song is about/));
+    expect(log).toHaveBeenCalledWith("[Screen] DROP (risky source: reporting verb)");
+    // The reason only, never the caption's words (issue #262).
+    expect(JSON.stringify(log.mock.calls)).not.toContain("lighthouse");
   });
 
   it(`brings held-back captions back to reach ${FLOOR}, fewest flags first, after the safe ones`, () => {

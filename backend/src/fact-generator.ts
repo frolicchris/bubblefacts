@@ -10,7 +10,7 @@ import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
-import { isStandardReason, standardBreach } from "./content-standard";
+import { standardBreach } from "./content-standard";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
@@ -201,7 +201,7 @@ function toFacts(
 ): Fact[] {
   const told = lines.filter((text) => {
     if (WRITTEN_BY_STREAMER.has(sourceOf(text)) || !restatesRequest(text, song)) return true;
-    console.log(`[Screen] DROP (repeats the request): ${text.slice(0, 90)}`);
+    console.log("[Screen] DROP (repeats the request)");
     return false;
   });
   const page = context.split("\n")[0];
@@ -912,8 +912,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const { track } = resolveGameAndTrack(read);
   const cited = Boolean(context) && citesSentences();
   const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
-  // A caption off the content standard is logged by its reason alone, so logs and reports can't spread it.
-  for (const r of rejected) console.log(`[Screen] DROP (${r.reason})${isStandardReason(r.reason) ? "" : `: ${r.text.slice(0, 90)}`}`);
+  // A dropped caption is logged by its reason alone, never its words, so logs and the reports
+  // made from them can't spread what was held back (issues #242 and #262).
+  for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
   const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
   if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
   // Music terms get a few fixed plain words, so any viewer can follow.

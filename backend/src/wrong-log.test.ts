@@ -41,6 +41,11 @@ describe("the Wrong log", () => {
     ]);
   });
 
+  it("leaves out a note after the artist's name (issue #262)", () => {
+    logWrong({ title: "Moonlit Harbor", artist: "Test Quartet (note words)" }, "A caption.", "Wikipedia: Harbor Game", "Harbor Game");
+    expect(lines()[0].song).toEqual({ title: "Moonlit Harbor", artist: "Test Quartet" });
+  });
+
   it("keeps lines private to the streamer's account on this computer", () => {
     logWrong(song, "A caption.", undefined, null);
     if (process.platform !== "win32") expect(fs.statSync(file).mode & 0o077).toBe(0);
