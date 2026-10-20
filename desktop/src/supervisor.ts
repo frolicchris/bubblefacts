@@ -17,7 +17,7 @@ export interface Health {
   status: string;
   /** Whether the server is holding bubbles back (Pause bubbles). */
   paused?: boolean;
-  /** "StreamerSongList" or "StreamElements"; older servers leave it out. */
+  /** "StreamerSongList", "StreamElements", "Now playing file" or a preset's name such as "Streamling"; older servers leave it out. */
   songSource?: string;
   currentSong: string | null;
   eventsConnected: boolean;

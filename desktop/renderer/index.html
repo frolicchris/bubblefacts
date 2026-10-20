@@ -53,6 +53,49 @@
               <span>Song requests through StreamElements' Media Request player.</span>
             </span>
           </label>
+          <label class="choice">
+            <input type="radio" name="setup-source" value="nowplaying">
+            <span class="choice-body">
+              <strong>Now playing file</strong>
+              <span>The song your music app writes to a text file, such as Streamling.</span>
+            </span>
+          </label>
+        </div>
+
+        <div id="np-box" hidden>
+          <p class="label" id="setup-np-label">Which app writes the file?</p>
+          <div class="choices" role="radiogroup" aria-labelledby="setup-np-label">
+            <label class="choice">
+              <input type="radio" name="setup-np" value="streamling" checked>
+              <span class="choice-body">
+                <strong>Streamling</strong>
+                <span>Nothing to choose. BubbleFacts reads the file Streamling keeps in your Documents folder. Windows only.</span>
+              </span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="setup-np" value="none">
+              <span class="choice-body">
+                <strong>Another app's file</strong>
+                <span>Pick the text file your music app writes the song to.</span>
+              </span>
+            </label>
+          </div>
+          <p class="fine" id="setup-np-streamling">It reads <span class="filepath">Documents\streamling\livetext\nowplaying-minimal.txt</span></p>
+          <div id="setup-np-other" hidden>
+            <div class="actions">
+              <button type="button" class="ghost" id="setup-np-choose">Choose file...</button>
+              <span id="setup-np-file" class="fine filepath">No file chosen yet.</span>
+            </div>
+            <label for="setup-np-format">How does the line in that file read?</label>
+            <select id="setup-np-format">
+              <option value="artist-title">Artist - Title</option>
+              <option value="title">Title only</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button id="setup-np-connect" class="primary">Continue</button>
+            <span id="setup-np-result" class="result" role="status"></span>
+          </div>
         </div>
 
         <div id="se-box" hidden>
@@ -260,6 +303,7 @@
           <div class="checks" role="radiogroup" aria-labelledby="s-source-label">
             <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
             <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
+            <label><input type="radio" name="songSource" value="nowplaying"> Now playing file</label>
           </div>
           <p id="s-signed-in"></p>
           <div id="s-ssl-box">
@@ -274,6 +318,23 @@
               <button type="button" class="ghost" data-toggle-secret="s-token">Show</button>
             </div>
           </details>
+          </div>
+          <div id="s-np-box">
+            <div class="checks single" role="radiogroup" aria-label="Which app writes the file">
+              <label><input type="radio" name="nowPlayingPreset" value="streamling"> <span>Streamling<br><span class="fine">Reads <span class="filepath">Documents\streamling\livetext\nowplaying-minimal.txt</span>. Windows only.</span></span></label>
+              <label><input type="radio" name="nowPlayingPreset" value="none"> <span>Another app's file</span></label>
+            </div>
+            <div id="s-np-other">
+              <div class="row">
+                <input id="s-np-file" name="nowPlayingFile" type="text" readonly placeholder="No file chosen yet." aria-label="The file your music app writes the song to">
+                <button type="button" class="ghost" id="s-np-choose">Choose file...</button>
+              </div>
+              <label for="s-np-format">How does the line in that file read?</label>
+              <select id="s-np-format" name="nowPlayingFormat">
+                <option value="artist-title">Artist - Title</option>
+                <option value="title">Title only</option>
+              </select>
+            </div>
           </div>
           <div id="s-se-box">
             <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.

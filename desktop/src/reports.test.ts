@@ -64,6 +64,12 @@ describe("beta test reports", () => {
     expect(fields.source).toBe("StreamElements");
   });
 
+  it("names a now playing file as the song source, without its path", () => {
+    const fields = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", logLines: ["x"], secrets: [] }));
+    expect(options("source")).toContain(fields.source);
+    expect(fields.source).toBe("Now playing file");
+  });
+
   it("has a field for every answer the app fills in, in each form", () => {
     const ids = (file: string) =>
       [...fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE", file), "utf8").matchAll(/^\s+id: (\S+?)\r?$/gm)].map((m) => m[1]);

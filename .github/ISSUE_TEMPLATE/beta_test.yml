@@ -72,6 +72,7 @@ body:
       options:
         - StreamerSongList
         - StreamElements
+        - Now playing file
   - type: input
     id: osversion
     attributes:

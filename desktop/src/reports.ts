@@ -60,7 +60,7 @@ export function betaReportUrl(opts: { version: string; build: string; systemVers
     build: opts.build,
     os: computer,
     download,
-    source: opts.songSource === "streamelements" ? "StreamElements" : "StreamerSongList",
+    source: ({ streamelements: "StreamElements", nowplaying: "Now playing file" } as Record<string, string>)[opts.songSource] ?? "StreamerSongList",
     osversion: `${osName()} ${opts.systemVersion}`,
     log: redact(opts.logLines.slice(-60).join("\n"), opts.secrets),
   });
