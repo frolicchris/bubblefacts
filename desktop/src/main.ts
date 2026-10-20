@@ -394,6 +394,46 @@ function asset(name: string): string {
 /** How long to wait for the window before reading the keychain anyway (see the unlock below). */
 const UNLOCK_WAIT_FALLBACK_MS = 120_000;
 
+/**
+ * Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
+ * on Windows and Linux to do it. Steps are a browser's, up to 300%.
+ */
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
+function addZoomKeys(window: BrowserWindow): void {
+  window.webContents.on("before-input-event", (e, input) => {
+    const mod = process.platform === "darwin" ? input.meta : input.control;
+    if (input.type !== "keyDown" || !mod || input.alt) return;
+    const contents = window.webContents;
+    const now = contents.getZoomFactor();
+    let next: number | undefined;
+    if (input.key === "=" || input.key === "+") next = ZOOM_STEPS.find((s) => s > now + 0.001);
+    else if (input.key === "-" || input.key === "_") next = [...ZOOM_STEPS].reverse().find((s) => s < now - 0.001);
+    else if (input.key === "0") next = 1;
+    else return;
+    e.preventDefault();
+    if (next !== undefined) contents.setZoomFactor(next);
+  });
+}
+
+/** Closing the window hides it; the app keeps running in the menu bar or tray. The first time, say where to find it. */
+function hideToTrayOnClose(window: BrowserWindow): void {
+  window.on("close", (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    window.hide();
+    if (toldAboutTray) return;
+    toldAboutTray = true;
+    // Windows hides tray icons behind the ^ next to the clock.
+    const where = process.platform === "darwin"
+      ? "the BubbleFacts icon in the menu bar"
+      : process.platform === "win32"
+        ? "the ^ next to the clock, then the BubbleFacts icon"
+        : "the BubbleFacts icon in the system tray";
+    notify("BubbleFacts is still running", `Facts keep appearing on stream. To quit, click ${where}.`);
+  });
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 980,
@@ -415,42 +455,12 @@ function createWindow(): void {
   win.loadFile(path.join(ROOT, "desktop/renderer/index.html"));
   win.once("ready-to-show", () => win?.show());
   win.webContents.on("will-navigate", (e) => e.preventDefault());
-  // Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
-  // on Windows and Linux to do it. Steps are a browser's, up to 300%.
-  win.webContents.on("before-input-event", (e, input) => {
-    const mod = process.platform === "darwin" ? input.meta : input.control;
-    if (input.type !== "keyDown" || !mod || input.alt) return;
-    const contents = win?.webContents;
-    if (!contents) return;
-    const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-    const now = contents.getZoomFactor();
-    let next: number | undefined;
-    if (input.key === "=" || input.key === "+") next = steps.find((s) => s > now + 0.001);
-    else if (input.key === "-" || input.key === "_") next = [...steps].reverse().find((s) => s < now - 0.001);
-    else if (input.key === "0") next = 1;
-    else return;
-    e.preventDefault();
-    if (next !== undefined) contents.setZoomFactor(next);
-  });
+  addZoomKeys(win);
   win.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url);
     return { action: "deny" };
   });
-  win.on("close", (e) => {
-    if (quitting) return;
-    e.preventDefault();
-    win?.hide();
-    if (!toldAboutTray) {
-      toldAboutTray = true;
-      // Windows hides tray icons behind the ^ next to the clock.
-      const where = process.platform === "darwin"
-        ? "the BubbleFacts icon in the menu bar"
-        : process.platform === "win32"
-          ? "the ^ next to the clock, then the BubbleFacts icon"
-          : "the BubbleFacts icon in the system tray";
-      notify("BubbleFacts is still running", `Facts keep appearing on stream. To quit, click ${where}.`);
-    }
-  });
+  hideToTrayOnClose(win);
 }
 
 /** The About page in the window: the same on every system (Windows has no About panel of its own here). */
@@ -661,40 +671,47 @@ handle("choose-now-playing-file", async () => {
   return { ok: true, path: filePaths[0] };
 });
 
-handle("save-settings", (_e, raw: Record<string, unknown>) => {
-  const changes = fromWindow(raw ?? {});
-  // The window checks first; this is the backstop, so an over-long fact is never saved.
-  const problem = customFactsProblem(changes);
-  if (problem) return { error: problem };
+/** The settings with the window's changes in: a blank secret field keeps the one already saved, and a pasted token replaces the sign-in. */
+function mergeSettings(changes: Partial<Settings>): Settings {
   const next: Settings = sanitize({ ...settings, ...changes });
-  // Blank secret fields mean "keep the one already saved".
   for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
-  // A pasted token replaces the sign-in.
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
-  const aiChanged = next.ai !== settings.ai;
-  const qualityChanged = next.aiQuality !== settings.aiQuality;
-  const channelChanged = next.updateChannel !== settings.updateChannel;
-  const sourceChanged = next.songSource !== settings.songSource;
-  settings = next;
+  return next;
+}
+
+/** After a save: make what changed take effect. `settings` already holds the new values; `previous` is what they replaced. */
+function applySettingsChange(previous: Settings, changes: Partial<Settings>): void {
+  const aiChanged = settings.ai !== previous.ai;
+  const qualityChanged = settings.aiQuality !== previous.aiQuality;
+  const channelChanged = settings.updateChannel !== previous.updateChannel;
+  const sourceChanged = settings.songSource !== previous.songSource;
+  // A new token (pasted, or a StreamElements one) or a switch of source starts over; health reports if it's still refused.
+  const newSignIn = Boolean(changes.token || changes.seJwt || sourceChanged);
   if (aiChanged || qualityChanged) builtinFailed = false;
   saveSettings(settings);
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
-  if (changes.token) {
-    signInExpired = false;
-    scheduleRefresh(); // Stops refreshing the replaced sign-in.
-  }
-  // A new StreamElements token, or a switch of source, starts over; health reports if it's still refused.
-  if (changes.seJwt || sourceChanged) signInExpired = false;
+  if (newSignIn) signInExpired = false;
+  if (changes.token) scheduleRefresh(); // Stops refreshing the replaced sign-in.
   // A download of the quality no longer chosen stops; ensureModel then starts the chosen one.
   if (qualityChanged) stopModelDownload();
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();
-  // A new token or song source always starts over; anything else only if the server would notice.
-  startServer(Boolean(changes.token || changes.seJwt || sourceChanged));
+  // A new sign-in always starts the server over; anything else only if the server would notice.
+  startServer(newSignIn);
   backUpNow();
   if (channelChanged) void checkForUpdate();
+}
+
+handle("save-settings", (_e, raw: Record<string, unknown>) => {
+  const changes = fromWindow(raw ?? {});
+  // The window checks first; this is the backstop, so an over-long fact is never saved.
+  const problem = customFactsProblem(changes);
+  if (problem) return { error: problem };
+  const previous = settings;
+  settings = mergeSettings(changes);
+  applySettingsChange(previous, changes);
   return state();
 });
 
@@ -997,10 +1014,8 @@ app.on("window-all-closed", () => {
   // Stay running in the tray; quitting is explicit.
 });
 
-app.whenReady().then(async () => {
-  if (!primaryInstance) return;
-  app.setAppUserModelId("org.frolic.bubblefacts");
-  // The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer.
+/** The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer. */
+function setAboutPanel(): void {
   app.setAboutPanelOptions({
     applicationName: "BubbleFacts",
     // A Mac shows "Version <applicationVersion> (<version>)"; the other systems show applicationVersion alone.
@@ -1012,6 +1027,44 @@ app.whenReady().then(async () => {
     authors: ["Christopher Feyrer (creator and maintainer)", "Claude Code by Anthropic (AI coding agent)"],
     website: "https://bubblefacts.frolic.org/",
   });
+}
+
+/**
+ * Reading the keychain blocks this process until the prompt is answered, and a window that
+ * isn't up by then can't appear at all. So wait for the window to say it's showing; the first
+ * launch after an update can take well over a few seconds while macOS checks the new app.
+ * The long fallback only covers a window that never loads.
+ */
+async function unlockSecretsOnceWindowIsUp(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    ipcMain.once("unlock-ready", () => resolve());
+    setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
+  });
+  settings = unlockSecrets(settings);
+  send("state", state());
+}
+
+/** Setup is done but the keychain gave nothing back: ask for the sign-in again. */
+function checkSignInSurvived(): void {
+  // A now playing file has no sign-in to lose.
+  if (!settings.setupComplete || settings.songSource === "nowplaying") return;
+  const saved = settings.songSource === "streamelements" ? settings.seJwt : settings.token;
+  if (!saved) signInExpired = true;
+}
+
+/** Refresh a sign-in that ran out while the app was closed before the server needs it. */
+async function refreshSignInIfDue(): Promise<void> {
+  if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {
+    await refreshSignIn();
+  } else {
+    scheduleRefresh();
+  }
+}
+
+async function startApp(): Promise<void> {
+  if (!primaryInstance) return;
+  app.setAppUserModelId("org.frolic.bubblefacts");
+  setAboutPanel();
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
   // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the
   // app waits on that prompt. The window goes up first, saying what to click (issue #62).
@@ -1021,35 +1074,19 @@ app.whenReady().then(async () => {
   supervisor.note(`[App] BubbleFacts ${versionWithBuild()} starting on ${process.platform} ${process.arch}`);
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
-  if (secretsWaiting()) {
-    // Reading the keychain blocks this process until the prompt is answered, and a window that
-    // isn't up by then can't appear at all. So wait for the window to say it's showing; the first
-    // launch after an update can take well over a few seconds while macOS checks the new app.
-    // The long fallback only covers a window that never loads.
-    await new Promise<void>((resolve) => {
-      ipcMain.once("unlock-ready", () => resolve());
-      setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
-    });
-    settings = unlockSecrets(settings);
-    send("state", state());
-  }
+  if (secretsWaiting()) await unlockSecretsOnceWindowIsUp();
   // After the secrets are read: settings can't be saved before then.
   checkWhatsNew();
   send("state", state());
-  // A secret the keychain could no longer read comes back blank.
-  // A now playing file has no sign-in to lose.
-  if (settings.setupComplete && settings.songSource !== "nowplaying" && !(settings.songSource === "streamelements" ? settings.seJwt : settings.token)) signInExpired = true;
+  checkSignInSurvived();
   powerMonitor.on("resume", () => scheduleRefresh());
-  // Refresh a sign-in that ran out while the app was closed before the server needs it.
-  if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {
-    await refreshSignIn();
-  } else {
-    scheduleRefresh();
-  }
+  await refreshSignInIfDue();
   void ensureModel();
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);
   backUpNow();
   await checkForUpdate();
-});
+}
+
+app.whenReady().then(startApp);
