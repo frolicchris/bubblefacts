@@ -2,7 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { hasNoArtist } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
@@ -270,7 +271,7 @@ Write ${want} captions about ${game} or its music that chat would enjoy learning
 
 /** The CROSS prompt's rules for retelling the text and for the captions, the same with or without citations. */
 const RETELL_RULES = `Every person, year, number and title you write must appear in it, spelled the same way.`;
-const STATEMENT_RULES = `never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like. Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.`;
+const STATEMENT_RULES = `never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like, and never make a claim bigger than the text: "one of the first" is not "the first". Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
@@ -283,7 +284,7 @@ ${context}
 """
 
 SCOPE
-Exactly ${want} lines. One sentence per line, under 120 characters, in plain words anyone can follow. No numbering, bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
+Exactly ${want} lines. One calm sentence per line, about 10 to 18 words and under 120 characters, in plain words anyone can follow. No exclamation marks, numbering, bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
 }
 
 function citingCrossPrompt(game: string, work: string, context: string, want: number): string {
@@ -298,7 +299,7 @@ ${numberedReference(context)}
 SCOPE
 Exactly ${want} lines. Start each line with the number of the sentence it retells, then " | ", then the caption, like this:
 4 | The caption.
-Each caption is one sentence, under 120 characters, in plain words anyone can follow. No bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
+Each caption is one calm sentence, about 10 to 18 words and under 120 characters, in plain words anyone can follow. No exclamation marks, bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
 }
 
 /**
@@ -579,6 +580,15 @@ function onStandard(facts: string[], names: string[] = []): string[] {
   });
 }
 
+/**
+ * Facts from data alone (Wikidata, MusicBrainz), the most interesting first and at most
+ * MAX_BUBBLES of them (`rankFacts`). SOURCE_RISK=off keeps them as found.
+ */
+function rankedData(data: string[], want: number): string[] {
+  if (!config.sourceRisk) return data.slice(0, want);
+  return rankFacts(data.map((text) => ({ text, kind: "data" as const })), { max: Math.min(want, MAX_BUBBLES) }).map((c) => c.text);
+}
+
 /** For the saved session: the recent facts, and putting them back after a restart. */
 export const recentShown = (): string[] => [...recentFacts];
 export function restoreRecent(list: string[]): void {
@@ -843,7 +853,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (config.aiProvider === "none" || (config.factVerification && !context)) {
     // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
     const data = config.factVerification && !handle && !placeholder ? await structuredFacts(song, read) : [];
-    const shownData = data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, want);
+    const shownData = rankedData(data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)), want);
     if (shownData.length) {
       remember(shownData);
       record(asked, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
@@ -858,7 +868,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   }
 
   // Not sure the article is about this song (issue #255): no AI captions, only facts from data.
-  const match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+  // Wikipedia's own summary of the article can say so too: a disambiguation page, a film named like the song.
+  let match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+  if (match?.level === "sure") {
+    const why = await summaryGate(read, context, song);
+    if (why) match = { level: "unsure", reason: why };
+  }
   if (match?.level === "unsure") {
     console.log(`[Grounding] unsure: ${match.reason} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
     const fresh = (list: string[]) => list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
@@ -869,7 +884,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
     const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
-    const shown = [...data, ...extra.filter((f) => !data.includes(f))].slice(0, want);
+    const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {
       remember(shown);
       record(asked, structuredLabel.get(shown[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shown.length);
@@ -898,19 +913,10 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Music terms get a few fixed plain words, so any viewer can follow.
   const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
   const structured = structuredFirst.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
-  // A spare takes the place of a line that only repeats the title and artist. With more left than
-  // bubbles, the ones their source sentence supports best are shown, in the order written.
+  // A spare takes the place of a line that only repeats the title and artist.
   const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
-  const room = Math.max(0, want - structured.length);
-  const best = new Set(
-    usable
-      .map((f, i) => ({ f, i, score: context ? support(f, context, citedSentence?.get(f)) : 0 }))
-      .sort((a, b) => b.score - a.score || a.i - b.i)
-      .slice(0, room)
-      .map((x) => x.f)
-  );
   const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));
-  const shown = [...structured, ...usable.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
+  const shown = context && config.sourceRisk ? rankedFromArticle(structured, usable, context, plain, citedSentence, want) : bestSupported(structured, usable, context, plain, citedSentence, want);
   remember(shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
@@ -925,6 +931,54 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
   record(asked, "nothingSurvived", fallback.length);
   return { facts: toFacts(song, fallback, entrySource), ttlMs: RETRY_MS };
+}
+
+/**
+ * The bubbles from an article (`rankFacts`): captions whose source sentence is risky to
+ * retell are held back unless the song would show fewer than three, and the rest are
+ * ordered by interest, data facts and lead captions first among equals, at most MAX_BUBBLES.
+ */
+function rankedFromArticle(
+  data: string[],
+  captions: string[],
+  context: string,
+  plain: ReadonlyMap<string, string>,
+  cited: ReadonlyMap<string, string> | undefined,
+  want: number
+): string[] {
+  const full = articleText(context.split("\n")[0]);
+  const candidates: Candidate[] = [
+    ...data.map((text) => ({ text, kind: "data" as const })),
+    ...captions.map((f) => {
+      const sentence = cited?.get(f) ?? supportingSentence(f, context, Infinity);
+      return { text: plain.get(f) as string, kind: "caption" as const, sentence, lead: isLeadSentence(sentence, context, full) };
+    }),
+  ];
+  // Data facts here are about the song, and the article is its artist's or game's: they lead.
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, log: (line) => console.log(line) }).map((c) => c.text);
+}
+
+/**
+ * SOURCE_RISK=off, or no reference (FACT_VERIFICATION=off): data facts first, then the
+ * captions their source sentence supports best, in the order written.
+ */
+function bestSupported(
+  data: string[],
+  captions: string[],
+  context: string,
+  plain: ReadonlyMap<string, string>,
+  cited: ReadonlyMap<string, string> | undefined,
+  want: number
+): string[] {
+  const room = Math.max(0, want - data.length);
+  const best = new Set(
+    captions
+      .map((f, i) => ({ f, i, score: context ? support(f, context, cited?.get(f)) : 0 }))
+      .sort((a, b) => b.score - a.score || a.i - b.i)
+      .slice(0, room)
+      .map((x) => x.f)
+  );
+  return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
 }
 
 /**
