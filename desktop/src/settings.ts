@@ -40,6 +40,8 @@ export interface Settings {
   liveLearns: boolean;
   /** The NOW PLAYING bubble on a song change. */
   nowPlaying: boolean;
+  /** One credit bubble before the first song's facts and about every 5 songs: where facts come from, and to report a mistake. */
+  creditBubble: boolean;
   liveLearnBanner: boolean;
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
@@ -108,6 +110,7 @@ export const DEFAULTS: Settings = {
   originals: false,
   liveLearns: true,
   nowPlaying: true,
+  creditBubble: true,
   liveLearnBanner: true,
   myFacts: [],
   myOriginals: [],
@@ -288,7 +291,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "liveLearnBanner",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
@@ -362,6 +365,7 @@ export function toServerEnv(
     ORIGINALS: s.originals ? "on" : "off",
     LIVE_LEARNS: s.liveLearns ? "on" : "off",
     NOW_PLAYING: s.nowPlaying ? "on" : "off",
+    CREDIT_BUBBLE: s.creditBubble ? "on" : "off",
     LIVE_LEARN_BANNER: s.liveLearnBanner ? "on" : "off",
     BUBBLE_AREA: s.bubbleArea,
     FACTS_PER_SONG: String(s.factsPerSong),

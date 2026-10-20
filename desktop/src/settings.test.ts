@@ -191,6 +191,10 @@ describe("toServerEnv", () => {
 
   it("maps the musician's choices", () => {
     expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
+    expect(toServerEnv(DEFAULTS, paths).CREDIT_BUBBLE).toBe("on");
+    expect(toServerEnv({ ...DEFAULTS, creditBubble: false }, paths).CREDIT_BUBBLE).toBe("off");
+    expect(fromWindow({ creditBubble: false })).toEqual({ creditBubble: false });
+    expect(fromWindow({ creditBubble: "off" })).toEqual({});
     expect(toServerEnv(DEFAULTS, paths).LIVE_LEARN_BANNER).toBe("on");
     expect(toServerEnv({ ...DEFAULTS, liveLearnBanner: false }, paths).LIVE_LEARN_BANNER).toBe("off");
     expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left" }, paths).BUBBLE_AREA).toBe("left");
