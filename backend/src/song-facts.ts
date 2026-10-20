@@ -84,9 +84,12 @@ export function findSongFacts(song: SSLSong): SongFacts | null {
 
 /** An artist as the switch compares it: case, accents, punctuation and a note in brackets don't count. */
 const artistKey = (artist: string) => songIdentity(withoutArtistNote(artist));
-/** The artists a request names: the whole field, and the lead of "A feat. B". */
+const FEATURING = new Set(["feat", "feat.", "ft", "ft.", "featuring"]);
+/** The artists a request names: the whole field, and the lead of "A feat. B". Split by words, so nothing backtracks. */
 function requestArtists(artist: string): string[] {
-  const lead = artist.split(/\s+(?:feat\.?|ft\.?|featuring)\s+/i)[0] ?? "";
+  const words = artist.split(" ").filter(Boolean);
+  const at = words.findIndex((w, i) => i > 0 && FEATURING.has(w.toLowerCase()));
+  const lead = at > 0 ? words.slice(0, at).join(" ") : artist;
   return [...new Set([artist, lead].map(artistKey).filter(Boolean))];
 }
 /** The artists an entry stands for: its own, and each alias's. */
