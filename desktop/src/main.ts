@@ -635,6 +635,12 @@ handle("save-song-facts", async (_e, data: unknown) => {
   backUpNow();
   return result;
 });
+// "No facts for this song" or "for this artist", one click under Earlier songs (issue #262).
+handle("set-facts-off", async (_e, song: unknown, kind: unknown, on: unknown) => {
+  const result = await control("facts-off", { song, kind: kind === "artist" ? "artist" : "song", on: on === true });
+  backUpNow();
+  return result;
+});
 handle("unwrong-fact", async (_e, article: string, song: unknown) => {
   const result = await control("unwrong", { article: String(article), song });
   backUpNow();

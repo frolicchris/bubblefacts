@@ -12,7 +12,7 @@ import { topic } from "./topic";
 import { musicbrainzFacts } from "./musicbrainz";
 import { isStandardReason, standardBreach } from "./content-standard";
 import { artistFacts, wikidataFacts } from "./wikidata";
-import { findSongFacts, songFactLines, songIdentity } from "./song-facts";
+import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
 
@@ -96,7 +96,7 @@ export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearn
 /** The spots for a song's bubbles, clear of its banner while it shows. */
 export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
 
-export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed";
+export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
@@ -109,6 +109,7 @@ export const factStats = {
   noReference: 0,
   generationFailed: 0,
   nothingSurvived: 0,
+  factsOff: 0,
   cacheHits: 0,
   lastDurationMs: 0,
   lastEndpoint: "",
@@ -154,6 +155,7 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   noReference: "curated",
   nothingSurvived: "curated",
   generationFailed: "curated",
+  factsOff: "off",
 };
 
 /** How each song's facts last turned out, so the dashboard can tell "nothing reliable" from "failed". */
@@ -787,7 +789,8 @@ type Generated = { facts: Fact[]; ttlMs: number };
  */
 function ownSongFacts(song: SSLSong, want: number, asked: SSLSong): Generated | null {
   const ownRecord = findSongFacts(song);
-  if (!ownRecord) return null;
+  // A record with only a switch on it ("No facts for this song") has nothing of its own to show.
+  if (!ownRecord || !hasOwnFacts(ownRecord)) return null;
   const lines = songFactLines(ownRecord, want);
   // With room left, one fact from its artist's or game's pool, ahead of the creator's link.
   const pool = lines.length < want ? takeTurns(taggedFor(song).pool, 1) : [];
@@ -1025,10 +1028,40 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
 }
 
 /**
+ * "No facts for this song" or "No facts for this artist" (issue #262): the streamer's own
+ * facts only, their facts for this song and their custom facts tagged for it, its artist or
+ * its game. Nothing is looked up and the AI writes nothing; no song-list or untagged custom
+ * facts either. Null when neither switch is on. Logged by the song's title alone.
+ */
+export function ownFactsOnly(song: SSLSong): Fact[] | null {
+  const off = factsOff(song);
+  if (!off.song && !off.artist) return null;
+  const want = config.factsPerSong;
+  const theirs = findSongFacts(song);
+  const mine = theirs && hasOwnFacts(theirs) ? songFactLines(theirs, want) : [];
+  const tagged = taggedFor(song);
+  const custom = [...tagged.forSong, ...takeTurns(tagged.pool, Math.max(0, want - mine.length - tagged.forSong.length))]
+    .filter((t) => !mine.includes(t))
+    .slice(0, Math.max(0, want - mine.length));
+  console.log(`[FactGen] "${song.title}": facts are off for this ${off.song ? "song" : "artist"}, so only the streamer's own (${mine.length + custom.length})`);
+  record(song, "factsOff", mine.length + custom.length);
+  return toFacts(song, [...mine, ...custom], (t) => (mine.includes(t) ? SOURCE.yours : SOURCE.custom));
+}
+
+/** What may still show for a song after its switches changed: everything, or only the streamer's own facts. */
+export function allowedFacts(song: SSLSong, facts: Fact[]): Fact[] {
+  const off = factsOff(song);
+  return off.song || off.artist ? facts.filter((f) => WRITTEN_BY_STREAMER.has(f.source)) : facts;
+}
+
+/**
  * Facts for a song. Results are cached, and concurrent callers (several
  * overlays, a reconnect mid-generation) share one generation.
  */
 export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<Fact[]> {
+  // Checked before the cache, so a switch turned on applies at once, and off again brings the found facts back.
+  const own = ownFactsOnly(song);
+  if (own) return Promise.resolve(own);
   const key = songKey(song);
   const cached = factCache.get(key);
   if (cached && Date.now() < cached.expires) {

@@ -270,6 +270,9 @@
           <div id="sf-facts" role="group" aria-labelledby="sf-facts-label"></div>
           <button class="link" type="button" id="sf-add">Add another fact</button>
           <p id="sf-facts-full" class="fine" hidden>That's 20 facts, the most one song can have.</p>
+          <label class="inline"><input type="checkbox" id="sf-off-song"> No facts for this song</label>
+          <label class="inline"><input type="checkbox" id="sf-off-artist"> No facts for this artist</label>
+          <p class="fine">Nothing is looked up or written for it. Your own facts still show.</p>
           <div class="toolbar">
             <button class="primary" type="submit" id="sf-save">Save and show</button>
             <button class="ghost" type="button" id="song-facts-cancel">Cancel</button>
@@ -277,7 +280,7 @@
           </div>
         </form>
         <details id="earlier" class="earlier" hidden>
-          <summary>Earlier songs <span class="hint">mark a wrong fact here once your hands are free</span></summary>
+          <summary>Earlier songs <span class="hint">mark a wrong fact, or turn facts off, once your hands are free</span></summary>
           <div id="earlier-list"></div>
         </details>
       </div>

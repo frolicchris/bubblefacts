@@ -1,6 +1,8 @@
 jest.mock("./config", () => ({ config: { dataDir: process.env.BUBBLEFACTS_DATA_DIR, topic: "general" } }));
 
-import { findSongFacts, resetSongFacts, saveSongFacts, songFactLines, songFactsProblem } from "./song-facts";
+import fs from "fs";
+import path from "path";
+import { BEFORE_SWITCHES, factsOff, findSongFacts, hasOwnFacts, resetSongFacts, saveSongFacts, setFactsOff, songFactLines, songFactsProblem } from "./song-facts";
 
 describe("song facts", () => {
   beforeEach(() => {
@@ -91,5 +93,77 @@ describe("song facts", () => {
     expect(findSongFacts({ title: "Evening Rain", artist: "Jane Composer" })).not.toBeNull();
     saveSongFacts({ title: "Evening Rain", artist: "Jane Composer", facts: [] });
     expect(findSongFacts({ title: "Evening Rain", artist: "Jane Composer" })).toBeNull();
+  });
+
+  describe("the switches: no facts for this song, or for this artist (issue #262)", () => {
+    const dir = () => process.env.BUBBLEFACTS_DATA_DIR as string;
+    const file = () => path.join(dir(), "song-facts.json");
+    const copy = () => path.join(dir(), BEFORE_SWITCHES);
+    const clear = () => {
+      fs.writeFileSync(file(), "[]\n");
+      fs.rmSync(copy(), { force: true });
+      resetSongFacts();
+    };
+    beforeEach(clear);
+
+    it("saves a switch with no facts, and reads it back after a restart", () => {
+      saveSongFacts({ title: "Glass Orchard", artist: "Wren Halloway", facts: [], noFacts: true });
+      saveSongFacts({ title: "Night Ferry", artist: "Tobin Varr", songwriters: [], link: "", facts: ["Recorded on a boat."], noArtistFacts: true });
+      resetSongFacts();
+      const glass = findSongFacts({ title: "Glass Orchard", artist: "Wren Halloway" });
+      expect(glass).toMatchObject({ noFacts: true, facts: [] });
+      expect(hasOwnFacts(glass)).toBe(false);
+      expect(factsOff({ title: "Glass Orchard", artist: "Wren Halloway" })).toEqual({ song: true, artist: false });
+      expect(factsOff({ title: "Any Song", artist: "Wren Halloway" })).toEqual({ song: false, artist: false });
+      // Every song by the artist: with a note after the name, a featured guest, or another case.
+      for (const artist of ["Tobin Varr", "tobin varr (note words)", "Tobin Varr feat. Ada Penn"]) {
+        expect(factsOff({ title: "Another Song", artist }).artist).toBe(true);
+      }
+      expect(factsOff({ title: "Another Song", artist: "Tobin Varrick" }).artist).toBe(false);
+      expect(findSongFacts({ title: "Night Ferry", artist: "Tobin Varr" })?.facts).toEqual(["Recorded on a boat."]);
+    });
+
+    it("turns the artist's switch off from any of their songs, and drops an entry left with nothing", () => {
+      saveSongFacts({ title: "Night Ferry", artist: "Tobin Varr", facts: [], noArtistFacts: true });
+      expect(factsOff({ title: "Harbor Lights", artist: "Tobin Varr" }).artist).toBe(true);
+      setFactsOff({ title: "Harbor Lights", artist: "Tobin Varr" }, "artist", false);
+      expect(factsOff({ title: "Night Ferry", artist: "Tobin Varr" }).artist).toBe(false);
+      expect(JSON.parse(fs.readFileSync(file(), "utf8"))).toEqual([]);
+    });
+
+    it("turns one switch on or off and leaves the song's facts as they are", () => {
+      saveSongFacts({ title: "Glass Orchard", artist: "Wren Halloway", facts: ["Wren wrote it on a porch."] });
+      setFactsOff({ title: "Glass Orchard", artist: "Wren Halloway" }, "song", true);
+      expect(findSongFacts({ title: "Glass Orchard", artist: "Wren Halloway" })).toMatchObject({ facts: ["Wren wrote it on a porch."], noFacts: true });
+      setFactsOff({ title: "Glass Orchard", artist: "Wren Halloway" }, "song", false);
+      const after = findSongFacts({ title: "Glass Orchard", artist: "Wren Halloway" });
+      expect(after?.facts).toEqual(["Wren wrote it on a porch."]);
+      expect(after?.noFacts).toBeUndefined();
+    });
+
+    it("reads a file from before the switches, and copies it once before the first switch is saved", () => {
+      const old = JSON.stringify([{ title: "Evening Rain", artist: "Jane Composer", songwriters: [], link: "", facts: ["Written in one night."] }], null, 2) + "\n";
+      fs.writeFileSync(file(), old);
+      resetSongFacts();
+      expect(findSongFacts({ title: "Evening Rain", artist: "Jane Composer" })?.facts).toEqual(["Written in one night."]);
+      saveSongFacts({ title: "Other Song", artist: "Jane Composer", facts: ["Another fact."] });
+      expect(fs.existsSync(copy())).toBe(false);
+      const unswitched = fs.readFileSync(file(), "utf8");
+      setFactsOff({ title: "Evening Rain", artist: "Jane Composer" }, "song", true);
+      expect(fs.readFileSync(copy(), "utf8")).toBe(unswitched);
+      // Never copied again: the copy is the file as it was before any switch.
+      setFactsOff({ title: "Other Song", artist: "Jane Composer" }, "artist", true);
+      setFactsOff({ title: "Evening Rain", artist: "Jane Composer" }, "song", false);
+      setFactsOff({ title: "Evening Rain", artist: "Jane Composer" }, "song", true);
+      expect(fs.readFileSync(copy(), "utf8")).toBe(unswitched);
+      // Still the list an older version reads: every entry has a title, an artist and facts.
+      const now = JSON.parse(fs.readFileSync(file(), "utf8")) as Array<Record<string, unknown>>;
+      expect(now.every((e) => typeof e.title === "string" && typeof e.artist === "string" && Array.isArray(e.facts))).toBe(true);
+    });
+
+    it("refuses a switch that isn't true or false", () => {
+      expect(songFactsProblem({ facts: [], noFacts: true, noArtistFacts: false })).toBeNull();
+      expect(songFactsProblem({ facts: [], noFacts: "yes" })).toBe("Couldn't read that. Try again in a moment.");
+    });
   });
 });

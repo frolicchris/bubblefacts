@@ -37,7 +37,7 @@ export interface Backup {
 }
 
 /** Everything in the data folder that "Remove my data" deletes. */
-export const REMOVED_WITH_DATA = ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "wrong-log.jsonl", "song-facts.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"];
+export const REMOVED_WITH_DATA = ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "wrong-log.jsonl", "song-facts.json", "song-facts.before-switches.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"];
 
 /** The lines of a wrong-log file's text that are whole records, newest 500 at most. */
 export function wrongLogLines(text: string): unknown[] {

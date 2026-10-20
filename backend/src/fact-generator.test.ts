@@ -34,12 +34,12 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { SYSTEM_PROMPT, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { SYSTEM_PROMPT, allowedFacts, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
 import { topic } from "./topic";
-import { saveSongFacts } from "./song-facts";
+import { saveSongFacts, setFactsOff } from "./song-facts";
 import { fetchGrounding } from "./fact-verifier";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { SSLQueueItem, SSLSong } from "./types";
@@ -738,5 +738,75 @@ describe("a note after the artist's name (issue #262)", () => {
       fs.writeFileSync(file, "{}");
       resetWrongFacts();
     }
+  });
+});
+
+describe("no facts for this song, or for this artist (issue #262)", () => {
+  const glass = { title: "Glass Orchard", artist: "Wren Halloway" };
+  const article = `Glass Orchard\nGlass Orchard is a 1999 song by Wren Halloway. ${MODEL_LINES}`;
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (wikidataFacts as jest.Mock).mockClear();
+    (topic as { taggedFacts: unknown }).taggedFacts = [
+      { tag: "Glass Orchard", text: "Wren hums the bridge before every show." },
+      { tag: "Wren Halloway", text: "Wren learned fiddle from a neighbor." },
+    ];
+  });
+  afterEach(() => {
+    saveSongFacts({ ...glass, facts: [], noFacts: false, noArtistFacts: false });
+    saveSongFacts({ title: "Night Ferry", artist: "Wren Halloway", facts: [], noFacts: false, noArtistFacts: false });
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+  });
+
+  it("shows only the streamer's own facts for the song: nothing looked up or written", async () => {
+    saveSongFacts({ ...glass, facts: ["Wren wrote it on a porch."], noFacts: true });
+    const facts = await generateFacts(glass, entry({ ...glass, timesPlayed: 3 }));
+    expect(facts.map((f) => [f.text, f.source])).toEqual([
+      ["Wren wrote it on a porch.", SOURCE.yours],
+      ["Wren hums the bridge before every show.", SOURCE.custom],
+      ["Wren learned fiddle from a neighbor.", SOURCE.custom],
+    ]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(wikidataFacts).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(outcomeFor(glass)).toBe("factsOff");
+  });
+
+  it("shows nothing when the streamer has no facts of their own for it", async () => {
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+    setFactsOff(glass, "song", true);
+    expect(await generateFacts(glass, entry({ ...glass, timesPlayed: 3 }))).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+  });
+
+  it("covers every song by the artist, a live learn too, from the switch on one of their songs", async () => {
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+    setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
+    expect(await generateFacts({ title: "Harbor Lights", artist: "Wren Halloway (note words)" })).toEqual([]);
+    expect(await generateFacts({ title: "Harbor Lights", artist: "Wren Halloway", liveLearn: true })).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("applies at once to a song whose facts were already found, and lifts the same way", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    const found = await generateFacts(glass);
+    expect(found.some((f) => f.source === "Wikipedia: Glass Orchard")).toBe(true);
+    setFactsOff(glass, "song", true);
+    expect((await generateFacts(glass)).every((f) => f.source === SOURCE.custom)).toBe(true);
+    setFactsOff(glass, "song", false);
+    expect(await generateFacts(glass)).toEqual(found);
+  });
+
+  it("keeps only the streamer's own facts from a play saved before a restart", () => {
+    const saved = [
+      { text: "From the article.", source: "Wikipedia: Glass Orchard", delaySeconds: 0, durationSeconds: 8, position: {} },
+      { text: "From Wikidata.", source: SOURCE.wikidata, delaySeconds: 15, durationSeconds: 8, position: {} },
+      { text: "Wren wrote it on a porch.", source: SOURCE.yours, delaySeconds: 30, durationSeconds: 8, position: {} },
+      { text: "Requested by Robin.", source: SOURCE.songList, delaySeconds: 45, durationSeconds: 8, position: {} },
+    ];
+    expect(allowedFacts(glass, saved)).toEqual(saved);
+    setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
+    expect(allowedFacts(glass, saved).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
   });
 });
