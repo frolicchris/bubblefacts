@@ -16,6 +16,7 @@ import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameReques
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
+import { CreditCounter, planCredit } from "./credit";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -91,11 +92,17 @@ if (restored) {
   earlier = (restored.earlier ?? []).slice(0, EARLIER_KEPT);
 }
 
+/** When the credit bubble is next due (credit.ts). A restart in the middle of a stream carries on with the count. */
+const creditCount = new CreditCounter(restored?.creditSince);
+/** When the streamer last pressed Test: the credit bubble keeps clear of it. */
+let testAt = 0;
+
 /** The [Shown] lines: logged where facts go out to an overlay, once per play of a song. */
 const shown = new ShownLog();
 const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
 
-function broadcast(payload: FactsPayload): void {
+/** `credit`: a bubble that goes to the overlay ahead of a facts_ready batch but is no part of the song's record. */
+function broadcast(payload: FactsPayload, credit?: Fact): void {
   // A new song moves the one that was showing into the earlier list.
   if (payload.type === "new_song" && !payload.quiet && lastSent.song && lastSent.facts?.length && !sameSong(lastSent.song, payload.song)) {
     earlier = [{ song: lastSent.song, facts: lastSent.facts }, ...earlier.filter((e) => !sameSong(e.song, lastSent.song))].slice(0, EARLIER_KEPT);
@@ -112,12 +119,13 @@ function broadcast(payload: FactsPayload): void {
   // A new play of a song starts a new record, even of the same song; a quiet one (resuming) carries on.
   if (payload.type === "new_song" && !payload.quiet) shown.newPlay();
   if (paused && payload.type !== "clear") return;
-  for (const ws of clients.keys()) send(ws, payload);
+  const sent: FactsPayload = credit && payload.type === "facts_ready" ? { ...payload, facts: [credit, ...(payload.facts ?? [])] } : payload;
+  for (const ws of clients.keys()) send(ws, sent);
   if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(config.creditBubble && creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
 }
 
 
@@ -226,7 +234,10 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
         "Add BubbleFacts to OBS, or open OBS if it is closed."
     );
   }
-  broadcast({ type: "facts_ready", song, facts });
+  // The credit bubble goes with a song that has facts and is really going to a connected overlay
+  // (not paused), and not while a test bubble is up. Its facts then start after it.
+  const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), position: positionsForSong(song)[0] });
+  broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
 }
 
 // --- Routes --------------------------------------------------------------
@@ -250,6 +261,7 @@ control.post("/test", (_req, res) => {
   }];
   // Shown even while paused: the streamer asked for it. Not recorded as "on stream now", and
   // on top of the song that's playing: its remaining bubbles, and Wrong on them, carry on.
+  testAt = Date.now();
   for (const ws of clients.keys()) send(ws, { type: "test_bubble", song, facts });
   res.json({ overlays: clients.size });
 });

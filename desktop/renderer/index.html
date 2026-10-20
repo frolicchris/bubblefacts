@@ -192,6 +192,7 @@
           <label id="setup-livelearns-row"><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner while you learn the song. Facts still show when BubbleFacts finds the song.</span></span></label>
         </div>
 
+        <p class="fine">Facts are retold by AI from public sources and shown as-is. Press Wrong on any that's off.</p>
         <p id="facts-result" class="result" role="status"></p>
         <div class="nav-buttons">
           <button class="ghost" id="music-skip">Skip</button>
@@ -414,6 +415,7 @@
             </optgroup>
           </select>
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
+          <label class="inline"><input name="creditBubble" type="checkbox"> Now and then, show where the facts come from <span class="hint">one extra bubble at the start and about every 5 songs, for viewers who join later</span></label>
           <label class="inline"><input name="liveLearnBanner" type="checkbox"> Show a LIVE LEARN bubble during a live learn</label>
           <div class="grid3">
             <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
@@ -516,6 +518,7 @@
         <section class="about-section" aria-labelledby="about-details">
           <h2 id="about-details">Details</h2>
           <p>Fact bubbles in OBS about the song you're playing, for musicians who take requests.</p>
+          <p>Press Wrong on any fact that's off. It comes off your stream right away and helps make BubbleFacts more accurate.</p>
         </section>
 
         <details class="about-section about-page-row">
