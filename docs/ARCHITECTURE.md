@@ -43,6 +43,8 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
+| `backend/src/content-standard.ts` | The content standard's word lists: what no article sentence, caption or data fact may say. |
+| `backend/src/wiki-html.ts` | An older article version's HTML as plain text, for the 72-hour rule. |
 | `backend/src/list-profile.ts` | How one streamer writes their song list (a dash or brackets for the game), worked out from the list itself. |
 | `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts when there's no article about the song. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
@@ -115,7 +117,9 @@ sign-ins and the built-in AI. Its design decisions are in
    resort. Measured on seven public lists (about 10,800 songs).
    **Ground.** Search Wikipedia for the song, game or work, reject results that
    aren't really about it or that the streamer marked **Wrong** for this song,
-   and pull out the music-related sections first. A game's track with an
+   and pull out the music-related sections first. Every article is read as it
+   was at least 72 hours ago, and only what meets the content standard (see
+   [The content standard](#the-content-standard)). A game's track with an
    article of its own ("Megalovania") is tried before the game's article: one
    extra search per track.
    A game's track without one gets a reference built for it (`gameTrackText`):
@@ -251,7 +255,7 @@ sign-ins and the built-in AI. Its design decisions are in
    typed facts, any caption that is only the title, artist or game plus
    filler ("a song by", "written by", genre). Spares fill the gap.
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
-   fill fixed sentences, with no AI and so no screening. When the article is
+   fill fixed sentences, with no AI and so no screening but the content standard. When the article is
    the artist's or the game's rather than the song's, structured facts about
    the song go before the AI's captions. When the article may be about another
    work, they are all that is shown (see "Is it the requested work?").
@@ -300,10 +304,52 @@ The streamer's own facts (custom facts and song facts) are the only text shown
 without any check, since there's nothing to check them against. That's why
 the project ships topic packs only as examples for the command-line version,
 the app doesn't offer them at all, and each streamer is responsible for their own. (Structured facts need no
-screening: they're fixed sentences, and only the data in them varies.)
+screening beyond the content standard: they're fixed sentences, and only the data in them varies.)
 
 For the same reason, a short result is never padded. Four facts about the
 right song beat four plus one unrelated one.
+
+### The content standard
+
+"About the music. Safe for any stream." A bubble never says what a polite
+chatter couldn't post in a family-friendly music stream, in line with
+Twitch, YouTube and Kick community rules (issue #242). Twitch holds the
+streamer responsible for everything on stream, and the riskiest true
+sentence in an artist's article is about a person, not the music: an
+arrest, an illness, a divorce, how someone died.
+
+`content-standard.ts` holds six word lists (crime or lawsuits, drugs or
+addiction, sexual content, private life, health, how someone died), each
+with a comment naming the platform rules it follows. Matching is whole words
+or phrases, any case. It runs in three places:
+
+1. **The article, before anything reads it.** `wikiExtract` leaves out whole
+   sections with private headings ("Personal life", "Legal issues",
+   "Controversies", "Health", "Death and legacy", but not "Death Mountain")
+   and every other sentence a list matches. A plain death year stays: "died
+   in 2004" is on no list, "died of" and "died in a" are.
+2. **Every caption.** `screenClaims` drops a caption a list matches, whatever
+   its reference says, so a retelling can't add what its source didn't
+   ("charged" told as "convicted": both words are on the list). The log names
+   the reason only, never the caption, so logs and reports can't spread it.
+3. **Every fact from data**, from Wikidata and MusicBrainz, the same way.
+
+A listed word inside a name or a title is the name: "Smooth Criminal", a
+band called "The Crime Lords", a quoted "Heroin", the song's own title and the
+artist. A capitalized word next to another capitalized word, or right after
+a quotation mark, counts as a name; an all-capitals word ("LSD") doesn't.
+
+There is no setting: the standard is always on for sourced captions. The
+streamer's own facts are theirs and are never checked.
+
+**Only settled versions.** Most vandalism is reverted within hours, so an
+article edited in the last 72 hours is read as it was before: the newest
+version at least 72 hours old (`rvstart` and `rvdir=older` on the revisions
+API), parsed to HTML and turned into plain text (`wiki-html.ts`). Older
+versions are remembered by revision number like recent articles. An article
+younger than that is skipped. When the older version can't be read,
+Wikipedia is skipped for the whole song this time (`fetchGrounding`): data
+facts still show, and the song is looked up again later.
 
 ### Why is choosing the article so careful?
 
