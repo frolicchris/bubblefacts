@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, performerFacts, readableName } from "./musicbrainz";
+import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -219,5 +219,33 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     asked.length = 0;
     await fetchGrounding({ title: "Glass Harbour", artist: "Traditional" });
     expect(asked.some((u) => toMusicBrainz(u))).toBe(false);
+  });
+});
+
+describe("musicbrainzFacts: no year it can't vouch for", () => {
+  // Made-up names. Heart's "Alone" once got 2010 (a later EP: the 1987 single wasn't among the results),
+  // and "Vampire Killer" 2015 (an album called "Castlevania" credited to "Castlevania").
+  let byArtist: { count: number; recordings: unknown[] };
+  const fetchMock = jest.fn(async (input: string | URL) => {
+    const url = new URL(String(input));
+    const query = url.searchParams.get("query") ?? "";
+    const body = url.pathname === "/ws/2/recording" && query.includes(" AND artist:") ? byArtist : { recordings: [], count: 0 };
+    return { ok: true, status: 200, json: async () => body } as Response;
+  });
+  beforeAll(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  it("states a year only when every recording came back", async () => {
+    const later = rec("Paper Moonlight", "Lantern", "2010", [["Later Sessions"]]);
+    byArtist = { count: 40, recordings: Array.from({ length: 25 }, () => later) };
+    expect(await musicbrainzFacts({ title: "Paper Moonlight", artist: "Lantern" })).not.toContainEqual(expect.stringMatching(/came out in/));
+    byArtist = { count: 1, recordings: [rec("Paper Lanterns", "Lantern", "1987", [["First Light"]])] };
+    expect(await musicbrainzFacts({ title: "Paper Lanterns", artist: "Lantern" })).toContain('"Paper Lanterns" came out in 1987.');
+  });
+
+  it("takes a recording credited to the game's own name for the game's soundtrack: no year, no album", async () => {
+    byArtist = { count: 1, recordings: [rec("Night Lancer", "Gloomhold", "2015", [["Gloomhold"]])] };
+    expect(await musicbrainzFacts({ title: "Night Lancer", artist: "Gloomhold" })).toEqual([]);
   });
 });

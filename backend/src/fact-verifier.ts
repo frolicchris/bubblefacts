@@ -240,7 +240,8 @@ export function resolveGameAndTrack(song: SSLSong): { game: string; track: strin
     const a = artist.toLowerCase();
     const g = split.game.toLowerCase();
     if (g === a) return { game: artist, track: split.track };
-    if (g.startsWith(a + " ")) return split;
+    // "Yoshi's Story: On the Beach" from "Yoshi": the possessive extends the name too.
+    if (g.startsWith(a + " ") || (g.startsWith(a) && /^['’]s /.test(g.slice(a.length)))) return split;
   }
   return { game: artist, track: title };
 }
@@ -1712,7 +1713,8 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   const { game, track } = resolveGameAndTrack(song);
   const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? track : "";
   const names = [...new Set([...artistNames(song.artist ?? ""), ...artistNames(asked.artist ?? "")])];
-  const named = Boolean(piece) && (/^About this piece:/m.test(grounding) || mentionsName(normalizeTitle(full), [normalizeTitle(piece)]));
+  // As music: "Castlevania" names the "Vampire Killer" whip, and "Punch-Out!!" a character's training.
+  const named = Boolean(piece) && (/^About this piece:/m.test(grounding) || namesPiece(full, piece));
   // A note the lookup dropped: in brackets after the artist ("Some Singer (Tribute)"), or a cover's in the title.
   const noted = /\([^)]*\)\s*$/.test(asked.artist ?? "") || /[([][^)\]]*\bcover\b[^)\]]*[)\]]/i.test(asked.title);
 
@@ -1954,6 +1956,33 @@ export function trackSentences(full: string, track: string): string[] {
   return kept;
 }
 
+/** Words that make a sentence about music: a name in one is a piece's, not a weapon's, a level's or an everyday word's. */
+const MUSIC_CONTEXT =
+  /\b(music\w*|songs?|singles?|tracks?|themes?|soundtracks?|scor(?:e|es|ed|ing)|compos\w*|melod(?:y|ies|ic)|tunes?|pieces?|albums?|arrange\w*|remix\w*|instrumentals?|lyrics?|sung|sings?|ballads?|anthems?|BGM|chart\w*)\b/i;
+
+/**
+ * Whether an article names the piece as music, in a sentence about music.
+ * Its name alone isn't enough: "from working alone" doesn't name Heart's
+ * "Alone", and the whip called the "Vampire Killer" isn't the track.
+ */
+export function namesPiece(full: string, piece: string): boolean {
+  const name = normalizeTitle(piece);
+  if (!name || GENERIC_TRACK.test(name)) return false;
+  return full.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u).some((s) => MUSIC_CONTEXT.test(s) && mentionsName(normalizeTitle(s), [name]));
+}
+
+/**
+ * "Punch-Out!! (1984 video game)" when the search also found "Punch-Out!!
+ * (1987 video game)" or "Punch-Out!!": one of several works of that name,
+ * told apart by a year the request doesn't give.
+ */
+export function oneOfSeveral(title: string, titles: string[], game: string): boolean {
+  const year = /\b(?:19|20)\d\d\b/.exec(qualifierOf(title) ?? "")?.[0];
+  if (!year || game.includes(year)) return false;
+  const base = normalizeTitle(title);
+  return titles.some((t) => t !== title && normalizeTitle(t) === base);
+}
+
 /** Whether a title is the music article for this game or its series. */
 export function isMusicArticleFor(title: string, game: string): boolean {
   const g = normalizeTitle(game);
@@ -2163,7 +2192,8 @@ export function gameTrackText(a: GameArticles, track: string, usable: (title: st
   const part = soundtrackPart(base.full, track);
   const full = part ? part.text : withoutVideoSections(base.full);
   // With section-aware selection, a narrative section's sentence about this piece counts only when it's about its music.
-  const about = trackSentences(sectionSelection.on ? selectedText(full, [track]) : full, track);
+  // And only a sentence about music is said to be about the piece: "Castlevania" names the MSX game and the whip "Vampire Killer" too.
+  const about = trackSentences(sectionSelection.on ? selectedText(full, [track]) : full, track).filter((s) => MUSIC_CONTEXT.test(s));
   const block = about.length ? `About this piece: ${about.join(" ")}\n\n` : "";
   const budget = MAX_CONTEXT_CHARS - base.page.length - 1 - block.length;
   const picked = sectionSelection.on ? sectionExtract(full, budget, [track], new Set(about)) : "";
@@ -3195,6 +3225,14 @@ export async function performerPages(artist: string, track: string): Promise<Per
  * article under the name. Games keep the usual lookup: game music lists put
  * the game in the artist field. A film that names the requested track (its
  * own score) is kept too.
+ *
+ * An article that never names the piece as music (`namesPiece`) may be
+ * another work that only shares the name, even a game's or an album's:
+ * "Heart of Darkness (video game)" for Heart's "Alone", Elton John's "The
+ * Muse" for Muse's "Space Dementia". Then the song's own article wins
+ * wherever it's found, and an album or a soundtrack gives way to a
+ * performer's article under the name. A game's article stays: a band may
+ * share a game's name.
  */
 async function performerArticle(
   song: SSLSong,
@@ -3204,20 +3242,24 @@ async function performerArticle(
   usable: (title: string) => boolean
 ): Promise<{ page: string; subject: boolean } | "reject" | null> {
   const { game, track } = reading;
-  if (/game\)$/i.test(page) || /\b(?:video )?games?\b/i.test(openingSays(full))) return null;
-  const concert = isConcertFilm(page, full);
-  const nonMusic = isNonMusicWork(page, full) || concert;
+  const aGame = /game\)$/i.test(page) || /\b(?:video )?games?\b/i.test(openingSays(full));
+  const unnamed = !namesPiece(full, track);
+  const concert = !aGame && isConcertFilm(page, full);
+  const nonMusic = !aGame && (isNonMusicWork(page, full) || concert);
   const told = !!song.performer || !!reading.aPerformer || looksLikeArtistName(game) || PERFORMER_BRACKET.test(game);
-  if (!nonMusic && !told) return null;
+  if (aGame ? !unnamed : !nonMusic && !told && !unnamed) return null;
   const artist = game.replace(/\s*\([^)]*\)\s*$/, "").trim();
   const found = await performerPages(artist, track);
   if (found.song && found.song !== page && usable(found.song)) return { page: found.song, subject: false };
-  if (!nonMusic || !(told || found.performer)) return null;
+  if (aGame) return null;
+  // Only to another page: a person's own article stays even when the opening doesn't call them a performer.
+  const otherMusic = !nonMusic && unnamed && !!found.performer && found.performer !== page && !isPerformerArticle(page, full);
+  if (!otherMusic && (!nonMusic || !(told || found.performer))) return null;
   const name = normalizeTitle(track);
   // A concert film or documentary names the band throughout: only its lead naming the track keeps it.
   if (concert) {
     if (name.length >= 5 && mentionsName(normalizeTitle(full.split(/\n==/)[0]), [name])) return null;
-  } else if (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name]))) return null;
+  } else if (!otherMusic && (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name])))) return null;
   if (found.performer && found.performer !== page && usable(found.performer)) return { page: found.performer, subject: true };
   return "reject";
 }
@@ -3291,7 +3333,8 @@ function pageMisfit(
   const { byGame, installment, names, classical } = how;
   // An installment or spin-off is only right when it's the song's own game: it must name the track.
   // A generic name ("Main Theme") is in every installment's article, so it names none of them.
-  if (installment && (GENERIC_TRACK.test(normalizeTitle(track)) || !mentionsName(normalizeTitle(full), [normalizeTitle(track)]))) return `never mentions "${track}"`;
+  // Its name alone isn't enough: "Castlevania: Belmont's Curse" names the "Vampire Killer" whip, not the track.
+  if (installment && (GENERIC_TRACK.test(normalizeTitle(track)) || !namesPiece(full, track))) return `never names "${track}" as music`;
   // A performer's name alone can be an everyday word: "Milestone" is about road markers.
   if (byGame && song.performer && !/\(/.test(page) && !PERFORMER_LEAD.test(full.slice(0, 400))) return "isn't about a performer";
   // One of several names may be anything: its own article must be a performer's ("Black Caviar" is a racehorse too),
@@ -3317,6 +3360,15 @@ function articleExtract(page: string, full: string | null, ownArticle: boolean, 
   return ownArticle && !byGame
     ? ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [track, game])
     : orderExtract(full, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track], ownArticle);
+}
+
+/** The first of these articles that names the piece as music (`namesPiece`), reading at most three. */
+async function namingPiece(titles: string[], track: string): Promise<string | null> {
+  for (const t of titles.slice(0, 3)) {
+    const full = await wikiExtract(t);
+    if (full && namesPiece(full, track)) return t;
+  }
+  return null;
 }
 
 /** One reading of the request, looked up the usual way. */
@@ -3411,11 +3463,23 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         ofTrack.find((t) => !/\((?:[^)]*\b)?(album|EP|soundtrack|film|musical)\)$/i.test(t)) ??
         ofTrack[0] ??
         // An edition's own article beats the original's: "Some Game Remake" over "Some Game".
-        titles.find((t) => usable(t) && matchedGame(t) && !editionNotInTitle(game, t)) ??
+        // One of several works of the name ("Some Game (1984 video game)") comes last.
+        titles.find((t) => usable(t) && matchedGame(t) && !editionNotInTitle(game, t) && !oneOfSeveral(t, titles, game)) ??
+        titles.find((t) => usable(t) && matchedGame(t) && !oneOfSeveral(t, titles, game)) ??
         titles.find((t) => usable(t) && matchedGame(t));
       if (!page) {
         if (titles.length) console.log(`[Grounding] No relevant match among: ${titles.join(", ")}`);
         continue;
+      }
+      // Several works share the name and the request doesn't say which: the one that names the piece as music, or none.
+      const several = titles.filter((t) => usable(t) && matchedGame(t) && oneOfSeveral(t, titles, game) && normalizeTitle(t) === normalizeTitle(page));
+      if (several.length && !matchedTrack(page) && track !== game && !generic) {
+        const which = await namingPiece(several, track);
+        if (which) page = which;
+        else if (oneOfSeveral(page, titles, game)) {
+          console.log(`[Grounding] "${page}" is one of several works named "${game}" and none names "${track}" as music, skipping`);
+          continue;
+        }
       }
       let byGame = matchedGame(page);
       let full = await wikiExtract(page);
@@ -3427,10 +3491,15 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
           console.log(`[Grounding] "${page}" is a work that only shares the performer's name, skipping`);
           continue;
         }
-        if (swap) {
+        // The performer's own article stays when the song's is too short to write from.
+        const songFull = swap && !swap.subject ? await wikiExtract(swap.page) : null;
+        const tooShort = !!swap && !swap.subject && (!songFull || articleExtract(swap.page, songFull, true, false, game, track).length < MIN_CONTEXT_CHARS);
+        if (swap && tooShort && isPerformerArticle(page, full)) {
+          console.log(`[Grounding] "${swap.page}" is too short to write from: keeping the performer's article "${page}"`);
+        } else if (swap) {
           console.log(`[Grounding] "${page}" -> ${swap.page} (${swap.subject ? "the performer's article" : "the song's own article"})`);
           page = swap.page;
-          full = await wikiExtract(page);
+          full = songFull ?? (await wikiExtract(page));
           byGame = swap.subject;
           toPerformer = swap.subject;
         }

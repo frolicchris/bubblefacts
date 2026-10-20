@@ -536,10 +536,17 @@ mentions the game or artist, because a track called "Overture" would
 otherwise match the general article about overtures. More rules in
 `fetchGrounding`, each from a real wrong match:
 
-- **Installments must name the track.** A game match that extends the name
-  ("Final Fantasy" to "Final Fantasy VII", "Undertale" to "Undertale Yellow")
-  is used only if its text mentions the track, and isn't shared with the
-  series' other tracks.
+- **Installments must name the track as music.** A game match that extends
+  the name ("Final Fantasy" to "Final Fantasy VII", "Undertale" to "Undertale
+  Yellow") is used only if a sentence about music names the track
+  (`namesPiece`), and isn't shared with the series' other tracks. The name
+  alone isn't enough: a newer game's whip is also called the "Vampire
+  Killer", and a game's director "preferred working alone".
+- **One of several same-name works needs the track.** "Some Game (1984 video
+  game)", when the search also finds the 1987 one or the name's own page and
+  the request gives no year (`oneOfSeveral`), comes after the others. Up to
+  three of them are read, and the one whose music names the track is taken;
+  when none does, a dated one is never taken.
 - **Performers aren't games.** When the upload is a music video
   (`song.performer`), band and singer articles match, game, film and TV
   articles don't, the search asks for "`<name>` band", and an article with no
@@ -588,8 +595,18 @@ other ways to read one, each checked by all the rules above:
   gives way to the performer's article or is skipped. A concert film, a
   documentary or a live video (`isConcertFilm`) names the band throughout,
   so only its lead naming the track keeps it; one named for the song is
-  skipped as the song's own article. A game's article is never questioned
-  this way: game music lists put the game in the artist field.
+  skipped as the song's own article. Any subject article that never names
+  the piece as music is questioned too, since a one-word band name reads as
+  a game's: "Heart" found *Heart of Darkness*, a game, and "Muse" Elton
+  John's *The Muse* soundtrack. The song's own article is then taken
+  wherever it's found (the performer's own article stays when the song's
+  is too short to write from), and any other page gives way to a
+  performer's article under the name, never to itself. A game's article without such a song
+  stays: game music lists put the game in the artist field, and a band may
+  share a game's name.
+- **A game in the title, possessive** ("Yoshi's Story: On the Beach" from
+  "Yoshi"): the longer name is the game, as for "Super Mario 64: ..." from
+  "Super Mario".
 - **No one** ("Traditional", "Italian Folk Song"): the title alone, and only
   an article that opens by calling it a song ("Santa Lucia" is also a town).
 - **Someone else's song in the title** ("Baby (Justin Bieber)" by a cover
@@ -721,8 +738,10 @@ log says why (`[Grounding] unsure: ...`). Unsure is:
   one singer is often another's);
 - a game's parent article for an edition or epilogue ("Some Game: An Epilogue"
   finding "Some Game"), unless its first sentence names the rest;
-- a series' article for a track it never names (a series-wide music
-  article still counts as sure: its facts are about the music);
+- a series' article for a track it never names as music (a series-wide
+  music article still counts as sure: its facts are about the music). Only
+  a sentence about music goes under "About this piece" too: "Castlevania"
+  names the "Vampire Killer" whip and the MSX game *Vampire Killer*;
 - a film's, a show's or a book's article that never names the song, or one
   named after the artist ("Some Band: Live");
 - the artist's article that never names the song, found only after dropping a
@@ -967,7 +986,10 @@ no screening, and are skipped for a song whose structured facts were marked
   releases that aren't compilations, live albums or remixes (a 1988 jazz
   compilation isn't when "It's Only a Paper Moon" came out), and is left
   out when the credited artist had died by then (a Satie piece on a 1995
-  album). An "additional" composer, such as a fanfare quoted in another
+  album), or when the search didn't return every recording: the earliest of
+  25 may be a later re-recording (Heart's "Alone" on a 2010 EP). A
+  recording credited to the game's own name, on an album of that name, is
+  the game's soundtrack: no year or album, as for any game's track. An "additional" composer, such as a fanfare quoted in another
   composer's cue, isn't named.
 
 ### Wrong and Undo

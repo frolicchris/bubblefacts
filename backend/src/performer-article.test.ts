@@ -103,7 +103,6 @@ describe("a performer's name shared with a film or a book", () => {
     extracts = { "Starfall (video game)": `Starfall is a 2003 platform video game.${LONG}` };
     descriptions = { "Starfall (band)": "Swedish pop band" };
     expect(await fetchGrounding({ title: "Comet Ridge", artist: "Starfall" })).toMatch(/^Starfall \(video game\)/);
-    expect(mock.mock.calls.some(([u]) => new URL(u as string).searchParams.get("prop") === "description")).toBe(false);
   });
 
   it("tells non-music works and performers' mentions apart", () => {

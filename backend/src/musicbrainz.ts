@@ -99,8 +99,16 @@ function lookup<T>(path: string, inc: string): Promise<T> {
   return mbGet<T>(path, inc ? { inc } : {});
 }
 
-async function search(query: string, limit = 25): Promise<Recording[]> {
-  return (await mbGet<{ recordings?: Recording[] }>("recording", { query, limit: String(limit) })).recordings ?? [];
+/**
+ * One search for recordings, best match first. `complete`: every recording a
+ * fact could use came back (no more results, or the last one already scores
+ * too low to match).
+ */
+async function search(query: string, limit = 25): Promise<{ recordings: Recording[]; complete: boolean }> {
+  const data = await mbGet<{ recordings?: Recording[]; count?: number }>("recording", { query, limit: String(limit) });
+  const recordings = data.recordings ?? [];
+  const last = recordings[recordings.length - 1];
+  return { recordings, complete: (data.count ?? 0) <= recordings.length || (last?.score ?? 0) < 90 };
 }
 
 const quote = (s: string) => `"${s.replace(/["\\]/g, " ")}"`;
@@ -161,15 +169,19 @@ export function creditedArtistId(recordings: Recording[], title: string, artist:
   return matchingRecordings(recordings, title, artist)[0]?.["artist-credit"]?.find((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))?.artist?.id;
 }
 
-/** Facts for a performer's song from the matching recordings. `diedIn`: the year the credited artist died, if they have. */
-export function performerFacts(recordings: Recording[], title: string, artist: string, diedIn?: number): string[] {
+/**
+ * Facts for a performer's song from the matching recordings. `diedIn`: the year the credited artist died, if they have.
+ * `yearKnown`: false when the search didn't return every recording, so the earliest one seen may be a later
+ * re-recording (Heart's "Alone" on a 2010 EP): then no year is stated.
+ */
+export function performerFacts(recordings: Recording[], title: string, artist: string, diedIn?: number, yearKnown = true): string[] {
   const want = normalizeTitle(title);
   const matches = matchingRecordings(recordings, title, artist);
   const first = matches[0];
   if (!first) return [];
   const facts: string[] = [];
   const q = `"${title}"`;
-  const year = firstYear(matches, diedIn);
+  const year = yearKnown ? firstYear(matches, diedIn) : undefined;
   if (year) facts.push(`${q} came out in ${year}.`);
   // A studio album only (no compilations, live or soundtrack albums), and no
   // claim that it came out there first: an earlier single may not be listed.
@@ -248,15 +260,18 @@ export async function musicbrainzFacts(song: SSLSong): Promise<string[]> {
   // A music video names a performer; a song list's "artist" may be a game.
   const performer = song.performer || looksLikeArtistName(game);
   try {
-    let facts = performer ? [] : await gameComposer(await search(`recording:${quote(title)} AND release:${quote(game)}`), title, game);
+    let facts = performer ? [] : await gameComposer((await search(`recording:${quote(title)} AND release:${quote(game)}`)).recordings, title, game);
     if (!facts.length) {
-      const recordings = await search(`recording:${quote(title)} AND artist:${quote(game)}`);
-      facts = performerFacts(recordings, title, game);
+      const { recordings, complete } = await search(`recording:${quote(title)} AND artist:${quote(game)}`);
+      // "Vampire Killer" credited to "Castlevania" on an album called "Castlevania": a game's soundtrack under
+      // the game's own name, not a performer's song. A game's track gets only its composer.
+      const soundtrack = !performer && matchingRecordings(recordings, title, game).some((r) => (r.releases ?? []).some((rel) => normalizeTitle(rel.title ?? "") === normalizeTitle(game)));
+      facts = soundtrack ? [] : performerFacts(recordings, title, game, undefined, complete);
       // A year is only stated when the artist was alive for it: one more lookup, only then.
       const id = facts.some((f) => / came out in \d{4}\.$/.test(f)) ? creditedArtistId(recordings, title, game) : undefined;
       if (id) {
         const died = /^\d{4}/.exec((await lookup<{ "life-span"?: { end?: string } }>(`artist/${id}`, ""))["life-span"]?.end ?? "")?.[0];
-        if (died) facts = performerFacts(recordings, title, game, Number(died));
+        if (died) facts = performerFacts(recordings, title, game, Number(died), complete);
       }
     }
     console.log(`[MusicBrainz] "${title}" by ${game}: ${facts.length} facts`);
@@ -429,7 +444,7 @@ async function findLinked(title: string, track: string, artist: string, usable: 
   const lead = foldSymbols(leadName(artist));
   const [t, a] = [fuzzy(track), fuzzy(lead)];
   if (!t || !a) return "";
-  const picks = pickRecordings(await search(`recording:(${t}) AND artist:(${a})`, MAX_PICKS), track, artist);
+  const picks = pickRecordings((await search(`recording:(${t}) AND artist:(${a})`, MAX_PICKS)).recordings, track, artist);
   if (!picks.length) return "";
   const { credit } = picks[0];
   const typed = artistNames(artist);
