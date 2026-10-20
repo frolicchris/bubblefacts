@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import type { SongSource } from "./song-source";
+import { foldCase } from "./text";
 
 /**
  * Song search for the song facts editor: typing the title exactly as the
@@ -14,12 +15,12 @@ export interface ListSong {
   artist: string;
 }
 
-export const DEFAULT_SEARCH_LIMIT = 8;
+const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 20;
 const MAX_QUERY = 100;
 
-/** Case and accents don't count: "cafe" finds "Café". */
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+/** Case and accents don't count: "cafe" finds "Café". Punctuation stays, unlike `songIdentity`, so what was typed matches the list's own spelling ("mr. big"). */
+const fold = (s: string) => foldCase(s).replace(/\s+/g, " ").trim();
 
 /**
  * Songs whose title or artist contains every word typed, best first: title

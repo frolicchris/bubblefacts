@@ -3,7 +3,7 @@ jest.mock("electron", () => ({ app: { getPath: () => "/tmp" }, safeStorage: { is
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { autoBackup, backupFileName, makeBackup, readBackup } from "./backup";
+import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, wrongLogLines } from "./backup";
 import { DEFAULTS } from "./settings";
 
 const mine = {
@@ -86,5 +86,41 @@ describe("automatic backups", () => {
     const file = path.join(dir, "a-file");
     fs.writeFileSync(file, "");
     expect(autoBackup(path.join(file, "backups"), makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v"))).toBe("");
+  });
+});
+
+describe("the Wrong log in backups and in Remove my data", () => {
+  const press = { song: { title: "Moonlit Harbor", artist: "Test Quartet" }, caption: "A caption.", source: "Wikipedia: Harbor Game", article: "Harbor Game", appVersion: "2.1.0", date: "2026-10-18T12:00:00.000Z" };
+
+  it("goes into a backup and comes back out of it", () => {
+    const b = makeBackup(mine, { songFacts: [], wrongFacts: {}, wrongLog: [press] }, "2.1.0");
+    expect(readBackup(JSON.stringify(b)).wrongLog).toEqual([press]);
+  });
+
+  it("is absent from a backup made before it existed, and from one with nothing logged", () => {
+    expect(readBackup(JSON.stringify({ format: "bubblefacts-backup", formatVersion: 1 })).wrongLog).toBeNull();
+    expect(makeBackup(mine, { songFacts: [], wrongFacts: {}, wrongLog: [] }, "2.1.0").wrongLog).toBeNull();
+  });
+
+  it("changes what an automatic backup compares, so a new press is backed up", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-backup-"));
+    const first = makeBackup(mine, { songFacts: [], wrongFacts: {} }, "2.1.0", new Date("2026-10-18T12:00:00Z"));
+    expect(autoBackup(dir, first)).not.toBe("");
+    expect(autoBackup(dir, { ...first, wrongLog: [press] })).not.toBe("");
+  });
+
+  it("reads only whole records, newest 500", () => {
+    const text = [...Array.from({ length: 502 }, (_, i) => JSON.stringify({ ...press, caption: `C${i}` })), '{"cut', "", "[1]"].join("\n");
+    const got = wrongLogLines(text) as Array<{ caption: string }>;
+    expect(got).toHaveLength(500);
+    expect(got[0].caption).toBe("C2");
+  });
+
+  it("is deleted by Remove my data", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-remove-"));
+    fs.writeFileSync(path.join(dir, "wrong-log.jsonl"), JSON.stringify(press) + "\n");
+    for (const name of REMOVED_WITH_DATA) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    expect(fs.existsSync(path.join(dir, "wrong-log.jsonl"))).toBe(false);
+    expect(REMOVED_WITH_DATA).toContain("wrong-log.jsonl");
   });
 });

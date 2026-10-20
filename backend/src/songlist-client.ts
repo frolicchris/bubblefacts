@@ -4,7 +4,9 @@ import { CentrifugoStream } from "./centrifugo-client";
 import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 import { cleanRequestText } from "./text";
+import { displayTitle, toSong } from "./song-mapping";
 import { ListSong, searchSongs } from "./song-search";
+import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
@@ -44,10 +46,15 @@ export class SongListClient implements SongSource {
   private stream: CentrifugoStream | null = null;
   private currentSong: SSLQueueItem | null = null;
   private onSongChange: SongChangeCallback | null = null;
-  private pollTimer: ReturnType<typeof setTimeout> | null = null;
-  private refetchTimer: ReturnType<typeof setTimeout> | null = null;
-  private inFlight: Promise<void> | null = null;
-  private refreshAgain = false;
+  private readonly poll = pollLoop({
+    isStopped: () => this.stopped,
+    intervalMs: () => this.pollIntervalMs(),
+    backoffUntil: () => this.backoffUntil,
+    tick: () => this.pollOnce(),
+  });
+  /** Every event, and every reconnect, means "refetch": a burst becomes one. */
+  private readonly refetch = debounce(REFETCH_DEBOUNCE_MS, () => void this.refresh());
+  private readonly fetchOneAtATime = singleFlight(() => this.fetchQueue(), () => this.stopped);
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
   private rejected = false;
@@ -105,47 +112,19 @@ export class SongListClient implements SongSource {
     this.stopped = true;
     this.stream?.stop();
     this.stream = null;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    if (this.refetchTimer) clearTimeout(this.refetchTimer);
-    this.pollTimer = this.refetchTimer = null;
+    this.poll.cancel();
+    this.refetch.cancel();
   }
 
   toSong(item: SSLQueueItem): SSLSong {
-    return SongListClient.toSong(item);
+    return toSong(item);
   }
 
   displayTitle(item: SSLQueueItem): string {
-    return SongListClient.displayTitle(item);
+    return displayTitle(item);
   }
 
-  // --- Song mapping ------------------------------------------------------
-
-  static displayTitle(item: SSLQueueItem): string {
-    return cleanRequestText(item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "") || "Unknown";
-  }
-
-  /** An off-list request: the API sets `nonlistSong`, or the newer `nonlistTitle`, to the typed-in title. */
-  static isLiveLearn(item: SSLQueueItem): boolean {
-    return Boolean(item.nonlistSong?.trim() || item.nonlistTitle?.trim());
-  }
-
-  static requesterName(item: SSLQueueItem): string | undefined {
-    const r = item.requests?.[0];
-    return cleanRequestText(r?.name || r?.user?.username || "") || undefined;
-  }
-
-  /** The song object broadcast to the overlay. */
-  static toSong(item: SSLQueueItem): SSLSong {
-    const song: SSLSong = {
-      title: SongListClient.displayTitle(item),
-      artist: cleanRequestText((SongListClient.isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || "") || "Unknown",
-    };
-    if (SongListClient.isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
-    const by = SongListClient.requesterName(item);
-    if (by) song.requestedBy = by;
-    if (typeof item.songId === "number" && item.songId > 0) song.songId = item.songId;
-    return song;
-  }
+  // --- Change detection --------------------------------------------------
 
   /** Content, not just id: editing an entry's artist mid-song should regenerate. */
   private static identity(item: SSLQueueItem | null): string | null {
@@ -178,10 +157,8 @@ export class SongListClient implements SongSource {
           `the token must belong to ${config.sslStreamerName} (Settings > Access) or a user who administrates that channel.`
       );
     }
-    if (res.status === 429 || res.status === 503) {
-      const wait = Number(res.headers?.get("retry-after")) || (res.status === 429 ? 60 : 120);
-      this.backoffUntil = Date.now() + Math.min(wait, 600) * 1000;
-    }
+    const wait = retryAfterMs(res);
+    if (wait) this.backoffUntil = Date.now() + wait;
     if (!res.ok) {
       // Errors come as application/problem+json; its "detail" says what went wrong in plain words.
       const problem = (await Promise.resolve().then(() => res.json()).catch(() => null)) as { detail?: string } | null;
@@ -246,37 +223,26 @@ export class SongListClient implements SongSource {
     return this.listSongs && searchSongs(this.listSongs, query, limit);
   }
 
-  /**
-   * Fetch the queue and apply it, one request at a time. A refresh asked for
-   * while one is running fetches again afterward, because the running
-   * request may have started before the change it was asked about.
-   */
+  /** Fetch the queue and apply it, one request at a time (see singleFlight). */
   private refresh(): Promise<void> {
-    if (Date.now() < this.backoffUntil) return Promise.resolve();
-    if (this.inFlight) {
-      this.refreshAgain = true;
-      return this.inFlight;
+    if (this.backingOff()) return Promise.resolve();
+    return this.fetchOneAtATime();
+  }
+
+  private async fetchQueue(): Promise<void> {
+    try {
+      const queue = await this.getJSON<SSLQueueResponse>("/queue", "queue");
+      this.lastSuccessfulFetchAt = Date.now();
+      // Streamers without the now-playing feature work down the queue instead.
+      this.applyNowPlaying(queue.playing ?? queue.items?.[0] ?? null);
+    } catch (err) {
+      console.error(`[SSL] Error fetching queue: ${err instanceof Error ? err.message : err}`);
     }
-    this.inFlight = (async () => {
-      do {
-        this.refreshAgain = false;
-        try {
-          const queue = await this.getJSON<SSLQueueResponse>("/queue", "queue");
-          this.lastSuccessfulFetchAt = Date.now();
-          // Streamers without the now-playing feature work down the queue instead.
-          this.applyNowPlaying(queue.playing ?? queue.items?.[0] ?? null);
-        } catch (err) {
-          console.error(`[SSL] Error fetching queue: ${err instanceof Error ? err.message : err}`);
-        }
-      } while (this.refreshAgain && !this.stopped);
-      this.inFlight = null;
-    })();
-    return this.inFlight;
   }
 
   private applyNowPlaying(next: SSLQueueItem | null): void {
     if (SongListClient.identity(this.currentSong) === SongListClient.identity(next)) return;
-    const label = (s: SSLQueueItem | null) => (s ? SongListClient.displayTitle(s) : "none");
+    const label = (s: SSLQueueItem | null) => (s ? displayTitle(s) : "none");
     console.log(`[SSL] Song changed: "${label(this.currentSong)}" -> "${label(next)}"`);
     this.currentSong = next;
     this.onSongChange?.(next);
@@ -300,32 +266,22 @@ export class SongListClient implements SongSource {
 
   /** Every event, and every reconnect, means "refetch": the docs send some with no data at all. */
   private handleEvent(): void {
-    if (this.refetchTimer) return;
-    this.refetchTimer = setTimeout(() => {
-      this.refetchTimer = null;
-      void this.refresh();
-    }, REFETCH_DEBOUNCE_MS);
+    this.refetch.run();
   }
 
-  /** Self-rescheduling, so a slow response never stacks polls behind it. */
   private schedulePoll(): void {
-    // A poll that finishes after disconnect() mustn't start another.
-    if (this.stopped) return;
-    const delay = Math.max(this.pollIntervalMs(), this.backoffUntil - Date.now());
-    // One poll loop at a time: connecting again replaces the old timer rather than leaving it running.
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(async () => {
-      if (this.stopped) return;
-      if (this.streamerId === null) {
-        try {
-          await this.resolveStreamer();
-          this.connectEvents();
-        } catch {
-          // Still unreachable; try again next poll.
-        }
+    this.poll.schedule();
+  }
+
+  private async pollOnce(): Promise<void> {
+    if (this.streamerId === null) {
+      try {
+        await this.resolveStreamer();
+        this.connectEvents();
+      } catch {
+        // Still unreachable; try again next poll.
       }
-      await this.refresh();
-      if (!this.stopped) this.schedulePoll();
-    }, delay);
+    }
+    await this.refresh();
   }
 }

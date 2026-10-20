@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.0.0">
-  <script src="assets/site.js?v=2.0.0" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.0.1">
+  <script src="assets/site.js?v=2.0.1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -52,6 +52,21 @@
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
 
+        <article class="rpg release" aria-labelledby="v2-0-1">
+          <h2 id="v2-0-1">Version 2.0.1 <span class="tag">October 19, 2026</span></h2>
+          <p>Fixes, most of them found on real streams. Update when it's convenient; your settings and facts stay.</p>
+          <ul>
+            <li>Improved: classical pieces such as Beethoven's Minuet in G keep their own article, instead of a list of other composers' minuets</li>
+            <li>Improved: artists written with symbols, such as P!nk and Ke$ha, find their songs' articles</li>
+            <li>Fixed: some true facts were dropped, such as a song title starting with "My" or "We", a date written "3 and 5 June", or a title with "After" in it</li>
+            <li>Fixed: changing the artist of a request that isn't on your list, mid-song, now writes new facts</li>
+            <li>Fixed: StreamElements could check for songs twice at once</li>
+            <li>Fixed: Settings accepts ports up to 65535, and About opens once</li>
+            <li>Fixed: with fact checking turned off, the AI is no longer told to expect an article it won't get</li>
+            <li>Fixed: the command-line setup starts with a Groq or Anthropic key, or with StreamElements</li>
+          </ul>
+        </article>
+
         <article class="rpg release" aria-labelledby="v2">
           <h2 id="v2">Version 2.0.0 <span class="tag">Stable, October 15, 2026</span></h2>
           <p>The first stable release, which is 2.0.0-rc.2 with only the version number changed. Everything since 1.0 in one place: the desktop app, and a new name. Stream Facts is now BubbleFacts. Download it, open it, and click through setup. No Terminal needed.</p>
@@ -67,7 +82,7 @@
             <li>Runs in the menu bar or system tray</li>
             <li>Tells you when a new version is out</li>
           </ul>
-          <p>Known issue: with the default <span class="ui">Standard</span> AI, about 8% of facts were wrong or misleading on the harder of our two test lists, and about 3% on the other. Press <span class="ui">Wrong</span>, or set up <span class="ui">Hands-free Wrong</span>, to take one off your stream. Getting under 5% is planned for 2.1.0.</p>
+          <p>Known issue: with the default <span class="ui">Standard</span> AI, about 1 in 10 facts were wrong or misleading on songs our fixes had never seen. (This note first said 8% and 3%, from test lists that also shaped the fixes.) Press <span class="ui">Wrong</span>, or set up <span class="ui">Hands-free Wrong</span>, to take one off your stream. Getting under 5% is planned for 2.1.0.</p>
           <p><a href="https://github.com/frolicchris/bubblefacts/releases">Release notes on GitHub</a></p>
         </article>
 

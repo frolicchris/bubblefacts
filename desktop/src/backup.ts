@@ -5,7 +5,8 @@ import { EDITABLE, fromWindow, Settings } from "./settings";
 
 /**
  * A backup of what the streamer made: their settings, their facts, their
- * facts for particular songs and the sources they marked Wrong. Never the
+ * facts for particular songs, the sources they marked Wrong and the log of
+ * their Wrong presses (`wrong-log.jsonl`, private test cases). Never the
  * sign-in or keys, and nothing that says which song list it came from, so a
  * backup restores onto another computer or a new sign-in.
  */
@@ -15,10 +16,11 @@ export const BACKUP_FORMAT = "bubblefacts-backup";
  * Left out: secrets, the sign-in a backup must not carry to another account,
  * and which AI writes the facts, so a backup someone shares can't send every
  * song to their own server. The built-in AI's quality belongs to the computer
- * too: restored onto a smaller one, it would start a 5 GB download.
+ * too: restored onto a smaller one, it would start a 5 GB download. The song
+ * source and the now playing file are this computer's, like the sign-in.
  */
 const NOT_BACKED_UP = new Set<keyof Settings>([
-  "token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel",
+  "token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel",
 ]);
 const BACKED_UP = EDITABLE.filter((k) => !NOT_BACKED_UP.has(k));
 
@@ -30,9 +32,28 @@ export interface Backup {
   settings: Partial<Settings>;
   songFacts: unknown[] | null;
   wrongFacts: Record<string, unknown> | null;
+  /** The lines of `wrong-log.jsonl`. Absent from backups made before 2.1. */
+  wrongLog?: unknown[] | null;
 }
 
-export function makeBackup(settings: Settings, files: { songFacts: unknown; wrongFacts: unknown }, appVersion: string, now = new Date()): Backup {
+/** Everything in the data folder that "Remove my data" deletes. */
+export const REMOVED_WITH_DATA = ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "wrong-log.jsonl", "song-facts.json", "song-facts.before-switches.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"];
+
+/** The lines of a wrong-log file's text that are whole records, newest 500 at most. */
+export function wrongLogLines(text: string): unknown[] {
+  const lines: unknown[] = [];
+  for (const l of text.split("\n")) {
+    try {
+      const v: unknown = JSON.parse(l);
+      if (v && typeof v === "object" && !Array.isArray(v)) lines.push(v);
+    } catch {
+      // A blank or cut-short line.
+    }
+  }
+  return lines.slice(-500);
+}
+
+export function makeBackup(settings: Settings, files: { songFacts: unknown; wrongFacts: unknown; wrongLog?: unknown[] | null }, appVersion: string, now = new Date()): Backup {
   const picked: Record<string, unknown> = {};
   for (const key of BACKED_UP) picked[key] = settings[key];
   return {
@@ -43,6 +64,7 @@ export function makeBackup(settings: Settings, files: { songFacts: unknown; wron
     settings: picked as Partial<Settings>,
     songFacts: Array.isArray(files.songFacts) ? files.songFacts : null,
     wrongFacts: files.wrongFacts && typeof files.wrongFacts === "object" && !Array.isArray(files.wrongFacts) ? (files.wrongFacts as Record<string, unknown>) : null,
+    wrongLog: files.wrongLog?.length ? files.wrongLog : null,
   };
 }
 
@@ -67,6 +89,7 @@ export function readBackup(text: string): Backup {
     settings,
     songFacts: Array.isArray(raw.songFacts) ? raw.songFacts : null,
     wrongFacts: raw.wrongFacts && typeof raw.wrongFacts === "object" && !Array.isArray(raw.wrongFacts) ? raw.wrongFacts : null,
+    wrongLog: Array.isArray(raw.wrongLog) ? raw.wrongLog.filter((v) => v && typeof v === "object" && !Array.isArray(v)).slice(-500) : null,
   };
 }
 
@@ -77,7 +100,7 @@ export const backupFileName = (now = new Date()) => `BubbleFacts backup ${now.to
 export const AUTO_KEEP = 20;
 const AUTO_NAME = /^auto \d{4}-\d\d-\d\d \d\d-\d\d-\d\d\.json$/;
 /** What a backup holds, without when and by which version: two backups of the same facts compare equal. */
-const contents = (b: Backup) => JSON.stringify([b.settings, b.songFacts, b.wrongFacts]);
+const contents = (b: Backup) => JSON.stringify([b.settings, b.songFacts, b.wrongFacts, b.wrongLog ?? null]);
 
 /**
  * Save `backup` in `dir` when it differs from the newest automatic one, and

@@ -19,7 +19,7 @@ describe("a performer's name shared with a film or a book", () => {
     else if (p.get("prop") === "description")
       body = { query: { pages: Object.fromEntries(names.map((n, i) => [String(i), descriptions[n] !== undefined ? { title: n, description: descriptions[n] } : { title: n, missing: "" }])) } };
     else if (p.get("redirects")) body = { query: { pages: Object.fromEntries(names.map((n, i) => [String(i), { title: n, missing: "" }])) } };
-    else body = { query: { pages: { 1: { extract: extracts[names[0]] ?? "" } } } };
+    else body = { query: { pages: { 1: { extract: extracts[names[0]] ?? "", revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } };
     return { ok: true, status: 200, json: async () => body } as Response;
   });
 

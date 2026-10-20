@@ -121,18 +121,36 @@ describe("buildStatFacts", () => {
 
   it("names no writer when the credit is missing, and doesn't match names by prefix (QA follow-up #3)", () => {
     const unknown = entry({ title: "Untitled Jam", artist: "Unknown", attributes: [{ name: "Originals" }] });
-    expect(isOriginal(unknown, ["frolicchris", "Chris"])).toBe(true);
-    const f = buildStatFacts(unknown, { streamerName: "frolicchris", isOriginalSong: true, names: ["frolicchris", "Chris"] });
+    expect(isOriginal(unknown, ["robinplays", "Robin"])).toBe(true);
+    const f = buildStatFacts(unknown, { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays", "Robin"] });
     expect(f.join(" ")).not.toMatch(/composition by|person who wrote it|credited to/);
-    expect(isOriginal(entry({ artist: "Christina Lee", attributes: [{ name: "Christina's Originals" }] }), ["frolicchris", "Chris"])).toBe(false);
+    expect(isOriginal(entry({ artist: "Robinson Lee", attributes: [{ name: "Robinson's Originals" }] }), ["robinplays", "Robin"])).toBe(false);
+  });
+
+  it("names no writer or credit when the artist field means no artist (issue #261)", () => {
+    for (const artist of ["Traditional", "Trad.", "Anon.", "Anonymous", "Folk"]) {
+      const song = entry({ title: "Marigold Lane", artist, attributes: [{ name: "Originals" }] });
+      const f = buildStatFacts(song, { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays", "Robin"] });
+      expect(f.join(" ")).not.toMatch(/composition by|person who wrote it|credited to|original/i);
+    }
+    const f = buildStatFacts(entry({ title: "Marigold Lane", artist: "Folk Lanterns" }), { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays"] });
+    expect(f).toContain('"Marigold Lane" is an original, credited to Folk Lanterns.');
+  });
+
+  it("never puts a note after the artist's name in a bubble (issue #262)", () => {
+    const theirs = buildStatFacts(entry({ title: "Marigold Lane", artist: "Folk Lanterns (note words)" }), { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays"] });
+    expect(theirs).toContain('"Marigold Lane" is an original, credited to Folk Lanterns.');
+    const own = buildStatFacts(entry({ title: "Laura's Wedding", artist: "Jane Composer (note words)" }), { streamerName: "janestreams", isOriginalSong: true, names: ["janestreams", "Jane Composer (note words)"] });
+    expect(own.join(" ")).toContain("composition by Jane Composer.");
+    expect([...theirs, ...own].join(" ")).not.toContain("note words");
   });
 
   it("never claims another streamer's original was written by the one playing it", () => {
-    // From review: Chris plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
+    // From review: Robin plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
     const song = entry({ title: "Evening Rain", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] });
-    expect(isOriginal(song, ["frolicchris", "Chris"])).toBe(false);
-    const f = buildStatFacts(song, { streamerName: "frolicchris", isOriginalSong: true, names: ["frolicchris", "Chris"] });
-    expect(f.join(" ")).not.toMatch(/person who wrote it|composition by frolicchris/);
+    expect(isOriginal(song, ["robinplays", "Robin"])).toBe(false);
+    const f = buildStatFacts(song, { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays", "Robin"] });
+    expect(f.join(" ")).not.toMatch(/person who wrote it|composition by robinplays/);
     expect(f).toContain('"Evening Rain" is an original, credited to Jane Composer.');
   });
 
@@ -144,16 +162,16 @@ describe("buildStatFacts", () => {
 describe("isOwnOriginal (issue #45)", () => {
   const item = (artist: string, tag?: string) =>
     ({ song: { title: "Water in the Moonlight", artist, attributes: tag ? [{ name: tag }] : [] } }) as unknown as Parameters<typeof isOwnOriginal>[0];
-  const names = ["frolicchris", "Chris"];
+  const names = ["robinplays", "Robin"];
 
   it("counts a piece credited to one of the streamer's names", () => {
-    expect(isOwnOriginal(item("frolicchris"), names)).toBe(true);
-    expect(isOwnOriginal(item("Christopher Feyrer", "Originals"), [...names, "Christopher Feyrer"])).toBe(true);
+    expect(isOwnOriginal(item("robinplays"), names)).toBe(true);
+    expect(isOwnOriginal(item("Robin Ashby", "Originals"), [...names, "Robin Ashby"])).toBe(true);
   });
 
   it("never counts a tag alone: a friend's piece tagged Originals isn't the streamer's (review)", () => {
     expect(isOwnOriginal(item("Jane Composer", "Originals"), names)).toBe(false);
-    expect(isOwnOriginal(item("Christopher Feyrer", "Originals"), names)).toBe(false);
+    expect(isOwnOriginal(item("Robin Ashby", "Originals"), names)).toBe(false);
     expect(isOwnOriginal(item("Unknown", "Originals"), names)).toBe(false);
     expect(isOwnOriginal(item("", "Originals"), names)).toBe(false);
     expect(isOwnOriginal(item("Jane Composer", "Jane's Originals"), names)).toBe(false);

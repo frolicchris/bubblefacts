@@ -18,6 +18,8 @@
  * fixtures/youtube-titles.json holds real titles; add every failure seen live.
  */
 
+import { songIdentity } from "./text";
+
 export interface ParsedTitle {
   title: string;
   /** Empty when neither the title nor the channel names one. */
@@ -112,9 +114,9 @@ function withoutSoundtrack(s: string): string {
   return tidy(s.replace(SOUNDTRACK, " "));
 }
 
-/** Folded for comparison: case, accents and punctuation don't count. */
+/** Folded for comparison: case, accents and punctuation don't count. `songIdentity` without the spaces, so "A-B" and "A B" match too. */
 function fold(s: string): string {
-  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  return songIdentity(s).replace(/ /g, "");
 }
 
 /** YouTube names auto-generated channels in the viewer's language: "Ciara - Topic", "Ciara - Tema". */
@@ -167,8 +169,8 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     }
     if (HAS_SOUNDTRACK.test(inner)) {
       // "(Soundtrack by Ramin Djawadi)" credits a composer; it doesn't name the work.
-      const work = withoutSoundtrack(inner);
-      if (!/^by\s/i.test(work)) source ||= work;
+      const soundtrackWork = withoutSoundtrack(inner);
+      if (!/^by\s/i.test(soundtrackWork)) source ||= soundtrackWork;
       return " ";
     }
     // "(Live at Glastonbury 2016)", "(Acoustic Version)": a variant of the song, not its name.

@@ -84,11 +84,15 @@
     el.className = "result " + (kind || "");
   }
 
-  const onSE = () => state?.settings.songSource === "streamelements";
+  const onStreamElements = () => state?.settings.songSource === "streamelements";
+  /** A text file another app writes the song to: nothing to sign in to. */
+  const onFile = () => state?.settings.songSource === "nowplaying";
+  /** Streamling's and Nightbot's files need no choosing; any other app's does. */
+  const fileChosen = () => state.settings.nowPlayingPreset !== "none" || !!state.settings.nowPlayingFile;
   /** The channel name for the song source in use. */
-  const channelName = () => (onSE() ? state.settings.seChannel : state.settings.channel);
-  /** The song source has its token saved. */
-  const connected = () => (onSE() ? state.settings.seJwtSet : state.settings.tokenSet);
+  const channelName = () => (onFile() ? "" : onStreamElements() ? state.settings.seChannel : state.settings.channel);
+  /** The song source has what it needs to start: its token saved, or its file chosen. */
+  const connected = () => (onFile() ? fileChosen() : onStreamElements() ? state.settings.seJwtSet : state.settings.tokenSet);
 
   // --- Setup: step 1, connect ------------------------------------------------
 
@@ -131,13 +135,45 @@
     toStreamStep();
   });
 
-  // Where the requests come from: StreamerSongList (sign in) or StreamElements (paste a token).
+  // Where the songs come from: StreamerSongList (sign in), StreamElements (paste a token) or a now playing file.
   function showSourceBox() {
-    const se = $('input[name="setup-source"]:checked').value === "streamelements";
-    $("#se-box").hidden = !se;
-    $("#ssl-box").hidden = se;
+    const source = $('input[name="setup-source"]:checked').value;
+    $("#se-box").hidden = source !== "streamelements";
+    $("#np-box").hidden = source !== "nowplaying";
+    $("#ssl-box").hidden = source !== "streamersonglist";
   }
   for (const r of $$('input[name="setup-source"]')) r.addEventListener("change", showSourceBox);
+
+  // Now playing file: Streamling or Nightbot (nothing to choose), or the file another app writes.
+  let setupFile = "";
+  function showNowPlayingBox() {
+    const preset = $('input[name="setup-np"]:checked').value;
+    $("#setup-np-streamling").hidden = preset !== "streamling";
+    $("#setup-np-nightbot").hidden = preset !== "nightbot";
+    $("#setup-np-other").hidden = preset !== "none";
+    $("#setup-np-file").textContent = setupFile || "No file chosen yet.";
+  }
+  for (const r of $$('input[name="setup-np"]')) r.addEventListener("change", showNowPlayingBox);
+  $("#setup-np-choose").addEventListener("click", async () => {
+    const r = await api.chooseNowPlayingFile();
+    if (!r?.ok) return;
+    setupFile = r.path;
+    setResult($("#setup-np-result"), "");
+    showNowPlayingBox();
+  });
+  $("#setup-np-connect").addEventListener("click", async () => {
+    const result = $("#setup-np-result");
+    const preset = $('input[name="setup-np"]:checked').value;
+    if (preset === "none" && !setupFile) return setResult(result, "Choose the file first.", "bad");
+    const saved = await api.saveSettings({
+      songSource: "nowplaying",
+      nowPlayingPreset: preset,
+      ...(preset === "none" ? { nowPlayingFile: setupFile, nowPlayingFormat: $("#setup-np-format").value } : {}),
+    });
+    if (saved.error) return setResult(result, saved.error, "bad");
+    state = saved;
+    toStreamStep();
+  });
 
   $("#setup-se-test").addEventListener("click", async () => {
     const result = $("#setup-se-result");
@@ -158,18 +194,20 @@
   let obsConfirmed = false;
 
   function toStreamStep() {
-    $("#connected-as").textContent = onSE()
-      ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
-      : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
+    $("#connected-as").textContent = onFile()
+      ? ({ streamling: "✓ Following Streamling's file.", nightbot: "✓ Following Nightbot's song file." }[state.settings.nowPlayingPreset] ?? "✓ Following your file.")
+      : onStreamElements()
+        ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
+        : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
     renderPaths();
     goStep(2);
-    renderObsCheck();
+    watchForObs();
   }
 
   const obsConnected = (s) => !!s?.health?.clients?.some((c) => /OBS\//.test(c.ua));
 
   /** Watch for OBS to load the overlay, then put a test bubble on stream and say so. */
-  async function renderObsCheck() {
+  async function watchForObs() {
     const box = $("#obs-check");
     if (obsConfirmed || !obsConnected(state.status)) {
       if (!obsConfirmed) {
@@ -203,8 +241,8 @@
   function toMusicStep() {
     $("#setup-originals").checked = state.settings.originals;
     $("#setup-livelearns").checked = state.settings.liveLearns;
-    // Live learns are a StreamerSongList idea: StreamElements requests are always videos.
-    $("#setup-livelearns-row").hidden = onSE();
+    // Live learns are a StreamerSongList idea: StreamElements requests are always videos, and a file has no list.
+    $("#setup-livelearns-row").hidden = onStreamElements() || onFile();
     $("#setup-myoriginals").value = state.settings.myOriginals.join("\n");
     renderSetupOriginals();
     $("#setup-originals-box").hidden = !state.settings.originals;
@@ -215,8 +253,8 @@
 
   const lines = (el) => el.value.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  // Custom facts have the same limit as a song's own (CUSTOM_FACT_LENGTH in settings.ts).
-  const MAX_CUSTOM_FACT = 300;
+  // The server's limit for one fact, custom or a song's own (CUSTOM_FACT_LENGTH in settings.ts, SONG_FACT_LIMITS in song-facts.ts): shown here, so a save is never cut short.
+  const MAX_FACT_LENGTH = 300;
   /** A "[Song of Storms]" tag never goes on stream, so only the bubble's text counts. */
   const bubbleLength = (line) => line.trim().replace(/^\[[^\]]+\]\s*/, "").length;
   /**
@@ -225,14 +263,14 @@
    */
   function customFactsProblem(box, name, select = false) {
     const rows = box.value.split("\n");
-    const long = rows.findIndex((l) => bubbleLength(l) > MAX_CUSTOM_FACT);
+    const long = rows.findIndex((l) => bubbleLength(l) > MAX_FACT_LENGTH);
     if (long < 0) return "";
     if (select) {
       const start = rows.slice(0, long).reduce((n, l) => n + l.length + 1, 0);
       box.focus();
       box.setSelectionRange(start, start + rows[long].length);
     }
-    return `${name}: line ${long + 1} is ${bubbleLength(rows[long])} characters. Shorten it to ${MAX_CUSTOM_FACT} or fewer to save.`;
+    return `${name}: line ${long + 1} is ${bubbleLength(rows[long])} characters. Shorten it to ${MAX_FACT_LENGTH} or fewer to save.`;
   }
   /** Shown under the box as soon as a line is too long, as the song facts editor does. */
   function watchCustomFacts(box, name) {
@@ -295,6 +333,11 @@
 
   function renderPaths() {
     for (const c of $$(".overlay-path")) c.textContent = state.overlayPath;
+    // A preset's folder is shown as Documents\..., unless Documents lives somewhere else (OneDrive): then the real one.
+    for (const c of $$("[data-np-folder]")) {
+      c.dataset.usual ??= c.textContent;
+      c.textContent = state.nowPlayingFolders?.[c.dataset.npFolder] || c.dataset.usual;
+    }
   }
 
   // --- Dashboard -----------------------------------------------------------
@@ -302,7 +345,7 @@
   const ICONS = { ok: "✓ ", warn: "! ", bad: "✕ ", "": "" };
 
   /** Status in words and a symbol, never color alone. */
-  function light(id, kind, text) {
+  function setStatusLight(id, kind, text) {
     const li = $("#" + id);
     li.className = kind;
     $("em", li).textContent = ICONS[kind] + text;
@@ -315,47 +358,60 @@
     if (!state || !status) return;
     if (status.state !== "running") runningSince = 0;
     else runningSince ||= Date.now();
-    const obsGrace = runningSince > 0 && Date.now() - runningSince < OBS_GRACE_MS;
-    const h = status.health;
-    const obs = obsConnected(status);
-    const otherClient = h && h.obsClients > 0 && !obs;
-    const downloading = state.settings.ai === "builtin" && !state.modelReady;
-    const rejected = state.signInExpired || h?.status === "unauthorized";
+    const seen = {
+      health: status.health,
+      obs: obsConnected(status),
+      obsGrace: runningSince > 0 && Date.now() - runningSince < OBS_GRACE_MS,
+      downloading: state.settings.ai === "builtin" && !state.modelReady,
+      rejected: !onFile() && (state.signInExpired || status.health?.status === "unauthorized"),
+    };
+    renderLights(status, seen);
+    renderBanner(status, seen);
+    if (!$("#view-setup").hidden) watchForObs();
+  }
 
+  /** The three status lights: Songs, Facts and Stream. */
+  function renderLights(status, { health: h, obs, obsGrace, downloading, rejected }) {
+    const otherClient = h && h.obsClients > 0 && !obs;
     // Songs
-    if (!h) light("light-songlist", "", "Starting");
-    else if (rejected) light("light-songlist", "bad", onSE() ? "Paste a new token in Settings" : "Sign in again");
+    if (!h) setStatusLight("light-songlist", "", "Starting");
+    else if (rejected) setStatusLight("light-songlist", "bad", onStreamElements() ? "Paste a new token in Settings" : "Sign in again");
     else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) {
-      light("light-songlist", "ok", h.currentSong ? (onSE() ? "Following your song requests" : "Following your queue") : "Connected");
+      setStatusLight("light-songlist", "ok", h.currentSong
+        ? (onFile() ? "Following your file" : onStreamElements() ? "Following your song requests" : "Following your queue")
+        : (onFile() ? "Watching your file" : "Connected"));
     }
-    else light("light-songlist", "warn", "Reconnecting");
+    else setStatusLight("light-songlist", "warn", "Reconnecting");
 
     // Facts
-    if (downloading) light("light-ai", state.modelDownload?.error ? "warn" : "", "Getting ready: " + (downloadText(state.modelDownload) || "starting"));
-    else if (state.builtinFailed && state.settings.ai === "builtin") light("light-ai", "bad", "Needs attention");
-    else if (switchingQuality() && status.state === "running") light("light-ai", "ok", `Ready (${qualityName()}: ${downloadText(state.modelDownload) || "starting"})`);
-    else if (status.state === "running") light("light-ai", "ok", "Ready");
-    else light("light-ai", "", "Starting");
+    if (downloading) setStatusLight("light-ai", state.modelDownload?.error ? "warn" : "", "Getting ready: " + (downloadText(state.modelDownload) || "starting"));
+    else if (state.builtinFailed && state.settings.ai === "builtin") setStatusLight("light-ai", "bad", "Needs attention");
+    else if (switchingQuality() && status.state === "running") setStatusLight("light-ai", "ok", `Ready (${qualityName()}: ${downloadText(state.modelDownload) || "starting"})`);
+    else if (status.state === "running") setStatusLight("light-ai", "ok", "Ready");
+    else setStatusLight("light-ai", "", "Starting");
 
     // Stream
-    if (state.paused) light("light-obs", "warn", "Bubbles paused");
-    else if (obs) light("light-obs", "ok", "On your stream");
-    else if (otherClient) light("light-obs", "warn", "Open in a browser, not OBS");
-    else if (obsGrace) light("light-obs", "", "Connecting to OBS");
-    else light("light-obs", status.state === "running" ? "warn" : "", "Not in OBS yet");
+    if (state.paused) setStatusLight("light-obs", "warn", "Bubbles paused");
+    else if (obs) setStatusLight("light-obs", "ok", "On your stream");
+    else if (otherClient) setStatusLight("light-obs", "warn", "Open in a browser, not OBS");
+    else if (obsGrace) setStatusLight("light-obs", "", "Connecting to OBS");
+    else setStatusLight("light-obs", status.state === "running" ? "warn" : "", "Not in OBS yet");
+  }
 
-    // Banner
+  /** The one banner at the top of the dashboard: what matters most right now. */
+  function renderBanner(status, { health: h, obs, obsGrace, downloading, rejected }) {
     const banner = $("#status-banner");
     let kind = "warn", title = "Getting BubbleFacts ready", detail = "This only takes a moment.";
     if (status.state === "failing") { kind = "bad"; title = "Something's wrong"; detail = status.message + ". BubbleFacts keeps trying on its own. If this doesn't clear, use Report a problem under Help."; }
     else if (status.state === "restarting") { title = "Fixing a problem"; detail = status.message + ". This fixes itself in a moment."; }
     else if (rejected) {
       kind = "bad"; title = "Reconnect your song list";
-      detail = onSE() ? "StreamElements didn't accept your JWT token. Paste a new one in Settings." : "StreamerSongList needs you to sign in again.";
+      detail = onStreamElements() ? "StreamElements didn't accept your JWT token. Paste a new one in Settings." : "StreamerSongList needs you to sign in again.";
     }
     else if (status.state === "stopped") {
       title = "Connect your songs";
-      detail = onSE() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
+      detail = onFile() ? "Choose your now playing file in Settings to start."
+        : onStreamElements() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
     }
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
     else if (status.state === "running" && !obs && obsGrace) { title = "Connecting to OBS"; detail = "If BubbleFacts is already in OBS, this takes a few seconds."; }
@@ -372,8 +428,6 @@
     $("#status-title").textContent = title;
     $("#status-detail").textContent = detail;
     $("#pause-toggle").textContent = state.paused ? "Resume bubbles" : "Pause bubbles";
-
-    if (!$("#view-setup").hidden) renderObsCheck();
   }
 
   /** Why no facts are listed: no song yet, still looking, nothing reliable, or a failure. Silence on stream is normal. */
@@ -381,6 +435,7 @@
     if (!r.song) return "Facts appear here a few seconds after a song starts.";
     if (!r.ready) return "Looking for facts about this song…";
     if (r.song.liveLearn || r.outcome === "liveLearn") return "Live learn: the banner shows. No source knew this request, so no facts.";
+    if (r.outcome === "factsOff") return "Facts are off for this song or its artist, and you haven't written any of your own for it.";
     if (r.outcome === "generationFailed") return "BubbleFacts couldn't write facts for this song. It tries again the next time it plays.";
     return "No reliable facts for this song, so no bubbles. That's normal: BubbleFacts stays quiet rather than guess. Everything is working.";
   }
@@ -428,7 +483,7 @@
           return;
         }
         const got = (await api.getSongFacts()) || {};
-        openSongFacts(got.song, got.entry);
+        openSongFacts(got.song, got.entry, got.off);
       });
     }
     const wrong = $(".wrong", li);
@@ -450,7 +505,34 @@
     return li;
   }
 
-  /** Songs that already played, with Wrong on each fact: for once your hands are free. */
+  /**
+   * "No facts for this song" or "for this artist", one click (issue #262): your own facts
+   * still show. Pressed again, it's back on for the next time the song plays.
+   */
+  function offButton(song, kind, on) {
+    const label = kind === "song" ? "No facts for this song" : "No facts for this artist";
+    const b = Object.assign(document.createElement("button"), {
+      type: "button",
+      className: "link",
+      textContent: on ? `Facts back on for this ${kind}` : label,
+    });
+    b.addEventListener("click", async () => {
+      const r = await api.setFactsOff(song, kind, !on);
+      lastRecent = "";
+      showWrongNote(
+        r && r.saved
+          ? !on
+            ? `${label}: only your own facts show for ${kind === "song" ? `"${song.title}"` : song.artist}.`
+            : `Facts are back on for ${kind === "song" ? `"${song.title}"` : song.artist} from the next time it plays.`
+          : "Couldn't change that. Try again in a moment.",
+        null
+      );
+      refreshRecent();
+    });
+    return b;
+  }
+
+  /** Songs that already played, with Wrong on each fact and the switches: for once your hands are free. */
   function renderEarlier(earlier) {
     $("#earlier").hidden = !earlier.length;
     const box = $("#earlier-list");
@@ -458,9 +540,12 @@
     for (const e of earlier) {
       const title = e.song.title + (e.song.artist && !/^unknown$/i.test(e.song.artist) ? " — " + e.song.artist : "");
       const heading = Object.assign(document.createElement("p"), { className: "now-song", textContent: title });
+      const off = e.off || {};
+      const switches = Object.assign(document.createElement("p"), { className: "earlier-off" });
+      switches.append(offButton(e.song, "song", !!off.song), " ", offButton(e.song, "artist", !!off.artist));
       const ul = Object.assign(document.createElement("ul"), { className: "facts" });
       for (const f of e.facts) ul.appendChild(factItem(f, e.song, title, false));
-      box.append(heading, ul);
+      box.append(heading, switches, ul);
     }
   }
 
@@ -474,7 +559,7 @@
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
     $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
     // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
-    const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text), (r.earlier || []).map((e) => [e.song.title, e.facts.length])]);
+    const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text), (r.earlier || []).map((e) => [e.song.title, e.facts.length, e.off])]);
     if (drawn === lastRecent) return;
     lastRecent = drawn;
     $("#now-song").textContent = song || "Nothing playing yet";
@@ -515,7 +600,7 @@
       showWrongNote(`${start} It's one of your own facts for this song, so it shows again the next time the song plays until you change it.`, null, async () => {
         const got = (await api.getSongFacts(song)) || {};
         show("dashboard");
-        openSongFacts(got.song || song, got.entry);
+        openSongFacts(got.song || song, got.entry, got.off);
       });
       return;
     }
@@ -529,7 +614,9 @@
       : result.article
         ? `BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
         : "";
-    showWrongNote(`${start} ${what}`.trim(), result.article);
+    // The song's other bubbles from that source came off with it (issue #262).
+    const rest = result.pulled > 0 ? "This song's other bubbles from that source are off too." : "";
+    showWrongNote(`${start} ${what} ${rest}`.trim(), result.article);
   }
 
   /** Settings, at the custom fact: in Your own facts, or About your own compositions. */
@@ -543,20 +630,27 @@
 
   $("#song-facts-open").addEventListener("click", async () => {
     const r = (await api.getSongFacts()) || {};
-    openSongFacts(r.song, r.entry);
+    openSongFacts(r.song, r.entry, r.off);
   });
+  /** The switches in the editor: from the song's entry, and the artist's from whichever of their songs has it (`off`). */
+  function setOffSwitches(entry, off) {
+    const e = entry || {};
+    $("#sf-off-song").checked = off ? !!off.song : !!e.noFacts;
+    $("#sf-off-artist").checked = off ? !!off.artist : !!e.noArtistFacts;
+  }
   /** Open the editor on a song: the one that's on, one from the saved list, or none (the streamer names it). */
-  function openSongFacts(song, entry) {
+  function openSongFacts(song, entry, off) {
     // The edit belongs to this song, even if another one starts before you save.
     // With nothing playing, the streamer names the song: getting ready before a show.
     const e = entry || {};
-    otherSong(!song);
+    useNamedSong(!song);
     songFactsTarget = song || null;
     if (song) $("#song-facts-title").textContent = `"${song.title}"`;
     $("#sf-writers").value = (e.songwriters || []).join(", ");
     $("#sf-link").value = e.link || "";
     setFactBoxes(e.facts || []);
-    renderTwitchFill();
+    setOffSwitches(entry, off);
+    updateTwitchFillRow();
     $("#song-facts-result").textContent = "";
     $("#song-facts-form").hidden = false;
     $("#song-facts-open").hidden = true;
@@ -564,9 +658,8 @@
     $$("#sf-facts textarea").at(-1).focus();
     $("#song-facts-form").scrollIntoView({ block: "nearest" });
   }
-  // The server's limits (SONG_FACT_LIMITS in song-facts.ts): shown here, so a save is never cut short.
+  // The server's limit on facts per song (SONG_FACT_LIMITS in song-facts.ts).
   const MAX_FACTS = 20;
-  const MAX_FACT_LENGTH = 300;
   /** A fact as it's saved: a line break inside it is a space. */
   const cleanFact = (text) => text.replace(/\s+/g, " ").trim();
   /** Characters used, shown once a fact nears the limit. */
@@ -632,7 +725,7 @@
   // Asked once typing pauses, and only the newest answer counts.
   let twitchFillAsk = 0;
   let twitchFillTimer;
-  async function renderTwitchFill() {
+  async function updateTwitchFillRow() {
     const ask = ++twitchFillAsk;
     const login = state.twitch && state.twitch.available ? await api.twitchLogin(sfArtist(), $("#sf-link").value) : "";
     if (ask !== twitchFillAsk) return;
@@ -642,7 +735,7 @@
   for (const id of ["#sf-link", "#sf-artist"]) {
     $(id).addEventListener("input", () => {
       clearTimeout(twitchFillTimer);
-      twitchFillTimer = setTimeout(renderTwitchFill, 300);
+      twitchFillTimer = setTimeout(updateTwitchFillRow, 300);
     });
   }
   $("#sf-twitch").addEventListener("click", async () => {
@@ -672,7 +765,7 @@
   let pickedSong = null;
   let songMatches = [];
   let activeMatch = -1;
-  // Asked once typing pauses, and only the newest answer counts (like renderTwitchFill).
+  // Asked once typing pauses, and only the newest answer counts (like updateTwitchFillRow).
   let songSearchAsk = 0;
   let songSearchTimer;
   const titleInput = $("#sf-title");
@@ -737,16 +830,17 @@
     $("#sf-artist").value = song.artist;
     closeSongList();
     songsStatus.textContent = `Picked ${song.title}${song.artist ? " by " + song.artist : ""}.`;
-    renderTwitchFill();
+    updateTwitchFillRow();
     // Facts already saved for it open with it, so a save doesn't replace them unseen.
-    if (factBoxes().length || $("#sf-writers").value.trim() || $("#sf-link").value.trim()) return;
+    if (factBoxes().length || $("#sf-writers").value.trim() || $("#sf-link").value.trim() || $("#sf-off-song").checked || $("#sf-off-artist").checked) return;
     // Matched the way a save matches: by its ID, or by title and artist for facts saved before it was picked from the list.
     const saved = ((await api.getSongFacts({ title: song.title, artist: song.artist, songId: song.id })) || {}).entry;
     if (!saved || pickedSong !== song) return;
     $("#sf-writers").value = (saved.songwriters || []).join(", ");
     $("#sf-link").value = saved.link || "";
     setFactBoxes(saved.facts || []);
-    renderTwitchFill();
+    setOffSwitches(saved);
+    updateTwitchFillRow();
   }
   titleInput.addEventListener("input", () => {
     clearTimeout(songSearchTimer);
@@ -772,18 +866,20 @@
   titleInput.addEventListener("blur", closeSongList);
 
   /** Switch the editor between the song that's on and one the streamer names. */
-  function otherSong(on) {
-    $("#sf-identity").hidden = !on;
-    $("#sf-save").textContent = on ? "Save" : "Save and show";
-    if (on) {
+  function useNamedSong(named) {
+    $("#sf-identity").hidden = !named;
+    $("#sf-save").textContent = named ? "Save" : "Save and show";
+    if (named) {
       songFactsTarget = null;
       pickedSong = null;
       closeSongList();
       $("#song-facts-title").textContent = "a song";
       // StreamElements has no song list to pick from.
-      $("#sf-title-hint").textContent = onSE() ? "as it appears on the request" : "type a few letters to pick it from your song list";
+      $("#sf-title-hint").textContent = onFile() ? "as it appears in your file"
+        : onStreamElements() ? "as it appears on the request" : "type a few letters to pick it from your song list";
       for (const id of ["#sf-title", "#sf-artist", "#sf-writers", "#sf-link"]) $(id).value = "";
       setFactBoxes([]);
+      setOffSwitches(null);
       $("#sf-twitch-row").hidden = true;
     }
   }
@@ -819,6 +915,8 @@
       songwriters: split($("#sf-writers").value, /,/),
       link: $("#sf-link").value.trim(),
       facts: factBoxes(),
+      noFacts: $("#sf-off-song").checked,
+      noArtistFacts: $("#sf-off-artist").checked,
     });
     if (result && result.saved) {
       $("#song-facts-form").hidden = true;
@@ -876,7 +974,9 @@
 
   /** What the notices last said. The box is a live region, so it's redrawn only when that changes. */
   let lastNotices = "";
-  function renderNotices() {
+
+  /** Everything the dashboard should say right now, as { kind, text, buttonText, onClick }, in order. */
+  function collectNotices() {
     const notices = [];
     const add = (kind, text, buttonText, onClick) => notices.push({ kind, text, buttonText, onClick });
     const signInNotice = (text) => !state.signInAvailable
@@ -887,7 +987,9 @@
       e.currentTarget.before(result);
       if (await doSignIn(e.currentTarget, result)) renderNotices();
     });
-    if (onSE()) {
+    if (onFile()) {
+      // Nothing to sign in to.
+    } else if (onStreamElements()) {
       if (state.signInExpired) add("warn", "BubbleFacts couldn't read your saved StreamElements token. Paste it again in Settings.", "Open Settings", () => show("settings"));
       else if (state.status?.health?.status === "unauthorized") add("warn", "StreamElements didn't accept your JWT token. Paste a new one in Settings.", "Open Settings", () => show("settings"));
     }
@@ -926,6 +1028,11 @@
       });
     }
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
+    return notices;
+  }
+
+  function renderNotices() {
+    const notices = collectNotices();
     // Redrawn on every state change, a screen reader would read them all again, and a focused button would lose focus.
     const said = JSON.stringify(notices.map((n) => [n.kind, n.text, n.buttonText]));
     if (said === lastNotices) return;
@@ -1030,6 +1137,7 @@
     renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
+    $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
       ? (s.seJwtSet ? `✓ Connected to StreamElements${s.seChannel ? " as " + s.seChannel : ""}.` : "Not connected.")
       : signedIn ? (s.channel ? `✓ Signed in as ${s.channel}.` : "✓ Signed in.") : s.tokenSet ? `Connected to ${s.channel} with a token.` : "Not connected.";
@@ -1111,8 +1219,8 @@
   form.elements.intervalSeconds.addEventListener("input", renderTimingHint);
   form.elements.durationSeconds.addEventListener("input", renderTimingHint);
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  /** What the Settings form says now, as the changes to save. */
+  function readSettingsForm() {
     const changes = {};
     for (const el of form.elements) {
       if (!el.name) continue;
@@ -1123,32 +1231,47 @@
     }
     changes.myFacts = lines($("#s-myfacts"));
     changes.myOriginals = lines($("#s-myoriginals"));
+    if (changes.token) changes.tokenKind = "streamer";
+    return changes;
+  }
+
+  /**
+   * Why the form can't be saved as filled in, or "". It also drops the fields the chosen song
+   * source hides, and fills in what its test learns (the StreamElements channel).
+   */
+  async function settingsProblem(changes) {
     const tooLong = customFactsProblem($("#s-myfacts"), "Your own facts", true)
       || customFactsProblem($("#s-myoriginals"), "About your own compositions", true);
-    if (tooLong) return setResult($("#settings-result"), tooLong, "bad");
-    if (changes.token) changes.tokenKind = "streamer";
-    if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return setResult($("#settings-result"), "Add your Groq key first.", "bad");
-    if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return setResult($("#settings-result"), "Add your Anthropic key first.", "bad");
+    if (tooLong) return tooLong;
+    if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return "Add your Groq key first.";
+    if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return "Add your Anthropic key first.";
     const switching = changes.songSource !== state.settings.songSource;
-    if (changes.songSource === "streamelements") {
+    if (changes.songSource === "nowplaying") {
+      delete changes.token; // The StreamerSongList and StreamElements fields are hidden; keep what's saved there.
+      delete changes.seJwt;
+      if (changes.nowPlayingPreset === "none" && !changes.nowPlayingFile) return "Choose the file your music app writes the song to first.";
+    } else if (changes.songSource === "streamelements") {
       delete changes.token; // The StreamerSongList fields are hidden; keep what's saved there.
-      if (!changes.seJwt && !state.settings.seJwtSet) return setResult($("#settings-result"), "Paste your StreamElements JWT token first.", "bad");
+      if (!changes.seJwt && !state.settings.seJwtSet) return "Paste your StreamElements JWT token first.";
       if (changes.seJwt || switching || changes.seChannel !== state.settings.seChannel) {
         setResult($("#settings-result"), "Checking your StreamElements token...");
         const r = await api.testStreamElements(changes.seChannel, changes.seJwt);
-        if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
+        if (!r.ok) return r.reason;
         changes.seChannel = r.channel;
       }
     } else {
       delete changes.seJwt;
-      if (switching && !changes.token && !state.settings.tokenSet) {
-        return setResult($("#settings-result"), "Sign in with StreamerSongList first, or paste a token.", "bad");
-      }
+      if (switching && !changes.token && !state.settings.tokenSet) return "Sign in with StreamerSongList first, or paste a token.";
     }
     if (changes.token) {
       const r = await api.testConnection(changes.channel, changes.token, "streamer");
-      if (!r.ok) return setResult($("#settings-result"), r.reason, "bad");
+      if (!r.ok) return r.reason;
     }
+    return "";
+  }
+
+  /** Save the changes, show the new state, and say what happened. */
+  async function saveSettingsForm(changes) {
     const qualityBefore = state.settings.aiQuality;
     const saved = await api.saveSettings(changes);
     if (saved.error) return setResult($("#settings-result"), saved.error, "bad");
@@ -1160,6 +1283,14 @@
     setResult($("#settings-result"), newQuality
       ? `✓ Saved. The ${qualityName()} AI is downloading; the one you have keeps writing facts until it's ready.`
       : "✓ Saved. BubbleFacts restarted with your changes.", "ok");
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const changes = readSettingsForm();
+    const problem = await settingsProblem(changes);
+    if (problem) return setResult($("#settings-result"), problem, "bad");
+    await saveSettingsForm(changes);
   });
 
   /** Every song with its own facts, to edit or remove without waiting for it to play. */
@@ -1173,7 +1304,8 @@
       const li = document.createElement("li");
       const name = document.createElement("span");
       const count = (entry.facts || []).length;
-      name.textContent = `${entry.title}${entry.artist ? " — " + entry.artist : ""} (${count} ${count === 1 ? "fact" : "facts"})`;
+      const off = [entry.noFacts ? "no facts for this song" : "", entry.noArtistFacts ? "no facts for this artist" : ""].filter(Boolean);
+      name.textContent = `${entry.title}${entry.artist ? " — " + entry.artist : ""} (${[`${count} ${count === 1 ? "fact" : "facts"}`, ...off].join(", ")})`;
       const button = (text, onClick) => {
         const b = document.createElement("button");
         b.type = "button";
@@ -1184,9 +1316,11 @@
       };
       li.append(
         name, " ",
-        button("Edit", () => {
+        button("Edit", async () => {
+          // The artist's switch may be saved with another of their songs.
+          const got = await api.getSongFacts(song);
           show("dashboard");
-          openSongFacts(song, entry);
+          openSongFacts(song, entry, got && got.off);
         }),
         " ",
         button("Remove", async () => {
@@ -1202,14 +1336,29 @@
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
 
   function showSettingsSource() {
-    const se = form.elements.songSource.value === "streamelements";
+    const source = form.elements.songSource.value;
+    const se = source === "streamelements";
+    const file = source === "nowplaying";
     $("#s-se-box").hidden = !se;
-    $("#s-ssl-box").hidden = se;
-    $("#s-livelearns-row").hidden = se;
-    // The saved connection's line only describes the source it belongs to.
-    $("#s-signed-in").hidden = se !== onSE();
+    $("#s-ssl-box").hidden = se || file;
+    $("#s-np-box").hidden = !file;
+    $("#s-np-other").hidden = form.elements.nowPlayingPreset.value !== "none";
+    $("#s-livelearns-row").hidden = se || file;
+    // The saved connection's line only describes the source it belongs to; a file's choices say it themselves.
+    $("#s-signed-in").hidden = file || source !== state.settings.songSource;
   }
   for (const r of form.elements.songSource) r.addEventListener("change", showSettingsSource);
+  for (const r of form.elements.nowPlayingPreset) r.addEventListener("change", showSettingsSource);
+
+  $("#s-np-choose").addEventListener("click", async () => {
+    const r = await api.chooseNowPlayingFile();
+    if (!r?.ok) return;
+    const field = $("#s-np-file");
+    field.value = r.path;
+    field.title = r.path;
+    // Counts as an edit not yet saved, like typing in any other field.
+    field.dispatchEvent(new window.Event("input", { bubbles: true }));
+  });
 
   $("#s-sign-in").addEventListener("click", async (e) => {
     if (await doSignIn(e.currentTarget, $("#settings-result"))) {
@@ -1291,7 +1440,12 @@
       $("#token-box").open = !state.signInAvailable;
       if (!state.signInAvailable) $("#token-summary").textContent = "Connect with a token";
       $("#setup-se-channel").value = state.settings.seChannel || "";
-      if (onSE()) $('input[name="setup-source"][value="streamelements"]').checked = true;
+      if (onStreamElements()) $('input[name="setup-source"][value="streamelements"]').checked = true;
+      if (onFile()) $('input[name="setup-source"][value="nowplaying"]').checked = true;
+      setupFile = state.settings.nowPlayingFile;
+      $(`input[name="setup-np"][value="${state.settings.nowPlayingPreset}"]`).checked = true;
+      $("#setup-np-format").value = state.settings.nowPlayingFormat;
+      showNowPlayingBox();
       showSourceBox();
       if (connected()) toStreamStep();
       else goStep(1);

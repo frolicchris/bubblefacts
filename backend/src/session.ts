@@ -18,6 +18,8 @@ export interface Session {
   savedAt: number;
   /** Earlier songs this stream and their facts, newest first, so Wrong works after a song ends. */
   earlier?: Array<{ song: SSLSong; facts: Fact[] }>;
+  /** Songs with facts since the credit bubble last went out (credit.ts). Absent before it first has. */
+  creditSince?: number;
 }
 
 /** A restart this long after the facts went out starts the song afresh: it's another day's stream. */
@@ -43,13 +45,18 @@ export function loadSession(now = Date.now()): Session | null {
     const ok = s && typeof s.song?.title === "string" && Array.isArray(s.facts) && Array.isArray(s.recent)
       && typeof s.savedAt === "number" && typeof s.shownAt === "number"
       && s.facts.every((f) => typeof f?.text === "string" && typeof f.delaySeconds === "number")
-      && s.recent.every((r) => typeof r === "string");
+      && s.recent.every((r) => typeof r === "string")
+      && (s.creditSince === undefined || (Number.isInteger(s.creditSince) && s.creditSince >= 0));
     return ok && now - s.savedAt < REMEMBER_FOR_MS && now >= s.savedAt ? s : null;
   } catch {
     return null;
   }
 }
 
+/**
+ * Two requests for the same song: the same title and artist, nothing else.
+ * `sameSong` in wrong-target.ts also compares the song and video ids.
+ */
 export const sameRequest = (a: Pick<SSLSong, "title" | "artist"> | null | undefined, b: Pick<SSLSong, "title" | "artist"> | null | undefined) =>
   !!a && !!b && a.title === b.title && (a.artist ?? "") === (b.artist ?? "");
 
@@ -73,7 +80,7 @@ export function readingSeconds(fact: Pick<Fact, "text" | "durationSeconds">): nu
 }
 
 /** A pedal press this soon after a new bubble pops up was meant for the one before it, if that one is still up. */
-export const JUST_APPEARED_SECONDS = 1.5;
+const JUST_APPEARED_SECONDS = 1.5;
 
 /**
  * The bubble a hands-free Wrong is for: the one on stream now, or when none

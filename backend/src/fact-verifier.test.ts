@@ -24,6 +24,7 @@ import {
   platformSupported,
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
+  foldSymbols,
   dropVersionTags,
   normalizeTitle,
   tooSimilar,
@@ -40,10 +41,12 @@ import {
   fetchGrounding,
   clearGroundingCache,
   readings,
+  lookupForm,
   isRespelling,
   isSameWorkRedirect,
   editDistance,
   opensAboutMusicOrWork,
+  isDisambiguation,
   isPlaceholderRequest,
   requestNames,
   articleMisfit,
@@ -54,9 +57,9 @@ import {
   unsupportedConnective,
   unsupportedRelation,
   unsupportedCredit,
-  isAWork,
-  isAPerformer,
-  isAPiece,
+  isWorkArticle,
+  isPerformerArticle,
+  isPieceArticle,
   isInitials,
   lostQualifier,
   swappedSubject,
@@ -73,7 +76,11 @@ import {
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { topic } from "./topic";
+
+/** Last edited long ago: an article read as it is (issue #242). */
+const OLD_ENOUGH = [{ timestamp: "2020-01-01T00:00:00Z" }];
 
 describe("resolveGameAndTrack", () => {
   it("treats the artist field as the game, which is how the song list is keyed", () => {
@@ -134,6 +141,19 @@ describe("splitGameAndTrack", () => {
 
   it("does not split on a hyphenated word", () => {
     expect(splitGameAndTrack("Well-Worn Dirt Road").game).toBe("Well-Worn Dirt Road");
+  });
+
+  it("never reads a featured artist or a length tag as the game (#244)", () => {
+    for (const title of ["Paper Lanterns (feat. Jane Composer)", "Paper Lanterns (ft. Jane Composer)", "Paper Lanterns (featuring Jane Composer)", "Paper Lanterns (with Jane Composer)", "Paper Lanterns (TV Size)", "Paper Lanterns (From The Vault)"]) {
+      expect(splitGameAndTrack(dropVersionTags(title))).toEqual({ game: "Paper Lanterns", track: "Paper Lanterns" });
+      expect(dropVersionTags(title)).toBe("Paper Lanterns");
+    }
+  });
+
+  it('reads the work after "From" in a tag (#244)', () => {
+    expect(splitGameAndTrack('Paper Lanterns (From "Harbor Lights")')).toEqual({ game: "Harbor Lights", track: "Paper Lanterns" });
+    expect(splitGameAndTrack("Paper Lanterns (From Harbor Lights)").game).toBe("Harbor Lights");
+    expect(splitGameAndTrack("Paper Lanterns (Harbor Lights)").game).toBe("Harbor Lights");
   });
 });
 
@@ -860,7 +880,7 @@ describe("fetchGrounding", () => {
     const term = params.get("srsearch");
     const body = term !== null
       ? { query: { search: (pages[term] ?? []).map((title) => ({ title })) } }
-      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.` } } } };
+      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.`, revisions: OLD_ENOUGH } } } };
     return { ok: true, status: 200, json: async () => body } as Response;
   });
 
@@ -957,6 +977,78 @@ describe("fetchGrounding", () => {
     pages = { "Celeste video game": ["Celeste (video game)"] };
     expect((await fetchGrounding({ title: "First Steps", artist: "Celeste" })).length).toBeLessThanOrEqual(2400);
   });
+
+  describe("notes and year tags in the list's text (issue #186)", () => {
+    beforeEach(() => {
+      pages = { "Glass Anthem Velvet Foxes": ["Glass Anthem"] };
+      mentions = { "Glass Anthem": "a song by Velvet Foxes" };
+    });
+
+    it("finds the song when the artist carries a bracketed note", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toMatch(/^Glass Anthem\n/);
+      expect(await fetchGrounding({ title: "Glass Anthem (1979)", artist: "Velvet Foxes (Ally) (Welsh-Irish)" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("finds the song when the bracket is never closed", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (LGBTQ+" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("does not split a note at a slash inside its brackets", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Cherokee/Irish)" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("finds the song when a featured credit and a year tag follow the title", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem (feat. Pale Rivers) (2020)", artist: "Velvet Foxes" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("tries the list's own text first, so what works today is unchanged", async () => {
+      pages = { "Glass Anthem Velvet Foxes (Australian)": ["Glass Anthem (Velvet Foxes song)"], "Glass Anthem Velvet Foxes": ["Glass Anthem"] };
+      mentions = { "Glass Anthem (Velvet Foxes song)": "a song by Velvet Foxes", "Glass Anthem": "a song by Velvet Foxes" };
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toMatch(/^Glass Anthem \(Velvet Foxes song\)\n/);
+    });
+
+    it("keeps the song's name and the artist as listed for display (no mutation)", async () => {
+      const song = { title: "Glass Anthem (2020)", artist: "Velvet Foxes (Australian)" };
+      await fetchGrounding(song);
+      expect(song).toEqual({ title: "Glass Anthem (2020)", artist: "Velvet Foxes (Australian)" });
+    });
+  });
+});
+
+describe("lookupForm (issue #186)", () => {
+  it("drops notes in brackets from the artist, closed or not", () => {
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes" });
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Ally) (Welsh-Irish)" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Cherokee/Irish)" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (LGBTQ+" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes [Ally]" })?.artist).toBe("Velvet Foxes");
+  });
+
+  it("drops a year tag and a featured credit in brackets from the title", () => {
+    expect(lookupForm({ title: "Glass Anthem (1979)", artist: "Velvet Foxes" })).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes" });
+    expect(lookupForm({ title: "Glass Anthem (feat. Pale Rivers) (2020)", artist: "Velvet Foxes" })?.title).toBe("Glass Anthem");
+    expect(lookupForm({ title: "Glass Anthem (1979) - Live", artist: "Velvet Foxes" })?.title).toBe("Glass Anthem - Live");
+  });
+
+  it("returns nothing when there is nothing to drop", () => {
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem (Remastered 1999)", artist: "Velvet Foxes" })).toBeNull();
+  });
+
+  it("keeps brackets that are part of a real name", () => {
+    expect(lookupForm({ title: "(Don't Fear) The Reaper", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "(I Can't Get No) Satisfaction", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "(hed) p.e." })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet (Foxes) Quartet" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "(Ally)" })).toBeNull();
+    expect(lookupForm({ title: "(1984)", artist: "Velvet Foxes" })).toBeNull();
+  });
+
+  it("leaves the song as listed", () => {
+    const song = { title: "Glass Anthem (1979)", artist: "Velvet Foxes (Australian)", performer: true };
+    expect(lookupForm(song)).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes", performer: true });
+    expect(song.title).toBe("Glass Anthem (1979)");
+  });
 });
 
 describe("artist names (peer review)", () => {
@@ -1001,10 +1093,10 @@ describe("restatesRequest", () => {
   });
 
   it("drops an originals credit that names the artist the request showed", () => {
-    const song = { title: "Water in the Moonlight", artist: "Chris" };
-    expect(restatesRequest('"Water in the Moonlight" is an original composition by Chris.', song)).toBe(true);
+    const song = { title: "Water in the Moonlight", artist: "Robin" };
+    expect(restatesRequest('"Water in the Moonlight" is an original composition by Robin.', song)).toBe(true);
     expect(restatesRequest("You're hearing this one straight from the person who wrote it.", song)).toBe(true);
-    expect(restatesRequest("Chris has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
+    expect(restatesRequest("Robin has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
   });
 });
 
@@ -1328,7 +1420,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
       body = { query: { redirects: reds, pages: Object.fromEntries(pages.map((pg, i) => [String(i), pg])) } };
     } else {
       const t = p.get("titles") ?? "";
-      body = { query: { pages: { 1: { extract: extracts[t] ?? "" } } } };
+      body = { query: { pages: { 1: { extract: extracts[t] ?? "", revisions: OLD_ENOUGH } } } };
     }
     return { ok: true, status: 200, json: async () => body } as Response;
   });
@@ -1446,8 +1538,8 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Victory Overwatch": ["Overwatch and fan art"], "Overwatch Victory": ["Overwatch and fan art"] };
     extracts = { "Overwatch and fan art": `The Overwatch franchise inspired fan art. Players celebrate a victory.${LONG}` };
     expect(await fetchGrounding({ title: "Victory - Overwatch", artist: "Some Remixer" })).toBe("");
-    expect(isAPiece("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
-    expect(isAPiece("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
+    expect(isPieceArticle("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
+    expect(isPieceArticle("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
   });
 
   it("reads a work after a dash in the title when the artist is a remixer", async () => {
@@ -1566,21 +1658,21 @@ describe("glued and dashed version tags, credits of several names (a second song
   });
 
   it("tells a game, a film or a show from a person, a song or a tale", () => {
-    expect(isAWork("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
-    expect(isAWork("The Mask (1994 film)", "")).toBe(true);
-    expect(isAWork("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
-    expect(isAWork("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
-    expect(isAWork("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
-    expect(isAWork("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
-    expect(isAWork("Queen (band)", "")).toBe(false);
+    expect(isWorkArticle("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
+    expect(isWorkArticle("The Mask (1994 film)", "")).toBe(true);
+    expect(isWorkArticle("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
+    expect(isWorkArticle("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
+    expect(isWorkArticle("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
+    expect(isWorkArticle("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
+    expect(isWorkArticle("Queen (band)", "")).toBe(false);
   });
 
   it("tells a performer from a racehorse or a show's season", () => {
-    expect(isAPerformer("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
-    expect(isAPerformer("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
-    expect(isAPerformer("Some Name (singer)", "")).toBe(true);
-    expect(isAPerformer("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
-    expect(isAPerformer("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
+    expect(isPerformerArticle("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
+    expect(isPerformerArticle("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
+    expect(isPerformerArticle("Some Name (singer)", "")).toBe(true);
+    expect(isPerformerArticle("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
+    expect(isPerformerArticle("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
   });
 
   it("never takes a company or a plural for a name", () => {
@@ -1610,6 +1702,20 @@ describe("the article must fit the request", () => {
     expect(opensAboutMusicOrWork("The Touhou Project is a bullet hell shoot 'em up video game series created by ZUN.")).toBe(true);
     expect(opensAboutMusicOrWork("Star Trek: Voyager is an American science fiction television series created by Rick Berman, Michael Piller and Jeri Taylor.")).toBe(true);
     expect(opensAboutMusicOrWork("Erik Satie was a French composer and pianist.")).toBe(true);
+  });
+
+  it("knows a classical piece by its form: a minuet, a mazurka, a work for piano", () => {
+    // A minuet's article named neither "composition" nor "piece", so it was skipped for a list page.
+    expect(opensAboutMusicOrWork("The Minuet in A minor, Op. 7, No. 3, is the third of the Seven Minuets by Robin Ashby. The set was published in 1801 as a work for solo piano.")).toBe(true);
+    expect(opensAboutMusicOrWork("The Mazurka in F major is one of the late mazurkas by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Harbor Lights Variations is a set of variations for string quartet by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Paper Lanterns is a town in the north of the county, on the river.")).toBe(false);
+  });
+
+  it('treats "can refer to" like "may refer to": a list page names other works', () => {
+    expect(isDisambiguation("Minuet in A minor can refer to numerous musical compositions, including:\nMinuet in A minor, by Jane Composer")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. It may also refer to:\nPaper Lanterns (album)")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. Critics called it her best single.")).toBe(false);
   });
 
   it("knows a request placeholder from a song", () => {
@@ -2268,5 +2374,60 @@ describe("true captions the screen dropped (#206, #207)", () => {
     // The whole title, not just its first words.
     const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
     expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
+  });
+});
+
+describe("artist names written with symbols (#245)", () => {
+  it("reads a symbol between letters as the letter it stands for", () => {
+    expect(foldSymbols("R!ver")).toBe("River");
+    expect(foldSymbols("Ma$on Jar")).toBe("Mason Jar");
+    expect(artistNames("R!ver")).toEqual(expect.arrayContaining(["r ver", "river"]));
+  });
+
+  it('leaves a trailing "!" and a leading "$" alone', () => {
+    expect(foldSymbols("Lantern Run!!")).toBe("Lantern Run!!");
+    expect(foldSymbols("$5 Band")).toBe("$5 Band");
+  });
+
+  it("does not call the folded name another artist", () => {
+    expect(qualifierNamesAnotherArtist("Paper Boats (River song)", "R!ver")).toBe(false);
+    expect(qualifierNamesAnotherArtist("Paper Boats (Jane Composer song)", "R!ver")).toBe(true);
+  });
+});
+
+describe("artist fields that mean no artist (issue #261)", () => {
+  const NO_ARTIST = ["Traditional", "Trad.", "Trad", "Anon.", "Anon", "Anonymous", "Unknown", "Folk", "TRADITIONAL", " anonymous. "];
+  const REAL_ARTISTS = ["Folk Lanterns", "The Unknown Harbor", "Anonymous Choir", "Traditional Revival Band", "Unknown Mortal Orchestra"];
+
+  it("recognizes each value, whole field only", () => {
+    for (const a of NO_ARTIST) expect(hasNoArtist(a)).toBe(true);
+    for (const a of REAL_ARTISTS) expect(hasNoArtist(a)).toBe(false);
+    expect(hasNoArtist("")).toBe(false);
+    expect(hasNoArtist(undefined)).toBe(false);
+  });
+
+  it("gives no names to look for or require in an article", () => {
+    for (const a of NO_ARTIST) expect(artistNames(a)).toEqual([]);
+    expect(artistNames("Folk Lanterns")).toEqual(["folk lanterns"]);
+    expect(artistNames("The Unknown Harbor")).toEqual(["the unknown harbor"]);
+  });
+
+  it("reads the title alone, never the value as the game", () => {
+    for (const a of NO_ARTIST) expect(resolveGameAndTrack({ title: "Marigold Lane", artist: a })).toEqual({ game: "Marigold Lane", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual({ game: "Folk Lanterns", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual({ game: "The Unknown Harbor", track: "Marigold Lane" });
+  });
+
+  it("looks the song up by its title alone, and a real artist stays an artist", () => {
+    for (const a of NO_ARTIST.filter((x) => !/^unknown$/i.test(x.trim()))) {
+      expect(readings({ title: "Marigold Lane", artist: a })).toEqual([{ game: "", track: "Marigold Lane", songAlone: true }]);
+    }
+    expect(readings({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual([{ game: "Folk Lanterns", track: "Marigold Lane" }]);
+    expect(readings({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual([{ game: "The Unknown Harbor", track: "Marigold Lane" }]);
+  });
+
+  it("does not count the value as a name a caption repeats", () => {
+    expect(restatesRequest("Marigold Lane is a traditional song.", { title: "Marigold Lane", artist: "Traditional" })).toBe(false);
+    expect(restatesRequest("Folk Lanterns wrote Marigold Lane.", { title: "Marigold Lane", artist: "Folk Lanterns" })).toBe(true);
   });
 });

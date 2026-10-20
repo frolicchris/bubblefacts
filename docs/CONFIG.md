@@ -29,7 +29,7 @@ which one. Names and web addresses are used as written, so double-check those.
 | `SSL_STREAMER_NAME` | *required* | Your channel name on streamersonglist.com. |
 | `SSL_ACCESS_TOKEN` | *required* | Lets the overlay read your queue. Create one under **Settings → Access**. Keep it private. |
 | `SSL_TOKEN_KIND` | `streamer` | Only change this if you use a different kind of token: `user` for one from **Profile → API Access** (it covers every channel you manage), or `bearer` for an OAuth token. |
-| `SSL_PLATFORM` | `twitch` | The platform your channel is on. |
+| `SSL_PLATFORM` | `twitch` | The platform your channel is on, as StreamerSongList names it (`twitch` for Twitch). |
 | `SSL_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks your queue in case it missed a change. Between 2000 and 300000. |
 | `SSL_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamerSongList before giving up on one check. |
 | `SSL_ENV`, `SSL_API_BASE`, `SSL_EVENTS_URL` | *production* | For testing against StreamerSongList's test servers. Leave them out. |
@@ -50,8 +50,8 @@ To find your JWT token:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `SONG_SOURCE` | `streamersonglist` | Where song requests come from: `streamersonglist` or `streamelements`. |
-| `SE_CHANNEL` | the token's channel | Your StreamElements channel name. BubbleFacts also uses it as your name, for spotting your own compositions. |
+| `SONG_SOURCE` | `streamersonglist` | Where song requests come from: `streamersonglist` or `streamelements` (or `nowplaying`, see [A now playing file](#a-now-playing-file)). |
+| `SE_CHANNEL` | the token's channel | Your StreamElements channel name (optional: the token already says which channel). BubbleFacts also uses it as your name, for spotting your own compositions. |
 | `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
 | `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
 | `SE_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamElements before giving up on one check. |
@@ -66,6 +66,27 @@ Good to know:
 
 ---
 
+## A now playing file
+
+Some apps write the song playing now into a text file, one line, for OBS to
+show. BubbleFacts can follow that file instead of a request queue. Set
+`SONG_SOURCE=nowplaying` and these:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `NOW_PLAYING_FILE` | *required with a now playing file* | The text file to follow. A full path, or with a preset just the file's name. |
+| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with `nightbot`) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
+| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt`; `nightbot` reads the newest `.txt` in `Documents/Nightbot` (Windows and Mac) as a YouTube title. Either way `NOW_PLAYING_FILE` can stay empty. If your Documents folder lives in OneDrive, the preset looks there when the usual `Documents` folder doesn't have the app's folder. |
+
+Good to know:
+
+- An empty or missing file means no song, and the overlay clears.
+- A file that hasn't changed for 15 minutes counts as no song too, so last night's song never comes back when you start streaming.
+- The file says nothing about who asked or how long the song is, so facts built from those don't appear. Neither do live learns.
+- The line is read every 2 seconds. A new song shows once two checks in a row agree, so expect about 2 to 4 seconds.
+
+---
+
 ## You and your music
 
 | Setting | Default | What it does |
@@ -75,6 +96,7 @@ Good to know:
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app never uses the example packs, only the facts you type in its Settings. Keep `general`, or your own pack with originals lines, if you play your own compositions. Five or more facts keep them from repeating often. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
 | `NOW_PLAYING` | `on` | `off` hides the Now Playing bubble on a song change, for when your own overlay already shows the song. |
+| `CREDIT_BUBBLE` | `on` | `off` hides the credit bubble: "Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." It shows once before the first song's facts after BubbleFacts starts, then with about every 5th song that has facts, for viewers who join later. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
 | `LIVE_LEARN_BANNER` | `on` | `off` hides the LIVE LEARN bubble that stays up during a live learn. |
 | `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner for off-list requests; facts show only when a source knows the song. `off` treats them like any other song. |
 
@@ -113,7 +135,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 |---|---|---|
 | `OPENAI_API_KEY` | *none* | Your key from the service. Setting it switches the overlay to this option. |
 | `OPENAI_BASE_URL` | Groq | The service's address. OpenRouter: `https://openrouter.ai/api/v1`. Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`. |
-| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, with a limit of 1,000 requests a day as of 2026. |
+| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, within its [daily limits](https://console.groq.com/docs/rate-limits). |
 | `OPENAI_TIMEOUT_MS` | `30000` | How long to wait for an answer. |
 
 ### Anthropic Claude
@@ -132,6 +154,10 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `PROMPT_STYLE` | *unset* | How the AI's instructions are laid out. The default is CROSS (Context, Role, Objective, Source, Scope). `rules` switches to the older numbered rule list. In trials of 72 songs each, CROSS gave about three times as many chart and award facts and broke fewer rules; a few more of its captions were screened out, so one extra is requested. |
 | `CITE_SENTENCES` | `off` | `on` numbers the article's sentences and has the AI name the one each caption retells, so screening checks the caption against that sentence. Off by default: small models miscount the numbers, and true captions get dropped. |
 | `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claim the article doesn't state, no repeats). |
+| `MB_LINK` | `on` | When Wikipedia search finds no article for a song, `on` asks MusicBrainz for the recording and follows its own link (through Wikidata) to the song's or the artist's English Wikipedia article. The page must still be about that song or performer. `off` skips this step. |
+| `ABSTAIN` | `on` | When BubbleFacts isn't sure the article is about the song playing (a series' article for one game's track, a film named like the band, the artist's article found after dropping a note, or a page Wikipedia's own summary calls a disambiguation page or a film), `on` skips the AI's captions for that song and shows only facts from Wikidata or MusicBrainz and your own facts. `off` writes captions from that article anyway. |
+| `SOURCE_RISK` | `on` | `on` holds back the AI's captions that retell a risky sentence (someone's words or view, a long sentence, one the caption shortened a lot or lost a "usually" or "about" from), unless the song would show fewer than three bubbles, then shows the most interesting first, at most four. `off` shows the captions their sentences support best, in the order written, up to `FACTS_PER_SONG`. |
+| `CLASSICAL_LOOKUP` | `on` | For a classical piece ("Moonlight Sonata", "Nocturne Op. 9 No. 2", "Clair de Lune" by its composer or by a pianist), `on` finds the work on Wikidata by its composer, catalog number or nickname and reads its own Wikipedia article, or the article of the larger work it belongs to ("Clair de Lune" is in "Suite bergamasque"). A film, a show or someone else's piece never stands in for it. `off` looks classical pieces up like any other song. |
 | `GROUNDING_TIMEOUT_MS` | `5000` | How long to wait for a Wikipedia search. |
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |
 | `WIKIPEDIA_CONTACT` | this project's page | Wikipedia asks programs that use it to leave a contact. Set it to your channel or your copy of the project. |
@@ -142,9 +168,9 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 
 | Setting | Default | What it does |
 |---|---|---|
-| `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Songs with short articles may get fewer. |
-| `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. |
-| `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
+| `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Facts from Wikipedia, Wikidata or MusicBrainz stop at four (see `SOURCE_RISK`). Songs with short articles may get fewer. |
+| `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. From 3 to 300. |
+| `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up, from 2 to 120. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
 `BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
 `anywhere`) keeps bubbles to one part of the screen. To put every bubble in
