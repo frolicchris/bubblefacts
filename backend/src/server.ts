@@ -12,7 +12,7 @@ import { allowedFacts, pulledWithWrong, positionsFor, positionsForSong, primeFac
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
-import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
+import { catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
@@ -153,15 +153,23 @@ wss.on("connection", (ws, req) => {
   if (!current || paused) return;
   const song = songList.toSong(current);
   const token = generation;
-  // Facts already on their way: this overlay joins in, with no second banner and only the bubbles
-  // still to come. An overlay that reloads mid-song doesn't replay the ones viewers have seen.
-  if (factsShownAt && lastSent.ready && sameRequest(lastSent.song, song)) {
+  // The song's facts are out: this overlay joins in from the song's record, the same for every
+  // overlay and without any taken off with Wrong. Once they've been on stream it gets the bubbles
+  // that haven't finished showing, on the other overlays' schedule, with no second banner, so one
+  // that reloads mid-song (a scene switch, say) neither misses them nor replays what viewers saw.
+  if (lastSent.ready && sameRequest(lastSent.song, song)) {
     // A LIVE LEARN banner stays up for the whole song, so a reloaded overlay needs it again.
-    send(ws, song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
-    const remaining = remainingFacts(lastSent.facts ?? [], factsShownAt);
-    send(ws, { type: "facts_ready", song, facts: remaining });
+    send(ws, factsShownAt && !song.liveLearn ? { type: "new_song", song, quiet: true } : newSong(song));
+    const record = lastSent.facts ?? [];
+    const facts = catchUpFacts(record, factsShownAt);
+    send(ws, { type: "facts_ready", song, facts });
     // Logged already unless no overlay was there when they went out (a restart, say).
-    logShown(song, remaining);
+    logShown(song, facts);
+    // No overlay was there when they went out: their schedule starts now.
+    if (!factsShownAt) {
+      factsShownAt = Date.now();
+      remember(song, record);
+    }
     return;
   }
   send(ws, newSong(song));
