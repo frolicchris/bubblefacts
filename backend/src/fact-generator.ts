@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, explainMusicTerms, fetchGrounding, isPerformerArticle, isPlaceholderRequest, mentionsName, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { hasNoArtist, withoutArtistNote } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -12,6 +12,7 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
+import { alreadySaid, BoxFact, infoboxFacts, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -185,7 +186,14 @@ export const SOURCE = {
   custom: "Your custom facts",
   wikidata: "Wikidata",
   musicbrainz: "MusicBrainz",
+  /** Followed by the article: "Wikipedia infobox: <article>". */
+  infobox: "Wikipedia infobox: ",
 } as const;
+
+/** At most this many data facts (Wikidata, MusicBrainz, infobox) beside the captions written from an article. */
+export const MAX_DATA_FACTS = 2;
+/** The infobox field each infobox sentence was filled from, for the dashboard. */
+const boxEvidence = new Map<string, string>();
 
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
 const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
@@ -208,8 +216,9 @@ function toFacts(
   const positions = positionsForSong(song);
   return told.map((text, i) => {
     const source = sourceOf(text);
-    const fromArticle = Boolean(page) && source === `Wikipedia: ${page}`;
-    const evidence = fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
+    const fromBox = Boolean(page) && source === `${SOURCE.infobox}${page}`;
+    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox;
+    const evidence = fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
@@ -277,10 +286,62 @@ Write ${want} captions about ${game} or its music that chat would enjoy learning
 /** The CROSS prompt's rules for retelling the text and for the captions, the same with or without citations. */
 const RETELL_RULES = `Every person, year, number and title you write must appear in it, spelled the same way.`;
 const STATEMENT_RULES = `never join two statements, and never move a name or a detail from one statement into another. Keep the statement's subject as your subject. Use a word of cause, order or count (because, due to, after, first, originally, twice) or a number only when that statement has it. Keep each detail with what it belongs to: a date with the release it dates, "second single from her third album" whole, every chart a position is on. Keep the statement's verb: "resembles" is not "inspired by", and what someone "described as" is their view, so name them. Write that someone said, described or recalled something only when the text says that person did, and quote only the text's own words. Keep "may have", "reportedly" and the like, and never make a claim bigger than the text: "one of the first" is not "the first". Name the group, chart or person: never "the duo", "the quartet" or "this chart" alone. If the text does not say something, leave it out.`;
+/**
+ * Worked examples, with made-up names, of the three slips a 3B model makes
+ * most when it retells a sentence (algo loop, 2026-10): it drops who said or
+ * thought something, so a view or a memory reads as fact; it keeps "it",
+ * "they" or "these" from a sentence lifted out of its paragraph, so a viewer
+ * takes it for the song playing; and it drops where, when or on which chart
+ * ("in Japan", "by March 2009", "the UK top 40"), widening the claim. Shown as text to retell, a wrong line and a
+ * right one, because a model this small copies an example better than it
+ * applies a rule.
+ */
+export const RETELL_EXAMPLES = `EXAMPLES
+Made-up text, to show how to retell. Never use these names or facts.
+Text: According to producer Dana Reyes, the band wanted the chorus to sound like a storm.
+Wrong: The band wanted the chorus to sound like a storm.
+Right: Producer Dana Reyes said the band wanted the chorus to sound like a storm.
+Text: Critic Sam Ortiz wrote that the album's lyrics are about growing up.
+Wrong: The album's lyrics are about growing up.
+Right: Critic Sam Ortiz wrote that the lyrics of the album are about growing up.
+Text: Night Harbor was planned for 2003. It was delayed to May 2004.
+Wrong: It was delayed to May 2004.
+Right: Night Harbor was delayed to May 2004.
+Text: In Japan, "Paper Lanterns" sold 40,000 copies by March 2009 and reached number 9 on the Oricon chart.
+Wrong: "Paper Lanterns" sold 40,000 copies and reached the top 10.
+Right: In Japan, "Paper Lanterns" sold 40,000 copies by March 2009.
+Always name who said, wrote or thought something, and keep where, when and on which chart. Never start with "it", "they", "these" or "the records": use the name the text gives, or skip the statement.`;
+
+/** Words too common to tell an example's wording from the reference's: three of them in a row prove nothing. */
+const COMMON_WORDS = new Set("the of a an s are is was were to in on and it its that by for with as about lyrics album song band said wrote".split(" "));
+const words = (text: string) => text.toLowerCase().replace(/(\d),(\d)/g, "$1$2").match(/[a-z0-9]+/g) ?? [];
+const threeWords = (list: string[]) => list.slice(0, -2).map((w, i) => `${w} ${list[i + 1]} ${list[i + 2]}`);
+/** Every run of three words in the examples' lines that isn't all common words. */
+const EXAMPLE_WORDING = new Set(
+  RETELL_EXAMPLES.split("\n")
+    .filter((l) => /^(Text|Wrong|Right): /.test(l))
+    .flatMap((l) => threeWords(words(l.replace(/^\w+: /, ""))))
+    .filter((g) => g.split(" ").some((w) => !COMMON_WORDS.has(w)))
+);
+
+/**
+ * A caption that copies the examples instead of the reference: three words in
+ * a row from an example ("sound like a storm", "reached number 9") that the
+ * reference doesn't have. A 3B model sometimes pins an example's made-up
+ * story on a real name ("<the game's composer> said the band wanted the
+ * chorus to sound like a storm"), which no other screen catches when the
+ * name is in the reference.
+ */
+export function copiesExample(caption: string, context: string): boolean {
+  const source = ` ${words(context).join(" ")} `;
+  return threeWords(words(caption)).some((g) => EXAMPLE_WORDING.has(g) && !source.includes(` ${g} `));
+}
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
   return `${crossOpening(game, work, want)}
+
+${RETELL_EXAMPLES}
 
 SOURCE
 Use only the text between the triple quotes. ${RETELL_RULES} Each line retells ONE statement from the text: ${STATEMENT_RULES}
@@ -294,6 +355,8 @@ Exactly ${want} lines. One calm sentence per line, about 10 to 18 words and unde
 
 function citingCrossPrompt(game: string, work: string, context: string, want: number): string {
   return `${crossOpening(game, work, want)}
+
+${RETELL_EXAMPLES}
 
 SOURCE
 Use only the text between the triple quotes. Its sentences are numbered in square brackets. ${RETELL_RULES} Each line retells ONE numbered sentence: ${STATEMENT_RULES}
@@ -964,8 +1027,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // they're ready (`onEarly`), so a busy PC shows them while the AI is still writing.
   const page = context.split("\n")[0];
   const sure = context && match?.level === "sure" ? { page, names: [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])] } : null;
-  // Data facts leave room for at least one caption.
-  const dataRoom = want > 1 ? want - 1 : want;
+  // Data facts leave room for at least one caption, and are never more than MAX_DATA_FACTS.
+  const dataRoom = Math.min(MAX_DATA_FACTS, want > 1 ? want - 1 : want);
   let aiDone = false;
   let early: Fact[] = [];
   const dataFacts = (context && (!aboutTheSong(read, context) || sure) ? structuredFacts(song, read, Promise.resolve(sure)) : Promise.resolve([] as string[])).then((list) => {
@@ -980,6 +1043,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     }
     return data;
   });
+  // And the article's own infobox: who wrote the song or made the game, when it came out.
+  // Not for an edition the article's title doesn't name: "Some Game Royal" read from "Some Game" would get
+  // the original's credits and year. The article still serves the captions.
+  const edition = context ? editionNotInTitle(read.artist ?? "", page) : null;
+  if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
+  const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page) : Promise.resolve([]);
 
   const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
   let answer: string;
@@ -995,29 +1064,72 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     throw err;
   }
   aiDone = true;
-  const lines = answer.split("\n").map((l) => l.trim()).filter(Boolean);
-  const structuredFirst = await dataFacts;
+  const lines = answer.split("\n").map((l) => l.trim()).filter(Boolean).filter((l) => {
+    if (!context || !copiesExample(l, context)) return true;
+    console.log("[Screen] DROP (copies an example)");
+    return false;
+  });
+  const songFacts = await dataFacts;
+  // A cover read from the original's article: who wrote it holds for the cover; the original's release, label and producers don't.
+  const cover = context ? isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
+  const allBox = await boxLookup;
+  const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
+    (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
+  );
   const { track } = resolveGameAndTrack(read);
   const cited = Boolean(context) && citesSentences();
   const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
   // A dropped caption is logged by its reason alone, never its words, so logs and the reports
   // made from them can't spread what was held back (issues #242 and #262).
   for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
-  // Facts sent early are among the recent ones, so a caption saying the same is dropped here too.
-  const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
-  if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
+  // A caption from a "someone said" sentence offered only because the clean ones ran short must keep who said it.
+  const attributed = kept.filter((f) => {
+    if (!context || keepsAttribution(f, context)) return true;
+    console.log("[Screen] DROP (drops who said it)");
+    return false;
+  });
+  const unseen = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+  if (unseen.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - unseen.length} already shown for an earlier song`);
+  // A limit the source sets ("in Japan", "the arcade version", "over", "usually") goes back in when the
+  // model dropped it; a caption with no clear place for it is dropped.
+  const repaired = new Map<string, string>();
+  const fresh = unseen.filter((f) => {
+    const scoped = context && scopeRepair.on ? repairScope(f, context) : f;
+    const fixed = context && qualifierRepair.on ? repairQualifier(scoped, context) : { text: scoped };
+    if ("drop" in fixed) {
+      console.log(`[Screen] DROP (${fixed.drop})`);
+      return false;
+    }
+    if (fixed.text !== f) console.log(`[Screen] SCOPE: ${f.slice(0, 70)} -> ${fixed.text.slice(0, 110)}`);
+    repaired.set(f, fixed.text);
+    return true;
+  });
   // Music terms get a few fixed plain words, so any viewer can follow.
-  const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
-  const structured = early.length ? early.map((f) => f.text) : rankedData(structuredFirst, dataRoom);
+  const plain = new Map(fresh.map((f) => [f, explainMusicTerms(repaired.get(f) as string)]));
+  // Data facts: the song's own first, then the infobox's; at most dataRoom, none a caption already
+  // says. Facts sent early stay as sent, and the infobox only fills in after them.
+  const candidates = [...(early.length ? [] : rankedData(songFacts, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
+  const structured: string[] = early.map((f) => f.text);
+  for (const c of candidates) {
+    if (structured.length >= dataRoom) break;
+    if (recentFacts.includes(c.text) || restatesRequest(c.text, song)) continue;
+    if (alreadySaid(c.values, [...fresh, ...structured])) continue;
+    structured.push(c.text);
+    if (c.evidence) {
+      structuredLabel.set(c.text, `${SOURCE.infobox}${page}`);
+      boxEvidence.set(c.text, c.evidence);
+    }
+  }
   // A spare takes the place of a line that only repeats the title and artist.
   const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
   const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));
   // Facts already sent stay first, as sent; the captions fill the bubbles left.
   const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
-  const lead = early.length ? [] : structured;
+  const sent = early.map((f) => f.text);
+  const lead = structured.filter((f) => !sent.includes(f));
   const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room) : bestSupported(lead, usable, context, plain, citedSentence, room);
-  const later = captions.filter((c) => !structured.includes(c));
-  const shown = early.length ? [...structured, ...later] : captions;
+  const later = captions.filter((c) => !sent.includes(c));
+  const shown = early.length ? [...sent, ...later] : captions;
   // Facts sent early were remembered when they went out.
   remember(early.length ? later : shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
@@ -1226,6 +1338,8 @@ function blockedAs(song: SSLSong): SSLSong[] {
 export function blockFor(label: string | undefined): string | null | undefined {
   if (!label) return undefined;
   if (label.startsWith("Wikipedia: ")) return label.slice("Wikipedia: ".length);
+  // A wrong infobox fact most often means the wrong article: the article is blocked.
+  if (label.startsWith(SOURCE.infobox)) return label.slice(SOURCE.infobox.length);
   if (label === SOURCE.wikidata || label === SOURCE.musicbrainz) return STRUCTURED;
   return null;
 }
