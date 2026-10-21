@@ -15,6 +15,7 @@ import {
   parseCitation,
   citedMismatch,
   unsupportedDay,
+  droppedYear,
   splitGameAndTrack,
   resolveGameAndTrack,
   isRelevantArticle,
@@ -2193,6 +2194,25 @@ describe("unattributed speakers and dates (fourth fact check)", () => {
     expect(unsupportedDay("Glass Harbor came out on the 3rd of May 1994.", ref)).toBeNull();
     expect(unsupportedDay("Reyes may have written it in an hour.", ref)).toBeNull();
     expect(screenClaims(["Glass Harbor was released on November 22, 1994."], ref).rejected[0].reason).toBe('unsupported date "November 22"');
+  });
+});
+
+describe("a month told without its year", () => {
+  const ref = "Pine Lantern\nIn January 2010, Ada and Bo regrouped as Pine Lantern. The duo played their first show on June 22, 2011. Their tour began in March and ended in May.";
+
+  it("drops a caption with the month but not the year the source gives it with", () => {
+    expect(droppedYear("Ada and Bo regrouped as Pine Lantern in January.", ref)).toBe("January 2010");
+    expect(droppedYear("The duo played their first show on June 22.", ref)).toBe("June 2011");
+    expect(droppedYear("The duo played their first show on 22 June.", "Pine Lantern\nThe duo played their first show on 22 June 2011.")).toBe("June 2011");
+    expect(screenClaims(["Ada and Bo regrouped as Pine Lantern in January."], ref).rejected[0].reason).toMatch(/month but not the year.*January 2010/);
+  });
+
+  it("keeps a caption that gives the year, or a month the source gives alone", () => {
+    expect(droppedYear("Ada and Bo regrouped as Pine Lantern in January 2010.", ref)).toBeNull();
+    expect(droppedYear("In 2010, Ada and Bo regrouped as Pine Lantern in January.", ref)).toBeNull();
+    expect(droppedYear("The duo played their first show on June 22, 2011.", ref)).toBeNull();
+    expect(droppedYear("The Pine Lantern tour began in March and ended in May.", ref)).toBeNull();
+    expect(screenClaims(["The Pine Lantern tour began in March and ended in May."], ref).kept).toHaveLength(1);
   });
 });
 

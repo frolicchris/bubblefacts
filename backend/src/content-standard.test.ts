@@ -18,6 +18,8 @@ describe("the content standard's word lists (issue #242)", () => {
   const cases: Array<[string, string]> = [
     ["crime or lawsuits", "Mara Quillon was arrested in 1998 after a show in Dorrance."],
     ["crime or lawsuits", "The Tinfoil Lanterns sued their label over unpaid fees in 2004."],
+    ["threats or stalking", "Mara Quillon received threatening letters in 1978, after the song charted."],
+    ["threats or stalking", "A stalker followed the Tinfoil Lanterns through the 2004 tour."],
     ["drugs or addiction", "During the sessions, Tobin Varr struggled with heroin addiction."],
     ["sexual content", "A tabloid wrote about Lisette Moraine's sexual relationship with her manager."],
     ["private life", "Dax Holloway divorced his wife in 2003, a year after the album came out."],
@@ -50,6 +52,16 @@ describe("the content standard's word lists (issue #242)", () => {
     expect(standardBreach("Divorced from the film, the score is still a fine listen.")).toBeNull();
     expect(standardBreach("The band's name caused a controversy when a mayor kept it off a New Year's Eve bill.")).toBeNull();
     expect(standardBreach("In 1969, after separating from his wife, Ivo Marsh moved to Dorrance.")).not.toBeNull();
+  });
+
+  it("leaves out each word for threats and stalking, and not words that only contain them", () => {
+    for (const word of ["threat", "threats", "threatened", "threatening", "death threat", "death threats", "stalker", "stalkers", "stalking", "stalked"]) {
+      expect(standardBreach(`The singer said there was a ${word} in the mail.`)).toBe("content standard: threats or stalking");
+    }
+    expect(standardBreach("He threatened to leave the band unless the label paid for the strings.")).toBeNull();
+    expect(standardBreach("Threatening weather moved the festival indoors.")).toBe("content standard: threats or stalking");
+    expect(standardBreach("The Threatless Mile is a made-up game level.")).toBeNull();
+    expect(standardBreach("Stalker is a made-up film with a Tarkovsky-style drone score.", ["Stalker"])).toBeNull();
   });
 
   it("matches whole words in any case, not parts of words", () => {
@@ -133,6 +145,13 @@ describe("captions under the content standard (issue #242)", () => {
     const { kept, rejected } = screenClaims(["Mara Quillon recorded it while pregnant with her daughter."], context);
     expect(kept).toEqual([]);
     expect(rejected[0].reason).toBe("content standard: private life");
+  });
+
+  it("drops a caption that says someone got threats, whatever the reference says", () => {
+    const ref = "Glass Orchard\nGlass Orchard is a 1999 song by Mara Quillon. Quillon got threatening mail late in the 1970s.";
+    const { kept, rejected } = screenClaims(["Mara Quillon got threatening mail late in the 1970s."], ref);
+    expect(kept).toEqual([]);
+    expect(rejected[0].reason).toBe("content standard: threats or stalking");
   });
 
   it("reads the artist's name as a name", () => {
