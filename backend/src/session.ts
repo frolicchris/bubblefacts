@@ -70,6 +70,32 @@ export function remainingFacts(facts: Fact[], shownAt: number, now = Date.now())
   return facts.filter((f) => f.delaySeconds > elapsed).map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
 }
 
+/** A bubble with less time than this left isn't worth putting back on a reloaded overlay. */
+const CATCH_UP_MIN_SECONDS = 2;
+
+/** Where a bubble goes, as the overlay compares spots: one bubble per spot. */
+const spotOf = (f: Fact) => [f.position.top, f.position.bottom, f.position.left, f.position.right].join("|");
+
+/**
+ * What an overlay that connects or reloads mid-song is sent (issue #279): the song's bubbles
+ * that haven't finished showing, on the schedule the other overlays are on. The ones still to
+ * come keep their remaining delays. The one on screen now comes back at once for the time it
+ * has left (or its reading time, if longer), unless a later bubble already took its spot. A
+ * bubble whose time is up never comes back, and nor does one taken off with Wrong, since
+ * `record` no longer has it. All of them, from the start, when none went out yet.
+ */
+export function catchUpFacts(record: Fact[], shownAt: number, now = Date.now()): Fact[] {
+  if (!shownAt) return record;
+  const elapsed = (now - shownAt) / 1000;
+  const started = record.filter((f) => f.delaySeconds <= elapsed);
+  const replaced = (f: Fact) => started.some((g) => g !== f && g.delaySeconds > f.delaySeconds && spotOf(g) === spotOf(f));
+  return record.flatMap((f) => {
+    if (f.delaySeconds > elapsed) return [{ ...f, delaySeconds: f.delaySeconds - elapsed }];
+    const left = f.delaySeconds + readingSeconds(f) - elapsed;
+    return left >= CATCH_UP_MIN_SECONDS && !replaced(f) ? [{ ...f, delaySeconds: 0, durationSeconds: left }] : [];
+  });
+}
+
 /**
  * A song's record once its AI captions arrive, after its facts from data went out early
  * (issue #256). `record`: what was sent, delays counted from when it went out, without any
