@@ -40,7 +40,7 @@ describe("withoutArtistNote (issue #262)", () => {
 
 describe("removeAll and withoutRefsAndComments", () => {
   it("removes until nothing matches", () => {
-    expect(removeAll("<scr<script>ipt>x", /<script>/g)).toBe("x");
+    expect(removeAll("<scr<script>ipt>x", /<script\b[^>]*>/gi)).toBe("x");
     expect(withoutRefsAndComments("a<!<!---->--b-->c<re<ref/>f>d</ref>e")).toBe("ace");
     expect(withoutRefsAndComments("a<!-- left open")).toBe("a");
   });

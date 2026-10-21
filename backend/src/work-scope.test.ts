@@ -174,7 +174,7 @@ describe("italicSentences: markup nested to survive one pass", () => {
   it("drops a comment rebuilt by removing an inner one, with its italics", () => {
     const s = italicSentences("''Comet Runner'' is a 2004 game.<!<!---->-- a > ''Ghost Lantern'' was cut. -->\n");
     expect(s.flatMap((x) => x.works.map((w) => w.title))).toEqual(["Comet Runner"]);
-    expect(s.map((x) => x.text).join(" ")).not.toMatch(/Ghost|-->/);
+    expect(s.map((x) => x.text).join(" ")).not.toMatch(/Ghost|--!?>/);
   });
 
   it("leaves no angle bracket from a tag rebuilt by removing an inner one", () => {
