@@ -100,3 +100,20 @@ describe("alreadySaid and valuesIn", () => {
     expect(valuesIn('"Paper Lantern" came out in 2011.')).toEqual(["2011"]);
   });
 });
+
+describe("markup nested to survive one pass is stripped until none is left", () => {
+  it("parseInfobox: a comment rebuilt by removing an inner one", () => {
+    const box = parseInfobox(`{{Infobox song\n| writer = Mira Tal<!<!---->-- Oren Fisk -->\n| producer = Sam Roe\n}}`);
+    expect(box?.fields.writer).toBe("Mira Tal");
+    expect(box?.fields.producer).toBe("Sam Roe");
+  });
+
+  it("items: a reference or a tag rebuilt by removing an inner one", () => {
+    expect(items("Mira Tal<re<ref>x</ref>f>note</ref>, Oren Fisk")).toEqual(["Mira Tal", "Oren Fisk"]);
+    expect(items("Mira Tal<sm<small>all>, Oren Fisk")).toEqual(["Mira Tal", "Oren Fisk"]);
+  });
+
+  it("earliestYear: no year from inside a rebuilt comment", () => {
+    expect(earliestYear("2004<!<!---->-- 1999 -->")).toBe("2004");
+  });
+});

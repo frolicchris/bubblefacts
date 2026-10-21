@@ -2,7 +2,7 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
-import { escapeRe, hasNoArtist } from "./text";
+import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments } from "./text";
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
@@ -1144,7 +1144,7 @@ function withoutFileLinks(t: string): string {
  * templates are dropped, so the words are matched to the plain text loosely.
  */
 export function italicSentences(wikitext: string): ItalicSentence[] {
-  let t = wikitext.replace(/<!--[\s\S]*?-->/g, "").replace(/<ref[^>/]*\/>/gi, "").replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, "");
+  let t = withoutRefsAndComments(wikitext);
   t = withoutFileLinks(t);
   // A link's "|" isn't a template's.
   t = t.replace(/\[\[([^[\]]*)\]\]/g, (m) => m.replace(/\|/g, "\u0003"));
@@ -1155,7 +1155,8 @@ export function italicSentences(wikitext: string): ItalicSentence[] {
       return at === undefined ? "" : at < 0 ? "'" : (parts[at] ?? "").replace(/^\s*\d+\s*=\s*/, "");
     });
   }
-  t = t.replace(/\{\|[\s\S]*?\|\}/g, "").replace(/<[^>]+>/g, "");
+  // Tags go until none is left ("<scr<b>ipt>" leaves "<script>" once), then any stray angle bracket.
+  t = removeAll(t.replace(/\{\|[\s\S]*?\|\}/g, ""), /<[^>]+>/g).replace(/[<>]/g, "");
   // Bold italics: the subject's own title. Then bold alone is dropped, and italics marked.
   t = t.replace(/'''''([^'\n][^\n]*?)'''''/g, "\u0001\u0004$1\u0002").replace(/'''/g, "").replace(/''([^'\n][^\n]*?)''/g, "\u0001$1\u0002");
   const linkText = (s: string) => s.replace(/\[\[([^\]\u0003]*)(?:\u0003([^\]]*))?\]\]/g, (_, target: string, shown?: string) => shown ?? target.replace(/#.*$/, "")).replace(/\[https?:\/\/\S+\s*([^\]]*)\]/g, "$1");

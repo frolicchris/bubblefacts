@@ -1,6 +1,33 @@
 /** Escape a string for use inside a RegExp. */
 export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/**
+ * `text` with every match of `pattern` (a global RegExp) removed, again and again until
+ * none is left: removing "<!---->" from "<!<!---->--" leaves a new "<!--", which goes too.
+ */
+export function removeAll(text: string, pattern: RegExp): string {
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(pattern, "");
+  } while (text !== previous);
+  return text;
+}
+
+/** A wikitext comment; one left open runs to the end, as MediaWiki reads it. */
+export const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
+const REF = /<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/gi;
+
+/** Wikitext without its comments, then its references, nested or not, until none of either is left. */
+export function withoutRefsAndComments(wikitext: string): string {
+  let previous: string;
+  do {
+    previous = wikitext;
+    wikitext = removeAll(removeAll(wikitext, COMMENT), REF);
+  } while (wikitext !== previous);
+  return wikitext;
+}
+
 /** Artist fields that mean no artist (whole field, any case, optional period): "Traditional", "Trad.", "Anon.", "Anonymous", "Unknown", "Folk". */
 const NO_ARTIST = /^(?:traditional|trad|anonymous|anon|unknown|folk)\.?$/i;
 export const hasNoArtist = (artist?: string | null): boolean => NO_ARTIST.test((artist ?? "").trim());

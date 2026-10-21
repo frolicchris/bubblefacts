@@ -1,4 +1,5 @@
 import { loadWikitext } from "./fact-verifier";
+import { COMMENT, removeAll, withoutRefsAndComments } from "./text";
 
 /**
  * Plain facts from the infobox of the article a song's captions are written
@@ -57,7 +58,7 @@ function topLevel(body: string, sep = "|"): string[] {
 
 /** The article's first infobox, or null. */
 export function parseInfobox(wikitext: string): Infobox | null {
-  const text = wikitext.replace(/<!--[\s\S]*?-->/g, "");
+  const text = removeAll(wikitext, COMMENT);
   const m = /\{\{\s*Infobox[ _]+([^|\n}]+)/i.exec(text);
   if (!m) return null;
   const body = balanced(text, m.index);
@@ -78,12 +79,10 @@ const LIST_TEMPLATE = /^(hlist|flatlist|plainlist|plain list|unbulleted list|ubl
 
 /** One field's items as plain text: links resolved, references and notes dropped. */
 export function items(raw: string): string[] {
-  let v = raw
-    .replace(/<ref[^>]*\/>/gi, "")
-    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, "")
+  let v = withoutRefsAndComments(raw)
     .replace(/\{\{\s*(efn|refn|sfn|r|ref label|nbsp|citation needed|cn|clarify|when|who|dubious|according to whom|abbr)\b[^{}]*\}\}/gi, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/?(small|span|div|i|b|sup|sub)[^>]*>/gi, "");
+    .replace(/<br\s*\/?>/gi, "\n");
+  v = removeAll(v, /<\/?(small|span|div|i|b|sup|sub)[^>]*>/gi);
   // List templates become their items, one per line, inside out.
   for (let i = 0; i < 5; i++) {
     const before = v;
@@ -123,7 +122,7 @@ function joinNames(list: string[]): string {
 /** The earliest year a release field gives, from plain text or {{Start date}} and release templates. */
 export function earliestYear(raw: string | undefined): string | null {
   if (!raw) return null;
-  const v = raw.replace(/<ref[^>]*\/>/gi, "").replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, "").replace(/<!--[\s\S]*?-->/g, "");
+  const v = withoutRefsAndComments(raw);
   const years = [...v.matchAll(/(?<![\d#])(19[0-9]{2}|20[0-4][0-9])(?![\d])/g)].map((m) => m[1]).sort();
   return years[0] ?? null;
 }

@@ -1,4 +1,4 @@
-import { foldCase, songIdentity, withoutArtistNote } from "./text";
+import { foldCase, removeAll, songIdentity, withoutArtistNote, withoutRefsAndComments } from "./text";
 
 describe("foldCase", () => {
   it("lowercases and drops accents, keeping punctuation", () => {
@@ -35,5 +35,13 @@ describe("withoutArtistNote (issue #262)", () => {
     const started = Date.now();
     withoutArtistNote(long);
     expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
+describe("removeAll and withoutRefsAndComments", () => {
+  it("removes until nothing matches", () => {
+    expect(removeAll("<scr<script>ipt>x", /<script>/g)).toBe("x");
+    expect(withoutRefsAndComments("a<!<!---->--b-->c<re<ref/>f>d</ref>e")).toBe("ace");
+    expect(withoutRefsAndComments("a<!-- left open")).toBe("a");
   });
 });
