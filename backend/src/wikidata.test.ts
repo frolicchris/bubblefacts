@@ -496,7 +496,7 @@ describe("the matched article's own item (#256)", () => {
       global.fetch = jest.fn(async (url: string | URL | Request) => {
         const u = new URL(String(url));
         const params = u.searchParams;
-        const body = u.hostname.endsWith("wikipedia.org")
+        const body = u.hostname === "en.wikipedia.org"
           ? { query: { pages: [{ revisions: [{ slots: { main: { content: "{{Infobox song\n| name = Harbor Lights\n| released = {{Start date|1999|1|5}}\n}}" } } }] }] } }
           : params.get("sites") === "enwiki"
             ? { entities: { Q1: item } }
@@ -513,7 +513,7 @@ describe("the matched article's own item (#256)", () => {
       const item = single({ P577: [day("+1998-06-01T00:00:00Z")], P175: ids("Q20") }, "single by Velvet Lark");
       global.fetch = jest.fn(async (url: string | URL | Request) => {
         const u = new URL(String(url));
-        const body = u.hostname.endsWith("wikipedia.org")
+        const body = u.hostname === "en.wikipedia.org"
           ? { query: { pages: [{ revisions: [{ slots: { main: { content: "{{Infobox song\n| artist = [[Moth Choir]]\n| released = 1979\n}}" } } }] }] } }
           : u.searchParams.get("sites") === "enwiki"
             ? { entities: { Q1: item } }
