@@ -53,6 +53,8 @@
 
   let bubbles = [];
   const bubbleTimers = [];
+  /** Each fact's turn still to come; a batch with `keep` replaces only these. */
+  const showTimers = [];
   let toast = null;
   const toastTimers = [];
   let currentSongKey = null;
@@ -114,6 +116,7 @@
   // --- Fact bubbles ---
 
   function clearBubbles() {
+    cancel(showTimers);
     cancel(bubbleTimers);
     bubbles.forEach((b) => b.remove());
     bubbles = [];
@@ -184,12 +187,20 @@
    * Drop a batch for a song that is no longer current. Delays count from
    * arrival, so a late batch still shows every fact.
    */
-  function showFacts(song, facts) {
-    if (!facts || !facts.length || songKey(song) !== currentSongKey) return;
-    // A reconnect can resend the batch; replace rather than stack.
-    clearBubbles();
+  function showFacts(song, facts, keep) {
+    if (!facts || songKey(song) !== currentSongKey) return;
+    if (keep) {
+      // More of the song's facts (the AI's, after the ones from data): the bubble on screen
+      // stays, and these take the place of the turns still to come.
+      cancel(showTimers);
+    } else {
+      if (!facts.length) return;
+      // A reconnect can resend the batch; replace rather than stack.
+      clearBubbles();
+    }
+    const showing = (text) => bubbles.some((b) => b.dataset.fact === text && !b.dataset.hiding);
     facts.forEach((fact) =>
-      bubbleTimers.push(setTimeout(() => removed.has(fact.text) || showBubble(fact), fact.delaySeconds * 1000))
+      showTimers.push(setTimeout(() => removed.has(fact.text) || showing(fact.text) || showBubble(fact), fact.delaySeconds * 1000))
     );
   }
 
@@ -203,7 +214,7 @@
       // noBanner: the streamer turned NOW PLAYING off. The last song's banner still goes.
       if (msg.song && !msg.quiet) msg.noBanner ? removeToast() : showToast(msg.song);
     } else if (msg.type === "facts_ready") {
-      showFacts(msg.song, msg.facts);
+      showFacts(msg.song, msg.facts, msg.keep === true);
     } else if (msg.type === "test_bubble") {
       // On top of the current song, whose bubbles and state are left alone.
       if (msg.facts && msg.facts[0]) showBubble(msg.facts[0]);

@@ -899,6 +899,22 @@ no screening, and are skipped for a song whose structured facts were marked
   already gives for the song are left out. When the two years differ,
   MusicBrainz's stands when it is the earlier (it leaves out reissues,
   compilations and live albums); when Wikidata's is earlier, neither is shown.
+- **Data first, captions later** (issue #256). With AI on, the facts from
+  data are looked up alongside the AI: for an article about the artist or
+  game, as before, and now also for an article surely about the song itself
+  (its item too). When they're ready before the AI, they go to the overlay at
+  once (`generateFacts`'s `onEarly`), at most one fewer than the song's
+  bubbles, so a caption has room. When the AI finishes, its captions follow
+  them in the song's record (`withLaterFacts`): each after the last fact
+  sent, never in the past, never one already sent or taken off with
+  **Wrong**, and a caption too like a fact already shown is dropped by the
+  usual repeat check. They go out as `facts_ready` with `keep: true`: the
+  overlay leaves the bubble on screen and replaces only the turns still to
+  come. An older overlay ignores `keep` and starts over with the same list,
+  as after a reconnect. If the AI fails, the facts from data stand; if the
+  song changes first, the captions are dropped. A song with the streamer's
+  tagged facts mixed in still goes out once, since those are re-spaced at
+  the end.
 
 ### Wrong and Undo
 

@@ -5,7 +5,7 @@ import path from "path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-session-"));
 jest.mock("./config", () => ({ config: { dataDir: dir } }));
 
-import { factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession } from "./session";
+import { factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession, withLaterFacts } from "./session";
 import { Fact } from "./types";
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -95,5 +95,31 @@ describe("factOnScreen after a hands-free Wrong", () => {
     expect(factOnScreen([facts[0]], shownAt, shownAt + 30_000, shownAt + 12_000)).toBeNull();
     // A bubble that appears after the press still counts.
     expect(factOnScreen([...facts, fact("Third fact here.", 20)], shownAt, shownAt + 21_000, shownAt + 12_000)?.text).toBe("Third fact here.");
+  });
+});
+
+describe("the AI's captions after the facts from data (issue #256)", () => {
+  const at = (text: string, delaySeconds: number): Fact => ({ text, delaySeconds, durationSeconds: 8, position: { top: "5%", left: "3%" } });
+  const early = [at("Data one.", 0), at("Data two.", 15)];
+  const all = [...early, at("Caption one.", 30), at("Caption two.", 45)];
+
+  it("adds the captions after the last fact sent, never in the past", () => {
+    // Sent with a credit bubble ahead: the record's delays are 7 seconds later.
+    const record = [at("Data one.", 7), at("Data two.", 22)];
+    expect(withLaterFacts(record, early, all, 3, 15).map((f) => [f.text, f.delaySeconds])).toEqual([
+      ["Data one.", 7], ["Data two.", 22], ["Caption one.", 37], ["Caption two.", 52],
+    ]);
+    // The AI was slow: the facts from data have all been shown.
+    expect(withLaterFacts(record, early, all, 60, 15).slice(2).map((f) => f.delaySeconds)).toEqual([61, 76]);
+  });
+
+  it("never adds a fact twice, nor one taken off with Wrong", () => {
+    const record = [at("Data two.", 15)];
+    const merged = withLaterFacts(record, early, [...all, at("Data two.", 60)], 0, 15);
+    expect(merged.map((f) => f.text)).toEqual(["Data two.", "Caption one.", "Caption two."]);
+  });
+
+  it("leaves the record alone when the AI added nothing", () => {
+    expect(withLaterFacts(early, early, early, 5, 15)).toEqual(early);
   });
 });

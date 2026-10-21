@@ -713,6 +713,79 @@ describe("data facts from the matched article's own item, with no AI (issue #256
   afterEach(() => (fetchGrounding as jest.Mock).mockReset().mockResolvedValue(""));
 });
 
+describe("facts from data go out before a slow AI (issue #256)", () => {
+  const request = { title: "Harbor Lights", artist: "Velvet Lark" };
+  const songPage = 'Harbor Lights (Velvet Lark song)\n"Harbor Lights" is a song by American dream pop band Velvet Lark, released in 2004 as the lead single from their album Paper Boats. ' + MODEL_LINES;
+  const item = { kind: "song" as const, title: "Harbor Lights", year: "2004", partOf: "Paper Boats", genres: ["dream pop"] };
+  const dataFact = '"Harbor Lights" came out in 2004 and appears on Paper Boats. Its genres include dream pop.';
+  /** A fake AI that answers after `ms`, as a busy streaming PC does. */
+  const slowAI = (ms: number, text = MODEL_LINES) => mockCreate.mockImplementation(() => new Promise((r) => setTimeout(() => r(reply(text)), ms)));
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (config as { abstain?: boolean }).abstain = true;
+    (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+    (articleItem as jest.Mock).mockReset().mockResolvedValue(item);
+    (musicbrainzFacts as jest.Mock).mockReset().mockResolvedValue([]);
+  });
+  afterEach(() => {
+    (config as { abstain?: boolean }).abstain = false;
+    (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
+  });
+
+  it("sends the data facts while the AI is still writing, then puts the captions after them", async () => {
+    slowAI(300);
+    const started = Date.now();
+    let earlyAt = 0;
+    let early: Fact[] = [];
+    const facts = await generateFacts(request, null, (data) => {
+      earlyAt = Date.now() - started;
+      early = data;
+    });
+    const total = Date.now() - started;
+    expect(early.map((f) => [f.text, f.source])).toEqual([[dataFact, SOURCE.wikidata]]);
+    expect(earlyAt).toBeLessThan(150);
+    expect(total).toBeGreaterThanOrEqual(290);
+    // The full list starts with what went out early, unchanged; the AI's captions follow.
+    expect(facts[0]).toEqual(early[0]);
+    expect(facts.length).toBeGreaterThan(1);
+    expect(facts.length).toBeLessThanOrEqual(4);
+    expect(facts.slice(1).every((f) => f.source === "Wikipedia: Harbor Lights (Velvet Lark song)")).toBe(true);
+    expect(new Set(facts.map((f) => f.text)).size).toBe(facts.length);
+  });
+
+  it("sends nothing early when the AI is faster, and the data facts still lead", async () => {
+    const early = jest.fn();
+    (articleItem as jest.Mock).mockImplementation(() => new Promise((r) => setTimeout(() => r(item), 100)));
+    const facts = await generateFacts(request, null, early);
+    expect(early).not.toHaveBeenCalled();
+    expect(facts[0].text).toBe(dataFact);
+  });
+
+  it("drops a caption that repeats a fact sent early, and never shows a fact twice", async () => {
+    slowAI(50, `Harbor Lights came out in 2004 and appears on Paper Boats.\n${MODEL_LINES}`);
+    const facts = await generateFacts(request, null, () => undefined);
+    const texts = facts.map((f) => f.text);
+    expect(texts.filter((t) => /came out in 2004/.test(t))).toEqual([dataFact]);
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+
+  it("keeps the data facts when the AI fails after they went out", async () => {
+    mockCreate.mockImplementation(() => new Promise((_, reject) => setTimeout(() => reject(new Error("overloaded")), 50)));
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const facts = await generateFacts(request, null, () => undefined);
+    warn.mockRestore();
+    expect(facts.map((f) => f.text)).toEqual([dataFact]);
+  });
+
+  it("takes nothing from the article's item when the match is unsure", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue("Harbor Lights (album)\nHarbor Lights is the second studio album by American dream pop band Velvet Lark, released in 2004.");
+    const early = jest.fn();
+    await generateFacts(request, null, early);
+    expect(articleItem).not.toHaveBeenCalled();
+    expect(early).not.toHaveBeenCalled();
+  });
+});
+
 describe("Wrong decides what to block from the fact's own label (audit)", () => {
   it("reads the label: an article, Wikidata and MusicBrainz, or nothing", () => {
     expect(blockFor("Wikipedia: Chrono Trigger")).toBe("Chrono Trigger");

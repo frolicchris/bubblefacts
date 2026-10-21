@@ -122,4 +122,9 @@ export interface FactsPayload {
   quiet?: boolean;
   /** On new_song: the streamer turned NOW PLAYING off. A LIVE LEARN banner is never hidden. */
   noBanner?: boolean;
+  /**
+   * On facts_ready: more of the song's facts, after the ones sent earlier (the AI's captions after
+   * the facts from data). The bubble on screen stays; these replace the ones still to come.
+   */
+  keep?: boolean;
 }
