@@ -1,7 +1,8 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
 import { MAX_FACT_CHARS } from "./fact-verifier";
-import { articleItem, articleItemFrom, artistFactsFromEntity, clearArticleItemCache, factsFromEntity, pickSong, plainDate, rankedClaims, searchLanguage, searchLanguages, songItemFacts, wikidataFacts } from "./wikidata";
+import { articleItem, articleItemFrom, artistFactsFromEntity, clearArticleItemCache, factsFromEntity, pickArtistOrGame, pickSong, plainDate, rankedClaims, searchLanguage, searchLanguages, songItemFacts, wikidataFacts } from "./wikidata";
+import { parseInfobox } from "./infobox";
 
 describe("pickSong", () => {
   const lostBoy = [
@@ -475,7 +476,8 @@ describe("the matched article's own item (#256)", () => {
       expect(await articleItem("Harbor Lights (Velvet Lark song)", ["velvet lark"])).toEqual({ kind: "song", title: "Harbor Lights", year: "2004", partOf: null, genres: ["dream pop"] });
       await articleItem("Harbor Lights (Velvet Lark song)", ["velvet lark"]);
       log.mockRestore();
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // The item, its labels, and the article's infobox to check the year against.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get("titles")).toBe("Harbor Lights (Velvet Lark song)");
     });
 
@@ -488,5 +490,118 @@ describe("the matched article's own item (#256)", () => {
       warn.mockRestore();
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+
+    it("gives no year when the article's infobox dates the song another year (#256)", async () => {
+      const item = single({ P577: [day("+1998-06-01T00:00:00Z")], P175: ids("Q20"), P136: ids("Q23") }, "single by Velvet Lark");
+      global.fetch = jest.fn(async (url: string | URL | Request) => {
+        const u = new URL(String(url));
+        const params = u.searchParams;
+        const body = u.hostname.endsWith("wikipedia.org")
+          ? { query: { pages: [{ revisions: [{ slots: { main: { content: "{{Infobox song\n| name = Harbor Lights\n| released = {{Start date|1999|1|5}}\n}}" } } }] }] } }
+          : params.get("sites") === "enwiki"
+            ? { entities: { Q1: item } }
+            : { entities: Object.fromEntries((params.get("ids") ?? "").split("|").map((id) => [id, labels[id]])) };
+        return { ok: true, json: async () => body } as Response;
+      }) as unknown as typeof fetch;
+      const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+      const found = await articleItem("Harbor Lights (Velvet Lark song, 1999)", ["velvet lark"]);
+      log.mockRestore();
+      expect(found).toEqual({ kind: "song", title: "Harbor Lights", year: null, partOf: null, genres: ["dream pop"] });
+    });
+
+    it("doesn't check against an infobox that names another artist, the original's of a cover", async () => {
+      const item = single({ P577: [day("+1998-06-01T00:00:00Z")], P175: ids("Q20") }, "single by Velvet Lark");
+      global.fetch = jest.fn(async (url: string | URL | Request) => {
+        const u = new URL(String(url));
+        const body = u.hostname.endsWith("wikipedia.org")
+          ? { query: { pages: [{ revisions: [{ slots: { main: { content: "{{Infobox song\n| artist = [[Moth Choir]]\n| released = 1979\n}}" } } }] }] } }
+          : u.searchParams.get("sites") === "enwiki"
+            ? { entities: { Q1: item } }
+            : { entities: Object.fromEntries((u.searchParams.get("ids") ?? "").split("|").map((id) => [id, labels[id]])) };
+        return { ok: true, json: async () => body } as Response;
+      }) as unknown as typeof fetch;
+      const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+      const found = await articleItem("Harbor Lights (Moth Choir song)", ["velvet lark"]);
+      log.mockRestore();
+      expect(found).toMatchObject({ kind: "song", year: "1998" });
+    });
+  });
+
+  it("gives no year that the item's own description contradicts anywhere in it (#256)", () => {
+    const item = single({ P577: [day("+1998-06-01T00:00:00Z")], P175: ids("Q20") }, "song by Velvet Lark, released in 1999");
+    expect(articleItemFrom(item, labels, ["velvet lark"])).toEqual({ kind: "song", title: "Harbor Lights", year: null, partOf: null, genres: [] });
+  });
+
+  it("gives nothing when the item is a song of another title than the request (#256)", () => {
+    const item = single({ P577: [day("+2004-06-01T00:00:00Z")], P175: ids("Q20") });
+    expect(articleItemFrom(item, labels, ["velvet lark"], ["Harbor Nights"])).toBeNull();
+    expect(articleItemFrom(item, labels, ["velvet lark"], ["Harbor Lights (2004)"])?.kind).toBe("song");
+  });
+});
+
+describe("a song item checked against its article's infobox (#256)", () => {
+  const claim = (value: unknown) => ({ mainsnak: { datavalue: { value } } });
+  const item = (claims: Record<string, unknown[]>, description = "2004 single by Velvet Lark") => ({
+    id: "Q1", descriptions: { en: { value: description } },
+    claims: Object.fromEntries(Object.entries(claims).map(([p, v]) => [p, v.map(claim)])),
+  });
+  const L = Object.fromEntries(
+    [["Q10", "Ola Brandt"], ["Q11", "Mara Quill"], ["Q12", "Jane Doe"], ["Q13", "Sam Roe"], ["Q14", "Ada Penn"]].map(([id, value]) => [id, { id, labels: { en: { value } } }])
+  );
+  const box = (fields: string) => {
+    const parsed = parseInfobox(`{{Infobox song\n${fields}\n}}`);
+    if (!parsed) throw new Error("no infobox");
+    return parsed;
+  };
+  const t = "Harbor Lights";
+
+  it("leaves out a producer list the infobox shows is cut to one name", () => {
+    const song = item({ P162: [{ id: "Q10" }] });
+    expect(factsFromEntity(song, L, t, box("| producer = {{hlist|[[Ola Brandt]]|Mara Quill|Velvet Lark}}"))).toEqual([]);
+    expect(factsFromEntity(song, L, t, box("| producer = [[Ola Brandt]]"))).toEqual(['"Harbor Lights" was produced by Ola Brandt.']);
+  });
+
+  it("leaves out a composer list the infobox's writers show is cut", () => {
+    const song = item({ P86: [{ id: "Q12" }] });
+    expect(factsFromEntity(song, L, t, box("| writer = Jane Doe, Sam Roe, Ada Penn"))).toEqual([]);
+    expect(factsFromEntity(item({ P86: [{ id: "Q12" }], P676: [{ id: "Q13" }] }), L, t, box("| writer = Jane Doe, Sam Roe"))).toEqual([
+      '"Harbor Lights" was written by Jane Doe and Sam Roe.',
+    ]);
+  });
+
+  it("says who wrote it, not who wrote what, when only the infobox's names back the item", () => {
+    // The item names the composer among the lyricists too; the infobox lists writers, not roles.
+    const song = item({ P86: [{ id: "Q12" }], P676: [{ id: "Q13" }, { id: "Q12" }] });
+    expect(factsFromEntity(song, L, t, box("| writer = Sam Roe, Jane Doe"))).toEqual(['"Harbor Lights" was written by Jane Doe and Sam Roe.']);
+  });
+
+  it("tells no credits the article doesn't list, and keeps them for an item with no English article", () => {
+    const song = item({ P162: [{ id: "Q10" }], P577: [{ time: "+2004-01-01T00:00:00Z" }] });
+    expect(factsFromEntity(song, L, t, box("| released = 2004"))).toEqual(['"Harbor Lights" came out in 2004.']);
+    expect(factsFromEntity(song, L, t, null)).toEqual(['"Harbor Lights" came out in 2004.']);
+    expect(factsFromEntity(song, L, t)).toEqual(['"Harbor Lights" came out in 2004.', '"Harbor Lights" was produced by Ola Brandt.']);
+  });
+
+  it("gives no year the infobox or the description contradicts", () => {
+    const song = (description: string) => item({ P577: [{ time: "+1998-00-00T00:00:00Z" }] }, description);
+    expect(factsFromEntity(song("single by Velvet Lark"), L, t, box("| released = {{Start date|1999|1|5}}"))).toEqual([]);
+    expect(factsFromEntity(song("song by Velvet Lark, released in 1999"), L, t)).toEqual([]);
+    expect(factsFromEntity(song("1998 single by Velvet Lark"), L, t, box("| released = 1998"))).toEqual(['"Harbor Lights" came out in 1998.']);
+  });
+
+  it("names every composer, or none when they don't fit a bubble", () => {
+    const four = item({ P86: [{ id: "Q10" }, { id: "Q11" }, { id: "Q12" }, { id: "Q13" }] });
+    expect(factsFromEntity(four, L, t)).toEqual(['"Harbor Lights" was composed by Ola Brandt, Mara Quill, Jane Doe and Sam Roe.']);
+    const many = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`Q${30 + i}`, { id: `Q${30 + i}`, labels: { en: { value: `Composer Number ${i}` } } }]));
+    expect(factsFromEntity(item({ P86: Object.keys(many).map((id) => ({ id })) }), many, t)).toEqual([]);
+  });
+});
+
+describe("pickArtistOrGame (#256)", () => {
+  it("picks none when a band and a game share the name", () => {
+    const band = { id: "Q1", label: "Glass Comet", description: "Canadian rock band" };
+    const game = { id: "Q2", label: "Glass Comet", description: "2008 video game" };
+    expect(pickArtistOrGame([band, { id: "Q3", label: "Glass Comet", description: "album" }], "glass comet")?.id).toBe("Q1");
+    expect(pickArtistOrGame([band, game], "glass comet")).toBeNull();
   });
 });

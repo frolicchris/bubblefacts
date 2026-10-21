@@ -12,7 +12,7 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
-import { alreadySaid, BoxFact, infoboxFacts, valuesIn } from "./infobox";
+import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -634,7 +634,7 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
   if (!data.length) {
     // The article's item is read alongside MusicBrainz. When MusicBrainz has facts, they don't
     // wait for it: it adds to them only if it is already in (it is cached for the next play).
-    const item = sure.then((found) => (found ? articleItem(found.page, found.names) : null));
+    const item = sure.then((found) => (found ? articleItem(found.page, found.names, requestTitles(song, reading)) : null));
     const mb = await musicbrainzFacts(reading);
     const found = mb.length ? await Promise.race([item, Promise.resolve(null)]) : await item;
     const fromItem = found?.kind === "song" ? songItemFacts(found, { year: statedYear(mb), album: statesAlbum(mb) }) : { facts: found?.facts ?? [], dropYear: false };
@@ -646,6 +646,31 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
   } else for (const f of data) structuredLabel.set(f, SOURCE.wikidata);
   structuredShown.set(songKey(song), new Set(facts));
   return facts;
+}
+
+/** The titles a request may go by: as typed and as read, whole and without a game's name in front. */
+function requestTitles(song: SSLSong, read: SSLSong): string[] {
+  return [...new Set([song, read].flatMap((s) => [s.title, resolveGameAndTrack(s).track]).filter(Boolean))];
+}
+
+/**
+ * The infobox's facts when the infobox is about the requested work, else none (`boxMisfit`):
+ * not a remake's, a same-named game's for a band, or another album's in a music article.
+ * A game's infobox also asks MusicBrainz (cached) whether the artist field is a performer
+ * with this song.
+ */
+async function boxForRequest(list: BoxFact[], page: string, song: SSLSong, read: SSLSong): Promise<BoxFact[]> {
+  const about = list.find((b) => b.about)?.about;
+  if (!about) return list;
+  const { game } = resolveGameAndTrack(read);
+  const titles = requestTitles(song, read);
+  const performer = about.kind === "game" ? await musicbrainzFacts(read).then((mb) => Boolean(statedYear(mb) || statesAlbum(mb))) : false;
+  const why = boxMisfit(about, { game, titles }, performer);
+  if (why) {
+    console.log(`[Infobox] "${page}": ${why}, no infobox facts`);
+    return [];
+  }
+  return list;
 }
 
 /** An article the lookup surely matched to the request: its page and the request's artist names. */
@@ -1048,7 +1073,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // the original's credits and year. The article still serves the captions.
   const edition = context ? editionNotInTitle(read.artist ?? "", page) : null;
   if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
-  const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page) : Promise.resolve([]);
+  const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
   const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
   let answer: string;

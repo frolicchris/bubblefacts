@@ -384,3 +384,33 @@ describe("artistByTitle: the artist of a now playing title with no artist", () =
     expect(await artistByTitle("Ember Lanterns")).toBe("");
   });
 });
+
+describe("musicbrainzFacts: a game track's composers, all or none (#256)", () => {
+  const composer = (name: string) => ({ type: "composer", "target-type": "artist", artist: { name } });
+  let composers: string[] = [];
+  beforeAll(() => {
+    global.fetch = (async (input: string | URL) => {
+      const url = new URL(String(input));
+      const body = url.pathname === "/ws/2/recording"
+        ? (url.searchParams.get("query") ?? "").includes(" AND release:")
+          ? { count: 1, recordings: [{ id: "r1", score: 100, title: /recording:"([^"]+)"/.exec(url.searchParams.get("query") ?? "")?.[1], releases: [{ title: "Lantern Quest III Sound Collection" }] }] }
+          : { count: 0, recordings: [] }
+        : url.pathname === "/ws/2/recording/r1"
+          ? { relations: [{ "target-type": "work", work: { id: "w1" } }] }
+          : { relations: composers.map(composer) };
+      return { ok: true, status: 200, json: async () => body } as Response;
+    }) as unknown as typeof fetch;
+  });
+
+  it("names every composer the work lists, not the first three", async () => {
+    composers = ["Ann Vale", "Bo Lund", "Kit Marsh", "Lee Park"];
+    expect(await musicbrainzFacts({ title: "Lantern Waltz", artist: "Lantern Quest III" })).toEqual([
+      '"Lantern Waltz" from Lantern Quest III was composed by Ann Vale, Bo Lund, Kit Marsh and Lee Park.',
+    ]);
+  });
+
+  it("names none when they don't fit a bubble", async () => {
+    composers = Array.from({ length: 12 }, (_, i) => `Composer Number ${i}`);
+    expect(await musicbrainzFacts({ title: "Lantern Polka", artist: "Lantern Quest III" })).toEqual([]);
+  });
+});
