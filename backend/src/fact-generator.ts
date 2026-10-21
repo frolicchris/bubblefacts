@@ -9,9 +9,9 @@ import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
-import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
-import { artistFacts, wikidataFacts } from "./wikidata";
+import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -563,14 +563,50 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
  * Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it.
  * `reading` is the reading of the song to look up; the bookkeeping stays with the song as requested.
  */
-async function structuredFacts(song: SSLSong, reading: SSLSong = song): Promise<string[]> {
+async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Promise<SureArticle | null> = Promise.resolve(null)): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
   const names = [reading.title, reading.artist ?? ""];
   const data = onStandard(await wikidataFacts(reading), names);
-  const facts = data.length ? data : onStandard(await musicbrainzFacts(reading), names);
+  let facts = data;
+  if (!data.length) {
+    // The article's item is read alongside MusicBrainz. When MusicBrainz has facts, they don't
+    // wait for it: it adds to them only if it is already in (it is cached for the next play).
+    const item = sure.then((found) => (found ? articleItem(found.page, found.names) : null));
+    const mb = await musicbrainzFacts(reading);
+    const found = mb.length ? await Promise.race([item, Promise.resolve(null)]) : await item;
+    const fromItem = found?.kind === "song" ? songItemFacts(found, { year: statedYear(mb), album: statesAlbum(mb) }) : { facts: found?.facts ?? [], dropYear: false };
+    const fromMb = onStandard(fromItem.dropYear ? withoutYear(mb) : mb, names);
+    const added = onStandard(fromItem.facts, [...names, found?.kind === "song" ? found.title : ""]).filter((f) => !fromMb.includes(f));
+    for (const f of fromMb) structuredLabel.set(f, SOURCE.musicbrainz);
+    for (const f of added) structuredLabel.set(f, SOURCE.wikidata);
+    facts = [...fromMb, ...added];
+  } else for (const f of data) structuredLabel.set(f, SOURCE.wikidata);
   structuredShown.set(songKey(song), new Set(facts));
-  for (const f of facts) structuredLabel.set(f, data.length ? SOURCE.wikidata : SOURCE.musicbrainz);
   return facts;
+}
+
+/** An article the lookup surely matched to the request: its page and the request's artist names. */
+interface SureArticle {
+  page: string;
+  names: string[];
+}
+
+/**
+ * The request's article when it is surely this work (issue #256), for its Wikidata item's
+ * facts: the same lookup and checks as the AI's reference (`findReference`,
+ * `workMatchConfidence`, `summaryGate`). Null when there is none or it may be another
+ * work. Never throws.
+ */
+async function sureArticle(song: SSLSong): Promise<SureArticle | null> {
+  try {
+    const { context, read } = await findReference(song);
+    if (!context || workMatchConfidence(read, context, song).level !== "sure" || (await summaryGate(read, context, song))) return null;
+    const names = [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])];
+    return { page: context.split("\n")[0], names };
+  } catch (err) {
+    console.warn(`[Grounding] Lookup for data facts failed for "${song.title}": ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
 }
 
 /**
@@ -736,12 +772,13 @@ const fromASource = (f: Fact) => !WRITTEN_BY_STREAMER.has(f.source) && f.source 
  * or, when no source knows the song, as many as there are bubbles. Then the usual
  * facts in the slots left.
  */
-async function generate(song: SSLSong, entry: SSLQueueItem | null): Promise<{ facts: Fact[]; ttlMs: number }> {
+async function generate(song: SSLSong, entry: SSLQueueItem | null, onEarly?: EarlyFacts): Promise<{ facts: Fact[]; ttlMs: number }> {
   const want = config.factsPerSong;
   // A song with its own facts takes its pool fact there (generateRest).
   const tagged = findSongFacts(song) ? { forSong: [], pool: [] } : taggedFor(song);
   const mine = tagged.forSong.slice(0, want);
-  if (!mine.length && !tagged.pool.length) return generateRest(song, entry, want);
+  // With the streamer's tagged facts mixed in, the facts are re-spaced at the end: they go out once.
+  if (!mine.length && !tagged.pool.length) return generateRest(song, entry, want, false, song, onEarly);
   const room = want - mine.length;
   const rest = room > 0 ? await generateRest(song, entry, room) : { facts: [], ttlMs: Infinity };
   const found = rest.facts.filter((f) => !mine.includes(f.text) && !tagged.pool.includes(f.text));
@@ -851,7 +888,7 @@ function originalFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, 
  * screened, or Wikidata and MusicBrainz when there is no article or it may not be this song's;
  * the song list's and custom facts when nothing is found (unless `sourcedOnly`).
  */
-async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly: boolean, asked: SSLSong): Promise<Generated> {
+async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly: boolean, asked: SSLSong, onEarly?: EarlyFacts): Promise<Generated> {
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
   // Streamers write their lists differently ("Game - Track" with the composer as artist,
   // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
@@ -867,11 +904,15 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     ({ context, read } = await findReference(song));
     if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
   }
-  // No AI available (the desktop app's fallback when its model can't run):
-  // song-list and hand-picked facts only, with no lookup.
+  // No AI available (the desktop app's fallback when its model can't run), or no article:
+  // facts from data, else song-list and hand-picked facts.
   if (config.aiProvider === "none" || (config.factVerification && !context)) {
+    const lookup = config.factVerification && !handle && !placeholder;
+    // With no AI, the article is still looked up, alongside the data: when it is surely this
+    // song or its artist, its own Wikidata item adds facts (issue #256). Never for an unsure one.
+    const sure = lookup && config.aiProvider === "none" ? sureArticle(song) : Promise.resolve(null);
     // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
-    const data = config.factVerification && !handle && !placeholder ? await structuredFacts(song, read) : [];
+    const data = lookup ? await structuredFacts(song, read, sure) : [];
     const shownData = rankedData(data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)), want);
     if (shownData.length) {
       remember(shownData);
@@ -917,35 +958,74 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
   }
 
-  // An article about the artist or game, not the song itself: facts about
-  // the song come first when Wikidata or MusicBrainz has any ("describe the
-  // song, then tell about it").
-  const structuredFirst = context && !aboutTheSong(read, context) ? await structuredFacts(song, read) : [];
+  // Facts from data about the song, looked up alongside the AI: when the article is about its
+  // artist or game ("describe the song, then tell about it"), or surely about the song itself,
+  // when its own Wikidata item can add to them (issue #256). They go to the overlay as soon as
+  // they're ready (`onEarly`), so a busy PC shows them while the AI is still writing.
+  const page = context.split("\n")[0];
+  const sure = context && match?.level === "sure" ? { page, names: [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])] } : null;
+  // Data facts leave room for at least one caption.
+  const dataRoom = want > 1 ? want - 1 : want;
+  let aiDone = false;
+  let early: Fact[] = [];
+  const dataFacts = (context && (!aboutTheSong(read, context) || sure) ? structuredFacts(song, read, Promise.resolve(sure)) : Promise.resolve([] as string[])).then((list) => {
+    const data = list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    if (!aiDone && onEarly && data.length) {
+      early = toFacts(song, rankedData(data, dataRoom), (t) => structuredLabel.get(t));
+      if (early.length) {
+        console.log(`[FactGen] "${song.title}": ${early.length} facts from data go out while the AI writes`);
+        remember(early.map((f) => f.text));
+        onEarly(early);
+      }
+    }
+    return data;
+  });
 
   const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
-  const lines = (await askModel(prompt, songKey(asked))).split("\n").map((l) => l.trim()).filter(Boolean);
+  let answer: string;
+  try {
+    answer = await askModel(prompt, songKey(asked));
+  } catch (err) {
+    aiDone = true;
+    // The facts already on screen stand for the song when the AI fails (but not when the song changed).
+    if (early.length && !(err instanceof Obsolete)) {
+      console.warn(`[FactGen] The AI failed for "${song.title}": keeping the ${early.length} facts from data`);
+      return { facts: early, ttlMs: RETRY_MS };
+    }
+    throw err;
+  }
+  aiDone = true;
+  const lines = answer.split("\n").map((l) => l.trim()).filter(Boolean);
+  const structuredFirst = await dataFacts;
   const { track } = resolveGameAndTrack(read);
   const cited = Boolean(context) && citesSentences();
   const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
   // A dropped caption is logged by its reason alone, never its words, so logs and the reports
   // made from them can't spread what was held back (issues #242 and #262).
   for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
+  // Facts sent early are among the recent ones, so a caption saying the same is dropped here too.
   const fresh = kept.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
   if (fresh.length < kept.length) console.log(`[Screen] DROP ${kept.length - fresh.length} already shown for an earlier song`);
   // Music terms get a few fixed plain words, so any viewer can follow.
   const plain = new Map(fresh.map((f) => [f, explainMusicTerms(f)]));
-  const structured = structuredFirst.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+  const structured = early.length ? early.map((f) => f.text) : rankedData(structuredFirst, dataRoom);
   // A spare takes the place of a line that only repeats the title and artist.
   const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
   const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));
-  const shown = context && config.sourceRisk ? rankedFromArticle(structured, usable, context, plain, citedSentence, want) : bestSupported(structured, usable, context, plain, citedSentence, want);
-  remember(shown);
+  // Facts already sent stay first, as sent; the captions fill the bubbles left.
+  const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
+  const lead = early.length ? [] : structured;
+  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room) : bestSupported(lead, usable, context, plain, citedSentence, room);
+  const later = captions.filter((c) => !structured.includes(c));
+  const shown = early.length ? [...structured, ...later] : captions;
+  // Facts sent early were remembered when they went out.
+  remember(early.length ? later : shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
-    sources.set(songKey(asked), context.split("\n")[0]);
-    const article = `Wikipedia: ${context.split("\n")[0]}`;
+    sources.set(songKey(asked), page);
+    const article = `Wikipedia: ${page}`;
     return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
   }
   if (sourcedOnly) return none;
@@ -1017,7 +1097,7 @@ export function withoutNote(song: SSLSong): SSLSong {
  * looked up as its title and artist). The model's work and the outcome belong to the request: under
  * the reading's name the built-in model took it for a song no longer playing and refused.
  */
-async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = listed): Promise<Generated> {
+async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly = false, asked: SSLSong = listed, onEarly?: EarlyFacts): Promise<Generated> {
   // Matched as listed: a note in brackets may be how the streamer wrote an alias.
   const own = ownSongFacts(listed, want, asked);
   if (own) return own;
@@ -1030,7 +1110,7 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
   try {
-    return originalFacts(song, entry, want, asked) ?? (await groundedFacts(song, entry, want, sourcedOnly, asked));
+    return originalFacts(song, entry, want, asked) ?? (await groundedFacts(song, entry, want, sourcedOnly, asked, onEarly));
   } catch (err) {
     if (err instanceof Obsolete) {
       // Not cached: the song may come back, and then it deserves a real try.
@@ -1076,7 +1156,7 @@ export function allowedFacts(song: SSLSong, facts: Fact[]): Fact[] {
  * Facts for a song. Results are cached, and concurrent callers (several
  * overlays, a reconnect mid-generation) share one generation.
  */
-export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null): Promise<Fact[]> {
+export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, onEarly?: EarlyFacts): Promise<Fact[]> {
   // Checked before the cache, so a switch turned on applies at once, and off again brings the found facts back.
   const own = ownFactsOnly(song);
   if (own) return Promise.resolve(own);
@@ -1089,7 +1169,7 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
   const revisionAtStart = revisions.get(key) ?? 0;
   let pending = inFlight.get(key);
   if (!pending) {
-    pending = generate(song, entry)
+    pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
         // A generation started before the song's facts changed may not overwrite them.
         if ((revisions.get(key) ?? 0) === revisionAtStart) factCache.set(key, { facts, expires: Date.now() + ttlMs });
@@ -1101,8 +1181,15 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null):
     inFlight.set(key, pending);
   }
   // Superseded while it ran (the streamer saved facts for this song): start over.
-  return pending.then((facts) => ((revisions.get(key) ?? 0) === revisionAtStart ? facts : generateFacts(song, entry)));
+  return pending.then((facts) => ((revisions.get(key) ?? 0) === revisionAtStart ? facts : generateFacts(song, entry, onEarly)));
 }
+
+/**
+ * Facts from data that are ready while the AI still writes (issue #256): the first of the
+ * song's facts, sent to the overlay at once. The full list `generateFacts` returns later
+ * starts with them, unchanged, with the AI's captions after.
+ */
+export type EarlyFacts = (facts: Fact[]) => void;
 
 /** Bumped when a song's facts change; a generation from an older revision is discarded. */
 const revisions = new Map<string, number>();

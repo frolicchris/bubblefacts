@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
+import { artistNames, mentionsName, namesLoosely, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
 import { fitOrSplit, packFacts } from "./data-facts";
@@ -292,8 +292,15 @@ export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>)
     return facts.slice(0, 2);
   }
   const person = itemIds(e, "P31").includes("Q5");
-  const when = year(e, person ? "P569" : "P571");
-  const where = named(person ? "P19" : "P740")[0];
+  // Two different years, or a group whose "work period start" is another year than its
+  // "inception" (a reunion dated as the start): no year rather than the wrong one.
+  const years = (prop: string) => [...new Set(rankedClaims(e, prop).map((c) => /^\+(\d{4})/.exec((c.mainsnak?.datavalue?.value as { time?: string } | undefined)?.time ?? "")?.[1]).filter(Boolean))];
+  const born = years(person ? "P569" : "P571");
+  const active = person ? [] : years("P2031");
+  const when = born.length === 1 && (!active.length || (active.length === 1 && active[0] === born[0])) ? born[0] : null;
+  const place = named(person ? "P19" : "P740")[0];
+  // "formed in the United States", not "in United States".
+  const where = place && /^(United States|United Kingdom|United Arab Emirates|Netherlands|Philippines|Czech Republic|Dominican Republic|Bahamas|Gambia|Maldives)\b/.test(place) ? `the ${place}` : place;
   const verb = person ? "was born" : "formed";
   const genres = named("P136").slice(0, 2);
   const labelsOf = named("P264").slice(0, 2);
@@ -345,6 +352,133 @@ export async function artistFacts(name: string): Promise<string[]> {
     console.warn(`[Wikidata] Artist lookup failed for "${clean}": ${err instanceof Error ? err.message : err}`);
     return [];
   }
+}
+
+// --- The matched article's own item (issue #256) ---------------------------
+
+/** One piece of music: song, single, musical work, musical work/composition, composed musical work, track with vocals. */
+const SONG_CLASSES = new Set(["Q7366", "Q134556", "Q2188189", "Q105543609", "Q207628", "Q55850593"]);
+/** A release or a work that holds many pieces, or isn't music: album, studio album, EP, soundtrack, compilation, live album, film, video game, musical. */
+const NOT_ONE_PIECE = new Set(["Q482994", "Q208569", "Q169930", "Q4176708", "Q222910", "Q209939", "Q11424", "Q7889", "Q2743"]);
+/** A performer: a person, or a musical group, rock band, ensemble, duo, boy band or girl group. */
+const HUMAN = "Q5";
+const GROUP_CLASSES = new Set(["Q215380", "Q5741069", "Q2088357", "Q9212979", "Q216337", "Q641066"]);
+/** What a song's P361 ("part of") must be for "appears on": an album, an EP, a soundtrack or a mixtape. */
+const RELEASE_ITEM = /\b(album|EP|soundtrack|mixtape)\b/i;
+
+/** What the article's item is, cut down to what its facts need. */
+export type ArticleItem =
+  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[] }
+  | { kind: "artist"; facts: string[] }
+  | null;
+
+/** A name in the item's label or the request's artist field, either way round and a letter or two off. */
+function sameArtist(label: string, names: string[]): boolean {
+  const l = normalizeTitle(label);
+  return Boolean(l) && (namesLoosely(l, names) || names.some((n) => namesLoosely(n, [l])));
+}
+
+/**
+ * The facts a surely matched article's item allows (issue #256). A song, single or
+ * musical work gives its year, album and genres, unless it names performers and
+ * none is the requested artist (the item is another performer's version). A
+ * performer gives the artist facts `artistFactsFromEntity` writes, when its name
+ * is the artist's. Anything else (an album, a film, a game) gives nothing.
+ */
+export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artist: string[]): ArticleItem {
+  const classes = itemIds(e, "P31");
+  const description = e.descriptions?.en?.value ?? "";
+  const names = artist.filter(Boolean);
+  if (!names.length || classes.some((c) => NOT_ONE_PIECE.has(c))) return null;
+  if (classes.some((c) => SONG_CLASSES.has(c))) {
+    const title = cleanLabel(anyLabel(e));
+    if (!title || (/\b(album|EP)\b/.test(description) && !/\b(song|single)\b/i.test(description))) return null;
+    const performers = itemIds(e, "P175").map((id) => anyLabel(labels[id]));
+    if (performers.length && !performers.some((p) => sameArtist(p, names))) return null;
+    // The earliest date at a year's precision or finer. An item described as another
+    // year's single ("1969 single by ...") dates the original elsewhere: no year.
+    const dates = rankedClaims(e, "P577")
+      .map((c) => plainDate(c.mainsnak?.datavalue?.value))
+      .filter((d): d is { text: string; sort: number } => d !== null)
+      .sort((a, b) => a.sort - b.sort);
+    const first = dates.length ? String(Math.floor(dates[0].sort / 10000)) : null;
+    const described = /^(\d{4})\b/.exec(description)?.[1];
+    const year = first && (!described || described === first) ? first : null;
+    const partOf = itemIds(e, "P361")
+      .filter((id) => RELEASE_ITEM.test(labels[id]?.descriptions?.en?.value ?? ""))
+      .map((id) => cleanLabel(anyLabel(labels[id])))
+      .find(Boolean) ?? null;
+    const genres = itemIds(e, "P136").map((id) => anyLabel(labels[id])).filter(Boolean).slice(0, 2);
+    return { kind: "song", title, year, partOf, genres };
+  }
+  const performer = (classes.includes(HUMAN) || classes.some((c) => GROUP_CLASSES.has(c))) && PERFORMER_ITEM.test(description);
+  if (!performer || !sameArtist(anyLabel(e), names)) return null;
+  const facts = artistFactsFromEntity(e, labels);
+  return facts.length ? { kind: "artist", facts } : null;
+}
+
+/**
+ * Sentences from a song's item, leaving out what MusicBrainz already says for the song
+ * (`covered`): its year and whether it named an album. When the two years differ, the
+ * earlier stands only if it is MusicBrainz's, which leaves out reissues, compilations and
+ * live albums; when Wikidata's is earlier, neither is shown (`dropYear`).
+ */
+export function songItemFacts(
+  item: { title: string; year: string | null; partOf: string | null; genres: string[] },
+  covered: { year?: string | null; album?: boolean } = {}
+): { facts: string[]; dropYear: boolean } {
+  const q = `"${item.title}"`;
+  const dropYear = Boolean(covered.year && item.year && item.year < covered.year);
+  const y = covered.year ? null : item.year;
+  const partOf = covered.album ? null : item.partOf;
+  const basics = y && partOf
+    ? fitOrSplit(`${q} came out in ${y} and appears on ${partOf}.`, [`${q} came out in ${y}.`, `${q} appears on ${partOf}.`])
+    : y ? [`${q} came out in ${y}.`] : partOf ? [`${q} appears on ${partOf}.`] : [];
+  const parts = basics.map((s) => ({ full: s, short: s }));
+  if (item.genres.length) parts.push({ full: `The genres of ${q} include ${names(item.genres)}.`, short: `Its genres include ${names(item.genres)}.` });
+  return { facts: packFacts(parts), dropYear };
+}
+
+const pageItemCache = new Map<string, { entity: Entity | null; labels: Record<string, Entity>; at: number }>();
+
+/**
+ * The item behind an English Wikipedia article, read in one request by the page's
+ * title (Wikidata follows a redirect), and the labels its facts need in one more.
+ * Null when the page has no item. Throws when Wikidata can't be read, so nothing is cached.
+ */
+async function pageItem(page: string): Promise<{ entity: Entity | null; labels: Record<string, Entity> }> {
+  const hit = pageItemCache.get(page);
+  if (hit && (hit.entity || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit;
+  const data = await get<{ entities?: Record<string, Entity & { missing?: string }> }>({
+    action: "wbgetentities", sites: "enwiki", titles: page, normalize: "1", props: "claims|labels|descriptions", languages: "en|mul",
+  });
+  const entity = Object.values(data.entities ?? {}).find((e) => /^Q\d+$/.test(e.id ?? "") && e.missing === undefined) ?? null;
+  const refs = entity ? ["P175", "P361", "P136", "P19", "P740", "P264"].flatMap((p) => itemIds(entity, p)) : [];
+  const labels = await entities([...new Set(refs)].slice(0, 50), "labels|descriptions", "en|mul");
+  const found = { entity, labels, at: Date.now() };
+  pageItemCache.set(page, found);
+  return found;
+}
+
+/**
+ * What the article's own Wikidata item says (`articleItemFrom`), for an article the
+ * lookup surely matched to the request. Null when it has no item or nothing to tell.
+ * Never throws.
+ */
+export async function articleItem(page: string, artist: string[]): Promise<ArticleItem> {
+  try {
+    const { entity, labels } = await pageItem(page);
+    const item = entity ? articleItemFrom(entity, labels, artist) : null;
+    console.log(`[Wikidata] "${page}" -> ${entity?.id ?? "no item"}: ${item ? (item.kind === "song" ? "a song" : "the artist") : "nothing to tell"}`);
+    return item;
+  } catch (err) {
+    console.warn(`[Wikidata] Item lookup failed for "${page}": ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
+export function clearArticleItemCache(): void {
+  pageItemCache.clear();
 }
 
 // --- Classical works (issue #260) -----------------------------------------

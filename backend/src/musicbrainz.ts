@@ -192,6 +192,25 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
   return facts;
 }
 
+/** The year `performerFacts` gave a song, or null. */
+export function statedYear(facts: string[]): string | null {
+  for (const f of facts) {
+    const m = / came out in (\d{4})\b/.exec(f);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** Whether `performerFacts` named the song's album. */
+export const statesAlbum = (facts: string[]): boolean => facts.some((f) => / is on the album /.test(f));
+
+/** `performerFacts` without the year: its album alone, as it would read with no year known. */
+export function withoutYear(facts: string[]): string[] {
+  return facts
+    .filter((f) => !/^".*" came out in \d{4}\.$/.test(f))
+    .map((f) => f.replace(/^(".*") came out in \d{4} and is on the album /, "$1 is on the album "));
+}
+
 /**
  * Recordings that may be the original of a game's track: the exact title, on
  * a release naming the game, not on a remix album. Earliest first.

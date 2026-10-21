@@ -61,8 +61,12 @@ describe("where the overlay connects", () => {
 /** Runs the overlay against a fake page and returns the texts of bubbles it shows. */
 function overlay() {
   const shown: string[] = [];
+  // Bubbles taken off the page at once, without fading out.
+  const gone: string[] = [];
   const hidden: string[] = [];
-  const timers: Array<() => void> = [];
+  // Timers the overlay can cancel, as a browser's.
+  const timers: Array<{ id: number; fn: () => void }> = [];
+  let timerId = 0;
   let socket: { onmessage?: (e: { data: string }) => void; onopen?: () => void } = {};
   const element = () => {
     const el: Record<string, unknown> = {
@@ -72,7 +76,7 @@ function overlay() {
       appendChild() {},
       append(t: unknown) { if (typeof t === "string") { el.text = t; shown.push(t); } },
       addEventListener() {},
-      remove() {},
+      remove() { if (el.text) gone.push(String(el.text)); },
       offsetWidth: 0,
     };
     return el;
@@ -85,22 +89,28 @@ function overlay() {
     location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
     document: { getElementById: element, createElement: element, body: element() },
     WebSocket: FakeSocket,
-    setTimeout: (fn: () => void) => timers.push(fn),
-    clearTimeout: () => {},
+    setTimeout: (fn: () => void) => {
+      timers.push({ id: ++timerId, fn });
+      return timerId;
+    },
+    clearTimeout: (id: number) => {
+      const i = timers.findIndex((t) => t.id === id);
+      if (i >= 0) timers.splice(i, 1);
+    },
     requestAnimationFrame: (fn: () => void) => fn(),
     console,
   });
   const song = { title: "Lost Boy", artist: "The Midnight" };
   const fact = (text: string, position: object = { top: "0%", left: "0%" }) => ({ text, delaySeconds: 0, durationSeconds: 5, position });
   const send = (msg: object) => socket.onmessage?.({ data: JSON.stringify(msg) });
-  const run = () => { while (timers.length) timers.shift()!(); };
+  const run = () => { while (timers.length) timers.shift()!.fn(); };
   /** Fires only the timers already waiting: each fact's turn, in order, before any bubble's own time runs out. */
-  const step = (n: number) => timers.splice(0, n).forEach((fn) => fn());
+  const step = (n: number) => timers.splice(0, n).forEach((t) => t.fn());
   socket.onopen?.();
   send({ type: "new_song", song });
   // The Now Playing banner's timers: out of the way, so `step` reaches the bubbles.
   run();
-  return { shown, hidden, send, run, step, song, fact };
+  return { shown, hidden, gone, send, run, step, song, fact };
 }
 
 describe("taking a fact off the stream", () => {
@@ -162,5 +172,38 @@ describe("bubbles in one fixed spot", () => {
     expect(o.shown).toEqual(["First.", "Second.", "Third."]);
     // Each hides once, however many reasons it had to go.
     expect(o.hidden).toEqual(["First.", "Second.", "Third."]);
+  });
+});
+
+describe("more facts for the song on now (issue #256)", () => {
+  const spot = { bottom: "5%", right: "3%" };
+
+  it("keeps the bubble on screen and shows each fact once when the AI's captions follow", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Data one.", spot), o.fact("Data two.", spot)] });
+    o.step(1);
+    // The server sends what's still to come: the second fact from data, then the captions.
+    o.send({ type: "facts_ready", song: o.song, keep: true, facts: [o.fact("Data two.", spot), o.fact("Caption.", spot)] });
+    expect([o.hidden, o.gone]).toEqual([[], []]);
+    o.run();
+    expect(o.shown).toEqual(["Data one.", "Data two.", "Caption."]);
+  });
+
+  it("drops captions that arrive after the song changed", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Data one.")] });
+    o.send({ type: "new_song", song: { title: "Next Song", artist: "Someone Else" } });
+    o.send({ type: "facts_ready", song: o.song, keep: true, facts: [o.fact("Late caption.")] });
+    o.run();
+    expect(o.shown).not.toContain("Late caption.");
+  });
+
+  it("never brings back a fact marked wrong", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Wrong one.")] });
+    o.send({ type: "remove_fact", song: o.song, text: "Wrong one." });
+    o.send({ type: "facts_ready", song: o.song, keep: true, facts: [o.fact("Wrong one."), o.fact("Caption.")] });
+    o.run();
+    expect(o.shown).toEqual(["Caption."]);
   });
 });
