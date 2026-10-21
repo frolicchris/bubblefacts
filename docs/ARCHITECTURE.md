@@ -793,6 +793,18 @@ apps that write the playing song into one text file:
   runs the line through `parseVideoTitle`. A trailing "requested by ...",
   "added by ..." or "requester: ..." is dropped first, and nothing else is
   guessed. Not yet tried against a real install.
+- A line with no artist (a video titled just "Song - Official Music Video",
+  or a bare title) is marked `titleOnly`. Before its lookup, `artistByTitle`
+  (`musicbrainz.ts`) searches MusicBrainz for recordings of that exact title
+  (case, accents and punctuation folded). When every one is by the same
+  artist, the song is looked up with that artist and marked
+  `artistFromTitle`, which makes its work match unsure, so only facts from
+  data show. Two or more artists, a placeholder credit ("[unknown]"), or more
+  recordings than one search returns (100) give no artist: common titles
+  ("Alone") never resolve. Results are cached like the other MusicBrainz
+  lookups. Streamling's public pages name only `nowplaying-minimal.txt` and
+  its ASCII twin `nowplaying-minimal-ascii7.txt` in `livetext`, the same
+  line, so there's no channel or artist file to read beside it.
 
 **YouTube titles** (`youtube-title.ts`). StreamElements only knows each
 request's YouTube title and channel. `parseVideoTitle(title, channel)`:

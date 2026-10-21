@@ -9,7 +9,7 @@ import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
-import { musicbrainzFacts } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { artistFacts, wikidataFacts } from "./wikidata";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
@@ -779,6 +779,19 @@ export function liveLearnLookup(song: SSLSong): SSLSong | null {
   return { title: parsed.title, artist: parsed.artist, ...(parsed.performer ? { performer: true } : {}), ...(parsed.confident ? {} : { artistUncertain: true }) };
 }
 
+/**
+ * A now playing song with no artist, read with the one artist MusicBrainz has
+ * its exact title from (`artistByTitle`), marked so only facts from data show.
+ * Null when it names an artist, or no single artist has the title.
+ */
+async function titleOnlyReading(song: SSLSong): Promise<SSLSong | null> {
+  if (!song.titleOnly || !config.factVerification) return null;
+  const artist = await artistByTitle(song.title);
+  if (!artist) return null;
+  console.log(`[FactGen] "${song.title}" has no artist: looked up as by ${artist}, the only artist with this title`);
+  return { ...song, artist, titleOnly: undefined, artistFromTitle: true };
+}
+
 /** Facts for a song, and how long to keep them (0: not cached, Infinity: for the session). */
 type Generated = { facts: Fact[]; ttlMs: number };
 
@@ -876,6 +889,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Not sure the article is about this song (issue #255): no AI captions, only facts from data.
   // Wikipedia's own summary of the article can say so too: a disambiguation page, a film named like the song.
   let match = context && config.abstain ? workMatchConfidence(read, context, song) : null;
+  // An artist found by the title alone may be another song's: never more than data facts.
+  if (context && song.artistFromTitle && match?.level !== "unsure") match = { level: "unsure", reason: "the artist was found by the title alone" };
   if (match?.level === "sure") {
     const why = await summaryGate(read, context, song);
     if (why) match = { level: "unsure", reason: why };
@@ -1010,6 +1025,8 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
   // never searched, sent to the AI, put in a fact or logged (issue #262).
   const song = withoutNote(listed);
   if (song.liveLearn) return liveLearnFacts(song, want, asked);
+  const byTitle = await titleOnlyReading(song);
+  if (byTitle) return generateRest(byTitle, entry, want, sourcedOnly, asked);
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
   try {
@@ -1107,9 +1124,10 @@ export function clearFactCache(): void {
   structuredShown.clear();
 }
 
-/** The songs a block is saved under: the request, and for a live learn also the song it was looked up as. */
+/** The songs a block is saved under: the request, and for a live learn or a title alone also the song it was looked up as. */
 function blockedAs(song: SSLSong): SSLSong[] {
-  const lookup = song.liveLearn ? liveLearnLookup(song) : null;
+  const byTitle = song.titleOnly ? cachedArtistByTitle(song.title) : "";
+  const lookup = song.liveLearn ? liveLearnLookup(song) : byTitle ? { ...song, artist: byTitle, titleOnly: undefined } : null;
   return lookup ? [song, lookup] : [song];
 }
 
