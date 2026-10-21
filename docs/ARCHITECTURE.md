@@ -1075,11 +1075,19 @@ no screening, and are skipped for a song whose structured facts were marked
     of X include A, B and C", up to three, never "usually filed under".
   - *Another year.* A song item's year stands only when the item's
     description gives no other year (anywhere, as in "... released in 1999")
-    and the song infobox of its article agrees. An infobox that names another
+    and the song infobox of its article agrees, and never when it is later
+    than the year of the album that infobox links to (`albumYear`): a song
+    first out on an album and released as a single later came out with the
+    album. That holds for the infobox's own year and, through the article's
+    item, for MusicBrainz's. An infobox that names another
     artist (a cover's page redirecting to the original's article) isn't used
     for either check. A bare year in a request ("Some Song (1999)") is not
     used: on a 300-song list it was often another version's year, so it would
     have dropped correct years.
+  - *Another place.* An artist's birthplace or origin from the article's own
+    item, and its birth or formation year, are told only when the article's infobox
+    (birth place or origin; birth date or first year active), if
+    it has one, gives the same (`boxBacksPlace`, `boxBacksYear`).
 
 ### Wrong and Undo
 

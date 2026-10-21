@@ -589,6 +589,26 @@ describe("a song item checked against its article's infobox (#256)", () => {
     expect(factsFromEntity(song("1998 single by Velvet Lark"), L, t, box("| released = 1998"))).toEqual(['"Harbor Lights" came out in 1998.']);
   });
 
+  it("gives no year after the song's album came out: that is the single's", () => {
+    const song = item({ P577: [{ time: "+1987-00-00T00:00:00Z" }] }, "song by Velvet Lark");
+    expect(factsFromEntity(song, L, t, box("| released = 1987"), "1986")).toEqual([]);
+    expect(factsFromEntity(song, L, t, box("| released = 1987"), "1987")).toEqual(['"Harbor Lights" came out in 1987.']);
+    // MusicBrainz's year after the album's goes too.
+    const fromItem = { title: t, year: null, partOf: null, genres: ["dream pop"], albumYear: "1972" };
+    expect(songItemFacts(fromItem, { year: "1973" }).dropYear).toBe(true);
+    expect(songItemFacts(fromItem, { year: "1972" }).dropYear).toBe(false);
+  });
+
+  it("leaves out an origin the artist's own article gives as another place", () => {
+    const band = { id: "Q2", labels: { en: { value: "Velvet Lark" } }, descriptions: { en: { value: "British rock band" } },
+      claims: { P31: [claim({ id: "Q215380" })], P740: [claim({ id: "Q15" })], P571: [claim({ time: "+1975-00-00T00:00:00Z" })] } };
+    const places = { Q15: { id: "Q15", labels: { en: { value: "Glasgow" } } } };
+    const artistBox = (origin: string) => parseInfobox(`{{Infobox musical artist\n| origin = ${origin}\n}}`);
+    expect(artistFactsFromEntity(band, places, artistBox("[[London]], England"))).toEqual(["Velvet Lark formed in 1975."]);
+    expect(artistFactsFromEntity(band, places, artistBox("[[Glasgow]], Scotland"))).toEqual(["Velvet Lark formed in Glasgow in 1975."]);
+    expect(artistFactsFromEntity(band, places)).toEqual(["Velvet Lark formed in Glasgow in 1975."]);
+  });
+
   it("names every composer, or none when they don't fit a bubble", () => {
     const four = item({ P86: [{ id: "Q10" }, { id: "Q11" }, { id: "Q12" }, { id: "Q13" }] });
     expect(factsFromEntity(four, L, t)).toEqual(['"Harbor Lights" was composed by Ola Brandt, Mara Quill, Jane Doe and Sam Roe.']);

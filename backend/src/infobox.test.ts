@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { alreadySaid, boxMisfit, boxProducers, boxWriters, earliestYear, factsFromInfobox, items, parseInfobox, sameCredits, valuesIn } from "./infobox";
+import { alreadySaid, boxBacksPlace, boxBacksYear, boxMisfit, boxProducers, boxWriters, earliestYear, factsFromInfobox, infoboxFacts, items, parseInfobox, sameCredits, valuesIn } from "./infobox";
 
 const texts = (page: string, wikitext: string) => {
   const box = parseInfobox(wikitext);
@@ -159,6 +159,44 @@ describe("data facts only from the requested work (#256)", () => {
     expect(boxMisfit(song("Paper Lanterns (Moth Choir song)"), { game: "Moth Choir", titles: ["Paper Lantern (1999)"] })).not.toBe("");
     expect(boxMisfit(song("Paper Lantern (Moth Choir song)"), { game: "Moth Choir", titles: ["Paper Lantern (1999)"] })).toBe("");
     expect(boxMisfit(song("Don't Wait (Moth Choir song)"), { game: "Moth Choir", titles: ["Dont Wait"] })).toBe("");
+  });
+
+  it("gives no song year after its album's: that is the single's", async () => {
+    const pages: Record<string, string> = {
+      "Paper Lantern (Moth Choir song)": "{{Infobox song\n| album = ''[[Night Ferry]]''\n| released = 1987\n| producer = Ola Brandt\n}}",
+      "Night Ferry": "{{Infobox album\n| artist = Moth Choir\n| released = {{Start date|1986|11|15}}\n}}",
+      "Glass Bird (Moth Choir song)": "{{Infobox song\n| album = [[Night Ferry]]\n| released = 1986\n}}",
+    };
+    const real = global.fetch;
+    global.fetch = (async (url: string) => {
+      const title = new URL(url).searchParams.get("titles") ?? "";
+      return { ok: true, json: async () => ({ query: { pages: [{ revisions: [{ slots: { main: { content: pages[title] ?? "" } } }] }] } }) } as Response;
+    }) as unknown as typeof fetch;
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const lantern = (await infoboxFacts("Paper Lantern (Moth Choir song)")).map((f) => f.text);
+    const bird = (await infoboxFacts("Glass Bird (Moth Choir song)")).map((f) => f.text);
+    log.mockRestore();
+    global.fetch = real;
+    expect(lantern).toEqual(['"Paper Lantern" was produced by Ola Brandt.', '"Paper Lantern" appears on Night Ferry.']);
+    expect(bird).toContain('"Glass Bird" came out in 1986.');
+  });
+
+  it("checks a place Wikidata gives against the artist's article", () => {
+    const artist = (fields: string) => parseInfobox(`{{Infobox musical artist\n${fields}\n}}`);
+    expect(boxBacksPlace(artist("| origin = [[London]], England"), "Glasgow", false)).toBe(false);
+    expect(boxBacksPlace(artist("| origin = [[London]], England"), "London", false)).toBe(true);
+    expect(boxBacksPlace(artist("| birth_place = [[Belleville, Ontario]], Canada"), "Belleville", true)).toBe(true);
+    expect(boxBacksPlace(artist("| birth_place = [[Harborview]], Canada"), "Belleville", true)).toBe(false);
+    expect(boxBacksPlace(artist("| genre = Rock"), "Glasgow", false)).toBe(true);
+  });
+
+  it("checks a formation or birth year Wikidata gives against the artist's article", () => {
+    const artist = (fields: string) => parseInfobox(`{{Infobox musical artist\n${fields}\n}}`);
+    expect(boxBacksYear(artist("| years_active = 1997–present"), "1998", false)).toBe(false);
+    expect(boxBacksYear(artist("| years_active = 1998–present"), "1998", false)).toBe(true);
+    expect(boxBacksYear(artist("| birth_date = {{birth date and age|1984|9|27}}"), "1984", true)).toBe(true);
+    expect(boxBacksYear(artist("| birth_date = {{birth date and age|1983|9|27}}"), "1984", true)).toBe(false);
+    expect(boxBacksYear(artist("| genre = Rock"), "1998", false)).toBe(true);
   });
 
   it("lists every genre the infobox gives, as genres it includes", () => {

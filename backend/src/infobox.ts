@@ -221,7 +221,11 @@ export async function infoboxFacts(page: string): Promise<BoxFact[]> {
   try {
     const wikitext = await loadWikitext(page);
     const box = parseInfobox(wikitext);
-    const facts = box ? factsFromInfobox(page, box) : [];
+    let facts = box ? factsFromInfobox(page, box) : [];
+    // A single's release year for a song its album put out earlier isn't when the song came out.
+    const year = box && SONG_BOX.test(box.type) ? boxYear(box) : null;
+    const album = year ? await albumYear(box as Infobox) : null;
+    if (year && album && album < year) facts = facts.filter((f) => !/^(released|published|composed|year):/.test(f.evidence));
     console.log(`[Infobox] "${page}": ${box ? box.type : "none"}, ${facts.length} facts`);
     cache.set(page, { facts, at: Date.now() });
     return facts;
@@ -319,6 +323,46 @@ function creditFields(box: Infobox, keys: string[]): string[] | null {
 export function boxYear(box: Infobox): string | null {
   const f = box.fields;
   return earliestYear(f.released ?? f.published ?? f.composed ?? f.year);
+}
+
+/**
+ * The year the album a song's infobox links to came out, from that album's own
+ * infobox, or null. A song first out on an album and released as a single later
+ * ("Some Song", album 1986, single 1987) came out with the album: a source's year
+ * after it is the single's. Never throws.
+ */
+export async function albumYear(box: Infobox): Promise<string | null> {
+  const link = /\[\[([^|\]#]+)/.exec(withoutRefsAndComments(box.fields.album ?? ""))?.[1]?.trim();
+  if (!link) return null;
+  const album = parseInfobox(await wikitextOf(link));
+  return album && ALBUM_BOX.test(album.type) ? earliestYear(album.fields.released) : null;
+}
+
+/**
+ * Whether an artist infobox's origin or birthplace backs a place Wikidata gives
+ * ("formed in Glasgow" for a band the article says formed in London). True when
+ * the infobox has no such field to check against.
+ */
+export function boxBacksPlace(box: Infobox | null, place: string, person: boolean): boolean {
+  const raw = box?.fields[person ? "birth place" : "origin"];
+  if (!raw) return true;
+  const text = normalizeTitle(items(raw).join(" ") || withoutRefsAndComments(raw).replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, "$1"));
+  return mentionsName(text, [normalizeTitle(place)]);
+}
+
+/**
+ * Whether an artist infobox backs a birth or formation year Wikidata gives: a
+ * person's birth date, a group's first year active ("1997–present" for a band
+ * Wikidata says formed in 1998). True when the infobox has no such field.
+ */
+export function boxBacksYear(box: Infobox | null, year: string, person: boolean): boolean {
+  const told = earliestYear(box?.fields[person ? "birth date" : "years active"]);
+  return !told || told === year;
+}
+
+/** An article's first infobox of any kind, or null. Never throws. */
+export async function anyBoxOf(page: string): Promise<Infobox | null> {
+  return page ? parseInfobox(await wikitextOf(page)) : null;
 }
 
 /** Whether two credit lists name the same people, each a letter or two off at most. */

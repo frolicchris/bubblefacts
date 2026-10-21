@@ -3,7 +3,7 @@ import { artistNames, MAX_FACT_CHARS, mentionsName, namesLoosely, normalizeTitle
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
 import { fitOrSplit, packFacts } from "./data-facts";
-import { boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
+import { albumYear, anyBoxOf, boxBacksPlace, boxBacksYear, boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
 
 /**
  * Plain facts from Wikidata, for songs with no Wikipedia article (issue #23).
@@ -171,9 +171,10 @@ const describedYears = (e: Entity): string[] => (e.descriptions?.en?.value ?? ""
  * composer or producer list cut to one name, and a year from before the release.
  * Undefined when the item has no English article. Writers and producers are told
  * only when the infobox lists the same people; a year only when neither the
- * infobox nor the item's description gives another.
+ * infobox nor the item's description gives another, and the song's album (its
+ * infobox's, `album`) didn't come out earlier.
  */
-export function factsFromEntity(song: Entity, labels: Record<string, Entity>, title: string, box?: Infobox | null): string[] {
+export function factsFromEntity(song: Entity, labels: Record<string, Entity>, title: string, box?: Infobox | null, album: string | null = null): string[] {
   const named = (prop: string) => itemIds(song, prop).map((id) => label(labels[id])).filter(Boolean);
   const facts: string[] = [];
   const q = `"${title}"`;
@@ -197,7 +198,8 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
   const described = describedYears(song);
   const told = box ? boxYear(box) : null;
   const first = year(song);
-  const y = first && (!described.length || described.includes(first)) && (!told || told === first) ? first : null;
+  // A later year than the song's album is a single's: the song came out with the album (`album`).
+  const y = first && (!described.length || described.includes(first)) && (!told || told === first) && !(album && album < first) ? first : null;
   const partOf = named("P361");
   if (y && partOf.length) facts.push(...fitOrSplit(`${q} came out in ${y} and appears on ${partOf[0]}.`, [`${q} came out in ${y}.`, `${q} appears on ${partOf[0]}.`]));
   else if (y) facts.push(`${q} came out in ${y}.`);
@@ -285,11 +287,12 @@ export async function wikidataFacts(song: SSLSong): Promise<string[]> {
     // The item's English article, when it has one, to check its credits and year against.
     const page = item.sitelinks?.enwiki?.title;
     const box = page ? await songBoxOf(page, artistNames(game)) : undefined;
+    const album = box ? await albumYear(box) : null;
     // A few of the long lists, so a song with many covers doesn't crowd out the rest.
     const refs = [["P86", 50], ["P676", 50], ["P361", 50], ["P162", 50], ["P166", 50], ["P2291", 50], ["P144", 3], ["P4969", 6], ["P155", 3], ["P156", 3], ["P407", 3]]
       .flatMap(([p, n]) => itemIds(item, p as string).slice(0, n as number));
     const labels = await entities([...new Set(refs)].slice(0, 50), "labels|descriptions");
-    const facts = factsFromEntity(item, labels, title, box);
+    const facts = factsFromEntity(item, labels, title, box, album);
     console.log(`[Wikidata] "${title}" -> ${id}${page ? ` (${box ? "checked against" : "no song infobox in"} "${page}")` : ""}: ${facts.length} facts`);
     cache.set(key, { facts, at: Date.now() });
     return facts;
@@ -308,7 +311,7 @@ const SERIES_ITEM = /\b(series|franchise)\b/i;
 const artistCache = new Map<string, { facts: string[]; at: number }>();
 
 /** Up to two plain facts about a performer or a game from its Wikidata item. */
-export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>): string[] {
+export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>, box: Infobox | null = null): string[] {
   const name = anyLabel(e);
   if (!name) return [];
   const named = (prop: string) => itemIds(e, prop).map((id) => anyLabel(labels[id]).replace(/\.$/, "")).filter(Boolean);
@@ -328,8 +331,9 @@ export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>)
   const years = (prop: string) => [...new Set(rankedClaims(e, prop).map((c) => /^\+(\d{4})/.exec((c.mainsnak?.datavalue?.value as { time?: string } | undefined)?.time ?? "")?.[1]).filter(Boolean))];
   const born = years(person ? "P569" : "P571");
   const active = person ? [] : years("P2031");
-  const when = born.length === 1 && (!active.length || (active.length === 1 && active[0] === born[0])) ? born[0] : null;
-  const place = named(person ? "P19" : "P740")[0];
+  const when = born.length === 1 && (!active.length || (active.length === 1 && active[0] === born[0])) && boxBacksYear(box, born[0] as string, person) ? born[0] : null;
+  // A place the artist's own article (`box`) gives otherwise is left out: Wikidata may name another city.
+  const place = named(person ? "P19" : "P740").filter((p) => boxBacksPlace(box, p, person))[0];
   // "formed in the United States", not "in United States".
   const where = place && /^(United States|United Kingdom|United Arab Emirates|Netherlands|Philippines|Czech Republic|Dominican Republic|Bahamas|Gambia|Maldives)\b/.test(place) ? `the ${place}` : place;
   const verb = person ? "was born" : "formed";
@@ -409,7 +413,7 @@ const RELEASE_ITEM = /\b(album|EP|soundtrack|mixtape)\b/i;
 
 /** What the article's item is, cut down to what its facts need. */
 export type ArticleItem =
-  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[] }
+  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null }
   | { kind: "artist"; facts: string[] }
   | null;
 
@@ -426,7 +430,7 @@ function sameArtist(label: string, names: string[]): boolean {
  * performer gives the artist facts `artistFactsFromEntity` writes, when its name
  * is the artist's. Anything else (an album, a film, a game) gives nothing.
  */
-export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artist: string[], titles: string[] = []): ArticleItem {
+export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artist: string[], titles: string[] = [], box: Infobox | null = null): ArticleItem {
   const classes = itemIds(e, "P31");
   const description = e.descriptions?.en?.value ?? "";
   const names = artist.filter(Boolean);
@@ -456,7 +460,7 @@ export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artis
   }
   const performer = (classes.includes(HUMAN) || classes.some((c) => GROUP_CLASSES.has(c))) && PERFORMER_ITEM.test(description);
   if (!performer || !sameArtist(anyLabel(e), names)) return null;
-  const facts = artistFactsFromEntity(e, labels);
+  const facts = artistFactsFromEntity(e, labels, box);
   return facts.length ? { kind: "artist", facts } : null;
 }
 
@@ -467,11 +471,12 @@ export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artis
  * live albums; when Wikidata's is earlier, neither is shown (`dropYear`).
  */
 export function songItemFacts(
-  item: { title: string; year: string | null; partOf: string | null; genres: string[] },
+  item: { title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null },
   covered: { year?: string | null; album?: boolean } = {}
 ): { facts: string[]; dropYear: boolean } {
   const q = `"${item.title}"`;
-  const dropYear = Boolean(covered.year && item.year && item.year < covered.year);
+  const earlier = (y: string | null | undefined) => Boolean(covered.year && y && y < covered.year);
+  const dropYear = earlier(item.year) || earlier(item.albumYear);
   const y = covered.year ? null : item.year;
   const partOf = covered.album ? null : item.partOf;
   const basics = y && partOf
@@ -511,12 +516,15 @@ async function pageItem(page: string): Promise<{ entity: Entity | null; labels: 
 export async function articleItem(page: string, artist: string[], titles: string[] = []): Promise<ArticleItem> {
   try {
     const { entity, labels } = await pageItem(page);
-    let item = entity ? articleItemFrom(entity, labels, artist, titles) : null;
-    // The article's infobox, the fuller source, dates the song another year: no year.
-    if (item?.kind === "song" && item.year) {
+    let item = entity ? articleItemFrom(entity, labels, artist, titles, await anyBoxOf(page)) : null;
+    // The article's infobox, the fuller source, dates the song another year, or its album
+    // came out earlier (the year is a single's): no year, and none from MusicBrainz after the album's.
+    if (item?.kind === "song") {
       const box = await songBoxOf(page, artist);
       const told = box ? boxYear(box) : null;
-      if (told && told !== item.year) item = { ...item, year: null };
+      const album = box ? await albumYear(box) : null;
+      if (item.year && ((told && told !== item.year) || (album && album < item.year))) item = { ...item, year: null };
+      if (album) item = { ...item, albumYear: album };
     }
     console.log(`[Wikidata] "${page}" -> ${entity?.id ?? "no item"}: ${item ? (item.kind === "song" ? "a song" : "the artist") : "nothing to tell"}`);
     return item;
