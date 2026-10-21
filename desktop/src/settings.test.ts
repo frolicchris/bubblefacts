@@ -251,7 +251,7 @@ describe("Now playing file", () => {
 
   it("starts the server on Streamling's file with nothing typed", () => {
     const env = toServerEnv({ ...streamling, nowPlayingFile: "/left/over.txt", nowPlayingFormat: "title" }, paths);
-    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "artist-title" });
+    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "youtube-title" });
     expect(env.NOW_PLAYING_FILE).toBeUndefined();
     expect(env.SSL_ACCESS_TOKEN).toBeUndefined();
     expect(env.SE_JWT).toBeUndefined();

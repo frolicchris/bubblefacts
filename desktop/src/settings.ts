@@ -382,8 +382,8 @@ export function toServerEnv(
   } else if (s.songSource === "nowplaying") {
     env.SONG_SOURCE = "nowplaying";
     if (s.nowPlayingPreset === "streamling") {
-      // Streamling's file is in a known folder and always reads "Artist - Song", so there's nothing to choose.
-      Object.assign(env, { NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "artist-title" });
+      // Streamling's file is in a known folder and reads "Artist - Song" or a YouTube title, so there's nothing to choose.
+      Object.assign(env, { NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "youtube-title" });
     } else if (s.nowPlayingPreset === "nightbot") {
       // Nightbot's folder is known, but its file name and line are the streamer's to customize: the newest .txt is read as a YouTube title.
       Object.assign(env, { NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
