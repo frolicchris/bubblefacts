@@ -25,7 +25,7 @@ export const MAX_CONTEXT_CHARS = 3000;
 /** Shorter extracts are stubs; the entry's own data beats restating one. */
 export const MIN_CONTEXT_CHARS = 600;
 /** Longest fact that fits a bubble. */
-const MAX_FACT_CHARS = 160;
+export const MAX_FACT_CHARS = 160;
 /** How long "no article" is trusted before the lookup is retried. */
 const NEGATIVE_TTL_MS = 10 * 60 * 1000;
 
