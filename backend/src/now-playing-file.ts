@@ -165,8 +165,10 @@ export class NowPlayingFileSource implements SongSource {
     return false;
   }
 
+  /** A line with no artist is marked, so its artist may be looked up by the title alone. */
   toSong(item: SSLQueueItem): SSLSong {
-    return toSong(item);
+    const song = toSong(item);
+    return /^unknown$/i.test(song.artist) ? { ...song, titleOnly: true } : song;
   }
 
   displayTitle(item: SSLQueueItem): string {

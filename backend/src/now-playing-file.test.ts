@@ -255,6 +255,16 @@ describe("NowPlayingFileSource", () => {
     expect(shown(src)).toMatchObject({ title: "Theme of the Glass Valley", artist: "Unknown" });
   });
 
+  it("marks a song with no artist, so its artist may be looked up by its title", async () => {
+    const { src, settle } = source();
+    write("title-only.txt");
+    await settle();
+    expect(shown(src)).toMatchObject({ title: "Theme of the Glass Valley", artist: "Unknown", titleOnly: true });
+    write("artist-title.txt");
+    await settle();
+    expect(shown(src)?.titleOnly).toBeUndefined();
+  });
+
   it("reads Windows line endings, a UTF-8 byte order mark and UTF-16", async () => {
     const { src, changes, settle } = source();
     write("windows-bom.txt");
