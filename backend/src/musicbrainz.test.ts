@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, clearLinkCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -33,7 +33,7 @@ describe("performerFacts", () => {
       "Lost Boy",
       "The Midnight"
     );
-    expect(facts).toEqual(['"Lost Boy" came out in 2018.', '"Lost Boy" is on the album Kids.']);
+    expect(facts).toEqual(['"Lost Boy" came out in 2018 and is on the album Kids.']);
   });
 
   it("finds nothing when no recording credits the artist", () => {
@@ -47,6 +47,15 @@ describe("performerFacts", () => {
       "Band"
     );
     expect(facts).toEqual([]);
+  });
+
+  it("reads back its year and album, and drops the year alone (#256)", () => {
+    const both = ['"Lost Boy" came out in 2018 and is on the album Kids.'];
+    expect([statedYear(both), statesAlbum(both)]).toEqual(["2018", true]);
+    expect(withoutYear(both)).toEqual(['"Lost Boy" is on the album Kids.']);
+    const split = ['"Lost Boy" came out in 2018.', '"Lost Boy" is on the album Kids.'];
+    expect(withoutYear(split)).toEqual(['"Lost Boy" is on the album Kids.']);
+    expect([statedYear([]), statesAlbum(['"Lost Boy" came out in 2018.'])]).toEqual([null, false]);
   });
 });
 
@@ -106,7 +115,7 @@ describe("release years (October 2026 fact checks)", () => {
   it("takes no year after the credited artist died", () => {
     const satie = [dated("Gnossienne No. 1", "Erik Satie", [["Satie Piano Music", "1995", []]])];
     expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie", 1925)).toEqual(['"Gnossienne No. 1" is on the album Satie Piano Music.']);
-    expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie")[0]).toBe('"Gnossienne No. 1" came out in 1995.');
+    expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie")[0]).toBe('"Gnossienne No. 1" came out in 1995 and is on the album Satie Piano Music.');
   });
 
   it("leaves out an additional composer", () => {
@@ -241,11 +250,137 @@ describe("musicbrainzFacts: no year it can't vouch for", () => {
     byArtist = { count: 40, recordings: Array.from({ length: 25 }, () => later) };
     expect(await musicbrainzFacts({ title: "Paper Moonlight", artist: "Lantern" })).not.toContainEqual(expect.stringMatching(/came out in/));
     byArtist = { count: 1, recordings: [rec("Paper Lanterns", "Lantern", "1987", [["First Light"]])] };
-    expect(await musicbrainzFacts({ title: "Paper Lanterns", artist: "Lantern" })).toContain('"Paper Lanterns" came out in 1987.');
+    expect(await musicbrainzFacts({ title: "Paper Lanterns", artist: "Lantern" })).toContain('"Paper Lanterns" came out in 1987 and is on the album First Light.');
   });
 
   it("takes a recording credited to the game's own name for the game's soundtrack: no year, no album", async () => {
     byArtist = { count: 1, recordings: [rec("Night Lancer", "Gloomhold", "2015", [["Gloomhold"]])] };
     expect(await musicbrainzFacts({ title: "Night Lancer", artist: "Gloomhold" })).toEqual([]);
+  });
+});
+
+describe("year and album in one bubble (#256)", () => {
+  const lantern = (title: string, album?: string, date = "2021-03-05") => [rec(title, "Glass Orchard", date, album ? [[album]] : [])];
+  const bubble = 160;
+
+  it("tells the year and the album together when both are known", () => {
+    expect(performerFacts(lantern("Harbor Lights", "Paper Boats"), "Harbor Lights", "Glass Orchard")).toEqual([
+      '"Harbor Lights" came out in 2021 and is on the album Paper Boats.',
+    ]);
+  });
+
+  it("keeps a single fact when only one value is known", () => {
+    // A release named like the song gives the year but is not an album to name.
+    expect(performerFacts(lantern("Harbor Lights", "Harbor Lights"), "Harbor Lights", "Glass Orchard")).toEqual(['"Harbor Lights" came out in 2021.']);
+    // The year is held back for an artist who had died by then; the album stays on its own.
+    expect(performerFacts(lantern("Harbor Lights", "Paper Boats"), "Harbor Lights", "Glass Orchard", 1950)).toEqual(['"Harbor Lights" is on the album Paper Boats.']);
+  });
+
+  it("falls back to separate facts when the combined sentence would not fit a bubble", () => {
+    const title = "The Long Slow Walk Home Along the Quiet Harbor Wall at Dusk Again";
+    const album = "Songs for the Lamplighters of the Eastern Pier and Beyond";
+    const facts = performerFacts(lantern(title, album), title, "Glass Orchard");
+    expect(facts).toEqual([`"${title}" came out in 2021.`, `"${title}" is on the album ${album}.`]);
+    expect(`"${title}" came out in 2021 and is on the album ${album}.`.length).toBeGreaterThan(bubble);
+    for (const f of facts) expect(f.length).toBeLessThanOrEqual(bubble);
+  });
+
+  it("keeps the values exactly as MusicBrainz gives them", () => {
+    const [fact] = performerFacts(lantern("¿Dónde Estás?", "Déjà Vu (Deluxe)"), "¿Dónde Estás?", "Glass Orchard");
+    expect(fact).toBe('"¿Dónde Estás?" came out in 2021 and is on the album Déjà Vu (Deluxe).');
+  });
+});
+
+describe("musicbrainzFacts: the year is checked against the artist's death (#256)", () => {
+  // Each run has its own title: lookups are cached by song.
+  const run = async (title: string, ended: string | undefined) => {
+    const search = [{ ...rec(title, "Glass Orchard", "1995-03-05", [["Paper Boats"]]), "artist-credit": [{ name: "Glass Orchard", artist: { id: "artist-1" } }] }];
+    const real = global.fetch;
+    global.fetch = (async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => (String(url).includes("/artist/") ? { "life-span": { end: ended } } : { recordings: search }),
+    })) as unknown as typeof fetch;
+    try {
+      return await musicbrainzFacts({ title, artist: "Glass Orchard" });
+    } finally {
+      global.fetch = real;
+    }
+  };
+
+  it("tells the year and album together for an artist who was alive", async () => {
+    expect(await run("Harbor Lights", undefined)).toEqual(['"Harbor Lights" came out in 1995 and is on the album Paper Boats.']);
+  });
+
+  it("leaves the year out, and the album alone, when the artist had died before it", async () => {
+    expect(await run("Quiet Pier", "1950-01-01")).toEqual(['"Quiet Pier" is on the album Paper Boats.']);
+  });
+});
+
+
+describe("artistByTitle: the artist of a now playing title with no artist", () => {
+  const recording = (title: string, artist: string) => ({ title, score: 100, "artist-credit": [{ name: artist, artist: { id: `id-${artist}`, name: artist } }] });
+  let reply: { count?: number; recordings?: unknown[] } = {};
+  const asked: string[] = [];
+  const fetchMock = jest.fn(async (input: string | URL) => {
+    asked.push(decodeURIComponent(String(input)).replace(/\+/g, " "));
+    return { ok: true, status: 200, json: async () => reply } as Response;
+  });
+  const found = (recordings: unknown[], count = recordings.length) => {
+    reply = { count, recordings };
+    clearTitleCache();
+  };
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    asked.length = 0;
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("takes the artist when every recording of the exact title is theirs", async () => {
+    found([recording("Ember Lanterns", "Wren Halvard"), recording("Ember Lanterns (Live)", "Wren Halvard"), recording("Ember Lanterns Reprise", "Someone Else")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("Wren Halvard");
+    expect(asked[0]).toContain('recording:"Ember Lanterns"');
+    expect(cachedArtistByTitle("ember lanterns")).toBe("Wren Halvard");
+  });
+
+  it("takes none when two or more artists have the title", async () => {
+    found([recording("Ember Lanterns", "Wren Halvard"), recording("Ember Lanterns", "The Paper Coves")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+    expect(cachedArtistByTitle("Ember Lanterns")).toBe("");
+  });
+
+  it("takes none when no recording has the title, or only a placeholder credit does", async () => {
+    found([]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+    found([recording("Quiet Orchard", "Ember Lanterns")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+    found([recording("Ember Lanterns", "[unknown]"), recording("Ember Lanterns", "[unknown]")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+  });
+
+  it("folds case and accents: the typed title matches the accented one", async () => {
+    found([recording("Då som nu för vintern", "Ola Strandvik")]);
+    expect(await artistByTitle("Da Som Nu For Vintern")).toBe("Ola Strandvik");
+  });
+
+  it("takes none for a common title with more recordings than one search reads, even if those read agree", async () => {
+    found([recording("Alone", "Wren Halvard")], 5000);
+    expect(await artistByTitle("Alone")).toBe("");
+  });
+
+  it("asks MusicBrainz once per title", async () => {
+    found([recording("Ember Lanterns", "Wren Halvard")]);
+    await artistByTitle("Ember Lanterns");
+    await artistByTitle("EMBER LANTERNS");
+    expect(asked).toHaveLength(1);
+  });
+
+  it("finds none from a failed lookup, and doesn't throw", async () => {
+    found([]);
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response);
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
   });
 });

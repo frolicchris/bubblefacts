@@ -912,6 +912,18 @@ apps that write the playing song into one text file:
   runs the line through `parseVideoTitle`. A trailing "requested by ...",
   "added by ..." or "requester: ..." is dropped first, and nothing else is
   guessed. Not yet tried against a real install.
+- A line with no artist (a video titled just "Song - Official Music Video",
+  or a bare title) is marked `titleOnly`. Before its lookup, `artistByTitle`
+  (`musicbrainz.ts`) searches MusicBrainz for recordings of that exact title
+  (case, accents and punctuation folded). When every one is by the same
+  artist, the song is looked up with that artist and marked
+  `artistFromTitle`, which makes its work match unsure, so only facts from
+  data show. Two or more artists, a placeholder credit ("[unknown]"), or more
+  recordings than one search returns (100) give no artist: common titles
+  ("Alone") never resolve. Results are cached like the other MusicBrainz
+  lookups. Streamling's public pages name only `nowplaying-minimal.txt` and
+  its ASCII twin `nowplaying-minimal-ascii7.txt` in `livetext`, the same
+  line, so there's no channel or artist file to read beside it.
 
 **YouTube titles** (`youtube-title.ts`). StreamElements only knows each
 request's YouTube title and channel. `parseVideoTitle(title, channel)`:
@@ -955,7 +967,7 @@ or when a lookup fails, the title is parsed as usual.
 
 ### Where structured facts come from
 
-Both run only when there's no article about the song itself, need no AI and
+Both run only with no AI or no article about the song itself, need no AI and
 no screening, and are skipped for a song whose structured facts were marked
 **Wrong**.
 
@@ -975,6 +987,13 @@ no screening, and are skipped for a song whose structured facts were marked
   works are named by label alone, never with an artist, so a cover or a
   derivative work is never credited to the requested artist; a work with the
   song's own name is left out.
+- **One bubble for the basics** (`data-facts.ts`, issue #256). On a busy PC
+  the instant data facts can be all a viewer sees, so a song's year and album
+  read as one bubble ("came out in 2021 and is on the album X"; "and is on",
+  not "on", because an earlier single may not be listed) and an artist's
+  origin, genres and labels pack into as few bubbles as fit. Values are
+  placed as the source gives them. A combination over `MAX_FACT_CHARS` falls
+  back to separate facts; one known value stays a single fact.
 - **MusicBrainz** (`musicbrainz.ts`), only when Wikidata has nothing. One
   request at a time, at most about one a second, with a User-Agent naming
   the project, as MusicBrainz asks. For a game's track: a composer only from
@@ -991,6 +1010,48 @@ no screening, and are skipped for a song whose structured facts were marked
   recording credited to the game's own name, on an album of that name, is
   the game's soundtrack: no year or album, as for any game's track. An "additional" composer, such as a fanfare quoted in another
   composer's cue, isn't named.
+- **The article's own item** (`articleItem` in `wikidata.ts`, issue #256).
+  With no AI, the article is still looked up, alongside the data. Wikidata's
+  and MusicBrainz's searches miss a typo Wikipedia's search forgives
+  ("Harbr Lights (2004)"). So when the lookup surely matches an article
+  (`workMatchConfidence` sure and `summaryGate` clear) and Wikidata's search
+  found nothing, the page's own item is read: one request by page title, one
+  for the labels, cached like the others. MusicBrainz's facts never wait for
+  it: the item adds to them only when it is already in (and is ready for the
+  next play); a song MusicBrainz knows nothing about waits for it. A song, single or musical work (by
+  P31) gives its year (a date at year precision or finer, and none when the
+  description dates it another year, as for a later single of an older song),
+  the album it's part of (only an item described as an album, EP, soundtrack
+  or mixtape) and up to two genres, under the item's own name. When it names
+  performers and none is the requested artist, it is another performer's
+  version and gives nothing. A band or a musician gives the artist facts
+  above, when its name is the artist's. Those leave out a birth or formation
+  year Wikidata gives two ways, or a group's "inception" that its "work
+  period start" contradicts (a reunion year), and say "the" before a country
+  that takes it ("formed in the United States"). Anything else (an album, a film, a
+  game) gives nothing, and so does an unsure match. Values MusicBrainz
+  already gives for the song are left out. When the two years differ,
+  MusicBrainz's stands when it is the earlier (it leaves out reissues,
+  compilations and live albums); when Wikidata's is earlier, neither is shown.
+- **Data first, captions later** (issue #256). With AI on, the facts from
+  data are looked up alongside the AI: for an article about the artist or
+  game, as before, and now also for an article surely about the song itself
+  (its item too). When they're ready before the AI, they go to the overlay at
+  once (`generateFacts`'s `onEarly`), at most one fewer than the song's
+  bubbles, so a caption has room, and never more than two
+  (`MAX_DATA_FACTS`). The article's infobox facts are not sent early: they
+  fill any data-fact slot left after the AI finishes, unless a caption
+  already says them. When the AI finishes, its captions follow
+  them in the song's record (`withLaterFacts`): each after the last fact
+  sent, never in the past, never one already sent or taken off with
+  **Wrong**, and a caption too like a fact already shown is dropped by the
+  usual repeat check. They go out as `facts_ready` with `keep: true`: the
+  overlay leaves the bubble on screen and replaces only the turns still to
+  come. An older overlay ignores `keep` and starts over with the same list,
+  as after a reconnect. If the AI fails, the facts from data stand; if the
+  song changes first, the captions are dropped. A song with the streamer's
+  tagged facts mixed in still goes out once, since those are re-spaced at
+  the end.
 
 ### Wrong and Undo
 

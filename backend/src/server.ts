@@ -12,7 +12,7 @@ import { allowedFacts, pulledWithWrong, positionsFor, positionsForSong, primeFac
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
-import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
+import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
@@ -224,9 +224,20 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   }
   broadcast(newSong(song));
 
-  const facts = await generateFacts(song, current);
+  // Facts from data go out as soon as they're ready, while the AI writes (issue #256).
+  let early: Fact[] | null = null;
+  const facts = await generateFacts(song, current, (data) => {
+    if (token !== generation) return;
+    early = data;
+    const plan = planCredit(creditCount, data, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), position: positionsForSong(song)[0] });
+    broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
+  });
   if (token !== generation) {
     console.log(`[Server] Discarding facts for "${song.title}": the song changed while generating`);
+    return;
+  }
+  if (early && sameRequest(lastSent.song, song) && lastSent.ready) {
+    sendLater(song, early, facts);
     return;
   }
   if (!clients.size && facts.length) {
@@ -239,6 +250,30 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   // (not paused), and not while a test bubble is up. Its facts then start after it.
   const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), position: positionsForSong(song)[0] });
   broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
+}
+
+/**
+ * The AI's captions for a song whose facts from data already went out: added after them in
+ * its record, and sent with `keep`, so an overlay leaves the bubble on screen and the facts
+ * still to come in place. One that doesn't know `keep` starts the batch over: the facts not
+ * shown yet and the captions, as after a reconnect.
+ */
+function sendLater(song: SSLSong, early: Fact[], facts: Fact[]): void {
+  const record = lastSent.facts ?? [];
+  // Not yet seen by any overlay (none connected, or paused): it all goes out as one batch.
+  const elapsed = factsShownAt ? (Date.now() - factsShownAt) / 1000 : 0;
+  const merged = withLaterFacts(record, early, facts, elapsed, config.factIntervalSeconds);
+  if (merged.length === record.length) return;
+  if (!factsShownAt) {
+    broadcast({ type: "facts_ready", song, facts: merged });
+    return;
+  }
+  lastSent = { song: lastSent.song, facts: merged, ready: true };
+  remember(lastSent.song!, merged);
+  if (paused) return;
+  const remaining = remainingFacts(merged, factsShownAt);
+  for (const ws of clients.keys()) send(ws, { type: "facts_ready", song: lastSent.song!, facts: remaining, keep: true });
+  if (clients.size) logShown(song, remaining);
 }
 
 // --- Routes --------------------------------------------------------------

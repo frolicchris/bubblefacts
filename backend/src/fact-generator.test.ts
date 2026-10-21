@@ -24,8 +24,23 @@ jest.mock("./config", () => ({
   },
 }));
 
-jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]), artistFacts: jest.fn().mockResolvedValue([]) }));
-jest.mock("./musicbrainz", () => ({ musicbrainzFacts: jest.fn().mockResolvedValue([]) }));
+// The real sentence builders, loaded when first called: loading them inside the factory would
+// copy fact-verifier's exports before it finished loading (the two import each other).
+const actual = <T>(name: string, fn: string) => (...args: unknown[]): T => jest.requireActual(name)[fn](...args);
+jest.mock("./wikidata", () => ({
+  wikidataFacts: jest.fn().mockResolvedValue([]),
+  artistFacts: jest.fn().mockResolvedValue([]),
+  articleItem: jest.fn().mockResolvedValue(null),
+  songItemFacts: actual("./wikidata", "songItemFacts"),
+}));
+jest.mock("./musicbrainz", () => ({
+  musicbrainzFacts: jest.fn().mockResolvedValue([]),
+  artistByTitle: jest.fn().mockResolvedValue(""),
+  cachedArtistByTitle: jest.fn().mockReturnValue(""),
+  statedYear: actual("./musicbrainz", "statedYear"),
+  statesAlbum: actual("./musicbrainz", "statesAlbum"),
+  withoutYear: actual("./musicbrainz", "withoutYear"),
+}));
 
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
@@ -43,7 +58,8 @@ import { saveSongFacts, setFactsOff } from "./song-facts";
 import { loadSession, remainingFacts, saveSession } from "./session";
 import { Fact } from "./types";
 import { fetchGrounding } from "./fact-verifier";
-import { artistFacts, wikidataFacts } from "./wikidata";
+import { articleItem, artistFacts, wikidataFacts } from "./wikidata";
+import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
 import { SSLQueueItem, SSLSong } from "./types";
 
 const MODEL_LINES = [
@@ -669,6 +685,203 @@ describe("an article that may be about another work (issue #255)", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(series + " " + MODEL_LINES);
     await generateFacts(track);
     expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a now playing title with no artist", () => {
+  const ghost: SSLSong = { title: "Lantern Static", artist: "Unknown", titleOnly: true };
+  const article = "Lantern Static\nLantern Static is a 2017 song by the singer Wren Halvard. " + MODEL_LINES;
+  const lookedUpAs = () => ((fetchGrounding as jest.Mock).mock.calls[0]?.[0] as SSLSong | undefined)?.artist;
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (artistByTitle as jest.Mock).mockReset().mockResolvedValue("");
+    (cachedArtistByTitle as jest.Mock).mockReset().mockReturnValue("");
+  });
+
+  it("is looked up with the only artist who has the title, and shows facts from data only", async () => {
+    (artistByTitle as jest.Mock).mockResolvedValue("Wren Halvard");
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Lantern Static" came out in 2017.']);
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts(ghost);
+    expect(artistByTitle).toHaveBeenCalledWith("Lantern Static");
+    expect(lookedUpAs()).toBe("Wren Halvard");
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(facts.map((f) => f.text)).toEqual(['"Lantern Static" came out in 2017.']);
+    expect(log.mock.calls.some(([line]) => /^\[Grounding\] unsure: the artist was found by the title alone/.test(String(line)))).toBe(true);
+    log.mockRestore();
+  });
+
+  it("is looked up with no artist when several artists have the title", async () => {
+    await generateFacts(ghost);
+    expect(artistByTitle).toHaveBeenCalledWith("Lantern Static");
+    expect(lookedUpAs()).toBe("Unknown");
+  });
+
+  it("never asks for a song that names its artist, or one from a song list", async () => {
+    await generateFacts({ title: "Lantern Static", artist: "Wren Halvard" });
+    await generateFacts({ title: "Lantern Static", artist: "Unknown" });
+    expect(artistByTitle).not.toHaveBeenCalled();
+  });
+
+  it("blocks a fact marked Wrong for the song it was looked up as too", () => {
+    (cachedArtistByTitle as jest.Mock).mockReturnValue("Wren Halvard");
+    const lookup = { title: "Lantern Static", artist: "Wren Halvard" };
+    markWrong(ghost, "Some caption.", "Wikipedia: Lantern Static");
+    expect(blockedArticles(lookup).has("Lantern Static")).toBe(true);
+    unmarkWrong(ghost, "Lantern Static");
+    expect(blockedArticles(lookup).size).toBe(0);
+  });
+});
+
+describe("data facts from the matched article's own item, with no AI (issue #256)", () => {
+  const request = { title: "Harbr Lights (2004)", artist: "Velvet Lark" };
+  const songPage = 'Harbor Lights (Velvet Lark song)\n"Harbor Lights" is a song by American dream pop band Velvet Lark, released in 2004 as the lead single from their album Paper Boats.';
+  const albumPage = "Harbor Lights (album)\nHarbor Lights is the second studio album by American dream pop band Velvet Lark, released in 2004.";
+  const item = { kind: "song" as const, title: "Harbor Lights", year: "2004", partOf: "Paper Boats", genres: ["dream pop"] };
+  const provider = (p: string) => ((config as { aiProvider: string }).aiProvider = p);
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    provider("none");
+    (articleItem as jest.Mock).mockReset().mockResolvedValue(item);
+    (musicbrainzFacts as jest.Mock).mockReset().mockResolvedValue([]);
+  });
+  afterAll(() => provider("anthropic"));
+
+  it("gives a song the database search missed its article's item facts", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+    const facts = await generateFacts(request);
+    expect(facts.map((f) => [f.text, f.source])).toEqual([['"Harbor Lights" came out in 2004 and appears on Paper Boats. Its genres include dream pop.', SOURCE.wikidata]]);
+    expect(articleItem).toHaveBeenCalledWith("Harbor Lights (Velvet Lark song)", ["velvet lark"]);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("adds only what MusicBrainz didn't say, and shows neither year when Wikidata's is earlier", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+    // MusicBrainz answers after the item is in.
+    const mb = ['"Harbr Lights (2004)" came out in 2009 and is on the album Paper Boats.'];
+    (musicbrainzFacts as jest.Mock).mockImplementation(() => new Promise((r) => setTimeout(() => r(mb), 20)));
+    const facts = await generateFacts(request);
+    expect(facts.map((f) => [f.text, f.source])).toEqual([
+      ['"Harbr Lights (2004)" is on the album Paper Boats.', SOURCE.musicbrainz],
+      ['The genres of "Harbor Lights" include dream pop.', SOURCE.wikidata],
+    ]);
+  });
+
+  it("doesn't hold MusicBrainz's facts back for an item still on its way", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+    (musicbrainzFacts as jest.Mock).mockResolvedValue(['"Harbr Lights (2004)" came out in 2009.']);
+    (articleItem as jest.Mock).mockReturnValue(new Promise(() => undefined));
+    expect((await generateFacts(request)).map((f) => f.text)).toEqual(['"Harbr Lights (2004)" came out in 2009.']);
+  });
+
+  it("takes nothing from the item of an article that may be another work", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue(albumPage);
+    const facts = await generateFacts(request);
+    expect(articleItem).not.toHaveBeenCalled();
+    expect(facts.some((f) => f.source === SOURCE.wikidata)).toBe(false);
+  });
+
+  it("leaves the database search's own facts as they are", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Harbr Lights (2004)" was written by Ada Penn.']);
+    expect((await generateFacts(request)).map((f) => f.text)).toEqual(['"Harbr Lights (2004)" was written by Ada Penn.']);
+    expect(musicbrainzFacts).not.toHaveBeenCalled();
+  });
+
+  it("doesn't look up the article for data facts when the AI writes from it", async () => {
+    provider("anthropic");
+    (fetchGrounding as jest.Mock).mockResolvedValue("");
+    await generateFacts(request);
+    expect(articleItem).not.toHaveBeenCalled();
+  });
+
+  afterEach(() => (fetchGrounding as jest.Mock).mockReset().mockResolvedValue(""));
+});
+
+describe("facts from data go out before a slow AI (issue #256)", () => {
+  const request = { title: "Harbor Lights", artist: "Velvet Lark" };
+  const songPage = 'Harbor Lights (Velvet Lark song)\n"Harbor Lights" is a song by American dream pop band Velvet Lark, released in 2004 as the lead single from their album Paper Boats. ' + MODEL_LINES;
+  const item = { kind: "song" as const, title: "Harbor Lights", year: "2004", partOf: "Paper Boats", genres: ["dream pop"] };
+  const dataFact = '"Harbor Lights" came out in 2004 and appears on Paper Boats. Its genres include dream pop.';
+  /** A fake AI that answers after `ms`, as a busy streaming PC does. */
+  const slowAI = (ms: number, text = MODEL_LINES) => mockCreate.mockImplementation(() => new Promise((r) => setTimeout(() => r(reply(text)), ms)));
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (config as { abstain?: boolean }).abstain = true;
+    (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+    (articleItem as jest.Mock).mockReset().mockResolvedValue(item);
+    (musicbrainzFacts as jest.Mock).mockReset().mockResolvedValue([]);
+  });
+  afterEach(() => {
+    (config as { abstain?: boolean }).abstain = false;
+    (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
+  });
+
+  it("sends the data facts while the AI is still writing, then puts the captions after them", async () => {
+    slowAI(300);
+    const started = Date.now();
+    let earlyAt = 0;
+    let early: Fact[] = [];
+    const facts = await generateFacts(request, null, (data) => {
+      earlyAt = Date.now() - started;
+      early = data;
+    });
+    const total = Date.now() - started;
+    expect(early.map((f) => [f.text, f.source])).toEqual([[dataFact, SOURCE.wikidata]]);
+    expect(earlyAt).toBeLessThan(150);
+    expect(total).toBeGreaterThanOrEqual(290);
+    // The full list starts with what went out early, unchanged; the AI's captions follow.
+    expect(facts[0]).toEqual(early[0]);
+    expect(facts.length).toBeGreaterThan(1);
+    expect(facts.length).toBeLessThanOrEqual(4);
+    expect(facts.slice(1).every((f) => f.source === "Wikipedia: Harbor Lights (Velvet Lark song)")).toBe(true);
+    expect(new Set(facts.map((f) => f.text)).size).toBe(facts.length);
+  });
+
+  it("sends nothing early when the AI is faster, and the data facts still lead", async () => {
+    const early = jest.fn();
+    (articleItem as jest.Mock).mockImplementation(() => new Promise((r) => setTimeout(() => r(item), 100)));
+    const facts = await generateFacts(request, null, early);
+    expect(early).not.toHaveBeenCalled();
+    expect(facts[0].text).toBe(dataFact);
+  });
+
+  it("drops a caption that repeats a fact sent early, and never shows a fact twice", async () => {
+    slowAI(50, `Harbor Lights came out in 2004 and appears on Paper Boats.\n${MODEL_LINES}`);
+    const facts = await generateFacts(request, null, () => undefined);
+    const texts = facts.map((f) => f.text);
+    expect(texts.filter((t) => /came out in 2004/.test(t))).toEqual([dataFact]);
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+
+  it("keeps the data facts when the AI fails after they went out", async () => {
+    mockCreate.mockImplementation(() => new Promise((_, reject) => setTimeout(() => reject(new Error("overloaded")), 50)));
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const facts = await generateFacts(request, null, () => undefined);
+    warn.mockRestore();
+    expect(facts.map((f) => f.text)).toEqual([dataFact]);
+  });
+
+  it("adds the article's infobox fact after the ones sent early (merge of #243 and #298)", async () => {
+    slowAI(200);
+    const writer = '"Harbor Lights" was written by Mara Quill.';
+    const box = jest.spyOn(jest.requireActual("./infobox"), "infoboxFacts").mockResolvedValue([{ text: writer, evidence: "writer: Mara Quill", values: ["Mara Quill"] }]);
+    let early: Fact[] = [];
+    const facts = await generateFacts(request, null, (data) => (early = data));
+    box.mockRestore();
+    expect(early.map((f) => f.text)).toEqual([dataFact]);
+    expect(facts[0]).toEqual(early[0]);
+    expect(facts.find((f) => f.text === writer)?.source).toBe(`${SOURCE.infobox}Harbor Lights (Velvet Lark song)`);
+    expect(facts.length).toBeLessThanOrEqual(5);
+  });
+
+  it("takes nothing from the article's item when the match is unsure", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue("Harbor Lights (album)\nHarbor Lights is the second studio album by American dream pop band Velvet Lark, released in 2004.");
+    const early = jest.fn();
+    await generateFacts(request, null, early);
+    expect(articleItem).not.toHaveBeenCalled();
+    expect(early).not.toHaveBeenCalled();
   });
 });
 

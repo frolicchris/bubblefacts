@@ -71,6 +71,29 @@ export function remainingFacts(facts: Fact[], shownAt: number, now = Date.now())
 }
 
 /**
+ * A song's record once its AI captions arrive, after its facts from data went out early
+ * (issue #256). `record`: what was sent, delays counted from when it went out, without any
+ * fact taken off with Wrong since. `early`: the facts from data as the generator gave them;
+ * `all`: its full list, those first. The captions are added in order, each `interval` after
+ * the last fact and never before `elapsed` (now, in seconds since the record went out) plus a
+ * second. A fact already in the record, or taken off with Wrong, is never added again.
+ */
+export function withLaterFacts(record: Fact[], early: Fact[], all: Fact[], elapsed: number, interval: number): Fact[] {
+  const known = new Set([...record, ...early].map((f) => f.text));
+  const later = all.filter((f) => !known.has(f.text));
+  const last = record.length ? Math.max(...record.map((f) => f.delaySeconds)) + interval : 0;
+  let at = Math.max(elapsed + 1, last);
+  return [
+    ...record,
+    ...later.map((f) => {
+      const fact = { ...f, delaySeconds: at };
+      at += interval;
+      return fact;
+    }),
+  ];
+}
+
+/**
  * How long the overlay keeps a bubble up: its own time, or longer for a long
  * fact. Must match readingSeconds in obs-overlay.js.
  */

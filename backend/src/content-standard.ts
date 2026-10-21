@@ -6,8 +6,8 @@ import { escapeRe } from "./text";
  * A bubble never says what a polite chatter couldn't post in a
  * family-friendly music stream. Twitch holds streamers responsible for
  * everything on their stream, and YouTube and Kick have the same rules, so
- * an article's sentences about crime, lawsuits, drugs, sex, private
- * relationships, health and how someone died never reach the model, and a
+ * an article's sentences about crime, lawsuits, threats, stalking, drugs, sex,
+ * private relationships, health and how someone died never reach the model, and a
  * caption or data fact that still says such a thing is dropped. Nor does
  * anything saying who a person is (issue #262), unless in their own words.
  *
@@ -41,6 +41,16 @@ const LISTS: TopicList[] = [
       // "Controversy" alone is too often about music: a band's name, a soundtrack's reception.
       // A "Controversies" section is still left out whole.
       "infringement", "infringed", "scandal", "scandals", "feud", "feuds",
+    ],
+  },
+  {
+    // Twitch Harassment and Violent Threats, YouTube threats and harassment of
+    // identifiable people, Kick harassment. A threat or a stalker is never trivia.
+    // Figures of speech ("a threatening bass line") go with them: a miss is worse.
+    label: "threats or stalking",
+    words: [
+      "threat", "threats", "threaten", "threatens", "threatened", "threatening", "death threat",
+      "death threats", "stalker", "stalkers", "stalking", "stalked",
     ],
   },
   {
@@ -199,6 +209,8 @@ const looksLikeDemonym = (w: string) => w.length >= 4 && /(?:an|ish|ese|i)$/i.te
 const BEFORE_AMERICAN = new Set(["arab", "filipino", "filipina", "black", "afro", "native"]);
 /** "Jew's harp" is an instrument. */
 const IDENTITY_NOT = /\bjew['’]s\s+harps?\b/giu;
+/** "He threatened to leave Square" is a career move, not a threat to anyone. */
+const THREAT_NOT = /\bthreat(?:en|ened|ens|ening)\s+to\s+(?:leave|quit|resign|walk\s+out|walk\s+away|disband|break\s+up|split\s+up|withdraw|pull\s+out|cancel)\b/giu;
 
 /**
  * Section headings whose whole section is left out, subsections and all:
@@ -274,7 +286,7 @@ function withoutNames(text: string, names: string[]): string {
     if (name.trim().length < 2) continue;
     plain = plain.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(name.trim())}(?![\\p{L}\\p{N}])`, "giu"), (m) => "x".repeat(m.length));
   }
-  return plain.replace(IDENTITY_NOT, (m) => "x".repeat(m.length));
+  return plain.replace(IDENTITY_NOT, (m) => "x".repeat(m.length)).replace(THREAT_NOT, (m) => "x".repeat(m.length));
 }
 
 /** Small words that open a sentence with a capital: "In" in "In Christian tradition" is no first name. */
