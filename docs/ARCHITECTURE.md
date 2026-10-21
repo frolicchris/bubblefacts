@@ -269,7 +269,15 @@ sign-ins and the built-in AI. Its design decisions are in
    (`unattributedView`). On an article that isn't the song's own (the
    artist's, the game's), a caption opening "The song", "The musical" or "The
    collection" reads as the song being played, so it must retell a sentence
-   that names that song.
+   that names that song ("This theme" and "The symphony" too).
+   A bubble stands alone on screen, so it must name what it's about. Dropped
+   whatever the source says: a bare "This is ..." or "That year ...", works
+   in the plural with no one named ("The operas are spread across his whole
+   life"), and a "he", "his" or "her" with no name and no "the narrator"
+   or "the singer" for it to stand for (`unresolvedPronoun`). A company's
+   business is dropped too, unless the caption is about music
+   (`companyHistory`): deals, buyouts, a company renamed, and a console
+   announced, unless the caption is led by the requested work.
    A caption saying someone said, described or recalled something needs a
    source sentence giving that person's words or view, in (or just before)
    the sentence it retells or another it draws on; a pronoun ("he has
