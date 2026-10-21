@@ -9,6 +9,8 @@ jest.mock("./config", () => ({
 }));
 
 import {
+  companyHistory,
+  unresolvedPronoun,
   screenClaims,
   numberedReference,
   referenceSentences,
@@ -2449,5 +2451,67 @@ describe("artist fields that mean no artist (issue #261)", () => {
   it("does not count the value as a name a caption repeats", () => {
     expect(restatesRequest("Marigold Lane is a traditional song.", { title: "Marigold Lane", artist: "Traditional" })).toBe(false);
     expect(restatesRequest("Folk Lanterns wrote Marigold Lane.", { title: "Marigold Lane", artist: "Folk Lanterns" })).toBe(true);
+  });
+});
+
+describe("a bubble names what it's about", () => {
+  const artistCtx =
+    "Ada Penn\nAda Penn is a composer from Lisbon. She wrote twelve symphonies and four operas. The symphonies are spread evenly through her career. " +
+    "This was loosely based on the harbor at night. This theme draws on old harbor songs. Her song Glass Harbor was written in 1984.";
+  const reasons = (fact: string, ctx = artistCtx, track: string | undefined = "Glass Harbor") => screenClaims([fact], ctx, { track }).rejected.map((r) => r.reason);
+
+  it("drops works with no one named, a bare 'this', and 'this theme' on another work's article", () => {
+    expect(reasons("The symphonies are spread evenly through her career.")).toEqual(["doesn't say whose symphonies"]);
+    expect(reasons("This was loosely based on the harbor at night.")).toEqual([`doesn't say what "this" is`]);
+    expect(reasons("This theme draws on old harbor songs.")).toEqual(["doesn't say which theme"]);
+  });
+
+  it("drops a 'his' or 'her' with nobody named for it", () => {
+    expect(unresolvedPronoun("The song was written while he was on tour.")).toBe("he");
+    expect(unresolvedPronoun("The symphonies are spread evenly through her career.")).toBe("her");
+    expect(reasons("The song was written in 1984 for her brother.", "Glass Harbor\nGlass Harbor is a song written in 1984 by Ada Penn for her brother.", undefined)).toEqual([`doesn't say who "her" is`]);
+  });
+
+  it("keeps captions that name their subject, or are about the requested song", () => {
+    const own = "Glass Harbor\nGlass Harbor is a song written in 1984 by Ada Penn. Its composer, Ada Penn, wrote it for her brother. This theme draws on old harbor songs.";
+    expect(screenClaims(["The song was written in 1984."], own).kept).toHaveLength(1);
+    expect(screenClaims(["Its composer, Ada Penn, wrote it for her brother."], own).kept).toHaveLength(1);
+    // On the song's own article, "this theme" is the requested one.
+    expect(screenClaims(["This theme draws on old harbor songs."], own).kept).toHaveLength(1);
+    expect(reasons("Ada Penn's symphonies are spread evenly through her career.")).toEqual([]);
+    expect(unresolvedPronoun("Ada Penn wrote it for her brother.")).toBeNull();
+    expect(unresolvedPronoun("The song's narrator loses his way home.")).toBeNull();
+    expect(unresolvedPronoun("“Her Glass Harbor” was written in 1984.")).toBeNull();
+  });
+});
+
+describe("companyHistory", () => {
+  it("finds a company's deals, buyouts, renamings and console news", () => {
+    expect(companyHistory("Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence.")).toBe(true);
+    expect(companyHistory("Lumen Works purchased Brightwater Studios and was soon renamed Lumen North.")).toBe(true);
+    expect(companyHistory("Brightwater Studios was renamed Lumen North in 2003.")).toBe(true);
+    expect(companyHistory("The next-generation console was announced to be the Orbis.")).toBe(true);
+    expect(companyHistory("Skyreach was announced alongside the next-generation console.")).toBe(true);
+  });
+
+  it("leaves the music and the requested work alone", () => {
+    expect(companyHistory("The band signed a record deal with Harbor Records in 1984.")).toBe(false);
+    expect(companyHistory("Ada Penn reached an agreement with Leo Marsh to record the album.")).toBe(false);
+    expect(companyHistory("The game was announced for the Orbis console in 2001.")).toBe(false);
+    expect(companyHistory("The song was renamed Glass Harbor before its release.")).toBe(false);
+    expect(companyHistory("Skyreach was announced alongside the next-generation console.", ["Skyreach"])).toBe(false);
+  });
+
+  it("is a reason screenClaims drops a caption", () => {
+    const ctx =
+      "Skyreach (video game)\nSkyreach is a 2001 platform game developed by Lumen North. Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence. " +
+      "The game's music was composed by Ada Penn.";
+    const { kept, rejected } = screenClaims(
+      ["Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence.", "The game's music was composed by Ada Penn."],
+      ctx,
+      { track: "Glass Harbor" }
+    );
+    expect(rejected.map((r) => r.reason)).toEqual(["a company's business, not the music"]);
+    expect(kept).toEqual(["The game's music was composed by Ada Penn."]);
   });
 });

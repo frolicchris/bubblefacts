@@ -5154,8 +5154,71 @@ function namesTrack(text: string, track: string): boolean {
   return mentionsName(normalizeTitle(text), [normalizeTitle(track)]) || (want.length > 0 && want.every((t) => have.has(t)));
 }
 
+/** The kinds of work "The song" or "This theme" can stand for. */
+const WORK_KINDS = "song|track|piece|tune|musical|show|collection|album|single|EP|record|suite|composition|work|theme|symphony|opera|concerto|sonata|overture";
 /** A caption about a work it doesn't name. */
-const UNNAMED_WORK = /^(?:The|This|That) (song|track|piece|tune|musical|show|collection|album|single|EP|record|suite|composition|work)\b(?!\s*["“'‘]|\s+\p{Lu})/u;
+const UNNAMED_WORK = new RegExp(`^(?:The|This|That) (${WORK_KINDS})\\b(?!\\s*["“'‘]|\\s+\\p{Lu})`, "u");
+
+/** Several works, which are never the one requested. */
+const WORKS_KINDS = "songs|tracks|pieces|tunes|albums|singles|records|suites|compositions|works|themes|symphonies|operas|concertos|concerti|sonatas|quartets|overtures|ballets";
+/** "The symphonies are ...": works the caption doesn't name. */
+const UNNAMED_WORKS = new RegExp(`^(?:The|These|Those) (${WORKS_KINDS})\\b(?!\\s*["“'‘]|\\s+\\p{Lu})`, "u");
+
+/** "This was loosely based on ...", "That year ...": a demonstrative with nothing named for it. A kind of work is `UNNAMED_WORK`'s. */
+const BARE_DEMONSTRATIVE = new RegExp(`^(This|That|These|Those)\\b(?![’'])(?!\\s*["“'‘]|\\s+\\p{Lu})(?!\\s+(?:${WORK_KINDS}|${WORKS_KINDS})\\b)`, "u");
+
+/** Words a caption may open with that aren't a name: "The", "In 1966", "After". */
+const OPENING_WORD = /^(?:The|A|An|This|That|These|Those|It|Its|In|On|At|By|For|After|Before|During|When|While|With|As|From|Of|Some|Many|Most|Both|All|Each|One|Two|Three|Several|Over|Under|Since|Until|Despite|Although|Though|His|Her|Their|He|She|They)\b/;
+
+/** A name in the caption: a capitalized word ("Ada", "ZUN") or a quoted title past its opening word. */
+function namesSomeone(fact: string): boolean {
+  const rest = fact.replace(OPENING_WORD, "");
+  return /["“][^"”]*\p{Lu}/u.test(rest) || /(?<![\p{L}\p{N}'’])\p{Lu}(?:\p{Ll}|\p{Lu})/u.test(rest);
+}
+
+/** Someone a "his" or "her" can stand for without a name: "the song's narrator ... his". */
+const PERSON_NOUN =
+  /\b(?:singer|composer|songwriter|lyricist|narrator|protagonist|character|frontman|frontwoman|vocalist|guitarist|drummer|bassist|pianist|violinist|producer|conductor|artist|musician|rapper|author|writer|director|actor|actress|father|mother|wife|husband|son|daughter|brother|sister|boy|girl|man|woman|king|queen|prince|princess|hero|heroine|villain|player|friend|teacher|child)s?\b/i;
+
+/**
+ * "The operas are spread across his whole life": a "he" or "her" with
+ * nobody named and no one in the caption it can stand for. A caption on screen stands alone,
+ * so a viewer can't tell whose. Words inside quotes are the quote's. Returns the pronoun, or null.
+ */
+export function unresolvedPronoun(fact: string): string | null {
+  if (namesSomeone(fact)) return null;
+  const words = fact.replace(/["“][^"”]*["”]/g, " ");
+  const m = /\b(he|him|his|himself|she|her|hers|herself)\b/i.exec(words);
+  if (!m) return null;
+  return PERSON_NOUN.test(words.slice(0, m.index)) ? null : m[1].toLowerCase();
+}
+
+/** A company's deal: "signed a five-year deal with", "an agreement with". */
+const COMPANY_DEAL = /\b(?:signed|struck|reached|inked)\b[^.;]{0,40}\b(?:deal|contract|agreement)\b|\b(?:deal|contract|agreement) with\b/i;
+/** A company bought or merged: "purchased Brightwater Studios", "acquired the rights". */
+const COMPANY_BOUGHT = /\b(?:acquired|purchased|bought(?: out)?|took over)\s+(?:the\s+)?(?:rights\b|\p{Lu})|\b(?:merged with|[Mm]erger|[Aa]cquisition|[Tt]akeover|[Bb]uyout|[Ss]ubsidiary)\b/u;
+/** A company, by kind or by the word its name ends with. */
+const COMPANY_NOUN =
+  /\b(?:[Cc]ompan(?:y|ies)|[Ss]tudios?|[Dd]evelopers?|[Pp]ublishers?|[Ff]irms?|[Ss]ubsidiar(?:y|ies)|[Cc]orporations?|Inc|Ltd|LLC|Corp|Entertainment|Interactive|Software|Games|Productions|Pictures)\b/;
+/** "The next-generation console was announced to be the Orbis". */
+const CONSOLE_NEWS = /\b(?:console|hardware)\b[^.;]{0,40}\bannounced\b|\bannounced\b[^.;]{0,40}\b(?:console|hardware)\b|\bnext[- ]generation (?:console|platform|system|hardware)\b/i;
+/** A caption led by the work itself: "The game was announced ...", "It was renamed ...". */
+const WORK_LED = /^(?:The|This) (?:game|song|track|piece|album|film|series|soundtrack)\b|^It\b/;
+
+/**
+ * A company's business history, not the music or the requested work: "Northwind Media signed a
+ * five-year deal with Halcyon Pictures", "Lumen Works purchased Brightwater Studios", "The
+ * next-generation console was announced to be the Orbis". Deals and buyouts count unless the caption
+ * is about music; a renaming must be a company's; a console announcement counts unless the
+ * caption is led by the work (`titles`: the article's and the song's).
+ */
+export function companyHistory(fact: string, titles: string[] = []): boolean {
+  if (ABOUT_MUSIC.test(fact)) return false;
+  if (COMPANY_DEAL.test(fact) || COMPANY_BOUGHT.test(fact)) return true;
+  const workLed = WORK_LED.test(fact) || titles.some((t) => t && new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+  if (workLed) return false;
+  return (/\b(?:renamed|rebranded)\b/i.test(fact) && COMPANY_NOUN.test(fact)) || CONSOLE_NEWS.test(fact);
+}
 
 export interface ScreenResult {
   kept: string[];
@@ -5200,6 +5263,15 @@ function captionReason(fact: string, titles: string[], otherParts: string[], nam
   // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
   const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
   if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
+  // A bubble stands alone: "This was loosely based on ..." leans on a sentence that isn't on screen.
+  const bare = BARE_DEMONSTRATIVE.exec(fact);
+  if (bare && !isTitle) return `doesn't say what "${bare[1].toLowerCase()}" is`;
+  // "The operas are spread across his whole life": whose?
+  const works = UNNAMED_WORKS.exec(fact);
+  if (works && !isTitle && !namesSomeone(fact)) return `doesn't say whose ${works[1]}`;
+  const pronoun = unresolvedPronoun(fact);
+  if (pronoun) return `doesn't say who "${pronoun}" is`;
+  if (companyHistory(fact, titles)) return "a company's business, not the music";
   if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
   // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
   const other = otherParts.find((p) => hasWord(p, fact, ""));
