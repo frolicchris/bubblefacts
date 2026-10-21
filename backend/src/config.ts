@@ -65,7 +65,8 @@ const trimSlash = (s: string) => s.replace(/\/+$/, "");
  */
 export const NOW_PLAYING_PRESETS = {
   // Streamling's author recommends nowplaying-minimal.txt: one "Artist - Song" line, UTF-8 (v1.5 release notes).
-  streamling: { name: "Streamling", folder: ["streamling", "livetext"], file: "nowplaying-minimal.txt", format: "artist-title" },
+  // The line can also be a YouTube title ("Song - Official Music Video"), so it is read the way Nightbot's is.
+  streamling: { name: "Streamling", folder: ["streamling", "livetext"], file: "nowplaying-minimal.txt", format: "youtube-title" },
   // Nightbot's desktop app (Windows and Mac) writes the current song, a YouTube video, into this folder;
   // its docs name neither the file nor the line, which is customizable.
   nightbot: { name: "Nightbot", folder: ["Nightbot"], file: "", format: "youtube-title" },
