@@ -856,6 +856,13 @@ no screening, and are skipped for a song whose structured facts were marked
   works are named by label alone, never with an artist, so a cover or a
   derivative work is never credited to the requested artist; a work with the
   song's own name is left out.
+- **One bubble for the basics** (`data-facts.ts`, issue #256). On a busy PC
+  the instant data facts can be all a viewer sees, so a song's year and album
+  read as one bubble ("came out in 2021 and is on the album X"; "and is on",
+  not "on", because an earlier single may not be listed) and an artist's
+  origin, genres and labels pack into as few bubbles as fit. Values are
+  placed as the source gives them. A combination over `MAX_FACT_CHARS` falls
+  back to separate facts; one known value stays a single fact.
 - **MusicBrainz** (`musicbrainz.ts`), only when Wikidata has nothing. One
   request at a time, at most about one a second, with a User-Agent naming
   the project, as MusicBrainz asks. For a game's track: a composer only from
