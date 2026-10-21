@@ -19,6 +19,7 @@ import {
 } from "./fact-verifier";
 import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
+import { fitOrSplit } from "./data-facts";
 
 /**
  * Plain facts from MusicBrainz, after Wikipedia and Wikidata come up empty
@@ -171,7 +172,6 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
   const facts: string[] = [];
   const q = `"${title}"`;
   const year = firstYear(matches, diedIn);
-  if (year) facts.push(`${q} came out in ${year}.`);
   // A studio album only (no compilations, live or soundtrack albums), and no
   // claim that it came out there first: an earlier single may not be listed.
   const album = [...(first.releases ?? [])]
@@ -185,7 +185,10 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
         !NOT_AN_ALBUM.test(r.title)
     )
     .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"))[0]?.title;
-  if (album) facts.push(`${q} is on the album ${album}.`);
+  // One bubble when both are known and fit. "And is on", not "on": the song may have come out earlier, as a single.
+  if (year && album) facts.push(...fitOrSplit(`${q} came out in ${year} and is on the album ${album}.`, [`${q} came out in ${year}.`, `${q} is on the album ${album}.`]));
+  else if (year) facts.push(`${q} came out in ${year}.`);
+  else if (album) facts.push(`${q} is on the album ${album}.`);
   return facts;
 }
 
@@ -254,7 +257,7 @@ export async function musicbrainzFacts(song: SSLSong): Promise<string[]> {
       const recordings = await search(`recording:${quote(title)} AND artist:${quote(game)}`);
       facts = performerFacts(recordings, title, game);
       // A year is only stated when the artist was alive for it: one more lookup, only then.
-      const id = facts.some((f) => / came out in \d{4}\.$/.test(f)) ? creditedArtistId(recordings, title, game) : undefined;
+      const id = facts.some((f) => / came out in \d{4}\b/.test(f)) ? creditedArtistId(recordings, title, game) : undefined;
       if (id) {
         const died = /^\d{4}/.exec((await lookup<{ "life-span"?: { end?: string } }>(`artist/${id}`, ""))["life-span"]?.end ?? "")?.[0];
         if (died) facts = performerFacts(recordings, title, game, Number(died));

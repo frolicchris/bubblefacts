@@ -1,5 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
+import { MAX_FACT_CHARS } from "./fact-verifier";
 import { artistFactsFromEntity, factsFromEntity, pickSong, plainDate, rankedClaims, searchLanguage, searchLanguages, wikidataFacts } from "./wikidata";
 
 describe("pickSong", () => {
@@ -51,8 +52,7 @@ describe("factsFromEntity", () => {
     );
     expect(facts).toEqual([
       '"Megalovania" was written by Toby Fox.',
-      '"Megalovania" came out in 2015.',
-      '"Megalovania" appears on Undertale Soundtrack.',
+      '"Megalovania" came out in 2015 and appears on Undertale Soundtrack.',
       '"Megalovania" made the Billboard Hot 100.',
     ]);
   });
@@ -105,14 +105,14 @@ describe("artistFactsFromEntity (issue #255)", () => {
     [["Q10", "Harborview"], ["Q11", "dream pop"], ["Q12", "shoegaze"], ["Q13", "Kenji Arata"], ["Q14", "Hollow Pine Inc."], ["Q15", "Some Records"]].map(([id, value]) => [id, { id, labels: { mul: { value } } }])
   );
 
-  it("tells when and where a band formed, then its genres: two facts at most", () => {
+  it("tells when and where a band formed, its genres and labels in one bubble", () => {
     const band = { id: "Q1", labels: { en: { value: "Velvet Lark" } }, descriptions: { en: { value: "American dream pop band" } }, claims: { P31: ids("Q215380"), P571: time("+1994-00-00T00:00:00Z"), P740: ids("Q10"), P136: ids("Q11", "Q12"), P264: ids("Q15") } };
-    expect(artistFactsFromEntity(band, labels)).toEqual(["Velvet Lark formed in Harborview in 1994.", "Velvet Lark's genres include dream pop and shoegaze."]);
+    expect(artistFactsFromEntity(band, labels)).toEqual(["Velvet Lark formed in Harborview in 1994. Genres include dream pop and shoegaze. Record labels include Some Records."]);
   });
 
   it("tells when a singer was born, and reads labels given for every language", () => {
     const singer = { id: "Q2", labels: { mul: { value: "Dana Reyes" } }, descriptions: { en: { value: "English singer" } }, claims: { P31: ids("Q5"), P569: time("+1950-03-01T00:00:00Z"), P264: ids("Q15") } };
-    expect(artistFactsFromEntity(singer, labels)).toEqual(["Dana Reyes was born in 1950.", "Dana Reyes's record labels include Some Records."]);
+    expect(artistFactsFromEntity(singer, labels)).toEqual(["Dana Reyes was born in 1950. Record labels include Some Records."]);
   });
 
   it("tells who scored and made a game, without doubling a name's final period", () => {
@@ -314,5 +314,54 @@ describe("wikidataFacts with no artist (issue #261)", () => {
     } finally {
       global.fetch = real;
     }
+  });
+});
+
+describe("basic facts in one bubble (#256)", () => {
+  const claim = (value: unknown) => ({ mainsnak: { datavalue: { value } } });
+  const item = (claims: Record<string, unknown[]>) => ({ id: "Q1", claims: Object.fromEntries(Object.entries(claims).map(([p, vals]) => [p, vals.map(claim)])) });
+  const named = (...pairs: Array<[string, string]>) => Object.fromEntries(pairs.map(([id, value]) => [id, { id, labels: { en: { value } } }]));
+  const year = { P577: [{ time: "+2004-06-01T00:00:00Z" }] };
+
+  it("tells a song's year and where it appears together", () => {
+    const L = named(["Q2", "Paper Boats"]);
+    expect(factsFromEntity(item({ ...year, P361: [{ id: "Q2" }] }), L, "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004 and appears on Paper Boats.']);
+  });
+
+  it("keeps a single fact when only one value is known", () => {
+    expect(factsFromEntity(item(year), {}, "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004.']);
+    expect(factsFromEntity(item({ P361: [{ id: "Q2" }] }), named(["Q2", "Paper Boats"]), "Harbor Lights")).toEqual(['"Harbor Lights" appears on Paper Boats.']);
+  });
+
+  it("falls back to separate facts when the combination would not fit a bubble", () => {
+    const title = "The Long Slow Walk Home Along the Quiet Harbor Wall at Dusk Again";
+    const album = "Songs for the Lamplighters of the Eastern Pier and Beyond Again";
+    const facts = factsFromEntity(item({ ...year, P361: [{ id: "Q2" }] }), named(["Q2", album]), title);
+    expect(facts).toEqual([`"${title}" came out in 2004.`, `"${title}" appears on ${album}.`]);
+    expect(`"${title}" came out in 2004 and appears on ${album}.`.length).toBeGreaterThan(MAX_FACT_CHARS);
+  });
+
+  describe("about the artist", () => {
+    const ids = (...list: string[]) => list.map((id) => ({ id }));
+    const labels = named(["Q10", "Harborview"], ["Q11", "dream pop"], ["Q12", "shoegaze"], ["Q15", "Some Records"]);
+    const band = (claims: Record<string, unknown[]>) => ({ id: "Q9", labels: { en: { value: "Velvet Lark" } }, descriptions: { en: { value: "American dream pop band" } }, claims: Object.fromEntries(Object.entries(claims).map(([p, v]) => [p, v.map(claim)])) });
+
+    it("joins where and when a band formed with its genres", () => {
+      const e = band({ P31: ids("Q215380"), P571: [{ time: "+1994-00-00T00:00:00Z" }], P740: ids("Q10"), P136: ids("Q11", "Q12") });
+      expect(artistFactsFromEntity(e, labels)).toEqual(["Velvet Lark formed in Harborview in 1994. Genres include dream pop and shoegaze."]);
+    });
+
+    it("keeps a single fact when only the genres are known", () => {
+      expect(artistFactsFromEntity(band({ P136: ids("Q11") }), labels)).toEqual(["Velvet Lark's genres include dream pop."]);
+    });
+
+    it("starts another bubble when the next sentence would not fit", () => {
+      const long = named(["Q10", "A Small Harbor Town Far Up the Windswept Northern Coast Beyond the Lighthouse Road"], ["Q11", "atmospheric chamber folk"], ["Q12", "experimental ambient drone"]);
+      const e = band({ P571: [{ time: "+1994-00-00T00:00:00Z" }], P740: ids("Q10"), P136: ids("Q11", "Q12") });
+      expect(artistFactsFromEntity(e, long)).toEqual([
+        "Velvet Lark formed in A Small Harbor Town Far Up the Windswept Northern Coast Beyond the Lighthouse Road in 1994.",
+        "Velvet Lark's genres include atmospheric chamber folk and experimental ambient drone.",
+      ]);
+    });
   });
 });

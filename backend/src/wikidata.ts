@@ -2,6 +2,7 @@ import { config } from "./config";
 import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
+import { fitOrSplit, packFacts } from "./data-facts";
 
 /**
  * Plain facts from Wikidata, for songs with no Wikipedia article (issue #23).
@@ -172,9 +173,10 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
     if (lyricists.length) facts.push(`The lyrics of ${q} are by ${names(lyricists)}.`);
   }
   const y = year(song);
-  if (y) facts.push(`${q} came out in ${y}.`);
   const partOf = named("P361");
-  if (partOf.length) facts.push(`${q} appears on ${partOf[0]}.`);
+  if (y && partOf.length) facts.push(...fitOrSplit(`${q} came out in ${y} and appears on ${partOf[0]}.`, [`${q} came out in ${y}.`, `${q} appears on ${partOf[0]}.`]));
+  else if (y) facts.push(`${q} came out in ${y}.`);
+  else if (partOf.length) facts.push(`${q} appears on ${partOf[0]}.`);
   const producers = named("P162");
   if (producers.length) facts.push(`${q} was produced by ${names(producers)}.`);
   for (const award of named("P166").slice(0, 2)) facts.push(`${q} received the ${award}.`);
@@ -293,12 +295,17 @@ export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>)
   const when = year(e, person ? "P569" : "P571");
   const where = named(person ? "P19" : "P740")[0];
   const verb = person ? "was born" : "formed";
-  if (when || where) facts.push(`${name} ${verb}${where ? ` in ${where}` : ""}${when ? ` in ${when}` : ""}.`);
   const genres = named("P136").slice(0, 2);
-  if (genres.length) facts.push(`${name}'s genres include ${names(genres)}.`);
   const labelsOf = named("P264").slice(0, 2);
-  if (labelsOf.length) facts.push(`${name}'s record labels include ${names(labelsOf)}.`);
-  return facts.slice(0, 2);
+  // Packed into as few bubbles as fit, the first sentence naming the artist and the rest short.
+  const parts: Array<{ full: string; short: string }> = [];
+  if (when || where) {
+    const origin = `${name} ${verb}${where ? ` in ${where}` : ""}${when ? ` in ${when}` : ""}.`;
+    parts.push({ full: origin, short: origin });
+  }
+  if (genres.length) parts.push({ full: `${name}'s genres include ${names(genres)}.`, short: `Genres include ${names(genres)}.` });
+  if (labelsOf.length) parts.push({ full: `${name}'s record labels include ${names(labelsOf)}.`, short: `Record labels include ${names(labelsOf)}.` });
+  return packFacts(parts).slice(0, 2);
 }
 
 /**

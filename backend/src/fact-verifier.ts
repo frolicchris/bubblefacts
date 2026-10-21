@@ -25,7 +25,7 @@ export const MAX_CONTEXT_CHARS = 3000;
 /** Shorter extracts are stubs; the entry's own data beats restating one. */
 export const MIN_CONTEXT_CHARS = 600;
 /** Longest fact that fits a bubble. */
-const MAX_FACT_CHARS = 160;
+export const MAX_FACT_CHARS = 160;
 /** How long "no article" is trusted before the lookup is retried. */
 const NEGATIVE_TTL_MS = 10 * 60 * 1000;
 
@@ -3495,6 +3495,34 @@ export function unsupportedDay(fact: string, context: string): string | null {
   return [...fact.matchAll(new RegExp(`\\b(${MONTHS})(?=,?\\s+\\d)`, "g"))].map((m) => m[1]).find((month) => !hasWord(month, context, "")) ?? null;
 }
 
+/** A month with its year, as a text writes it: "January 2010", "January 22, 2025", "22 January 2025". */
+const MONTH_YEAR = new RegExp(
+  `\\b(${MONTHS})(?:\\s+\\d{1,2}(?:st|nd|rd|th)?)?(?:,|\\s+of)?\\s+(1\\d{3}|20\\d{2})\\b|\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTHS}),?\\s+(1\\d{3}|20\\d{2})\\b`,
+  "g"
+);
+
+/**
+ * A month told without the year the source gives it with: "In January 2010, the
+ * duo regrouped" retold as "The duo regrouped in January", which reads as cut off.
+ * The month must come with a year in every retold sentence that has it, and the
+ * caption must give no such year. A month the source gives alone is left alone.
+ * Returns the month and its year, or null.
+ */
+export function droppedYear(fact: string, context: string): string | null {
+  const retold = retoldSentences(fact, context);
+  const given = [...fact.matchAll(MONTH_YEAR)];
+  const factYears: string[] = fact.match(YEAR) ?? [];
+  for (const month of new Set([...fact.matchAll(new RegExp(`\\b(${MONTHS})\\b`, "g"))].map((m) => m[1]))) {
+    if (given.some((m) => (m[1] ?? m[3]) === month)) continue;
+    const holders = retold.filter((s) => new RegExp(`\\b${month}\\b`).test(s));
+    const years = holders.flatMap((s) => [...s.matchAll(MONTH_YEAR)].filter((m) => (m[1] ?? m[3]) === month).map((m) => m[2] ?? m[4]));
+    if (!holders.length || !holders.every((s) => [...s.matchAll(MONTH_YEAR)].some((m) => (m[1] ?? m[3]) === month))) continue;
+    if (years.some((y) => factYears.includes(y))) continue;
+    return `${month} ${years[0]}`;
+  }
+  return null;
+}
+
 /** "The duo", "the quartet": a group named only by its kind. */
 const COLLECTIVE = /^(?:The|This|That) (duo|pair|trio|quartet|quintet|couple|band|group|orchestra|ensemble)\b(?!\s*["“'‘]|\s+\p{Lu})/u;
 /** "The group" or "the band" for a trio: either word fits any group; "the duo" fits only a duo. */
@@ -3877,6 +3905,8 @@ function sourceReason(fact: string, context: string, track: string | undefined):
   if (hedge) return `drops the source's "${hedge}"`;
   const placed = misplacedYear(fact, context);
   if (placed) return `${placed} isn't the year of the sentence it retells`;
+  const cutOff = droppedYear(fact, context);
+  if (cutOff) return `says the month but not the year the source gives it with (${cutOff})`;
   if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
   const unnamedOne = unnamedReference(fact, context);
   if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
