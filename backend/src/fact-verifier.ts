@@ -964,7 +964,7 @@ function leadSentences(full: string, n: number): string {
 }
 
 /** Whether normalized text names one of these, spelled a letter or two differently ("Colbie Cailat"). */
-function namesLoosely(text: string, names: string[]): boolean {
+export function namesLoosely(text: string, names: string[]): boolean {
   if (mentionsName(text, names)) return true;
   const words = text.split(" ");
   return names.some((name) => {

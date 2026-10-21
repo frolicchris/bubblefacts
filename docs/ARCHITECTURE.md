@@ -836,7 +836,7 @@ or when a lookup fails, the title is parsed as usual.
 
 ### Where structured facts come from
 
-Both run only when there's no article about the song itself, need no AI and
+Both run only with no AI or no article about the song itself, need no AI and
 no screening, and are skipped for a song whose structured facts were marked
 **Wrong**.
 
@@ -876,6 +876,29 @@ no screening, and are skipped for a song whose structured facts were marked
   out when the credited artist had died by then (a Satie piece on a 1995
   album). An "additional" composer, such as a fanfare quoted in another
   composer's cue, isn't named.
+- **The article's own item** (`articleItem` in `wikidata.ts`, issue #256).
+  With no AI, the article is still looked up, alongside the data. Wikidata's
+  and MusicBrainz's searches miss a typo Wikipedia's search forgives
+  ("Harbr Lights (2004)"). So when the lookup surely matches an article
+  (`workMatchConfidence` sure and `summaryGate` clear) and Wikidata's search
+  found nothing, the page's own item is read: one request by page title, one
+  for the labels, cached like the others. MusicBrainz's facts never wait for
+  it: the item adds to them only when it is already in (and is ready for the
+  next play); a song MusicBrainz knows nothing about waits for it. A song, single or musical work (by
+  P31) gives its year (a date at year precision or finer, and none when the
+  description dates it another year, as for a later single of an older song),
+  the album it's part of (only an item described as an album, EP, soundtrack
+  or mixtape) and up to two genres, under the item's own name. When it names
+  performers and none is the requested artist, it is another performer's
+  version and gives nothing. A band or a musician gives the artist facts
+  above, when its name is the artist's. Those leave out a birth or formation
+  year Wikidata gives two ways, or a group's "inception" that its "work
+  period start" contradicts (a reunion year), and say "the" before a country
+  that takes it ("formed in the United States"). Anything else (an album, a film, a
+  game) gives nothing, and so does an unsure match. Values MusicBrainz
+  already gives for the song are left out. When the two years differ,
+  MusicBrainz's stands when it is the earlier (it leaves out reissues,
+  compilations and live albums); when Wikidata's is earlier, neither is shown.
 
 ### Wrong and Undo
 

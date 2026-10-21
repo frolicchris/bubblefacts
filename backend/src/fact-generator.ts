@@ -9,9 +9,9 @@ import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
 import { topic } from "./topic";
-import { musicbrainzFacts } from "./musicbrainz";
+import { musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
-import { artistFacts, wikidataFacts } from "./wikidata";
+import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -563,14 +563,50 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
  * Plain facts about the song itself: Wikidata first, then MusicBrainz, unless marked wrong for it.
  * `reading` is the reading of the song to look up; the bookkeeping stays with the song as requested.
  */
-async function structuredFacts(song: SSLSong, reading: SSLSong = song): Promise<string[]> {
+async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Promise<SureArticle | null> = Promise.resolve(null)): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
   const names = [reading.title, reading.artist ?? ""];
   const data = onStandard(await wikidataFacts(reading), names);
-  const facts = data.length ? data : onStandard(await musicbrainzFacts(reading), names);
+  let facts = data;
+  if (!data.length) {
+    // The article's item is read alongside MusicBrainz. When MusicBrainz has facts, they don't
+    // wait for it: it adds to them only if it is already in (it is cached for the next play).
+    const item = sure.then((found) => (found ? articleItem(found.page, found.names) : null));
+    const mb = await musicbrainzFacts(reading);
+    const found = mb.length ? await Promise.race([item, Promise.resolve(null)]) : await item;
+    const fromItem = found?.kind === "song" ? songItemFacts(found, { year: statedYear(mb), album: statesAlbum(mb) }) : { facts: found?.facts ?? [], dropYear: false };
+    const fromMb = onStandard(fromItem.dropYear ? withoutYear(mb) : mb, names);
+    const added = onStandard(fromItem.facts, [...names, found?.kind === "song" ? found.title : ""]).filter((f) => !fromMb.includes(f));
+    for (const f of fromMb) structuredLabel.set(f, SOURCE.musicbrainz);
+    for (const f of added) structuredLabel.set(f, SOURCE.wikidata);
+    facts = [...fromMb, ...added];
+  } else for (const f of data) structuredLabel.set(f, SOURCE.wikidata);
   structuredShown.set(songKey(song), new Set(facts));
-  for (const f of facts) structuredLabel.set(f, data.length ? SOURCE.wikidata : SOURCE.musicbrainz);
   return facts;
+}
+
+/** An article the lookup surely matched to the request: its page and the request's artist names. */
+interface SureArticle {
+  page: string;
+  names: string[];
+}
+
+/**
+ * The request's article when it is surely this work (issue #256), for its Wikidata item's
+ * facts: the same lookup and checks as the AI's reference (`findReference`,
+ * `workMatchConfidence`, `summaryGate`). Null when there is none or it may be another
+ * work. Never throws.
+ */
+async function sureArticle(song: SSLSong): Promise<SureArticle | null> {
+  try {
+    const { context, read } = await findReference(song);
+    if (!context || workMatchConfidence(read, context, song).level !== "sure" || (await summaryGate(read, context, song))) return null;
+    const names = [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])];
+    return { page: context.split("\n")[0], names };
+  } catch (err) {
+    console.warn(`[Grounding] Lookup for data facts failed for "${song.title}": ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
 }
 
 /**
@@ -854,11 +890,15 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     ({ context, read } = await findReference(song));
     if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
   }
-  // No AI available (the desktop app's fallback when its model can't run):
-  // song-list and hand-picked facts only, with no lookup.
+  // No AI available (the desktop app's fallback when its model can't run), or no article:
+  // facts from data, else song-list and hand-picked facts.
   if (config.aiProvider === "none" || (config.factVerification && !context)) {
+    const lookup = config.factVerification && !handle && !placeholder;
+    // With no AI, the article is still looked up, alongside the data: when it is surely this
+    // song or its artist, its own Wikidata item adds facts (issue #256). Never for an unsure one.
+    const sure = lookup && config.aiProvider === "none" ? sureArticle(song) : Promise.resolve(null);
     // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
-    const data = config.factVerification && !handle && !placeholder ? await structuredFacts(song, read) : [];
+    const data = lookup ? await structuredFacts(song, read, sure) : [];
     const shownData = rankedData(data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)), want);
     if (shownData.length) {
       remember(shownData);

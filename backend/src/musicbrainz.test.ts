@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName } from "./musicbrainz";
+import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -47,6 +47,15 @@ describe("performerFacts", () => {
       "Band"
     );
     expect(facts).toEqual([]);
+  });
+
+  it("reads back its year and album, and drops the year alone (#256)", () => {
+    const both = ['"Lost Boy" came out in 2018 and is on the album Kids.'];
+    expect([statedYear(both), statesAlbum(both)]).toEqual(["2018", true]);
+    expect(withoutYear(both)).toEqual(['"Lost Boy" is on the album Kids.']);
+    const split = ['"Lost Boy" came out in 2018.', '"Lost Boy" is on the album Kids.'];
+    expect(withoutYear(split)).toEqual(['"Lost Boy" is on the album Kids.']);
+    expect([statedYear([]), statesAlbum(['"Lost Boy" came out in 2018.'])]).toEqual([null, false]);
   });
 });
 
