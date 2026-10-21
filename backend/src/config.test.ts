@@ -74,6 +74,16 @@ describe("config song source", () => {
     expect(() => load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "lanternplayer", NOW_PLAYING_FILE: "x" })).toThrow(/NOW_PLAYING_PRESET must be one of/);
   });
 
+  it("reads Streamling's line like a YouTube title, so a video's extra words are not an artist", () => {
+    const { nowPlayingFormat } = load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling" });
+    expect(nowPlayingFormat).toBe("youtube-title");
+    const read = (line: string) => require("./now-playing-file").parseNowPlaying(line, nowPlayingFormat);
+    expect(read("Made Up Band - Fake Song")).toEqual({ artist: "Made Up Band", title: "Fake Song" });
+    expect(read("Fake Song - Official Music Video")).toEqual({ artist: "Unknown", title: "Fake Song" });
+    expect(read("Fake Song (Official Video)")).toEqual({ artist: "Unknown", title: "Fake Song" });
+    expect(read("Fake Song")).toEqual({ artist: "Unknown", title: "Fake Song" });
+  });
+
   it("follows Nightbot's whole folder with the Nightbot preset, reading YouTube titles", () => {
     const folder = path.join(os.homedir(), "Documents", "Nightbot");
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot" })).toMatchObject({

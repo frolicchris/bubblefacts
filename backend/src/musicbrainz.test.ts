@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { clearLinkCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, clearLinkCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -286,5 +286,73 @@ describe("musicbrainzFacts: the year is checked against the artist's death (#256
 
   it("leaves the year out, and the album alone, when the artist had died before it", async () => {
     expect(await run("Quiet Pier", "1950-01-01")).toEqual(['"Quiet Pier" is on the album Paper Boats.']);
+  });
+});
+
+
+describe("artistByTitle: the artist of a now playing title with no artist", () => {
+  const recording = (title: string, artist: string) => ({ title, score: 100, "artist-credit": [{ name: artist, artist: { id: `id-${artist}`, name: artist } }] });
+  let reply: { count?: number; recordings?: unknown[] } = {};
+  const asked: string[] = [];
+  const fetchMock = jest.fn(async (input: string | URL) => {
+    asked.push(decodeURIComponent(String(input)).replace(/\+/g, " "));
+    return { ok: true, status: 200, json: async () => reply } as Response;
+  });
+  const found = (recordings: unknown[], count = recordings.length) => {
+    reply = { count, recordings };
+    clearTitleCache();
+  };
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    asked.length = 0;
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("takes the artist when every recording of the exact title is theirs", async () => {
+    found([recording("Ember Lanterns", "Wren Halvard"), recording("Ember Lanterns (Live)", "Wren Halvard"), recording("Ember Lanterns Reprise", "Someone Else")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("Wren Halvard");
+    expect(asked[0]).toContain('recording:"Ember Lanterns"');
+    expect(cachedArtistByTitle("ember lanterns")).toBe("Wren Halvard");
+  });
+
+  it("takes none when two or more artists have the title", async () => {
+    found([recording("Ember Lanterns", "Wren Halvard"), recording("Ember Lanterns", "The Paper Coves")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+    expect(cachedArtistByTitle("Ember Lanterns")).toBe("");
+  });
+
+  it("takes none when no recording has the title, or only a placeholder credit does", async () => {
+    found([]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+    found([recording("Quiet Orchard", "Ember Lanterns")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+    found([recording("Ember Lanterns", "[unknown]"), recording("Ember Lanterns", "[unknown]")]);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
+  });
+
+  it("folds case and accents: the typed title matches the accented one", async () => {
+    found([recording("Då som nu för vintern", "Ola Strandvik")]);
+    expect(await artistByTitle("Da Som Nu For Vintern")).toBe("Ola Strandvik");
+  });
+
+  it("takes none for a common title with more recordings than one search reads, even if those read agree", async () => {
+    found([recording("Alone", "Wren Halvard")], 5000);
+    expect(await artistByTitle("Alone")).toBe("");
+  });
+
+  it("asks MusicBrainz once per title", async () => {
+    found([recording("Ember Lanterns", "Wren Halvard")]);
+    await artistByTitle("Ember Lanterns");
+    await artistByTitle("EMBER LANTERNS");
+    expect(asked).toHaveLength(1);
+  });
+
+  it("finds none from a failed lookup, and doesn't throw", async () => {
+    found([]);
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response);
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await artistByTitle("Ember Lanterns")).toBe("");
   });
 });

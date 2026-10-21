@@ -17,6 +17,7 @@ import {
   USER_AGENT,
   wikiExtract,
 } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
 import { fitOrSplit } from "./data-facts";
 
@@ -288,6 +289,69 @@ export async function musicbrainzFacts(song: SSLSong): Promise<string[]> {
     console.warn(`[MusicBrainz] Lookup failed for "${title}": ${err instanceof Error ? err.message : err}`);
     return [];
   }
+}
+
+// --- The artist of a title with no artist ---------------------------------------
+
+/**
+ * A now playing file can name only the song: a YouTube video titled just
+ * "Song - Official Music Video", or a player that knows no artist. When
+ * MusicBrainz has that exact title (case, accents and punctuation aside) from
+ * one artist only, that artist is taken; from two or more, none: "Alone" or
+ * "Nightmare" never resolve. Placeholder credits ("[unknown]", "Various
+ * Artists", "Traditional") count as no artist, so none is named from them.
+ */
+
+/** Recordings read for one title. A title with more is too common to settle. */
+const TITLE_LIMIT = 100;
+const PLACEHOLDER_ARTIST = /^\[.*\]$|^various artists$/i;
+const titleCache = new Map<string, { artist: string; at: number }>();
+
+/**
+ * The one artist every recording of exactly this title is by, or "". `complete`:
+ * the search returned every recording it found. Otherwise one not read may be
+ * by someone else (search ranks don't put exact titles first), so none is named.
+ */
+export function soleArtist(recordings: Recording[], title: string, complete: boolean): string {
+  const want = normalizeTitle(title);
+  if (!want || !complete) return "";
+  const matches = recordings.filter((r) => normalizeTitle(r.title ?? "") === want);
+  const artists = new Map<string, string>();
+  for (const r of matches) {
+    const lead = r["artist-credit"]?.[0];
+    const name = lead?.artist?.name || lead?.name || "";
+    if (!name || PLACEHOLDER_ARTIST.test(name.trim()) || hasNoArtist(name)) return "";
+    artists.set(lead?.artist?.id || normalizeTitle(name), name.trim());
+  }
+  return artists.size === 1 ? [...artists.values()][0] : "";
+}
+
+/** The artist already found for a title (see artistByTitle), or "" when none is or it hasn't been looked up. */
+export function cachedArtistByTitle(title: string): string {
+  return titleCache.get(normalizeTitle(title))?.artist ?? "";
+}
+
+/** The artist of a song known only by its title, when MusicBrainz has the title from one artist only; else "". Never throws. */
+export async function artistByTitle(title: string): Promise<string> {
+  const key = normalizeTitle(title);
+  if (!key) return "";
+  const hit = titleCache.get(key);
+  if (hit && (hit.artist || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.artist;
+  try {
+    const found = await mbGet<{ count?: number; recordings?: Recording[] }>("recording", { query: `recording:${quote(title)}`, limit: String(TITLE_LIMIT) });
+    const recordings = found.recordings ?? [];
+    const artist = soleArtist(recordings, title, (found.count ?? 0) <= recordings.length);
+    console.log(`[MusicBrainz] "${title}" with no artist: ${artist ? `only ${artist} has this title` : "no single artist has this title"}`);
+    titleCache.set(key, { artist, at: Date.now() });
+    return artist;
+  } catch (err) {
+    console.warn(`[MusicBrainz] Title lookup failed for "${title}": ${err instanceof Error ? err.message : err}`);
+    return "";
+  }
+}
+
+export function clearTitleCache(): void {
+  titleCache.clear();
 }
 
 // --- MusicBrainz's own link to the article (issue #245) -----------------------

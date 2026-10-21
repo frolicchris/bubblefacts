@@ -35,6 +35,8 @@ jest.mock("./wikidata", () => ({
 }));
 jest.mock("./musicbrainz", () => ({
   musicbrainzFacts: jest.fn().mockResolvedValue([]),
+  artistByTitle: jest.fn().mockResolvedValue(""),
+  cachedArtistByTitle: jest.fn().mockReturnValue(""),
   statedYear: actual("./musicbrainz", "statedYear"),
   statesAlbum: actual("./musicbrainz", "statesAlbum"),
   withoutYear: actual("./musicbrainz", "withoutYear"),
@@ -57,7 +59,7 @@ import { loadSession, remainingFacts, saveSession } from "./session";
 import { Fact } from "./types";
 import { fetchGrounding } from "./fact-verifier";
 import { articleItem, artistFacts, wikidataFacts } from "./wikidata";
-import { musicbrainzFacts } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
 import { SSLQueueItem, SSLSong } from "./types";
 
 const MODEL_LINES = [
@@ -645,6 +647,52 @@ describe("an article that may be about another work (issue #255)", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(series + " " + MODEL_LINES);
     await generateFacts(track);
     expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a now playing title with no artist", () => {
+  const ghost: SSLSong = { title: "Lantern Static", artist: "Unknown", titleOnly: true };
+  const article = "Lantern Static\nLantern Static is a 2017 song by the singer Wren Halvard. " + MODEL_LINES;
+  const lookedUpAs = () => ((fetchGrounding as jest.Mock).mock.calls[0]?.[0] as SSLSong | undefined)?.artist;
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (artistByTitle as jest.Mock).mockReset().mockResolvedValue("");
+    (cachedArtistByTitle as jest.Mock).mockReset().mockReturnValue("");
+  });
+
+  it("is looked up with the only artist who has the title, and shows facts from data only", async () => {
+    (artistByTitle as jest.Mock).mockResolvedValue("Wren Halvard");
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(article);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Lantern Static" came out in 2017.']);
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts(ghost);
+    expect(artistByTitle).toHaveBeenCalledWith("Lantern Static");
+    expect(lookedUpAs()).toBe("Wren Halvard");
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(facts.map((f) => f.text)).toEqual(['"Lantern Static" came out in 2017.']);
+    expect(log.mock.calls.some(([line]) => /^\[Grounding\] unsure: the artist was found by the title alone/.test(String(line)))).toBe(true);
+    log.mockRestore();
+  });
+
+  it("is looked up with no artist when several artists have the title", async () => {
+    await generateFacts(ghost);
+    expect(artistByTitle).toHaveBeenCalledWith("Lantern Static");
+    expect(lookedUpAs()).toBe("Unknown");
+  });
+
+  it("never asks for a song that names its artist, or one from a song list", async () => {
+    await generateFacts({ title: "Lantern Static", artist: "Wren Halvard" });
+    await generateFacts({ title: "Lantern Static", artist: "Unknown" });
+    expect(artistByTitle).not.toHaveBeenCalled();
+  });
+
+  it("blocks a fact marked Wrong for the song it was looked up as too", () => {
+    (cachedArtistByTitle as jest.Mock).mockReturnValue("Wren Halvard");
+    const lookup = { title: "Lantern Static", artist: "Wren Halvard" };
+    markWrong(ghost, "Some caption.", "Wikipedia: Lantern Static");
+    expect(blockedArticles(lookup).has("Lantern Static")).toBe(true);
+    unmarkWrong(ghost, "Lantern Static");
+    expect(blockedArticles(lookup).size).toBe(0);
   });
 });
 

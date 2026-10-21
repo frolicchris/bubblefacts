@@ -22,6 +22,16 @@ export interface SSLSong {
   performer?: boolean;
   /** The artist is only a guess from the uploader's channel, which may be a cover channel. */
   artistUncertain?: boolean;
+  /**
+   * Set by the now playing file when its line names no artist: the artist may
+   * be looked up by the title alone (`artistByTitle` in musicbrainz.ts).
+   */
+  titleOnly?: boolean;
+  /**
+   * The artist was found by the title alone, so the article found with it may
+   * not be this song's: its work match is unsure, and only facts from data show.
+   */
+  artistFromTitle?: boolean;
   /** StreamerSongList's song ID, when the song is on the list. Matches the streamer's own facts for it. */
   songId?: number;
   /** The YouTube video ID of a StreamElements request. */

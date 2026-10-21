@@ -57,7 +57,7 @@ What's different with StreamElements:
 A third song source, **Now playing file**, for musicians whose music app writes the song that's playing to a text file. It's in the first setup step and in Settings. The steps for streamers are in the setup guide, under
 [Follow a now playing file instead](https://bubblefacts.frolic.org/guide.html#song-list-file).
 
-- **Streamling** is one click: the server reads Streamling's own file in the Documents folder (`NOW_PLAYING_PRESET=streamling`), which is always "Artist - Title". The app shows the folder it reads and says it's Windows only.
+- **Streamling** is one click: the server reads Streamling's own file in the Documents folder (`NOW_PLAYING_PRESET=streamling`), which is "Artist - Title", or a YouTube title like "Song - Official Music Video". The app shows the folder it reads and says it's Windows only.
 - **Nightbot** is one click too, on Windows and Mac: the server reads the newest `.txt` file in `Documents/Nightbot` (`NOW_PLAYING_PRESET=nightbot`) as a YouTube video's title, so "Artist - Song (Official Video)" becomes the artist and the song. The app shows the folder it reads (the one in OneDrive, if your Documents folder was moved there), and beta test reports name it.
 - **Another app's file** opens a file picker (`dialog.showOpenDialog`, through the `choose-now-playing-file` message, which like every message from the window is refused unless it comes from the app's own page) and asks whether the line reads "Artist - Title" or is the title alone.
 - The chosen file and format are saved in Settings but left out of backups, as the sign-ins are, because a path belongs to one computer.
