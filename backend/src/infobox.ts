@@ -1,4 +1,4 @@
-import { loadWikitext } from "./fact-verifier";
+import { artistNames, loadWikitext, mentionsName, namesLoosely, normalizeTitle, wikitextOf } from "./fact-verifier";
 import { COMMENT, removeAll, withoutRefsAndComments } from "./text";
 
 /**
@@ -10,7 +10,6 @@ import { COMMENT, removeAll, withoutRefsAndComments } from "./text";
  * passed the lookup's relevance checks before this is asked.
  */
 
-const MAX_NAMES = 3;
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 
 export interface BoxFact {
@@ -19,6 +18,15 @@ export interface BoxFact {
   evidence: string;
   /** The names, titles and years the sentence states, to tell when another caption already said them. */
   values: string[];
+  /** What the infobox is about, to check it is the requested work before its facts are shown. */
+  about?: BoxSubject;
+}
+
+/** The work an infobox describes: its kind, its name and (for an album) its artists. */
+export interface BoxSubject {
+  kind: "song" | "game" | "album";
+  name: string;
+  artists: string[];
 }
 
 export interface Infobox {
@@ -113,9 +121,8 @@ function nameList(raw: string | undefined): string[] {
   return clean ? [...new Set(list)] : [];
 }
 
-/** "A", "A and B", "A, B and C"; past MAX_NAMES, "A, B, C and others", so no one is left out silently. */
+/** "A", "A and B", "A, B and C": every name, so no one is left out; a sentence too long for a bubble is dropped whole. */
 function joinNames(list: string[]): string {
-  if (list.length > MAX_NAMES) return `${list.slice(0, MAX_NAMES).join(", ")} and others`;
   return list.length <= 1 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
 }
 
@@ -156,7 +163,9 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
   const f = box.fields;
   const name = subjectName(page, box);
   const out: BoxFact[] = [];
-  const add = (text: string, field: string, values: string[]) => out.push({ text, evidence: `${field}: ${items(f[field] ?? "").join(", ") || f[field]}`, values });
+  const kind = SONG_BOX.test(box.type) ? "song" : GAME_BOX.test(box.type) ? "game" : "album";
+  const about: BoxSubject = { kind, name, artists: kind === "album" ? items(f.artist ?? "") : [] };
+  const add = (text: string, field: string, values: string[]) => out.push({ text, evidence: `${field}: ${items(f[field] ?? "").join(", ") || f[field]}`, values, about });
 
   if (SONG_BOX.test(box.type)) {
     const q = `"${name}"`;
@@ -172,8 +181,9 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
     if (year) add(`${q} came out in ${year}.`, f.released ? "released" : f.published ? "published" : f.composed ? "composed" : "year", [year]);
     const labels = nameList(f.label);
     if (labels.length && labels.length <= 2) add(`${q} was released on ${joinNames(labels)}.`, "label", labels);
-    const genres = nameList(f.genre).map((g) => (/^[A-Z][a-z]/.test(g) ? g[0].toLowerCase() + g.slice(1) : g)).slice(0, 2);
-    if (genres.length) add(`${q} is usually filed under ${joinNames(genres)}.`, "genre", genres);
+    // "Include", as the infobox lists them: not "usually", and not the first two of three passed off as all.
+    const genres = nameList(f.genre).map((g) => (/^[A-Z][a-z]/.test(g) ? g[0].toLowerCase() + g.slice(1) : g)).slice(0, 3);
+    if (genres.length) add(`The genres of ${q} include ${joinNames(genres)}.`, "genre", genres);
   } else if (GAME_BOX.test(box.type)) {
     const composers = nameList(f.composer ?? f.composers);
     if (composers.length) add(`The music of ${name} is by ${joinNames(composers)}.`, f.composer ? "composer" : "composers", composers);
@@ -211,7 +221,11 @@ export async function infoboxFacts(page: string): Promise<BoxFact[]> {
   try {
     const wikitext = await loadWikitext(page);
     const box = parseInfobox(wikitext);
-    const facts = box ? factsFromInfobox(page, box) : [];
+    let facts = box ? factsFromInfobox(page, box) : [];
+    // A single's release year for a song its album put out earlier isn't when the song came out.
+    const year = box && SONG_BOX.test(box.type) ? boxYear(box) : null;
+    const album = year ? await albumYear(box as Infobox) : null;
+    if (year && album && album < year) facts = facts.filter((f) => !/^(released|published|composed|year):/.test(f.evidence));
     console.log(`[Infobox] "${page}": ${box ? box.type : "none"}, ${facts.length} facts`);
     cache.set(page, { facts, at: Date.now() });
     return facts;
@@ -239,6 +253,122 @@ export function valuesIn(text: string): string[] {
     .map((n) => n.replace(/[.]+$/, "").trim())
     .filter((n) => n.length > 1 && !/^(The|And|An?)$/.test(n));
   return [...years, ...names];
+}
+
+/** Two titles as one: case, punctuation, spacing, "&" and "and", and a leading "the" aside ("Dont" is "Don't"). */
+export function sameTitle(a: string, b: string): boolean {
+  const key = (s: string) => normalizeTitle(s).split(" ").filter((w) => w && w !== "and" && w !== "the").join("");
+  return Boolean(key(a)) && key(a) === key(b);
+}
+
+/**
+ * Why an infobox is about another work than the one requested, or "" when it is
+ * this one (issue #256: data facts about the wrong work). The lookup may keep an
+ * article that is close but not the request: a remake under its own name, a game
+ * named like the band, a music article whose infobox is one album of several.
+ * Its sentences would then state another work's makers and year as this one's.
+ * - A song's infobox: its title is the requested title.
+ * - A game's: its name is the requested game's, or ends with it ("The Legend of
+ *   Some Quest" for "Some Quest"); never when the artist field is a performer
+ *   (`performer`: MusicBrainz has this song by an artist of that name).
+ * - An album's: its name or its artist names the requested game or artist.
+ */
+export function boxMisfit(about: BoxSubject, request: { game: string; titles: string[] }, performer = false): string {
+  const names = artistNames(request.game);
+  const name = normalizeTitle(about.name);
+  if (about.kind === "song") return request.titles.some((t) => sameTitle(t, about.name)) ? "" : `a song's infobox for "${about.name}", another title`;
+  if (about.kind === "game") {
+    if (performer) return `a game's infobox, and ${request.game} is a performer`;
+    const spaced = (s: string) => ` ${s.replace(/\band\b/g, " ").replace(/\s+/g, " ").trim()} `;
+    return names.some((n) => spaced(name).endsWith(spaced(n))) ? "" : `the infobox is about ${about.name}, not ${request.game}`;
+  }
+  const byArtist = about.artists.some((a) => namesLoosely(normalizeTitle(a), names));
+  return byArtist || mentionsName(name, names) ? "" : `an album's infobox for ${about.name}, not ${request.game}'s`;
+}
+
+/**
+ * An article's first infobox when it is a song's, or null. With `artists` (normalized),
+ * also null when the box names its artist and that is someone else: a cover's page that
+ * redirects to the original's article, whose credits and year are the original's. Never throws.
+ */
+export async function songBoxOf(page: string, artists: string[] = []): Promise<Infobox | null> {
+  const box = page ? parseInfobox(await wikitextOf(page)) : null;
+  if (!box || !SONG_BOX.test(box.type)) return null;
+  const named = items(box.fields.artist ?? "");
+  return artists.length && named.length && !named.some((a) => namesLoosely(normalizeTitle(a), artists)) ? null : box;
+}
+
+/** The song's writers in its infobox (writer, songwriter, composer and lyricist fields), [] for none, null when a field can't be read as names. */
+export function boxWriters(box: Infobox): string[] | null {
+  return creditFields(box, ["writer", "writers", "songwriter", "songwriters", "composer", "composers", "lyricist", "lyricists", "lyrics"]);
+}
+
+/** The song's producers in its infobox, [] for none, null when the field can't be read as names. */
+export function boxProducers(box: Infobox): string[] | null {
+  return creditFields(box, ["producer", "producers"]);
+}
+
+function creditFields(box: Infobox, keys: string[]): string[] | null {
+  const found: string[] = [];
+  for (const k of keys) {
+    if (!box.fields[k]) continue;
+    const list = nameList(box.fields[k]);
+    if (!list.length) return null;
+    found.push(...list);
+  }
+  return [...new Set(found)];
+}
+
+/** The year a song's infobox says it came out, or null. */
+export function boxYear(box: Infobox): string | null {
+  const f = box.fields;
+  return earliestYear(f.released ?? f.published ?? f.composed ?? f.year);
+}
+
+/**
+ * The year the album a song's infobox links to came out, from that album's own
+ * infobox, or null. A song first out on an album and released as a single later
+ * ("Some Song", album 1986, single 1987) came out with the album: a source's year
+ * after it is the single's. Never throws.
+ */
+export async function albumYear(box: Infobox): Promise<string | null> {
+  const link = /\[\[([^|\]#]+)/.exec(withoutRefsAndComments(box.fields.album ?? ""))?.[1]?.trim();
+  if (!link) return null;
+  const album = parseInfobox(await wikitextOf(link));
+  return album && ALBUM_BOX.test(album.type) ? earliestYear(album.fields.released) : null;
+}
+
+/**
+ * Whether an artist infobox's origin or birthplace backs a place Wikidata gives
+ * ("formed in Glasgow" for a band the article says formed in London). True when
+ * the infobox has no such field to check against.
+ */
+export function boxBacksPlace(box: Infobox | null, place: string, person: boolean): boolean {
+  const raw = box?.fields[person ? "birth place" : "origin"];
+  if (!raw) return true;
+  const text = normalizeTitle(items(raw).join(" ") || withoutRefsAndComments(raw).replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, "$1"));
+  return mentionsName(text, [normalizeTitle(place)]);
+}
+
+/**
+ * Whether an artist infobox backs a birth or formation year Wikidata gives: a
+ * person's birth date, a group's first year active ("1997–present" for a band
+ * Wikidata says formed in 1998). True when the infobox has no such field.
+ */
+export function boxBacksYear(box: Infobox | null, year: string, person: boolean): boolean {
+  const told = earliestYear(box?.fields[person ? "birth date" : "years active"]);
+  return !told || told === year;
+}
+
+/** An article's first infobox of any kind, or null. Never throws. */
+export async function anyBoxOf(page: string): Promise<Infobox | null> {
+  return page ? parseInfobox(await wikitextOf(page)) : null;
+}
+
+/** Whether two credit lists name the same people, each a letter or two off at most. */
+export function sameCredits(a: string[], b: string[]): boolean {
+  const same = (x: string, y: string) => namesLoosely(normalizeTitle(x), [normalizeTitle(y)]) && namesLoosely(normalizeTitle(y), [normalizeTitle(x)]);
+  return a.length === b.length && a.every((x) => b.some((y) => same(x, y))) && b.every((y) => a.some((x) => same(x, y)));
 }
 
 export function clearInfoboxCache(): void {

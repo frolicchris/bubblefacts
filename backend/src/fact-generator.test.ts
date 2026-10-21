@@ -57,6 +57,7 @@ import { topic } from "./topic";
 import { saveSongFacts, setFactsOff } from "./song-facts";
 import { loadSession, remainingFacts, saveSession } from "./session";
 import { Fact } from "./types";
+import { BoxSubject } from "./infobox";
 import { fetchGrounding } from "./fact-verifier";
 import { articleItem, artistFacts, wikidataFacts } from "./wikidata";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
@@ -752,7 +753,7 @@ describe("data facts from the matched article's own item, with no AI (issue #256
     (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
     const facts = await generateFacts(request);
     expect(facts.map((f) => [f.text, f.source])).toEqual([['"Harbor Lights" came out in 2004 and appears on Paper Boats. Its genres include dream pop.', SOURCE.wikidata]]);
-    expect(articleItem).toHaveBeenCalledWith("Harbor Lights (Velvet Lark song)", ["velvet lark"]);
+    expect(articleItem).toHaveBeenCalledWith("Harbor Lights (Velvet Lark song)", ["velvet lark"], ["Harbr Lights (2004)", "Harbr Lights"]);
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -874,6 +875,22 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
     expect(facts[0]).toEqual(early[0]);
     expect(facts.find((f) => f.text === writer)?.source).toBe(`${SOURCE.infobox}Harbor Lights (Velvet Lark song)`);
     expect(facts.length).toBeLessThanOrEqual(5);
+  });
+
+  it("shows no infobox facts about another work than the request (#256)", async () => {
+    const shown = async (about: BoxSubject, mb: string[] = []) => {
+      (musicbrainzFacts as jest.Mock).mockResolvedValue(mb);
+      const text = `${about.name} was developed by Pinecone Works.`;
+      const box = jest.spyOn(jest.requireActual("./infobox"), "infoboxFacts").mockResolvedValue([{ text, evidence: "developer: Pinecone Works", values: ["Pinecone Works"], about }]);
+      const facts = await generateFacts(request);
+      box.mockRestore();
+      clearFactCache();
+      return facts.some((f) => f.text === text);
+    };
+    // The song's own infobox under another title, and a game named like the band.
+    expect(await shown({ kind: "song", name: "Harbor Nights", artists: [] })).toBe(false);
+    expect(await shown({ kind: "game", name: "Velvet Lark", artists: [] }, ['"Harbor Lights" came out in 2004 and is on the album Paper Boats.'])).toBe(false);
+    expect(await shown({ kind: "song", name: "Harbor Lights", artists: [] })).toBe(true);
   });
 
   it("takes nothing from the article's item when the match is unsure", async () => {

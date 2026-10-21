@@ -1060,6 +1060,42 @@ no screening, and are skipped for a song whose structured facts were marked
   song changes first, the captions are dropped. A song with the streamer's
   tagged facts mixed in still goes out once, since those are re-spaced at
   the end.
+- **Data facts are the safe layer** (issue #256). Data facts are
+  dropped rather than risked. On a benchmark of unseen songs, about 6% were wrong or misleading,
+  for four reasons, each now checked:
+  - *Another work's infobox.* The infobox is used only when it describes the
+    requested work (`boxMisfit` in `infobox.ts`): a song's infobox only under
+    the requested title; a game's only when its name is the artist field's
+    game, or ends with it, and never when MusicBrainz has the song by a
+    performer of that name (a band and a game called the same); an album's
+    only when its name or artist names the requested game or artist (not
+    another album in a series' music article). A remake under its own name
+    fails the name check. The article's own item is likewise used only when
+    its label is the requested title, and `artistFacts` takes nothing when two
+    performers or games share the name.
+  - *A credit cut to one name.* Wikidata's song items often list one of
+    several writers or producers. When the item has an English article, its
+    writers and producers are told only when the article's song infobox lists
+    the same people (`sameCredits`); otherwise they are left out. Every source
+    names every credited person, or none when the list is too long for a
+    bubble, never the first few.
+  - *A genre list told as the genre.* The infobox's genres read "The genres
+    of X include A, B and C", up to three, never "usually filed under".
+  - *Another year.* A song item's year stands only when the item's
+    description gives no other year (anywhere, as in "... released in 1999")
+    and the song infobox of its article agrees, and never when it is later
+    than the year of the album that infobox links to (`albumYear`): a song
+    first out on an album and released as a single later came out with the
+    album. That holds for the infobox's own year and, through the article's
+    item, for MusicBrainz's. An infobox that names another
+    artist (a cover's page redirecting to the original's article) isn't used
+    for either check. A bare year in a request ("Some Song (1999)") is not
+    used: on a 300-song list it was often another version's year, so it would
+    have dropped correct years.
+  - *Another place.* An artist's birthplace or origin from the article's own
+    item, and its birth or formation year, are told only when the article's infobox
+    (birth place or origin; birth date or first year active), if
+    it has one, gives the same (`boxBacksPlace`, `boxBacksYear`).
 
 ### Wrong and Undo
 

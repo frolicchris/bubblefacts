@@ -7,6 +7,7 @@ import {
   isInitials,
   looksLikeArtistName,
   MAX_CONTEXT_CHARS,
+  MAX_FACT_CHARS,
   mentionsName,
   MIN_CONTEXT_CHARS,
   normalizeTitle,
@@ -127,8 +128,9 @@ export function readableName(credit: { name?: string; artist?: { name?: string; 
 }
 
 /** "A", "A and B" or "A, B and C": at most three names, without repeats. */
+/** Every name: a credit cut to its first few reads as the whole list. */
 function joinNames(list: string[]): string {
-  const n = [...new Set(list.filter(Boolean))].slice(0, 3);
+  const n = [...new Set(list.filter(Boolean))];
   return n.length <= 1 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
 }
 
@@ -266,7 +268,9 @@ async function gameComposer(recordings: Recording[], title: string, game: string
     const workId = rec.relations?.find((r) => r["target-type"] === "work" && r.work?.id)?.work?.id;
     if (!workId) continue;
     const composers = composersOf(await lookup(`work/${workId}`, "artist-rels"));
-    if (composers.length) return [`"${title}" from ${game} was composed by ${joinNames(composers)}.`];
+    // All of them, or none when they don't fit a bubble.
+    const said = `"${title}" from ${game} was composed by ${joinNames(composers)}.`;
+    if (composers.length) return said.length <= MAX_FACT_CHARS ? [said] : [];
   }
   return [];
 }
