@@ -225,6 +225,47 @@ main {
   margin-bottom: 0.5rem;
 }
 
+/* ---------- Works with ---------- */
+
+.works-with {
+  padding: 1.5rem 0;
+  border-top: 1px solid rgba(91, 110, 225, 0.15);
+  border-bottom: 1px solid rgba(91, 110, 225, 0.15);
+}
+
+.works-with + .section {
+  border-top: 0;
+}
+
+.works-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: grid;
+  gap: 0.5rem 2rem;
+}
+
+@media (min-width: 760px) {
+  .works-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.works-list li {
+  color: var(--text);
+}
+
+.works-kind {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.works-free {
+  color: var(--muted);
+  margin: 0;
+}
+
 /* ---------- RPG dialog panel ---------- */
 
 .rpg {
@@ -438,8 +479,8 @@ html.site-beta [data-stable-only] {
   display: none !important;
 }
 
-/* SITE DEFAULT: beta. */
-html:not(.site-stable):not(.site-beta) [data-stable-only] {
+/* SITE DEFAULT: stable. */
+html:not(.site-stable):not(.site-beta) [data-beta-only] {
   display: none !important;
 }
 

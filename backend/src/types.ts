@@ -1,4 +1,12 @@
-/** Shapes from the StreamerSongList API and the overlay's WebSocket protocol. */
+/**
+ * Shapes shared across the backend: the queue entry every song source hands
+ * over (StreamerSongList's API shape; StreamElements and the now playing file
+ * fill it in as far as they can, see song-source.ts), and the overlay's
+ * WebSocket protocol (`Fact`, `FactsPayload`). Fields marked "API shape, not
+ * read" are filled in or kept to match the API, but nothing reads them.
+ */
+
+// --- The song, as the sources and the overlay share it -------------------
 
 /** The song as the overlay sees it. */
 export interface SSLSong {
@@ -14,11 +22,23 @@ export interface SSLSong {
   performer?: boolean;
   /** The artist is only a guess from the uploader's channel, which may be a cover channel. */
   artistUncertain?: boolean;
+  /**
+   * Set by the now playing file when its line names no artist: the artist may
+   * be looked up by the title alone (`artistByTitle` in musicbrainz.ts).
+   */
+  titleOnly?: boolean;
+  /**
+   * The artist was found by the title alone, so the article found with it may
+   * not be this song's: its work match is unsure, and only facts from data show.
+   */
+  artistFromTitle?: boolean;
   /** StreamerSongList's song ID, when the song is on the list. Matches the streamer's own facts for it. */
   songId?: number;
   /** The YouTube video ID of a StreamElements request. */
   videoId?: string;
 }
+
+// --- Queue shapes: StreamerSongList's API, filled by StreamElements and the now playing file too ---
 
 /** API `QueueSong`. Its id lives on the entry as `songId`. */
 export interface SSLQueueSong {
@@ -31,17 +51,22 @@ export interface SSLQueueSong {
   /** Set by StreamElements: the request's YouTube video ID. */
   videoId?: string;
   comment?: string | null;
+  /** API shape, not read. */
   duration?: number | null;
+  /** Filled by StreamElements (the video's length) and left null by the now playing file. API shape, not read. */
   durationSeconds?: number | null;
   timesPlayed?: number;
+  /** API shape, not read. */
   lastPlayed?: string | null;
   attributes?: Array<{ name?: string }> | null;
 }
 
 /** API `Request`. */
 export interface SSLRequest {
+  /** API shape, not read. */
   id: number;
   name: string;
+  /** `platform` is API shape, not read. */
   user?: { username: string; platform: string };
 }
 
@@ -56,7 +81,9 @@ export interface SSLQueueItem {
   nonlistTitle?: string | null;
   nonlistArtist?: string | null;
   note: string | null;
+  /** API shape, not read. */
   streamerId: number;
+  /** API shape, not read. */
   createdAt: string;
   requests: SSLRequest[] | null;
 }
@@ -65,6 +92,7 @@ export interface SSLQueueItem {
 export interface SSLQueueResponse {
   items: SSLQueueItem[] | null;
   playing?: SSLQueueItem | null;
+  /** API shape, not read. */
   total: number;
 }
 
@@ -73,6 +101,8 @@ export interface SSLStreamerInfo {
   id: number;
   promoteQueueToPlaying?: boolean;
 }
+
+// --- Overlay shapes --------------------------------------------------------
 
 /** One bubble. Shown `delaySeconds` after the batch arrives; `position` is CSS percentages. */
 export interface Fact {
@@ -107,4 +137,9 @@ export interface FactsPayload {
   quiet?: boolean;
   /** On new_song: the streamer turned NOW PLAYING off. A LIVE LEARN banner is never hidden. */
   noBanner?: boolean;
+  /**
+   * On facts_ready: more of the song's facts, after the ones sent earlier (the AI's captions after
+   * the facts from data). The bubble on screen stays; these replace the ones still to come.
+   */
+  keep?: boolean;
 }

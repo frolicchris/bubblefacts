@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, DEFAULTS, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { customFactsProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -191,6 +191,10 @@ describe("toServerEnv", () => {
 
   it("maps the musician's choices", () => {
     expect(toServerEnv({ ...DEFAULTS, nowPlaying: false }, paths).NOW_PLAYING).toBe("off");
+    expect(toServerEnv(DEFAULTS, paths).CREDIT_BUBBLE).toBe("on");
+    expect(toServerEnv({ ...DEFAULTS, creditBubble: false }, paths).CREDIT_BUBBLE).toBe("off");
+    expect(fromWindow({ creditBubble: false })).toEqual({ creditBubble: false });
+    expect(fromWindow({ creditBubble: "off" })).toEqual({});
     expect(toServerEnv(DEFAULTS, paths).LIVE_LEARN_BANNER).toBe("on");
     expect(toServerEnv({ ...DEFAULTS, liveLearnBanner: false }, paths).LIVE_LEARN_BANNER).toBe("off");
     expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left" }, paths).BUBBLE_AREA).toBe("left");
@@ -234,6 +238,77 @@ describe("toServerEnv", () => {
     expect(sanitize({ ...DEFAULTS, aiQuality: undefined as never }).aiQuality).toBe("standard");
     expect(fromWindow({ aiQuality: "high" })).toEqual({ aiQuality: "high" });
     expect(fromWindow({ aiQuality: 2 })).toEqual({});
+  });
+});
+
+describe("Now playing file", () => {
+  const streamling = { ...DEFAULTS, songSource: "nowplaying" as const, nowPlayingPreset: "streamling" as const };
+  const other = { ...DEFAULTS, songSource: "nowplaying" as const, nowPlayingPreset: "none" as const, nowPlayingFile: "/music/now-playing.txt", nowPlayingFormat: "title" as const };
+
+  it("round-trips the source, preset, file and format", () => {
+    saveSettings(other);
+    expect(loadSettings()).toMatchObject({ songSource: "nowplaying", nowPlayingPreset: "none", nowPlayingFile: "/music/now-playing.txt", nowPlayingFormat: "title" });
+    expect(fs.readFileSync(file, "utf8")).toContain("/music/now-playing.txt");
+  });
+
+  it("defaults to Streamling's preset and the Artist - Title format", () => {
+    expect(DEFAULTS).toMatchObject({ nowPlayingPreset: "streamling", nowPlayingFile: "", nowPlayingFormat: "artist-title" });
+  });
+
+  it("starts the server on Streamling's file with nothing typed", () => {
+    const env = toServerEnv({ ...streamling, nowPlayingFile: "/left/over.txt", nowPlayingFormat: "title" }, paths);
+    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "youtube-title" });
+    expect(env.NOW_PLAYING_FILE).toBeUndefined();
+    expect(env.SSL_ACCESS_TOKEN).toBeUndefined();
+    expect(env.SE_JWT).toBeUndefined();
+  });
+
+  it("starts the server on Nightbot's folder, read as YouTube titles, with nothing typed", () => {
+    const env = toServerEnv({ ...streamling, nowPlayingPreset: "nightbot", nowPlayingFile: "/left/over.txt", nowPlayingFormat: "title" }, paths);
+    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
+    expect(env.NOW_PLAYING_FILE).toBeUndefined();
+    expect(env.SSL_ACCESS_TOKEN).toBeUndefined();
+  });
+
+  it("starts the server on the chosen file and format for another app", () => {
+    const env = toServerEnv(other, paths);
+    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: "/music/now-playing.txt", NOW_PLAYING_FORMAT: "title" });
+    expect(env.SSL_STREAMER_NAME).toBeUndefined();
+  });
+
+  it("restarts the server when the file or format changes", () => {
+    const sig = (s: Settings) => serverSettingsSignature(toServerEnv(s, paths), s);
+    expect(sig({ ...other, nowPlayingFile: "/music/other.txt" })).not.toBe(sig(other));
+    expect(sig({ ...other, nowPlayingFormat: "artist-title" })).not.toBe(sig(other));
+  });
+
+  it("is ready with Streamling or Nightbot, or once a file is chosen", () => {
+    expect(songSourceReady(streamling)).toBe(true);
+    expect(songSourceReady({ ...streamling, nowPlayingPreset: "nightbot" })).toBe(true);
+    expect(songSourceReady({ ...other, nowPlayingFile: "" })).toBe(false);
+    expect(songSourceReady(other)).toBe(true);
+    // A sign-in saved for another source doesn't matter, and doesn't make an unchosen file ready.
+    expect(songSourceReady({ ...other, nowPlayingFile: "", channel: "jane", token: "t" })).toBe(false);
+  });
+
+  it("takes the choices from the window with the right types only", () => {
+    expect(fromWindow({ songSource: "nowplaying", nowPlayingPreset: "none", nowPlayingFile: "/a.txt", nowPlayingFormat: "title" })).toEqual({
+      songSource: "nowplaying",
+      nowPlayingPreset: "none",
+      nowPlayingFile: "/a.txt",
+      nowPlayingFormat: "title",
+    });
+    expect(fromWindow({ nowPlayingFile: 3, nowPlayingPreset: true })).toEqual({});
+  });
+
+  it("falls back to safe values for anything unknown", () => {
+    expect(fromWindow({ nowPlayingPreset: "nightbot" })).toEqual({ nowPlayingPreset: "nightbot" });
+    expect(sanitize({ ...DEFAULTS, nowPlayingPreset: "nightbot" }).nowPlayingPreset).toBe("nightbot");
+    expect(sanitize({ ...DEFAULTS, nowPlayingPreset: "lanternplayer" as never, nowPlayingFormat: "json" as never, nowPlayingFile: "  /a.txt  " })).toMatchObject({
+      nowPlayingPreset: "streamling",
+      nowPlayingFormat: "artist-title",
+      nowPlayingFile: "/a.txt",
+    });
   });
 });
 
@@ -389,5 +464,12 @@ describe("the keychain isn't touched to draw the window (issue #62)", () => {
     Object.defineProperty(process, "platform", { value: "linux" });
     keychain.available = false;
     expect(secretsUnprotected()).toBe(true);
+  });
+});
+
+describe("port", () => {
+  it("keeps any port the Settings field allows, up to 65535 (#165)", () => {
+    expect(sanitize({ ...DEFAULTS, port: 65535 }).port).toBe(65535);
+    expect(sanitize({ ...DEFAULTS, port: 80 }).port).toBe(1024);
   });
 });

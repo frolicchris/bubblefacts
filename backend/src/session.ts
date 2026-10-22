@@ -18,6 +18,8 @@ export interface Session {
   savedAt: number;
   /** Earlier songs this stream and their facts, newest first, so Wrong works after a song ends. */
   earlier?: Array<{ song: SSLSong; facts: Fact[] }>;
+  /** Songs with facts since the credit bubble last went out (credit.ts). Absent before it first has. */
+  creditSince?: number;
 }
 
 /** A restart this long after the facts went out starts the song afresh: it's another day's stream. */
@@ -43,13 +45,18 @@ export function loadSession(now = Date.now()): Session | null {
     const ok = s && typeof s.song?.title === "string" && Array.isArray(s.facts) && Array.isArray(s.recent)
       && typeof s.savedAt === "number" && typeof s.shownAt === "number"
       && s.facts.every((f) => typeof f?.text === "string" && typeof f.delaySeconds === "number")
-      && s.recent.every((r) => typeof r === "string");
+      && s.recent.every((r) => typeof r === "string")
+      && (s.creditSince === undefined || (Number.isInteger(s.creditSince) && s.creditSince >= 0));
     return ok && now - s.savedAt < REMEMBER_FOR_MS && now >= s.savedAt ? s : null;
   } catch {
     return null;
   }
 }
 
+/**
+ * Two requests for the same song: the same title and artist, nothing else.
+ * `sameSong` in wrong-target.ts also compares the song and video ids.
+ */
 export const sameRequest = (a: Pick<SSLSong, "title" | "artist"> | null | undefined, b: Pick<SSLSong, "title" | "artist"> | null | undefined) =>
   !!a && !!b && a.title === b.title && (a.artist ?? "") === (b.artist ?? "");
 
@@ -63,6 +70,55 @@ export function remainingFacts(facts: Fact[], shownAt: number, now = Date.now())
   return facts.filter((f) => f.delaySeconds > elapsed).map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
 }
 
+/** A bubble with less time than this left isn't worth putting back on a reloaded overlay. */
+const CATCH_UP_MIN_SECONDS = 2;
+
+/** Where a bubble goes, as the overlay compares spots: one bubble per spot. */
+const spotOf = (f: Fact) => [f.position.top, f.position.bottom, f.position.left, f.position.right].join("|");
+
+/**
+ * What an overlay that connects or reloads mid-song is sent (issue #279): the song's bubbles
+ * that haven't finished showing, on the schedule the other overlays are on. The ones still to
+ * come keep their remaining delays. The one on screen now comes back at once for the time it
+ * has left (or its reading time, if longer), unless a later bubble already took its spot. A
+ * bubble whose time is up never comes back, and nor does one taken off with Wrong, since
+ * `record` no longer has it. All of them, from the start, when none went out yet.
+ */
+export function catchUpFacts(record: Fact[], shownAt: number, now = Date.now()): Fact[] {
+  if (!shownAt) return record;
+  const elapsed = (now - shownAt) / 1000;
+  const started = record.filter((f) => f.delaySeconds <= elapsed);
+  const replaced = (f: Fact) => started.some((g) => g !== f && g.delaySeconds > f.delaySeconds && spotOf(g) === spotOf(f));
+  return record.flatMap((f) => {
+    if (f.delaySeconds > elapsed) return [{ ...f, delaySeconds: f.delaySeconds - elapsed }];
+    const left = f.delaySeconds + readingSeconds(f) - elapsed;
+    return left >= CATCH_UP_MIN_SECONDS && !replaced(f) ? [{ ...f, delaySeconds: 0, durationSeconds: left }] : [];
+  });
+}
+
+/**
+ * A song's record once its AI captions arrive, after its facts from data went out early
+ * (issue #256). `record`: what was sent, delays counted from when it went out, without any
+ * fact taken off with Wrong since. `early`: the facts from data as the generator gave them;
+ * `all`: its full list, those first. The captions are added in order, each `interval` after
+ * the last fact and never before `elapsed` (now, in seconds since the record went out) plus a
+ * second. A fact already in the record, or taken off with Wrong, is never added again.
+ */
+export function withLaterFacts(record: Fact[], early: Fact[], all: Fact[], elapsed: number, interval: number): Fact[] {
+  const known = new Set([...record, ...early].map((f) => f.text));
+  const later = all.filter((f) => !known.has(f.text));
+  const last = record.length ? Math.max(...record.map((f) => f.delaySeconds)) + interval : 0;
+  let at = Math.max(elapsed + 1, last);
+  return [
+    ...record,
+    ...later.map((f) => {
+      const fact = { ...f, delaySeconds: at };
+      at += interval;
+      return fact;
+    }),
+  ];
+}
+
 /**
  * How long the overlay keeps a bubble up: its own time, or longer for a long
  * fact. Must match readingSeconds in obs-overlay.js.
@@ -73,7 +129,7 @@ export function readingSeconds(fact: Pick<Fact, "text" | "durationSeconds">): nu
 }
 
 /** A pedal press this soon after a new bubble pops up was meant for the one before it, if that one is still up. */
-export const JUST_APPEARED_SECONDS = 1.5;
+const JUST_APPEARED_SECONDS = 1.5;
 
 /**
  * The bubble a hands-free Wrong is for: the one on stream now, or when none

@@ -49,7 +49,7 @@ export function problemReportUrl(opts: { version: string; ai: string; logLines: 
  * The beta test form, with the answers the app knows filled in. Each dropdown answer must match a form
  * option exactly, so `version` is the plain version and `build` the label with the build (build.ts).
  */
-export function betaReportUrl(opts: { version: string; build: string; systemVersion: string; songSource: string; logLines: string[]; secrets: string[] }): string {
+export function betaReportUrl(opts: { version: string; build: string; systemVersion: string; songSource: string; nowPlayingPreset?: string; logLines: string[]; secrets: string[] }): string {
   const mac = process.arch === "arm64" ? "Mac with Apple silicon (M1 or newer)" : "Mac with Intel";
   const computer = ({ darwin: mac, win32: "Windows" } as Record<string, string>)[process.platform] ?? "Linux";
   const download =
@@ -60,10 +60,37 @@ export function betaReportUrl(opts: { version: string; build: string; systemVers
     build: opts.build,
     os: computer,
     download,
-    source: opts.songSource === "streamelements" ? "StreamElements" : "StreamerSongList",
+    source:
+      opts.songSource === "nowplaying" && opts.nowPlayingPreset === "nightbot"
+        ? "Now playing file (Nightbot)"
+        : ({ streamelements: "StreamElements", nowplaying: "Now playing file" } as Record<string, string>)[opts.songSource] ?? "StreamerSongList",
     osversion: `${osName()} ${opts.systemVersion}`,
     log: redact(opts.logLines.slice(-60).join("\n"), opts.secrets),
   });
+}
+
+/**
+ * The artist without the notes a song list adds after the name in brackets (issue #262):
+ * "Some Band (note)" is "Some Band". The same rule as `withoutArtistNote` in
+ * backend/src/text.ts, which the server uses; keep them alike.
+ */
+export function withoutArtistNote(artist: string): string {
+  let a = artist.trim();
+  for (;;) {
+    const closer = a.endsWith(")") ? "(" : a.endsWith("]") ? "[" : "";
+    const at = closer ? a.lastIndexOf(closer) : Math.max(a.lastIndexOf("("), a.lastIndexOf("["));
+    if (at < 0 || (!closer && (a.includes(")", at) || a.includes("]", at)))) return a;
+    const note = a.slice(at + 1).trimStart();
+    const rest = a.slice(0, at).trim();
+    if (note.startsWith("@") || !/[\p{L}\p{N}]/u.test(rest)) return a;
+    a = rest;
+  }
+}
+
+/** "Title — Artist (note)" as the dashboard labels a song, without the note: a report is public. */
+function songLabel(label: string): string {
+  const at = label.lastIndexOf(" — ");
+  return at < 0 ? label : `${label.slice(0, at)} — ${withoutArtistNote(label.slice(at + 3))}`;
 }
 
 /** `version` is the label with the build (build.ts). */
@@ -71,7 +98,7 @@ export function wrongFactUrl(opts: { song: string; fact: string; version: string
   const title = opts.song.split(" — ")[0].toLowerCase();
   const relevant = opts.logLines.filter((l) => /\[(Grounding|Screen)\]/.test(l) && l.toLowerCase().includes(title));
   return issueUrl("wrong_fact.yml", {
-    song: opts.song,
+    song: songLabel(opts.song),
     shown: opts.fact,
     version: opts.version,
     log: redact((relevant.length ? relevant : opts.logLines.filter((l) => /\[Grounding\]/.test(l))).slice(-10).join("\n"), opts.secrets),

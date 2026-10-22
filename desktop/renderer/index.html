@@ -53,6 +53,57 @@
               <span>Song requests through StreamElements' Media Request player.</span>
             </span>
           </label>
+          <label class="choice">
+            <input type="radio" name="setup-source" value="nowplaying">
+            <span class="choice-body">
+              <strong>Now playing file</strong>
+              <span>The song your music app writes to a text file, such as Streamling or Nightbot.</span>
+            </span>
+          </label>
+        </div>
+
+        <div id="np-box" hidden>
+          <p class="label" id="setup-np-label">Which app writes the file?</p>
+          <div class="choices" role="radiogroup" aria-labelledby="setup-np-label">
+            <label class="choice">
+              <input type="radio" name="setup-np" value="streamling" checked>
+              <span class="choice-body">
+                <strong>Streamling</strong>
+                <span>Nothing to choose. BubbleFacts reads the file Streamling keeps in your Documents folder. Windows only.</span>
+              </span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="setup-np" value="nightbot">
+              <span class="choice-body">
+                <strong>Nightbot</strong>
+                <span>Nothing to choose. BubbleFacts reads the song file Nightbot's desktop app keeps in your Documents folder. Windows and Mac.</span>
+              </span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="setup-np" value="none">
+              <span class="choice-body">
+                <strong>Another app's file</strong>
+                <span>Pick the text file your music app writes the song to.</span>
+              </span>
+            </label>
+          </div>
+          <p class="fine" id="setup-np-streamling">It reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span></p>
+          <p class="fine" id="setup-np-nightbot" hidden>It reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span></p>
+          <div id="setup-np-other" hidden>
+            <div class="actions">
+              <button type="button" class="ghost" id="setup-np-choose">Choose file...</button>
+              <span id="setup-np-file" class="fine filepath">No file chosen yet.</span>
+            </div>
+            <label for="setup-np-format">How does the line in that file read?</label>
+            <select id="setup-np-format">
+              <option value="artist-title">Artist - Title</option>
+              <option value="title">Title only</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button id="setup-np-connect" class="primary">Continue</button>
+            <span id="setup-np-result" class="result" role="status"></span>
+          </div>
         </div>
 
         <div id="se-box" hidden>
@@ -124,7 +175,7 @@
           <button class="ghost" data-goto-step="1">Back</button>
           <button id="stream-next" class="ghost">I'll add it later</button>
         </div>
-        <p class="fine">Streaming vertically too, to TikTok, YouTube Shorts or Instagram Live? Once setup is done, the vertical overlay is in <strong>Settings</strong>, under <strong>Vertical stream</strong>.</p>
+        <p class="fine">Streaming vertically too, to Twitch (Dual Format), TikTok, YouTube Shorts or Instagram Live? Once setup is done, the vertical overlay is in <strong>Settings</strong>, under <strong>Vertical stream</strong>.</p>
         <p class="fine"><button class="link" id="stream-customize">Play your own compositions, or do live learns? Set that up first</button> (optional; it's also in Settings).</p>
         <p id="stream-result" class="result" role="status"></p>
       </div>
@@ -142,6 +193,7 @@
           <label id="setup-livelearns-row"><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner while you learn the song. Facts still show when BubbleFacts finds the song.</span></span></label>
         </div>
 
+        <p class="fine">Facts are retold by AI from public sources and shown as-is. Press Wrong on any that's off.</p>
         <p id="facts-result" class="result" role="status"></p>
         <div class="nav-buttons">
           <button class="ghost" id="music-skip">Skip</button>
@@ -219,6 +271,9 @@
           <div id="sf-facts" role="group" aria-labelledby="sf-facts-label"></div>
           <button class="link" type="button" id="sf-add">Add another fact</button>
           <p id="sf-facts-full" class="fine" hidden>That's 20 facts, the most one song can have.</p>
+          <label class="inline"><input type="checkbox" id="sf-off-song"> No facts for this song</label>
+          <label class="inline"><input type="checkbox" id="sf-off-artist"> No facts for this artist</label>
+          <p class="fine">Nothing is looked up or written for it. Your own facts still show.</p>
           <div class="toolbar">
             <button class="primary" type="submit" id="sf-save">Save and show</button>
             <button class="ghost" type="button" id="song-facts-cancel">Cancel</button>
@@ -226,7 +281,7 @@
           </div>
         </form>
         <details id="earlier" class="earlier" hidden>
-          <summary>Earlier songs <span class="hint">mark a wrong fact here once your hands are free</span></summary>
+          <summary>Earlier songs <span class="hint">mark a wrong fact, or turn facts off, once your hands are free</span></summary>
           <div id="earlier-list"></div>
         </details>
       </div>
@@ -261,6 +316,7 @@
           <div class="checks" role="radiogroup" aria-labelledby="s-source-label">
             <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
             <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
+            <label><input type="radio" name="songSource" value="nowplaying"> Now playing file</label>
           </div>
           <p id="s-signed-in"></p>
           <div id="s-ssl-box">
@@ -275,6 +331,24 @@
               <button type="button" class="ghost" data-toggle-secret="s-token">Show</button>
             </div>
           </details>
+          </div>
+          <div id="s-np-box">
+            <div class="checks single" role="radiogroup" aria-label="Which app writes the file">
+              <label><input type="radio" name="nowPlayingPreset" value="streamling"> <span>Streamling<br><span class="fine">Reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span>. Windows only.</span></span></label>
+              <label><input type="radio" name="nowPlayingPreset" value="nightbot"> <span>Nightbot<br><span class="fine">Reads the newest .txt in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>. Windows and Mac.</span></span></label>
+              <label><input type="radio" name="nowPlayingPreset" value="none"> <span>Another app's file</span></label>
+            </div>
+            <div id="s-np-other">
+              <div class="row">
+                <input id="s-np-file" name="nowPlayingFile" type="text" readonly placeholder="No file chosen yet." aria-label="The file your music app writes the song to">
+                <button type="button" class="ghost" id="s-np-choose">Choose file...</button>
+              </div>
+              <label for="s-np-format">How does the line in that file read?</label>
+              <select id="s-np-format" name="nowPlayingFormat">
+                <option value="artist-title">Artist - Title</option>
+                <option value="title">Title only</option>
+              </select>
+            </div>
           </div>
           <div id="s-se-box">
             <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.
@@ -345,6 +419,7 @@
             </optgroup>
           </select>
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
+          <label class="inline"><input name="creditBubble" type="checkbox"> Now and then, show where the facts come from <span class="hint">one extra bubble at the start and about every 5 songs, for viewers who join later</span></label>
           <label class="inline"><input name="liveLearnBanner" type="checkbox"> Show a LIVE LEARN bubble during a live learn</label>
           <div class="grid3">
             <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
@@ -365,14 +440,14 @@
 
         <fieldset>
           <legend>Vertical stream</legend>
-          <p class="fine">Streaming phone-shaped to TikTok, YouTube Shorts or Instagram Live? Add the vertical overlay to that scene. Its bubbles stay clear of the buttons and chat those apps show over your video, and it runs beside the usual one.</p>
+          <p class="fine">Streaming phone-shaped to Twitch (Dual Format), TikTok, YouTube Shorts or Instagram Live? Add the vertical overlay to that scene. Its bubbles stay clear of the buttons and chat those apps show over your video, and it runs beside the usual one.</p>
           <div class="drag-tile" draggable="true" data-drag-overlay="vertical" title="Drag onto the Sources list in OBS">
             <img src="../build/tray@2x.png" alt="" width="32" height="32">
             <span><strong>Drag this into your vertical scene</strong><br><span class="hint">When OBS's canvas is vertical (1080 by 1920), OBS sizes it for you.</span></span>
           </div>
           <details class="help">
             <summary>Using Aitum Vertical, or a second canvas?</summary>
-            <p class="fine">Its Sources list doesn't take a dragged file, so add it there like this, once:</p>
+            <p class="fine">Aitum Vertical is what Twitch Dual Format uses for its vertical canvas. Its Sources list doesn't take a dragged file, so add it there like this, once:</p>
             <ol class="howto">
               <li>In the vertical <strong>Sources</strong> list, click <strong>+</strong> and choose <strong>Browser</strong>. Name it "BubbleFacts Vertical".</li>
               <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
@@ -481,6 +556,7 @@
         <section class="about-section" aria-labelledby="about-details">
           <h2 id="about-details">Details</h2>
           <p>Fact bubbles in OBS about the song you're playing, for musicians who take requests.</p>
+          <p>Press Wrong on any fact that's off. It comes off your stream right away and helps make BubbleFacts more accurate.</p>
         </section>
 
         <details class="about-section about-page-row">
@@ -497,6 +573,7 @@
           <summary><h2>Acknowledgements</h2></summary>
           <h3>Beta Testers</h3>
           <ul class="names">
+            <li>DarkN8V</li>
             <li>izzyparadox</li>
             <li>MacYoda</li>
             <li>SaxDragon</li>
@@ -515,7 +592,7 @@
           <summary><h2>Legal</h2></summary>
           <p class="legal-copyright">© 2026 Christopher Feyrer</p>
           <p class="fine">This application comes with absolutely no warranty. See the <button class="link" data-open="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT License</button> for details.</p>
-          <p class="fine">The BubbleFacts name and logo are trademarks of Christopher Feyrer and aren't covered by the license. BubbleFacts is not affiliated with or endorsed by Twitch, StreamerSongList, StreamElements, OBS, the Wikimedia Foundation, MusicBrainz, Meta or Anthropic.</p>
+          <p class="fine">The BubbleFacts name and logo are trademarks and aren't covered by the license. BubbleFacts is not affiliated with or endorsed by Twitch, StreamerSongList, StreamElements, OBS, the Wikimedia Foundation, MusicBrainz, Meta or Anthropic.</p>
           <ul class="legal-list">
             <li>
               <h3>Song facts</h3>

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, redact, wrongFactUrl } from "./reports";
+import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, redact, withoutArtistNote, wrongFactUrl } from "./reports";
 
 const decode = (url: string) => Object.fromEntries(new URL(url).searchParams);
 
@@ -42,6 +42,19 @@ describe("problem reports", () => {
     expect(fields.log).toContain("Clair de lune (Debussy)");
     expect(fields.log).not.toContain("Other Song");
   });
+
+  it("never includes a note after the artist's name (issue #262)", () => {
+    const fields = decode(wrongFactUrl({ song: "Glass Orchard — Wren Halloway (note words)", fact: "A fact.", version: "2.1.0", logLines: [], secrets: [] }));
+    expect(fields.song).toBe("Glass Orchard — Wren Halloway");
+    expect(JSON.stringify(fields)).not.toContain("note words");
+  });
+
+  it("leaves notes out the way the server does", () => {
+    const server = jest.requireActual("../../backend/src/text") as { withoutArtistNote: (a: string) => string };
+    for (const artist of ["Wren Halloway (note words)", "Wren Halloway [a] (b", "Jane (@janeplayskeys)", "(Untitled)", "Drone Choir O)))", "Wren (and the Hollows) Band"]) {
+      expect(withoutArtistNote(artist)).toBe(server.withoutArtistNote(artist));
+    }
+  });
 });
 
 describe("beta test reports", () => {
@@ -62,6 +75,20 @@ describe("beta test reports", () => {
     expect(fields.build).toBe(`${version} test build (c4ee826)`);
     for (const id of ["os", "download", "source"]) expect(options(id)).toContain(fields[id]);
     expect(fields.source).toBe("StreamElements");
+  });
+
+  it("names a now playing file as the song source, without its path", () => {
+    const fields = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", logLines: ["x"], secrets: [] }));
+    expect(options("source")).toContain(fields.source);
+    expect(fields.source).toBe("Now playing file");
+  });
+
+  it("names Nightbot as the song source when its preset is chosen", () => {
+    const fields = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "nightbot", logLines: ["x"], secrets: [] }));
+    expect(options("source")).toContain(fields.source);
+    expect(fields.source).toBe("Now playing file (Nightbot)");
+    const other = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "streamling", logLines: ["x"], secrets: [] }));
+    expect(other.source).toBe("Now playing file");
   });
 
   it("has a field for every answer the app fills in, in each form", () => {

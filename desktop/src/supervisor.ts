@@ -17,7 +17,7 @@ export interface Health {
   status: string;
   /** Whether the server is holding bubbles back (Pause bubbles). */
   paused?: boolean;
-  /** "StreamerSongList" or "StreamElements"; older servers leave it out. */
+  /** "StreamerSongList", "StreamElements", "Now playing file" or a preset's name such as "Streamling"; older servers leave it out. */
   songSource?: string;
   currentSong: string | null;
   eventsConnected: boolean;
@@ -80,7 +80,7 @@ export class Supervisor extends EventEmitter {
     super();
   }
 
-  start(env: Record<string, string>): void {
+  private start(env: Record<string, string>): void {
     this.env = env;
     this.basePort = Number(env.PORT);
     this.status.port = this.basePort;

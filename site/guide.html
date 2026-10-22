@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.0.0-rc.1">
-  <script src="assets/site.js?v=2.0.0-rc.1" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.0.1">
+  <script src="assets/site.js?v=2.0.1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -63,7 +63,7 @@
             <li><a href="#streaming">While you stream</a></li>
             <li><a href="#make-it-yours">Make it yours (any time)</a></li>
           </ul>
-          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#custom-facts">Custom facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
+          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#song-list-file">Follow a now playing file</a>, <a href="#custom-facts">Custom facts</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
           <p>Stuck? See <a href="troubleshooting.html">Troubleshooting</a>.</p>
         </nav>
 
@@ -161,6 +161,18 @@
             <p>StreamElements only knows each request's YouTube video title, such as "Artist - Song (Official Video)". BubbleFacts reads the artist and song out of it, so clearly titled videos get the best facts. There are no live learns with StreamElements, so that setting is hidden.</p>
             <p>To switch later, or to paste a new token, open <span class="ui">Settings</span>, then <span class="ui">Your song list</span>, and click <span class="ui">Save</span>.</p>
 
+            <h3 id="song-list-file">Follow a now playing file instead</h3>
+            <p>Does your music app write the song that's playing to a text file? BubbleFacts can follow that file, with no sign-in and no token.</p>
+            <ol>
+              <li>Under <span class="ui">Where do your song requests come from?</span>, choose <span class="ui">Now playing file</span>.</li>
+              <li>Using Streamling on Windows? Leave <span class="ui">Streamling</span> picked. BubbleFacts reads the file Streamling keeps in your Documents folder, so there is nothing to choose.</li>
+              <li>Using Nightbot's desktop app on Windows or Mac? Pick <span class="ui">Nightbot</span>. BubbleFacts reads the song file Nightbot keeps in <span class="ui">Documents/Nightbot</span>, so there is nothing to choose.</li>
+              <li>Using another app? Pick <span class="ui">Another app's file</span>, click <span class="ui">Choose file</span>, and select the text file your app writes the song to.</li>
+              <li>Tell BubbleFacts how the line reads: <span class="ui">Artist - Title</span>, or <span class="ui">Title only</span>.</li>
+              <li>Click <span class="ui">Continue</span>, and setup moves on.</li>
+            </ol>
+            <p>An empty file means no song is playing, and so does a file that hasn't changed in 15 minutes. A file says nothing about who requested a song, so there are no live learns with it.</p>
+
             <div class="note">
               <p class="note-title">Your sign-in stays private</p>
               <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
@@ -184,7 +196,7 @@
               <li>In BubbleFacts, drag the tile that says <span class="ui">Drag this into your Sources list</span> onto the <span class="ui">Sources</span> list in OBS.</li>
             </ol>
             <p>As soon as OBS loads it, BubbleFacts puts a test bubble on your stream and says <span class="ui">It's on your stream!</span> OBS names the new source "BubbleFacts" and sizes it to fit your canvas.</p>
-            <p>Next time, open OBS and BubbleFacts in either order. For a few seconds after BubbleFacts starts, the dashboard says <span class="ui">Connecting to OBS</span> while OBS picks it back up.</p>
+            <p>Next time, open OBS and BubbleFacts in either order. For a few seconds after BubbleFacts starts, the dashboard says <span class="ui">Connecting to OBS</span> while OBS picks it back up. If the BubbleFacts source reloads in the middle of a song, its bubbles catch up within a few seconds, without repeating the ones viewers already saw.</p>
             <p>Not ready yet? Click <span class="ui">I'll add it later</span>. The app's dashboard has a <span class="ui">Drag into OBS</span> tile for when you are.</p>
             <div class="note">
               <p class="note-title">Nothing happens when you drop it on Windows?</p>
@@ -217,8 +229,8 @@
             <h3 id="obs-scenes">Stream from more than one scene?</h3>
             <p>Add BubbleFacts to just one scene, for example a scene called "BubbleFacts overlay". Then, in each of your other scenes, click <span class="ui">+</span> under <span class="ui">Sources</span>, choose <span class="ui">Scene</span>, and pick "BubbleFacts overlay". That's easier than adding BubbleFacts six times, and any change happens everywhere at once.</p>
 
-            <h3 id="vertical">Streaming vertically too? (TikTok, YouTube Shorts, Instagram Live)</h3>
-            <p>Phone-shaped streams get their own overlay, <span class="ui">BubbleFacts Vertical</span>. Its bubbles are sized for a phone screen and stay clear of the buttons, top bar and chat those apps show over your video. It runs beside the usual one, so one BubbleFacts can feed a landscape scene and a vertical scene at the same time.</p>
+            <h3 id="vertical">Streaming vertically too? (Twitch, TikTok, YouTube Shorts, Instagram Live)</h3>
+            <p>Phone-shaped streams get their own overlay, <span class="ui">BubbleFacts Vertical</span>. Its bubbles are sized for a phone screen and stay clear of the buttons, top bar and chat those apps show over your video, including Twitch's phone view. It runs beside the usual one, so one BubbleFacts can feed a landscape scene and a vertical scene at the same time.</p>
             <p><strong>If OBS's canvas is vertical</strong> (1080 by 1920 in <span class="ui">Settings</span>, then <span class="ui">Video</span>):</p>
             <ol>
               <li>In BubbleFacts, open <span class="ui">Settings</span> and find <span class="ui">Vertical stream</span>.</li>
@@ -231,8 +243,17 @@
               <li>In OBS, check <span class="ui">Local file</span>, click <span class="ui">Browse</span> and choose the file at the location you copied.</li>
               <li>Set <span class="ui">Width</span> to <span class="ui">1080</span> and <span class="ui">Height</span> to <span class="ui">1920</span>, and click <span class="ui">OK</span>.</li>
             </ol>
+            <p><strong>On Twitch, landscape and vertical at once</strong> (Twitch calls this Dual Format): people watching on a computer see your usual layout, and people holding a phone upright see the vertical one. You need OBS 32 or newer and the free Aitum Vertical plugin. Twitch's own steps are in <a href="https://help.twitch.tv/s/article/dual-format-vertical-video">Dual Format Streaming on Twitch</a>; in short:</p>
+            <ol>
+              <li>Install Aitum Vertical, then open OBS.</li>
+              <li>In OBS, open <span class="ui">Settings</span>, then <span class="ui">Stream</span>. Under <span class="ui">Multitrack Video</span>, check <span class="ui">Enhanced Broadcasting</span>. In the same window, set <span class="ui">Additional Canvas</span> to <span class="ui">Aitum Vertical</span> (if it isn't there, close and reopen OBS). Click <span class="ui">OK</span>.</li>
+              <li>Add BubbleFacts Vertical to your vertical scene, in Aitum Vertical's own <span class="ui">Sources</span> list, with the four steps just above.</li>
+              <li>Don't add a chat box to the vertical scene: Twitch shows chat over the phone view by itself.</li>
+              <li>Click <span class="ui">Start Streaming</span> as usual. Both layouts go live together.</li>
+            </ol>
+            <p>To check, watch your stream in the Twitch app on your phone, held upright. Viewers can make Twitch's chat taller; bubbles stay clear of it either way.</p>
             <p>Click <span class="ui">Show a test bubble</span> on the dashboard: it shows on both overlays. If the vertical one says to set the width and height, open the source's properties in OBS and set 1080 and 1920.</p>
-            <p>Under <span class="ui">Vertical stream</span> you can also choose its own <span class="ui">Bubble size</span>, and whether bubbles show <span class="ui">Near the top</span> or <span class="ui">Just above the chat</span>. On a phone screen there's room for one bubble at a time, so each new one replaces the last.</p>
+            <p>Under <span class="ui">Vertical stream</span> you can also choose its own <span class="ui">Bubble size on the vertical stream</span>, and whether bubbles show <span class="ui">Near the top</span> or <span class="ui">Just above the chat</span>. On a phone screen there's room for one bubble at a time, so each new one replaces the last.</p>
           </div>
         </div>
 
@@ -286,7 +307,7 @@
             <h3 id="wrong-fact">If a fact is wrong</h3>
             <p>The dashboard's <span class="ui">On stream now</span> list shows the facts for the song you're playing. Each one has a <span class="ui">Wrong</span> button.</p>
             <ol>
-              <li>Click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away, even if its bubble is showing.</li>
+              <li>Click <span class="ui">Wrong</span> next to the fact. It comes off your stream right away, even if its bubble is showing, and so do the song's other bubbles from the same source.</li>
               <li>BubbleFacts never uses that fact's source for that song again: the Wikipedia article, or Wikidata and MusicBrainz. It remembers this after you quit and reopen the app. A wrong fact almost always means it found the wrong source. Clicked by mistake? Click <span class="ui">Undo</span>. (Your own facts are only taken off for now, and show again until you change them. The note after <span class="ui">Wrong</span> has an <span class="ui">Edit it</span> button that opens the fact for you.)</li>
               <li>Optional: click <span class="ui">Report it (opens GitHub)</span>. A report opens on GitHub in your browser, with the song and the fact filled in, for you to read before you send it. You need a free GitHub account.</li>
             </ol>
@@ -341,6 +362,7 @@
               <li>Another music content creator's song? Once the artist ends with their @name (like "Jane (@janeplayskeys)") or their link is their Twitch page, click <span class="ui">Fill from their Twitch About</span> to add the text from their channel's About, then check it and edit it. The first time, connect Twitch in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>: Twitch opens with a code already filled in. Check it matches the one BubbleFacts shows, then click <span class="ui">Authorize</span>.</li>
               <li>Type your facts, one per box (<span class="ui">Add another fact</span> gives you another box), and click <span class="ui">Save and show</span>. About 160 characters fit in a bubble. A fact can be up to 300 characters, and a song can have up to 20 facts; the editor shows a count as you get close.</li>
             </ol>
+            <p id="no-facts">Want no facts at all for a song, or for everything by one artist? Check <span class="ui">No facts for this song</span> or <span class="ui">No facts for this artist</span> in the same place, or click them under <span class="ui">Earlier songs</span> after the song. BubbleFacts then looks nothing up for it, and only your own facts show.</p>
             <p>Every song you've done this for is listed in <span class="ui">Settings</span>, under <span class="ui">Songs with their own facts</span>, with <span class="ui">Edit</span> and <span class="ui">Remove</span>.</p>
             <p>If the song is still playing, they show right away. Either way, they show exactly as you wrote them every time that song plays. On the dashboard, each fact says where it came from, so you can tell your own from Wikipedia's. Click a Wikipedia source to see the sentence the fact was written from, and to open the article.</p>
 
@@ -395,8 +417,8 @@
             </tbody>
           </table>
         </div>
-        <h3 id="high-quality">High quality: fewer mistakes, on a strong computer</h3>
-        <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">High quality</span>. High quality uses a bigger AI that makes about half as many mistakes. It's a bigger download (about 5 GB), needs 16 GB of memory and a graphics chip that can hold it (any Apple silicon Mac, or a graphics card with about 6 GB of its own memory on Windows and Linux), and writes more slowly. Without that graphics chip it can be several times slower, so you may get fewer bubbles per song. See <a href="requirements.html#high-quality">the requirements</a>.</p>
+        <h3 id="high-quality">High quality: a bigger AI, on a strong computer</h3>
+        <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">High quality</span>. High quality uses a bigger AI. In our latest fact check it made more mistakes than Standard, so Standard is the better choice for now. It's a bigger download (about 5 GB), needs 16 GB of memory and a graphics chip that can hold it (any Apple silicon Mac, or a graphics card with about 6 GB of its own memory on Windows and Linux), and writes more slowly. Without that graphics chip it can be several times slower, so you may get fewer bubbles per song. See <a href="requirements.html#high-quality">the requirements</a>.</p>
         <p>When you switch, the AI you have keeps writing facts while the other one downloads. Once it's ready, the old one is deleted to save space, so switching back downloads it again.</p>
         <p>An <strong>API key</strong> is a long password that lets the app use an online service for you. Copy it from the service's website and paste it into BubbleFacts. It's stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
         <div class="note">

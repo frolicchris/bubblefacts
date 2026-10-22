@@ -7,14 +7,16 @@ import { config } from "./config";
 import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
-import { positionsFor, spotsForSong, verticalPositionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
-import { findSongFacts, saveSongFacts, songFactsProblem } from "./song-facts";
+import { NowPlayingFileSource } from "./now-playing-file";
+import { allowedFacts, pulledWithWrong, positionsFor, spotsForSong, verticalPositionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
-import { factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session } from "./session";
+import { catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
+import { CreditCounter, planCredit } from "./credit";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -45,7 +47,10 @@ const wss = new WebSocketServer({
     return !refused;
   },
 });
-const songList: SongSource = config.songSource === "streamelements" ? new StreamElementsClient() : new SongListClient();
+const songList: SongSource =
+  config.songSource === "streamelements" ? new StreamElementsClient()
+  : config.songSource === "nowplaying" ? new NowPlayingFileSource()
+  : new SongListClient();
 
 interface Client {
   id: number;
@@ -87,11 +92,17 @@ if (restored) {
   earlier = (restored.earlier ?? []).slice(0, EARLIER_KEPT);
 }
 
+/** When the credit bubble is next due (credit.ts). A restart in the middle of a stream carries on with the count. */
+const creditCount = new CreditCounter(restored?.creditSince);
+/** When the streamer last pressed Test: the credit bubble keeps clear of it. */
+let testAt = 0;
+
 /** The [Shown] lines: logged where facts go out to an overlay, once per play of a song. */
 const shown = new ShownLog();
 const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
 
-function broadcast(payload: FactsPayload): void {
+/** `credit`: a bubble that goes to the overlay ahead of a facts_ready batch but is no part of the song's record. */
+function broadcast(payload: FactsPayload, credit?: Fact): void {
   // A new song moves the one that was showing into the earlier list.
   if (payload.type === "new_song" && !payload.quiet && lastSent.song && lastSent.facts?.length && !sameSong(lastSent.song, payload.song)) {
     earlier = [{ song: lastSent.song, facts: lastSent.facts }, ...earlier.filter((e) => !sameSong(e.song, lastSent.song))].slice(0, EARLIER_KEPT);
@@ -108,12 +119,13 @@ function broadcast(payload: FactsPayload): void {
   // A new play of a song starts a new record, even of the same song; a quiet one (resuming) carries on.
   if (payload.type === "new_song" && !payload.quiet) shown.newPlay();
   if (paused && payload.type !== "clear") return;
-  for (const ws of clients.keys()) send(ws, payload);
+  const sent: FactsPayload = credit && payload.type === "facts_ready" ? { ...payload, facts: [credit, ...(payload.facts ?? [])] } : payload;
+  for (const ws of clients.keys()) send(ws, sent);
   if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(config.creditBubble && creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
 }
 
 
@@ -141,15 +153,23 @@ wss.on("connection", (ws, req) => {
   if (!current || paused) return;
   const song = songList.toSong(current);
   const token = generation;
-  // Facts already on their way: this overlay joins in, with no second banner and only the bubbles
-  // still to come. An overlay that reloads mid-song doesn't replay the ones viewers have seen.
-  if (factsShownAt && lastSent.ready && sameRequest(lastSent.song, song)) {
+  // The song's facts are out: this overlay joins in from the song's record, the same for every
+  // overlay and without any taken off with Wrong. Once they've been on stream it gets the bubbles
+  // that haven't finished showing, on the other overlays' schedule, with no second banner, so one
+  // that reloads mid-song (a scene switch, say) neither misses them nor replays what viewers saw.
+  if (lastSent.ready && sameRequest(lastSent.song, song)) {
     // A LIVE LEARN banner stays up for the whole song, so a reloaded overlay needs it again.
-    send(ws, song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
-    const remaining = remainingFacts(lastSent.facts ?? [], factsShownAt);
-    send(ws, { type: "facts_ready", song, facts: remaining });
+    send(ws, factsShownAt && !song.liveLearn ? { type: "new_song", song, quiet: true } : newSong(song));
+    const record = lastSent.facts ?? [];
+    const facts = catchUpFacts(record, factsShownAt);
+    send(ws, { type: "facts_ready", song, facts });
     // Logged already unless no overlay was there when they went out (a restart, say).
-    logShown(song, remaining);
+    logShown(song, facts);
+    // No overlay was there when they went out: their schedule starts now.
+    if (!factsShownAt) {
+      factsShownAt = Date.now();
+      remember(song, record);
+    }
     return;
   }
   send(ws, newSong(song));
@@ -194,7 +214,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
     if (Date.now() - (before.shownAt || before.savedAt) < RESUME_WITHIN_MS) {
       // Spots from the current setting: the restart may be the streamer changing where bubbles go.
       const spotFor = spotsForSong(song);
-      before.facts = before.facts.map((f, i) => ({ ...f, ...spotFor(i) }));
+      // Facts turned off for the song or its artist while the app was closed stay off (issue #262).
+      before.facts = allowedFacts(song, before.facts).map((f, i) => ({ ...f, ...spotFor(i) }));
       console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
       primeFacts(song, before.facts);
       broadcast(song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
@@ -211,9 +232,20 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   }
   broadcast(newSong(song));
 
-  const facts = await generateFacts(song, current);
+  // Facts from data go out as soon as they're ready, while the AI writes (issue #256).
+  let early: Fact[] | null = null;
+  const facts = await generateFacts(song, current, (data) => {
+    if (token !== generation) return;
+    early = data;
+    const plan = planCredit(creditCount, data, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
+    broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
+  });
   if (token !== generation) {
     console.log(`[Server] Discarding facts for "${song.title}": the song changed while generating`);
+    return;
+  }
+  if (early && sameRequest(lastSent.song, song) && lastSent.ready) {
+    sendLater(song, early, facts);
     return;
   }
   if (!clients.size && facts.length) {
@@ -222,7 +254,34 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
         "Add BubbleFacts to OBS, or open OBS if it is closed."
     );
   }
-  broadcast({ type: "facts_ready", song, facts });
+  // The credit bubble goes with a song that has facts and is really going to a connected overlay
+  // (not paused), and not while a test bubble is up. Its facts then start after it.
+  const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
+  broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
+}
+
+/**
+ * The AI's captions for a song whose facts from data already went out: added after them in
+ * its record, and sent with `keep`, so an overlay leaves the bubble on screen and the facts
+ * still to come in place. One that doesn't know `keep` starts the batch over: the facts not
+ * shown yet and the captions, as after a reconnect.
+ */
+function sendLater(song: SSLSong, early: Fact[], facts: Fact[]): void {
+  const record = lastSent.facts ?? [];
+  // Not yet seen by any overlay (none connected, or paused): it all goes out as one batch.
+  const elapsed = factsShownAt ? (Date.now() - factsShownAt) / 1000 : 0;
+  const merged = withLaterFacts(record, early, facts, elapsed, config.factIntervalSeconds);
+  if (merged.length === record.length) return;
+  if (!factsShownAt) {
+    broadcast({ type: "facts_ready", song, facts: merged });
+    return;
+  }
+  lastSent = { song: lastSent.song, facts: merged, ready: true };
+  remember(lastSent.song!, merged);
+  if (paused) return;
+  const remaining = remainingFacts(merged, factsShownAt);
+  for (const ws of clients.keys()) send(ws, { type: "facts_ready", song: lastSent.song!, facts: remaining, keep: true });
+  if (clients.size) logShown(song, remaining);
 }
 
 // --- Routes --------------------------------------------------------------
@@ -247,6 +306,7 @@ control.post("/test", (_req, res) => {
   }];
   // Shown even while paused: the streamer asked for it. Not recorded as "on stream now", and
   // on top of the song that's playing: its remaining bubbles, and Wrong on them, carry on.
+  testAt = Date.now();
   for (const ws of clients.keys()) send(ws, { type: "test_bubble", song, facts });
   res.json({ overlays: clients.size });
 });
@@ -276,11 +336,9 @@ function resumeSameSong(): boolean {
   const current = songList.getCurrentSong();
   const song = current && songList.toSong(current);
   if (!song || !lastSent.song || !factsShownAt || factsShownAt > pausedAt) return false;
-  if (`${song.artist}:::${song.title}` !== `${lastSent.song.artist}:::${lastSent.song.title}`) return false;
-  const elapsed = (pausedAt - factsShownAt) / 1000;
-  const facts = (lastSent.facts ?? [])
-    .filter((f) => f.delaySeconds > elapsed)
-    .map((f) => ({ ...f, delaySeconds: f.delaySeconds - elapsed }));
+  if (!sameRequest(song, lastSent.song)) return false;
+  // The facts left as of the pause, not as of now.
+  const facts = remainingFacts(lastSent.facts ?? [], factsShownAt, pausedAt);
   broadcast({ type: "new_song", song: lastSent.song, quiet: true });
   broadcast({ type: "facts_ready", song: lastSent.song, facts });
   return true;
@@ -301,17 +359,26 @@ control.post("/wrong", (req, res) => {
   res.json(takeWrong(target.playing ? lastSent.song! : target.song, target.fact, target.playing));
 });
 
-/** Wrong on one fact: off the stream if its song is on, marked for an earlier one. Either way its source is blocked. */
+/**
+ * Wrong on one fact: off the stream if its song is on, with the rest of this play's bubbles from
+ * the same source (`pulledWithWrong`), so neither Resume nor a restart brings them back; marked
+ * for an earlier one. Either way its source is blocked.
+ */
 function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
   const text = fact.text;
-  if (playing) broadcast({ type: "remove_fact", song, text });
-  else {
+  let pulled = 0;
+  if (playing) {
+    const gone = pulledWithWrong(lastSent.facts ?? [], fact);
+    if (!gone.some((f) => f.text === text)) gone.push(fact);
+    for (const f of gone) broadcast({ type: "remove_fact", song, text: f.text });
+    pulled = gone.length - 1;
+  } else {
     earlier = earlier.map((e) => (sameSong(e.song, song) ? { ...e, facts: e.facts.filter((f) => f.text !== text) } : e));
     if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   }
   const article = markWrong(song, text, fact.source);
   // The streamer's own fact: nothing to block, and it shows again until they change it.
-  return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source) };
+  return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source), pulled };
 }
 
 /** When a hands-free Wrong last marked a bubble: the next press only counts bubbles that appeared after it. */
@@ -372,10 +439,33 @@ function songFrom(v: unknown): SSLSong | null {
 }
 
 // The song on stream now, or the one named (a song picked from the list), matched as a save would match it.
+// `off`: its switches, the artist's from whichever of their songs it was turned on for.
 control.post("/song-facts/get", (req, res) => {
   const target = songFrom(req.body?.song) ?? (lastSent.song && songFrom(lastSent.song));
-  res.json(target ? { song: target, entry: findSongFacts(target) } : { song: null, entry: null });
+  res.json(target ? { song: target, entry: findSongFacts(target), off: factsOff(target) } : { song: null, entry: null, off: null });
 });
+
+/**
+ * After a song's facts or switches change: forget what was found for it, and when it's the
+ * song on now, show what it has now in place of the bubbles still to come, with no second
+ * NOW PLAYING banner. Whether it was on now.
+ */
+function showAgainIfOn(song: SSLSong): boolean {
+  forgetSong(song);
+  const current = songList.getCurrentSong();
+  const playing = current ? songFrom(songList.toSong(current)) : null;
+  const shown = sameSong(playing, song) && sameSong(songFrom(lastSent.song), song);
+  // A switch turned on takes the found facts off at once: an empty batch wouldn't clear them.
+  if (shown) pullSwitchedOff();
+  if (shown && current) {
+    generateFacts(songList.toSong(current), current)
+      .then((facts) => {
+        if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
+      })
+      .catch((err) => console.error("[SongFacts] Couldn't show the saved facts:", err));
+  }
+  return shown;
+}
 
 control.post("/song-facts", (req, res) => {
   // Saved against the song the editor opened on, even if another song is playing now.
@@ -400,27 +490,55 @@ control.post("/song-facts", (req, res) => {
       songwriters: (req.body?.songwriters as string[] | undefined) ?? [],
       link: (req.body?.link as string | undefined) ?? "",
       facts: (req.body?.facts as string[] | undefined) ?? [],
+      // The switches (issue #262): left out, as an older app sends it, they're off.
+      noFacts: req.body?.noFacts === true,
+      ...(typeof req.body?.noArtistFacts === "boolean" ? { noArtistFacts: req.body.noArtistFacts as boolean } : {}),
     });
   } catch (err) {
     console.warn(`[SongFacts] Couldn't save: ${err instanceof Error ? err.message : err}`);
     res.status(500).json({ saved: false });
     return;
   }
-  forgetSong(song);
-  // Show them now, without a second NOW PLAYING banner, if that song is still on.
-  const current = songList.getCurrentSong();
-  const playing = current ? songFrom(songList.toSong(current)) : null;
-  const shown = sameSong(playing, song) && sameSong(songFrom(lastSent.song), song);
   // Answered now: the app gives up after 3 seconds, and a slow AI made a save look failed.
-  res.json({ saved: true, shown });
-  if (shown && current) {
-    generateFacts(songList.toSong(current), current)
-      .then((facts) => {
-        if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
-      })
-      .catch((err) => console.error("[SongFacts] Couldn't show the saved facts:", err));
-  }
+  // Shown now, without a second NOW PLAYING banner, if that song is still on.
+  res.json({ saved: true, shown: showAgainIfOn(song) });
 });
+
+// "No facts for this song" and "No facts for this artist" (issue #262), one click under Earlier songs:
+// the streamer's own facts still show. On the song that's on now, it applies at once.
+control.post("/facts-off", (req, res) => {
+  const song = songFrom(req.body?.song);
+  const kind = req.body?.kind;
+  if (!song || (kind !== "song" && kind !== "artist") || typeof req.body?.on !== "boolean") {
+    res.status(400).json({ saved: false });
+    return;
+  }
+  try {
+    setFactsOff(song, kind, req.body.on);
+  } catch (err) {
+    console.warn(`[SongFacts] Couldn't save: ${err instanceof Error ? err.message : err}`);
+    res.status(500).json({ saved: false });
+    return;
+  }
+  forgetSong(song);
+  // On the song that's on now (or, for the artist, any of theirs that is), the found facts come off at once.
+  // The streamer's own keep their place; turned off again, the found ones are back the next time it plays.
+  const pulled = req.body.on ? pullSwitchedOff() : 0;
+  res.json({ saved: true, off: factsOff(song), pulled });
+});
+
+/**
+ * Takes off the stream the bubbles of the song on now that its switches no longer allow
+ * (`allowedFacts`), like Wrong does, so neither a restart nor Resume brings them back. How many.
+ */
+function pullSwitchedOff(): number {
+  const song = lastSent.song;
+  if (!song) return 0;
+  const allowed = new Set(allowedFacts(song, lastSent.facts ?? []));
+  const gone = (lastSent.facts ?? []).filter((f) => !allowed.has(f));
+  for (const f of gone) broadcast({ type: "remove_fact", song, text: f.text });
+  return gone.length;
+}
 
 // "Add facts for another song": find it on the song list as the musician types.
 control.post("/songs/search", songSearchRoute(songList));
@@ -474,22 +592,12 @@ app.get("/health", (_req, res) => {
   });
 });
 
-/** What the overlay is showing now. Read-only, unlike /current-facts. */
+/** What the overlay is showing now. Read-only. */
 app.get("/recent", (_req, res) => {
   // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
   const song = songFrom(lastSent.song);
-  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier });
-});
-
-/** Facts for whatever is playing now, for testing without OBS. */
-app.get("/current-facts", async (_req, res) => {
-  const current = songList.getCurrentSong();
-  if (!current) {
-    res.json({ song: null, facts: [] });
-    return;
-  }
-  const song = songList.toSong(current);
-  res.json({ song, facts: await generateFacts(song, current) });
+  // Each earlier song with its switches, for one click under Earlier songs.
+  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier: earlier.map((e) => ({ ...e, off: factsOff(e.song) })) });
 });
 
 // --- Start -----------------------------------------------------------------
@@ -501,7 +609,7 @@ songList.onCurrentSongChange((current) => {
 // Listen before connecting upstream, so a slow API never delays the overlay's socket.
 server.listen(config.port, config.host, () => {
   console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
-  console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || "(from the token)"}" on ${songList.name}`);
+  console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || (config.songSource === "nowplaying" ? config.streamerDisplayName : "(from the token)")}" on ${songList.name}`);
 });
 
 void warmUpBuiltin();

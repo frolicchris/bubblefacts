@@ -9,14 +9,25 @@ jest.mock("./config", () => ({
 }));
 
 import {
+  companyHistory,
+  unresolvedPronoun,
   screenClaims,
+  numberedReference,
+  referenceSentences,
+  parseCitation,
+  citedMismatch,
+  unsupportedDay,
+  droppedYear,
   splitGameAndTrack,
   resolveGameAndTrack,
   isRelevantArticle,
+  numeralStyleDiffers,
+  editionNotInTitle,
   unsupportedName,
   platformSupported,
   looksLikeArtistName,
   qualifierNamesAnotherArtist,
+  foldSymbols,
   dropVersionTags,
   normalizeTitle,
   tooSimilar,
@@ -33,10 +44,12 @@ import {
   fetchGrounding,
   clearGroundingCache,
   readings,
+  lookupForm,
   isRespelling,
   isSameWorkRedirect,
   editDistance,
   opensAboutMusicOrWork,
+  isDisambiguation,
   isPlaceholderRequest,
   requestNames,
   articleMisfit,
@@ -47,9 +60,9 @@ import {
   unsupportedConnective,
   unsupportedRelation,
   unsupportedCredit,
-  isAWork,
-  isAPerformer,
-  isAPiece,
+  isWorkArticle,
+  isPerformerArticle,
+  isPieceArticle,
   isInitials,
   lostQualifier,
   swappedSubject,
@@ -66,7 +79,11 @@ import {
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
+import { hasNoArtist } from "./text";
 import { topic } from "./topic";
+
+/** Last edited long ago: an article read as it is (issue #242). */
+const OLD_ENOUGH = [{ timestamp: "2020-01-01T00:00:00Z" }];
 
 describe("resolveGameAndTrack", () => {
   it("treats the artist field as the game, which is how the song list is keyed", () => {
@@ -127,6 +144,19 @@ describe("splitGameAndTrack", () => {
 
   it("does not split on a hyphenated word", () => {
     expect(splitGameAndTrack("Well-Worn Dirt Road").game).toBe("Well-Worn Dirt Road");
+  });
+
+  it("never reads a featured artist or a length tag as the game (#244)", () => {
+    for (const title of ["Paper Lanterns (feat. Jane Composer)", "Paper Lanterns (ft. Jane Composer)", "Paper Lanterns (featuring Jane Composer)", "Paper Lanterns (with Jane Composer)", "Paper Lanterns (TV Size)", "Paper Lanterns (From The Vault)"]) {
+      expect(splitGameAndTrack(dropVersionTags(title))).toEqual({ game: "Paper Lanterns", track: "Paper Lanterns" });
+      expect(dropVersionTags(title)).toBe("Paper Lanterns");
+    }
+  });
+
+  it('reads the work after "From" in a tag (#244)', () => {
+    expect(splitGameAndTrack('Paper Lanterns (From "Harbor Lights")')).toEqual({ game: "Harbor Lights", track: "Paper Lanterns" });
+    expect(splitGameAndTrack("Paper Lanterns (From Harbor Lights)").game).toBe("Harbor Lights");
+    expect(splitGameAndTrack("Paper Lanterns (Harbor Lights)").game).toBe("Harbor Lights");
   });
 });
 
@@ -334,13 +364,58 @@ describe("isRelevantArticle — franchise siblings and false friends", () => {
     ["Ys VIII", "Ys VIII: Lacrimosa of Dana"],
     ["Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana"],
     ["Undertale", "Undertale"],
-    // Roman and arabic numerals must compare equal, or a legitimate match
-    // is rejected for a cosmetic difference.
-    ["Final Fantasy VI", "Final Fantasy 6"],
+    // The same numeral written the same way still matches.
+    ["Final Fantasy VI", "Final Fantasy VI"],
   ];
 
   it.each(MUST_ACCEPT)("accepts %s -> %s", (subject, page) => {
     expect(isRelevantArticle(subject, page)).toBe(true);
+  });
+});
+
+describe("numerals written differently name different works", () => {
+  it("never matches an arabic number to a roman numeral", () => {
+    expect(isRelevantArticle("Rocket Robo 5", "Rocket Robo V (1994 video game)")).toBe(false);
+    expect(isRelevantArticle("Rocket Robo V", "Rocket Robo 5")).toBe(false);
+    // "10" and "X" are both ten, and two different games.
+    expect(isRelevantArticle("Rocket Robo 10", "Rocket Robo X (video game)")).toBe(false);
+    expect(isRelevantArticle("Sky Quest 7", "Sky Quest VII")).toBe(false);
+  });
+
+  it("still matches the same number written the same way, and keeps the sequel rules", () => {
+    expect(isRelevantArticle("Sky Quest VII", "Sky Quest VII")).toBe(true);
+    expect(isRelevantArticle("Rocket Robo 5", "Rocket Robo 5")).toBe(true);
+    expect(isRelevantArticle("Rocket Robo X", "Rocket Robo X (video game)")).toBe(true);
+    expect(isRelevantArticle("Sky Quest VII", "Sky Quest VIII")).toBe(false);
+    expect(isRelevantArticle("Sky Quest VII", "Sky Quest (video game)")).toBe(false);
+  });
+
+  it("tells numeral styles apart", () => {
+    expect(numeralStyleDiffers("Rocket Robo 5", "Rocket Robo V")).toBe(true);
+    expect(numeralStyleDiffers("Rocket Robo 5", "Rocket Robo 5: The Return")).toBe(false);
+    expect(numeralStyleDiffers("Sky Quest VII", "Sky Quest VII (video game)")).toBe(false);
+    expect(numeralStyleDiffers("Sky Quest", "Sky Quest 2")).toBe(false);
+  });
+
+  it("is no respelling", () => {
+    expect(isRespelling("Rocket Robo 5", "Rocket Robo V")).toBe(false);
+  });
+});
+
+describe("editionNotInTitle", () => {
+  it("names the edition a request has and the article title lacks", () => {
+    expect(editionNotInTitle("Phantom Heist 5 Royal", "Phantom Heist 5")).toBe("royal");
+    expect(editionNotInTitle("Star Saga Director's Cut", "Star Saga (video game)")).toBe("director s cut");
+    expect(editionNotInTitle("Moon Garden Remastered", "Moon Garden")).toBe("remastered");
+    expect(editionNotInTitle("Moon Garden HD", "Moon Garden")).toBe("hd");
+  });
+
+  it("is null when the title has it, or the request names none", () => {
+    expect(editionNotInTitle("Phantom Heist 5 Royal", "Phantom Heist 5 Royal")).toBeNull();
+    expect(editionNotInTitle("Moon Garden", "Moon Garden (video game)")).toBeNull();
+    // A first word is the name, not an edition.
+    expect(editionNotInTitle("Golden Lantern", "Golden Lantern (video game)")).toBeNull();
+    expect(editionNotInTitle("Golden Lantern", "Lantern")).toBeNull();
   });
 });
 
@@ -808,7 +883,7 @@ describe("fetchGrounding", () => {
     const term = params.get("srsearch");
     const body = term !== null
       ? { query: { search: (pages[term] ?? []).map((title) => ({ title })) } }
-      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.` } } } };
+      : { query: { pages: { 1: { extract: `Lead about ${params.get("titles")}, ${mentions[params.get("titles") ?? ""] ?? ""}. ${LONG}\n== Music ==\nScore.`, revisions: OLD_ENOUGH } } } };
     return { ok: true, status: 200, json: async () => body } as Response;
   });
 
@@ -905,6 +980,78 @@ describe("fetchGrounding", () => {
     pages = { "Celeste video game": ["Celeste (video game)"] };
     expect((await fetchGrounding({ title: "First Steps", artist: "Celeste" })).length).toBeLessThanOrEqual(2400);
   });
+
+  describe("notes and year tags in the list's text (issue #186)", () => {
+    beforeEach(() => {
+      pages = { "Glass Anthem Velvet Foxes": ["Glass Anthem"] };
+      mentions = { "Glass Anthem": "a song by Velvet Foxes" };
+    });
+
+    it("finds the song when the artist carries a bracketed note", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toMatch(/^Glass Anthem\n/);
+      expect(await fetchGrounding({ title: "Glass Anthem (1979)", artist: "Velvet Foxes (Ally) (Welsh-Irish)" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("finds the song when the bracket is never closed", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (LGBTQ+" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("does not split a note at a slash inside its brackets", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Cherokee/Irish)" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("finds the song when a featured credit and a year tag follow the title", async () => {
+      expect(await fetchGrounding({ title: "Glass Anthem (feat. Pale Rivers) (2020)", artist: "Velvet Foxes" })).toMatch(/^Glass Anthem\n/);
+    });
+
+    it("tries the list's own text first, so what works today is unchanged", async () => {
+      pages = { "Glass Anthem Velvet Foxes (Australian)": ["Glass Anthem (Velvet Foxes song)"], "Glass Anthem Velvet Foxes": ["Glass Anthem"] };
+      mentions = { "Glass Anthem (Velvet Foxes song)": "a song by Velvet Foxes", "Glass Anthem": "a song by Velvet Foxes" };
+      expect(await fetchGrounding({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toMatch(/^Glass Anthem \(Velvet Foxes song\)\n/);
+    });
+
+    it("keeps the song's name and the artist as listed for display (no mutation)", async () => {
+      const song = { title: "Glass Anthem (2020)", artist: "Velvet Foxes (Australian)" };
+      await fetchGrounding(song);
+      expect(song).toEqual({ title: "Glass Anthem (2020)", artist: "Velvet Foxes (Australian)" });
+    });
+  });
+});
+
+describe("lookupForm (issue #186)", () => {
+  it("drops notes in brackets from the artist, closed or not", () => {
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Australian)" })).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes" });
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Ally) (Welsh-Irish)" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (Cherokee/Irish)" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes (LGBTQ+" })?.artist).toBe("Velvet Foxes");
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes [Ally]" })?.artist).toBe("Velvet Foxes");
+  });
+
+  it("drops a year tag and a featured credit in brackets from the title", () => {
+    expect(lookupForm({ title: "Glass Anthem (1979)", artist: "Velvet Foxes" })).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes" });
+    expect(lookupForm({ title: "Glass Anthem (feat. Pale Rivers) (2020)", artist: "Velvet Foxes" })?.title).toBe("Glass Anthem");
+    expect(lookupForm({ title: "Glass Anthem (1979) - Live", artist: "Velvet Foxes" })?.title).toBe("Glass Anthem - Live");
+  });
+
+  it("returns nothing when there is nothing to drop", () => {
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem (Remastered 1999)", artist: "Velvet Foxes" })).toBeNull();
+  });
+
+  it("keeps brackets that are part of a real name", () => {
+    expect(lookupForm({ title: "(Don't Fear) The Reaper", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "(I Can't Get No) Satisfaction", artist: "Velvet Foxes" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "(hed) p.e." })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "Velvet (Foxes) Quartet" })).toBeNull();
+    expect(lookupForm({ title: "Glass Anthem", artist: "(Ally)" })).toBeNull();
+    expect(lookupForm({ title: "(1984)", artist: "Velvet Foxes" })).toBeNull();
+  });
+
+  it("leaves the song as listed", () => {
+    const song = { title: "Glass Anthem (1979)", artist: "Velvet Foxes (Australian)", performer: true };
+    expect(lookupForm(song)).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes", performer: true });
+    expect(song.title).toBe("Glass Anthem (1979)");
+  });
 });
 
 describe("artist names (peer review)", () => {
@@ -949,10 +1096,10 @@ describe("restatesRequest", () => {
   });
 
   it("drops an originals credit that names the artist the request showed", () => {
-    const song = { title: "Water in the Moonlight", artist: "Chris" };
-    expect(restatesRequest('"Water in the Moonlight" is an original composition by Chris.', song)).toBe(true);
+    const song = { title: "Water in the Moonlight", artist: "Robin" };
+    expect(restatesRequest('"Water in the Moonlight" is an original composition by Robin.', song)).toBe(true);
     expect(restatesRequest("You're hearing this one straight from the person who wrote it.", song)).toBe(true);
-    expect(restatesRequest("Chris has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
+    expect(restatesRequest("Robin has played \"Water in the Moonlight\" 3 times on stream.", song)).toBe(false);
   });
 });
 
@@ -1276,7 +1423,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
       body = { query: { redirects: reds, pages: Object.fromEntries(pages.map((pg, i) => [String(i), pg])) } };
     } else {
       const t = p.get("titles") ?? "";
-      body = { query: { pages: { 1: { extract: extracts[t] ?? "" } } } };
+      body = { query: { pages: { 1: { extract: extracts[t] ?? "", revisions: OLD_ENOUGH } } } };
     }
     return { ok: true, status: 200, json: async () => body } as Response;
   });
@@ -1394,8 +1541,8 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Victory Overwatch": ["Overwatch and fan art"], "Overwatch Victory": ["Overwatch and fan art"] };
     extracts = { "Overwatch and fan art": `The Overwatch franchise inspired fan art. Players celebrate a victory.${LONG}` };
     expect(await fetchGrounding({ title: "Victory - Overwatch", artist: "Some Remixer" })).toBe("");
-    expect(isAPiece("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
-    expect(isAPiece("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
+    expect(isPieceArticle("Friend Like Me", '"Friend Like Me" is a song from Disney\'s 1992 animated film Aladdin.')).toBe(true);
+    expect(isPieceArticle("Overwatch", "Overwatch is a 2016 team-based shooter game.")).toBe(false);
   });
 
   it("reads a work after a dash in the title when the artist is a remixer", async () => {
@@ -1408,6 +1555,28 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Aladdin soundtrack": ["Aladdin"], Aladdin: ["Aladdin"] };
     extracts = { Aladdin: `Aladdin is a Middle Eastern folk tale, later made into films.${LONG}` };
     expect(await fetchGrounding({ title: "Prince Ali - Aladdin", artist: "Some Remixer" })).toBe("");
+  });
+
+  it("follows Wikipedia's redirect from an arabic number to a roman numeral, never a search hit", async () => {
+    hits = { "Sky Quest 7 video game": ["Sky Quest VII"], "Sky Quest 7 soundtrack": ["Sky Quest VII"], "Sky Quest 7": ["Sky Quest VII"], "Sky Quest VII": ["Sky Quest VII"] };
+    extracts = { "Sky Quest VII": `Sky Quest VII is a 1997 role-playing video game. Starlit Road plays on the map.${LONG}` };
+    expect(await fetchGrounding({ title: "Starlit Road", artist: "Sky Quest 7" })).toBe("");
+    clearGroundingCache();
+    redirects = { "Sky Quest 7": "Sky Quest VII" };
+    expect(await fetchGrounding({ title: "Starlit Road", artist: "Sky Quest 7" })).toMatch(/^Sky Quest VII\n/);
+  });
+
+  it("prefers an edition's own article to the original's", async () => {
+    hits = { "Phantom Heist 5 Royal video game": ["Phantom Heist 5", "Phantom Heist 5 Royal"] };
+    extracts = {
+      "Phantom Heist 5": `Phantom Heist 5 is a 2016 role-playing video game.${LONG}`,
+      "Phantom Heist 5 Royal": `Phantom Heist 5 Royal is a 2019 enhanced version of Phantom Heist 5.${LONG}`,
+    };
+    expect(await fetchGrounding({ title: "Last Night Song", artist: "Phantom Heist 5 Royal" })).toMatch(/^Phantom Heist 5 Royal\n/);
+    // With no edition article, the original's still serves the captions.
+    clearGroundingCache();
+    hits = { "Phantom Heist 5 Royal video game": ["Phantom Heist 5"] };
+    expect(await fetchGrounding({ title: "Last Night Song", artist: "Phantom Heist 5 Royal" })).toMatch(/^Phantom Heist 5\n/);
   });
 
   it("follows a redirect from a game's initials (FFVII)", async () => {
@@ -1492,21 +1661,21 @@ describe("glued and dashed version tags, credits of several names (a second song
   });
 
   it("tells a game, a film or a show from a person, a song or a tale", () => {
-    expect(isAWork("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
-    expect(isAWork("The Mask (1994 film)", "")).toBe(true);
-    expect(isAWork("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
-    expect(isAWork("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
-    expect(isAWork("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
-    expect(isAWork("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
-    expect(isAWork("Queen (band)", "")).toBe(false);
+    expect(isWorkArticle("Final Fantasy VII", "Final Fantasy VII is a 1997 role-playing video game developed by Square.")).toBe(true);
+    expect(isWorkArticle("The Mask (1994 film)", "")).toBe(true);
+    expect(isWorkArticle("Adventure Time", "Adventure Time is an American animated television series created by Pendleton Ward.")).toBe(true);
+    expect(isWorkArticle("Some Composer", "Some Composer is a German film score composer and record producer.")).toBe(false);
+    expect(isWorkArticle("Wind", "\"Wind\" is a song by a Japanese singer, used in an anime series.")).toBe(false);
+    expect(isWorkArticle("Aladdin", "Aladdin is a Middle Eastern folk tale, later made into films.")).toBe(false);
+    expect(isWorkArticle("Queen (band)", "")).toBe(false);
   });
 
   it("tells a performer from a racehorse or a show's season", () => {
-    expect(isAPerformer("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
-    expect(isAPerformer("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
-    expect(isAPerformer("Some Name (singer)", "")).toBe(true);
-    expect(isAPerformer("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
-    expect(isAPerformer("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
+    expect(isPerformerArticle("Boyce Avenue", "Boyce Avenue is an American rock band formed in 2004.")).toBe(true);
+    expect(isPerformerArticle("Lil Wayne", "Dwayne Michael Carter Jr. (born September 27, 1982), known professionally as Lil Wayne, is an American rapper, singer.")).toBe(true);
+    expect(isPerformerArticle("Some Name (singer)", "")).toBe(true);
+    expect(isPerformerArticle("Black Caviar", "Black Caviar is an Australian Thoroughbred racehorse.")).toBe(false);
+    expect(isPerformerArticle("One Piece season 7", "The seventh season of the One Piece anime series has a theme song.")).toBe(false);
   });
 
   it("never takes a company or a plural for a name", () => {
@@ -1536,6 +1705,20 @@ describe("the article must fit the request", () => {
     expect(opensAboutMusicOrWork("The Touhou Project is a bullet hell shoot 'em up video game series created by ZUN.")).toBe(true);
     expect(opensAboutMusicOrWork("Star Trek: Voyager is an American science fiction television series created by Rick Berman, Michael Piller and Jeri Taylor.")).toBe(true);
     expect(opensAboutMusicOrWork("Erik Satie was a French composer and pianist.")).toBe(true);
+  });
+
+  it("knows a classical piece by its form: a minuet, a mazurka, a work for piano", () => {
+    // A minuet's article named neither "composition" nor "piece", so it was skipped for a list page.
+    expect(opensAboutMusicOrWork("The Minuet in A minor, Op. 7, No. 3, is the third of the Seven Minuets by Robin Ashby. The set was published in 1801 as a work for solo piano.")).toBe(true);
+    expect(opensAboutMusicOrWork("The Mazurka in F major is one of the late mazurkas by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Harbor Lights Variations is a set of variations for string quartet by Robin Ashby.")).toBe(true);
+    expect(opensAboutMusicOrWork("Paper Lanterns is a town in the north of the county, on the river.")).toBe(false);
+  });
+
+  it('treats "can refer to" like "may refer to": a list page names other works', () => {
+    expect(isDisambiguation("Minuet in A minor can refer to numerous musical compositions, including:\nMinuet in A minor, by Jane Composer")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. It may also refer to:\nPaper Lanterns (album)")).toBe(true);
+    expect(isDisambiguation("Paper Lanterns is a 1999 song by Jane Composer. Critics called it her best single.")).toBe(false);
   });
 
   it("knows a request placeholder from a song", () => {
@@ -1658,6 +1841,48 @@ describe("cause, order and count words must be in the sentence retold", () => {
     expect(unsupportedConnective('"Souvenirs du château" includes three pieces.', souvenirs)).toBe("three");
     // A number in a name is no count: "Expedition 33", "21 Savage".
     expect(unsupportedConnective("Testard scored Clair Obscur: Expedition 33.", "Music of Clair Obscur: Expedition 33\nTestard scored the game.")).toBeNull();
+  });
+});
+
+describe("a connective word inside a title is part of the name (#188)", () => {
+  const glow = "After Glow (video game)\nThe game was released by Northwind in 1988. It is the fourth cabinet to use a hydraulic motion simulator.";
+
+  it("keeps a fact whose only connective is the article's own title", () => {
+    expect(unsupportedConnective("After Glow is the fourth cabinet to use a hydraulic motion simulator.", glow)).toBeNull();
+    expect(unsupportedConnective('"After Glow" was released by Northwind in 1988.', glow)).toBeNull();
+  });
+
+  it("keeps a title that is quoted or sits mid-sentence", () => {
+    expect(unsupportedConnective('Northwind\'s "After Glow" is the fourth cabinet to use a hydraulic motion simulator.', glow)).toBeNull();
+    expect(unsupportedConnective("Northwind released After Glow in 1988.", glow)).toBeNull();
+  });
+
+  it("keeps a title named by the song request, or found verbatim in the source", () => {
+    const artist = "Mira Okafor\nOkafor wrote the theme in 1990. Her album Because of Moonlight came out the same year.";
+    expect(unsupportedConnective("Mira Okafor released the album Because of Moonlight in 1990.", artist)).toBeNull();
+    expect(unsupportedConnective("The game Before the Storm has a theme written in 1990.", "Music of Northwind\nThe theme was written in 1990.", ["Before the Storm"])).toBeNull();
+  });
+
+  it("covers other connective words in titles", () => {
+    expect(unsupportedConnective("While You Were Gone has a theme written in 1990.", "While You Were Gone\nThe theme was written in 1990.")).toBeNull();
+    expect(unsupportedConnective("Because of You has a theme written in 1990.", "Because of You\nThe theme was written in 1990.")).toBeNull();
+    expect(unsupportedConnective("Thanks to You was written in 1990.", "Thanks to You (song)\nIt was written in 1990.")).toBeNull();
+  });
+
+  it("still drops a real connective, with or without a title that has the same word", () => {
+    expect(unsupportedConnective("The theme was composed after the director died.", glow)).toBe("after");
+    expect(unsupportedConnective("After Glow was composed after the director died.", glow)).toBe("after");
+    expect(unsupportedConnective("After Glow was released because of the arcade boom.", glow)).toBe("because");
+    // A capital letter at the start of a sentence isn't a title.
+    expect(unsupportedConnective("After Mira Okafor left Northwind, she wrote the theme.", glow)).toBe("After");
+  });
+
+  it("judges the joining word itself, with the title set aside (independent review)", () => {
+    const theme = "After Glow (video game)\nThe theme of After Glow was composed by Mira Okafor after the director died.";
+    expect(unsupportedConnective("The theme of After Glow was composed by Mira Okafor after the director died.", theme)).toBeNull();
+    // A one-word title doesn't blank the word everywhere.
+    const because = "Because (song)\nBecause is a 2001 song by Nightjar. The band was short of time and cut it to two minutes.";
+    expect(unsupportedConnective("Because the band was short of time, they cut it to two minutes.", because, ["Because"])).not.toBeNull();
   });
 });
 
@@ -2019,5 +2244,274 @@ describe("supportingSentence", () => {
     const start = Date.now();
     supportingSentence(`${" ".repeat(50_000)}(${"(".repeat(50_000)}`, context);
     expect(Date.now() - start).toBeLessThan(500);
+  });
+});
+
+describe("unattributed speakers and dates (fourth fact check)", () => {
+  const ref = 'Glass Harbor\n"Glass Harbor" is a song by Dana Reyes, released on 3 May 1994. Reyes said: "Somewhere between an hour and two, I had the whole thing written."';
+
+  it("drops a caption that opens in someone's own words with no one named", () => {
+    const { kept, rejected } = screenClaims(["I had the whole thing written somewhere between an hour and two."], ref);
+    expect(kept).toEqual([]);
+    expect(rejected[0].reason).toBe("doesn't say who is speaking");
+    // A title that starts with "I" is no speaker.
+    expect(screenClaims(["I Wanna Stay was the B-side of Glass Harbor in 1994."], "Glass Harbor\nI Wanna Stay was the B-side of Glass Harbor in 1994.").kept).toHaveLength(1);
+  });
+
+  it("drops a day or month the source doesn't give, though the year is there", () => {
+    expect(unsupportedDay("Glass Harbor came out on November 22, 1994.", ref)).toBe("November 22");
+    expect(unsupportedDay("Glass Harbor came out in November 1994.", ref)).toBe("November");
+    expect(unsupportedDay("Glass Harbor came out on May 3, 1994.", ref)).toBeNull();
+    expect(unsupportedDay("Glass Harbor came out on the 3rd of May 1994.", ref)).toBeNull();
+    expect(unsupportedDay("Reyes may have written it in an hour.", ref)).toBeNull();
+    expect(screenClaims(["Glass Harbor was released on November 22, 1994."], ref).rejected[0].reason).toBe('unsupported date "November 22"');
+  });
+});
+
+describe("a month told without its year", () => {
+  const ref = "Pine Lantern\nIn January 2010, Ada and Bo regrouped as Pine Lantern. The duo played their first show on June 22, 2011. Their tour began in March and ended in May.";
+
+  it("drops a caption with the month but not the year the source gives it with", () => {
+    expect(droppedYear("Ada and Bo regrouped as Pine Lantern in January.", ref)).toBe("January 2010");
+    expect(droppedYear("The duo played their first show on June 22.", ref)).toBe("June 2011");
+    expect(droppedYear("The duo played their first show on 22 June.", "Pine Lantern\nThe duo played their first show on 22 June 2011.")).toBe("June 2011");
+    expect(screenClaims(["Ada and Bo regrouped as Pine Lantern in January."], ref).rejected[0].reason).toMatch(/month but not the year.*January 2010/);
+  });
+
+  it("keeps a caption that gives the year, or a month the source gives alone", () => {
+    expect(droppedYear("Ada and Bo regrouped as Pine Lantern in January 2010.", ref)).toBeNull();
+    expect(droppedYear("In 2010, Ada and Bo regrouped as Pine Lantern in January.", ref)).toBeNull();
+    expect(droppedYear("The duo played their first show on June 22, 2011.", ref)).toBeNull();
+    expect(droppedYear("The Pine Lantern tour began in March and ended in May.", ref)).toBeNull();
+    expect(screenClaims(["The Pine Lantern tour began in March and ended in May."], ref).kept).toHaveLength(1);
+  });
+});
+
+describe("cite the sentence (fourth fact check)", () => {
+  const context = [
+    "Paper Lanterns",
+    "From the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".",
+    "",
+    "Recording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.",
+    "\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+  ].join("\n");
+  const sentences = referenceSentences(context);
+  const screen = (lines: string[]) => screenClaims(lines, context, { cited: true, artists: ["northlight"] });
+
+  it("numbers every sentence for the model, labels on lines of their own", () => {
+    const numbered = numberedReference(context).split("\n");
+    expect(numbered[0]).toBe("Paper Lanterns");
+    expect(numbered[1]).toBe("From the people who made it:");
+    expect(numbered[2]).toMatch(/^\[1\] Ada Pell considered/);
+    expect(numbered).toContain("[2] Recording: The band signed with Tom Hale, who introduced them to manager Lena Voss.");
+    expect(numbered.filter((l) => /^\[\d+\]/.test(l))).toHaveLength(sentences.length);
+    expect(sentences[4]).toBe('"Paper Lanterns" is a song by the trio Northlight, composed by series composer Ada Pell.');
+  });
+
+  it("reads the sentence number in the forms a small model writes", () => {
+    expect(parseCitation("4 | The caption.")).toEqual({ at: 4, text: "The caption." });
+    expect(parseCitation("[4] The caption.")).toEqual({ at: 4, text: "The caption." });
+    expect(parseCitation("1. 4 | The caption.")).toEqual({ at: 4, text: "The caption." });
+    expect(parseCitation("The caption.")).toEqual({ at: 0, text: "The caption." });
+    expect(parseCitation("1985 was the year.").at).toBe(0);
+  });
+
+  it("keeps true captions, including a name from the sentence before and a second clause's subject", () => {
+    const { kept, rejected, sources } = screen([
+      "1 | Rui Moreno recalled thinking Paper Lanterns was quite catchy.",
+      "3 | With Tom Hale's encouragement, Northlight completed some songs.",
+      "5 | Paper Lanterns was composed by series composer Ada Pell.",
+    ]);
+    expect(rejected).toEqual([]);
+    expect(kept).toHaveLength(3);
+    expect(sources?.get(kept[2])).toBe(sentences[4]);
+  });
+
+  it("drops a caption with no sentence number, or one the reference doesn't have", () => {
+    expect(screen(["Paper Lanterns was composed by series composer Ada Pell."]).rejected[0].reason).toBe("doesn't say which sentence it retells");
+    expect(screen(["40 | Paper Lanterns was composed by series composer Ada Pell."]).rejected[0].reason).toMatch(/^cites sentence 40/);
+  });
+
+  it("drops a name, number or year from another sentence", () => {
+    // Merged across sentences: the hit version was Brandt's, and Hale isn't in its sentence.
+    expect(screen(["6 | Tom Hale recorded a hit version of Paper Lanterns in October 1933."]).rejected[0].reason).toBe('"Tom" isn\'t in the sentence it cites');
+    expect(screen(["3 | The band completed three songs with this encouragement."]).rejected[0].reason).toBe('"three" isn\'t in the sentence it cites');
+  });
+
+  it("drops a first, or words, the sentence doesn't give", () => {
+    expect(screen(["5 | Paper Lanterns was the first song composed by series composer Ada Pell."]).rejected[0].reason).toBe('"first" isn\'t in the sentence it cites');
+    expect(screen(["5 | Ada Pell said Paper Lanterns was a song for the trio Northlight."]).rejected[0].reason).toBe("the sentence it cites doesn't give Pell's words");
+  });
+
+  it("drops a caption that gives the sentence's doing to someone it only mentions", () => {
+    // The fee was Arden's; Moreno only made the demos.
+    expect(screen(["4 | Moreno was paid $3,000 for his work on the strings."]).rejected[0].reason).toBe("the sentence it cites is about Kit Arden");
+    // The introduction was Hale's.
+    expect(screen(["2 | Lena Voss introduced the band to manager Tom Hale."]).rejected[0].reason).toBe("the sentence it cites is about Tom Hale");
+  });
+
+  it("reads a number one off from the line it clearly retells as that line", () => {
+    // Sentence 5 cited for sentence 6: the model joined two sentences earlier and counts one short.
+    const { kept, sources } = screen(["5 | Ivo Brandt recorded a hit version of Paper Lanterns in October 1933."]);
+    expect(kept).toHaveLength(1);
+    expect(sources?.get(kept[0])).toBe(sentences[5]);
+  });
+
+  it("never takes a heading or a word that only starts the sentence for its first-named person", () => {
+    const ref = "Night Song\nRecording and production: Dana Reyes recorded the song in Leeds. Written in 1909, it was taken up by Ivo Brandt in his concerts.";
+    const cited = (line: string) => screenClaims([line], ref, { cited: true });
+    expect(cited("1 | Dana Reyes recorded the song in Leeds.").kept).toHaveLength(1);
+    expect(cited("2 | Ivo Brandt took the song up in his concerts in 1909.").kept).toHaveLength(1);
+    // A surname in the sentence and the full name elsewhere in the reference.
+    expect(screenClaims(["2 | Dana Reyes took it up in her concerts."], "Night Song\nDana Reyes wrote it. Reyes took it up in her concerts.", { cited: true }).kept).toHaveLength(1);
+  });
+
+  it("drops a caption that barely shares a word with the sentence it cites", () => {
+    expect(screen(["1 | Paper Lanterns was recorded in October 1933 as a hit version."]).rejected[0].reason).toBe("doesn't retell the sentence it cites");
+  });
+
+  it("checks the caption against the cited sentence only, not the closest one", () => {
+    expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 5, "Paper Lanterns")).toBeNull();
+    expect(citedMismatch("Ivo Brandt recorded a hit version in October 1933.", sentences, 4, "Paper Lanterns")).not.toBeNull();
+  });
+});
+
+describe("true captions the screen dropped (#206, #207)", () => {
+  it("reads every day in a list like 3 and 5 June", () => {
+    const ref = "Nightjar\nThe EP was released on 3 and 5 June 2001, and again on July 8, 9 and 10.";
+    expect(unsupportedDay("The EP came out on June 3, 2001.", ref)).toBeNull();
+    expect(unsupportedDay("The EP came out again on July 9.", ref)).toBeNull();
+    expect(unsupportedDay("The EP came out on June 4, 2001.", ref)).toBe("June 4");
+    expect(unsupportedDay("The EP came out on June 5.", "Nightjar\nShows ran on June 3, 4, and 5.")).toBeNull();
+    // A comma alone isn't a list of days.
+    expect(unsupportedDay("On July 4, 10,000 fans came.", "Nightjar\nOn July 4, 10,000 fans came to the show.")).toBeNull();
+    expect(unsupportedDay("The band played on June 20.", "Nightjar\nOn June 3, 20 people heard the band.")).toBe("June 20");
+  });
+
+  it("keeps a caption that opens with the song's title, and still drops unnamed first-person words", () => {
+    const ref = "My Glass Harbor\nMy Glass Harbor is a 2019 song by Dana Reyes. It was released as a single in 2019.";
+    const reasons = (fact: string) => screenClaims([fact], ref, { track: "My Glass Harbor" }).rejected.map((r) => r.reason);
+    expect(reasons("My glass harbor was released as a single in 2019.")).not.toContain("doesn't say who is speaking");
+    expect(reasons("My heart was in it from the first take.")).toContain("doesn't say who is speaking");
+    // The whole title, not just its first words.
+    const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
+    expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
+  });
+});
+
+describe("artist names written with symbols (#245)", () => {
+  it("reads a symbol between letters as the letter it stands for", () => {
+    expect(foldSymbols("R!ver")).toBe("River");
+    expect(foldSymbols("Ma$on Jar")).toBe("Mason Jar");
+    expect(artistNames("R!ver")).toEqual(expect.arrayContaining(["r ver", "river"]));
+  });
+
+  it('leaves a trailing "!" and a leading "$" alone', () => {
+    expect(foldSymbols("Lantern Run!!")).toBe("Lantern Run!!");
+    expect(foldSymbols("$5 Band")).toBe("$5 Band");
+  });
+
+  it("does not call the folded name another artist", () => {
+    expect(qualifierNamesAnotherArtist("Paper Boats (River song)", "R!ver")).toBe(false);
+    expect(qualifierNamesAnotherArtist("Paper Boats (Jane Composer song)", "R!ver")).toBe(true);
+  });
+});
+
+describe("artist fields that mean no artist (issue #261)", () => {
+  const NO_ARTIST = ["Traditional", "Trad.", "Trad", "Anon.", "Anon", "Anonymous", "Unknown", "Folk", "TRADITIONAL", " anonymous. "];
+  const REAL_ARTISTS = ["Folk Lanterns", "The Unknown Harbor", "Anonymous Choir", "Traditional Revival Band", "Unknown Mortal Orchestra"];
+
+  it("recognizes each value, whole field only", () => {
+    for (const a of NO_ARTIST) expect(hasNoArtist(a)).toBe(true);
+    for (const a of REAL_ARTISTS) expect(hasNoArtist(a)).toBe(false);
+    expect(hasNoArtist("")).toBe(false);
+    expect(hasNoArtist(undefined)).toBe(false);
+  });
+
+  it("gives no names to look for or require in an article", () => {
+    for (const a of NO_ARTIST) expect(artistNames(a)).toEqual([]);
+    expect(artistNames("Folk Lanterns")).toEqual(["folk lanterns"]);
+    expect(artistNames("The Unknown Harbor")).toEqual(["the unknown harbor"]);
+  });
+
+  it("reads the title alone, never the value as the game", () => {
+    for (const a of NO_ARTIST) expect(resolveGameAndTrack({ title: "Marigold Lane", artist: a })).toEqual({ game: "Marigold Lane", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual({ game: "Folk Lanterns", track: "Marigold Lane" });
+    expect(resolveGameAndTrack({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual({ game: "The Unknown Harbor", track: "Marigold Lane" });
+  });
+
+  it("looks the song up by its title alone, and a real artist stays an artist", () => {
+    for (const a of NO_ARTIST.filter((x) => !/^unknown$/i.test(x.trim()))) {
+      expect(readings({ title: "Marigold Lane", artist: a })).toEqual([{ game: "", track: "Marigold Lane", songAlone: true }]);
+    }
+    expect(readings({ title: "Marigold Lane", artist: "Folk Lanterns" })).toEqual([{ game: "Folk Lanterns", track: "Marigold Lane" }]);
+    expect(readings({ title: "Marigold Lane", artist: "The Unknown Harbor" })).toEqual([{ game: "The Unknown Harbor", track: "Marigold Lane" }]);
+  });
+
+  it("does not count the value as a name a caption repeats", () => {
+    expect(restatesRequest("Marigold Lane is a traditional song.", { title: "Marigold Lane", artist: "Traditional" })).toBe(false);
+    expect(restatesRequest("Folk Lanterns wrote Marigold Lane.", { title: "Marigold Lane", artist: "Folk Lanterns" })).toBe(true);
+  });
+});
+
+describe("a bubble names what it's about", () => {
+  const artistCtx =
+    "Ada Penn\nAda Penn is a composer from Lisbon. She wrote twelve symphonies and four operas. The symphonies are spread evenly through her career. " +
+    "This was loosely based on the harbor at night. This theme draws on old harbor songs. Her song Glass Harbor was written in 1984.";
+  const reasons = (fact: string, ctx = artistCtx, track: string | undefined = "Glass Harbor") => screenClaims([fact], ctx, { track }).rejected.map((r) => r.reason);
+
+  it("drops works with no one named, a bare 'this', and 'this theme' on another work's article", () => {
+    expect(reasons("The symphonies are spread evenly through her career.")).toEqual(["doesn't say whose symphonies"]);
+    expect(reasons("This was loosely based on the harbor at night.")).toEqual([`doesn't say what "this" is`]);
+    expect(reasons("This theme draws on old harbor songs.")).toEqual(["doesn't say which theme"]);
+  });
+
+  it("drops a 'his' or 'her' with nobody named for it", () => {
+    expect(unresolvedPronoun("The song was written while he was on tour.")).toBe("he");
+    expect(unresolvedPronoun("The symphonies are spread evenly through her career.")).toBe("her");
+    expect(reasons("The song was written in 1984 for her brother.", "Glass Harbor\nGlass Harbor is a song written in 1984 by Ada Penn for her brother.", undefined)).toEqual([`doesn't say who "her" is`]);
+  });
+
+  it("keeps captions that name their subject, or are about the requested song", () => {
+    const own = "Glass Harbor\nGlass Harbor is a song written in 1984 by Ada Penn. Its composer, Ada Penn, wrote it for her brother. This theme draws on old harbor songs.";
+    expect(screenClaims(["The song was written in 1984."], own).kept).toHaveLength(1);
+    expect(screenClaims(["Its composer, Ada Penn, wrote it for her brother."], own).kept).toHaveLength(1);
+    // On the song's own article, "this theme" is the requested one.
+    expect(screenClaims(["This theme draws on old harbor songs."], own).kept).toHaveLength(1);
+    expect(reasons("Ada Penn's symphonies are spread evenly through her career.")).toEqual([]);
+    expect(unresolvedPronoun("Ada Penn wrote it for her brother.")).toBeNull();
+    expect(unresolvedPronoun("The song's narrator loses his way home.")).toBeNull();
+    expect(unresolvedPronoun("“Her Glass Harbor” was written in 1984.")).toBeNull();
+  });
+});
+
+describe("companyHistory", () => {
+  it("finds a company's deals, buyouts, renamings and console news", () => {
+    expect(companyHistory("Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence.")).toBe(true);
+    expect(companyHistory("Lumen Works purchased Brightwater Studios and was soon renamed Lumen North.")).toBe(true);
+    expect(companyHistory("Brightwater Studios was renamed Lumen North in 2003.")).toBe(true);
+    expect(companyHistory("The next-generation console was announced to be the Orbis.")).toBe(true);
+    expect(companyHistory("Skyreach was announced alongside the next-generation console.")).toBe(true);
+  });
+
+  it("leaves the music and the requested work alone", () => {
+    expect(companyHistory("The band signed a record deal with Harbor Records in 1984.")).toBe(false);
+    expect(companyHistory("Ada Penn reached an agreement with Leo Marsh to record the album.")).toBe(false);
+    expect(companyHistory("The game was announced for the Orbis console in 2001.")).toBe(false);
+    expect(companyHistory("The song was renamed Glass Harbor before its release.")).toBe(false);
+    expect(companyHistory("Skyreach was announced alongside the next-generation console.", ["Skyreach"])).toBe(false);
+  });
+
+  it("is a reason screenClaims drops a caption", () => {
+    const ctx =
+      "Skyreach (video game)\nSkyreach is a 2001 platform game developed by Lumen North. Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence. " +
+      "The game's music was composed by Ada Penn.";
+    const { kept, rejected } = screenClaims(
+      ["Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence.", "The game's music was composed by Ada Penn."],
+      ctx,
+      { track: "Glass Harbor" }
+    );
+    expect(rejected.map((r) => r.reason)).toEqual(["a company's business, not the music"]);
+    expect(kept).toEqual(["The game's music was composed by Ada Penn."]);
   });
 });

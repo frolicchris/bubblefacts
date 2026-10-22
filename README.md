@@ -1,4 +1,4 @@
-# BubbleFacts
+# BubbleFacts™
 
 [![Check](https://github.com/frolicchris/bubblefacts/actions/workflows/check.yml/badge.svg)](https://github.com/frolicchris/bubblefacts/actions/workflows/check.yml)
 [![Release](https://img.shields.io/github/v/release/frolicchris/bubblefacts?include_prereleases)](https://github.com/frolicchris/bubblefacts/releases)
@@ -121,11 +121,11 @@ High quality chosen in Settings, Meta's Llama 3.1 8B, used under the
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,
-izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
+DarkN8V, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
 Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
 coding agent: see [AUTHORS.md](AUTHORS.md) and the
 [AI disclosure](docs/AI_DISCLOSURE.md). The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
-trademarks of Christopher Feyrer and aren't covered by the MIT license: forks
-are welcome, under a different name.
+trademarks and aren't covered by the MIT license: forks
+are welcome, under a different name. See the [trademark policy](TRADEMARKS.md).

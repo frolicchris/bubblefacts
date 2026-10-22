@@ -18,6 +18,8 @@
  * fixtures/youtube-titles.json holds real titles; add every failure seen live.
  */
 
+import { songIdentity } from "./text";
+
 export interface ParsedTitle {
   title: string;
   /** Empty when neither the title nor the channel names one. */
@@ -63,11 +65,37 @@ function onlyNoise(text: string, re: RegExp): boolean {
 const LABEL_WORD = /^(?:lyrics?|audio|official|hd|hq|4k|8k|remastered|instrumental|karaoke|nightcore|piano|cover|acoustic|live|remix)$/i;
 
 /**
+ * A trailing segment that names where the song was performed, not the song:
+ * a late-night or morning show, a concert series, or "Live on/at/from ...".
+ * Whole-segment matches only, so "Tonight" or "Live Forever" are still songs.
+ * Add a show here when one shows up in a live title.
+ */
+const PERFORMANCE_SHOWS = [
+  "(?:the\\s+)?tonight\\s+show(?:\\s+starring\\s+jimmy\\s+fallon|\\s+with\\s+jay\\s+leno)?",
+  "(?:the\\s+)?late\\s+(?:late\\s+)?show(?:\\s+with\\s+[\\p{L}.' ]+)?",
+  "late\\s+night(?:\\s+with\\s+[\\p{L}.' ]+)?",
+  "(?:the\\s+)?jimmy\\s+kimmel\\s+live!?",
+  "(?:the\\s+)?ellen\\s+(?:degeneres\\s+)?show",
+  "(?:the\\s+)?today\\s+show",
+  "good\\s+morning\\s+america",
+  "saturday\\s+night\\s+live",
+  "snl",
+  "(?:npr\\s+(?:music\\s+)?)?tiny\\s+desk(?:\\s+\\(home\\))?(?:\\s+concerts?)?",
+  "(?:a\\s+)?colors\\s+show",
+];
+const PERFORMANCE_SEGMENT = new RegExp(
+  `^(?:${PERFORMANCE_SHOWS.join("|")}|live\\s+(?:on|at|from)\\s+\\S.*)$`,
+  "iu",
+);
+
+/**
  * A " - " or " | " segment that only describes the upload. A lone word is
  * dropped only when it's always a label, and only among three or more
  * segments otherwise, so "Taylor Swift - 22" and "Artist - Video" survive.
+ * A performance or show segment is dropped after the first segment only.
  */
-function labelSegment(segment: string, count: number): boolean {
+function labelSegment(segment: string, count: number, index = 0): boolean {
+  if (index > 0 && PERFORMANCE_SEGMENT.test(segment)) return true;
   if (!/\p{L}/u.test(segment) || !onlyNoise(segment, SEGMENT_NOISE_RE)) return false;
   return count > 2 || /\s/.test(segment) || LABEL_WORD.test(segment);
 }
@@ -97,6 +125,35 @@ const JAPANESE_QUOTED = /^(.+?)\s*[「『｢](.+?)[」』｣]/;
 const QUOTED = /^(.+?)\s*["“「『](.+)["”」』]$/;
 /** "Brass Fox's "Billie Jean" Solo": a possessive names the performer, the quotes the song. */
 const POSSESSIVE_QUOTED = /^(.+?)['’]s\s+["“「『](.+?)["”」』]/;
+/**
+ * "Shania Twain_Dirty Rosie": one underscore between letters or digits, words on both sides.
+ * Sides are matched by `underscoreSplit`, which also rules out filenames and slugs.
+ */
+const UNDERSCORE_PAIR = /^([^_]*[\p{L}\p{N}])_([\p{L}\p{N}][^_]*)$/u;
+/** Words that make "name_name" a filename or a take label, not an artist and a song. */
+const FILENAME_WORD = /^(?:track|audio|video|final|mix|master(?:ed)?|take|demo|draft|untitled|recording|song|music|clip|img|dsc|mov|vid|v\d+|vol\d*|part\d*|copy|new|old|test|temp)$/i;
+/** A requester or credit note, whose underscore belongs to a username. */
+const REQUESTER_NOTE = /^(?:requested|request|added|queued|sr|song\s+request|from|by)\b/i;
+const FILE_EXTENSION = /\.(?:mp3|mp4|m4a|wav|flac|ogg|mov|avi|mkv|webm|aac|wma)$/i;
+
+/**
+ * Splits "Artist_Song" when it clearly is two parts: a single underscore, no
+ * file extension, neither side a bare short number or a filename word, neither
+ * side starting in lowercase (usernames, slugs), and no requester note. Otherwise null.
+ */
+function underscoreSplit(title: string): { artist: string; title: string } | null {
+  const m = title.match(UNDERSCORE_PAIR);
+  if (!m || FILE_EXTENSION.test(title)) return null;
+  const [left, right] = [m[1].trim(), m[2].trim()];
+  if (!left || !right) return null;
+  for (const side of [left, right]) {
+    if (/^\d{1,3}$/.test(side) || FILENAME_WORD.test(side)) return null;
+  }
+  // Lowercase starts are usernames and slugs ("Requested by dana_k", "paper_lanterns").
+  if (/^\p{Ll}/u.test(left) || /^\p{Ll}/u.test(right) || REQUESTER_NOTE.test(left)) return null;
+  return { artist: left, title: right };
+}
+
 /** "Marc Rebillet x Edeka": a collaboration, led by the first name. */
 const COLLAB = /^(.+?)\s+x\s+\S/;
 
@@ -112,9 +169,9 @@ function withoutSoundtrack(s: string): string {
   return tidy(s.replace(SOUNDTRACK, " "));
 }
 
-/** Folded for comparison: case, accents and punctuation don't count. */
+/** Folded for comparison: case, accents and punctuation don't count. `songIdentity` without the spaces, so "A-B" and "A B" match too. */
 function fold(s: string): string {
-  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  return songIdentity(s).replace(/ /g, "");
 }
 
 /** YouTube names auto-generated channels in the viewer's language: "Ciara - Topic", "Ciara - Tema". */
@@ -167,8 +224,8 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     }
     if (HAS_SOUNDTRACK.test(inner)) {
       // "(Soundtrack by Ramin Djawadi)" credits a composer; it doesn't name the work.
-      const work = withoutSoundtrack(inner);
-      if (!/^by\s/i.test(work)) source ||= work;
+      const soundtrackWork = withoutSoundtrack(inner);
+      if (!/^by\s/i.test(soundtrackWork)) source ||= soundtrackWork;
       return " ";
     }
     // "(Live at Glastonbury 2016)", "(Acoustic Version)": a variant of the song, not its name.
@@ -183,12 +240,12 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
 
   // 2. " | " segments: the first is the song; a later one may name its source.
   const pipeSplit = text.split(/\s*[|｜]\s*/).map(tidy).filter(Boolean);
-  const pipes = pipeSplit.filter((p, i) => i === 0 || !labelSegment(p, pipeSplit.length));
+  const pipes = pipeSplit.filter((p, i) => i === 0 || !labelSegment(p, pipeSplit.length, i));
   text = pipes[0] ?? "";
 
   // 3. " - " segments, minus any that only describe the upload ("- Official Video").
   const dashSplit = text.split(DASH).map(tidy).filter(Boolean);
-  const parts = dashSplit.filter((p) => !labelSegment(p, dashSplit.length));
+  const parts = dashSplit.filter((p, i) => !labelSegment(p, dashSplit.length, i));
   // "Song - Drum Cover | Artist": once the label is gone, the pipe names the artist.
   const pipeSource = pipes.length > 1 && parts.length < 2 ? pipes[1] : "";
   const channelInfo = artistFromChannel(channel);
@@ -220,6 +277,13 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
       confident = true;
     } else if (collab) {
       artist = tidy(collab[1]);
+    }
+    // 'Artist_Song', when nothing else named the artist.
+    const underscore = !artist ? underscoreSplit(title) : null;
+    if (underscore) {
+      artist = underscore.artist;
+      title = underscore.title;
+      confident = true;
     }
   }
 

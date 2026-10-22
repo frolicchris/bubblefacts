@@ -17,11 +17,12 @@ pre-release; full releases (`v2.0.0`, `v2.0.1`) are not. That's what the app's
 offers the newest of everything. The app also treats any version with a
 hyphen as a prerelease, so a beta published without the box checked still
 doesn't reach Stable. The download page offers the newest full release with
-installers (until 2.0.0, the newest beta), with a "Testing betas?" link when a
+installers, with a "Testing betas?" link when a
 newer beta is out.
 
-Tag a commit that's already on `main`: the workflow refuses any other, so a
-release is always built from code that went through a pull request. The
+Tag a commit that's already on `main` (or, for a maintenance release, on its
+`release/X.Y` branch): the workflow refuses any other, so a release is always
+built from code that went through a pull request. The
 workflow's actions are pinned to exact commits; Dependabot proposes updates.
 
 ## Code signing
@@ -63,8 +64,9 @@ npm run bump -- 2.0.0-beta.12
 ```
 
 It sets `package.json` and `package-lock.json`, the `obs-overlay.js` header,
-the top of the version list in `.github/ISSUE_TEMPLATE/beta_test.yml` and the
-example in `bug_report.yml`, and adds a dated entry at the top of
+the top of the version list in `.github/ISSUE_TEMPLATE/beta_test.yml`, the
+example in `bug_report.yml` and the version on the website's stylesheet and
+script links, and adds a dated entry at the top of
 `site/changelog.html`. Fill in its `FILL IN` lines (the same lines as the
 release notes' New, Improved and Fixed; delete the ones you don't need):
 `npm run check` fails until you do. Running it again changes nothing.
@@ -88,6 +90,13 @@ and puts it in problem, beta test and Wrong reports:
 Before publishing a draft release, check the packaged app, not only the source.
 The tests can't see what OBS or an installer does.
 
+**Before tagging, skim the song sources' changelogs:** StreamerSongList's
+public changelog, and StreamElements' release notes if they publish any,
+since the last release. Look for changes to the queue, the song that's
+playing, sign-in or rate limits. Note what you checked in the release
+pull request, and file an issue for anything that touches what the app
+reads.
+
 1. The version was set with `npm run bump` (above) and matches the tag, and
    `desktop/renderer/whats-new.json` has that version's two to four
    highlights (plain words, like the changelog's top lines), added before
@@ -98,7 +107,9 @@ The tests can't see what OBS or an installer does.
 3. Run the **Smoke** workflow on the Release run's artifacts:
    `gh workflow run smoke.yml -f run=RUN_ID`. (A draft release can't be
    downloaded by the workflow's read-only token, so test the run that built
-   it.) Every system passes, including writing and keeping captions.
+   it.) Every smoke system passes (Windows, Linux `.deb` and Apple-silicon Mac),
+   including writing and keeping captions. Check the Intel Mac and AppImage
+   builds by hand.
 4. Download one installer from the draft. Its checksum matches the draft's
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
@@ -108,7 +119,8 @@ The tests can't see what OBS or an installer does.
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.
 8. Quit from the menu bar or tray. Nothing is left running.
-9. While in beta, publish as a pre-release. The draft's notes start from
+9. Betas and release candidates (tags with a hyphen) are drafted as
+   pre-releases; publish them that way. The draft's notes start from
    `.github/release-template.md`: fill in New, Improved, Fixed and Thanks
    (the same lines as the website's changelog), delete empty sections and
    the comments, and keep the checksums. Releases are immutable once published:
@@ -156,6 +168,8 @@ merges.
    own source. **The bar: under 5% of the facts that come from a source are
    wrong or misleading, on each list, with no new kind of mistake.** (A
    small AI never reaches zero; Wrong and Hands-free Wrong catch the rest.)
+   For 2.0.0 this bar moved to 2.1.0 (#172): Standard ships as measured,
+   and its rate is in the known issues (#36).
    Keep the lists and results out of the repository.
 2. A hands-on pass on real computers: Mac and Windows by a tester each. Linux
    relies on the smoke test unless a tester has it; say so in the notes.
@@ -169,13 +183,14 @@ only the version number changed.
 
 **rc.2 is the last release candidate for 2.0.0.** So everything it needs is
 proven before it's tagged, on a test build of the exact commit: the fact check
-under 5% on both lists, every fix since rc.1 checked again, the in-app update
-from rc.1, and a tester streaming the test build. No release blocker may be
-open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
+on both lists (measured and stated, see #172), every fix since rc.1 checked
+again, the in-app update from rc.1, and a tester streaming the test build. No
+release blocker may be open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
 change; anything else found goes to the 2.0.1 milestone. Before tagging it, go or no-go:
 
 - [ ] No open release blockers.
-- [ ] The fact check of the last release candidate met the under-5% bar.
+- [ ] The fact check of the last release candidate met the under-5% bar
+      (for 2.0.0: measured and stated in the known issues, #172).
 - [ ] The last release candidate was out at least three days, and testers
       streamed with it.
 - [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than
@@ -246,7 +261,7 @@ waits three days for Beta to have it first.
 stops. After 3.0.0, the last 2.x gets security fixes for three months.
 
 **Automated:** Dependabot opens security fixes as one grouped pull request
-against `main`, and version updates weekly. Patch updates to development
+against `main`, and version updates weekly (workflow actions monthly). Patch updates to development
 tools and workflow actions merge on their own once CI passes
 (`dependabot-automerge.yml`): they don't change what musicians install.
 Everything that ships in the app (runtime packages, Electron) and every minor

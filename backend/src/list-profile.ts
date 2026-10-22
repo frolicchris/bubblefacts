@@ -1,3 +1,4 @@
+import { songIdentity } from "./text";
 import { SSLSong } from "./types";
 
 /**
@@ -26,7 +27,8 @@ export interface ListProfile {
 const EMPTY: ListProfile = { dash: null, parenSources: new Set() };
 let profile: ListProfile = EMPTY;
 
-const key = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+/** The same identity the streamer's own facts use. */
+const key = songIdentity;
 const DASH = /\s[-–—]\s/;
 const PAREN = /^(.+?)\s*\(([^()]{3,})\)\s*$/;
 /** A bracket that describes the version, or tells the requester something: never a source. */

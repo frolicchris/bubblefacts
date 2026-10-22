@@ -4,3 +4,5 @@
 *.png binary
 *.ico binary
 *.dmg binary
+# Now playing samples keep the bytes apps write: Windows line endings, byte order marks, UTF-16.
+backend/src/fixtures/now-playing/*.txt -text

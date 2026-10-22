@@ -8,7 +8,7 @@ import { AiQuality, modelFor, modelPath } from "./model";
 export interface Settings {
   setupComplete: boolean;
   /** Where song requests come from. StreamerSongList is the default. */
-  songSource: "streamersonglist" | "streamelements";
+  songSource: "streamersonglist" | "streamelements" | "nowplaying";
   /** StreamerSongList channel name. */
   channel: string;
   token: string;
@@ -27,6 +27,12 @@ export interface Settings {
   seChannel: string;
   /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
   seJwt: string;
+  /** Now playing file: "streamling" or "nightbot" read that app's own file or folder; "none" reads the file in `nowPlayingFile`. */
+  nowPlayingPreset: "streamling" | "nightbot" | "none";
+  /** The text file another app writes the song to, chosen with the file picker. */
+  nowPlayingFile: string;
+  /** How its line reads: "Artist - Title", or the title alone. */
+  nowPlayingFormat: "artist-title" | "title";
   displayName: string;
   instrument: string;
   /** "I play my own compositions" and "I do live learns", from setup. */
@@ -34,6 +40,8 @@ export interface Settings {
   liveLearns: boolean;
   /** The NOW PLAYING bubble on a song change. */
   nowPlaying: boolean;
+  /** One credit bubble before the first song's facts and about every 5 songs: where facts come from, and to report a mistake. */
+  creditBubble: boolean;
   liveLearnBanner: boolean;
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
@@ -97,11 +105,15 @@ export const DEFAULTS: Settings = {
   twitchLogin: "",
   seChannel: "",
   seJwt: "",
+  nowPlayingPreset: "streamling",
+  nowPlayingFile: "",
+  nowPlayingFormat: "artist-title",
   displayName: "",
   instrument: "",
   originals: false,
   liveLearns: true,
   nowPlaying: true,
+  creditBubble: true,
   liveLearnBanner: true,
   myFacts: [],
   myOriginals: [],
@@ -160,6 +172,10 @@ export const secretsWaiting = () => secretsPending;
  * to read later. Reading them is what makes macOS show its keychain prompt,
  * and the app waits on it: the window has to be up first to say what to click.
  */
+/** Whether a saved value has its default's type: a list of strings, or the same primitive type. */
+const sameType = (value: unknown, fallback: unknown): boolean =>
+  Array.isArray(fallback) ? Array.isArray(value) && value.every((v) => typeof v === "string") : typeof value === typeof fallback;
+
 export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
   try {
@@ -181,9 +197,7 @@ export function loadSettings(readSecrets = true): Settings {
   // Each value must have the type its default has; anything else falls back to the default.
   for (const [key, fallback] of Object.entries(DEFAULTS)) {
     const value = raw[key];
-    const ok = Array.isArray(fallback)
-      ? Array.isArray(value) && value.every((v) => typeof v === "string")
-      : typeof value === typeof fallback;
+    const ok = sameType(value, fallback);
     if (ok) target[key] = value;
   }
   if (!("updateChannel" in raw)) {
@@ -226,7 +240,10 @@ export function sanitize(s: Settings): Settings {
   const lines = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
   return {
     ...s,
-    songSource: oneOf(s.songSource, ["streamersonglist", "streamelements"] as const, "streamersonglist"),
+    songSource: oneOf(s.songSource, ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist"),
+    nowPlayingPreset: oneOf(s.nowPlayingPreset, ["streamling", "nightbot", "none"] as const, "streamling"),
+    nowPlayingFormat: oneOf(s.nowPlayingFormat, ["artist-title", "title"] as const, "artist-title"),
+    nowPlayingFile: s.nowPlayingFile.trim(),
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     aiQuality: oneOf(s.aiQuality, ["standard", "high"] as const, "standard"),
@@ -241,7 +258,7 @@ export function sanitize(s: Settings): Settings {
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
     wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
     updateChannel: oneOf(s.updateChannel, ["stable", "beta"] as const, "stable"),
-    port: clamp(s.port, 1024, 65525, DEFAULTS.port),
+    port: clamp(s.port, 1024, 65535, DEFAULTS.port),
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
     seJwt: s.seJwt.trim(),
@@ -281,7 +298,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "liveLearnBanner",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
@@ -294,9 +311,7 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
     if (!(key in changes)) continue;
     const value = changes[key];
     const fallback = DEFAULTS[key];
-    const ok = Array.isArray(fallback)
-      ? Array.isArray(value) && value.every((v) => typeof v === "string")
-      : typeof value === typeof fallback;
+    const ok = sameType(value, fallback);
     if (ok) out[key] = value;
   }
   return out as Partial<Settings>;
@@ -357,6 +372,7 @@ export function toServerEnv(
     ORIGINALS: s.originals ? "on" : "off",
     LIVE_LEARNS: s.liveLearns ? "on" : "off",
     NOW_PLAYING: s.nowPlaying ? "on" : "off",
+    CREDIT_BUBBLE: s.creditBubble ? "on" : "off",
     LIVE_LEARN_BANNER: s.liveLearnBanner ? "on" : "off",
     BUBBLE_AREA: s.bubbleArea,
     VERTICAL_AREA: s.verticalArea,
@@ -371,6 +387,17 @@ export function toServerEnv(
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;
+  } else if (s.songSource === "nowplaying") {
+    env.SONG_SOURCE = "nowplaying";
+    if (s.nowPlayingPreset === "streamling") {
+      // Streamling's file is in a known folder and reads "Artist - Song" or a YouTube title, so there's nothing to choose.
+      Object.assign(env, { NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "youtube-title" });
+    } else if (s.nowPlayingPreset === "nightbot") {
+      // Nightbot's folder is known, but its file name and line are the streamer's to customize: the newest .txt is read as a YouTube title.
+      Object.assign(env, { NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
+    } else {
+      Object.assign(env, { NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: s.nowPlayingFile, NOW_PLAYING_FORMAT: s.nowPlayingFormat });
+    }
   } else {
     Object.assign(env, {
       // The server needs a name to talk about the streamer; the ID, when signed in, is what it follows.
@@ -392,6 +419,8 @@ export function toServerEnv(
 /** The chosen song source has what it needs to start. */
 export function songSourceReady(s: Settings): boolean {
   if (s.songSource === "streamelements") return !!s.seJwt;
+  // Streamling's and Nightbot's files are where the server already looks; any other app's needs a file chosen.
+  if (s.songSource === "nowplaying") return s.nowPlayingPreset !== "none" || !!s.nowPlayingFile;
   // The app's own sign-in follows the channel by its ID, so a missing name doesn't hold it up.
   return !!s.token && (!!s.channel || (s.tokenKind === "oauth" && s.streamerId > 0));
 }
