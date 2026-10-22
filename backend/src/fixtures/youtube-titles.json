@@ -384,6 +384,14 @@
       "song": "Old Town Road",
       "kind": "official",
       "source": "peer review"
+    },
+    {
+      "title": "Shania Twain_Dirty Rosie - The Tonight Show",
+      "channel": "",
+      "artist": "Shania Twain",
+      "song": "Dirty Rosie",
+      "kind": "show",
+      "source": "a beta tester's stream, 2026-10"
     }
   ]
 }
