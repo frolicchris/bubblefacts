@@ -343,14 +343,61 @@ function identityPhrases(text: string): string[] {
   return found;
 }
 
+/**
+ * Religion words that can name a song's own theme: "The song's lyrics ask listeners to imagine a
+ * world without religion." Words for a believer or an act of belief ("Catholic", "devout",
+ * "converted to") are never here.
+ */
+const THEME_RELIGION = new Set([
+  "religion", "religions", "religious", "atheism", "christianity", "islam", "judaism", "hinduism",
+  "buddhism", "sikhism", "catholicism",
+]);
+/** A sentence whose subject is the song, its lyrics or its theme. */
+const SONG_SUBJECT =
+  /^["“‘']?(?:(?:the|this)\s+(?:song|track|lyrics|theme)(?:['’]s\s+(?:lyrics|theme|chorus|verses?|refrain|message))?|its\s+(?:lyrics|theme|chorus|verses?|refrain|message))(?![\p{L}\p{N}'’])/iu;
+/** Anything that makes a person a subject or an object of the sentence. When unsure, this blocks. */
+const PERSON_CUE =
+  /(?<![\p{L}\p{N}])(?:he|she|him|his|her|hers|himself|herself|they|them|their|theirs|who|whom|whose|man|men|woman|women|boy|girl|singer|songwriter|writer|composer|artist|band|musician|vocalist|lyricist|poet|author|member|members|priest|pastor|preacher|monk|nun|born|raised|devout|convert|converts|converted|converting|conversion|believer|believers|follower|followers|practicing|practising|faithful)(?![\p{L}\p{N}])/iu;
+
+/** Whether a sentence is about the song's theme with no person in it: a capital letter past the first word reads as a name. */
+function themeSentence(sentence: string): boolean {
+  const s = sentence.trim();
+  if (!SONG_SUBJECT.test(s) || PERSON_CUE.test(s)) return false;
+  return ![...s.matchAll(WORD)].slice(1).some((m) => isUpper(m[0][0]) && !THEME_RELIGION.has(m[0].toLowerCase()));
+}
+
+/** Start and end of each sentence of `text`, in order. */
+function sentenceSpans(text: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  let from = 0;
+  for (const line of text.split("\n")) {
+    let at = from;
+    for (const s of sentencesOf(line)) {
+      const start = text.indexOf(s, at);
+      if (start < 0) continue;
+      spans.push([start, start + s.length]);
+      at = start + s.length;
+    }
+    from += line.length + 1;
+  }
+  return spans;
+}
+
 /** The identity words and phrases a text uses about a person, lowercased: [] when none. */
 export function identityTerms(text: string, names: string[] = []): string[] {
   const plain = withoutNames(text, names);
   const { re } = compiled.find((c) => c.label === IDENTITY)!;
   re.lastIndex = 0;
   const found: string[] = [];
+  const themed = [...plain.matchAll(re)].some((m) => THEME_RELIGION.has(m[0].toLowerCase()))
+    ? sentenceSpans(plain).filter(([a, b]) => themeSentence(plain.slice(a, b)))
+    : [];
   for (const m of plain.matchAll(re)) {
-    if (!identityExempt(plain, m.index ?? 0, m[0])) found.push(m[0].toLowerCase().replace(/\s+/g, " "));
+    const at = m.index ?? 0;
+    if (identityExempt(plain, at, m[0])) continue;
+    // Only a theme word, in a sentence about the song itself (never in one about a person).
+    if (THEME_RELIGION.has(m[0].toLowerCase()) && themed.some(([a, b]) => at >= a && at < b)) continue;
+    found.push(m[0].toLowerCase().replace(/\s+/g, " "));
   }
   return [...found, ...identityPhrases(plain)];
 }

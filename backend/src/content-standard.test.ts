@@ -196,6 +196,41 @@ describe("never who a person is, for anyone (issue #262)", () => {
     }
   });
 
+  it("keeps religion words when the sentence is about the song's own lyrics or theme", () => {
+    for (const sentence of [
+      "The song's lyrics ask listeners to imagine a world without religion.",
+      "The lyrics of the second verse are deeply religious.",
+      "The track's theme is the clash between science and religion.",
+      "Its lyrics reflect on Buddhism and impermanence.",
+      "The theme is faith, doubt and Christianity in a small town.",
+    ]) {
+      expect([sentence, standardBreach(sentence)]).toEqual([sentence, null]);
+      expect(withinStandard(`Glass Orchard is a 1999 song. ${sentence}`, "Glass Orchard").text).toContain(sentence);
+    }
+  });
+
+  it("still drops a person's religion, even in a sentence that starts with the song", () => {
+    for (const sentence of [
+      "Corin Hale is a devout Christian and sings every Sunday.",
+      "Corin Hale was raised Catholic and the song's lyrics show it.",
+      "The song is about his conversion to Buddhism.",
+      "The song is about a singer who found religion.",
+      "The lyrics were written by Corin Hale, a religious man.",
+      "The song's lyrics ask listeners to imagine a world without religion, which Corin Hale, an atheist, wrote.",
+      "The song's lyrics mention that the band is Catholic.",
+      "The song's lyrics ask listeners to imagine a world without Catholic schools.",
+      "Corin Hale says the song's lyrics are about religion.",
+      "Religion shaped Corin Hale's life.",
+    ]) {
+      expect([sentence, standardBreach(sentence)]).toEqual([sentence, IDENTITY_REASON]);
+    }
+  });
+
+  it("applies the theme exception to other off-limits topics not at all", () => {
+    expect(standardBreach("The song's lyrics are about religion and drug addiction.")).toBe("content standard: drugs or addiction");
+    expect(standardBreach("The song's lyrics are about religion and gay rights.")).toBe(IDENTITY_REASON);
+  });
+
   it("reads a quoted title or the song's own name as a name", () => {
     expect(standardBreach('Her cover of "Gay Paree" opened the set.')).toBeNull();
     expect(standardBreach("Pilgrim Christian was recorded in 1991.", ["Pilgrim Christian"])).toBeNull();
