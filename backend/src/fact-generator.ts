@@ -340,9 +340,9 @@ export function copiesExample(caption: string, context: string): boolean {
 }
 /**
  * Added to the prompt when the reference is the artist's article: a statement about another
- * of their songs must say so, or chat reads it as about the song playing ("Problems" while "LOLLIPOP" plays).
+ * of their songs must say so, or chat reads it as about the song playing ("Paper Kites" while "Velvet Harbor" plays).
  */
-export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough was 'Problems' in 2014." Never write it as if it were about the song playing now.`;
+export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough hit was 'TITLE'." with the real title from the text. Never write it as if it were about the song playing now.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {

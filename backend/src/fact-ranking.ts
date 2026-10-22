@@ -17,7 +17,7 @@
  * row tell the same kind of fact when that can be helped, and a song shows at
  * most four.
  * When the article is the artist's, a caption about another song of theirs
- * ("Problems" while "LOLLIPOP" plays) goes below the facts about the artist and
+ * ("Paper Kites" while "Velvet Harbor" plays) goes below the facts about the artist and
  * at most one is shown (`namesOtherSong`).
  *
  * Every signal is a plain text comparison against the source: no model.
@@ -168,7 +168,7 @@ const squash = (s: string) => (s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).j
 
 /**
  * Whether a caption names a quoted title that isn't the song playing: the
- * subject may be another song ("Problems" while "LOLLIPOP" plays). A title that
+ * subject may be another song ("Paper Kites" while "Velvet Harbor" plays). A title that
  * holds the playing title, or is held by it, counts as the song itself. With no
  * title to compare, or no quoted title, false.
  */
