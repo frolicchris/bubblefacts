@@ -5,7 +5,7 @@ import path from "path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-session-"));
 jest.mock("./config", () => ({ config: { dataDir: dir } }));
 
-import { factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession, withLaterFacts } from "./session";
+import { catchUpFacts, factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession, withLaterFacts } from "./session";
 import { Fact } from "./types";
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -38,6 +38,23 @@ describe("remainingFacts", () => {
 
   it("gives them all when no overlay had seen them", () => {
     expect(remainingFacts(facts, 0, 99_999)).toBe(facts);
+  });
+});
+
+describe("catchUpFacts, for an overlay that reloads mid-song (issue #279)", () => {
+  it("puts the bubble on screen back for the time it has left, and the rest on their remaining delays", () => {
+    const left = catchUpFacts(facts, 1000, 1000 + 20_000);
+    expect(left.map((f) => [f.text, f.delaySeconds, f.durationSeconds])).toEqual([["Two.", 0, 3], ["Three.", 10, 8]]);
+  });
+
+  it("leaves out a bubble with under 2 seconds left, or one a later bubble already replaced in its spot", () => {
+    expect(catchUpFacts(facts, 1000, 1000 + 21_500).map((f) => f.text)).toEqual(["Three."]);
+    const oneSpot = [fact("Long one, still within its own reading time here.", 0), fact("Next.", 5)];
+    expect(catchUpFacts(oneSpot, 1000, 1000 + 6000).map((f) => f.text)).toEqual(["Next."]);
+  });
+
+  it("gives them all when no overlay had seen them", () => {
+    expect(catchUpFacts(facts, 0, 99_999)).toBe(facts);
   });
 });
 

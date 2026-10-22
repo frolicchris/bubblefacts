@@ -802,8 +802,14 @@ no overlay is connected, and the first one to connect gets them, logged then.
 ### What gets remembered between songs?
 
 - What was shown is saved to `session.json` in the data folder: after a
-  restart mid-song, or an overlay that reloads, only the bubbles still to come
-  are sent, and earlier songs' facts aren't repeated. A fact taken off with
+  restart mid-song, only the bubbles still to come are sent, and earlier
+  songs' facts aren't repeated. An overlay that connects or reloads mid-song
+  (a second output, or a scene switch that reloads the source) gets the song's
+  bubbles that haven't finished showing, from the server's record of what
+  went out (`catchUpFacts` in `session.ts`): the one on screen comes back for
+  the time it has left, unless a later bubble took its spot, and the rest keep
+  the other overlays' schedule. The credit bubble isn't in that record, so it
+  never comes back. A fact taken off with
   **Wrong** is dropped from it too, so a restart doesn't bring it back.
   Forgotten after 6 hours.
 - A found article is kept for the session.

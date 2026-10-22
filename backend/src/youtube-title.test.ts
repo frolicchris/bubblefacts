@@ -101,6 +101,64 @@ describe("parseVideoTitle", () => {
   });
 });
 
+describe("an underscore between artist and song", () => {
+  it.each<[string, string, string]>([
+    ["Mara Quill_Paper Lanterns", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill_Paper Lanterns - The Tonight Show", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill_Paper Lanterns (Official Video)", "Paper Lanterns", "Mara Quill"],
+    ["Quill_Lanterns", "Lanterns", "Quill"],
+  ])("splits %s", (raw, title, artist) => {
+    expect(parseVideoTitle(raw, "")).toMatchObject({ title, artist, confident: true });
+  });
+
+  it.each([
+    "Song_Name_With_Underscores",
+    "Mara Quill _ Paper Lanterns",
+    "track_01",
+    "IMG_1234",
+    "final_mix",
+    "paper_lanterns",
+    "Requested by dana_k",
+    "Mara Quill_paper lanterns",
+    "Quill_Lanterns.mp3",
+    "Paper Lanterns_",
+  ])("leaves %s alone", (raw) => {
+    expect(parseVideoTitle(raw, "")).toMatchObject({ title: raw, artist: "" });
+  });
+
+  it("does not override a dash split", () => {
+    expect(parseVideoTitle("Mara Quill - Paper_Lanterns", "")).toMatchObject({ title: "Paper_Lanterns", artist: "Mara Quill" });
+  });
+});
+
+describe("performance and show labels", () => {
+  it.each<[string, string, string]>([
+    ["Mara Quill - Paper Lanterns - The Tonight Show Starring Jimmy Fallon", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - Jimmy Kimmel Live!", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - SNL", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns | Tiny Desk Concert", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - NPR Music Tiny Desk Concert", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - Live on Letterman", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - Live at the Roxy Theatre", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - Late Show with David Letterman", "Paper Lanterns", "Mara Quill"],
+    ["Mara Quill - Paper Lanterns - The Tonight Show", "Paper Lanterns", "Mara Quill"],
+  ])("drops the label in %s", (raw, title, artist) => {
+    expect(parseVideoTitle(raw, "")).toMatchObject({ title, artist });
+  });
+
+  it("keeps songs that only resemble a label", () => {
+    expect(parseVideoTitle("Mara Quill - Tonight", "")).toMatchObject({ title: "Tonight", artist: "Mara Quill" });
+    expect(parseVideoTitle("Mara Quill - Live Forever", "")).toMatchObject({ title: "Live Forever", artist: "Mara Quill" });
+    expect(parseVideoTitle("Mara Quill - Late Night Show Blues", "")).toMatchObject({ title: "Late Night Show Blues", artist: "Mara Quill" });
+    expect(parseVideoTitle("Live at Last - Mara Quill", "")).toMatchObject({ artist: "Live at Last", title: "Mara Quill" });
+  });
+
+  it("still reads a live venue label", () => {
+    expect(parseVideoTitle("Mara Quill - Paper Lanterns - Live at Venue", "")).toMatchObject({ title: "Paper Lanterns", artist: "Mara Quill" });
+    expect(parseVideoTitle("Mara Quill - Paper Lanterns (Live at Venue)", "")).toMatchObject({ title: "Paper Lanterns", artist: "Mara Quill" });
+  });
+});
+
 describe("artistFromChannel", () => {
   it.each<[string, string, boolean]>([
     ["CiaraVEVO", "Ciara", true],
