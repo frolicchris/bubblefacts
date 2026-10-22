@@ -268,7 +268,9 @@ export const citesSentences = () => process.env.CITE_SENTENCES === "on" && proce
  */
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
-  return citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want);
+  const page = context.split("\n")[0];
+  const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE : "";
+  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule;
 }
 
 /** The CROSS prompt's opening, the same with or without citations. */
@@ -336,6 +338,11 @@ export function copiesExample(caption: string, context: string): boolean {
   const source = ` ${words(context).join(" ")} `;
   return threeWords(words(caption)).some((g) => EXAMPLE_WORDING.has(g) && !source.includes(` ${g} `));
 }
+/**
+ * Added to the prompt when the reference is the artist's article: a statement about another
+ * of their songs must say so, or chat reads it as about the song playing ("Problems" while "LOLLIPOP" plays).
+ */
+export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough was 'Problems' in 2014." Never write it as if it were about the song playing now.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
@@ -1152,7 +1159,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
   const sent = early.map((f) => f.text);
   const lead = structured.filter((f) => !sent.includes(f));
-  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room) : bestSupported(lead, usable, context, plain, citedSentence, room);
+  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room, resolveGameAndTrack(read).track) : bestSupported(lead, usable, context, plain, citedSentence, room);
   const later = captions.filter((c) => !sent.includes(c));
   const shown = early.length ? [...sent, ...later] : captions;
   // Facts sent early were remembered when they went out.
@@ -1183,7 +1190,8 @@ function rankedFromArticle(
   context: string,
   plain: ReadonlyMap<string, string>,
   cited: ReadonlyMap<string, string> | undefined,
-  want: number
+  want: number,
+  title = ""
 ): string[] {
   const full = articleText(context.split("\n")[0]);
   const candidates: Candidate[] = [
@@ -1194,7 +1202,9 @@ function rankedFromArticle(
     }),
   ];
   // Data facts here are about the song, and the article is its artist's or game's: they lead.
-  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, log: (line) => console.log(line) }).map((c) => c.text);
+  // On an artist's article, a caption about another of their songs ranks low, one at most (namesOtherSong).
+  const artistArticle = isPerformerArticle(context.split("\n")[0], full || context);
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 /**
