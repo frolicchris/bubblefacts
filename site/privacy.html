@@ -51,7 +51,7 @@
         <p class="eyebrow">Privacy</p>
         <h1>Your data, in plain words</h1>
         <div class="rpg has-cursor" style="margin-bottom:2.5rem">
-          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to your song request service (StreamerSongList or StreamElements), to Wikipedia, Wikidata and MusicBrainz to look songs up, and to an online AI only if you choose one. Nothing is sent to this project.</p>
+          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to the song list service you connect (StreamerSongList or StreamElements), to Wikipedia, Wikidata and MusicBrainz to look songs up, and to an online AI only if you choose one. Nothing is sent to this project.</p>
         </div>
 
         <ul class="privacy-list">
@@ -72,8 +72,12 @@
             <p>If you use StreamElements instead, the app uses your JWT token and channel name to ask StreamElements which song request is playing, and to get told when it changes. You copy the token from your StreamElements dashboard yourself.</p>
           </li>
           <li>
+            <h2>A now playing file</h2>
+            <p>If you follow a now playing file (Streamling, Nightbot's desktop app, or another app's), BubbleFacts only reads that file on your computer. Nothing is sent to anyone to do that. The song it holds is then looked up like any other (next).</p>
+          </li>
+          <li>
             <h2>Wikipedia, Wikidata and MusicBrainz</h2>
-            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song. When Wikipedia has no article, the same names are sent to Wikidata, then MusicBrainz, two public music databases.</p>
+            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song, and to Wikidata and MusicBrainz, two public music databases, for plain facts such as the year and the album. For a classical piece, the composer, catalog number or nickname from the title also go to Wikidata, to find the piece. Like any website, they see your computer's internet address. Nothing else about you or your stream is sent.</p>
           </li>
           <li>
             <h2>Twitch (only if you connect it)</h2>
