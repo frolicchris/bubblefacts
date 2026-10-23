@@ -2,6 +2,7 @@ jest.mock("./config", () => ({
   config: { factsPerSong: 5, dataDir: process.env.BUBBLEFACTS_DATA_DIR, groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, topic: "general" },
 }));
 
+import { clearArticleItemCache } from "./wikidata";
 import { clearGroundingCache, fetchGrounding, gameInsteadOfScreen, gameTrackText, namesPiece, oneOfSeveral, resolveGameAndTrack, workMatchConfidence } from "./fact-verifier";
 
 // Made-up bands, songs and games. Each case is a wrong work the lookup once took: an artist's name
@@ -206,5 +207,54 @@ describe("About this piece", () => {
     const text = gameTrackText({ page: "Gloomhold", full, music: null }, "Night Lancer");
     expect(text).toMatch(/^About this piece: The series' main theme "Night Lancer" was composed by Mara Quinn\.$/m);
     expect(text).not.toMatch(/^About this piece:.*carries the Night Lancer/m);
+  });
+});
+
+// "HAVANA - Camila Cabello" read the wrong way round once found the city: a place is never a song's reference.
+describe("a place named like the song or its artist", () => {
+  const LONG = " It lies on a wide bay and has many old buildings.".repeat(20);
+  let hits: Record<string, string[]>;
+  let extracts: Record<string, string>;
+  let classes: Record<string, string[]>;
+  const classLabels: Record<string, string> = { Q90: "city", Q95: "fictional city" };
+  const mock = jest.fn(async (url: string) => {
+    const u = new URL(url);
+    const p = u.searchParams;
+    let body: unknown;
+    if (u.hostname === "www.wikidata.org" && p.get("sites")) {
+      const page = p.get("titles") ?? "";
+      body = { entities: page in classes ? { Q1: { id: "Q1", claims: { P31: classes[page].map((id) => ({ mainsnak: { datavalue: { value: { id } } } })) } } } : {} };
+    } else if (u.hostname === "www.wikidata.org") {
+      body = { entities: Object.fromEntries((p.get("ids") ?? "").split("|").map((id) => [id, { id, labels: { en: { value: classLabels[id] ?? "" } } }])) };
+    } else if (p.get("srsearch") !== null) body = { query: { search: (hits[p.get("srsearch")!] ?? []).map((title) => ({ title })) } };
+    else if (p.get("prop") === "description" || p.get("redirects")) body = { query: { pages: { 0: { title: p.get("titles"), missing: "" } } } };
+    else body = { query: { pages: { 1: { extract: extracts[(p.get("titles") ?? "").split("|")[0]] ?? "", revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } };
+    return { ok: true, status: 200, json: async () => body } as Response;
+  });
+
+  beforeAll(() => {
+    global.fetch = mock as unknown as typeof fetch;
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+  beforeEach(() => {
+    clearGroundingCache();
+    clearArticleItemCache();
+    hits = {};
+    extracts = {};
+    classes = {};
+  });
+
+  it("skips a city's article for a song read with the city's name as its artist", async () => {
+    hits = { "Port Velmora video game": ["Port Velmora"], "Port Velmora soundtrack": ["Port Velmora"], "Port Velmora": ["Port Velmora"] };
+    extracts = { "Port Velmora": `Port Velmora is the capital and largest city of Ruritania. The singer Juniper Reyes, who grew up there, named a song after it.${LONG}` };
+    classes = { "Port Velmora": ["Q90"] };
+    expect(await fetchGrounding({ title: "Juniper Reyes", artist: "Port Velmora" })).not.toMatch(/^Port Velmora\n/);
+  });
+
+  it("keeps a fictional city's article, which may be a game's world", async () => {
+    hits = { "Port Velmora video game": ["Port Velmora"], "Port Velmora soundtrack": ["Port Velmora"], "Port Velmora": ["Port Velmora"] };
+    extracts = { "Port Velmora": `Port Velmora is a fictional city where the Glass Valley adventures take place. Its theme "Harbor Lights" plays in the docks.${LONG}` };
+    classes = { "Port Velmora": ["Q95"] };
+    expect(await fetchGrounding({ title: "Harbor Lights", artist: "Port Velmora" })).toMatch(/^Port Velmora\n/);
   });
 });

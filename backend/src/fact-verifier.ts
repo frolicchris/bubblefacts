@@ -6,7 +6,7 @@ import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments } from "./text
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
-import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, searchWorks, wholesOf, workItems } from "./wikidata";
+import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, workItems } from "./wikidata";
 
 /**
  * Grounding and screening.
@@ -3543,6 +3543,13 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // A concert film or documentary named for the song or the band is the film's article, not the song's.
       if (!byGame && full && artist && isConcertFilm(page, full)) {
         console.log(`[Grounding] "${page}" is a concert film or documentary that shares the song's name, skipping`);
+        continue;
+      }
+      // A city, a country or a sports team named like the song or its artist ("Havana" the city): never
+      // the song's, like a film that shares a band's name. Its Wikidata item says so; music and games aren't asked.
+      const place = full && (isPieceArticle(page, full) || isPerformerArticle(page, full) || /\b(?:video )?games?\b/i.test(openingSays(full))) ? "" : await placeOrTeam(page);
+      if (place) {
+        console.log(`[Grounding] "${page}" is a place or a team (Wikidata: ${place}), not a work, skipping`);
         continue;
       }
       const installment = byGame && extendsGame(page) && track !== game && !reading.page;

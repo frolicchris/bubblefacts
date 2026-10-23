@@ -1,7 +1,7 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
 import { MAX_FACT_CHARS } from "./fact-verifier";
-import { articleItem, articleItemFrom, artistFactsFromEntity, clearArticleItemCache, factsFromEntity, pickArtistOrGame, pickSong, plainDate, rankedClaims, searchLanguage, searchLanguages, songItemFacts, wikidataFacts } from "./wikidata";
+import { articleItem, articleItemFrom, artistFactsFromEntity, clearArticleItemCache, factsFromEntity, pickArtistOrGame, pickSong, placeOrTeamFrom, plainDate, rankedClaims, searchLanguage, searchLanguages, songItemFacts, wikidataFacts } from "./wikidata";
 import { parseInfobox } from "./infobox";
 
 describe("pickSong", () => {
@@ -623,5 +623,33 @@ describe("pickArtistOrGame (#256)", () => {
     const game = { id: "Q2", label: "Glass Comet", description: "2008 video game" };
     expect(pickArtistOrGame([band, { id: "Q3", label: "Glass Comet", description: "album" }], "glass comet")?.id).toBe("Q1");
     expect(pickArtistOrGame([band, game], "glass comet")).toBeNull();
+  });
+});
+
+describe("a place's or a team's item: never a song's reference", () => {
+  const item = (...classes: string[]) => ({ id: "Q1", claims: { P31: classes.map((id) => ({ mainsnak: { datavalue: { value: { id } } } })) } });
+  const labels = Object.fromEntries(
+    [["Q90", "city"], ["Q91", "municipality of Ruritania"], ["Q92", "sovereign state"], ["Q93", "U.S. state"], ["Q94", "basketball team"],
+      ["Q95", "fictional city"], ["Q96", "tourist destination"], ["Q134556", "single"], ["Q215380", "musical group"], ["Q97", "region"]]
+      .map(([id, value]) => [id, { id, labels: { en: { value } } }])
+  );
+
+  it.each<[string, string[], string]>([
+    ["a city", ["Q90"], "city"],
+    ["a national class of town", ["Q96", "Q91"], "municipality of Ruritania"],
+    ["a country", ["Q92"], "sovereign state"],
+    ["a state", ["Q93"], "U.S. state"],
+    ["a region", ["Q97"], "region"],
+    ["a sports team", ["Q94"], "basketball team"],
+  ])("tells %s", (_what, classes, label) => {
+    expect(placeOrTeamFrom(item(...classes), labels)).toBe(label);
+  });
+
+  it("leaves out a fictional place, a song, a band and anything else", () => {
+    expect(placeOrTeamFrom(item("Q95"), labels)).toBe("");
+    expect(placeOrTeamFrom(item("Q134556"), labels)).toBe("");
+    expect(placeOrTeamFrom(item("Q215380", "Q90"), labels)).toBe("");
+    expect(placeOrTeamFrom(item("Q96"), labels)).toBe("");
+    expect(placeOrTeamFrom(item(), labels)).toBe("");
   });
 });

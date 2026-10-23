@@ -18,6 +18,8 @@ import os from "os";
 import path from "path";
 import { newestTextFile, NowPlayingFileSource, NowPlayingFormat, parseNowPlaying, STALE_AFTER_MS } from "./now-playing-file";
 import { SSLQueueItem } from "./types";
+import * as musicbrainz from "./musicbrainz";
+import { otherOrder } from "./youtube-title";
 
 /** Sample files as now-playing apps write them, with made-up songs. */
 const SAMPLES = path.join(__dirname, "fixtures", "now-playing");
@@ -203,6 +205,22 @@ describe("NowPlayingFileSource following a folder (Nightbot)", () => {
     await settle();
     expect(src.getCurrentSong()).toBeNull();
     expect(changes.map((c) => c?.song.title ?? null)).toEqual(["Harbor Lights", null]);
+  });
+
+  it("asks MusicBrainz which side of a YouTube title is the artist; an Artist - Title line is read as written", async () => {
+    // As if MusicBrainz had "Harbor Lights" by Marlow Finch only.
+    const settle = jest.spyOn(musicbrainz, "settleTitleOrder").mockImplementation(async (r) => (r.orderUnsure ? otherOrder(r) : r));
+    try {
+      fs.writeFileSync(file, "Harbor Lights - Marlow Finch (remix)\n");
+      const yt = source("youtube-title");
+      await yt.settle();
+      expect(shown(yt.src)).toMatchObject({ title: "Harbor Lights", artist: "Marlow Finch" });
+      const plain = source("artist-title");
+      await plain.settle();
+      expect(shown(plain.src)).toMatchObject({ title: "Marlow Finch (remix)", artist: "Harbor Lights" });
+    } finally {
+      settle.mockRestore();
+    }
   });
 
   it("reads a YouTube-style line from a single file, with the requester left off", async () => {

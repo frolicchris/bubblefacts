@@ -21,6 +21,7 @@ import {
 import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
 import { fitOrSplit } from "./data-facts";
+import { otherOrder } from "./youtube-title";
 
 /**
  * Plain facts from MusicBrainz, after Wikipedia and Wikidata come up empty
@@ -371,6 +372,72 @@ export async function artistByTitle(title: string): Promise<string> {
 
 export function clearTitleCache(): void {
   titleCache.clear();
+}
+
+// --- Which side of "X - Y" is the artist -------------------------------------
+
+/** How long a song change waits for MusicBrainz to settle the order; a later answer is kept for the next time. */
+const ORDER_WAIT_MS = process.env.NODE_ENV === "test" ? 200 : 1500;
+const orderLookups = new Map<string, Promise<"keep" | "swap" | null>>();
+
+/**
+ * Which way round "X - Y" is, from one search for both orders: "keep" when
+ * MusicBrainz has a recording titled Y credited to X and none titled X
+ * credited to Y, "swap" for the reverse, null when both or neither fit.
+ */
+export function recordingOrder(recordings: Recording[], artist: string, title: string): "keep" | "swap" | null {
+  const fits = (t: string, a: string) => {
+    const want = normalizeTitle(t);
+    const names = artistNames(a);
+    return recordings.some(
+      (r) => normalizeTitle(r.title ?? "") === want && (r["artist-credit"] ?? []).some((c) => names.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))
+    );
+  };
+  const keep = fits(title, artist);
+  const swap = fits(artist, title);
+  return keep === swap ? null : keep ? "keep" : "swap";
+}
+
+function lookUpOrder(artist: string, title: string): Promise<"keep" | "swap" | null> {
+  const key = `${normalizeTitle(artist)}\0${normalizeTitle(title)}`;
+  const known = orderLookups.get(key);
+  if (known) return known;
+  const query = `(recording:${quote(title)} AND artist:${quote(artist)}) OR (recording:${quote(artist)} AND artist:${quote(title)})`;
+  const pending = mbGet<{ recordings?: Recording[] }>("recording", { query, limit: "50" })
+    .then((found) => recordingOrder(found.recordings ?? [], artist, title))
+    .catch((err) => {
+      // Not kept: MusicBrainz may answer next time.
+      orderLookups.delete(key);
+      console.warn(`[MusicBrainz] Order lookup failed for "${artist} - ${title}": ${err instanceof Error ? err.message : err}`);
+      return null;
+    });
+  orderLookups.set(key, pending);
+  return pending;
+}
+
+/**
+ * A video title read as "X - Y" with nothing to tell which side is the artist
+ * (`orderUnsure`, see youtube-title.ts): the other way round when MusicBrainz
+ * has a recording titled X by Y and none titled Y by X. Otherwise, or when
+ * MusicBrainz doesn't answer within ORDER_WAIT_MS, the reading as it was.
+ * Asked once per title, before the article lookup; never throws.
+ */
+export async function settleTitleOrder<T extends { title: string; artist: string; orderUnsure?: boolean }>(reading: T): Promise<T> {
+  if (!reading.orderUnsure || !config.factVerification || !reading.title || !reading.artist) return reading;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), ORDER_WAIT_MS);
+    timer.unref?.();
+  });
+  const order = await Promise.race([lookUpOrder(reading.artist, reading.title), late]);
+  clearTimeout(timer);
+  if (order !== "swap") return reading;
+  console.log(`[MusicBrainz] "${reading.artist} - ${reading.title}" read as "${reading.artist}" by ${reading.title}: MusicBrainz has that recording, not the other way round`);
+  return otherOrder(reading);
+}
+
+export function clearOrderCache(): void {
+  orderLookups.clear();
 }
 
 // --- MusicBrainz's own link to the article (issue #245) -----------------------
