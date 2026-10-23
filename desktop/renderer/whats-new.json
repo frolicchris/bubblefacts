@@ -1,4 +1,9 @@
 {
+  "2.1.0-beta.1": [
+    "Follow Streamling, Nightbot or any app's now playing file: Settings, under Your song list.",
+    "Facts show the moment a song starts, even on a busy computer, and the AI's facts follow.",
+    "Turn facts off for any song or artist under Your facts for a song."
+  ],
   "2.0.1": [
     "Classical pieces such as Beethoven's Minuet in G now get facts about the right piece.",
     "Artists written with symbols, such as P!nk and Ke$ha, find their songs.",
