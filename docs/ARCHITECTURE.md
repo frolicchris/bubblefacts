@@ -850,11 +850,16 @@ the server after two minutes of `degraded`, never for `unauthorized`.
 - REST `GET /queue`: the `playing` slot is what's on now; the first item in
   `items` is the *next* song and is only a fallback.
 - Centrifugo (`centrifugo-client.ts`) on `streamer:<id>` and
-  `streamer:<id>-queue`. Every publication and every reconnect does the same
-  thing: one debounced re-read of the queue. Event types are never inspected,
-  so a missed or renamed event costs at most one poll.
-- Polls every `SSL_POLL_INTERVAL_MS` (15 s), or every 60 s while events are
-  connected. An update during a read triggers one more read afterward.
+  `streamer:<id>-queue`. The channels go in the connect request's `subs`;
+  Centrifugo ignores fields it doesn't know, so the `channels` field 2.0 sent
+  subscribed nothing and every change waited for the 60 s poll. The events
+  count as connected only when the reply's `subs` lists a channel. Every
+  publication, whatever its data, and every reconnect does the same thing:
+  one debounced re-read of the queue. Event types are never inspected, so a
+  missed or renamed event costs at most one poll.
+- Polls every `SSL_POLL_INTERVAL_MS` (15 s), with events connected or not:
+  events make a change show at once, and the poll caps the wait when one is
+  lost. An update during a read triggers one more read afterward.
 - 429 and 503 back off for as long as `Retry-After` says.
 
 **StreamElements** (`streamelements-client.ts`), for musicians who take

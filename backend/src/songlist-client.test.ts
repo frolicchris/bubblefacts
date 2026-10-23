@@ -284,6 +284,45 @@ describe("SongListClient", () => {
     }
   });
 
+  it("picks up a song change within one 15 s poll with events connected, even when no event comes", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValueOnce(ok({ items: [], playing: entry(1, "First Song"), total: 0 }))
+        .mockResolvedValue(ok({ items: [], playing: entry(2, "Second Song"), total: 0 }));
+      await client.connect();
+      expect(client.isEventStreamConnected()).toBe(true);
+      expect(client.pollIntervalMs()).toBe(15000);
+      expect(client.getCurrentSong()?.song.title).toBe("First Song");
+      await jest.advanceTimersByTimeAsync(15000);
+      expect(client.getCurrentSong()?.song.title).toBe("Second Song");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("reads the queue once for a burst of events on both channels", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch
+        .mockResolvedValueOnce(ok(STREAMER))
+        .mockResolvedValue(ok({ items: [], playing: null, total: 0 }));
+      await client.connect();
+      const [, , onPublication] = (CentrifugoStream as unknown as jest.Mock).mock.calls.at(-1);
+      const before = mockFetch.mock.calls.length;
+      // StreamerSongList sends each change on both channels, often several changes at once.
+      for (const type of ["queue_add", "queue_reorder"]) {
+        onPublication("streamer:123", { type, data: { streamerId: 123 } });
+        onPublication("streamer:123-queue", { type, data: { streamerId: 123 } });
+      }
+      await jest.advanceTimersByTimeAsync(300);
+      expect(mockFetch.mock.calls.length).toBe(before + 1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("uses the newer live-learn title and artist fields", () => {
     const live = entry(9, "", { songId: null, nonlistSong: "old field", nonlistTitle: "Aerith's Theme", nonlistArtist: "Nobuo Uematsu" });
     expect(toSong(live)).toMatchObject({ title: "Aerith's Theme", artist: "Nobuo Uematsu", liveLearn: true });
