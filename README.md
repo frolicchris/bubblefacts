@@ -97,7 +97,8 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
   version, computer and log; **Copy beta test report** needs no GitHub account.
 - [Security policy](.github/SECURITY.md): report security problems privately.
 
-Only the newest release is supported; the app tells you when there's a new
+Only the newest release on your update channel (Stable or Beta) is supported;
+the app tells you when there's a new
 one. What every 2.x release keeps working, and how security problems are
 handled, is in [SECURITY.md](.github/SECURITY.md#what-2x-promises).
 
