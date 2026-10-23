@@ -104,12 +104,14 @@ reads.
    version without an entry shows nothing.
 2. The Release workflow passed for every system, and the draft has every
    installer, `SHA256SUMS.txt` and `bubblefacts.zip`.
-3. Run the **Smoke** workflow on the Release run's artifacts:
-   `gh workflow run smoke.yml -f run=RUN_ID`. (A draft release can't be
-   downloaded by the workflow's read-only token, so test the run that built
-   it.) Every smoke system passes (Windows, Linux `.deb` and Apple-silicon Mac),
-   including writing and keeping captions. Check the Intel Mac and AppImage
-   builds by hand.
+3. The **Smoke test** workflow starts by itself when the Release run finishes
+   successfully, and tests that run's artifacts. (A draft release can't be
+   downloaded by the workflow's read-only token, so it tests the run that built
+   it.) To test again, use `gh workflow run smoke.yml -f run=RUN_ID`. It runs
+   from the default branch's copy of `smoke.yml`, so a change to that file
+   counts only after it is merged. Every smoke system passes (Windows, Linux
+   `.deb` and Apple-silicon Mac), including writing and keeping captions.
+   Check the Intel Mac and AppImage builds by hand.
 4. Download one installer from the draft. Its checksum matches the draft's
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
