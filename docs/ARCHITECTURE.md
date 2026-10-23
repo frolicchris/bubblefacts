@@ -42,7 +42,8 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/youtube-title.ts` | Reads a song and artist out of a YouTube video title. |
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
-| `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
+| `backend/src/grounding.ts` | Finds the right Wikipedia article and pulls out the useful text. |
+| `backend/src/fact-verifier.ts` | Screens the AI's captions against that text. |
 | `backend/src/content-standard.ts` | The content standard's word lists: what no article sentence, caption or data fact may say. |
 | `backend/src/wiki-html.ts` | An older article version's HTML as plain text, for the 72-hour rule. |
 | `backend/src/list-profile.ts` | How one streamer writes their song list (a dash or brackets for the game), worked out from the list itself. |
@@ -62,7 +63,7 @@ StreamElements ───┴──────────────► Server 
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
 
 New to the fact checking? Start with `screenClaims` in `fact-verifier.ts`
-(what makes a caption pass) and `fetchGrounding` (how the article is chosen),
+(what makes a caption pass) and `fetchGrounding` in `grounding.ts` (how the article is chosen),
 then `generateRest` in `fact-generator.ts`, which ties them together.
 
 ### The desktop app
