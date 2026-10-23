@@ -555,6 +555,14 @@ otherwise match the general article about overtures. More rules in
   the request gives no year (`oneOfSeveral`), comes after the others. Up to
   three of them are read, and the one whose music names the track is taken;
   when none does, a dated one is never taken.
+- **A game's track comes from the game, not a film of its name.** When the
+  best match for a game is a film's, a show's or a book's page ("Sonic the
+  Hedgehog 2 (film)" outranked the game in the search) and it never names the
+  track as music, the game's own page is taken instead: bare or "(video
+  game)" (`gameInsteadOfScreen`), from the search or, when the search didn't
+  list it, from Wikipedia's pages of that name, and only if its brackets or
+  its opening say it's a game. Another game of the name ("(8-bit video game)") never stands in.
+  With no such page the film stays, and the work match still calls it unsure.
 - **Performers aren't games.** When the upload is a music video
   (`song.performer`), band and singer articles match, game, film and TV
   articles don't, the search asks for "`<name>` band", and an article with no
