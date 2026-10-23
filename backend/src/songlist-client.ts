@@ -18,8 +18,6 @@ type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
 /** Collapse a burst of events into one refetch. */
 const REFETCH_DEBOUNCE_MS = 250;
-/** While realtime events arrive, polling is only a backstop; poll less to stay under the rate limit. */
-const POLL_WITH_EVENTS_MS = 60_000;
 const AUTH_SCHEME = { streamer: "Streamer", user: "User", bearer: "Bearer" } as const;
 
 /** Replaced while running when the desktop app refreshes its sign-in; OAuth tokens last an hour. */
@@ -86,9 +84,13 @@ export class SongListClient implements SongSource {
     return Date.now() < this.backoffUntil;
   }
 
-  /** How often the queue is polled right now; health allows three misses. */
+  /**
+   * How often the queue is polled; health allows three misses. The same with
+   * events connected: they make a change show at once, and polling caps the
+   * wait when one is lost (in 2.0 none came, and changes waited a minute).
+   */
   pollIntervalMs(): number {
-    return this.isEventStreamConnected() ? Math.max(config.sslPollIntervalMs, POLL_WITH_EVENTS_MS) : config.sslPollIntervalMs;
+    return config.sslPollIntervalMs;
   }
 
   isEventStreamConnected(): boolean {

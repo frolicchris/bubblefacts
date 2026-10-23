@@ -3,15 +3,23 @@ import WebSocket from "ws";
 /**
  * Minimal reader for Centrifugo's unidirectional WebSocket endpoint. The
  * public StreamerSongList channels need no auth, so the whole protocol is:
- * connect, send the channel list once, read frames.
+ * connect with the channels as `subs`, read frames.
  *
+ *   sent: {"subs":{"<channel>":{}}}            Centrifugo's connect request
  *   {}                                         ping (uni streams cannot reply)
- *   {"connect":{...}}                          connected
- *   {"push":{"channel":"…","pub":{"data":…}}}  publication
+ *   {"connect":{…,"subs":{"<channel>":{…}}}}   connected; `subs` lists what it subscribed
+ *   {"channel":"…","pub":{"data":…,"offset":…}}  publication (also seen wrapped in "push")
  *   {"disconnect":{"code":…,"reason":"…"}}     server closing
+ *
+ * StreamerSongList's publications carry {"type":"queue_add","data":{…}} and
+ * the like, on both channels.
+ *
+ * Centrifugo ignores fields it doesn't know: a request without `subs`
+ * connects to no channel and never hears a publication. A message may hold
+ * several frames, one per line.
  */
 
-/** StreamerSongList's event envelope. `data: null` means "refetch over REST". */
+/** StreamerSongList's event envelope, as far as it is known: `type` is "" when a publication has none. */
 export interface SSLEvent {
   type: string;
   data: unknown;
@@ -61,10 +69,11 @@ export class CentrifugoStream {
     this.ws = ws;
 
     ws.on("open", () => {
-      ws.send(JSON.stringify({ channels: this.channels }));
-      console.log(`[Events] Connected, subscribing to ${this.channels.join(", ")}`);
+      ws.send(JSON.stringify({ subs: Object.fromEntries(this.channels.map((c) => [c, {}])) }));
     });
-    ws.on("message", (raw) => this.handleFrame(raw.toString()));
+    ws.on("message", (raw) => {
+      for (const line of raw.toString().split("\n")) if (line.trim()) this.handleFrame(line);
+    });
     ws.on("close", (code, reason) => {
       this.connected = false;
       if (this.stopped) return;
@@ -95,8 +104,15 @@ export class CentrifugoStream {
     if (!frame || !Object.keys(frame).length) return;
 
     if (frame.connect) {
-      this.connected = true;
       this.reconnectDelayMs = MIN_RECONNECT_MS;
+      // Connected only counts with a channel subscribed: without one, no event ever comes.
+      const subscribed = this.channels.filter((c) => frame.connect.subs?.[c]);
+      this.connected = subscribed.length > 0;
+      console.log(
+        this.connected
+          ? `[Events] Connected, subscribed to ${subscribed.join(", ")}`
+          : `[Events] Connected, but not subscribed to ${this.channels.join(", ")}: following by polling only`
+      );
       this.onConnect();
       return;
     }
@@ -105,11 +121,13 @@ export class CentrifugoStream {
       return;
     }
 
-    // Older Centrifugo builds send publications unwrapped.
+    // This endpoint sends publications bare; Centrifugo's other protocols wrap them in "push".
+    // Every publication means "refetch", whatever its data: StreamerSongList's own pages don't read it either.
     const push = frame.push ?? frame;
-    const data = push?.pub?.data;
-    if (push?.channel && typeof data?.type === "string") {
-      this.onPublication(push.channel, { type: data.type, data: data.data ?? null });
+    const pub = push?.pub;
+    if (typeof push?.channel === "string" && pub && typeof pub === "object") {
+      const data = pub.data;
+      this.onPublication(push.channel, { type: typeof data?.type === "string" ? data.type : "", data: data?.data ?? data ?? null });
     }
   }
 }
