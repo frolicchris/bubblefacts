@@ -382,6 +382,10 @@
         : (onFile() ? "Watching your file" : "Connected"));
     }
     else setStatusLight("light-songlist", "warn", "Reconnecting");
+    // How the songs arrive: quiet, and only while there is a source to describe.
+    const hearing = $("#songs-hearing");
+    hearing.textContent = h && !rejected && h.listening ? h.listening : "";
+    hearing.hidden = !hearing.textContent;
 
     // Facts
     if (downloading) setStatusLight("light-ai", state.modelDownload?.error ? "warn" : "", "Getting ready: " + (downloadText(state.modelDownload) || "starting"));

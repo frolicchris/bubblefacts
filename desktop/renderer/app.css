@@ -120,6 +120,7 @@ details summary { cursor: pointer; color: #9fb0ff; }
 .lights em { display: block; font-style: normal; color: var(--muted); font-size: 13px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; flex: none; background: #555c8f; }
 .lights li.ok, .lights li.warn, .lights li.bad { color: var(--text); }
+.lights em.hearing { font-size: 12px; opacity: 0.8; margin-top: 2px; }
 .lights .ok .dot { background: var(--ok); }
 .lights .warn .dot { background: var(--warn); }
 .lights .bad .dot { background: var(--bad); }
