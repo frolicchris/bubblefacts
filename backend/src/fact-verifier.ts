@@ -6,7 +6,7 @@ import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments } from "./text
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
-import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, searchWorks, wholesOf, workItems } from "./wikidata";
+import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, workItems } from "./wikidata";
 
 /**
  * Grounding and screening.
@@ -1984,6 +1984,26 @@ export function oneOfSeveral(title: string, titles: string[], game: string): boo
   return titles.some((t) => t !== title && normalizeTitle(t) === base);
 }
 
+/** An article's opening that says it's about a game: "a 1992 platform game". */
+const GAME_LEAD = /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i;
+
+/** A film's, a show's or a book's page by its brackets: "Some Game 2 (film)", "Some Game (2019 TV series)". */
+export function isScreenPage(title: string): boolean {
+  const q = qualifierOf(title);
+  return !!q && SCREEN_OR_BOOK.test(q) && !/\bgames?\b/i.test(q);
+}
+
+/**
+ * The game's own page among these matches, for a track when the best match is
+ * a film's, a show's or a book's of the same name: "Some Game 2 (film)" can rank
+ * above "Some Game 2". Bare or "(video game)" only: "Some Game 2 (8-bit video
+ * game)" is another game.
+ */
+export function gameInsteadOfScreen(page: string, matches: string[]): string | null {
+  if (!isScreenPage(page)) return null;
+  return matches.find((t) => t !== page && /^(?:(?:video )?game)?$/i.test(qualifierOf(t) ?? "")) ?? null;
+}
+
 /** Whether a title is the music article for this game or its series. */
 export function isMusicArticleFor(title: string, game: string): boolean {
   const g = normalizeTitle(game);
@@ -3482,6 +3502,21 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
           continue;
         }
       }
+      // A game's track: the game's own article over a film or a show of its name that never names the track,
+      // from the search or, when it ranked lower, Wikipedia's pages for the name.
+      if (!artist && !reading.notGame && !reading.page && !song.performer && track !== game && !generic && !matchedTrack(page) && isScreenPage(page) && !namesPiece((await wikiExtract(page)) ?? "", track)) {
+        const fits = (t: string) => usable(t) && matchedGame(t) && !oneOfSeveral(t, titles, game);
+        let ofGame = gameInsteadOfScreen(page, titles.filter(fits));
+        if (!ofGame) {
+          const named = await wikiResolveTitles([`${game} (video game)`, game]);
+          ofGame = gameInsteadOfScreen(page, [...named.values()].filter((r) => !r.fragment).map((r) => r.page).filter(fits));
+        }
+        const lead = ofGame ? ((await wikiExtract(ofGame)) ?? "").slice(0, 600) : "";
+        if (ofGame && (/game\)$/i.test(ofGame) || GAME_LEAD.test(lead))) {
+          console.log(`[Grounding] "${page}" is another work that never names "${track}": the game's "${ofGame}" instead`);
+          page = ofGame;
+        }
+      }
       let byGame = matchedGame(page);
       let full = await wikiExtract(page);
       let toPerformer = false;
@@ -3508,6 +3543,13 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // A concert film or documentary named for the song or the band is the film's article, not the song's.
       if (!byGame && full && artist && isConcertFilm(page, full)) {
         console.log(`[Grounding] "${page}" is a concert film or documentary that shares the song's name, skipping`);
+        continue;
+      }
+      // A city, a country or a sports team named like the song or its artist ("Havana" the city): never
+      // the song's, like a film that shares a band's name. Its Wikidata item says so; music and games aren't asked.
+      const place = full && (isPieceArticle(page, full) || isPerformerArticle(page, full) || /\b(?:video )?games?\b/i.test(openingSays(full))) ? "" : await placeOrTeam(page);
+      if (place) {
+        console.log(`[Grounding] "${page}" is a place or a team (Wikidata: ${place}), not a work, skipping`);
         continue;
       }
       const installment = byGame && extendsGame(page) && track !== game && !reading.page;
@@ -3539,7 +3581,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
           : `${page}\n${full ? writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, ownArticle ? [track, game] : [track]) : extract}`
       );
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
-      const aGame = !artist || /game\)$/i.test(page) || /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i.test(full?.slice(0, 600) ?? "");
+      const aGame = !artist || /game\)$/i.test(page) || GAME_LEAD.test(full?.slice(0, 600) ?? "");
       if (byGame && aGame && !toPerformer && !song.performer && !ownArticle && !installment && full) {
         let music: GameArticles["music"] = null;
         try {

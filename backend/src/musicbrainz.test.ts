@@ -1,10 +1,10 @@
 jest.mock("./config", () => ({
-  config: { groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, dataDir: process.env.BUBBLEFACTS_DATA_DIR, topic: "general", mbLink: true },
+  config: { groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, dataDir: process.env.BUBBLEFACTS_DATA_DIR, topic: "general", mbLink: true, factVerification: true },
 }));
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { artistByTitle, cachedArtistByTitle, clearLinkCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -412,5 +412,80 @@ describe("musicbrainzFacts: a game track's composers, all or none (#256)", () =>
   it("names none when they don't fit a bubble", async () => {
     composers = Array.from({ length: 12 }, (_, i) => `Composer Number ${i}`);
     expect(await musicbrainzFacts({ title: "Lantern Polka", artist: "Lantern Quest III" })).toEqual([]);
+  });
+});
+
+describe("settleTitleOrder: which side of a fan's \"X - Y\" is the artist", () => {
+  const recording = (title: string, artist: string) => ({ title, score: 100, "artist-credit": [{ name: artist, artist: { name: artist } }] });
+  let reply: { recordings?: unknown[] } = {};
+  const asked: string[] = [];
+  const fetchMock = jest.fn(async (input: string | URL) => {
+    asked.push(decodeURIComponent(String(input)).replace(/\+/g, " "));
+    return { ok: true, status: 200, json: async () => reply } as Response;
+  });
+  // As parseVideoTitle reads "Copper Moon - Juniper Reyes" from a fan's channel.
+  const unsure = { title: "Juniper Reyes", artist: "Copper Moon", confident: true, performer: false, orderUnsure: true };
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    asked.length = 0;
+    fetchMock.mockClear();
+    reply = {};
+    clearOrderCache();
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("turns the reading round when only the other order is a recording", async () => {
+    reply = { recordings: [recording("Copper Moon", "Juniper Reyes"), recording("Copper Moon (Remix)", "Juniper Reyes")] };
+    expect(await settleTitleOrder(unsure)).toMatchObject({ title: "Copper Moon", artist: "Juniper Reyes" });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('(recording:"Juniper Reyes" AND artist:"Copper Moon") OR (recording:"Copper Moon" AND artist:"Juniper Reyes")');
+  });
+
+  it("keeps the reading when it is the recording, both are, or neither is", async () => {
+    reply = { recordings: [recording("Juniper Reyes", "Copper Moon")] };
+    expect(await settleTitleOrder(unsure)).toBe(unsure);
+    clearOrderCache();
+    reply = { recordings: [recording("Juniper Reyes", "Copper Moon"), recording("Copper Moon", "Juniper Reyes")] };
+    expect(await settleTitleOrder(unsure)).toBe(unsure);
+    clearOrderCache();
+    reply = { recordings: [recording("Copper Moon", "Someone Else")] };
+    expect(await settleTitleOrder(unsure)).toBe(unsure);
+  });
+
+  it("asks only for an unsure order, and once per title", async () => {
+    const sure = { ...unsure, orderUnsure: undefined };
+    expect(await settleTitleOrder(sure)).toBe(sure);
+    expect(asked).toHaveLength(0);
+    reply = { recordings: [recording("Copper Moon", "Juniper Reyes")] };
+    await settleTitleOrder(unsure);
+    expect(await settleTitleOrder({ ...unsure, title: "JUNIPER REYES" })).toMatchObject({ title: "Copper Moon", artist: "JUNIPER REYES" });
+    expect(asked).toHaveLength(1);
+  });
+
+  it("keeps the reading when MusicBrainz fails, and asks again next time", async () => {
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response);
+    expect(await settleTitleOrder(unsure)).toBe(unsure);
+    reply = { recordings: [recording("Copper Moon", "Juniper Reyes")] };
+    expect(await settleTitleOrder(unsure)).toMatchObject({ title: "Copper Moon", artist: "Juniper Reyes" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("doesn't hold the song for a slow answer, and uses it the next time", async () => {
+    const answer = { recordings: [recording("Copper Moon", "Juniper Reyes")] };
+    fetchMock.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => setTimeout(() => resolve({ ok: true, status: 200, json: async () => answer } as Response), 400))
+    );
+    expect(await settleTitleOrder(unsure)).toBe(unsure);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(await settleTitleOrder(unsure)).toMatchObject({ title: "Copper Moon", artist: "Juniper Reyes" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("matches title and credit without case or accents", () => {
+    expect(recordingOrder([recording("A Novidade", "Gíl Berto")] as never, "a novidade", "Gil Berto")).toBe("swap");
+    expect(recordingOrder([] as never, "Copper Moon", "Juniper Reyes")).toBeNull();
   });
 });

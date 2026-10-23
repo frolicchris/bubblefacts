@@ -30,6 +30,8 @@ global.fetch = mockFetch as unknown as typeof fetch;
 import { StreamElementsClient, SESong } from "./streamelements-client";
 import { config } from "./config";
 import { AstroStream } from "./astro-client";
+import * as musicbrainz from "./musicbrainz";
+import { otherOrder } from "./youtube-title";
 
 const CHANNEL = { _id: "5b2e2007760aeb7729487dab", username: "janeplays", provider: "twitch" };
 const CIARA: SESong = {
@@ -199,6 +201,20 @@ describe("StreamElementsClient", () => {
     await refresh(client);
     expect(client.getCurrentSong()).toBeNull();
     expect(changes).toHaveBeenCalledTimes(4);
+  });
+
+  it("reads a fan's \"Song - Artist\" the way MusicBrainz says", async () => {
+    // As if MusicBrainz had "Harbor Lights" by Marlow Finch only.
+    const settle = jest.spyOn(musicbrainz, "settleTitleOrder").mockImplementation(async (r) => (r.orderUnsure ? otherOrder(r) : r));
+    try {
+      mockFetch.mockResolvedValueOnce(ok(CHANNEL));
+      player("playing", { _id: "req-9", videoId: "xyz", title: "Harbor Lights - Marlow Finch (remix)", channel: "Some Fan 420" });
+      await client.connect();
+      expect(client.getCurrentSong()?.song).toMatchObject({ title: "Harbor Lights", artist: "Marlow Finch" });
+      expect(settle).toHaveBeenCalledTimes(1);
+    } finally {
+      settle.mockRestore();
+    }
   });
 
   it("follows /playing when the player doesn't report a state", async () => {

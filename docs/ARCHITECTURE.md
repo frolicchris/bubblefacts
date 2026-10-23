@@ -1,5 +1,7 @@
 # How it works
 
+*Current as of 2.1.0-beta.1 (October 2026).*
+
 This is for anyone changing the code. It explains how a song becomes fact
 bubbles, and why the less obvious parts are the way they are. Each of those
 decisions came from something going wrong on a live stream, so please read
@@ -575,6 +577,14 @@ otherwise match the general article about overtures. More rules in
   the request gives no year (`oneOfSeveral`), comes after the others. Up to
   three of them are read, and the one whose music names the track is taken;
   when none does, a dated one is never taken.
+- **A game's track comes from the game, not a film of its name.** When the
+  best match for a game is a film's, a show's or a book's page ("Sonic the
+  Hedgehog 2 (film)" outranked the game in the search) and it never names the
+  track as music, the game's own page is taken instead: bare or "(video
+  game)" (`gameInsteadOfScreen`), from the search or, when the search didn't
+  list it, from Wikipedia's pages of that name, and only if its brackets or
+  its opening say it's a game. Another game of the name ("(8-bit video game)") never stands in.
+  With no such page the film stays, and the work match still calls it unsure.
 - **Performers aren't games.** When the upload is a music video
   (`song.performer`), band and singer articles match, game, film and TV
   articles don't, the search asks for "`<name>` band", and an article with no
@@ -631,7 +641,12 @@ other ways to read one, each checked by all the rules above:
   is too short to write from), and any other page gives way to a
   performer's article under the name, never to itself. A game's article without such a song
   stays: game music lists put the game in the artist field, and a band may
-  share a game's name.
+  share a game's name. A city's, a country's, a region's or a sports team's
+  article is never a song's reference either: when the article doesn't open
+  as a piece, a performer or a game, its Wikidata item's classes are read
+  (`placeOrTeam`, by class label, since places come in national classes like
+  "municipality of Brazil"; a fictional place stays, as a game's world). The
+  item is read once and kept for `articleItem`.
 - **A game in the title, possessive** ("Yoshi's Story: On the Beach" from
   "Yoshi"): the longer name is the game, as for "Super Mario 64: ..." from
   "Super Mario".
@@ -870,11 +885,16 @@ the server after two minutes of `degraded`, never for `unauthorized`.
 - REST `GET /queue`: the `playing` slot is what's on now; the first item in
   `items` is the *next* song and is only a fallback.
 - Centrifugo (`centrifugo-client.ts`) on `streamer:<id>` and
-  `streamer:<id>-queue`. Every publication and every reconnect does the same
-  thing: one debounced re-read of the queue. Event types are never inspected,
-  so a missed or renamed event costs at most one poll.
-- Polls every `SSL_POLL_INTERVAL_MS` (15 s), or every 60 s while events are
-  connected. An update during a read triggers one more read afterward.
+  `streamer:<id>-queue`. The channels go in the connect request's `subs`;
+  Centrifugo ignores fields it doesn't know, so the `channels` field 2.0 sent
+  subscribed nothing and every change waited for the 60 s poll. The events
+  count as connected only when the reply's `subs` lists a channel. Every
+  publication, whatever its data, and every reconnect does the same thing:
+  one debounced re-read of the queue. Event types are never inspected, so a
+  missed or renamed event costs at most one poll.
+- Polls every `SSL_POLL_INTERVAL_MS` (15 s), with events connected or not:
+  events make a change show at once, and the poll caps the wait when one is
+  lost. An update during a read triggers one more read afterward.
 - 429 and 503 back off for as long as `Retry-After` says.
 
 **StreamElements** (`streamelements-client.ts`), for musicians who take
@@ -965,8 +985,9 @@ apps that write the playing song into one text file:
 request's YouTube title and channel. `parseVideoTitle(title, channel)`:
 
 1. drops hashtags and label brackets ("(Official Video)", "[4K]", "ft. X",
-   also in Spanish, Portuguese, French and German), variant brackets
-   ("(Live)", "(Remix)"), and a later segment that names where it was
+   also in Spanish, Portuguese, French and German), labels that name the
+   artist or the song too ("(Some Band Official Music Video)"), variant
+   brackets ("(Live)", "(Remix)"), and a later segment that names where it was
    performed, not the song (a late-night show, "Tiny Desk", "SNL", "Live
    on/at/from ..."; `PERFORMANCE_SEGMENT`, whole segments only, so "Tonight"
    and "Live Forever" stay songs);
@@ -975,7 +996,12 @@ request's YouTube title and channel. `parseVideoTitle(title, channel)`:
 3. splits "Artist - Song" on a spaced dash, `~`, ` / ` or ` // ` (never
    "AC/DC"), and swaps the sides only on a clear sign: the channel or its
    initials ("SNL") name the right side, or only the right side is a
-   soundtrack or a "Series: Subtitle";
+   soundtrack or a "Series: Subtitle". With no sign either way, and no
+   official channel, it marks the order `orderUnsure`; the StreamElements and
+   now playing file sources then ask MusicBrainz once (`settleTitleOrder`:
+   one search for both orders, cached, through the paced queue, waiting at
+   most 1.5 s before the song change) and turn the reading round only when
+   MusicBrainz has the other order's recording and not this one's;
 4. otherwise tries `Artist "Song"`, `X's "Song"`, "A x B" and, when nothing
    else named the artist, `Artist_Song` (`underscoreSplit`: one underscore,
    words on both sides, neither starting in lowercase; never a filename, a

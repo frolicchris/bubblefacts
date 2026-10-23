@@ -501,7 +501,8 @@ async function pageItem(page: string): Promise<{ entity: Entity | null; labels: 
     action: "wbgetentities", sites: "enwiki", titles: page, normalize: "1", props: "claims|labels|descriptions", languages: "en|mul",
   });
   const entity = Object.values(data.entities ?? {}).find((e) => /^Q\d+$/.test(e.id ?? "") && e.missing === undefined) ?? null;
-  const refs = entity ? ["P175", "P361", "P136", "P19", "P740", "P264"].flatMap((p) => itemIds(entity, p)) : [];
+  // P31 first: its classes' labels tell a place's item (`placeOrTeam`).
+  const refs = entity ? ["P31", "P175", "P361", "P136", "P19", "P740", "P264"].flatMap((p) => itemIds(entity, p)) : [];
   const labels = await entities([...new Set(refs)].slice(0, 50), "labels|descriptions", "en|mul");
   const found = { entity, labels, at: Date.now() };
   pageItemCache.set(page, found);
@@ -531,6 +532,48 @@ export async function articleItem(page: string, artist: string[], titles: string
   } catch (err) {
     console.warn(`[Wikidata] Item lookup failed for "${page}": ${err instanceof Error ? err.message : err}`);
     return null;
+  }
+}
+
+// --- A place or a team named like the song or its artist ----------------------
+
+/**
+ * What a place's or a sports team's item is an instance of, by the class's label:
+ * "city", "commune of France", "U.S. state", "sovereign state", "region",
+ * "basketball team". Labels, not ids, because places come in thousands of
+ * national classes ("municipality of Brazil", "city in the United States").
+ */
+const PLACE_CLASS =
+  /\b(?:city|city-state|town|village|hamlet|capital|country|sovereign state|state|province|prefecture|municipality|commune|borough|county|county seat|metropolis|megacity|human settlement|settlement|region|continent|island|territory|district|neighbou?rhood|suburb|administrative)\b/i;
+const TEAM_CLASS = /\b(?:sports|football|basketball|baseball|hockey|cricket|rugby|volleyball|soccer|handball)\b.*\b(?:team|club)\b/i;
+
+/**
+ * The class that makes an article's item a place or a sports team ("city"), or
+ * "": never a song's reference. A fictional place ("fictional city") isn't one:
+ * a game's world may be what its music is about. An item that is also a piece
+ * of music, a release or a performer isn't either.
+ */
+export function placeOrTeamFrom(e: Entity, labels: Record<string, Entity>): string {
+  const classes = itemIds(e, "P31");
+  if (classes.some((c) => SONG_CLASSES.has(c) || NOT_ONE_PIECE.has(c) || GROUP_CLASSES.has(c) || c === HUMAN)) return "";
+  for (const c of classes) {
+    const label = anyLabel(labels[c]);
+    if (label && !/\bfictional\b/i.test(label) && (PLACE_CLASS.test(label) || TEAM_CLASS.test(label))) return label;
+  }
+  return "";
+}
+
+/**
+ * Whether an English Wikipedia article is a city's, a country's, a region's or a
+ * sports team's (`placeOrTeamFrom`): its item's class ("city"), or "". The item is
+ * read once and kept for `articleItem`. "" when Wikidata can't be read. Never throws.
+ */
+export async function placeOrTeam(page: string): Promise<string> {
+  try {
+    const { entity, labels } = await pageItem(page);
+    return entity ? placeOrTeamFrom(entity, labels) : "";
+  } catch {
+    return "";
   }
 }
 
