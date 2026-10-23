@@ -5,6 +5,7 @@ import { SongSource } from "./song-source";
 import { displayTitle, toSong } from "./song-mapping";
 import { SSLQueueItem, SSLSong } from "./types";
 import { parseVideoTitle } from "./youtube-title";
+import { settleTitleOrder } from "./musicbrainz";
 
 /**
  * A text file a now-playing app keeps up to date with the song on now
@@ -55,6 +56,12 @@ const REQUESTER_TAIL = / ?(?:[-–—|•·~] |[(\[{] ?)?(?:\b(?:request(?:ed)?|
  * (" - " from an app's template with nothing playing) is no song.
  */
 export function parseNowPlaying(text: string, format: NowPlayingFormat): NowPlayingLine | null {
+  const read = readNowPlaying(text, format);
+  return read && { title: read.title, artist: read.artist };
+}
+
+/** `parseNowPlaying`, saying too when a YouTube title's order is unsure (see `settleTitleOrder`). */
+function readNowPlaying(text: string, format: NowPlayingFormat): (NowPlayingLine & { orderUnsure?: boolean }) | null {
   const line = text
     .split(/\r?\n|\r/)
     .map((l) => l.replace(/\s+/g, " ").trim())
@@ -64,7 +71,7 @@ export function parseNowPlaying(text: string, format: NowPlayingFormat): NowPlay
     const video = line.replace(REQUESTER_TAIL, "").trim() || line;
     const parsed = parseVideoTitle(video);
     if (!/[\p{L}\p{N}]/u.test(parsed.title)) return null;
-    return { title: parsed.title, artist: /[\p{L}\p{N}]/u.test(parsed.artist) ? parsed.artist : "Unknown" };
+    return { title: parsed.title, artist: /[\p{L}\p{N}]/u.test(parsed.artist) ? parsed.artist : "Unknown", ...(parsed.orderUnsure ? { orderUnsure: true } : {}) };
   }
   if (format === "artist-title") {
     const at = line.indexOf(" - ");
@@ -267,7 +274,9 @@ export class NowPlayingFileSource implements SongSource {
       await handle.close();
     }
     this.note("", () => undefined);
-    const line = parseNowPlaying(decodeNowPlaying(bytes), this.format);
+    // "X - Y" with no channel to go by: MusicBrainz may say which side is the artist (cached, so the next check agrees).
+    const read = readNowPlaying(decodeNowPlaying(bytes), this.format);
+    const line = read && (await settleTitleOrder(read));
     return line && `${line.artist}\0${line.title}`;
   }
 

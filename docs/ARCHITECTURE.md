@@ -611,7 +611,12 @@ other ways to read one, each checked by all the rules above:
   is too short to write from), and any other page gives way to a
   performer's article under the name, never to itself. A game's article without such a song
   stays: game music lists put the game in the artist field, and a band may
-  share a game's name.
+  share a game's name. A city's, a country's, a region's or a sports team's
+  article is never a song's reference either: when the article doesn't open
+  as a piece, a performer or a game, its Wikidata item's classes are read
+  (`placeOrTeam`, by class label, since places come in national classes like
+  "municipality of Brazil"; a fictional place stays, as a game's world). The
+  item is read once and kept for `articleItem`.
 - **A game in the title, possessive** ("Yoshi's Story: On the Beach" from
   "Yoshi"): the longer name is the game, as for "Super Mario 64: ..." from
   "Super Mario".
@@ -948,14 +953,20 @@ apps that write the playing song into one text file:
 request's YouTube title and channel. `parseVideoTitle(title, channel)`:
 
 1. drops hashtags and label brackets ("(Official Video)", "[4K]", "ft. X",
-   also in Spanish, Portuguese, French and German), and variant brackets
-   ("(Live)", "(Remix)");
+   also in Spanish, Portuguese, French and German), labels that name the
+   artist or the song too ("(Some Band Official Music Video)"), and variant
+   brackets ("(Live)", "(Remix)");
 2. reads the work from "(From "Frozen")", "(... OST)", "| Game of Thrones" or a
    "Series: Subtitle" bracket, and the artist from "(by X)";
 3. splits "Artist - Song" on a spaced dash, `~`, ` / ` or ` // ` (never
    "AC/DC"), and swaps the sides only on a clear sign: the channel or its
    initials ("SNL") name the right side, or only the right side is a
-   soundtrack or a "Series: Subtitle";
+   soundtrack or a "Series: Subtitle". With no sign either way, and no
+   official channel, it marks the order `orderUnsure`; the StreamElements and
+   now playing file sources then ask MusicBrainz once (`settleTitleOrder`:
+   one search for both orders, cached, through the paced queue, waiting at
+   most 1.5 s before the song change) and turn the reading round only when
+   MusicBrainz has the other order's recording and not this one's;
 4. otherwise tries `Artist "Song"`, `X's "Song"` and "A x B";
 5. falls back to the uploader's channel, trusted only when official
    ("CiaraVEVO", "Ciara - Topic").
