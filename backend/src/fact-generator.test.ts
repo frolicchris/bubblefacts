@@ -46,6 +46,8 @@ jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
   fetchGrounding: jest.fn().mockResolvedValue(""),
   summaryGate: jest.fn().mockResolvedValue(""),
+  // No article text, and no real request to Wikipedia: the mocked config above has no timeout for it either.
+  loadWikitext: jest.fn().mockResolvedValue(""),
 }));
 
 import { config } from "./config";

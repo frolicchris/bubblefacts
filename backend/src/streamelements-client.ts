@@ -3,7 +3,8 @@ import { AstroStream } from "./astro-client";
 import { SongSource } from "./song-source";
 import { displayTitle, toSong } from "./song-mapping";
 import { SSLQueueItem, SSLSong } from "./types";
-import { isTopicChannel, parseVideoTitle } from "./youtube-title";
+import { isTopicChannel, ParsedTitle, parseVideoTitle } from "./youtube-title";
+import { settleTitleOrder } from "./musicbrainz";
 import { songFromYouTube, YouTubeSong } from "./youtube-metadata";
 import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
@@ -175,10 +176,11 @@ export class StreamElementsClient implements SongSource {
    * A song request as the queue entry the fact pipeline reads. The title and
    * artist come from the YouTube title; the requester and length carry over.
    * There's no play count or note on StreamElements, so no facts use them.
+   * `read`: the title already read (and its order settled, see `settleTitleOrder`).
    */
-  static toEntry(song: SESong, exact: YouTubeSong | null = null): SSLQueueItem {
+  static toEntry(song: SESong, exact: YouTubeSong | null = null, read: ParsedTitle | null = null): SSLQueueItem {
     // An auto-generated upload's own metadata beats reading its title.
-    const parsed = exact ? { ...exact, confident: true, performer: true } : parseVideoTitle(song.title ?? "", song.channel);
+    const parsed = exact ? { ...exact, confident: true, performer: true } : (read ?? parseVideoTitle(song.title ?? "", song.channel));
     const requester = song.user?.username?.trim();
     return {
       id: 0,
@@ -299,7 +301,9 @@ export class StreamElementsClient implements SongSource {
     if (nextKey === this.currentKey) return;
     // Only auto-generated uploads carry exact metadata; asking for any other video costs quota and time.
     const exact = next && isTopicChannel(next.channel) ? await songFromYouTube(next.videoId) : null;
-    const entry = next && StreamElementsClient.toEntry(next, exact);
+    // "X - Y" from a fan's or a label's channel: MusicBrainz may say which side is the artist.
+    const read = next && !exact ? await settleTitleOrder(parseVideoTitle(next.title ?? "", next.channel)) : null;
+    const entry = next && StreamElementsClient.toEntry(next, exact, read);
     console.log(
       `[SE] Song changed: "${this.currentSong ? this.displayTitle(this.currentSong) : "none"}" -> ` +
         `"${entry ? this.displayTitle(entry) : "none"}"` +

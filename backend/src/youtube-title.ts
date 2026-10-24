@@ -31,6 +31,18 @@ export interface ParsedTitle {
    * music video or official audio, or comes from a VEVO or "- Topic" channel.
    */
   performer: boolean;
+  /**
+   * "X - Y" with nothing to tell which side is the artist: no official channel,
+   * a channel that names neither side, no soundtrack or subtitle. The other
+   * order (`otherOrder`) may be the right one; `settleTitleOrder` in
+   * musicbrainz.ts asks MusicBrainz.
+   */
+  orderUnsure?: boolean;
+}
+
+/** The reading with title and artist the other way round. */
+export function otherOrder<T extends { title: string; artist: string }>(reading: T): T {
+  return { ...reading, title: reading.artist, artist: reading.title };
 }
 
 /** An upload that is a performer's own release, not soundtrack music. */
@@ -59,6 +71,27 @@ const SEGMENT_NOISE_RE = wordsRe([...NOISE_WORDS, ...VARIANT_WORDS]);
 /** Nothing left once the noise words and punctuation are taken out. */
 function onlyNoise(text: string, re: RegExp): boolean {
   return !text.replace(re, "$1").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/** A word that says what the upload is, as in "Official Music Video" or "Lyric Video". */
+const UPLOAD_LABEL = /(?:^|\s)(?:official|video|videoclip|clip|audio|lyrics?|visuali[sz]er|mv)(?=$|\s)/;
+
+/**
+ * A bracket of the upload's own labels that names the artist or the song too:
+ * "(Some Band Official Music Video)", "[Some Band - Official Audio]". `names`:
+ * the title's " - " and " | " segments and the channel's artist. The name must
+ * be whole, everything else noise, and one word a label word, so
+ * "(Some Band Remix)" and "(Some Singer's Version)" stay. The name, or null.
+ */
+function namedLabel(inner: string, names: string[]): string | null {
+  const words = ` ${songIdentity(inner)} `;
+  for (const name of names) {
+    const n = songIdentity(name);
+    if (!n || !words.includes(` ${n} `)) continue;
+    const rest = words.replace(` ${n} `, " ");
+    if (UPLOAD_LABEL.test(rest) && onlyNoise(rest, NOISE_RE)) return name;
+  }
+  return null;
 }
 
 /** One word that is always a label on its own, never a song: "Song - Lyrics". */
@@ -209,9 +242,18 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
   // 1. Brackets: drop the upload's own labels, keep what names the song or its source.
   let byArtist = "";
   let work = "";
+  const channelInfo = artistFromChannel(channel);
+  // The names a label bracket may hold: "(Some Band Official Video)".
+  const names = [...raw.replace(BRACKETS, " ").split(/\s*[|｜]\s*/).flatMap((p) => p.split(DASH)), channelInfo.artist].map(stripFeaturing).filter(Boolean);
+  let labelName = "";
   let text = raw.replace(BRACKETS, (whole, a, b, c, d, e, f, g) => {
     const inner: string = (a ?? b ?? c ?? d ?? e ?? f ?? g ?? "").trim();
     if (!inner || onlyNoise(inner, NOISE_RE) || FEATURING_BRACKET.test(inner)) return " ";
+    const named = namedLabel(inner, names);
+    if (named) {
+      labelName ||= named;
+      return " ";
+    }
     const from = inner.match(FROM_BRACKET);
     if (from) {
       source ||= withoutSoundtrack(from[1] ?? from[2] ?? "");
@@ -248,17 +290,20 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
   const parts = dashSplit.filter((p, i) => !labelSegment(p, dashSplit.length, i));
   // "Song - Drum Cover | Artist": once the label is gone, the pipe names the artist.
   const pipeSource = pipes.length > 1 && parts.length < 2 ? pipes[1] : "";
-  const channelInfo = artistFromChannel(channel);
 
   let artist = "";
   let title = "";
   let confident = false;
   let fromSource = false;
+  let orderUnsure = false;
 
   if (parts.length >= 2) {
     let left = parts[0];
     let right = parts.slice(1).join(" - ");
-    if (shouldSwap(left, right, channelInfo.artist)) [left, right] = [right, left];
+    const sign = orderSign(left, right, channelInfo.artist);
+    if (sign === "swap") [left, right] = [right, left];
+    // A label naming the left side ("Some Band - Song (Some Band Official Video)") settles it too.
+    orderUnsure = !sign && parts.length === 2 && !channelInfo.official && !(labelName && fold(labelName) === fold(stripFeaturing(left)));
     artist = withoutSoundtrack(stripFeaturing(left));
     if (fold(artist) === initials(channelInfo.artist)) artist = channelInfo.artist;
     title = stripFeaturing(right);
@@ -310,7 +355,7 @@ export function parseVideoTitle(rawTitle: string, channel?: string | null): Pars
     confident = false;
   }
   const performer = !!artist && !fromSource && (PERFORMER_UPLOAD.test(raw) || channelInfo.official);
-  return { title, artist: tidy(artist), confident, performer };
+  return { title, artist: tidy(artist), confident, performer, ...(orderUnsure && artist ? { orderUnsure: true } : {}) };
 }
 
 function stripFeaturing(s: string): string {
@@ -331,15 +376,20 @@ function initials(name: string): string {
  *  - the right side is a soundtrack ("... OST");
  *  - the right side has a subtitle ("The Legend of Zelda: Ocarina of Time")
  *    and the left doesn't, which is how works are titled, not songs.
+ * The same signs on the left keep the order. Null when there's no sign either way.
  */
-function shouldSwap(left: string, right: string, channelArtist: string): boolean {
+function orderSign(left: string, right: string, channelArtist: string): "keep" | "swap" | null {
   const ch = fold(channelArtist);
   if (ch) {
-    if (fold(left) === ch || fold(stripFeaturing(left)) === ch) return false;
-    if (fold(right) === ch || fold(stripFeaturing(right)) === ch) return true;
+    if (fold(left) === ch || fold(stripFeaturing(left)) === ch) return "keep";
+    if (fold(right) === ch || fold(stripFeaturing(right)) === ch) return "swap";
     // "Friendos - SNL" from the Saturday Night Live channel: the show's initials name the source.
-    if (fold(right) === initials(channelArtist)) return true;
+    if (fold(right) === initials(channelArtist)) return "swap";
+    if (fold(left) === initials(channelArtist)) return "keep";
   }
-  if (HAS_SOUNDTRACK.test(right) && !HAS_SOUNDTRACK.test(left)) return true;
-  return /\S:\s/.test(right) && !/:/.test(left);
+  if (HAS_SOUNDTRACK.test(right) && !HAS_SOUNDTRACK.test(left)) return "swap";
+  if (/\S:\s/.test(right) && !/:/.test(left)) return "swap";
+  if (HAS_SOUNDTRACK.test(left) && !HAS_SOUNDTRACK.test(right)) return "keep";
+  if (/\S:\s/.test(left) && !/:/.test(right)) return "keep";
+  return null;
 }

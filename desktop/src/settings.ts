@@ -47,7 +47,7 @@ export interface Settings {
   myFacts: string[];
   myOriginals: string[];
   ai: "builtin" | "groq" | "anthropic" | "ollama";
-  /** Which built-in model: the small default, or the bigger one that makes fewer mistakes (model.ts). */
+  /** Which built-in model: the small default, or the bigger one (model.ts). */
   aiQuality: AiQuality;
   groqKey: string;
   anthropicKey: string;

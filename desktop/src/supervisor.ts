@@ -21,6 +21,8 @@ export interface Health {
   songSource?: string;
   currentSong: string | null;
   eventsConnected: boolean;
+  /** How BubbleFacts hears about songs, for the dashboard's Songs light ("Hearing your queue live"); older servers leave it out. */
+  listening?: string;
   obsClients: number;
   clients: Array<{ addr: string; ua: string }>;
   lastQueueFetchAgeMs: number | null;

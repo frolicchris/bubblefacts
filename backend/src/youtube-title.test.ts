@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { topic: "general" } }));
 
-import { artistFromChannel, parseVideoTitle } from "./youtube-title";
+import { artistFromChannel, otherOrder, parseVideoTitle } from "./youtube-title";
 import { resolveGameAndTrack } from "./fact-verifier";
 
 describe("parseVideoTitle", () => {
@@ -159,6 +159,53 @@ describe("performance and show labels", () => {
   });
 });
 
+describe("upload labels that name the artist", () => {
+  it.each<[string, string, string, string]>([
+    ["Marlow Finch - Harbor Lights (Marlow Finch Official Music Video)", "", "Harbor Lights", "Marlow Finch"],
+    ["Marlow Finch - Harbor Lights [Marlow Finch Official Audio]", "Some Fan", "Harbor Lights", "Marlow Finch"],
+    ["Marlow Finch - Harbor Lights (Marlow Finch - Official Lyric Video)", "", "Harbor Lights", "Marlow Finch"],
+    ["Harbor Lights (Marlow Finch Official Video)", "Marlow Finch", "Harbor Lights", "Marlow Finch"],
+  ])("drops the label in %s", (raw, channel, title, artist) => {
+    expect(parseVideoTitle(raw, channel)).toMatchObject({ title, artist });
+  });
+
+  it("keeps a bracket that names the artist but isn't a label", () => {
+    expect(parseVideoTitle("Marlow Finch - Harbor Lights (Juniper Reyes Remix)", "")).toMatchObject({ title: "Harbor Lights (Juniper Reyes Remix)" });
+    expect(parseVideoTitle("Marlow - Harbor Lights (Marlow's Version)", "")).toMatchObject({ title: "Harbor Lights (Marlow's Version)" });
+    expect(parseVideoTitle("Marlow Finch - Harbor Lights (Marlow Finch Remix)", "")).toMatchObject({ title: "Harbor Lights (Marlow Finch Remix)" });
+  });
+});
+
+describe("which side is the artist", () => {
+  it.each<[string, string]>([
+    ["Harbor Lights - Marlow Finch (remix)", "Some Fan 420"],
+    ["Marlow Finch - Harbor Lights", "Juniper Records"],
+    ["Marlow Finch - Harbor Lights (Official Video)", ""],
+  ])("is unsure for %s from %s, which MusicBrainz may settle", (raw, channel) => {
+    expect(parseVideoTitle(raw, channel).orderUnsure).toBe(true);
+  });
+
+  it.each<[string, string]>([
+    ["Harbor Lights - Marlow Finch", "MarlowFinchVEVO"],
+    ["Harbor Lights - Marlow Finch", "Marlow Finch - Topic"],
+    ["Marlow Finch - Harbor Lights", "Marlow Finch"],
+    ["Harbor Lights - Marlow Finch", "Marlow Finch"],
+    ["Marlow Finch - Harbor Lights (Marlow Finch Official Music Video)", ""],
+    ["Harbor Lights - Glass Valley OST", ""],
+    ["Glass Valley OST - Harbor Lights", ""],
+    ["Harbor Lights - Glass Valley: Second Dawn", ""],
+    ["Marlow Finch - Harbor Lights - Part 2", ""],
+  ])("is sure for %s from %s", (raw, channel) => {
+    expect(parseVideoTitle(raw, channel).orderUnsure).toBeUndefined();
+  });
+
+  it("swaps title and artist for the other order", () => {
+    const read = parseVideoTitle("Harbor Lights - Marlow Finch (remix)", "Some Fan 420");
+    expect(read).toMatchObject({ title: "Marlow Finch", artist: "Harbor Lights" });
+    expect(otherOrder(read)).toMatchObject({ title: "Harbor Lights", artist: "Marlow Finch" });
+  });
+});
+
 describe("artistFromChannel", () => {
   it.each<[string, string, boolean]>([
     ["CiaraVEVO", "Ciara", true],
@@ -176,10 +223,12 @@ describe("artistFromChannel", () => {
 describe("the title corpus (issue #25)", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { cases } = require("./fixtures/youtube-titles.json") as {
-    cases: Array<{ title: string; channel: string; artist: string; song: string; kind: string }>;
+    cases: Array<{ title: string; channel: string; artist: string; song: string; kind: string; order?: string }>;
   };
   const results = cases.map((c) => {
-    const got = parseVideoTitle(c.title, c.channel);
+    // "order": "musicbrainz": only MusicBrainz tells which side is the artist; the title is read as unsure and turned round.
+    const read = parseVideoTitle(c.title, c.channel);
+    const got = c.order === "musicbrainz" && read.orderUnsure ? otherOrder(read) : read;
     return { ...c, got, ok: got.artist === c.artist && got.title === c.song };
   });
 
