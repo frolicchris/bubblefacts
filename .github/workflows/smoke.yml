@@ -2,10 +2,17 @@ name: Smoke test
 
 # Installs a published release the way a musician would, on each system, and
 # checks the installed app: its server starts and serves the overlay, and the
-# built-in AI loads (GPU if there is one, then processor-only). Run it from
-# Actions > Smoke test > Run workflow before telling testers about a release.
+# built-in AI loads (GPU if there is one, then processor-only). It starts by
+# itself when a Release run finishes successfully, on that run's artifacts. To
+# test a release again, use Actions > Smoke test > Run workflow.
 
 on:
+  # Runs the copy of this file on the default branch, whichever branch or tag
+  # the Release run built. There are no inputs here: the run ID comes from the
+  # event.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
@@ -17,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # download another run's artifacts
 
 env:
   MODEL_URL: https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/5ab33fa94d1d04e903623ae72c95d1696f09f9e8/Llama-3.2-3B-Instruct-Q4_K_M.gguf
@@ -25,6 +33,8 @@ env:
 jobs:
   smoke:
     name: Smoke test (${{ matrix.name }})
+    # A Release run that failed or was cancelled has nothing worth testing.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -46,7 +56,7 @@ jobs:
       - name: Pick the release
         env:
           TAG_INPUT: ${{ inputs.tag }}
-          RUN_INPUT: ${{ inputs.run }}
+          RUN_INPUT: ${{ inputs.run || github.event.workflow_run.id }}
         run: |
           tag="$TAG_INPUT"
           if [ -n "$RUN_INPUT" ]; then tag="run $RUN_INPUT"; fi
@@ -57,7 +67,7 @@ jobs:
           echo "Testing $tag"
       - name: Download the installer
         env:
-          RUN_INPUT: ${{ inputs.run }}
+          RUN_INPUT: ${{ inputs.run || github.event.workflow_run.id }}
         run: |
           if [ -n "$RUN_INPUT" ]; then
             gh run download "$RUN_INPUT" --repo "$GITHUB_REPOSITORY" --name "${{ matrix.artifact }}" --dir all
