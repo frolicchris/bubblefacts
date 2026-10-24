@@ -1080,3 +1080,11 @@ code.cmd {
   padding-left: 1.4rem;
   margin-top: 0.5rem;
 }
+
+/* Beta box on the download page: one button per installer, wrapping on phones. */
+.beta-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}

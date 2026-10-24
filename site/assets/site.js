@@ -186,6 +186,43 @@
     root.classList.add(isStable ? "site-stable" : "site-beta");
   }
 
+  // The beta box: version, notes link, and one button per installer, with
+  // this visitor's system as the main button. A missing file keeps the
+  // Releases page link.
+  var OS_BUILDS = { mac: "mac-arm64", windows: "windows-x64", linux: "linux-deb" };
+
+  function showBeta(beta) {
+    var version = versionOf(beta);
+    Array.prototype.forEach.call(document.querySelectorAll("[data-beta-version]"), function (el) {
+      el.textContent = version;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-beta-shown]"), function (el) {
+      el.hidden = !version;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-beta-notes]"), function (el) {
+      if (beta.html_url) el.href = beta.html_url;
+    });
+    var urls = {};
+    (beta.assets || []).forEach(function (asset) {
+      Object.keys(PATTERNS).forEach(function (key) {
+        if (!urls[key] && PATTERNS[key].test(asset.name)) urls[key] = asset.browser_download_url;
+      });
+    });
+    var mine = OS_BUILDS[detectOS()];
+    Array.prototype.forEach.call(document.querySelectorAll("[data-beta-asset]"), function (link) {
+      var key = link.getAttribute("data-beta-asset");
+      link.href = urls[key] || beta.html_url || RELEASES_PAGE;
+      if (key === mine && urls[key]) {
+        link.classList.remove("btn-secondary", "btn-small");
+        link.classList.add("btn-primary");
+        link.parentNode.insertBefore(link, link.parentNode.firstChild);
+      }
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-beta-line]"), function (el) {
+      el.hidden = false;
+    });
+  }
+
   // The newest full release with installers. Before there is one (1.0.0 was
   // command-line only), the newest beta, as before.
   function loadRelease() {
@@ -198,14 +235,9 @@
       if (!shown) return;
       setChannel(stable);
       showRelease(shown);
-      // Testers find the newest beta when it's ahead of the full release.
-      if (stable && beta && compareVersions(versionOf(beta), versionOf(stable)) > 0) {
-        Array.prototype.forEach.call(document.querySelectorAll("[data-beta-line]"), function (el) {
-          var link = el.querySelector("a");
-          if (link && beta.html_url) link.href = beta.html_url;
-          el.hidden = false;
-        });
-      }
+      // When a beta is ahead of the full release, offer its installers
+      // directly: the GitHub page buries them under the release notes.
+      if (stable && beta && compareVersions(versionOf(beta), versionOf(stable)) > 0) showBeta(beta);
     }).catch(function () { /* links keep pointing at the Releases page */ });
   }
 
