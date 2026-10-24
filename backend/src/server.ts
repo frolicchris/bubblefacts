@@ -8,6 +8,7 @@ import { SongListClient, setAccessToken } from "./songlist-client";
 import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
+import { listeningLine } from "./listening";
 import { allowedFacts, pulledWithWrong, positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
@@ -576,6 +577,8 @@ app.get("/health", (_req, res) => {
     currentSong: current ? songList.displayTitle(current) : null,
     lastQueueFetchAgeMs: queueAgeMs,
     eventsConnected: songList.isEventStreamConnected(),
+    // How songs reach BubbleFacts, in words for the dashboard ("Hearing your queue live").
+    listening: listeningLine(songList),
     obsClients: clients.size,
     clients: [...clients.values()].map((c) => ({
       addr: c.addr,

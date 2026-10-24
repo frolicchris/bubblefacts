@@ -222,7 +222,7 @@
       </div>
 
       <ul class="lights" aria-label="Status">
-        <li id="light-songlist"><span class="dot" aria-hidden="true"></span><span><strong>Songs</strong><em></em></span></li>
+        <li id="light-songlist"><span class="dot" aria-hidden="true"></span><span><strong>Songs</strong><em></em><em class="hearing" id="songs-hearing" hidden></em></span></li>
         <li id="light-ai"><span class="dot" aria-hidden="true"></span><span><strong>Facts</strong><em></em></span></li>
         <li id="light-obs"><span class="dot" aria-hidden="true"></span><span><strong>Stream</strong><em></em></span></li>
       </ul>
@@ -463,7 +463,7 @@
             <p class="label" id="s-quality-label">On this computer</p>
             <div class="checks single" role="radiogroup" aria-labelledby="s-quality-label" aria-describedby="s-quality-hint s-quality-switch">
               <label><input type="radio" name="aiQuality" value="standard"> <span><strong>Standard</strong><br><span class="hint">about a 2.5 GB download, 8 GB of memory</span></span></label>
-              <label><input type="radio" name="aiQuality" value="high"> <span><strong>High quality:</strong> fewer mistakes, a bigger download (about 5 GB), needs 16 GB of memory, a little slower</span></label>
+              <label><input type="radio" name="aiQuality" value="high"> <span><strong>High quality:</strong> a bigger AI and a bigger download (about 5 GB). Needs a strong computer with 16 GB of memory, and writes a little slower</span></label>
             </div>
             <p class="hint" id="s-quality-hint">High quality is only fast enough with a graphics chip that can hold it: any Mac with Apple silicon (M1 or newer), or on Windows and Linux a graphics card with about 6 GB or more of its own memory (VRAM). Without one, it runs on the processor, several times slower, and may show fewer bubbles per song.</p>
             <p class="hint" id="s-quality-switch">Switching downloads the other one. The one you have keeps writing facts until it's ready, then it's deleted to save space, so switching back downloads it again.</p>
