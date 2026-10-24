@@ -1297,5 +1297,29 @@ BubbleFacts data** deletes all of them.
 - **Don't use `requestAnimationFrame` to start animations.** It pauses while
   OBS isn't drawing the source, so bubbles created then would never appear.
   The page forces a style update instead.
+- **Vertical streams get a second overlay file, not a page that adapts to its
+  shape** (issue #175). `obs-overlay-vertical.html` is the same script and
+  styles with `data-layout="vertical"`; every fact carries a `vertical` spot
+  beside its `position`, and the page picks one. A page that guessed its
+  layout from the source's shape would go wrong in ways a streamer can't see:
+  OBS shares one source between scenes and canvases, so a single source can't
+  be landscape in one and vertical in the other, and some streamers squeeze
+  the landscape overlay into a tall strip on purpose. A file per layout also
+  gives each its own settings (`VERTICAL_AREA`, `--bf-vertical-scale`), so one
+  app feeds both scenes at once. The vertical page sizes everything from the
+  source's width (40px text at 1080 wide, about 17px on a phone) and keeps to
+  the area TikTok, YouTube Shorts and Instagram Live all leave clear of their
+  live UI: 14% from the top, 38% from the bottom (live chat), 6% from the
+  left and 12% from the right (`VERTICAL_SAFE`). Twitch's Dual Format phone
+  view fits inside that too: its help article gives no numbers, but in its
+  safe-zone diagram the top bar covers about 7% of the video and chat about
+  13% to 33% of the bottom, by the viewer's chat height, with no buttons down
+  the sides. There's room for one bubble
+  there, so each area is a single spot, and a vertical overlay joining
+  mid-song shows only the latest of the catch-up bubbles still up (the
+  server's catch-up keeps one per landscape spot). If it finds itself in a source wider
+  than tall (dropped onto a landscape canvas, or a new Browser source left at
+  800x600), it says how to fix the size instead of drawing bubbles off the
+  phone's screen.
 - **The banner and the bubbles have separate timers,** so facts arriving right
   after a song change can't cancel the banner's fade-out.

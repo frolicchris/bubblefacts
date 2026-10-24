@@ -303,6 +303,13 @@ CREDIT_BUBBLE=on           # off hides the bubble that says where facts come fro
 Keep the interval longer than the duration, so only one bubble is on screen
 at a time.
 
+**Streaming vertically** (Twitch Dual Format, TikTok, YouTube Shorts, Instagram Live)? Add a
+second Browser source, **Local file**, pointing at
+`frontend/obs/obs-overlay-vertical.html`, at **1080** by **1920**. Its
+bubbles keep clear of those apps' buttons and chat. Choose where they go with
+`VERTICAL_AREA=top` (or `above-chat`), and their size with
+`--bf-vertical-scale` at the top of `obs-overlay.css`.
+
 ### The look
 
 Colors, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
