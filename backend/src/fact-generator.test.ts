@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { ARTIST_SONG_RULE, RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
@@ -456,6 +456,17 @@ describe("generateFacts", () => {
     const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
     expect(prompt).toContain(RETELL_EXAMPLES);
     expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
+  });
+
+  it("asks for the artist as the subject of a caption about another song, only on an artist's article", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Mira Vale\nMira Vale is an American singer.\n${MODEL_LINES}`);
+    await generateFacts({ title: "Velvet Harbor", artist: "Mira Vale" });
+    expect(mockCreate.mock.calls[0][0].messages[0].content).toContain(ARTIST_SONG_RULE);
+    mockCreate.mockClear();
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Plain Tune (song)\n${MODEL_LINES}`);
+    await generateFacts({ title: "Plain Tune", artist: "Someone" });
+    expect(mockCreate.mock.calls[0][0].messages[0].content).not.toContain(ARTIST_SONG_RULE);
   });
 
   it("drops a caption that pins an example's story on a name the reference has", async () => {
