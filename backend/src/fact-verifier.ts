@@ -2,7 +2,7 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
-import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments } from "./text";
+import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments, withoutRequestCredit } from "./text";
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
@@ -3010,7 +3010,11 @@ interface Grounded {
  * When an article's older version couldn't be read on the way, Wikipedia is skipped for the song this
  * time (issue #242): data facts show instead, and the lookup is tried again later.
  */
-export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+export async function fetchGrounding(listed: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+  // Who asked or paid for the song is never searched: "Some Band, Commissioned by Name" is Some Band.
+  const title = withoutRequestCredit(listed.title) || listed.title;
+  const artist = withoutRequestCredit(listed.artist ?? "", true);
+  const song = title === listed.title.trim() && artist === (listed.artist ?? "").trim() ? listed : { ...listed, title, artist };
   const failedBefore = olderVersionFailures;
   const text = await findGrounding(song, skip);
   if (olderVersionFailures === failedBefore) return text;

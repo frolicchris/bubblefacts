@@ -986,6 +986,27 @@ describe("a note after the artist's name (issue #262)", () => {
     log.mockRestore();
   });
 
+  it("never searches, prompts, shows or logs who commissioned or requested the song", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockClear().mockResolvedValueOnce(article);
+    (wikidataFacts as jest.Mock).mockClear();
+    mockCreate.mockClear();
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const facts = await generateFacts({ title: "Glass Orchard (requested by Moss Tinker)", artist: "Wren Halloway, Commissioned by Moss Tinker" });
+    expect(facts.length).toBeGreaterThan(0);
+    expect(mockCreate).toHaveBeenCalled();
+    const searched = JSON.stringify([(fetchGrounding as jest.Mock).mock.calls, (wikidataFacts as jest.Mock).mock.calls, (artistFacts as jest.Mock).mock.calls]);
+    expect(searched).toContain("Wren Halloway");
+    expect(searched).not.toContain("Tinker");
+    expect(JSON.stringify(mockCreate.mock.calls)).not.toContain("Tinker");
+    expect(JSON.stringify(facts)).not.toContain("Tinker");
+    expect(JSON.stringify([log.mock.calls, warn.mock.calls])).not.toContain("Tinker");
+    expect(songsLogLine({ title: "Glass Orchard (requested by Moss Tinker)", artist: "Wren Halloway, Commissioned by Moss Tinker" }, "grounded", 4)).not.toContain("Tinker");
+    log.mockRestore();
+    warn.mockRestore();
+  });
+
   it("is left out of a live learn's lookup too", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     await generateFacts({ ...noted, liveLearn: true });

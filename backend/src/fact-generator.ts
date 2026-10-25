@@ -4,7 +4,7 @@ import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
-import { hasNoArtist, withoutArtistNote } from "./text";
+import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -166,7 +166,7 @@ export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song))
 /** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
 export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
-  return [now.toISOString(), clean(song.title), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
+  return [now.toISOString(), clean(withoutRequestCredit(song.title)), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
 }
 
 /** Count the outcome and append a line to logs/songs.log. */
@@ -1220,10 +1220,15 @@ function bestSupported(
   return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
 }
 
-/** The song with its artist's note in brackets left out (`withoutArtistNote`): the same object when it has none. */
+/**
+ * The song with its artist's note in brackets left out (`withoutArtistNote`), and a note naming
+ * who asked or paid for it left out of the title too (`withoutRequestCredit`): the same object
+ * when it has neither.
+ */
 export function withoutNote(song: SSLSong): SSLSong {
   const artist = withoutArtistNote(song.artist ?? "");
-  return artist === (song.artist ?? "").trim() ? song : { ...song, artist };
+  const title = withoutRequestCredit(song.title) || song.title;
+  return artist === (song.artist ?? "").trim() && title === song.title ? song : { ...song, title, artist };
 }
 
 /**

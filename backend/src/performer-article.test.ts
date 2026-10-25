@@ -44,6 +44,17 @@ describe("a performer's name shared with a film or a book", () => {
     expect(await fetchGrounding({ title: "Night Parade", artist: "Glass Orchard (British)" })).toMatch(/^Night Parade \(song\)\n/);
   });
 
+  it("never searches for who commissioned or requested the song", async () => {
+    descriptions = { "Glass Orchard": "English rock band", "Night Parade (song)": "1974 single by Glass Orchard" };
+    const plain = await fetchGrounding({ title: "Night Parade", artist: "Glass Orchard (British)" });
+    expect(plain).toMatch(/^Night Parade \(song\)\n/);
+    clearGroundingCache();
+    mock.mockClear();
+    expect(await fetchGrounding({ title: "Night Parade (requested by Moss Tinker)", artist: "Glass Orchard (British), Commissioned by Moss Tinker" })).toBe(plain);
+    expect(mock).toHaveBeenCalled();
+    expect(JSON.stringify(mock.mock.calls)).not.toMatch(/Tinker/);
+  });
+
   it("takes the band's article when the song has none", async () => {
     descriptions = { "Glass Orchard": "English rock band" };
     expect(await fetchGrounding({ title: "Night Parade", artist: "Glass Orchard (British)" })).toMatch(/^Glass Orchard\n/);
