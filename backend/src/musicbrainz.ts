@@ -476,6 +476,7 @@ type Linked = { relations?: Relation[] };
 interface Item {
   sitelinks?: { enwiki?: { title?: string } };
   labels?: { en?: { value?: string } };
+  descriptions?: { en?: { value?: string } };
   claims?: Record<string, Array<{ rank?: string; mainsnak?: { datavalue?: { value?: { id?: string } } } }>>;
 }
 
@@ -584,10 +585,14 @@ export function songPageFit(page: string, full: string, titles: string[], artist
 const AN_ACT = /\b(band|singer|singer-songwriter|musician|rapper|songwriter|duo|trio|quartet|group|DJ|producer|composer|vocalist|guitarist|pianist|drummer|bassist)s?\b/i;
 const NOT_AN_ACT = /\b(film|movie|television|TV|series|show|album|EP|song|single|novel|character|fictional|brand|company|footballer|soccer|player|game)s?\b/i;
 
-/** Whether an artist's page fits: it opens as a performer's, under the typed name, a respelling of it (a quarter of the edits), or its initials. */
-export function artistPageFit(page: string, full: string, artists: string[]): { ok: boolean; why?: string } {
+/**
+ * Whether an artist's page fits: it opens as a performer's, under the typed name, a respelling of it (a quarter of the edits), or its initials.
+ * `description`, Wikidata's for the page, stands in only when the opening says nothing: the content standard may leave its first
+ * sentence out ("a Cuban-American musician"). It must pass the same tests.
+ */
+export function artistPageFit(page: string, full: string, artists: string[], description = ""): { ok: boolean; why?: string } {
   const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
-  const what = openingSays(full);
+  const what = openingSays(full) || description;
   if ((qualifier && !AN_ACT.test(qualifier)) || !AN_ACT.test(what) || NOT_AN_ACT.test(what)) return { ok: false, why: "doesn't open like a performer's article" };
   const base = withoutQualifier(page);
   const opening = normalizeTitle(leadOf(full).slice(0, 300));
@@ -631,10 +636,11 @@ async function findLinked(title: string, track: string, artist: string, usable: 
 
   if (!credit.id) return "";
   const qid = wikidataId(await lookup<Linked>(`artist/${credit.id}`, "url-rels"));
-  const page = qid ? (await wikidata([qid], "sitelinks"))[qid]?.sitelinks?.enwiki?.title : undefined;
+  const item = qid ? (await wikidata([qid], "sitelinks|descriptions"))[qid] : undefined;
+  const page = item?.sitelinks?.enwiki?.title;
   if (!page || !usable(page)) return "";
   const full = await wikiExtract(page);
-  const fit = full ? artistPageFit(page, full, artists) : { ok: false, why: "is a disambiguation page" };
+  const fit = full ? artistPageFit(page, full, artists, item?.descriptions?.en?.value) : { ok: false, why: "is a disambiguation page" };
   if (!full || !fit.ok) {
     console.log(`[Grounding] MusicBrainz's link "${page}" ${fit.why}, skipping`);
     return "";

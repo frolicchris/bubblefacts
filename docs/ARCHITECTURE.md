@@ -568,6 +568,22 @@ otherwise match the general article about overtures. More rules in
   articles don't, the search asks for "`<name>` band", and an article with no
   label in brackets must open like one about a performer ("Milestone" the
   road marker doesn't).
+- **A show as the artist gives its music, never just its name.** When the
+  artist field is a film's or a show's name and no performer has that name
+  on Wikipedia, the show's article is skipped unless it names the track. Its
+  own music article ("Music of Some Show", "Some Show (soundtrack)") is taken
+  only when its text or one of its track listings names the track
+  (`listingMusicArticle`). A performer's article under the name still wins,
+  and one taken in place of the search's page ("Some Name" to "Aurelio Some
+  Name") is never read as a longer-named installment.
+- **"Some Name Theme" can be the music of "Some Name".** Only when every
+  reading and MusicBrainz's link missed, the name has two words or more, and
+  no performer has the artist's name (`themeGrounding`): the article under
+  exactly that name, if it isn't a person's (no life dates in its lead, not a
+  human on Wikidata) and has a section on its own music ("Song", "Music",
+  "Theme song") with a music word in its lead. Only its lead and those
+  sections are read, so facts come from the work and its music. The artist
+  may be an arranger the article never names.
 - **For an artist, the song's own article wins** over the artist's, wherever
   it ranks ("Industry Baby" over "Lil Nas X"). A song article only has to
   mention the lead artist of a multi-artist credit.
