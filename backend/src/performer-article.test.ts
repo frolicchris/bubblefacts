@@ -2,7 +2,7 @@ jest.mock("./config", () => ({
   config: { factsPerSong: 5, dataDir: process.env.BUBBLEFACTS_DATA_DIR, groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, topic: "general" },
 }));
 
-import { clearGroundingCache, fetchGrounding, isNonMusicWork, leadNamesPerformer, listedTracks } from "./fact-verifier";
+import { clearGroundingCache, fetchGrounding, isNonMusicWork, leadNamesPerformer, listedTracks, themeOf } from "./fact-verifier";
 
 // Made-up bands, songs, films and games.
 describe("a performer's name shared with a film or a book", () => {
@@ -13,11 +13,18 @@ describe("a performer's name shared with a film or a book", () => {
   let redirects: Record<string, string>;
   let existing: string[];
   let wikitexts: Record<string, string>;
+  let humans: string[];
   const LONG = " It was recorded in a small studio over three weeks.".repeat(20);
   const mock = jest.fn(async (url: string) => {
     const p = new URL(url).searchParams;
     const term = p.get("srsearch");
     const names = (p.get("titles") ?? "").split("|");
+    // Wikidata: an item for each page in `humans`, a person's.
+    if (new URL(url).hostname === "www.wikidata.org") {
+      const human = p.get("titles") && humans.includes(p.get("titles")!);
+      const body = { entities: human ? { Q1: { id: "Q1", claims: { P31: [{ mainsnak: { datavalue: { value: { id: "Q5" } } } }] } } } : {} };
+      return { ok: true, status: 200, json: async () => body } as Response;
+    }
     const to = (n: string) => redirects[n] ?? n;
     const redirected = names.filter((n) => redirects[n]).map((n) => ({ from: n, to: redirects[n] }));
     let body: unknown;
@@ -47,6 +54,7 @@ describe("a performer's name shared with a film or a book", () => {
     redirects = {};
     existing = [];
     wikitexts = {};
+    humans = [];
     extracts = {
       "Glass Orchard (film)": `Glass Orchard is a 1971 horror anthology film directed by Ivo Marsh.${LONG}\n== Legacy ==\nThe band Glass Orchard took its name from the film.`,
       "Glass Orchard": `Glass Orchard are an English rock band formed in Leeds in 1969.${LONG}`,
@@ -165,6 +173,46 @@ describe("a performer's name shared with a film or a book", () => {
     it("reads only the titles of track listings", () => {
       const text = `{{Infobox album | title1 = Not A Track }}\n${listing("[[Tide Song|Tide Song (TV edit)]]", "'''Paper Kite'''")}\n{{cite web | title2 = Not A Track Either }}`;
       expect(listedTracks(text)).toEqual(["Tide Song (TV edit)", "Paper Kite"]);
+    });
+  });
+
+  describe('"Some Name Theme" when nothing else matched', () => {
+    const SONG = " The song loops a short chiptune melody over a bright synth bass line.".repeat(10);
+    const VIDEO = "Pixel Otter is a YouTube video uploaded in 2012, which became an Internet meme. The video set a looping song to an animated otter riding a comet.";
+    beforeEach(() => {
+      hits = {};
+      existing = ["Pixel Otter", "Mara Quell"];
+    });
+
+    it("takes the article of what the theme is named for, cut to its lead and its music", async () => {
+      extracts = { "Pixel Otter": `${VIDEO}\n\n== Origin ==\n\n=== Song ===\nThe original song was uploaded to a video site in 2011.${SONG}\n\n== Sale ==\nThe animation was later sold as a token for a large sum.` };
+      const text = await fetchGrounding({ title: "Pixel Otter Theme", artist: "Chipwave" });
+      expect(text).toMatch(/^Pixel Otter\n/);
+      expect(text).toContain("original song was uploaded");
+      expect(text).not.toContain("token");
+    });
+
+    it("refuses an article that never says its subject has music", async () => {
+      extracts = { "Pixel Otter": `Pixel Otter is a YouTube video uploaded in 2012, which became an Internet meme.\n\n== Reception ==\n${LONG}` };
+      expect(await fetchGrounding({ title: "Pixel Otter Theme", artist: "Chipwave" })).toBe("");
+    });
+
+    it("refuses a person's article, even one with a music section", async () => {
+      extracts = { "Mara Quell": `Mara Quell is a Canadian television host. Her show opened with a theme song.\n\n== Music ==\n${SONG}` };
+      humans = ["Mara Quell"];
+      expect(await fetchGrounding({ title: "Mara Quell Theme", artist: "Chipwave" })).toBe("");
+    });
+
+    it("never stands in for a performer of the artist's name", async () => {
+      extracts = { "Pixel Otter": `${VIDEO}\n\n== Song ==\n${SONG}` };
+      descriptions = { Chipwave: "American chiptune musician" };
+      expect(await fetchGrounding({ title: "Pixel Otter Theme", artist: "Chipwave" })).not.toMatch(/^Pixel Otter\n/);
+    });
+
+    it("reads the name from the title", () => {
+      expect(["Pixel Otter Theme", "Pixel Otter Main Theme", "Theme from Pixel Otter", "Main Theme", "Theme", "Love Theme"].map(themeOf)).toEqual([
+        "Pixel Otter", "Pixel Otter", "Pixel Otter", "", "", "",
+      ]);
     });
   });
 

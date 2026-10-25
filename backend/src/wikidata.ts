@@ -577,6 +577,19 @@ export async function placeOrTeam(page: string): Promise<string> {
   }
 }
 
+/**
+ * Whether an English Wikipedia article's item is a person's (an instance of human). True when
+ * Wikidata can't be read, so a caller that refuses people refuses then too. Never throws.
+ */
+export async function isPersonPage(page: string): Promise<boolean> {
+  try {
+    const { entity } = await pageItem(page);
+    return !!entity && itemIds(entity, "P31").includes(HUMAN);
+  } catch {
+    return true;
+  }
+}
+
 export function clearArticleItemCache(): void {
   pageItemCache.clear();
 }
