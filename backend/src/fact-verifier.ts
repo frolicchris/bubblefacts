@@ -3261,7 +3261,7 @@ async function performerArticle(
   page: string,
   full: string,
   usable: (title: string) => boolean
-): Promise<{ page: string; subject: boolean } | "reject" | null> {
+): Promise<{ page: string; subject: boolean; music?: boolean } | "reject" | null> {
   const { game, track } = reading;
   const aGame = /game\)$/i.test(page) || /\b(?:video )?games?\b/i.test(openingSays(full));
   const unnamed = !namesPiece(full, track);
@@ -3282,7 +3282,54 @@ async function performerArticle(
     if (name.length >= 5 && mentionsName(normalizeTitle(full.split(/\n==/)[0]), [name])) return null;
   } else if (!otherMusic && (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name])))) return null;
   if (found.performer && found.performer !== page && usable(found.performer)) return { page: found.performer, subject: true };
+  // No performer of the name: a show's or a film's music article whose track listing has the track ("Music of Some Show").
+  const music = nonMusic && !concert && !song.performer && !reading.aPerformer ? await listingMusicArticle(artist, track, usable) : null;
+  if (music && music !== page) return { page: music, subject: true, music: true };
   return "reject";
+}
+
+/** The titles in an article's {{Track listing}} templates, without links, refs or bold. */
+export function listedTracks(wikitext: string): string[] {
+  const out: string[] = [];
+  for (const m of wikitext.matchAll(/\{\{\s*track ?listing\b/gi)) {
+    // To the template's own closing braces, past the ones nested in it.
+    let depth = 0;
+    let end = m.index;
+    while (end < wikitext.length) {
+      if (wikitext.startsWith("{{", end)) (depth++, (end += 2));
+      else if (wikitext.startsWith("}}", end)) {
+        end += 2;
+        if (--depth === 0) break;
+      } else end++;
+    }
+    const block = wikitext
+      .slice(m.index, end)
+      .replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/gi, "")
+      .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, "$1")
+      .replace(/'{2,}/g, "");
+    for (const t of block.matchAll(/\|\s*title\d+\s*=([^|\n]*)/gi)) if (t[1].trim()) out.push(t[1].trim());
+  }
+  return out;
+}
+
+/**
+ * A show's or a film's own music article ("Music of Some Show", "Some Show
+ * (soundtrack)") that names the track as music or lists it on one of its
+ * albums, or null. Its prose may never name a short cue that its track
+ * listings do ("Green Bird" | "Cowboy Bebop").
+ */
+async function listingMusicArticle(work: string, track: string, usable: (title: string) => boolean): Promise<string | null> {
+  const name = normalizeTitle(track);
+  if (!work || name.length < 3 || GENERIC_TRACK.test(name)) return null;
+  const named = await wikiResolveTitles([`Music of ${work}`, `${work} (soundtrack)`]);
+  for (const page of new Set([...named.values()].filter((r) => !r.fragment).map((r) => r.page))) {
+    if (!usable(page) || !isMusicArticleFor(page, work)) continue;
+    const full = await wikiExtract(page);
+    if (!full) continue;
+    const listed = listedTracks(await wikitextOf(page)).some((t) => normalizeTitle(t) === name);
+    if (listed || namesPiece(full, track)) return page;
+  }
+  return null;
 }
 
 /**
@@ -3520,6 +3567,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       let byGame = matchedGame(page);
       let full = await wikiExtract(page);
       let toPerformer = false;
+      // Taken in place of the search's page: never read as a longer-named installment of the subject.
+      let swapped = false;
       // A performer's song: its own article if Wikipedia has one, and never a film or a book that shares the name.
       if (byGame && full && track && track !== game && !generic && !reading.fromTitle && !reading.notGame && !song.artistUncertain) {
         const swap = await performerArticle(song, reading, page, full, usable);
@@ -3533,11 +3582,13 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         if (swap && tooShort && isPerformerArticle(page, full)) {
           console.log(`[Grounding] "${swap.page}" is too short to write from: keeping the performer's article "${page}"`);
         } else if (swap) {
-          console.log(`[Grounding] "${page}" -> ${swap.page} (${swap.subject ? "the performer's article" : "the song's own article"})`);
+          const what = swap.music ? "the work's music article, which lists the track" : swap.subject ? "the performer's article" : "the song's own article";
+          console.log(`[Grounding] "${page}" -> ${swap.page} (${what})`);
           page = swap.page;
           full = songFull ?? (await wikiExtract(page));
           byGame = swap.subject;
-          toPerformer = swap.subject;
+          toPerformer = swap.subject && !swap.music;
+          swapped = true;
         }
       }
       // A concert film or documentary named for the song or the band is the film's article, not the song's.
@@ -3552,7 +3603,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         console.log(`[Grounding] "${page}" is a place or a team (Wikidata: ${place}), not a work, skipping`);
         continue;
       }
-      const installment = byGame && extendsGame(page) && track !== game && !reading.page;
+      const installment = byGame && !swapped && extendsGame(page) && track !== game && !reading.page;
       const why = pageMisfit(song, reading, page, full, { byGame, installment, names, classical });
       if (why) {
         console.log(`[Grounding] "${page}" ${why}, skipping`);
@@ -3582,7 +3633,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       );
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
       const aGame = !artist || /game\)$/i.test(page) || GAME_LEAD.test(full?.slice(0, 600) ?? "");
-      if (byGame && aGame && !toPerformer && !song.performer && !ownArticle && !installment && full) {
+      if (byGame && aGame && !swapped && !song.performer && !ownArticle && !installment && full) {
         let music: GameArticles["music"] = null;
         try {
           music = await findMusicArticle(game, usable);

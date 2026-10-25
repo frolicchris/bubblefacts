@@ -2,23 +2,36 @@ jest.mock("./config", () => ({
   config: { factsPerSong: 5, dataDir: process.env.BUBBLEFACTS_DATA_DIR, groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, topic: "general" },
 }));
 
-import { clearGroundingCache, fetchGrounding, isNonMusicWork, leadNamesPerformer } from "./fact-verifier";
+import { clearGroundingCache, fetchGrounding, isNonMusicWork, leadNamesPerformer, listedTracks } from "./fact-verifier";
 
 // Made-up bands, songs, films and games.
 describe("a performer's name shared with a film or a book", () => {
   let hits: Record<string, string[]>;
   let descriptions: Record<string, string>;
   let extracts: Record<string, string>;
+  // Titles that redirect, titles a plain title lookup finds, and wikitext, by page.
+  let redirects: Record<string, string>;
+  let existing: string[];
+  let wikitexts: Record<string, string>;
   const LONG = " It was recorded in a small studio over three weeks.".repeat(20);
   const mock = jest.fn(async (url: string) => {
     const p = new URL(url).searchParams;
     const term = p.get("srsearch");
     const names = (p.get("titles") ?? "").split("|");
+    const to = (n: string) => redirects[n] ?? n;
+    const redirected = names.filter((n) => redirects[n]).map((n) => ({ from: n, to: redirects[n] }));
     let body: unknown;
     if (term !== null) body = { query: { search: (hits[term] ?? []).map((title) => ({ title })) } };
+    else if (p.get("rvprop") === "content") body = { query: { pages: [{ revisions: [{ slots: { main: { content: wikitexts[names[0]] ?? "" } } }] }] } };
     else if (p.get("prop") === "description")
-      body = { query: { pages: Object.fromEntries(names.map((n, i) => [String(i), descriptions[n] !== undefined ? { title: n, description: descriptions[n] } : { title: n, missing: "" }])) } };
-    else if (p.get("redirects")) body = { query: { pages: Object.fromEntries(names.map((n, i) => [String(i), { title: n, missing: "" }])) } };
+      body = {
+        query: {
+          redirects: redirected,
+          pages: Object.fromEntries(names.map((n, i) => [String(i), descriptions[to(n)] !== undefined ? { title: to(n), description: descriptions[to(n)] } : { title: to(n), missing: "" }])),
+        },
+      };
+    else if (p.get("redirects"))
+      body = { query: { redirects: redirected, pages: Object.fromEntries(names.map((n, i) => [String(i), existing.includes(to(n)) ? { title: to(n) } : { title: to(n), missing: "" }])) } };
     else body = { query: { pages: { 1: { extract: extracts[names[0]] ?? "", revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } };
     return { ok: true, status: 200, json: async () => body } as Response;
   });
@@ -31,6 +44,9 @@ describe("a performer's name shared with a film or a book", () => {
     clearGroundingCache();
     mock.mockClear();
     descriptions = {};
+    redirects = {};
+    existing = [];
+    wikitexts = {};
     extracts = {
       "Glass Orchard (film)": `Glass Orchard is a 1971 horror anthology film directed by Ivo Marsh.${LONG}\n== Legacy ==\nThe band Glass Orchard took its name from the film.`,
       "Glass Orchard": `Glass Orchard are an English rock band formed in Leeds in 1969.${LONG}`,
@@ -103,6 +119,53 @@ describe("a performer's name shared with a film or a book", () => {
     extracts = { "Starfall (video game)": `Starfall is a 2003 platform video game.${LONG}` };
     descriptions = { "Starfall (band)": "Swedish pop band" };
     expect(await fetchGrounding({ title: "Comet Ridge", artist: "Starfall" })).toMatch(/^Starfall \(video game\)/);
+  });
+
+  it("takes a performer's article under a longer name, which no installment check reads", async () => {
+    // The search finds a philosopher. Wikipedia's "Quillon (musician)" is "Aurelio Quillon", whose
+    // first sentence breaks the identity list and is left out.
+    hits = { Quillon: ["Quillon"] };
+    extracts = {
+      Quillon: `Quillon was a French writer and philosopher of the Enlightenment.${LONG}`,
+      "Aurelio Quillon": `Aurelio Quillon (born 1967) is a Cuban-American musician. Known for his style of dress, Quillon is a leading figure in dark cabaret.${LONG}`,
+    };
+    redirects = { "Quillon (musician)": "Aurelio Quillon" };
+    descriptions = { Quillon: "French philosopher", "Aurelio Quillon": "Cuban-American musician" };
+    expect(await fetchGrounding({ title: "Lantern Hymn", artist: "Quillon" })).toMatch(/^Aurelio Quillon\n/);
+  });
+
+  describe("a show's name as the artist", () => {
+    const SHOW = `Starlit Harbor is a Japanese anime television series that aired from 1998 to 1999.${LONG}`;
+    const MUSIC = `The Starlit Harbor anime series was accompanied by several soundtrack albums composed by Mira Okada.${LONG}`;
+    const listing = (...titles: string[]) =>
+      `{{Track listing\n| headline = {{nowrap|Disc 1}}\n${titles.map((t, i) => `| title${i + 1} = ${t}\n| length${i + 1} = 2:0${i}`).join("\n")}\n}}`;
+    beforeEach(() => {
+      hits = { "Starlit Harbor soundtrack": ["Starlit Harbor"], "Starlit Harbor": ["Starlit Harbor"] };
+      extracts = { "Starlit Harbor": SHOW, "Music of Starlit Harbor": MUSIC, "Starlit Harbor (band)": `Starlit Harbor is an American indie band.${LONG}` };
+      existing = ["Music of Starlit Harbor"];
+      redirects = { "Starlit Harbor (soundtrack)": "Music of Starlit Harbor" };
+    });
+
+    it("takes the show's music article when one of its track listings has the track", async () => {
+      wikitexts = { "Music of Starlit Harbor": listing("Harbor Lights", "'''[[Paper Kite]]'''<ref>{{cite web|title=Paper Kite notes}}</ref>") };
+      expect(await fetchGrounding({ title: "Paper Kite", artist: "Starlit Harbor" })).toMatch(/^Music of Starlit Harbor\n/);
+    });
+
+    it("skips the show and its music article when neither names the track", async () => {
+      wikitexts = { "Music of Starlit Harbor": listing("Harbor Lights", "Paper Kites Over Tokyo") };
+      expect(await fetchGrounding({ title: "Paper Kite", artist: "Starlit Harbor" })).toBe("");
+    });
+
+    it("takes a performer's article under the name over the show's music", async () => {
+      wikitexts = { "Music of Starlit Harbor": listing("Paper Kite") };
+      descriptions = { "Starlit Harbor (band)": "American indie band" };
+      expect(await fetchGrounding({ title: "Paper Kite", artist: "Starlit Harbor" })).toMatch(/^Starlit Harbor \(band\)\n/);
+    });
+
+    it("reads only the titles of track listings", () => {
+      const text = `{{Infobox album | title1 = Not A Track }}\n${listing("[[Tide Song|Tide Song (TV edit)]]", "'''Paper Kite'''")}\n{{cite web | title2 = Not A Track Either }}`;
+      expect(listedTracks(text)).toEqual(["Tide Song (TV edit)", "Paper Kite"]);
+    });
   });
 
   it("tells non-music works and performers' mentions apart", () => {
