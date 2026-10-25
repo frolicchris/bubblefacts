@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { artistByTitle, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
+import { artistByTitle, cachedArtistByTitle, clearLinkCache, closeName, clearOrderCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -487,5 +487,13 @@ describe("settleTitleOrder: which side of a fan's \"X - Y\" is the artist", () =
   it("matches title and credit without case or accents", () => {
     expect(recordingOrder([recording("A Novidade", "Gíl Berto")] as never, "a novidade", "Gil Berto")).toBe("swap");
     expect(recordingOrder([] as never, "Copper Moon", "Juniper Reyes")).toBeNull();
+  });
+});
+
+describe("closeName: another middle initial is another person", () => {
+  it("refuses names one initial apart and keeps true respellings", () => {
+    expect(closeName("Rafa F. Moreno", "Rafa J. Moreno")).toBe(false);
+    expect(closeName("Rafa F. Morreno", "Rafa F. Moreno")).toBe(true);
+    expect(closeName("Girls Got Rythm", "Girls Got Rhythm")).toBe(true);
   });
 });
