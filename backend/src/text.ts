@@ -48,7 +48,9 @@ export function cleanRequestText(s: string): string {
 /** Where a note saying who asked or paid for a song starts: "Commissioned by", "requested by", "req. by", "suggested by". */
 const REQUEST_CREDIT = /(?:^|[\s,;:|/([–—-])(?:commission(?:ed)?|requested|request|req\.?|suggested|sponsored|donated|gifted|paid)\s+(?:by|from)(?=\s|$)/i;
 /** In an artist field, also ", for Name" after a separator. "Tears for Fears" has none, so it stays. */
-const FOR_CREDIT = /\s*[,;|–—]\s*for\s+(?=\S)|\s+-\s+for\s+(?=\S)/i;
+// No leading \s* or \s+: an unanchored run of spaces backtracks (CodeQL js/polynomial-redos),
+// and the spaces before the note are trimmed with the separators below anyway.
+const FOR_CREDIT = /[,;|–—]\s*for\s+(?=\S)|\s-\s+for\s+(?=\S)/i;
 /** Separators, spaces and an opening bracket left at the end once a credit is cut. */
 const LEFT_OVER = /[\s,;:|/([–—-]/;
 
