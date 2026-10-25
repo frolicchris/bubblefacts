@@ -1062,10 +1062,13 @@ describe("a song list's notes in the title and the artist field", () => {
     expect(workFromTitle("Lantern Song (from Kiki's  Paper Harbor)")).toEqual({ track: "Lantern Song", work: "Kiki's Paper Harbor" });
     expect(workFromTitle("Lantern Song from Pirates of the Paper Harbor")).toEqual({ track: "Lantern Song", work: "Pirates of the Paper Harbor" });
     const read = readings({ title: "Lantern Song (from The Paper Harbor)", artist: "Wren Halloway & Ivo Marsh" });
+    // The song's own article under the work first; the song as listed after.
     expect(read.map((r) => [r.game, r.track, !!r.trackOnly])).toEqual([
-      ["Wren Halloway & Ivo Marsh", "Lantern Song (from The Paper Harbor)", false],
       ["The Paper Harbor", "Lantern Song", true],
+      ["Wren Halloway & Ivo Marsh", "Lantern Song (from The Paper Harbor)", false],
     ]);
+    expect(readings({ title: "Lantern Song from Pirates of the Paper Harbor", artist: "Ivo Marsh" })[0]).toMatchObject({ game: "Pirates of the Paper Harbor", track: "Lantern Song", trackOnly: true });
+    expect(readings({ title: "Pennies from Heaven", artist: "Ivo Marsh" })).toHaveLength(1);
     expect(lookupForm({ title: "Lantern Song (from The Paper Harbor)", artist: "Wren Halloway" })?.title).toBe("Lantern Song");
     expect(lookupForm({ title: "Lantern Song from Pirates of the Paper Harbor", artist: "Wren Halloway" })?.title).toBe("Lantern Song");
   });

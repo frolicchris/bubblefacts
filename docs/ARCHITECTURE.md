@@ -604,6 +604,8 @@ other ways to read one, each checked by all the rules above:
 - **The work a song is from** in the title ("Some Song (from Some Show)",
   "Some Song from Some Long Show"): the show is the work, as a game in the
   artist field is, and only the song's own article counts (`workFromTitle`).
+  This reading goes first: the usual one would take the composer's article
+  before trying it.
   Without brackets the work needs two capitalized words, so "Pennies from
   Heaven" stays whole; "Theme from Some Show" is left to the theme rule.
 - **Several names** joined by "/", " - ", " x " or "ft." ("Frederic

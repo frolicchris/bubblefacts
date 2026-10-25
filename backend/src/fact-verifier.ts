@@ -2323,6 +2323,15 @@ function worksInTitle(franchise: string, title: string, notGame: boolean): Readi
  * - no one ("Traditional", "Italian Folk Song"): the title alone, as a song.
  */
 export function readings(song: SSLSong): Reading[] {
+  const out = listedReadings(song);
+  // "Some Song (from Some Show)": the song's own article under the show first. Only that article
+  // will do (`trackOnly`), so the usual reading still follows, and its performer's article with it.
+  const from = workFromTitle(dropVersionTags(song.title.trim()).replace(TITLE_ARRANGER, ""));
+  const at = from ? out.findIndex((r) => r.trackOnly && r.game === from.work && r.track === from.track) : -1;
+  return at > 0 ? [out[at], ...out.slice(0, at), ...out.slice(at + 1)] : out;
+}
+
+function listedReadings(song: SSLSong): Reading[] {
   const artist = song.artist?.trim() ?? "";
   const first = resolveGameAndTrack(song);
   if (song.performer || song.artistUncertain) return [first];
