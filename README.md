@@ -24,13 +24,6 @@ the website. It's free, for Mac, Windows and Linux.
 
 Already have it? See [Updating to a newer version](https://bubblefacts.frolic.org/download.html#update): your settings are kept.
 
-**Some of this page is new in the 2.1 beta:** following a now playing file
-(Streamling, Nightbot or another music app), facts the moment a song starts,
-and the family-friendly screening and one-click switches described below. The
-website's download is 2.0.1 until 2.1.0 is out. To try the beta now,
-[download it from its release page](https://github.com/frolicchris/bubblefacts/releases/tag/v2.1.0-beta.2),
-or choose **Beta** updates in Settings, under General.
-
 The app isn't signed yet, so the first time you open it, your computer may
 ask you to confirm. The [download page](https://bubblefacts.frolic.org/download.html#first-launch)
 shows exactly what to click.
