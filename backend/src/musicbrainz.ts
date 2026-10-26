@@ -3,6 +3,7 @@ import {
   artistNames,
   editDistance,
   foldSymbols,
+  initialsDiffer,
   isPieceArticle,
   isInitials,
   looksLikeArtistName,
@@ -483,6 +484,7 @@ interface Item {
 export function closeName(a: string, b: string, share = 0.34): boolean {
   const x = normalizeTitle(a).replace(/ /g, "");
   const y = normalizeTitle(b).replace(/ /g, "");
+  if (initialsDiffer(a, b)) return false;
   return Boolean(x && y) && editDistance(x, y) <= Math.max(1, Math.floor(share * Math.max(x.length, y.length)));
 }
 

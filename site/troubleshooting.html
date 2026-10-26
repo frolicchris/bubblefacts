@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.1">
-  <script src="assets/site.js?v=2.1.0-beta.1" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.2">
+  <script src="assets/site.js?v=2.1.0-beta.2" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -114,8 +114,8 @@
               </tr>
               <tr>
                 <th scope="row">Bubbles start a bit after a song changes in StreamerSongList</th>
-                <td>BubbleFacts finds out about song changes from StreamerSongList, which can take it a little while</td>
-                <td>Wait a few seconds: it catches up on its own. An upcoming update improves this. If it keeps happening, click <span class="ui">Report a problem</span> and add your logs (see <a href="support.html#faq-logs">How do I send my logs?</a>).</td>
+                <td>The live connection to StreamerSongList dropped, so BubbleFacts is checking your list every 15 seconds instead</td>
+                <td>Look under <span class="ui">Songs</span> on the dashboard. <span class="ui">Checking your list every 15 seconds</span> still works, just a little later; it goes back to <span class="ui">Hearing your queue live</span> on its own. If it keeps happening, click <span class="ui">Report a problem</span> and add your logs (see <a href="support.html#faq-logs">How do I send my logs?</a>).</td>
               </tr>
               <tr>
                 <th scope="row">OBS reloads the BubbleFacts source in the middle of a song, after a scene switch or with a second output</th>

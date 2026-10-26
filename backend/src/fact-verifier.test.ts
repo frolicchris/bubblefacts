@@ -292,6 +292,11 @@ describe("curatedFacts", () => {
 });
 
 describe("isRelevantArticle", () => {
+  it("never takes a name one middle initial off for the artist's article", () => {
+    expect(isRelevantArticle("Rafa F. Moreno", "Rafa J. Moreno", true)).toBe(false);
+    expect(isRelevantArticle("Rafa F. Moreno", "Rafa F. Moreno", true)).toBe(true);
+    expect(isRelevantArticle("Rafa Moreno", "Rafa J. Moreno (musician)", true)).toBe(true);
+  });
   it("accepts an exact match", () => {
     expect(isRelevantArticle("Chrono Trigger", "Chrono Trigger")).toBe(true);
   });
@@ -1374,6 +1379,10 @@ describe("Wikipedia's own spelling and names", () => {
     expect(isRespelling("Pyotr Illyich Tchaikovsky", "Pyotr Ilyich Tchaikovsky")).toBe(true);
     // Two words changed is another person.
     expect(isRespelling("Windy Harper", "Wendy Harmer")).toBe(false);
+    // So is another middle initial, though only one letter apart.
+    expect(isRespelling("Rafa F. Moreno", "Rafa J. Moreno")).toBe(false);
+    expect(isRespelling("Rafa F Moreno", "Rafa J. Moreno")).toBe(false);
+    expect(isRespelling("Rafa F. Morreno", "Rafa F. Moreno")).toBe(true);
     expect(isRespelling("Johann Strauss", "Johann Strauss II")).toBe(false);
     expect(isRespelling("Final Fantasy X", "Final Fantasy XI")).toBe(false);
     expect(isRespelling("Erik Satie", "Erik Satie")).toBe(false);

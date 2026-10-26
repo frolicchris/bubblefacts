@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.1">
-  <script src="assets/site.js?v=2.1.0-beta.1" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.2">
+  <script src="assets/site.js?v=2.1.0-beta.2" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -51,6 +51,21 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-1-beta2">
+          <h2 id="v2-1-beta2">Version 2.1.0-beta.2 <span class="tag">Beta, October 26, 2026</span></h2>
+          <p>Bubbles keep up with your queue, and fewer facts about the wrong thing. Several fixes came from beta testers' live streams.</p>
+          <ul>
+            <li>Improved: with StreamerSongList, BubbleFacts hears the moment you move to the next song, instead of up to a minute later.</li>
+            <li>New: the dashboard says how BubbleFacts hears about your songs: live updates, or checking every 15 seconds.</li>
+            <li>Improved: a game's article is used over a film with the same name.</li>
+            <li>Improved: fan uploads titled "Song - Artist" are read the right way round, and a city or country's article is never taken for a song.</li>
+            <li>Fixed: a different middle initial now means a different person, so one artist's facts don't land on a near namesake.</li>
+            <li>Fixed: a viewer's name in a "Commissioned by" or "requested by" note is never searched, sent to the AI or written to the log.</li>
+            <li>Improved: the High quality AI setting says what it does, without promising a level of accuracy.</li>
+            <li>Security: the app's framework (Electron) and two small libraries are updated with security fixes.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-1-beta1">
           <h2 id="v2-1-beta1">Version 2.1.0-beta.1 <span class="tag">Beta, October 23, 2026</span></h2>

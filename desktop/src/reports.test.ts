@@ -49,9 +49,15 @@ describe("problem reports", () => {
     expect(JSON.stringify(fields)).not.toContain("note words");
   });
 
+  it("never includes who commissioned or requested the song", () => {
+    const fields = decode(wrongFactUrl({ song: "Glass Orchard — Wren Halloway, Commissioned by Moss Tinker", fact: "A fact.", version: "2.1.0", logLines: [], secrets: [] }));
+    expect(fields.song).toBe("Glass Orchard — Wren Halloway");
+    expect(JSON.stringify(fields)).not.toContain("Tinker");
+  });
+
   it("leaves notes out the way the server does", () => {
     const server = jest.requireActual("../../backend/src/text") as { withoutArtistNote: (a: string) => string };
-    for (const artist of ["Wren Halloway (note words)", "Wren Halloway [a] (b", "Jane (@janeplayskeys)", "(Untitled)", "Drone Choir O)))", "Wren (and the Hollows) Band"]) {
+    for (const artist of ["Wren Halloway (note words)", "Wren Halloway [a] (b", "Jane (@janeplayskeys)", "(Untitled)", "Drone Choir O)))", "Wren (and the Hollows) Band", "Wren Halloway, Commissioned by Moss Tinker", "Wren Halloway - for Moss Tinker (note)", "Lanterns for Hollows"]) {
       expect(withoutArtistNote(artist)).toBe(server.withoutArtistNote(artist));
     }
   });

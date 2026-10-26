@@ -2,7 +2,7 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
-import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments } from "./text";
+import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments, withoutRequestCredit } from "./text";
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { linkedGrounding } from "./musicbrainz";
@@ -429,6 +429,8 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   const wantTokens = significantTokens(want);
   const gotTokens = significantTokens(got);
   if (!want || !got || !wantTokens.length || !gotTokens.length) return false;
+  // Single letters aren't significant tokens, so "Luis F. Rodriguez" would match "Luis J. Rodriguez".
+  if (initialsDiffer(subject, withoutQualifier(pageTitle))) return false;
 
   // "Nier series" is the series' own article: "Nier (series)", or "Star Trek" itself.
   // Never a single installment: "Nier (video game)" isn't the series.
@@ -1682,6 +1684,7 @@ export function namesLoosely(text: string, names: string[]): boolean {
     for (let size = Math.max(1, n - 1); size <= n + 1; size++) {
       for (let i = 0; i + size <= words.length; i++) {
         const got = words.slice(i, i + size).join("");
+        if (initialsDiffer(words.slice(i, i + size).join(" "), name)) continue;
         if (Math.abs(got.length - want.length) <= 2 && editDistance(got, want) <= Math.max(1, Math.floor(want.length * 0.15))) return true;
       }
     }
@@ -2419,6 +2422,16 @@ export function editDistance(a: string, b: string): number {
 const numerals = (s: string) => significantTokens(normalizeTitle(s)).filter((t) => /\d/.test(t));
 
 /**
+ * Two names whose initials differ in the same place: "Luis F. Rodriguez" and
+ * "Luis J. Rodriguez" are two people, though only one letter apart.
+ */
+export function initialsDiffer(a: string, b: string): boolean {
+  const wa = normalizeTitle(a).split(" ");
+  const wb = normalizeTitle(b).split(" ");
+  return wa.length === wb.length && wa.some((w, i) => w !== wb[i] && w.length === 1 && wb[i].length === 1);
+}
+
+/**
  * The same name spelled differently: a letter or two, in one word, or only
  * the spacing ("Full Metal" and "Fullmetal"). "Eric Satie" and "Erik Satie",
  * but not "Windy Harper" and "Wendy Harmer", two words apart.
@@ -2427,6 +2440,7 @@ export function isRespelling(name: string, page: string): boolean {
   const a = normalizeTitle(name);
   const b = normalizeTitle(page);
   if (!a || !b || a === b) return false;
+  if (initialsDiffer(a, b)) return false;
   // "Memes" isn't a misspelled "Meme": a plural names many, the article one.
   if (a === `${b}s` || b === `${a}s`) return false;
   const d = editDistance(a.replace(/ /g, ""), b.replace(/ /g, ""));
@@ -3010,7 +3024,11 @@ interface Grounded {
  * When an article's older version couldn't be read on the way, Wikipedia is skipped for the song this
  * time (issue #242): data facts show instead, and the lookup is tried again later.
  */
-export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+export async function fetchGrounding(listed: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+  // Who asked or paid for the song is never searched: "Some Band, Commissioned by Name" is Some Band.
+  const title = withoutRequestCredit(listed.title) || listed.title;
+  const artist = withoutRequestCredit(listed.artist ?? "", true);
+  const song = title === listed.title.trim() && artist === (listed.artist ?? "").trim() ? listed : { ...listed, title, artist };
   const failedBefore = olderVersionFailures;
   const text = await findGrounding(song, skip);
   if (olderVersionFailures === failedBefore) return text;
