@@ -895,6 +895,21 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
     expect(await shown({ kind: "song", name: "Harbor Lights", artists: [] })).toBe(true);
   });
 
+  it("never caches a fact marked Wrong while the AI was still writing", async () => {
+    let release: (v: unknown) => void = () => undefined;
+    mockCreate.mockImplementationOnce(() => new Promise((r) => (release = r)));
+    let early: Fact[] = [];
+    const first = generateFacts(request, null, (data) => (early = data));
+    while (!early.length) await new Promise((r) => setImmediate(r));
+    expect(early.map((f) => f.text)).toEqual([dataFact]);
+    // The streamer marks the early data fact Wrong before the AI is done.
+    expect(markWrong(request, dataFact, SOURCE.wikidata)).toBe(STRUCTURED);
+    release(reply(MODEL_LINES));
+    expect((await first).map((f) => f.text)).not.toContain(dataFact);
+    expect((await generateFacts(request)).map((f) => f.text)).not.toContain(dataFact);
+    resetWrongFacts();
+  });
+
   it("takes nothing from the article's item when the match is unsure", async () => {
     (fetchGrounding as jest.Mock).mockResolvedValue("Harbor Lights (album)\nHarbor Lights is the second studio album by American dream pop band Velvet Lark, released in 2004.");
     const early = jest.fn();

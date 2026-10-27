@@ -1411,6 +1411,9 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   if (source) for (const s of blockedAs(song)) blockArticle(s, source);
   const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
   for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
+  // A generation already running may not cache the fact just marked: it starts over (as forgetSong).
+  revisions.set(key, (revisions.get(key) ?? 0) + 1);
+  inFlight.delete(key);
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);
