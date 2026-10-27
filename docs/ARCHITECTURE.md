@@ -856,7 +856,12 @@ what's playing" depends on the source. The server reads its methods for
 three missed polls), `authRejected()` (401 or 403: `unauthorized`), and the
 optional `backingOff()` (honoring `Retry-After`, not stale) and
 `followingProblem()` (a reason string: `degraded`). The desktop app restarts
-the server after two minutes of `degraded`, never for `unauthorized`.
+the server after two minutes of `degraded`, never for `unauthorized`. When
+`degraded` only means fetches are failing (an internet or song-service
+outage), it restarts only if the polling loop itself has stopped: `/health`
+reports `lastPollAttemptAgeMs` (failed fetches keep it small) and the app
+allows three poll intervals, at least two minutes. A restart can't bring the
+internet back, and it reloads the AI and blanks the overlay.
 
 **StreamerSongList** (`songlist-client.ts`):
 

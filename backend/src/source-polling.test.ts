@@ -1,4 +1,4 @@
-import { debounce, retryAfterMs, singleFlight } from "./source-polling";
+import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
 describe("retryAfterMs", () => {
   it("waits as long as Retry-After says, at most ten minutes", () => {
@@ -51,5 +51,34 @@ describe("debounce", () => {
     d.cancel();
     jest.advanceTimersByTime(250);
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("pollLoop attempts", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+  const make = (tick: () => Promise<void>) =>
+    pollLoop({ isStopped: () => false, intervalMs: () => 15_000, backoffUntil: () => 0, tick });
+
+  it("has no attempt until it is set going", () => {
+    expect(make(async () => {}).lastAttemptAgeMs()).toBeNull();
+  });
+
+  it("keeps the age small while every fetch fails", async () => {
+    const loop = make(async () => {
+      // pollOnce handles its own errors, so a failed fetch is a tick that ends quietly.
+    });
+    loop.schedule();
+    await jest.advanceTimersByTimeAsync(10 * 60_000);
+    expect(loop.lastAttemptAgeMs()).toBeLessThanOrEqual(15_000);
+    loop.cancel();
+  });
+
+  it("lets the age grow when a tick never finishes", async () => {
+    const loop = make(() => new Promise<void>(() => {}));
+    loop.schedule();
+    await jest.advanceTimersByTimeAsync(10 * 60_000);
+    expect(loop.lastAttemptAgeMs()).toBeGreaterThan(9 * 60_000);
+    loop.cancel();
   });
 });

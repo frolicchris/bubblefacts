@@ -7,7 +7,7 @@ import path from "path";
 /**
  * Runs the fact server in its own process and keeps it healthy without the
  * musician's help: it restarts the server after a crash, after it stops
- * answering, or after the song-list connection stalls, waiting a little
+ * answering, or after its song-list polling loop gets stuck, waiting a little
  * longer after each failure so a persistent problem doesn't spin.
  */
 
@@ -26,6 +26,12 @@ export interface Health {
   obsClients: number;
   clients: Array<{ addr: string; ua: string }>;
   lastQueueFetchAgeMs: number | null;
+  /** Why status is degraded or unauthorized; "no successful queue fetch recently" means fetches are failing. */
+  degradedReason?: string;
+  /** How long ago the server last tried to fetch the song list, worked or not; older servers leave it out. */
+  lastPollAttemptAgeMs?: number | null;
+  /** How often the server polls the song source; older servers leave it out. */
+  pollIntervalMs?: number;
   facts: Record<string, unknown>;
 }
 
@@ -46,6 +52,8 @@ const MISSES_BEFORE_RESTART = 4; // 20 seconds without an answer
  */
 const MODEL_LOAD_GRACE_MS = 3 * 60_000;
 const DEGRADED_BEFORE_RESTART_MS = 120_000;
+/** The server's degradedReason (server.ts) when fetches fail: no internet, or the song service is down. */
+const OUTAGE_REASON = "no successful queue fetch recently";
 const MAX_BACKOFF_MS = 60_000;
 const FAILING_AFTER = 5; // restarts within the window below
 const RESTART_WINDOW_MS = 10 * 60_000;
@@ -241,7 +249,11 @@ export class Supervisor extends EventEmitter {
       }
       if (health.status === "degraded") {
         this.degradedSince ??= Date.now();
-        if (Date.now() - this.degradedSince > DEGRADED_BEFORE_RESTART_MS) {
+        // An outage makes fetches fail, but the server keeps trying and a restart only reloads the AI and
+        // blanks the overlay. Restart for that only when it has stopped trying at all. Other reasons
+        // (the player's events lost, a song not followed) are what a restart fixes.
+        const outage = health.degradedReason === OUTAGE_REASON;
+        if (Date.now() - this.degradedSince > DEGRADED_BEFORE_RESTART_MS && (!outage || pollLoopStuck(health))) {
           return this.scheduleRestart("The song-list connection stalled");
         }
       } else {
@@ -290,6 +302,16 @@ export class Supervisor extends EventEmitter {
       }
     }
   }
+}
+
+/**
+ * Whether the server's polling loop has stopped making attempts. A server that doesn't report its
+ * attempts (older, or no loop yet) counts as stuck, as before. Slow polling (up to five minutes) is allowed three misses.
+ */
+function pollLoopStuck(health: Health): boolean {
+  const age = health.lastPollAttemptAgeMs;
+  if (typeof age !== "number") return true;
+  return age > Math.max(DEGRADED_BEFORE_RESTART_MS, 3 * (health.pollIntervalMs ?? 0));
 }
 
 /** Keep the last week of daily log files. */

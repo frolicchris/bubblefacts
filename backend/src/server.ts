@@ -576,6 +576,9 @@ app.get("/health", (_req, res) => {
     topic: config.topic,
     currentSong: current ? songList.displayTitle(current) : null,
     lastQueueFetchAgeMs: queueAgeMs,
+    // For the app's watchdog: failing fetches (an outage) keep these small; only a stuck polling loop grows them.
+    lastPollAttemptAgeMs: songList.lastPollAttemptAgeMs?.() ?? null,
+    pollIntervalMs: songList.pollIntervalMs(),
     eventsConnected: songList.isEventStreamConnected(),
     // How songs reach BubbleFacts, in words for the dashboard ("Hearing your queue live").
     listening: listeningLine(songList),

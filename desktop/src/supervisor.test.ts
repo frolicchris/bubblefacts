@@ -94,3 +94,40 @@ describe("crash restarts (restart history)", () => {
     expect(forks).toHaveLength(before + 1);
   });
 });
+
+describe("a degraded song-list connection", () => {
+  const degraded = (poll: number | null | undefined, degradedReason = "no successful queue fetch recently") => () =>
+    health({ status: "degraded", degradedReason, lastPollAttemptAgeMs: poll, pollIntervalMs: 15_000 });
+
+  it("keeps the server running through an outage while the server keeps trying", async () => {
+    answer = degraded(4_000);
+    await run(10 * 60_000);
+    expect(forks).toHaveLength(1);
+    expect(sup.status.state).toBe("running");
+    expect(sup.status.message).toMatch(/Reconnecting/);
+  });
+
+  it("restarts the server when its polling loop has stopped trying", async () => {
+    answer = degraded(200_000);
+    await run(3 * 60_000);
+    expect(sup.status.restarts).toBe(1);
+  });
+
+  it("allows slow polling three misses before calling the loop stuck", async () => {
+    answer = () => health({ status: "degraded", degradedReason: "no successful queue fetch recently", lastPollAttemptAgeMs: 400_000, pollIntervalMs: 300_000 });
+    await run(10 * 60_000);
+    expect(sup.status.restarts).toBe(0);
+  });
+
+  it("still restarts for a problem that isn't an outage, such as a song not followed", async () => {
+    answer = degraded(4_000, "StreamElements is playing a song that isn't being followed");
+    await run(3 * 60_000);
+    expect(sup.status.restarts).toBe(1);
+  });
+
+  it("still restarts a server that doesn't report its attempts", async () => {
+    answer = degraded(undefined);
+    await run(3 * 60_000);
+    expect(sup.status.restarts).toBe(1);
+  });
+});
