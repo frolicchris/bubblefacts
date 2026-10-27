@@ -357,14 +357,14 @@
                 <input type="radio" name="nowPlayingPreset" value="streamling">
                 <span class="choice-body">
                   <strong>Streamling</strong>
-                  <span>Reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span>. Windows only.</span>
+                  <span>Windows only.<span class="picked-path" data-np-card="streamling" hidden> Reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span>.</span></span>
                 </span>
               </label>
               <label class="choice">
                 <input type="radio" name="nowPlayingPreset" value="nightbot">
                 <span class="choice-body">
                   <strong>Nightbot</strong>
-                  <span>Reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>. Windows and Mac.</span>
+                  <span>Windows and Mac.<span class="picked-path" data-np-card="nightbot" hidden> Reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>.</span></span>
                 </span>
               </label>
               <label class="choice">
@@ -708,6 +708,7 @@
     <li class="fact"><span><span class="fact-live" hidden>On stream</span> <span class="fact-text"></span> <span class="fact-source"></span><button class="fact-source-link link" hidden></button><span class="fact-evidence" hidden></span></span><button class="edit-fact" hidden>Edit</button><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
+  <script src="song-source.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
