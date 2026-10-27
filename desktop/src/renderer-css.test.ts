@@ -38,7 +38,7 @@ describe("dashboard", () => {
 describe("setup's bubble spot question", () => {
   it("offers the corners, top center and bottom center as a picture of the screen, with nothing picked for them", () => {
     const html = read("index.html");
-    expect(html).toContain("Where's clear on your stream?");
+    expect(html).toContain("Where should bubbles appear on your stream?");
     const picker = html.slice(html.indexOf('class="screen-pick"'), html.indexOf("</div>", html.indexOf('class="screen-pick"')));
     const values = [...picker.matchAll(/name="setup-area" value="([a-z-]+)"/g)].map((m) => m[1]);
     // Each one is the one spot its place in the picture shows. "top" and "bottom" spread bubbles along
@@ -49,6 +49,9 @@ describe("setup's bubble spot question", () => {
     expect(picker).not.toContain("checked");
     // A new install still starts at Anywhere until then, and Settings keeps its hint.
     expect(DEFAULTS.bubbleArea).toBe("anywhere");
+    // The picture shows where a camera, chat and the Now Playing bar usually sit.
+    for (const label of ["Camera", "Chat", "Now Playing"]) expect(html).toMatch(new RegExp(`class="mock [a-z-]+" aria-hidden="true">${label}<`));
+    expect(html).not.toContain("Where's clear on your stream?");
     expect(html).toContain("keep them clear of your camera, keyboard or chat");
   });
 
