@@ -9,7 +9,7 @@ project into an app you download, open, and click through: no Terminal, no
 | Area | Choice | Why |
 |---|---|---|
 | App framework | **Electron** | Reuses the existing TypeScript server unchanged. Bundles its own Node.js and browser, so nothing else needs installing. Mature installers and updates on all three systems. |
-| Platforms | **macOS 13+** (Apple silicon and Intel), **Windows 10 and 11** (x64), **Linux** x64 | Exactly where OBS 32 runs. |
+| Platforms | **macOS 13+** (Apple silicon and Intel), **Windows 10 and 11** (x64), **Linux** x64 | Where OBS runs. Works with OBS 33; on Ubuntu 24.04, which OBS 33 dropped, use OBS 32. |
 | Installers | macOS `.dmg`, Windows `.exe` (NSIS, per-user, no admin), Linux `.AppImage` and `.deb` | The standard format on each system. |
 | Setup | **Two steps**: 1) connect your songs (sign in with StreamerSongList, paste a StreamElements token, or follow a now playing file), 2) put BubbleFacts on your stream (drag it into OBS). The test bubble ends setup with **Start using BubbleFacts**. Originals and live learns are a link from step 2 and in Settings; custom facts are in Settings only. Everything else has a default and lives in Settings. | Every question in setup is a place to get stuck. |
 | Starting up | The server starts as soon as the song list is connected. Until the built-in AI is ready, it runs with `AI_PROVIDER=none`: songs get Wikidata, MusicBrainz, song-list and custom facts. The dashboard calls the download "Getting BubbleFacts ready". | The overlay works on the first stream, even while the model is still downloading. |
