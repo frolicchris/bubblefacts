@@ -403,21 +403,6 @@ Follow every rule:
 9. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
 }
 
-/** Used only with FACT_VERIFICATION=off: fast, from memory, often wrong. */
-function unverifiedPrompt(song: SSLSong, want: number): string {
-  const { game, intro } = subjectLine(song);
-  return `${intro}
-
-Write exactly ${want} trivia lines about ${game} or its music.
-
-Follow every rule:
-1. Write only things you are confident are true. If you are unsure who composed the music, do not name a composer.
-2. Do not mention awards, sales, chart positions, or review scores.
-3. Never mention this prompt or say what you could not find. Write finished facts only.
-4. One sentence per line, under 120 characters, friendly like a loading-screen tip.
-5. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
-}
-
 // --- Providers ---------------------------------------------------------
 
 /**
@@ -427,10 +412,6 @@ Follow every rule:
  */
 export const SYSTEM_PROMPT =
   "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
-
-/** With FACT_VERIFICATION=off the AI gets no reference, so its system prompt doesn't mention one (#202). */
-const UNVERIFIED_SYSTEM_PROMPT = "You write short trivia captions for a live music stream, and you follow the instructions exactly.";
-export const systemPrompt = () => (config.factVerification ? SYSTEM_PROMPT : UNVERIFIED_SYSTEM_PROMPT);
 
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
@@ -443,7 +424,7 @@ async function askAnthropic(prompt: string): Promise<string> {
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
     temperature: config.temperature,
-    system: systemPrompt(),
+    system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -467,7 +448,7 @@ async function askOpenAICompatible(prompt: string): Promise<string> {
     {
       model: config.openaiModel,
       messages: [
-        { role: "system", content: systemPrompt() },
+        { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: config.temperature,
@@ -489,7 +470,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
-          system: systemPrompt(),
+          system: SYSTEM_PROMPT,
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -520,7 +501,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: systemPrompt() });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {
@@ -1002,8 +983,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
   }
   // No AI available (the desktop app's fallback when its model can't run), or no article:
-  // facts from data, else song-list and hand-picked facts.
-  if (config.aiProvider === "none" || (config.factVerification && !context)) {
+  // facts from data, else song-list and hand-picked facts. FACT_VERIFICATION=off looks nothing
+  // up, so it lands here too: the AI never writes facts without a reference.
+  if (config.aiProvider === "none" || !config.factVerification || !context) {
     const lookup = config.factVerification && !handle && !placeholder;
     // With no AI, the article is still looked up, alongside the data: when it is surely this
     // song or its artist, its own Wikidata item adds facts (issue #256). Never for an unsure one.
@@ -1084,7 +1066,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
   const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
-  const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
+  const prompt = groundedPrompt(read, context, want + OVERGENERATE);
   let answer: string;
   try {
     answer = await askModel(prompt, songKey(asked));
@@ -1207,7 +1189,7 @@ function rankedFromArticle(
 }
 
 /**
- * SOURCE_RISK=off, or no reference (FACT_VERIFICATION=off): data facts first, then the
+ * SOURCE_RISK=off: data facts first, then the
  * captions their source sentence supports best, in the order written.
  */
 function bestSupported(

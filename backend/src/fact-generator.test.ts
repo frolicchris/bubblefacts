@@ -79,6 +79,11 @@ const reply = (text: string) => ({ content: [{ type: "text", text }] });
 /** The model's lines citing reference sentences, as the grounded prompt asks: sentence `from + i` for line i. */
 const citing = (lines: string, from = 1) => lines.split("\n").map((l, i) => `${from + i} | ${l}`).join("\n");
 const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
+/** The AI writes only from a reference: turn the lookup on, and have it find an article with the model's lines. */
+function withArticle(title: string): void {
+  (config as { factVerification: boolean }).factVerification = true;
+  (fetchGrounding as jest.Mock).mockResolvedValue(`${title} (song)\n${MODEL_LINES}`);
+}
 
 function entry(song: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> = {}): SSLQueueItem {
   return {
@@ -91,7 +96,7 @@ function entry(song: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> 
 beforeEach(() => {
   clearFactCache();
   mockCreate.mockReset().mockResolvedValue(reply(MODEL_LINES));
-  (fetchGrounding as jest.Mock).mockClear();
+  (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
   (config as { factVerification: boolean }).factVerification = false;
   delete process.env.CITE_SENTENCES;
 });
@@ -108,6 +113,7 @@ describe("generateFacts", () => {
   });
 
   it("tells the AI about the song only, nothing about the streamer (final QA #7)", async () => {
+    withArticle("Prompt Song");
     await generateFacts({ title: "Prompt Song", artist: "Prompt Artist" });
     const prompt = JSON.stringify(mockCreate.mock.calls[0]);
     expect(prompt).toContain("Prompt Song");
@@ -116,9 +122,10 @@ describe("generateFacts", () => {
 
   it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
     // Two songs by the same artist, both written from the artist's article.
+    withArticle("Same Artist");
     const first = (await generateFacts({ title: "Song One", artist: "Same Artist" })).map((f) => f.text);
     const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
-    expect(first).toHaveLength(5);
+    expect(first.length).toBeGreaterThan(0);
     expect(second.filter((t) => first.includes(t))).toEqual([]);
   });
 
@@ -255,6 +262,7 @@ describe("generateFacts", () => {
 
   it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {
     const song = { title: "Held Song", artist: "Held Artist" };
+    withArticle("Held Song");
     let release: (v: unknown) => void = () => undefined;
     mockCreate.mockReturnValueOnce(new Promise((r) => (release = r)));
     const first = generateFacts(song);
@@ -309,6 +317,7 @@ describe("generateFacts", () => {
       for (const title of ["Theme One", "Theme Two", "Theme Three", "Theme Four"]) {
         // The mock writes the same lines for every song: let each count as new.
         restoreRecent([]);
+        withArticle(title);
         const facts = await generateFacts({ title, artist: "Moonfall Saga" });
         const theirs = facts.filter((f) => isPool(f.text));
         expect(theirs).toHaveLength(1);
@@ -495,25 +504,31 @@ describe("generateFacts", () => {
     expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
   });
 
-  it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
-    await generateFacts({ title: "Unchecked Song", artist: "System Artist" });
-    expect(mockCreate.mock.calls[0][0].system).not.toMatch(/reference/);
+  it("never asks the AI for facts without a reference, even with fact checking off", async () => {
+    const facts = await generateFacts({ title: "Unchecked Song", artist: "System Artist" }, entry({ timesPlayed: 3 }));
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(facts.map((f) => f.source).every((s) => s === SOURCE.songList || s === SOURCE.custom || s === undefined)).toBe(true);
+    expect(facts.some((f) => f.text.includes("3 times"))).toBe(true);
   });
 
   it("caches a song's facts", async () => {
+    withArticle("Test Song");
     const first = await generateFacts(song);
     expect(await generateFacts(song)).toBe(first);
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it("shares one generation between concurrent requests for the same song", async () => {
+    withArticle("Test Song");
     const results = await Promise.all([generateFacts(song), generateFacts(song), generateFacts(song)]);
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(results[1]).toBe(results[0]);
     expect(results[2]).toBe(results[0]);
   });
 
-  it("still screens the model's output when verification is off", async () => {
+  it("screens the model's output", async () => {
+    withArticle("Test Song");
     mockCreate.mockResolvedValue(reply(`Here are 5 trivia lines about Test Song:\n1. ${MODEL_LINES}`));
     const texts = (await generateFacts(song)).map((f) => f.text);
     expect(texts.some((t) => /^Here are/.test(t))).toBe(false);
@@ -521,6 +536,7 @@ describe("generateFacts", () => {
   });
 
   it("falls back to entry and curated facts when the model fails", async () => {
+    withArticle("Test Song");
     mockCreate.mockRejectedValue(new Error("API Error"));
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     const facts = await generateFacts(song, entry({ timesPlayed: 3 }));
