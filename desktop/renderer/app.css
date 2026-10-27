@@ -58,6 +58,8 @@ input[type="text"], input[type="password"], input[type="number"], select, textar
 }
 ::placeholder { color: #7d7d7d; }
 input:focus, select:focus, textarea:focus, button:focus-visible, summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* The app moves focus to a screen's heading for screen readers; sighted users don't need a ring around it. */
+h1[tabindex="-1"]:focus { outline: none; }
 .row { display: flex; gap: 8px; }
 .row input { flex: 1; }
 
