@@ -17,6 +17,7 @@ import { catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
+import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
 
 /**
@@ -98,8 +99,9 @@ const creditCount = new CreditCounter(restored?.creditSince);
 /** When the streamer last pressed Test: the credit bubble keeps clear of it. */
 let testAt = 0;
 
-/** The [Shown] lines: logged where facts go out to an overlay, once per play of a song. */
-const shown = new ShownLog();
+/** The [Shown] lines: logged where facts go out to an overlay, once per play of a song, and kept in the aired facts record. */
+const aired = new AiredFacts();
+const shown = new ShownLog(aired);
 const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
 
 /** `credit`: a bubble that goes to the overlay ahead of a facts_ready batch but is no part of the song's record. */
@@ -539,6 +541,11 @@ function pullSwitchedOff(): number {
   for (const f of gone) broadcast({ type: "remove_fact", song, text: f.text });
   return gone.length;
 }
+
+// The facts that went out to the overlay, oldest first, for the app's reports (aired-facts.ts).
+control.post("/aired", (_req, res) => {
+  res.json({ facts: aired.list() });
+});
 
 // "Add facts for another song": find it on the song list as the musician types.
 control.post("/songs/search", songSearchRoute(songList));

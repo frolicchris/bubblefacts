@@ -16,16 +16,68 @@ export function redact(text: string, secrets: string[]): string {
     .replace(/(Authorization:\s*\w+\s+)\S+/gi, "$1[removed]");
 }
 
-function issueUrl(template: string, fields: Record<string, string>): string {
-  const params = new URLSearchParams({ template, ...fields });
-  let url = `${REPO}/issues/new?${params}`;
+/**
+ * `aired`: lines about facts that went out to the overlay, put after the log
+ * under their own heading. The log is trimmed first; they go only if the
+ * address still doesn't fit, oldest first.
+ */
+function issueUrl(template: string, fields: Record<string, string>, aired: { heading: string; lines: string[] } = { heading: "", lines: [] }): string {
+  const lines = [...aired.lines];
+  const build = () => {
+    const tail = lines.length ? `${aired.heading}\n${lines.join("\n")}` : "";
+    const log = [fields.log, tail].filter(Boolean).join("\n\n");
+    return `${REPO}/issues/new?${new URLSearchParams({ template, ...fields, ...(log ? { log } : {}) })}`;
+  };
+  let url = build();
   // Trim the longest field (the log) until the address fits.
   while (url.length > MAX_URL && fields.log) {
     fields.log = fields.log.slice(Math.floor(fields.log.length * 0.25));
-    url = `${REPO}/issues/new?${new URLSearchParams({ template, ...fields })}`;
+    url = build();
+  }
+  while (url.length > MAX_URL && lines.length) {
+    lines.shift();
+    url = build();
   }
   return url;
 }
+
+/** A fact that went out to the overlay, as the server keeps it (backend/src/aired-facts.ts). */
+export interface AiredFact {
+  title: string;
+  artist: string;
+  text: string;
+  source?: string;
+  url?: string;
+  /** ISO date. */
+  at: string;
+}
+
+/** The aired facts in what the server or the file gave, skipping anything that isn't one. */
+export function airedFrom(data: unknown): AiredFact[] {
+  const list = Array.isArray(data) ? data : Array.isArray((data as { facts?: unknown })?.facts) ? (data as { facts: unknown[] }).facts : [];
+  return list.filter((e): e is AiredFact => {
+    const a = e as AiredFact;
+    return !!a && typeof a.title === "string" && typeof a.artist === "string" && typeof a.text === "string" && typeof a.at === "string"
+      && (a.source === undefined || typeof a.source === "string") && (a.url === undefined || typeof a.url === "string");
+  });
+}
+
+/** "2026-10-26 20:15 UTC", or the date as saved if it isn't one. */
+function when(at: string): string {
+  const d = new Date(at);
+  return Number.isNaN(d.getTime()) ? at : `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+const sourceOf = (a: AiredFact) => `${a.source ?? "no source"}${a.url ? `, ${a.url}` : ""}`;
+
+/** One aired fact as a report line: `2026-10-26 20:15 UTC "Song" by Artist (source, link): text`. */
+function airedLine(a: AiredFact): string {
+  const artist = withoutArtistNote(a.artist);
+  return `${when(a.at)} "${a.title}"${artist ? ` by ${artist}` : ""} (${sourceOf(a)}): ${a.text}`;
+}
+
+/** How many of the latest aired facts a problem report includes. */
+export const PROBLEM_REPORT_AIRED = 10;
 
 const osName = () => ({ darwin: "macOS", win32: "Windows" } as Record<string, string>)[process.platform] ?? "Linux";
 const aiName = (ai: string) =>
@@ -33,16 +85,21 @@ const aiName = (ai: string) =>
   "Other or not sure";
 
 /** `version` is the label with the build, such as "2.0.0-beta.12 test build (c4ee826)" (build.ts). */
-export function problemReportUrl(opts: { version: string; ai: string; logLines: string[]; secrets: string[] }): string {
+export function problemReportUrl(opts: { version: string; ai: string; logLines: string[]; secrets: string[]; aired?: AiredFact[] }): string {
   const log = redact(opts.logLines.slice(-60).join("\n"), opts.secrets);
-  return issueUrl("bug_report.yml", {
-    version: opts.version,
-    install: "The desktop app",
-    os: osName(),
-    osversion: `${osName()} ${os.release()}, ${process.arch}`,
-    ai: aiName(opts.ai),
-    log,
-  });
+  const aired = (opts.aired ?? []).slice(-PROBLEM_REPORT_AIRED).map((a) => redact(airedLine(a), opts.secrets));
+  return issueUrl(
+    "bug_report.yml",
+    {
+      version: opts.version,
+      install: "The desktop app",
+      os: osName(),
+      osversion: `${osName()} ${os.release()}, ${process.arch}`,
+      ai: aiName(opts.ai),
+      log,
+    },
+    { heading: "Latest facts on the overlay:", lines: aired }
+  );
 }
 
 /**
@@ -109,16 +166,47 @@ function songLabel(label: string): string {
   return at < 0 ? label : `${label.slice(0, at)} — ${withoutArtistNote(label.slice(at + 3))}`;
 }
 
+/**
+ * The aired fact a Wrong report means, the newest with that text (for that song
+ * when it can tell), and the other facts that went out with it: the entries
+ * for the same song next to it in the record, which is in the order they aired.
+ */
+export function airedForReport(aired: AiredFact[], songTitle: string, fact: string): { reported: AiredFact | null; others: AiredFact[] } {
+  const title = songTitle.toLowerCase();
+  let at = -1;
+  for (let i = aired.length - 1; i >= 0 && at < 0; i--) if (aired[i].text === fact && aired[i].title.toLowerCase() === title) at = i;
+  for (let i = aired.length - 1; i >= 0 && at < 0; i--) if (aired[i].text === fact) at = i;
+  if (at < 0) return { reported: null, others: [] };
+  const reported = aired[at];
+  const same = (a: AiredFact) => a.title === reported.title && a.artist === reported.artist;
+  let first = at;
+  let last = at;
+  while (first > 0 && same(aired[first - 1])) first--;
+  while (last < aired.length - 1 && same(aired[last + 1])) last++;
+  const others = aired.slice(first, last + 1).filter((a, i, all) => a.text !== fact && all.findIndex((b) => b.text === a.text) === i);
+  return { reported, others };
+}
+
 /** `version` is the label with the build (build.ts). */
-export function wrongFactUrl(opts: { song: string; fact: string; version: string; logLines: string[]; secrets: string[] }): string {
-  const title = opts.song.split(" — ")[0].toLowerCase();
+export function wrongFactUrl(opts: { song: string; fact: string; version: string; logLines: string[]; secrets: string[]; aired?: AiredFact[] }): string {
+  const songTitle = opts.song.split(" — ")[0];
+  const title = songTitle.toLowerCase();
   const relevant = opts.logLines.filter((l) => /\[(Grounding|Screen)\]/.test(l) && l.toLowerCase().includes(title));
-  return issueUrl("wrong_fact.yml", {
-    song: songLabel(opts.song),
-    shown: opts.fact,
-    version: opts.version,
-    log: redact((relevant.length ? relevant : opts.logLines.filter((l) => /\[Grounding\]/.test(l))).slice(-10).join("\n"), opts.secrets),
-  });
+  const { reported, others } = airedForReport(opts.aired ?? [], songTitle, opts.fact);
+  // The exact fact, with where it came from and when it aired, in the field that's never trimmed.
+  const shown = reported
+    ? [opts.fact, "", `Source: ${sourceOf(reported)}`, `On the overlay: ${when(reported.at)}`].join("\n")
+    : opts.fact;
+  return issueUrl(
+    "wrong_fact.yml",
+    {
+      song: songLabel(opts.song),
+      shown: redact(shown, opts.secrets),
+      version: opts.version,
+      log: redact((relevant.length ? relevant : opts.logLines.filter((l) => /\[Grounding\]/.test(l))).slice(-10).join("\n"), opts.secrets),
+    },
+    { heading: "Other facts on the overlay for this song:", lines: others.map((a) => redact(airedLine(a), opts.secrets)) }
+  );
 }
 
 const LABELS: Record<string, string> = {
