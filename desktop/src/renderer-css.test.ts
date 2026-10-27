@@ -36,12 +36,14 @@ describe("dashboard", () => {
 });
 
 describe("setup's bubble spot question", () => {
-  it("offers the corners, top and bottom as a picture of the screen, with nothing picked for them", () => {
+  it("offers the corners, top center and bottom center as a picture of the screen, with nothing picked for them", () => {
     const html = read("index.html");
     expect(html).toContain("Where's clear on your stream?");
     const picker = html.slice(html.indexOf('class="screen-pick"'), html.indexOf("</div>", html.indexOf('class="screen-pick"')));
     const values = [...picker.matchAll(/name="setup-area" value="([a-z-]+)"/g)].map((m) => m[1]);
-    expect(values.sort()).toEqual(["bottom", "bottom-left", "bottom-right", "top", "top-left", "top-right"]);
+    // Each one is the one spot its place in the picture shows. "top" and "bottom" spread bubbles along
+    // the whole edge, corners included, so the middle of the picture can't stand for them.
+    expect(values.sort()).toEqual(["bottom-center", "bottom-left", "bottom-right", "top-center", "top-left", "top-right"]);
     // Every one is a spot the app accepts, and none is chosen before the musician picks.
     for (const v of values) expect(sanitize({ ...DEFAULTS, bubbleArea: v as Settings["bubbleArea"] }).bubbleArea).toBe(v);
     expect(picker).not.toContain("checked");
