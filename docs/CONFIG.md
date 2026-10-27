@@ -176,9 +176,9 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 `anywhere`) keeps bubbles to one part of the screen. To put every bubble in
 the same spot, use `top-left`, `top-center`, `top-right`, `bottom-left`,
 `bottom-center` or `bottom-right`: a new bubble replaces the one showing
-there. `bottom-center` sits just above the Now Playing bubble, or at the
-very bottom when that bubble is off (`NOW_PLAYING=off`, and for a live learn
-`LIVE_LEARN_BANNER=off`). The exact spots are the
+there. No bubble covers the Now Playing bubble: bottom spots sit just above
+it, and low spots grow upward. With that bubble off (`NOW_PLAYING=off`, and
+for a live learn `LIVE_LEARN_BANNER=off`), bottom spots are at the very bottom. The exact spots are the
 lists at the top of `backend/src/fact-generator.ts`. Text size, colors and animation are at the
 top of `frontend/obs/obs-overlay.css`.
 

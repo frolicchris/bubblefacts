@@ -199,6 +199,37 @@ describe("generateFacts", () => {
     expect(facts.every((f) => f.position.right === "3%" && f.position.bottom === "5%")).toBe(true);
   });
 
+  it("never puts a bubble over the Now Playing bubble, in any area at any bubble size", () => {
+    // Sizes from obs-overlay.css on a 1920x1080 overlay. The Now Playing bubble can be 80% of the
+    // screen wide, so any bubble low enough would touch it: only heights keep them apart.
+    const H = 1080;
+    const px = (css: string, scale: number): number =>
+      Function(`return ${css
+        .replace(/var\(--bf-scale, 1\)/g, String(scale))
+        .replace(/calc\(/g, "(")
+        .replace(/max\(/g, "Math.max(")
+        .replace(/([\d.]+)px/g, "$1")
+        .replace(/([\d.]+)(vh|%)/g, `($1 * ${H / 100})`)}`)();
+    for (const scale of [1, 1.25, 1.5]) {
+      // `bottom: 60px`, two lines of 1.944vh text at line-height 1.35, 0.7em padding above and below, 2px borders.
+      const vh = (n: number) => (n * H) / 100;
+      const bannerTop = 60 + 2 * 1.35 * vh(1.944 * scale) + 1.4 * vh(1.944 * scale) + 4;
+      // The longest fact (300 characters) wraps to about 8 lines in the widest bubble: 30% of the height at Standard.
+      const tallest = vh(30 * scale);
+      for (const area of ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]) {
+        for (const p of positionsFor(area, true)) {
+          const lowest = p.bottom ? px(p.bottom, scale) : H - (px(p.top ?? "0", scale) + tallest);
+          expect({ area, scale, clear: lowest >= bannerTop }).toEqual({ area, scale, clear: true });
+          // Growing up from there, still on screen.
+          if (p.bottom) expect(px(p.bottom, scale) + tallest).toBeLessThanOrEqual(H);
+        }
+      }
+    }
+    // Without the Now Playing bubble, the spots stay where they were.
+    expect(positionsFor("bottom-left", false)).toEqual([{ bottom: "5%", left: "3%" }]);
+    expect(positionsFor("anywhere", false)[1]).toEqual({ top: "57%", left: "9%" });
+  });
+
   it("doesn't log facts as shown when it writes them: the server logs them when they go out (shown-log.ts)", async () => {
     // From review: a skipped, paused or superseded song's facts were logged as [Shown] though never sent.
     // console.log is already muted for all tests (test-setup.ts): read that mock, don't replace it.
