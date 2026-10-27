@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
@@ -1187,5 +1187,43 @@ describe("logs say why a fact was dropped, never what it said (issue #262)", () 
     } finally {
       log.mockRestore();
     }
+  });
+});
+
+describe("a song that comes back while its stopped generation winds down", () => {
+  const request = { title: "Copper Kite", artist: "Marlo Venn" };
+  const page = `Copper Kite (Marlo Venn song)\n"Copper Kite" is a song by Marlo Venn. ${MODEL_LINES}`;
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (config as { aiProvider: string }).aiProvider = "builtin";
+    (fetchGrounding as jest.Mock).mockResolvedValue(page);
+    (articleItem as jest.Mock).mockReset().mockResolvedValue(null);
+  });
+  afterEach(() => {
+    (config as { aiProvider: string }).aiProvider = "anthropic";
+    (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
+    setCurrentSong(null);
+  });
+
+  it("gets its facts after a quick skip away and back", async () => {
+    const prompts: AbortSignal[] = [];
+    useBuiltinSession({
+      resetChatHistory: () => undefined,
+      // Like node-llama-cpp with stopOnAbortSignal: a stopped prompt ends a moment later with what it wrote.
+      prompt: (_text, { signal }) => {
+        prompts.push(signal);
+        if (prompts.length > 1) return Promise.resolve(MODEL_LINES);
+        return new Promise((r) => signal.addEventListener("abort", () => setTimeout(() => r(""), 10)));
+      },
+    });
+    setCurrentSong(request);
+    const first = generateFacts(request);
+    while (!prompts.length) await new Promise((r) => setImmediate(r));
+    // Skipped to another song and straight back, before the stopped prompt has ended.
+    setCurrentSong({ title: "Tin Harbor", artist: "Marlo Venn" });
+    setCurrentSong(request);
+    const back = generateFacts(request);
+    expect(await first).toEqual([]);
+    expect((await back).length).toBeGreaterThan(0);
   });
 });

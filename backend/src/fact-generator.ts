@@ -530,6 +530,11 @@ function loadBuiltin(): Promise<{ session: any }> {
   return builtin;
 }
 
+/** Stand in for the built-in model's chat session. Only the tests call this; the app loads the model. */
+export function useBuiltinSession(session: { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void }): void {
+  builtin = Promise.resolve({ session });
+}
+
 /**
  * Load the built-in model at start-up rather than on the first song, so the
  * first song isn't slowed by loading and a load failure shows immediately.
@@ -562,7 +567,11 @@ let running: { key: string | null; stop: AbortController } | null = null;
  */
 export function setCurrentSong(song: SSLSong | null): void {
   currentKey = song ? songKey(song) : null;
-  if (running?.key && running.key !== currentKey) running.stop.abort();
+  if (running?.key && running.key !== currentKey) {
+    // Its generation ends with no facts: a quick return to the song must start a new one, not join it.
+    inFlight.delete(running.key);
+    running.stop.abort();
+  }
 }
 const obsolete = (key: string | null) => key !== null && currentKey !== null && key !== currentKey;
 
