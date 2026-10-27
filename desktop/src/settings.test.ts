@@ -117,6 +117,63 @@ describe("loadSettings", () => {
   });
 });
 
+describe("a settings file that can't be read right now (antivirus or OneDrive lock)", () => {
+  /** Makes reading settings.json fail with `code` for the first `times` reads (all of them by default). */
+  const lockFile = (code: string, times = Infinity) => {
+    const real = fs.readFileSync;
+    let left = times;
+    return jest.spyOn(fs, "readFileSync").mockImplementation(((p: fs.PathOrFileDescriptor, ...rest: unknown[]) => {
+      if (String(p) === file && left-- > 0) throw Object.assign(new Error(`${code}: resource busy or locked`), { code });
+      return (real as (...a: unknown[]) => unknown)(p, ...rest);
+    }) as typeof fs.readFileSync);
+  };
+  beforeEach(() => {
+    jest.spyOn(Atomics, "wait").mockReturnValue("timed-out");
+    jest.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each(["EBUSY", "EPERM", "EACCES"])("%s keeps the file, uses defaults and doesn't save over it", (code) => {
+    saveSettings({ ...DEFAULTS, channel: "jane", token: "secret-token" });
+    const before = fs.readFileSync(file, "utf8");
+    const spy = lockFile(code);
+    const s = loadSettings();
+    expect(s).toEqual(DEFAULTS);
+    expect(spy.mock.calls.filter(([p]) => String(p) === file)).toHaveLength(4); // the first try and three more
+    expect(fs.existsSync(file + ".unreadable")).toBe(false);
+    saveSettings({ ...s, displayName: "Someone Else" });
+    spy.mockRestore();
+    expect(fs.readFileSync(file, "utf8")).toBe(before);
+    expect(loadSettings()).toMatchObject({ channel: "jane", token: "secret-token" });
+  });
+
+  it("reads the file when the lock lifts within the retries", () => {
+    saveSettings({ ...DEFAULTS, channel: "jane", token: "secret-token" });
+    lockFile("EBUSY", 2);
+    expect(loadSettings()).toMatchObject({ channel: "jane", token: "secret-token" });
+    expect(fs.existsSync(file + ".unreadable")).toBe(false);
+  });
+
+  it("saves again once a later load can read the file", () => {
+    saveSettings({ ...DEFAULTS, channel: "jane" });
+    const spy = lockFile("EBUSY");
+    loadSettings();
+    spy.mockRestore();
+    saveSettings({ ...DEFAULTS, channel: "other" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).channel).toBe("jane");
+    saveSettings({ ...loadSettings(), channel: "other" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).channel).toBe("other");
+  });
+
+  it("still sets aside a file that reads but isn't a settings object", () => {
+    fs.writeFileSync(file, "42");
+    expect(loadSettings()).toEqual(DEFAULTS);
+    expect(fs.existsSync(file + ".unreadable")).toBe(true);
+    fs.writeFileSync(file, "null");
+    expect(loadSettings()).toEqual(DEFAULTS);
+  });
+});
+
 describe("update channel", () => {
   it("is Stable for a new install of a full release", () => {
     expect(loadSettings().updateChannel).toBe("stable");

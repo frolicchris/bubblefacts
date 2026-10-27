@@ -1236,7 +1236,11 @@ interface: a change that breaks one waits for 3.0 (SemVer).
 
 - **Settings** (`settings.json`): a version reads any older 2.x file. A
   setting it doesn't know is kept when it saves, so going back a version and
-  forward again loses nothing. `settingsVersion` records the format.
+  forward again loses nothing. `settingsVersion` records the format. A file
+  that reads but isn't a settings object is renamed to `.unreadable`. One that
+  can't be read at all (a lock from an antivirus program or OneDrive) is tried
+  a few times, then the defaults stand in for this run and nothing is saved
+  over it, so the sign-in survives.
 - **Facts files:** `song-facts.json`, `wrong-facts.json`, and the custom
   facts in settings.
 - **Backups:** `formatVersion` 1; a newer format is refused with a plain
