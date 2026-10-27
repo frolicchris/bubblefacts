@@ -23,10 +23,12 @@ describe("dashboard", () => {
     const js = read("app.js");
     for (const line of [
       "BubbleFacts will show facts when your next song starts.",
-      "Bubbles for this song are coming up on your stream.",
-      "No reliable facts for this song, so no bubbles. That's normal.",
+      "This song's facts pop up on your stream while it plays.",
+      "No bubbles for this song. The note below says why.",
       "Looking up facts for this song. They appear in a few seconds.",
     ]) expect(js).toContain(line);
     expect(js).not.toContain("BubbleFacts is connected and waiting.");
+    // With facts off, a live learn or a failure there are no bubbles, but calling it "normal" would be wrong.
+    expect(js).not.toContain("No reliable facts for this song, so no bubbles. That's normal.\"");
   });
 });

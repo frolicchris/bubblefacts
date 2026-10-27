@@ -426,8 +426,9 @@
       title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
       // What is happening right now, in the words of the title above.
       const waiting = !h.currentSong ? "BubbleFacts will show facts when your next song starts."
-        : nowShowing > 0 ? "Bubbles for this song are coming up on your stream."
-        : nowReady ? "No reliable facts for this song, so no bubbles. That's normal."
+        : nowShowing > 0 ? "This song's facts pop up on your stream while it plays."
+        // Nothing reliable, facts off, a live learn or a failure: the note under On stream now says which.
+        : nowReady ? "No bubbles for this song. The note below says why."
         : "Looking up facts for this song. They appear in a few seconds.";
       detail = downloading
         ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
