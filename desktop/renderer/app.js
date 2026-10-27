@@ -1143,10 +1143,16 @@
    */
   const settingsDraft = new Set();
   const draftKey = (el) => el.name || el.id;
+  /** The Save bar's note, from the first change on; a draft typed back to what's saved drops it. */
+  const renderDraftNote = () =>
+    setResult($("#settings-result"), settingsDraft.size ? "Your changes aren't saved yet. Click Save to keep them." : "");
   for (const type of ["input", "change"]) {
     form.addEventListener(type, (e) => {
       const key = draftKey(e.target);
-      if (key && e.target.matches("input, textarea, select")) settingsDraft.add(key);
+      if (!key || !e.target.matches("input, textarea, select")) return;
+      if (differsFromSaved(key)) settingsDraft.add(key);
+      else settingsDraft.delete(key);
+      renderDraftNote();
     });
   }
 
@@ -1195,7 +1201,7 @@
     renderTimingHint();
     renderTwitch();
     renderWrongKey();
-    setResult($("#settings-result"), settingsDraft.size ? "Your changes aren't saved yet. Click Save to keep them." : "");
+    renderDraftNote();
   }
 
   /** High quality is a choice under "On this computer", with a warning (never a block) where it may struggle. */

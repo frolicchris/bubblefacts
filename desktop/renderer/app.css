@@ -197,6 +197,14 @@ legend { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 4
 .indent { margin: 0 0 8px 28px; }
 .subhead { margin-top: 22px; }
 textarea { resize: vertical; line-height: 1.45; }
+/* Settings is long: its help text reads a size up, and Save stays in reach at the bottom. */
+#settings-form .fine, #settings-form .hint { font-size: 14px; }
+#settings-form .choices { margin-bottom: 8px; }
+.save-bar {
+  position: sticky; bottom: 0; z-index: 1; gap: 14px;
+  margin: 24px -28px -24px; padding: 12px 28px;
+  background: var(--panel-2); border-top: 1px solid var(--border); border-radius: 0 0 6px 6px;
+}
 .about { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 24px 24px; }
 
 @media (max-width: 760px) {
