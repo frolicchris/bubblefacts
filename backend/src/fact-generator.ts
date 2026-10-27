@@ -58,7 +58,13 @@ const lowSpots = (list: Array<[number, number]>) => list.map(([bottom, left]): F
  * Top of the Now Playing bubble, from obs-overlay.css: `bottom: 60px`, plus two
  * lines of 1.944vh text at line-height 1.35 and its padding and border, plus a gap.
  */
-const NOW_PLAYING_CLEARANCE = "calc(64px + 9.5vh * var(--bf-scale, 1))";
+const BANNER_TOP = "64px + 9.5vh * var(--bf-scale, 1)";
+const NOW_PLAYING_CLEARANCE = `calc(${BANNER_TOP})`;
+/**
+ * A spot measured down from the top below this could grow into the Now Playing bubble with a
+ * long fact at the largest bubble size, so while that bubble shows it's measured up from the bottom.
+ */
+const LOWEST_TOP = 30;
 
 /**
  * BUBBLE_AREA: the part of the screen bubbles keep to, for streamers whose
@@ -79,19 +85,40 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
   "top-center": [{ top: "6%" }],
   "top-right": [{ top: "6%", right: "3%" }],
   "bottom-left": [{ bottom: "5%", left: "3%" }],
-  // At the bottom edge like the other bottom spots; just above the Now Playing bubble while it shows
-  // (positionsFor).
+  // At the bottom edge like the other bottom spots. Every bottom spot waits above the Now Playing
+  // bubble while it shows (positionsFor).
   "bottom-center": [{ bottom: "5%" }],
   "bottom-right": [{ bottom: "5%", right: "3%" }],
 };
 
+const pct = (v: string) => Number(v.replace("%", ""));
+
+/**
+ * The same spot, clear of the Now Playing bubble. It can be most of the screen wide, so height is
+ * what keeps them apart: bottom spots sit on top of it instead of the bottom edge, keeping their
+ * layout, and low top spots grow upward from where they were, never lower than its top.
+ */
+function clearOfBanner(p: Fact["position"]): Fact["position"] {
+  if (p.bottom) {
+    const b = pct(p.bottom) - 5;
+    return { ...p, bottom: b > 0 ? `calc(${BANNER_TOP} + ${b}%)` : NOW_PLAYING_CLEARANCE };
+  }
+  const t = pct(p.top ?? "0");
+  if (t <= LOWEST_TOP) return p;
+  const { top: _top, ...side } = p;
+  // A typical bubble is about a tenth of the screen tall, so its bottom edge stays about where it was.
+  return { ...side, bottom: `max(${100 - t - 10}%, ${NOW_PLAYING_CLEARANCE})` };
+}
+
 /**
  * The spots for the chosen area, in the order bubbles use them. `banner`: the Now Playing (or
- * LIVE LEARN) bubble shows at the bottom center, so a bubble there waits just above it (60px up,
- * and up to two lines of its text at any bubble size). With Now Playing off it's the true bottom center.
+ * LIVE LEARN) bubble shows at the bottom center, so no spot reaches it (60px up, and up to two
+ * lines of its text at any bubble size). With Now Playing off, bottom spots are at the true bottom.
  */
-export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
-  area === "bottom-center" && banner ? [{ bottom: NOW_PLAYING_CLEARANCE }] : AREAS[area] ?? POSITIONS;
+export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> => {
+  const spots = AREAS[area] ?? POSITIONS;
+  return banner ? spots.map(clearOfBanner) : spots;
+};
 /** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off. */
 export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying);
 /** The spots for a song's bubbles, clear of its banner while it shows. */

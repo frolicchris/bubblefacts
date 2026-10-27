@@ -200,8 +200,19 @@
         ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
         : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
     renderPaths();
+    // Only a spot this question offers is shown as chosen: on a new install nothing is, until the musician picks.
+    for (const r of $$('input[name="setup-area"]')) r.checked = r.value === state.settings.bubbleArea;
     goStep(2);
     watchForObs();
+  }
+
+  for (const radio of $$('input[name="setup-area"]')) {
+    radio.addEventListener("change", async () => {
+      const saved = await api.saveSettings({ bubbleArea: radio.value });
+      if (saved.error) return setResult($("#setup-area-result"), saved.error, "bad");
+      state = saved;
+      setResult($("#setup-area-result"), "", "");
+    });
   }
 
   const obsConnected = (s) => !!s?.health?.clients?.some((c) => /OBS\//.test(c.ua));

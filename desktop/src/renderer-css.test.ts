@@ -1,5 +1,7 @@
 import fs from "fs";
 import path from "path";
+jest.mock("electron", () => ({ app: { getPath: () => "", getVersion: () => "0.0.0" }, safeStorage: {} }));
+import { DEFAULTS, sanitize, type Settings } from "./settings";
 
 const renderer = path.join(__dirname, "..", "renderer");
 const read = (f: string) => fs.readFileSync(path.join(renderer, f), "utf8");
@@ -30,5 +32,32 @@ describe("dashboard", () => {
     expect(js).not.toContain("BubbleFacts is connected and waiting.");
     // With facts off, a live learn or a failure there are no bubbles, but calling it "normal" would be wrong.
     expect(js).not.toContain("No reliable facts for this song, so no bubbles. That's normal.\"");
+  });
+});
+
+describe("setup's bubble spot question", () => {
+  it("offers the corners, top center and bottom center as a picture of the screen, with nothing picked for them", () => {
+    const html = read("index.html");
+    expect(html).toContain("Where should bubbles appear on your stream?");
+    const picker = html.slice(html.indexOf('class="screen-pick"'), html.indexOf("</div>", html.indexOf('class="screen-pick"')));
+    const values = [...picker.matchAll(/name="setup-area" value="([a-z-]+)"/g)].map((m) => m[1]);
+    // Each one is the one spot its place in the picture shows. "top" and "bottom" spread bubbles along
+    // the whole edge, corners included, so the middle of the picture can't stand for them.
+    expect(values.sort()).toEqual(["bottom-center", "bottom-left", "bottom-right", "top-center", "top-left", "top-right"]);
+    // Every one is a spot the app accepts, and none is chosen before the musician picks.
+    for (const v of values) expect(sanitize({ ...DEFAULTS, bubbleArea: v as Settings["bubbleArea"] }).bubbleArea).toBe(v);
+    expect(picker).not.toContain("checked");
+    // A new install still starts at Anywhere until then, and Settings keeps its hint.
+    expect(DEFAULTS.bubbleArea).toBe("anywhere");
+    // The picture shows where a camera, chat and the Now Playing bar usually sit.
+    for (const label of ["Camera", "Chat", "Now Playing"]) expect(html).toMatch(new RegExp(`class="mock [a-z-]+" aria-hidden="true">${label}<`));
+    expect(html).not.toContain("Where's clear on your stream?");
+    expect(html).toContain("keep them clear of your camera, keyboard or chat");
+  });
+
+  it("saves the musician's pick, and shows an existing choice only when it's one of these", () => {
+    const js = read("app.js");
+    expect(js).toContain('api.saveSettings({ bubbleArea: radio.value })');
+    expect(js).toContain("r.checked = r.value === state.settings.bubbleArea");
   });
 });
