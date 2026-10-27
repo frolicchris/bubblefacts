@@ -13,7 +13,7 @@ import { allowedFacts, pulledWithWrong, positionsFor, positionsForSong, primeFac
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
-import { catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
+import { bubbleNow, catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
@@ -599,7 +599,9 @@ app.get("/recent", (_req, res) => {
   // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
   const song = songFrom(lastSent.song);
   // Each earlier song with its switches, for one click under Earlier songs.
-  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier: earlier.map((e) => ({ ...e, off: factsOff(e.song) })) });
+  // Which bubble is up, from the overlay's own schedule; none while paused.
+  const onStream = paused ? { up: [], nextInSeconds: null } : bubbleNow(lastSent.facts ?? [], factsShownAt);
+  res.json({ ...lastSent, onStream, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier: earlier.map((e) => ({ ...e, off: factsOff(e.song) })) });
 });
 
 // --- Start -----------------------------------------------------------------

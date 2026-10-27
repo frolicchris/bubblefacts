@@ -11,3 +11,22 @@ describe("setup headings", () => {
     expect(read("app.css")).toMatch(/h1\[tabindex="-1"\]:focus\s*\{\s*outline:\s*none;\s*\}/);
   });
 });
+
+describe("dashboard", () => {
+  it("makes Add facts for this song the filled button and for another song the plain one", () => {
+    const html = read("index.html");
+    expect(html).toMatch(/<button id="song-facts-open" class="primary"/);
+    expect(html).toMatch(/<button id="song-facts-other" class="ghost"/);
+  });
+
+  it("gives each green banner title its own second line", () => {
+    const js = read("app.js");
+    for (const line of [
+      "BubbleFacts will show facts when your next song starts.",
+      "Bubbles for this song are coming up on your stream.",
+      "No reliable facts for this song, so no bubbles. That's normal.",
+      "Looking up facts for this song. They appear in a few seconds.",
+    ]) expect(js).toContain(line);
+    expect(js).not.toContain("BubbleFacts is connected and waiting.");
+  });
+});

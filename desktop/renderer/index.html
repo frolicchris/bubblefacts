@@ -242,9 +242,10 @@
         <ul id="now-facts" class="facts"></ul>
         <!-- The live region stays in place, so the note is announced when it appears, not only when it changes. -->
         <div role="status"><p id="wrong-note" class="fine" hidden><span id="wrong-note-text"></span> <button id="wrong-edit" class="link" hidden>Edit it</button> <button id="wrong-undo" class="link">Undo</button> <button id="wrong-report" class="link">Report it (opens GitHub)</button></p></div>
+        <p id="now-next" class="fine" hidden></p>
         <p id="now-empty" class="fine">Facts appear here a few seconds after a song starts.</p>
         <div class="toolbar song-facts-buttons">
-          <button id="song-facts-open" class="ghost" hidden>Add facts for this song</button>
+          <button id="song-facts-open" class="primary" hidden>Add facts for this song</button>
           <button id="song-facts-other" class="ghost" hidden>Add facts for another song</button>
         </div>
         <form id="song-facts-form" class="song-facts" hidden>
@@ -652,7 +653,7 @@
   </footer>
 
   <template id="fact-item">
-    <li class="fact"><span><span class="fact-text"></span> <span class="fact-source"></span><button class="fact-source-link link" hidden></button><span class="fact-evidence" hidden></span></span><button class="edit-fact" hidden>Edit</button><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
+    <li class="fact"><span><span class="fact-live" hidden>On stream</span> <span class="fact-text"></span> <span class="fact-source"></span><button class="fact-source-link link" hidden></button><span class="fact-evidence" hidden></span></span><button class="edit-fact" hidden>Edit</button><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
   <script src="app.js"></script>

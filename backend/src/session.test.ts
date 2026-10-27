@@ -5,7 +5,7 @@ import path from "path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-session-"));
 jest.mock("./config", () => ({ config: { dataDir: dir } }));
 
-import { catchUpFacts, factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession, withLaterFacts } from "./session";
+import { bubbleNow, catchUpFacts, factOnScreen, loadSession, readingSeconds, remainingFacts, REMEMBER_FOR_MS, sameRequest, saveSession, withLaterFacts } from "./session";
 import { Fact } from "./types";
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -112,6 +112,37 @@ describe("factOnScreen after a hands-free Wrong", () => {
     expect(factOnScreen([facts[0]], shownAt, shownAt + 30_000, shownAt + 12_000)).toBeNull();
     // A bubble that appears after the press still counts.
     expect(factOnScreen([...facts, fact("Third fact here.", 20)], shownAt, shownAt + 21_000, shownAt + 12_000)?.text).toBe("Third fact here.");
+  });
+});
+
+describe("the bubble the dashboard marks as on stream", () => {
+  const at = (seconds: number) => 1000 + seconds * 1000;
+
+  it("is none, and nothing next, before the facts went out", () => {
+    expect(bubbleNow(facts, 0, at(5))).toEqual({ up: [], nextInSeconds: null });
+  });
+
+  it("names the bubble that is up", () => {
+    expect(bubbleNow(facts, 1000, at(3))).toEqual({ up: ["One."], nextInSeconds: 12 });
+  });
+
+  it("counts down to the next bubble between two", () => {
+    expect(bubbleNow(facts, 1000, at(10.5))).toEqual({ up: [], nextInSeconds: 5 });
+  });
+
+  it("has no next bubble after the last one is gone", () => {
+    expect(bubbleNow(facts, 1000, at(600))).toEqual({ up: [], nextInSeconds: null });
+  });
+
+  it("drops a bubble a later one in the same spot replaced, and keeps one in another spot", () => {
+    const other = { ...fact("Elsewhere.", 2), position: { bottom: "8%", left: "33%" } };
+    const overlapping = [fact("First.", 0), other, fact("Second.", 6)];
+    expect(bubbleNow(overlapping, 1000, at(7)).up).toEqual(["Elsewhere.", "Second."]);
+  });
+
+  it("keeps a long fact up for its reading time", () => {
+    const long = fact(Array(60).fill("word").join(" "), 0);
+    expect(bubbleNow([long], 1000, at(15)).up).toEqual([long.text]);
   });
 });
 
