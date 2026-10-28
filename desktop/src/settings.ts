@@ -396,7 +396,7 @@ export function secretsUnprotected(): boolean {
 /** The settings as the server's environment variables. */
 export function toServerEnv(
   s: Settings,
-  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string }
+  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
     // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
@@ -417,6 +417,8 @@ export function toServerEnv(
     BUBBLEFACTS_LOG_DIR: paths.logDir,
     NODE_ENV: "production",
   };
+  // Where the system keeps Documents, for the Streamling and Nightbot presets: tried before the home folder's.
+  if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;

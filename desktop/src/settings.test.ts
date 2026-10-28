@@ -31,6 +31,13 @@ afterEach(() => {
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
+describe("toServerEnv documents folder", () => {
+  it("passes the system's Documents folder to the server when the app knows it", () => {
+    expect(toServerEnv(DEFAULTS, { ...paths, documentsDir: "/Redirected/Documents" }).BUBBLEFACTS_DOCUMENTS_DIR).toBe("/Redirected/Documents");
+    expect(toServerEnv(DEFAULTS, paths)).not.toHaveProperty("BUBBLEFACTS_DOCUMENTS_DIR");
+  });
+});
+
 describe("loadSettings", () => {
   it("starts from the defaults on first run", () => {
     expect(loadSettings()).toEqual(DEFAULTS);

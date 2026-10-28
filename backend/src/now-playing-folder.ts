@@ -23,8 +23,10 @@ export function presetFolder(
     }
   }
 ): string {
-  const usual = path.join(home, "Documents", ...folder);
+  // The desktop app passes the Documents folder the system names, which follows a redirect the home path doesn't.
+  const documents = env.BUBBLEFACTS_DOCUMENTS_DIR?.trim() || path.join(home, "Documents");
+  const usual = path.join(documents, ...folder);
   const drives = [env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial].map((d) => d?.trim()).filter((d): d is string => !!d);
-  const candidates = [usual, ...drives.map((d) => path.join(d, "Documents", ...folder))];
+  const candidates = [usual, path.join(home, "Documents", ...folder), ...drives.map((d) => path.join(d, "Documents", ...folder))];
   return candidates.find((c) => isDir(c)) ?? usual;
 }
