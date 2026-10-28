@@ -20,7 +20,7 @@ jest.mock("child_process", () => ({
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { Supervisor, Health } from "./supervisor";
+import { Supervisor, Health, pruneLogs } from "./supervisor";
 
 const logDir = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-supervisor-"));
 afterAll(() => fs.rmSync(logDir, { recursive: true, force: true }));
@@ -158,5 +158,46 @@ describe("retrying the built-in AI on the processor", () => {
     expect(forks).toHaveLength(2);
     await run(2_000);
     expect(forks).toHaveLength(3);
+  });
+});
+
+describe("log housekeeping", () => {
+  const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-logs-"));
+
+  it("moves a songs.log over 1 MB aside and keeps three old ones", () => {
+    const d = dir();
+    fs.writeFileSync(path.join(d, "songs.log"), "x".repeat(1_100_000));
+    fs.writeFileSync(path.join(d, "songs.1.log"), "one");
+    fs.writeFileSync(path.join(d, "songs.2.log"), "two");
+    fs.writeFileSync(path.join(d, "songs.3.log"), "three");
+    pruneLogs(d);
+    expect(fs.existsSync(path.join(d, "songs.log"))).toBe(false);
+    expect(fs.statSync(path.join(d, "songs.1.log")).size).toBe(1_100_000);
+    expect(fs.readFileSync(path.join(d, "songs.2.log"), "utf8")).toBe("one");
+    expect(fs.readFileSync(path.join(d, "songs.3.log"), "utf8")).toBe("two");
+    fs.rmSync(d, { recursive: true });
+  });
+
+  it("leaves a small songs.log alone", () => {
+    const d = dir();
+    fs.writeFileSync(path.join(d, "songs.log"), "short");
+    pruneLogs(d);
+    expect(fs.readFileSync(path.join(d, "songs.log"), "utf8")).toBe("short");
+    fs.rmSync(d, { recursive: true });
+  });
+
+  it("prunes old daily logs when the date changes during a run", async () => {
+    const d = dir();
+    for (let n = 1; n <= 9; n++) fs.writeFileSync(path.join(d, `bubblefacts-2020-01-0${n}.log`), "old");
+    jest.setSystemTime(new Date("2026-03-01T23:59:00Z"));
+    const s = new Supervisor("server.js", d, "node");
+    s.note("first day");
+    jest.setSystemTime(new Date("2026-03-02T00:01:00Z"));
+    s.note("next day");
+    const left = fs.readdirSync(d).filter((f) => f.startsWith("bubblefacts-"));
+    expect(left).toHaveLength(8); // the week kept, then today's
+    expect(left).not.toContain("bubblefacts-2020-01-03.log");
+    expect(left).toContain("bubblefacts-2026-03-02.log");
+    fs.rmSync(d, { recursive: true });
   });
 });

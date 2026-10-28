@@ -90,6 +90,8 @@ export class Supervisor extends EventEmitter {
   private listening = false;
   /** The port the musician chose; automatic moves search upward from here. */
   private basePort = 0;
+  /** The date (UTC) of the log file being written; a new date prunes old logs. */
+  private logDay = "";
   readonly lines: string[] = [];
   status: Status = { state: "stopped", health: null, message: "", restarts: 0, port: 3000 };
 
@@ -310,7 +312,13 @@ export class Supervisor extends EventEmitter {
       if (this.lines.length > LOG_LINES_KEPT) this.lines.shift();
       try {
         fs.mkdirSync(this.logDir, { recursive: true });
-        fs.appendFileSync(path.join(this.logDir, `bubblefacts-${new Date().toISOString().slice(0, 10)}.log`), line + "\n");
+        const day = new Date().toISOString().slice(0, 10);
+        // A stream can run for days: tidy up when the date changes, not only at startup.
+        if (day !== this.logDay) {
+          this.logDay = day;
+          pruneLogs(this.logDir);
+        }
+        fs.appendFileSync(path.join(this.logDir, `bubblefacts-${day}.log`), line + "\n");
       } catch {
         // Logging must never take the app down.
       }
@@ -328,12 +336,30 @@ function pollLoopStuck(health: Health): boolean {
   return age > Math.max(DEGRADED_BEFORE_RESTART_MS, 3 * (health.pollIntervalMs ?? 0));
 }
 
-/** Keep the last week of daily log files. */
+const SONGS_LOG_MAX_BYTES = 1_000_000;
+const SONGS_LOG_KEPT = 3;
+
+/** Keep the last week of daily log files, and move a songs.log over 1 MB aside (songs.1.log, newest, to songs.3.log). */
 export function pruneLogs(logDir: string, keep = 7): void {
+  rotateSongsLog(logDir);
   try {
     const files = fs.readdirSync(logDir).filter((f) => /^bubblefacts-\d{4}-\d{2}-\d{2}\.log$/.test(f)).sort();
     for (const f of files.slice(0, Math.max(0, files.length - keep))) fs.unlinkSync(path.join(logDir, f));
   } catch {
     // Nothing to prune yet.
+  }
+}
+
+function rotateSongsLog(logDir: string): void {
+  try {
+    const live = path.join(logDir, "songs.log");
+    if (fs.statSync(live).size <= SONGS_LOG_MAX_BYTES) return;
+    // The fact server appends by path, so the next line starts a fresh songs.log.
+    for (let i = SONGS_LOG_KEPT; i >= 1; i--) {
+      const from = i === 1 ? live : path.join(logDir, `songs.${i - 1}.log`);
+      if (fs.existsSync(from)) fs.renameSync(from, path.join(logDir, `songs.${i}.log`));
+    }
+  } catch {
+    // No songs.log yet.
   }
 }
