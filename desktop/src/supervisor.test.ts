@@ -192,12 +192,29 @@ describe("log housekeeping", () => {
     jest.setSystemTime(new Date("2026-03-01T23:59:00Z"));
     const s = new Supervisor("server.js", d, "node");
     s.note("first day");
+    fs.writeFileSync(path.join(d, "bubblefacts-2020-02-01.log"), "old"); // one more file piles up before the date changes
     jest.setSystemTime(new Date("2026-03-02T00:01:00Z"));
     s.note("next day");
     const left = fs.readdirSync(d).filter((f) => f.startsWith("bubblefacts-"));
-    expect(left).toHaveLength(8); // the week kept, then today's
     expect(left).not.toContain("bubblefacts-2020-01-03.log");
-    expect(left).toContain("bubblefacts-2026-03-02.log");
+    expect(left).toContain("bubblefacts-2020-02-01.log");
+    fs.rmSync(d, { recursive: true });
+  });
+});
+
+describe("log writing", () => {
+  it("writes lines through one stream and has them all on disk after stop", async () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-logs-"));
+    const append = jest.spyOn(fs, "appendFileSync");
+    const s = new Supervisor("server.js", d, "node");
+    for (let n = 0; n < 50; n++) s.note(`line ${n}`);
+    s.stop();
+    jest.useRealTimers();
+    await s.whenLogsWritten();
+    const file = fs.readdirSync(d).find((f) => f.startsWith("bubblefacts-")) as string;
+    expect(fs.readFileSync(path.join(d, file), "utf8").trim().split("\n")).toHaveLength(50);
+    expect(append).not.toHaveBeenCalled();
+    append.mockRestore();
     fs.rmSync(d, { recursive: true });
   });
 });

@@ -92,6 +92,8 @@ export class Supervisor extends EventEmitter {
   private basePort = 0;
   /** The date (UTC) of the log file being written; a new date prunes old logs. */
   private logDay = "";
+  private logStream: fs.WriteStream | null = null;
+  private logsFlushed: Promise<void> = Promise.resolve();
   readonly lines: string[] = [];
   status: Status = { state: "stopped", health: null, message: "", restarts: 0, port: 3000 };
 
@@ -133,6 +135,7 @@ export class Supervisor extends EventEmitter {
     this.restartTimer = this.healthTimer = null;
     this.child?.kill();
     this.child = null;
+    void this.endLog();
     this.set("stopped", "");
   }
 
@@ -310,19 +313,44 @@ export class Supervisor extends EventEmitter {
       if (/Built-in model failed to load/.test(line)) this.modelFailed("failed to load");
       this.lines.push(line);
       if (this.lines.length > LOG_LINES_KEPT) this.lines.shift();
-      try {
-        fs.mkdirSync(this.logDir, { recursive: true });
-        const day = new Date().toISOString().slice(0, 10);
-        // A stream can run for days: tidy up when the date changes, not only at startup.
-        if (day !== this.logDay) {
-          this.logDay = day;
-          pruneLogs(this.logDir);
-        }
-        fs.appendFileSync(path.join(this.logDir, `bubblefacts-${day}.log`), line + "\n");
-      } catch {
-        // Logging must never take the app down.
-      }
+      this.writeLog(line + "\n");
     }
+  }
+
+  /** One buffered stream for the day's log file, instead of reopening the file for every line. */
+  private writeLog(text: string): void {
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      if (!this.logStream || day !== this.logDay) {
+        void this.endLog();
+        fs.mkdirSync(this.logDir, { recursive: true });
+        // A stream can run for days: tidy up when the date changes, not only at startup.
+        pruneLogs(this.logDir);
+        const stream = fs.createWriteStream(path.join(this.logDir, `bubblefacts-${day}.log`), { flags: "a" });
+        // Logging must never take the app down: a failed write only drops lines.
+        stream.on("error", () => {
+          if (this.logStream === stream) this.logStream = null;
+        });
+        this.logStream = stream;
+        this.logDay = day;
+      }
+      this.logStream.write(text);
+    } catch {
+      // Logging must never take the app down.
+    }
+  }
+
+  /** Close the log stream, flushing what it holds. */
+  private endLog(): Promise<void> {
+    const stream = this.logStream;
+    this.logStream = null;
+    if (stream) this.logsFlushed = Promise.all([this.logsFlushed, new Promise<void>((resolve) => stream.end(resolve))]).then(() => undefined);
+    return this.logsFlushed;
+  }
+
+  /** Resolves when every closed log stream has finished writing (for tests and a clean quit). */
+  whenLogsWritten(): Promise<void> {
+    return this.logsFlushed;
   }
 }
 
