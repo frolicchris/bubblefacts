@@ -123,7 +123,7 @@ function activeModel(): ModelFile | null {
 }
 
 function serverEnv(): Record<string, string> {
-  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
+  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents") });
   const active = activeModel();
   if (settings.ai === "builtin" && (builtinFailed || !active)) env.AI_PROVIDER = "none";
   else if (settings.ai === "builtin" && active) env.MODEL_PATH = modelPath(DIRS.models, active);

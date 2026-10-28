@@ -31,6 +31,13 @@ afterEach(() => {
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
+describe("toServerEnv documents folder", () => {
+  it("passes the system's Documents folder to the server when the app knows it", () => {
+    expect(toServerEnv(DEFAULTS, { ...paths, documentsDir: "/Redirected/Documents" }).BUBBLEFACTS_DOCUMENTS_DIR).toBe("/Redirected/Documents");
+    expect(toServerEnv(DEFAULTS, paths)).not.toHaveProperty("BUBBLEFACTS_DOCUMENTS_DIR");
+  });
+});
+
 describe("loadSettings", () => {
   it("starts from the defaults on first run", () => {
     expect(loadSettings()).toEqual(DEFAULTS);
@@ -50,6 +57,17 @@ describe("loadSettings", () => {
     const disk = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(disk).toMatchObject({ channel: "jane", displayName: "Jane Composer", fromAFutureVersion: "kept", settingsVersion: 2 });
     expect(disk).not.toHaveProperty("topics");
+  });
+
+  it("keeps a choice only a newer version knows, using a safe default meanwhile", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ai: "gemini-next", bubbleSize: "huge", settingsVersion: 2 }));
+    const loaded = loadSettings();
+    expect(loaded).toMatchObject({ ai: "builtin", bubbleSize: "standard" });
+    saveSettings({ ...loaded, displayName: "Jane Composer" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "gemini-next", bubbleSize: "huge", displayName: "Jane Composer" });
+    // Choosing something else in Settings replaces it.
+    saveSettings({ ...loaded, ai: "groq" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "groq", bubbleSize: "huge" });
   });
 
   it("loads a settings file from an early 2.0 beta without losing anything it had", () => {
