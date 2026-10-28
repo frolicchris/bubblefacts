@@ -49,6 +49,21 @@ describe("performerFacts", () => {
     expect(facts).toEqual([]);
   });
 
+  it("states no year when the artist's same title came out earlier on another recording", () => {
+    const later = rec("Glass Harbor", "Ola Brandt", "2008-07-14", [["Quiet Rooms"]]);
+    // The first recording credits others too, so it scores low and isn't a match itself.
+    const first = { ...rec("Glass Harbor", "Ola Brandt", "1986", [["Green Room"]], 81), "artist-credit": [{ name: "Ola Brandt" }, { name: "Mara Quill" }] };
+    expect(performerFacts([later, first], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Quiet Rooms.']);
+    expect(performerFacts([later], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" came out in 2008 and is on the album Quiet Rooms.']);
+  });
+
+  it("takes no year from a recording marked as a re-recording or a live take", () => {
+    const redo = { ...rec("Glass Harbor", "Ola Brandt", "2011", [["Second Light"]]), disambiguation: "2011 re-recording" };
+    expect(performerFacts([redo], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Second Light.']);
+    const live = { ...rec("Glass Harbor", "Ola Brandt", "2012", [["Third Light"]]), disambiguation: "live, 2012-03-01: Harbor Hall" };
+    expect(firstYear([live])).toBeUndefined();
+  });
+
   it("reads back its year and album, and drops the year alone (#256)", () => {
     const both = ['"Lost Boy" came out in 2018 and is on the album Kids.'];
     expect([statedYear(both), statesAlbum(both)]).toEqual(["2018", true]);
