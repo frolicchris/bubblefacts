@@ -131,3 +131,32 @@ describe("a degraded song-list connection", () => {
     expect(sup.status.restarts).toBe(1);
   });
 });
+
+describe("retrying the built-in AI on the processor", () => {
+  const platform = Object.getOwnPropertyDescriptor(process, "platform") as PropertyDescriptor;
+  beforeEach(() => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    sup.restart({ PORT: "3000", AI_PROVIDER: "builtin" });
+  });
+  afterEach(() => Object.defineProperty(process, "platform", platform));
+
+  it("starts the new server only after the old one has exited", async () => {
+    const old = forks[forks.length - 1];
+    old.stdout.emit("data", "[Server] Listening on 3000\nBuilt-in model failed to load\n");
+    await run(1_000);
+    expect(old.kill).toHaveBeenCalled();
+    expect(forks).toHaveLength(2); // restart() in beforeEach made the second; no third yet
+    old.emit("exit", 1);
+    await run(1);
+    expect(forks).toHaveLength(3);
+  });
+
+  it("starts anyway if the old server never reports its exit", async () => {
+    const old = forks[forks.length - 1];
+    old.stdout.emit("data", "Built-in model failed to load\n");
+    await run(9_000);
+    expect(forks).toHaveLength(2);
+    await run(2_000);
+    expect(forks).toHaveLength(3);
+  });
+});

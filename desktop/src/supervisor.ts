@@ -61,10 +61,14 @@ const RESTART_WINDOW_MS = 10 * 60_000;
 const STEADY_HEALTH_MS = 5 * 60_000;
 const LOG_LINES_KEPT = 800;
 const PORT_SEARCH = 10;
+/** The longest to wait for a killed server to exit before starting its replacement anyway. */
+const EXIT_WAIT_MS = 10_000;
 
 /** The running fact server, however it was started. */
 interface ServerProcess {
   kill(): void;
+  /** Resolves once the process has really exited. */
+  exited: Promise<void>;
   send(message: { type: string; token: string }): void;
 }
 
@@ -156,13 +160,13 @@ export class Supervisor extends EventEmitter {
       proc.stderr?.on("data", output);
       proc.on("error", (err) => this.log(`[App] Couldn't start the fact server: ${err.message}`));
       proc.on("exit", (code) => onExit(code));
-      child = { kill: () => proc.kill(), send: (m) => void (proc.connected && proc.send(m)) };
+      child = { kill: () => proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => void (proc.connected && proc.send(m)) };
     } else {
       const proc = utilityProcess.fork(this.serverScript, [], { env, stdio: "pipe", serviceName: "BubbleFacts server" });
       proc.stdout?.on("data", output);
       proc.stderr?.on("data", output);
       proc.on("exit", (code) => onExit(code));
-      child = { kill: () => void proc.kill(), send: (m) => proc.postMessage(m) };
+      child = { kill: () => void proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => proc.postMessage(m) };
     }
     this.child = child;
     const onExit = (code: number | null) => {
@@ -204,9 +208,19 @@ export class Supervisor extends EventEmitter {
       this.log(`[App] The built-in AI ${how} using the GPU; retrying on the processor.`);
       this.env = { ...this.env, LLAMA_GPU: "off" };
       this.emit("gpu-off");
-      this.child?.kill();
+      // The old server may still hold the port and the model file: relaunch once it has gone.
+      const old = this.child;
       this.child = null;
-      if (!this.stopping) this.launch("Restarting");
+      old?.kill();
+      if (this.stopping || this.restartTimer) return;
+      const relaunch = () => {
+        if (!this.restartTimer) return;
+        clearTimeout(this.restartTimer);
+        this.restartTimer = null;
+        this.launch("Restarting");
+      };
+      this.restartTimer = setTimeout(relaunch, old ? EXIT_WAIT_MS : 0);
+      void old?.exited.then(relaunch);
       return;
     }
     this.log(`[App] The built-in AI ${how}${process.platform === "darwin" ? "" : " on the processor too"}.`);
