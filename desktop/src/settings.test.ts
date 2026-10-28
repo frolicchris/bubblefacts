@@ -52,6 +52,17 @@ describe("loadSettings", () => {
     expect(disk).not.toHaveProperty("topics");
   });
 
+  it("keeps a choice only a newer version knows, using a safe default meanwhile", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ai: "gemini-next", bubbleSize: "huge", settingsVersion: 2 }));
+    const loaded = loadSettings();
+    expect(loaded).toMatchObject({ ai: "builtin", bubbleSize: "standard" });
+    saveSettings({ ...loaded, displayName: "Jane Composer" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "gemini-next", bubbleSize: "huge", displayName: "Jane Composer" });
+    // Choosing something else in Settings replaces it.
+    saveSettings({ ...loaded, ai: "groq" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "groq", bubbleSize: "huge" });
+  });
+
   it("loads a settings file from an early 2.0 beta without losing anything it had", () => {
     // Saved by 2.0.0-beta.3: no song source, no update channel, no newer settings.
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", displayName: "Jane Composer", myFacts: ["I play by ear."], factsPerSong: 4, port: 3000, topics: ["video-game"] }));
