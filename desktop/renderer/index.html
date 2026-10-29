@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
+  <div id="announcer" class="visually-hidden" role="status" aria-live="polite"></div>
   <div id="unlocking" role="status" hidden>
     <div class="unlocking-box">
       <h2>Opening your saved sign-in</h2>
@@ -14,7 +15,7 @@
       <p class="hint">It asks after each update. <strong>Allow</strong> alone makes it ask again every time BubbleFacts opens.</p>
     </div>
   </div>
-  <header class="topbar">
+  <header class="topbar" id="app-header">
     <div class="brand"><img class="brand-mark" src="../build/tray@2x.png" alt="" width="26" height="26"><span>Bubble<span class="brand-accent">Facts</span></span></div>
     <nav id="nav" hidden>
       <button class="navlink" data-view="dashboard" aria-current="page">Dashboard</button>
@@ -25,7 +26,7 @@
 
   <div id="notices" aria-live="polite"></div>
 
-  <main>
+  <main id="app-main">
     <!-- ====================== Setup ====================== -->
     <section id="view-setup" class="view" hidden>
       <ol class="steps" aria-label="Setup progress">
@@ -230,7 +231,7 @@
       <div id="status-banner" class="banner warn" role="status" aria-live="polite">
         <span class="banner-light" aria-hidden="true"></span>
         <div>
-          <h1 id="status-title">Starting</h1>
+          <h1 id="status-title" tabindex="-1">Starting</h1>
           <p id="status-detail">Getting everything ready.</p>
         </div>
       </div>
@@ -322,7 +323,7 @@
     <!-- ====================== Settings ====================== -->
     <section id="view-settings" class="view" hidden>
       <form id="settings-form" class="panel" novalidate>
-        <h1>Settings</h1>
+        <h1 tabindex="-1">Settings</h1>
 
         <fieldset>
           <legend>Your song list</legend>
@@ -560,7 +561,7 @@
       <div class="panel about-page">
         <header class="about-head">
           <img src="../build/icon.png" alt="" width="96" height="96">
-          <h1>BubbleFacts</h1>
+          <h1 tabindex="-1">BubbleFacts</h1>
           <p class="about-dev">Christopher Feyrer</p>
           <p class="about-version"><span id="about-page-version"></span></p>
           <p class="about-links">
@@ -708,6 +709,7 @@
     <li class="fact"><span><span class="fact-live" hidden>On stream</span> <span class="fact-text"></span> <span class="fact-source"></span><button class="fact-source-link link" hidden></button><span class="fact-evidence" hidden></span></span><button class="edit-fact" hidden>Edit</button><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
+  <script src="a11y.js"></script>
   <script src="song-source.js"></script>
   <script src="app.js"></script>
 </body>
