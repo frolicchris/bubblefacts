@@ -305,3 +305,23 @@ html, body {
 #connection-status.connected {
   opacity: 0;
 }
+
+/* ============================================================
+   REDUCED MOTION — no float, sparkle or endless blink.
+   The pop in and out stay (opacity and transform only) so bubbles still appear and leave.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .popup-bubble::after {
+    animation: none;
+    opacity: 1;
+  }
+
+  .popup-bubble .sparkle {
+    animation: none;
+    opacity: 0;
+  }
+
+  .popup-bubble.idle {
+    animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+}
