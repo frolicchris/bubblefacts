@@ -15,7 +15,8 @@
 
   // --- Views -------------------------------------------------------------
 
-  function show(view) {
+  const VIEW_HEADINGS = { dashboard: "#status-title", settings: "#view-settings h1", about: "#view-about h1" };
+  function show(view, { focus = true } = {}) {
     for (const v of $$(".view")) v.hidden = v.id !== "view-" + view;
     for (const b of $$(".navlink")) b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
     $("#nav").hidden = view === "setup";
@@ -25,6 +26,8 @@
       recentTimer = setInterval(refreshRecent, 4000);
     }
     if (view === "settings") fillSettings();
+    // A screen reader user lands on the new view's heading, not on a button that just disappeared.
+    if (focus && VIEW_HEADINGS[view]) $(VIEW_HEADINGS[view])?.focus();
   }
 
   function goStep(n) {
@@ -356,10 +359,27 @@
   const ICONS = { ok: "✓ ", warn: "! ", bad: "✕ ", "": "" };
 
   /** Status in words and a symbol, never color alone. */
+  /** The sign-in scrim covers the window, so what is behind it can't take keys or screen reader focus. */
+  function setUnlocking(on) {
+    $("#unlocking").hidden = !on;
+    $("#app-header").inert = !!on;
+    $("#app-main").inert = !!on;
+  }
+  const lastLights = {};
+  /** Says something through the page's hidden live region. Cleared first, so the same words can be said again. */
+  function announce(message) {
+    if (!message) return;
+    const box = $("#announcer");
+    box.textContent = "";
+    window.requestAnimationFrame(() => { box.textContent = message; });
+  }
   function setStatusLight(id, kind, text) {
     const li = $("#" + id);
     li.className = kind;
     $("em", li).textContent = ICONS[kind] + text;
+    const next = { kind, text };
+    announce(window.A11y.lightAnnouncement(lastLights[id], next, $("strong", li).textContent));
+    lastLights[id] = next;
   }
 
   /** OBS gets a few seconds to reconnect after the fact server starts, before being asked to add BubbleFacts. */
@@ -706,6 +726,9 @@
   function renderFactLength(box) {
     const n = cleanFact(box.value).length;
     const count = box.nextElementSibling;
+    const step = window.A11y.counterStep(count.classList.contains("over"), n, MAX_FACT_LENGTH,
+      `This fact is ${n - MAX_FACT_LENGTH} characters over the limit. Shorten it to save.`);
+    announce(step.announce);
     count.hidden = n < MAX_FACT_LENGTH - 60;
     count.textContent = n > MAX_FACT_LENGTH
       ? `${n} of ${MAX_FACT_LENGTH} characters. Shorten it by ${n - MAX_FACT_LENGTH} to save.`
@@ -732,7 +755,6 @@
     box.setAttribute("aria-label", `Fact ${n}`);
     const count = document.createElement("span");
     count.id = `sf-count-${++factBoxIds}`;
-    count.setAttribute("aria-live", "polite");
     box.setAttribute("aria-describedby", count.id);
     box.addEventListener("input", () => renderFactLength(box));
     row.append(box, count);
@@ -1456,7 +1478,7 @@
       renderTwitch();
       renderWrongKey();
     }
-    $("#unlocking").hidden = !s.unlocking;
+    setUnlocking(s.unlocking);
     renderNotices();
     renderWhatsNew();
     renderStatus(s.status);
@@ -1465,7 +1487,7 @@
   (async () => {
     state = await api.getState();
     if (state.unlocking) {
-      $("#unlocking").hidden = false;
+      setUnlocking(true);
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
@@ -1477,7 +1499,7 @@
     renderWhatsNew();
     renderPaths();
     if (state.settings.setupComplete) {
-      show("dashboard");
+      show("dashboard", { focus: false });
       renderStatus(state.status);
     } else {
       show("setup");
