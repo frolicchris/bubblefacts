@@ -358,7 +358,6 @@
 
   const ICONS = { ok: "✓ ", warn: "! ", bad: "✕ ", "": "" };
 
-  /** Status in words and a symbol, never color alone. */
   /** The sign-in scrim covers the window, so what is behind it can't take keys or screen reader focus. */
   function setUnlocking(on) {
     $("#unlocking").hidden = !on;
@@ -373,6 +372,7 @@
     box.textContent = "";
     window.requestAnimationFrame(() => { box.textContent = message; });
   }
+  /** Status in words and a symbol, never color alone. */
   function setStatusLight(id, kind, text) {
     const li = $("#" + id);
     li.className = kind;

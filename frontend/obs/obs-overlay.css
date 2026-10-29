@@ -307,7 +307,7 @@ html, body {
 }
 
 /* ============================================================
-   REDUCED MOTION — no float, sparkle or endless blink.
+   REDUCED MOTION: no float, sparkle or endless blink.
    The pop in and out stay (opacity and transform only) so bubbles still appear and leave.
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
