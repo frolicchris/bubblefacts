@@ -75,7 +75,7 @@ show. BubbleFacts can follow that file instead of a request queue. Set
 | Setting | Default | What it does |
 |---|---|---|
 | `NOW_PLAYING_FILE` | *required with a now playing file* | The text file to follow. A full path, or with a preset just the file's name. |
-| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with `nightbot`) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
+| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with the `streamling` or `nightbot` preset) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
 | `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt`; `nightbot` reads the newest `.txt` in `Documents/Nightbot` (Windows and Mac) as a YouTube title. Either way `NOW_PLAYING_FILE` can stay empty. If your Documents folder lives in OneDrive, the preset looks there when the usual `Documents` folder doesn't have the app's folder. |
 
 Good to know:
