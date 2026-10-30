@@ -135,7 +135,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 |---|---|---|
 | `OPENAI_API_KEY` | *none* | Your key from the service. Setting it switches the overlay to this option. |
 | `OPENAI_BASE_URL` | Groq | The service's address. OpenRouter: `https://openrouter.ai/api/v1`. Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`. |
-| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, within its [daily limits](https://console.groq.com/docs/rate-limits). |
+| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, within its [daily limits](https://console.groq.com/docs/rate-limits). On Groq, if a model you set is retired, BubbleFacts switches to the default for that song. |
 | `OPENAI_TIMEOUT_MS` | `30000` | How long to wait for an answer. |
 
 ### Anthropic Claude
