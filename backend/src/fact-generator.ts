@@ -442,7 +442,7 @@ async function askAnthropic(prompt: string): Promise<string> {
   const res = await anthropic.messages.create({
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
-    temperature: config.temperature,
+    // No temperature: Anthropic SDK 1.x (API 2026-10-21) rejects it.
     system: systemPrompt(),
     messages: [{ role: "user", content: prompt }],
   });

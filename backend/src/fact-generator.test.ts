@@ -492,7 +492,8 @@ describe("generateFacts", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "System Song", artist: "System Artist" });
     expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
-    expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
+    // Anthropic SDK 1.x rejects temperature, so none is sent to it.
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("temperature");
   });
 
   it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
