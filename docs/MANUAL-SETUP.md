@@ -211,7 +211,7 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 | A song starts | A gold **NOW PLAYING** bubble for five seconds (`NOW_PLAYING=off` hides it), then up to five fact bubbles, one every 15 seconds (both can be changed). |
 | A song with no Wikipedia article | Plain facts from Wikidata or MusicBrainz, such as the year and the album. If they don't know it either: bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus your custom facts. |
 | One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
-| The first song with facts after BubbleFacts starts, then about every 5th | One extra bubble first: "Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." (`CREDIT_BUBBLE=off` hides it.) The song's facts follow it. |
+| The first song with facts after BubbleFacts starts, then about every 5th | One extra bubble first: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." (`CREDIT_BUBBLE=off` hides it.) The song's facts follow it. |
 | A **live learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it, up until the next song. Fact bubbles show only when a source knows the song. |
 | The overlay can't reach its server | A small red dot in the bottom-right corner. It disappears once reconnected. |
 
