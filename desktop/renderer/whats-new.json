@@ -1,4 +1,9 @@
 {
+  "2.1.0": [
+    "Follow Streamling, Nightbot or any app's now playing file: Settings, under Your song list.",
+    "Facts show the moment a song starts, and the AI's facts follow.",
+    "Fewer facts about the wrong song, game, film, place or person."
+  ],
   "2.1.0-beta.2": [
     "With StreamerSongList, bubbles start the moment you move to the next song.",
     "The dashboard now says whether BubbleFacts hears your songs live or checks every 15 seconds.",

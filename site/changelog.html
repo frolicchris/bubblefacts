@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.2">
-  <script src="assets/site.js?v=2.1.0-beta.2" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0">
+  <script src="assets/site.js?v=2.1.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -51,6 +51,23 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-1">
+          <h2 id="v2-1">Version 2.1.0 <span class="tag">October 31, 2026</span></h2>
+          <p>More ways to follow your music, facts the moment a song starts, and fewer wrong ones. Shaped by beta testers' live streams.</p>
+          <ul>
+            <li>New: follow a now playing file instead of a song list. Streamling and Nightbot are one click, or pick any app that writes the song to a text file. In Settings, under <span class="ui">Your song list</span>.</li>
+            <li>New: <span class="ui">No facts for this song</span> and <span class="ui">No facts for this artist</span>, under <span class="ui">Your facts for</span> a song, or one click under <span class="ui">Earlier songs</span>.</li>
+            <li>New: classical pieces get facts about the right piece, catalog numbers and nicknames included.</li>
+            <li>New: now and then, a bubble says where the facts come from. Turn it off under <span class="ui">Bubbles</span>.</li>
+            <li>Improved: basic facts show the moment a song starts, and the AI's facts follow when they're ready.</li>
+            <li>Improved: with StreamerSongList, BubbleFacts hears the moment you move to the next song, and the dashboard says whether it's listening live or checking every 15 seconds.</li>
+            <li>Improved: fewer facts about the wrong song, game, film, place or person.</li>
+            <li>Improved: facts stay family-friendly: no scandals, crime or threats, and nothing that labels who a person is.</li>
+            <li>Fixed: an overlay that reloads mid-song, after a scene switch or with a second output, gets the rest of that song's bubbles.</li>
+            <li>Security: the app's framework (Electron) and two small libraries are updated with security fixes.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-1-beta2">
           <h2 id="v2-1-beta2">Version 2.1.0-beta.2 <span class="tag">Beta, October 26, 2026</span></h2>
