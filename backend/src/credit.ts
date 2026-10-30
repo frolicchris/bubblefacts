@@ -9,7 +9,7 @@ import { Fact } from "./types";
  * has facts, for viewers who joined later. `CREDIT_BUBBLE=off` turns it off.
  */
 
-export const CREDIT_TEXT = "Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts";
+export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts";
 /** The credit comes with a song's facts this often: after one, the next is this many songs with facts later. */
 export const CREDIT_EVERY_SONGS = 5;
 /** Left clear after the credit before the song's own facts start. */
