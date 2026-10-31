@@ -198,7 +198,8 @@ export const config = {
   openaiModel: process.env.OPENAI_MODEL || "openai/gpt-oss-20b",
   openaiTimeoutMs: intEnv("OPENAI_TIMEOUT_MS", 30000, 1000, 600000),
   anthropicApiKey: aiProvider === "anthropic" ? requireEnv("ANTHROPIC_API_KEY") : "",
-  anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+  // Anthropic SDK 1.x (API 2026-10-21) rejects `temperature`, so none is sent to Anthropic.
+  anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
 
   // Grounding
   factVerification: oneOf("FACT_VERIFICATION", ["on", "off"] as const, "on") === "on",

@@ -506,7 +506,10 @@ describe("the matched article's own item (#256)", () => {
       const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
       const found = await articleItem("Harbor Lights (Velvet Lark song, 1999)", ["velvet lark"]);
       log.mockRestore();
-      expect(found).toEqual({ kind: "song", title: "Harbor Lights", year: null, partOf: null, genres: ["dream pop"] });
+      expect(found).toEqual({ kind: "song", title: "Harbor Lights", year: null, partOf: null, genres: ["dream pop"], knownBy: "1998" });
+      // No year is shown, but a later one from MusicBrainz (a re-recording) still goes.
+      expect(found?.kind === "song" && songItemFacts(found, { year: "2003" }).dropYear).toBe(true);
+      expect(found?.kind === "song" && songItemFacts(found, { year: "1998" }).dropYear).toBe(false);
     });
 
     it("doesn't check against an infobox that names another artist, the original's of a cover", async () => {

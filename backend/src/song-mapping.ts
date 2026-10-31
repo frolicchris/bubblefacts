@@ -1,6 +1,6 @@
 import { config } from "./config";
 import { SSLQueueItem, SSLSong } from "./types";
-import { cleanRequestText } from "./text";
+import { cleanRequestText, withoutRequestCredit } from "./text";
 
 /**
  * Reading a queue entry the way the fact pipeline needs it. Every song
@@ -9,8 +9,12 @@ import { cleanRequestText } from "./text";
  * map them with these.
  */
 
+/**
+ * The title, without a note naming who asked or paid for the song ("Some Song (requested by
+ * Name)"): from here on, a viewer's name is never searched, sent to the AI, logged or shown.
+ */
 export function displayTitle(item: SSLQueueItem): string {
-  return cleanRequestText(item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "") || "Unknown";
+  return withoutRequestCredit(cleanRequestText(item.nonlistTitle?.trim() || item.nonlistSong || item.song?.title || "")) || "Unknown";
 }
 
 /** An off-list request: the API sets `nonlistSong`, or the newer `nonlistTitle`, to the typed-in title. */
@@ -27,7 +31,8 @@ export function requesterName(item: SSLQueueItem): string | undefined {
 export function toSong(item: SSLQueueItem): SSLSong {
   const song: SSLSong = {
     title: displayTitle(item),
-    artist: cleanRequestText((isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || "") || "Unknown",
+    // "Some Band, Commissioned by Name" is Some Band's: who commissioned it goes, as from the title.
+    artist: withoutRequestCredit(cleanRequestText((isLiveLearn(item) && item.nonlistArtist?.trim()) || item.song?.artist || ""), true) || "Unknown",
   };
   if (isLiveLearn(item) && config.liveLearns) song.liveLearn = true;
   const by = requesterName(item);

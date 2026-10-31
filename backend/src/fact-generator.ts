@@ -2,9 +2,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
-import { hasNoArtist, withoutArtistNote } from "./text";
+import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -12,7 +12,7 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
-import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, valuesIn } from "./infobox";
+import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -58,7 +58,13 @@ const lowSpots = (list: Array<[number, number]>) => list.map(([bottom, left]): F
  * Top of the Now Playing bubble, from obs-overlay.css: `bottom: 60px`, plus two
  * lines of 1.944vh text at line-height 1.35 and its padding and border, plus a gap.
  */
-const NOW_PLAYING_CLEARANCE = "calc(64px + 9.5vh * var(--bf-scale, 1))";
+const BANNER_TOP = "64px + 9.5vh * var(--bf-scale, 1)";
+const NOW_PLAYING_CLEARANCE = `calc(${BANNER_TOP})`;
+/**
+ * A spot measured down from the top below this could grow into the Now Playing bubble with a
+ * long fact at the largest bubble size, so while that bubble shows it's measured up from the bottom.
+ */
+const LOWEST_TOP = 30;
 
 /**
  * BUBBLE_AREA: the part of the screen bubbles keep to, for streamers whose
@@ -79,19 +85,40 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
   "top-center": [{ top: "6%" }],
   "top-right": [{ top: "6%", right: "3%" }],
   "bottom-left": [{ bottom: "5%", left: "3%" }],
-  // At the bottom edge like the other bottom spots; just above the Now Playing bubble while it shows
-  // (positionsFor).
+  // At the bottom edge like the other bottom spots. Every bottom spot waits above the Now Playing
+  // bubble while it shows (positionsFor).
   "bottom-center": [{ bottom: "5%" }],
   "bottom-right": [{ bottom: "5%", right: "3%" }],
 };
 
+const pct = (v: string) => Number(v.replace("%", ""));
+
+/**
+ * The same spot, clear of the Now Playing bubble. It can be most of the screen wide, so height is
+ * what keeps them apart: bottom spots sit on top of it instead of the bottom edge, keeping their
+ * layout, and low top spots grow upward from where they were, never lower than its top.
+ */
+function clearOfBanner(p: Fact["position"]): Fact["position"] {
+  if (p.bottom) {
+    const b = pct(p.bottom) - 5;
+    return { ...p, bottom: b > 0 ? `calc(${BANNER_TOP} + ${b}%)` : NOW_PLAYING_CLEARANCE };
+  }
+  const t = pct(p.top ?? "0");
+  if (t <= LOWEST_TOP) return p;
+  const { top: _top, ...side } = p;
+  // A typical bubble is about a tenth of the screen tall, so its bottom edge stays about where it was.
+  return { ...side, bottom: `max(${100 - t - 10}%, ${NOW_PLAYING_CLEARANCE})` };
+}
+
 /**
  * The spots for the chosen area, in the order bubbles use them. `banner`: the Now Playing (or
- * LIVE LEARN) bubble shows at the bottom center, so a bubble there waits just above it (60px up,
- * and up to two lines of its text at any bubble size). With Now Playing off it's the true bottom center.
+ * LIVE LEARN) bubble shows at the bottom center, so no spot reaches it (60px up, and up to two
+ * lines of its text at any bubble size). With Now Playing off, bottom spots are at the true bottom.
  */
-export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
-  area === "bottom-center" && banner ? [{ bottom: NOW_PLAYING_CLEARANCE }] : AREAS[area] ?? POSITIONS;
+export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> => {
+  const spots = AREAS[area] ?? POSITIONS;
+  return banner ? spots.map(clearOfBanner) : spots;
+};
 /**
  * The vertical overlay (BubbleFacts Vertical.html), 1080x1920, for TikTok, YouTube Shorts and
  * Instagram Live. Phone apps cover parts of the picture with their own buttons and live chat,
@@ -126,7 +153,6 @@ const VERTICAL_AREAS: Record<string, Array<Fact["position"]>> = {
  */
 export const verticalPositionsFor = (area: string = config.verticalArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
   area === "above-chat" && banner ? [{ bottom: VERTICAL_NOW_PLAYING_CLEARANCE }] : VERTICAL_AREAS[area] ?? VERTICAL_AREAS.top;
-
 /** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off. */
 export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying);
 /** The spots for a song's bubbles, clear of its banner while it shows. */
@@ -207,7 +233,7 @@ export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song))
 /** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
 export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
-  return [now.toISOString(), clean(song.title), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
+  return [now.toISOString(), clean(withoutRequestCredit(song.title)), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
 }
 
 /** Count the outcome and append a line to logs/songs.log. */
@@ -309,7 +335,9 @@ export const citesSentences = () => process.env.CITE_SENTENCES === "on" && proce
  */
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
-  return citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want);
+  const page = context.split("\n")[0];
+  const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE : "";
+  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule;
 }
 
 /** The CROSS prompt's opening, the same with or without citations. */
@@ -377,6 +405,11 @@ export function copiesExample(caption: string, context: string): boolean {
   const source = ` ${words(context).join(" ")} `;
   return threeWords(words(caption)).some((g) => EXAMPLE_WORDING.has(g) && !source.includes(` ${g} `));
 }
+/**
+ * Added to the prompt when the reference is the artist's article: a statement about another
+ * of their songs must say so, or chat reads it as about the song playing ("Paper Kites" while "Velvet Harbor" plays).
+ */
+export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough hit was 'TITLE'." with the real title from the text. Never write it as if it were about the song playing now.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
@@ -483,7 +516,7 @@ async function askAnthropic(prompt: string): Promise<string> {
   const res = await anthropic.messages.create({
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
-    temperature: config.temperature,
+    // No temperature: Anthropic SDK 1.x (API 2026-10-21) rejects it.
     system: systemPrompt(),
     messages: [{ role: "user", content: prompt }],
   });
@@ -501,23 +534,53 @@ async function postJSON<T>(url: string, body: unknown, timeoutMs: number, header
   return (await res.json()) as T;
 }
 
-/** Groq, OpenRouter, Gemini, LM Studio, vLLM: anything speaking chat completions. */
-async function askOpenAICompatible(prompt: string): Promise<string> {
-  const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
-    `${config.openaiBaseUrl}/chat/completions`,
-    {
-      model: config.openaiModel,
-      messages: [
-        { role: "system", content: systemPrompt() },
-        { role: "user", content: prompt },
-      ],
-      temperature: config.temperature,
-      max_tokens: HOSTED_MAX_TOKENS,
-    },
-    config.openaiTimeoutMs,
-    { Authorization: `Bearer ${config.openaiApiKey}` }
-  );
-  return data.choices?.[0]?.message?.content ?? "";
+/** The model Groq falls back to when a hand-set one is gone (see askOpenAICompatible). */
+const GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b";
+
+/** True when Groq says the model doesn't exist (any more): not found, or decommissioned. */
+function isModelGone(err: unknown): boolean {
+  return err instanceof Error && /returned (404|400):/.test(err.message) && /model_not_found|model_decommissioned|decommissioned|does not exist/i.test(err.message);
+}
+
+/**
+ * Groq, OpenRouter, Gemini, LM Studio, vLLM: anything speaking chat completions.
+ * On Groq, a hand-set model that Groq has since retired falls back once to the default model
+ * instead of failing every song.
+ */
+export async function askOpenAICompatible(prompt: string): Promise<string> {
+  const send = async (model: string) => {
+    const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
+      `${config.openaiBaseUrl}/chat/completions`,
+      {
+        model,
+        messages: [
+          { role: "system", content: systemPrompt() },
+          { role: "user", content: prompt },
+        ],
+        temperature: config.temperature,
+        max_tokens: HOSTED_MAX_TOKENS,
+      },
+      config.openaiTimeoutMs,
+      { Authorization: `Bearer ${config.openaiApiKey}` }
+    );
+    return data.choices?.[0]?.message?.content ?? "";
+  };
+  try {
+    return await send(config.openaiModel);
+  } catch (err) {
+    if (!isGroqUrl(config.openaiBaseUrl) || config.openaiModel === GROQ_FALLBACK_MODEL || !isModelGone(err)) throw err;
+    console.warn(`Groq no longer has the model "${config.openaiModel}"; using ${GROQ_FALLBACK_MODEL} instead.`);
+    return send(GROQ_FALLBACK_MODEL);
+  }
+}
+
+/** Whether a base URL's host is Groq's, wherever else the name might appear in it. */
+function isGroqUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.groq.com";
+  } catch {
+    return false;
+  }
 }
 
 /** Primary Ollama host, then the fallback host if one is configured. Returns the text and the host that answered. */
@@ -689,6 +752,17 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
   return facts;
 }
 
+/**
+ * The game a title names in front of its track when it is another work than the artist
+ * field's and carries its name: "Super Rocket Drift II: Area 3" by "Rocket Drift". The
+ * artist field is then a series, and its year or album would be another game's. "" for none.
+ */
+export function titleGame(title: string, game: string): string {
+  const named = splitGameAndTrack(dropVersionTags(title)).game;
+  const spaced = (s: string) => ` ${normalizeTitle(s)} `;
+  return named !== title && normalizeTitle(named) !== normalizeTitle(game) && normalizeTitle(game) && spaced(named).includes(spaced(game)) ? named : "";
+}
+
 /** The titles a request may go by: as typed and as read, whole and without a game's name in front. */
 function requestTitles(song: SSLSong, read: SSLSong): string[] {
   return [...new Set([song, read].flatMap((s) => [s.title, resolveGameAndTrack(s).track]).filter(Boolean))];
@@ -706,7 +780,7 @@ async function boxForRequest(list: BoxFact[], page: string, song: SSLSong, read:
   const { game } = resolveGameAndTrack(read);
   const titles = requestTitles(song, read);
   const performer = about.kind === "game" ? await musicbrainzFacts(read).then((mb) => Boolean(statedYear(mb) || statesAlbum(mb))) : false;
-  const why = boxMisfit(about, { game, titles }, performer);
+  const why = boxMisfit(about, { game, titles, gameTrack: PLATFORM_TAG.test(song.artist ?? "") }, performer);
   if (why) {
     console.log(`[Infobox] "${page}": ${why}, no infobox facts`);
     return [];
@@ -1072,8 +1146,11 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Too few to fill the song: up to two about its artist or game, from Wikidata too.
     const { game } = resolveGameAndTrack(read);
     const page = context.split("\n")[0];
-    const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
-    const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
+    // A series in the artist field and one of its games in the title: the game's facts, never the series' first game's.
+    const about = isPerformerArticle(page, articleText(page) || context) ? page : titleGame(read.title, game) || game;
+    // Facts about "the artist" would be the other act's when MusicBrainz said the article is someone else's.
+    const sameName = /^MusicBrainz credits /.test(match.reason);
+    const extra = !sameName && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {
@@ -1137,8 +1214,11 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   });
   const songFacts = await dataFacts;
   // A cover read from the original's article: who wrote it holds for the cover; the original's release, label and producers don't.
-  const cover = context ? isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
   const allBox = await boxLookup;
+  // An infobox naming another artist is that artist's record, even when the article never mentions this one.
+  const boxArtists = allBox.find((b) => b.about?.kind === "song")?.about?.artists ?? [];
+  const othersBox = boxArtists.length > 0 && !boxArtists.some((a) => namesLoosely(normalizeTitle(a), artistNames(read.artist ?? "")));
+  const cover = context ? othersBox || isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
   const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
     (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
   );
@@ -1193,7 +1273,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
   const sent = early.map((f) => f.text);
   const lead = structured.filter((f) => !sent.includes(f));
-  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room) : bestSupported(lead, usable, context, plain, citedSentence, room);
+  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room, resolveGameAndTrack(read).track) : bestSupported(lead, usable, context, plain, citedSentence, room);
   const later = captions.filter((c) => !sent.includes(c));
   const shown = early.length ? [...sent, ...later] : captions;
   // Facts sent early were remembered when they went out.
@@ -1224,7 +1304,8 @@ function rankedFromArticle(
   context: string,
   plain: ReadonlyMap<string, string>,
   cited: ReadonlyMap<string, string> | undefined,
-  want: number
+  want: number,
+  title = ""
 ): string[] {
   const full = articleText(context.split("\n")[0]);
   const candidates: Candidate[] = [
@@ -1235,7 +1316,9 @@ function rankedFromArticle(
     }),
   ];
   // Data facts here are about the song, and the article is its artist's or game's: they lead.
-  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, log: (line) => console.log(line) }).map((c) => c.text);
+  // On an artist's article, a caption about another of their songs ranks low, one at most (namesOtherSong).
+  const artistArticle = isPerformerArticle(context.split("\n")[0], full || context);
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 /**
@@ -1261,10 +1344,15 @@ function bestSupported(
   return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
 }
 
-/** The song with its artist's note in brackets left out (`withoutArtistNote`): the same object when it has none. */
+/**
+ * The song with its artist's note in brackets left out (`withoutArtistNote`), and a note naming
+ * who asked or paid for it left out of the title too (`withoutRequestCredit`): the same object
+ * when it has neither.
+ */
 export function withoutNote(song: SSLSong): SSLSong {
   const artist = withoutArtistNote(song.artist ?? "");
-  return artist === (song.artist ?? "").trim() ? song : { ...song, artist };
+  const title = withoutRequestCredit(song.title) || song.title;
+  return artist === (song.artist ?? "").trim() && title === song.title ? song : { ...song, title, artist };
 }
 
 /**

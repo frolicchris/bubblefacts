@@ -69,7 +69,7 @@ describe("the credit bubble's content", () => {
   it("says where facts come from, as a normal bubble in the song's first spot before its facts", () => {
     const planned = planCredit(new CreditCounter(), facts, air);
     expect(planned.credit).toEqual({ text: CREDIT_TEXT, source: "BubbleFacts", delaySeconds: 0, durationSeconds: 8, position });
-    expect(CREDIT_TEXT).toBe("Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts");
+    expect(CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts");
   });
 
   it("takes the song's first vertical spot on the vertical overlay (issue #175)", () => {

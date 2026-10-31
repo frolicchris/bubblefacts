@@ -13,10 +13,11 @@ import { allowedFacts, pulledWithWrong, positionsFor, spotsForSong, verticalPosi
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
-import { catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
+import { bubbleNow, catchUpFacts, factOnScreen, loadSession, remainingFacts, RESUME_WITHIN_MS, sameRequest, saveSession, Session, withLaterFacts } from "./session";
 import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
+import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
 
 /**
@@ -98,8 +99,9 @@ const creditCount = new CreditCounter(restored?.creditSince);
 /** When the streamer last pressed Test: the credit bubble keeps clear of it. */
 let testAt = 0;
 
-/** The [Shown] lines: logged where facts go out to an overlay, once per play of a song. */
-const shown = new ShownLog();
+/** The [Shown] lines: logged where facts go out to an overlay, once per play of a song, and kept in the aired facts record. */
+const aired = new AiredFacts();
+const shown = new ShownLog(aired);
 const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
 
 /** `credit`: a bubble that goes to the overlay ahead of a facts_ready batch but is no part of the song's record. */
@@ -541,6 +543,11 @@ function pullSwitchedOff(): number {
   return gone.length;
 }
 
+// The facts that went out to the overlay, oldest first, for the app's reports (aired-facts.ts).
+control.post("/aired", (_req, res) => {
+  res.json({ facts: aired.list() });
+});
+
 // "Add facts for another song": find it on the song list as the musician types.
 control.post("/songs/search", songSearchRoute(songList));
 
@@ -577,6 +584,9 @@ app.get("/health", (_req, res) => {
     topic: config.topic,
     currentSong: current ? songList.displayTitle(current) : null,
     lastQueueFetchAgeMs: queueAgeMs,
+    // For the app's watchdog: failing fetches (an outage) keep these small; only a stuck polling loop grows them.
+    lastPollAttemptAgeMs: songList.lastPollAttemptAgeMs?.() ?? null,
+    pollIntervalMs: songList.pollIntervalMs(),
     eventsConnected: songList.isEventStreamConnected(),
     // How songs reach BubbleFacts, in words for the dashboard ("Hearing your queue live").
     listening: listeningLine(songList),
@@ -600,7 +610,9 @@ app.get("/recent", (_req, res) => {
   // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
   const song = songFrom(lastSent.song);
   // Each earlier song with its switches, for one click under Earlier songs.
-  res.json({ ...lastSent, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier: earlier.map((e) => ({ ...e, off: factsOff(e.song) })) });
+  // Which bubble is up, from the overlay's own schedule; none while paused.
+  const onStream = paused ? { up: [], nextInSeconds: null } : bubbleNow(lastSent.facts ?? [], factsShownAt);
+  res.json({ ...lastSent, onStream, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier: earlier.map((e) => ({ ...e, off: factsOff(e.song) })) });
 });
 
 // --- Start -----------------------------------------------------------------

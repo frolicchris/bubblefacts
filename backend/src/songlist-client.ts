@@ -71,6 +71,10 @@ export class SongListClient implements SongSource {
     return this.currentSong;
   }
 
+  lastPollAttemptAgeMs(): number | null {
+    return this.poll.lastAttemptAgeMs();
+  }
+
   lastSuccessfulFetchAgeMs(): number | null {
     return this.lastSuccessfulFetchAt === null ? null : Date.now() - this.lastSuccessfulFetchAt;
   }

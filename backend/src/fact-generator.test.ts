@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
+import { ARTIST_SONG_RULE, RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
@@ -230,6 +230,37 @@ describe("generateFacts", () => {
     (config as { bubbleArea?: string }).bubbleArea = "anywhere";
     expect(facts.length).toBeGreaterThan(1);
     expect(facts.every((f) => f.position.right === "3%" && f.position.bottom === "5%")).toBe(true);
+  });
+
+  it("never puts a bubble over the Now Playing bubble, in any area at any bubble size", () => {
+    // Sizes from obs-overlay.css on a 1920x1080 overlay. The Now Playing bubble can be 80% of the
+    // screen wide, so any bubble low enough would touch it: only heights keep them apart.
+    const H = 1080;
+    const px = (css: string, scale: number): number =>
+      Function(`return ${css
+        .replace(/var\(--bf-scale, 1\)/g, String(scale))
+        .replace(/calc\(/g, "(")
+        .replace(/max\(/g, "Math.max(")
+        .replace(/([\d.]+)px/g, "$1")
+        .replace(/([\d.]+)(vh|%)/g, `($1 * ${H / 100})`)}`)();
+    for (const scale of [1, 1.25, 1.5]) {
+      // `bottom: 60px`, two lines of 1.944vh text at line-height 1.35, 0.7em padding above and below, 2px borders.
+      const vh = (n: number) => (n * H) / 100;
+      const bannerTop = 60 + 2 * 1.35 * vh(1.944 * scale) + 1.4 * vh(1.944 * scale) + 4;
+      // The longest fact (300 characters) wraps to about 8 lines in the widest bubble: 30% of the height at Standard.
+      const tallest = vh(30 * scale);
+      for (const area of ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]) {
+        for (const p of positionsFor(area, true)) {
+          const lowest = p.bottom ? px(p.bottom, scale) : H - (px(p.top ?? "0", scale) + tallest);
+          expect({ area, scale, clear: lowest >= bannerTop }).toEqual({ area, scale, clear: true });
+          // Growing up from there, still on screen.
+          if (p.bottom) expect(px(p.bottom, scale) + tallest).toBeLessThanOrEqual(H);
+        }
+      }
+    }
+    // Without the Now Playing bubble, the spots stay where they were.
+    expect(positionsFor("bottom-left", false)).toEqual([{ bottom: "5%", left: "3%" }]);
+    expect(positionsFor("anywhere", false)[1]).toEqual({ top: "57%", left: "9%" });
   });
 
   it("doesn't log facts as shown when it writes them: the server logs them when they go out (shown-log.ts)", async () => {
@@ -491,6 +522,17 @@ describe("generateFacts", () => {
     expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
   });
 
+  it("asks for the artist as the subject of a caption about another song, only on an artist's article", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Mira Vale\nMira Vale is an American singer.\n${MODEL_LINES}`);
+    await generateFacts({ title: "Velvet Harbor", artist: "Mira Vale" });
+    expect(mockCreate.mock.calls[0][0].messages[0].content).toContain(ARTIST_SONG_RULE);
+    mockCreate.mockClear();
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Plain Tune (song)\n${MODEL_LINES}`);
+    await generateFacts({ title: "Plain Tune", artist: "Someone" });
+    expect(mockCreate.mock.calls[0][0].messages[0].content).not.toContain(ARTIST_SONG_RULE);
+  });
+
   it("drops a caption that pins an example's story on a name the reference has", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Pinned Song (song)\nMara Quinn composed the score in 2011.\n${MODEL_LINES}`);
@@ -525,7 +567,8 @@ describe("generateFacts", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "System Song", artist: "System Artist" });
     expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
-    expect(mockCreate.mock.calls[0][0].temperature).toBe(0);
+    // Anthropic SDK 1.x rejects temperature, so none is sent to it.
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("temperature");
   });
 
   it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
@@ -690,6 +733,19 @@ describe("an article that may be about another work (issue #255)", () => {
     expect(facts.every((f) => f.source === SOURCE.wikidata)).toBe(true);
     expect(log.mock.calls.some(([line]) => /^\[Grounding\] unsure: a series' article/.test(String(line)))).toBe(true);
     log.mockRestore();
+  });
+
+  it("tells about the game the title names, not the series in the artist field", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series);
+    (artistFacts as jest.Mock).mockClear().mockImplementation(async (name: string) =>
+      name === "Rocket Drift" ? ["Rocket Drift came out in 1988."] : name === "Super Rocket Drift II" ? ["Super Rocket Drift II came out in 1993."] : []
+    );
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts({ title: "Super Rocket Drift II: Area 3", artist: "Rocket Drift" });
+    log.mockRestore();
+    (artistFacts as jest.Mock).mockReset().mockResolvedValue([]);
+    expect(facts.map((f) => f.text)).toEqual(["Super Rocket Drift II came out in 1993."]);
+    expect(artistFacts).not.toHaveBeenCalledWith("Rocket Drift");
   });
 
   it("asks for nothing about the artist when the song's own data fills two bubbles", async () => {
@@ -1017,6 +1073,27 @@ describe("a note after the artist's name (issue #262)", () => {
     expect(JSON.stringify(facts)).not.toContain("note words");
     expect(JSON.stringify(log.mock.calls)).not.toContain("note words");
     log.mockRestore();
+  });
+
+  it("never searches, prompts, shows or logs who commissioned or requested the song", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockClear().mockResolvedValueOnce(article);
+    (wikidataFacts as jest.Mock).mockClear();
+    mockCreate.mockClear();
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const facts = await generateFacts({ title: "Glass Orchard (requested by Moss Tinker)", artist: "Wren Halloway, Commissioned by Moss Tinker" });
+    expect(facts.length).toBeGreaterThan(0);
+    expect(mockCreate).toHaveBeenCalled();
+    const searched = JSON.stringify([(fetchGrounding as jest.Mock).mock.calls, (wikidataFacts as jest.Mock).mock.calls, (artistFacts as jest.Mock).mock.calls]);
+    expect(searched).toContain("Wren Halloway");
+    expect(searched).not.toContain("Tinker");
+    expect(JSON.stringify(mockCreate.mock.calls)).not.toContain("Tinker");
+    expect(JSON.stringify(facts)).not.toContain("Tinker");
+    expect(JSON.stringify([log.mock.calls, warn.mock.calls])).not.toContain("Tinker");
+    expect(songsLogLine({ title: "Glass Orchard (requested by Moss Tinker)", artist: "Wren Halloway, Commissioned by Moss Tinker" }, "grounded", 4)).not.toContain("Tinker");
+    log.mockRestore();
+    warn.mockRestore();
   });
 
   it("is left out of a live learn's lookup too", async () => {

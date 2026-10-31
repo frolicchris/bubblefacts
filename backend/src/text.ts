@@ -45,6 +45,31 @@ export function cleanRequestText(s: string): string {
   return s.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_REQUEST_TEXT).trim();
 }
 
+/** Where a note saying who asked or paid for a song starts: "Commissioned by", "requested by", "req. by", "suggested by". */
+const REQUEST_CREDIT = /(?:^|[\s,;:|/([–—-])(?:commission(?:ed)?|requested|request|req\.?|suggested|sponsored|donated|gifted|paid)\s+(?:by|from)(?=\s|$)/i;
+/** In an artist field, also ", for Name" after a separator. "Tears for Fears" has none, so it stays. */
+// No leading \s* or \s+: an unanchored run of spaces backtracks (CodeQL js/polynomial-redos),
+// and the spaces before the note are trimmed with the separators below anyway.
+const FOR_CREDIT = /[,;|–—]\s*for\s+(?=\S)|\s-\s+for\s+(?=\S)/i;
+/** Separators, spaces and an opening bracket left at the end once a credit is cut. */
+const LEFT_OVER = /[\s,;:|/([–—-]/;
+
+/**
+ * Text without a note naming who asked or paid for the song: "Some Band,
+ * Commissioned by Name", "Some Song (requested by Name)", and in an artist field
+ * (`artist`) "Some Band, for Name". The note runs to the end and goes whole, so a
+ * viewer's name is never searched, sent to the AI, put in a fact, logged or shown.
+ */
+export function withoutRequestCredit(text: string, artist = false): string {
+  const credit = REQUEST_CREDIT.exec(text);
+  const forName = artist ? FOR_CREDIT.exec(text) : null;
+  const at = Math.min(credit ? credit.index : Infinity, forName ? forName.index : Infinity);
+  if (at === Infinity) return text.trim();
+  let end = at;
+  while (end > 0 && LEFT_OVER.test(text[end - 1])) end--;
+  return text.slice(0, end).trim();
+}
+
 /**
  * The artist field without the notes a song list adds after the name in brackets
  * (issue #262): "Some Band (note)", "Some Band [note]", several, or one left open
@@ -52,10 +77,11 @@ export function cleanRequestText(s: string): string {
  * to match their own facts' aliases: it is never searched, sent to the AI, put in a
  * fact or logged. A streamer's handle ("Jane (@janeplayskeys)") stays, since it says
  * whose piece it is, and so does a name that is all brackets or ends in one it never
- * opened ("Sunn O)))"). No regular expression, so nothing to backtrack.
+ * opened ("Sunn O)))"). No regular expression, so nothing to backtrack. A note naming
+ * who asked or paid for the song goes too, bracketed or not (`withoutRequestCredit`).
  */
 export function withoutArtistNote(artist: string): string {
-  let a = artist.trim();
+  let a = withoutRequestCredit(artist, true);
   for (;;) {
     const closer = a.endsWith(")") ? "(" : a.endsWith("]") ? "[" : "";
     const at = closer ? a.lastIndexOf(closer) : Math.max(a.lastIndexOf("("), a.lastIndexOf("["));

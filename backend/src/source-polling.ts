@@ -66,24 +66,29 @@ export function debounce(ms: number, fn: () => void): { run(): void; cancel(): v
 /**
  * Self-rescheduling, so a slow response never stacks polls behind it. The
  * next poll waits for the polling interval or the service's backoff,
- * whichever is longer.
+ * whichever is longer. `lastAttemptAgeMs` is how long ago a poll last started
+ * (or, before the first, the loop was set going): a failing fetch keeps it
+ * small, a loop that has stopped turning lets it grow.
  */
 export function pollLoop(o: {
   isStopped: () => boolean;
   intervalMs: () => number;
   backoffUntil: () => number;
   tick: () => Promise<void>;
-}): { schedule(): void; cancel(): void } {
+}): { schedule(): void; cancel(): void; lastAttemptAgeMs(): number | null } {
   let timer: Timer | null = null;
+  let lastAttemptAt: number | null = null;
   const loop = {
     schedule(): void {
       // A poll that finishes after disconnect() mustn't start another.
       if (o.isStopped()) return;
+      lastAttemptAt ??= Date.now();
       const delay = Math.max(o.intervalMs(), o.backoffUntil() - Date.now());
       // One poll loop at a time: connecting again replaces the old timer rather than leaving it running.
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
         if (o.isStopped()) return;
+        lastAttemptAt = Date.now();
         await o.tick();
         if (!o.isStopped()) loop.schedule();
       }, delay);
@@ -92,6 +97,7 @@ export function pollLoop(o: {
       if (timer) clearTimeout(timer);
       timer = null;
     },
+    lastAttemptAgeMs: () => (lastAttemptAt === null ? null : Date.now() - lastAttemptAt),
   };
   return loop;
 }

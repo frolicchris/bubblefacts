@@ -96,4 +96,19 @@ describe("workMatchConfidence (issue #255)", () => {
     const naming = ref("Music of the Starfall Saga series", 'About this piece: "Lunar Tide" opens the first game.', "", "The music of the Starfall Saga series was composed by Kenji Arata.");
     expect(level("Lunar Tide", "Starfall Saga", naming).level).toBe("sure");
   });
+
+  it("is unsure of a film that names the song but isn't where it comes from", () => {
+    const biopic = ref("Lantern Hill: The Dana Reyes Story", '"Lantern Hill: The Dana Reyes Story" is a 1988 short film about the singer Dana Reyes.', 'It is named after her song "Lantern Hill".');
+    expect(level("Lantern Hill", "The Marmalade Owls", biopic)).toMatchObject({ level: "unsure", reason: expect.stringContaining("film's article") });
+  });
+
+  it("is unsure of a sequel named for the theme", () => {
+    const sequel = ref("Harbor Cop: Blue Note", '"Harbor Cop: Blue Note" is a 2024 American action film.', 'The film reuses the theme "Blue Note".');
+    expect(level("Blue Note", "Harbor Cop", sequel)).toMatchObject({ level: "unsure", reason: expect.stringContaining("film's article") });
+  });
+
+  it("stays sure of a film that is the request's own work", () => {
+    const film = ref("Harbor Cop", '"Harbor Cop" is a 1984 American action film.', 'Its theme is "Blue Note".');
+    expect(level("Blue Note", "Harbor Cop", film).level).toBe("sure");
+  });
 });

@@ -15,7 +15,8 @@
 
   // --- Views -------------------------------------------------------------
 
-  function show(view) {
+  const VIEW_HEADINGS = { dashboard: "#status-title", settings: "#view-settings h1", about: "#view-about h1" };
+  function show(view, { focus = true } = {}) {
     for (const v of $$(".view")) v.hidden = v.id !== "view-" + view;
     for (const b of $$(".navlink")) b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
     $("#nav").hidden = view === "setup";
@@ -25,6 +26,8 @@
       recentTimer = setInterval(refreshRecent, 4000);
     }
     if (view === "settings") fillSettings();
+    // A screen reader user lands on the new view's heading, not on a button that just disappeared.
+    if (focus && VIEW_HEADINGS[view]) $(VIEW_HEADINGS[view])?.focus();
   }
 
   function goStep(n) {
@@ -201,8 +204,19 @@
         ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
         : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";
     renderPaths();
+    // Only a spot this question offers is shown as chosen: on a new install nothing is, until the musician picks.
+    for (const r of $$('input[name="setup-area"]')) r.checked = r.value === state.settings.bubbleArea;
     goStep(2);
     watchForObs();
+  }
+
+  for (const radio of $$('input[name="setup-area"]')) {
+    radio.addEventListener("change", async () => {
+      const saved = await api.saveSettings({ bubbleArea: radio.value });
+      if (saved.error) return setResult($("#setup-area-result"), saved.error, "bad");
+      state = saved;
+      setResult($("#setup-area-result"), "", "");
+    });
   }
 
   const obsConnected = (s) => !!s?.health?.clients?.some((c) => /OBS\//.test(c.ua));
@@ -346,11 +360,28 @@
 
   const ICONS = { ok: "✓ ", warn: "! ", bad: "✕ ", "": "" };
 
+  /** The sign-in scrim covers the window, so what is behind it can't take keys or screen reader focus. */
+  function setUnlocking(on) {
+    $("#unlocking").hidden = !on;
+    $("#app-header").inert = !!on;
+    $("#app-main").inert = !!on;
+  }
+  const lastLights = {};
+  /** Says something through the page's hidden live region. Cleared first, so the same words can be said again. */
+  function announce(message) {
+    if (!message) return;
+    const box = $("#announcer");
+    box.textContent = "";
+    window.requestAnimationFrame(() => { box.textContent = message; });
+  }
   /** Status in words and a symbol, never color alone. */
   function setStatusLight(id, kind, text) {
     const li = $("#" + id);
     li.className = kind;
     $("em", li).textContent = ICONS[kind] + text;
+    const next = { kind, text };
+    announce(window.A11y.lightAnnouncement(lastLights[id], next, $("strong", li).textContent));
+    lastLights[id] = next;
   }
 
   /** OBS gets a few seconds to reconnect after the fact server starts, before being asked to add BubbleFacts. */
@@ -426,9 +457,15 @@
     else if (status.state === "running") {
       kind = "ok";
       title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
+      // What is happening right now, in the words of the title above.
+      const waiting = !h.currentSong ? "BubbleFacts will show facts when your next song starts."
+        : nowShowing > 0 ? "This song's facts pop up on your stream while it plays."
+        // Nothing reliable, facts off, a live learn or a failure: the note under On stream now says which.
+        : nowReady ? "No bubbles for this song. The note below says why."
+        : "Looking up facts for this song. They appear in a few seconds.";
       detail = downloading
         ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
-        : "BubbleFacts is connected and waiting.";
+        : waiting;
     }
     banner.className = "banner " + kind;
     $("#status-title").textContent = title;
@@ -555,6 +592,23 @@
     }
   }
 
+  /**
+   * Marks the fact on your stream right now, or says when the next bubble comes. Updates the
+   * list in place, so a button being clicked doesn't move.
+   */
+  function markOnStream(onStream) {
+    const up = new Set((onStream && onStream.up) || []);
+    for (const li of $$("#now-facts li")) {
+      const live = up.has($(".fact-text", li).textContent);
+      $(".fact-live", li).hidden = !live;
+      li.classList.toggle("on-stream", live);
+    }
+    const next = onStream && onStream.nextInSeconds;
+    const note = $("#now-next");
+    note.hidden = !(up.size === 0 && next > 0 && $("#now-facts").children.length > 0);
+    note.textContent = note.hidden ? "" : `Next bubble in about ${next} seconds`;
+  }
+
   async function refreshRecent() {
     const r = await api.recent();
     if (nowShowing !== (r.facts || []).length || nowReady !== !!r.ready) {
@@ -565,6 +619,7 @@
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
     $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
     // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
+    markOnStream(r.onStream);
     const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text), (r.earlier || []).map((e) => [e.song.title, e.facts.length, e.off])]);
     if (drawn === lastRecent) return;
     lastRecent = drawn;
@@ -579,6 +634,7 @@
     // With nothing playing, the first button already asks which song.
     $("#song-facts-other").hidden = !$("#song-facts-form").hidden || !r.song;
     const hasOwn = (r.facts || []).some((f) => f.source === "Your facts for this song");
+    markOnStream(r.onStream);
     $("#song-facts-open").textContent = !r.song ? "Add facts for a song" : hasOwn ? "Edit your facts for this song" : "Add facts for this song";
   }
 
@@ -672,6 +728,9 @@
   function renderFactLength(box) {
     const n = cleanFact(box.value).length;
     const count = box.nextElementSibling;
+    const step = window.A11y.counterStep(count.classList.contains("over"), n, MAX_FACT_LENGTH,
+      `This fact is ${n - MAX_FACT_LENGTH} characters over the limit. Shorten it to save.`);
+    announce(step.announce);
     count.hidden = n < MAX_FACT_LENGTH - 60;
     count.textContent = n > MAX_FACT_LENGTH
       ? `${n} of ${MAX_FACT_LENGTH} characters. Shorten it by ${n - MAX_FACT_LENGTH} to save.`
@@ -698,7 +757,6 @@
     box.setAttribute("aria-label", `Fact ${n}`);
     const count = document.createElement("span");
     count.id = `sf-count-${++factBoxIds}`;
-    count.setAttribute("aria-live", "polite");
     box.setAttribute("aria-describedby", count.id);
     box.addEventListener("input", () => renderFactLength(box));
     row.append(box, count);
@@ -967,11 +1025,11 @@
   }
   $("#report-problem").addEventListener("click", () => api.reportProblem());
   $("#report-beta").addEventListener("click", () => api.reportBeta());
-  // The same report without GitHub: to paste in a message or in Discussions.
+  // The same report without GitHub: to paste in Discord or an email.
   for (const [id, kind] of [["copy-report", "problem"], ["copy-beta-report", "beta"]]) {
     $("#" + id).addEventListener("click", async () => {
       await api.copyReport(kind);
-      setResult($("#report-result"), "Copied. Paste it in a message to the developer or in GitHub Discussions.", "ok");
+      setResult($("#report-result"), "Copied. Paste it in a post in #help on the Discord, or in an email. Read it first.", "ok");
       setTimeout(() => setResult($("#report-result"), ""), 8000);
     });
   }
@@ -1109,10 +1167,19 @@
    */
   const settingsDraft = new Set();
   const draftKey = (el) => el.name || el.id;
+  /** The Save bar's note, from the first change on; a draft typed back to what's saved drops it. */
+  const renderDraftNote = () => {
+    // A field the picked song source hides won't be saved, so it isn't a change.
+    const shown = [...settingsDraft].some((key) => window.SongSource.fieldShown(key, form.elements.songSource.value, form.elements.nowPlayingPreset.value));
+    setResult($("#settings-result"), shown ? "Your changes aren't saved yet. Click Save to keep them." : "");
+  };
   for (const type of ["input", "change"]) {
     form.addEventListener(type, (e) => {
       const key = draftKey(e.target);
-      if (key && e.target.matches("input, textarea, select")) settingsDraft.add(key);
+      if (!key || !e.target.matches("input, textarea, select")) return;
+      if (differsFromSaved(key)) settingsDraft.add(key);
+      else settingsDraft.delete(key);
+      renderDraftNote();
     });
   }
 
@@ -1161,7 +1228,7 @@
     renderTimingHint();
     renderTwitch();
     renderWrongKey();
-    setResult($("#settings-result"), settingsDraft.size ? "Your changes aren't saved yet. Click Save to keep them." : "");
+    renderDraftNote();
   }
 
   /** High quality is a choice under "On this computer", with a warning (never a block) where it may struggle. */
@@ -1238,12 +1305,12 @@
     changes.myFacts = lines($("#s-myfacts"));
     changes.myOriginals = lines($("#s-myoriginals"));
     if (changes.token) changes.tokenKind = "streamer";
-    return changes;
+    return window.SongSource.sourceChanges(changes);
   }
 
   /**
-   * Why the form can't be saved as filled in, or "". It also drops the fields the chosen song
-   * source hides, and fills in what its test learns (the StreamElements channel).
+   * Why the form can't be saved as filled in, or "". The changes already hold only the fields the
+   * chosen song source shows (readSettingsForm). It also fills in what its test learns (the StreamElements channel).
    */
   async function settingsProblem(changes) {
     const tooLong = customFactsProblem($("#s-myfacts"), "Your own facts", true)
@@ -1253,11 +1320,8 @@
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return "Add your Anthropic key first.";
     const switching = changes.songSource !== state.settings.songSource;
     if (changes.songSource === "nowplaying") {
-      delete changes.token; // The StreamerSongList and StreamElements fields are hidden; keep what's saved there.
-      delete changes.seJwt;
       if (changes.nowPlayingPreset === "none" && !changes.nowPlayingFile) return "Choose the file your music app writes the song to first.";
     } else if (changes.songSource === "streamelements") {
-      delete changes.token; // The StreamerSongList fields are hidden; keep what's saved there.
       if (!changes.seJwt && !state.settings.seJwtSet) return "Paste your StreamElements JWT token first.";
       if (changes.seJwt || switching || changes.seChannel !== state.settings.seChannel) {
         setResult($("#settings-result"), "Checking your StreamElements token...");
@@ -1266,7 +1330,6 @@
         changes.seChannel = r.channel;
       }
     } else {
-      delete changes.seJwt;
       if (switching && !changes.token && !state.settings.tokenSet) return "Sign in with StreamerSongList first, or paste a token.";
     }
     if (changes.token) {
@@ -1349,6 +1412,8 @@
     $("#s-ssl-box").hidden = se || file;
     $("#s-np-box").hidden = !file;
     $("#s-np-other").hidden = form.elements.nowPlayingPreset.value !== "none";
+    // A card's file shows only on the card that's picked.
+    for (const c of $$("[data-np-card]")) c.hidden = c.dataset.npCard !== form.elements.nowPlayingPreset.value;
     $("#s-livelearns-row").hidden = se || file;
     // The saved connection's line only describes the source it belongs to; a file's choices say it themselves.
     $("#s-signed-in").hidden = file || source !== state.settings.songSource;
@@ -1415,7 +1480,7 @@
       renderTwitch();
       renderWrongKey();
     }
-    $("#unlocking").hidden = !s.unlocking;
+    setUnlocking(s.unlocking);
     renderNotices();
     renderWhatsNew();
     renderStatus(s.status);
@@ -1424,7 +1489,7 @@
   (async () => {
     state = await api.getState();
     if (state.unlocking) {
-      $("#unlocking").hidden = false;
+      setUnlocking(true);
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
@@ -1436,7 +1501,7 @@
     renderWhatsNew();
     renderPaths();
     if (state.settings.setupComplete) {
-      show("dashboard");
+      show("dashboard", { focus: false });
       renderStatus(state.status);
     } else {
       show("setup");

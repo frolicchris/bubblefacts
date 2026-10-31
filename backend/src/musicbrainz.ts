@@ -3,6 +3,7 @@ import {
   artistNames,
   editDistance,
   foldSymbols,
+  initialsDiffer,
   isPieceArticle,
   isInitials,
   looksLikeArtistName,
@@ -18,6 +19,7 @@ import {
   USER_AGENT,
   wikiExtract,
 } from "./fact-verifier";
+import { pageArtistIds } from "./wikidata";
 import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
 import { fitOrSplit } from "./data-facts";
@@ -51,6 +53,7 @@ interface Recording {
   id?: string;
   score?: number;
   title?: string;
+  disambiguation?: string;
   "first-release-date"?: string;
   "artist-credit"?: Array<{ name?: string; joinphrase?: string; artist?: { id?: string; name?: string; "sort-name"?: string } }>;
   releases?: Array<{
@@ -148,14 +151,33 @@ function matchingRecordings(recordings: Recording[], title: string, artist: stri
     .sort((a, b) => date(a).localeCompare(date(b)));
 }
 
+/** A recording MusicBrainz marks as not the original: a live take, a re-recording, a demo or a remix. */
+const NOT_THE_ORIGINAL = /\b(live|re-?record(ed|ing)?|new recording|demo|remix(ed)?|rehearsal|concert)\b/i;
+
+/**
+ * Whether the song is known from before `year`: another recording of the same title that
+ * credits the artist (on any release, at any search score) came out earlier. Then the
+ * earliest original release found is a later recording ("Dreamgift" on a 2008 album when
+ * the artist first recorded it, with others, in 1986), so no year is stated.
+ */
+export function knownEarlier(recordings: Recording[], title: string, artist: string, year: string): boolean {
+  const want = normalizeTitle(title);
+  const artistKeys = artistNames(artist);
+  return recordings
+    .filter((r) => normalizeTitle(r.title ?? "") === want)
+    .filter((r) => (r["artist-credit"] ?? []).some((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
+    .some((r) => [r["first-release-date"], ...(r.releases ?? []).map((rel) => rel.date)].some((d) => /^\d{4}/.test(d ?? "") && (d ?? "").slice(0, 4) < year));
+}
+
 /**
  * The year the song first came out, from releases that aren't compilations,
  * live albums or remixes: "It's Only a Paper Moon" (1933) isn't from 1988
  * because a 1988 jazz compilation is the earliest one MusicBrainz lists.
  * None when the artist had died by then: a Satie piece on a 1995 album.
+ * Recordings MusicBrainz marks as live takes or re-recordings don't count.
  */
 export function firstYear(matches: Recording[], diedIn?: number): string | undefined {
-  const years = matches.flatMap((r) => {
+  const years = matches.filter((r) => !NOT_THE_ORIGINAL.test(r.disambiguation ?? "")).flatMap((r) => {
     const original = (r.releases ?? []).filter(
       (rel) => rel.status === "Official" && !(rel["release-group"]?.["secondary-types"] ?? []).some((t) => REISSUE_TYPES.test(t)) && !NOT_AN_ALBUM.test(rel.title ?? "")
     );
@@ -174,6 +196,32 @@ export function creditedArtistId(recordings: Recording[], title: string, artist:
   return matchingRecordings(recordings, title, artist)[0]?.["artist-credit"]?.find((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))?.artist?.id;
 }
 
+const creditCache = new Map<string, string>();
+
+/**
+ * Whether MusicBrainz credits this song to a different artist of the same name
+ * than an article's: the recording's artist isn't one the article's Wikidata
+ * item names. False when either side is unknown, so a song MusicBrainz lacks
+ * keeps its article. Never throws.
+ */
+export async function anotherArtist(page: string, title: string, artist: string): Promise<boolean> {
+  try {
+    const ids = await pageArtistIds(page);
+    if (!ids.length) return false;
+    const key = `${normalizeTitle(artist)}\0${normalizeTitle(title)}`;
+    let credited = creditCache.get(key);
+    if (credited === undefined) {
+      const { recordings } = await search(`recording:${quote(title)} AND artist:${quote(artist)}`);
+      credited = creditedArtistId(recordings, title, artist) ?? "";
+      creditCache.set(key, credited);
+      if (creditCache.size > 500) creditCache.delete(creditCache.keys().next().value as string);
+    }
+    return Boolean(credited) && !ids.includes(credited);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Facts for a performer's song from the matching recordings. `diedIn`: the year the credited artist died, if they have.
  * `yearKnown`: false when the search didn't return every recording, so the earliest one seen may be a later
@@ -186,7 +234,8 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
   if (!first) return [];
   const facts: string[] = [];
   const q = `"${title}"`;
-  const year = yearKnown ? firstYear(matches, diedIn) : undefined;
+  const found = yearKnown ? firstYear(matches, diedIn) : undefined;
+  const year = found && !knownEarlier(recordings, title, artist, found) ? found : undefined;
   // A studio album only (no compilations, live or soundtrack albums), and no
   // claim that it came out there first: an earlier single may not be listed.
   const album = [...(first.releases ?? [])]
@@ -476,6 +525,7 @@ type Linked = { relations?: Relation[] };
 interface Item {
   sitelinks?: { enwiki?: { title?: string } };
   labels?: { en?: { value?: string } };
+  descriptions?: { en?: { value?: string } };
   claims?: Record<string, Array<{ rank?: string; mainsnak?: { datavalue?: { value?: { id?: string } } } }>>;
 }
 
@@ -483,6 +533,7 @@ interface Item {
 export function closeName(a: string, b: string, share = 0.34): boolean {
   const x = normalizeTitle(a).replace(/ /g, "");
   const y = normalizeTitle(b).replace(/ /g, "");
+  if (initialsDiffer(a, b)) return false;
   return Boolean(x && y) && editDistance(x, y) <= Math.max(1, Math.floor(share * Math.max(x.length, y.length)));
 }
 
@@ -584,10 +635,14 @@ export function songPageFit(page: string, full: string, titles: string[], artist
 const AN_ACT = /\b(band|singer|singer-songwriter|musician|rapper|songwriter|duo|trio|quartet|group|DJ|producer|composer|vocalist|guitarist|pianist|drummer|bassist)s?\b/i;
 const NOT_AN_ACT = /\b(film|movie|television|TV|series|show|album|EP|song|single|novel|character|fictional|brand|company|footballer|soccer|player|game)s?\b/i;
 
-/** Whether an artist's page fits: it opens as a performer's, under the typed name, a respelling of it (a quarter of the edits), or its initials. */
-export function artistPageFit(page: string, full: string, artists: string[]): { ok: boolean; why?: string } {
+/**
+ * Whether an artist's page fits: it opens as a performer's, under the typed name, a respelling of it (a quarter of the edits), or its initials.
+ * `description`, Wikidata's for the page, stands in only when the opening says nothing: the content standard may leave its first
+ * sentence out ("a Cuban-American musician"). It must pass the same tests.
+ */
+export function artistPageFit(page: string, full: string, artists: string[], description = ""): { ok: boolean; why?: string } {
   const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
-  const what = openingSays(full);
+  const what = openingSays(full) || description;
   if ((qualifier && !AN_ACT.test(qualifier)) || !AN_ACT.test(what) || NOT_AN_ACT.test(what)) return { ok: false, why: "doesn't open like a performer's article" };
   const base = withoutQualifier(page);
   const opening = normalizeTitle(leadOf(full).slice(0, 300));
@@ -631,10 +686,11 @@ async function findLinked(title: string, track: string, artist: string, usable: 
 
   if (!credit.id) return "";
   const qid = wikidataId(await lookup<Linked>(`artist/${credit.id}`, "url-rels"));
-  const page = qid ? (await wikidata([qid], "sitelinks"))[qid]?.sitelinks?.enwiki?.title : undefined;
+  const item = qid ? (await wikidata([qid], "sitelinks|descriptions"))[qid] : undefined;
+  const page = item?.sitelinks?.enwiki?.title;
   if (!page || !usable(page)) return "";
   const full = await wikiExtract(page);
-  const fit = full ? artistPageFit(page, full, artists) : { ok: false, why: "is a disambiguation page" };
+  const fit = full ? artistPageFit(page, full, artists, item?.descriptions?.en?.value) : { ok: false, why: "is a disambiguation page" };
   if (!full || !fit.ok) {
     console.log(`[Grounding] MusicBrainz's link "${page}" ${fit.why}, skipping`);
     return "";
