@@ -327,10 +327,65 @@
         <fieldset>
           <legend>Your song list</legend>
           <p class="label" id="s-source-label">Where do your song requests come from?</p>
-          <div class="checks" role="radiogroup" aria-labelledby="s-source-label">
-            <label><input type="radio" name="songSource" value="streamersonglist"> StreamerSongList</label>
-            <label><input type="radio" name="songSource" value="streamelements"> StreamElements</label>
-            <label><input type="radio" name="songSource" value="nowplaying"> Now playing file</label>
+          <div class="choices" role="radiogroup" aria-labelledby="s-source-label">
+            <label class="choice">
+              <input type="radio" name="songSource" value="streamersonglist">
+              <span class="choice-body">
+                <strong>StreamerSongList</strong>
+                <span>Your song list and queue at streamersonglist.com.</span>
+              </span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="songSource" value="streamelements">
+              <span class="choice-body">
+                <strong>StreamElements</strong>
+                <span>Song requests through StreamElements' Media Request player.</span>
+              </span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="songSource" value="nowplaying">
+              <span class="choice-body">
+                <strong>Now playing file</strong>
+                <span>The song your music app writes to a text file, such as Streamling or Nightbot.</span>
+              </span>
+            </label>
+          </div>
+          <div id="s-np-box" class="indent">
+            <p class="label" id="s-np-label">Which app writes the file?</p>
+            <div class="choices" role="radiogroup" aria-labelledby="s-np-label">
+              <label class="choice">
+                <input type="radio" name="nowPlayingPreset" value="streamling">
+                <span class="choice-body">
+                  <strong>Streamling</strong>
+                  <span>Windows only.<span class="picked-path" data-np-card="streamling" hidden> Reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span>.</span></span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="nowPlayingPreset" value="nightbot">
+                <span class="choice-body">
+                  <strong>Nightbot</strong>
+                  <span>Windows and Mac.<span class="picked-path" data-np-card="nightbot" hidden> Reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>.</span></span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="nowPlayingPreset" value="none">
+                <span class="choice-body">
+                  <strong>Another app's file</strong>
+                  <span>Pick the text file your music app writes the song to.</span>
+                </span>
+              </label>
+            </div>
+            <div id="s-np-other">
+              <div class="row">
+                <input id="s-np-file" name="nowPlayingFile" type="text" readonly placeholder="No file chosen yet." aria-label="The file your music app writes the song to">
+                <button type="button" class="ghost" id="s-np-choose">Choose file...</button>
+              </div>
+              <label for="s-np-format">How does the line in that file read?</label>
+              <select id="s-np-format" name="nowPlayingFormat">
+                <option value="artist-title">Artist - Title</option>
+                <option value="title">Title only</option>
+              </select>
+            </div>
           </div>
           <p id="s-signed-in"></p>
           <div id="s-ssl-box">
@@ -345,24 +400,6 @@
               <button type="button" class="ghost" data-toggle-secret="s-token">Show</button>
             </div>
           </details>
-          </div>
-          <div id="s-np-box">
-            <div class="checks single" role="radiogroup" aria-label="Which app writes the file">
-              <label><input type="radio" name="nowPlayingPreset" value="streamling"> <span>Streamling<br><span class="fine">Reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span>. Windows only.</span></span></label>
-              <label><input type="radio" name="nowPlayingPreset" value="nightbot"> <span>Nightbot<br><span class="fine">Reads the newest .txt in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>. Windows and Mac.</span></span></label>
-              <label><input type="radio" name="nowPlayingPreset" value="none"> <span>Another app's file</span></label>
-            </div>
-            <div id="s-np-other">
-              <div class="row">
-                <input id="s-np-file" name="nowPlayingFile" type="text" readonly placeholder="No file chosen yet." aria-label="The file your music app writes the song to">
-                <button type="button" class="ghost" id="s-np-choose">Choose file...</button>
-              </div>
-              <label for="s-np-format">How does the line in that file read?</label>
-              <select id="s-np-format" name="nowPlayingFormat">
-                <option value="artist-title">Artist - Title</option>
-                <option value="title">Title only</option>
-              </select>
-            </div>
           </div>
           <div id="s-se-box">
             <p class="fine">In StreamElements, open your dashboard, then <strong>Account</strong>, then <strong>Channels</strong>, and click <strong>Show secrets</strong>. Copy the <strong>JWT token</strong>. It works like a password: keep it off your stream.
@@ -389,7 +426,7 @@
           <label class="inline" id="s-livelearns-row"><input name="liveLearns" type="checkbox"> I do live learns</label>
           <div id="twitch-box" hidden>
             <p class="label">Other music content creators' originals</p>
-            <p class="fine">Connect Twitch to fill in another music content creator's About text when you add facts for their song. Optional. It only reads public channel info, and you check the text before it shows.</p>
+            <p class="fine">Optional: fills in their About text when you add facts for their song, from public channel info.</p>
             <div class="toolbar">
               <button type="button" class="ghost" id="twitch-connect">Connect Twitch</button>
               <button type="button" class="ghost" id="twitch-disconnect" hidden>Disconnect</button>
@@ -400,9 +437,9 @@
 
         <fieldset>
           <legend>Custom facts: facts that may appear during any song</legend>
-          <p class="fine">When no source knows a song, BubbleFacts shows a few of these, whatever the song is. So write facts that fit any song. With none, that song gets no bubbles, which is best for request channels. They go on stream exactly as you write them, so only add facts you've checked. For a fact about one song, start the line with its title in brackets, like [Song of Storms]: it shows only for that song, first. Start it with an artist or game instead, like [Chopin], and all their songs share it: one per song, taking turns. Or use <strong>Add facts for this song</strong> on the dashboard.</p>
+          <p class="fine">Shown word for word when no source knows a song, so add only facts you've checked.</p>
           <label for="s-myfacts">Your own facts <span class="hint">one per line</span></label>
-          <textarea id="s-myfacts" rows="5" spellcheck="true" placeholder="For example:&#10;I've been playing piano since I was six.&#10;[Song of Storms] It plays in a windmill in Kakariko Village.&#10;[Chopin] Chopin wrote most of his music for solo piano."></textarea>
+          <textarea id="s-myfacts" rows="11" spellcheck="true" placeholder="A fact that fits any song:&#10;I've been playing piano since I was six.&#10;&#10;[A song title] first: only for that song, shown first:&#10;[Song of Storms] It plays in a windmill in Kakariko Village.&#10;&#10;[An artist or game] first: their songs take turns with it:&#10;[Chopin] Chopin wrote most of his music for solo piano.&#10;&#10;Empty: songs no source knows get no bubbles."></textarea>
           <h3 class="subhead">Songs with their own facts</h3>
           <p class="fine" id="s-songfacts-empty">None yet. Click <strong>Add facts for this song</strong> on the dashboard while a song plays, or before a show.</p>
           <ul id="s-songfacts" class="songfacts"></ul>
@@ -433,7 +470,8 @@
             </optgroup>
           </select>
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
-          <label class="inline"><input name="creditBubble" type="checkbox"> Now and then, show where the facts come from <span class="hint">one extra bubble at the start and about every 5 songs, for viewers who join later</span></label>
+          <label class="inline"><input name="creditBubble" type="checkbox" aria-describedby="s-credit-hint"> Now and then, show where the facts come from</label>
+          <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later.</p>
           <label class="inline"><input name="liveLearnBanner" type="checkbox"> Show a LIVE LEARN bubble during a live learn</label>
           <div class="grid3">
             <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
@@ -448,7 +486,7 @@
             <option value="ctrl-alt-shift-w" data-mac="Control+Option+Shift+W">Ctrl+Alt+Shift+W</option>
             <option value="f13">F13</option>
           </select>
-          <p class="fine">Press it during a song and the bubble on stream now comes off as <strong>Wrong</strong>. With none up, it's the last one shown. It works with BubbleFacts in the background, and nothing on stream shows it happened. The dashboard says which fact it was, with <strong>Undo</strong>.</p>
+          <p class="fine">Press it to mark the bubble on stream now as <strong>Wrong</strong>; the dashboard shows which, with <strong>Undo</strong>.</p>
           <div role="status"><p id="s-wrongkey-problem" class="result bad" hidden></p></div>
         </fieldset>
 
@@ -508,7 +546,7 @@
           <button type="button" class="danger" id="remove-data">Remove my BubbleFacts data</button>
         </details>
 
-        <div class="nav-buttons">
+        <div class="nav-buttons save-bar">
           <span id="settings-result" class="result" role="status"></span>
           <button type="submit" class="primary">Save</button>
         </div>
@@ -671,6 +709,7 @@
     <li class="fact"><span><span class="fact-live" hidden>On stream</span> <span class="fact-text"></span> <span class="fact-source"></span><button class="fact-source-link link" hidden></button><span class="fact-evidence" hidden></span></span><button class="edit-fact" hidden>Edit</button><button class="wrong" title="Takes it off your stream now, and BubbleFacts won't use the same source for this song again">Wrong</button></li>
   </template>
 
+  <script src="song-source.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
