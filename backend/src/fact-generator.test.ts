@@ -659,6 +659,19 @@ describe("an article that may be about another work (issue #255)", () => {
     log.mockRestore();
   });
 
+  it("tells about the game the title names, not the series in the artist field", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(series);
+    (artistFacts as jest.Mock).mockClear().mockImplementation(async (name: string) =>
+      name === "Rocket Drift" ? ["Rocket Drift came out in 1988."] : name === "Super Rocket Drift II" ? ["Super Rocket Drift II came out in 1993."] : []
+    );
+    const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const facts = await generateFacts({ title: "Super Rocket Drift II: Area 3", artist: "Rocket Drift" });
+    log.mockRestore();
+    (artistFacts as jest.Mock).mockReset().mockResolvedValue([]);
+    expect(facts.map((f) => f.text)).toEqual(["Super Rocket Drift II came out in 1993."]);
+    expect(artistFacts).not.toHaveBeenCalledWith("Rocket Drift");
+  });
+
   it("asks for nothing about the artist when the song's own data fills two bubbles", async () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(series);
     (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Area 3" came out in 1988.', '"Area 3" was composed by Ada Penn.']);

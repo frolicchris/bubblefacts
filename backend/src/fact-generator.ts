@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -12,7 +12,7 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
-import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, valuesIn } from "./infobox";
+import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
@@ -648,6 +648,17 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
   return facts;
 }
 
+/**
+ * The game a title names in front of its track when it is another work than the artist
+ * field's and carries its name: "Super Rocket Drift II: Area 3" by "Rocket Drift". The
+ * artist field is then a series, and its year or album would be another game's. "" for none.
+ */
+export function titleGame(title: string, game: string): string {
+  const named = splitGameAndTrack(dropVersionTags(title)).game;
+  const spaced = (s: string) => ` ${normalizeTitle(s)} `;
+  return named !== title && normalizeTitle(named) !== normalizeTitle(game) && normalizeTitle(game) && spaced(named).includes(spaced(game)) ? named : "";
+}
+
 /** The titles a request may go by: as typed and as read, whole and without a game's name in front. */
 function requestTitles(song: SSLSong, read: SSLSong): string[] {
   return [...new Set([song, read].flatMap((s) => [s.title, resolveGameAndTrack(s).track]).filter(Boolean))];
@@ -665,7 +676,7 @@ async function boxForRequest(list: BoxFact[], page: string, song: SSLSong, read:
   const { game } = resolveGameAndTrack(read);
   const titles = requestTitles(song, read);
   const performer = about.kind === "game" ? await musicbrainzFacts(read).then((mb) => Boolean(statedYear(mb) || statesAlbum(mb))) : false;
-  const why = boxMisfit(about, { game, titles }, performer);
+  const why = boxMisfit(about, { game, titles, gameTrack: PLATFORM_TAG.test(song.artist ?? "") }, performer);
   if (why) {
     console.log(`[Infobox] "${page}": ${why}, no infobox facts`);
     return [];
@@ -1031,7 +1042,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Too few to fill the song: up to two about its artist or game, from Wikidata too.
     const { game } = resolveGameAndTrack(read);
     const page = context.split("\n")[0];
-    const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
+    // A series in the artist field and one of its games in the title: the game's facts, never the series' first game's.
+    const about = isPerformerArticle(page, articleText(page) || context) ? page : titleGame(read.title, game) || game;
     const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
