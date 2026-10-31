@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Questions and help
     url: https://discord.gg/3YS3eWkWrW
-    about: Ask in the BubbleFacts Discord, in #help. Search there first. Other music content creators can help, and the answer helps the next person.
+    about: Ask in the BubbleFacts Discord, in #help. Search there first, then start a post. Other music content creators can help, and the answer helps the next person.
   - name: Security problem
     url: https://github.com/frolicchris/bubblefacts/security/advisories/new
     about: Report it privately, not in a public issue.

@@ -8,8 +8,8 @@
  * Help
  * ----
  *
- *  Questions, bug reports and wrong facts: open an issue or ask in
- *  Discussions on the page above.
+ *  Bug reports and wrong facts: open an issue on the page above.
+ *  Questions: #help on the BubbleFacts Discord, https://discord.gg/3YS3eWkWrW
  *
  * Setup
  * -----
