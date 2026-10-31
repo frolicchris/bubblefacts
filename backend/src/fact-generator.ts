@@ -196,6 +196,13 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
 const outcomes = new Map<string, Outcome>();
 export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song)) ?? "";
 
+/** Songs the AI was asked about in the generation now running. */
+const aiAsked = new Set<string>();
+/** How long each song's latest generation with the AI took, from asking for its facts to having them (issue #314). */
+const aiTimes = new Map<string, number>();
+/** The song's AI time for this play, in ms; null when the AI wrote nothing for it this time. */
+export const aiTimeFor = (song: SSLSong): number | null => aiTimes.get(songKey(song)) ?? null;
+
 /** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
 export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
@@ -660,6 +667,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
 
 async function askModel(prompt: string, key: string | null = null): Promise<string> {
   const started = Date.now();
+  if (key) aiAsked.add(key);
   let text: string;
   let endpoint: string;
   if (config.aiProvider === "builtin") {
@@ -1390,18 +1398,26 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, 
   const cached = factCache.get(key);
   if (cached && Date.now() < cached.expires) {
     factStats.cacheHits++;
+    aiTimes.delete(key);
     return Promise.resolve(cached.facts);
   }
   const revisionAtStart = revisions.get(key) ?? 0;
   let pending = inFlight.get(key);
   if (!pending) {
+    const started = Date.now();
+    aiTimes.delete(key);
     pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
+        if (aiAsked.has(key)) {
+          aiTimes.set(key, Date.now() - started);
+          console.log(`[FactGen] "${withoutRequestCredit(song.title)}": facts took ${((Date.now() - started) / 1000).toFixed(1)}s with the AI`);
+        }
         // A generation started before the song's facts changed may not overwrite them.
         if ((revisions.get(key) ?? 0) === revisionAtStart) setCapped(factCache, key, { facts, expires: Date.now() + ttlMs }, MAX_KEPT);
         return facts;
       })
       .finally(() => {
+        aiAsked.delete(key);
         if (inFlight.get(key) === pending) inFlight.delete(key);
       });
     inFlight.set(key, pending);

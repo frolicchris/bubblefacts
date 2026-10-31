@@ -424,6 +424,10 @@
     else if (switchingQuality() && status.state === "running") setStatusLight("light-ai", "ok", `Ready (${qualityName()}: ${downloadText(state.modelDownload) || "starting"})`);
     else if (status.state === "running") setStatusLight("light-ai", "ok", "Ready");
     else setStatusLight("light-ai", "", "Starting");
+    // How long the AI took for this song: for telling why bubbles came late.
+    const took = $("#facts-took");
+    took.textContent = h && h.factsTook ? h.factsTook : "";
+    took.hidden = !took.textContent;
 
     // Stream
     if (state.paused) setStatusLight("light-obs", "warn", "Bubbles paused");

@@ -38,6 +38,10 @@ jest.mock("./songlist-client", () => ({
     toSong(item: SSLQueueItem & { bfSong: SSLSong }) { return item.bfSong; }
     displayTitle() { return ""; }
     connect() { return Promise.resolve(); }
+    lastSuccessfulFetchAgeMs() { return 0; }
+    authRejected() { return false; }
+    pollIntervalMs() { return 15_000; }
+    isEventStreamConnected() { return true; }
   },
 }));
 
@@ -59,6 +63,7 @@ jest.mock("./fact-generator", () => ({
   factStats: {},
   markWrong: () => "Some article",
   outcomeFor: () => "",
+  aiTimeFor: () => 45_000,
   ownFactKind: () => null,
   STRUCTURED: "structured",
   unmarkWrong: () => {},
@@ -169,6 +174,12 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     now += 5000;
     const second = await overlay();
     expect(texts(await second.batch())).toEqual(["One.", "Three."]);
+  });
+
+  it("reports the song's AI time for the dashboard", async () => {
+    await play([fact("One.", 0)]);
+    const health = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as { factsTook: string };
+    expect(health.factsTook).toBe("Facts took 45 s");
   });
 
   it("gets nothing between songs", async () => {

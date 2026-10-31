@@ -543,6 +543,10 @@ Issue #262's rules, for when a fact must not be shown at all:
   on now, the found bubbles come off (`remove_fact`), and a restart keeps them
   off (`allowedFacts`). They're in the editor and, one click each, under
   Earlier songs.
+- **Facts took** on the dashboard (`aiTimeFor`, `/health`) is how long the song
+  on now waited for facts when the AI wrote for it, from asking to having them,
+  so waiting its turn behind another song counts. Late bubbles start here. A
+  song the AI didn't write for, or a play from the cache, shows nothing.
 - **Tracks that aren't music** (`not-music.ts`) go the same way with no switch:
   commercials, station idents and jingles get no Now Playing bubble and only
   the streamer's own facts. A player reports them like songs and only their

@@ -1,4 +1,4 @@
-import { listeningLine } from "./listening";
+import { factsTookLine, listeningLine } from "./listening";
 import { SongListClient } from "./songlist-client";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
@@ -57,5 +57,16 @@ describe("the dashboard's listening line", () => {
     expect(listeningLine(client)).toBe("Hearing your queue live");
     (client as unknown as { stream: { isConnected(): boolean } }).stream = { isConnected: () => false };
     expect(listeningLine(client)).toBe("Checking your list every 15 seconds");
+  });
+});
+
+describe("factsTookLine", () => {
+  it("says how long a song's AI facts took, in whole seconds", () => {
+    expect(factsTookLine(45_400)).toBe("Facts took 45 s");
+    expect(factsTookLine(800)).toBe("Facts took 1 s");
+  });
+
+  it("says nothing for a song the AI didn't write for", () => {
+    expect(factsTookLine(null)).toBe("");
   });
 });

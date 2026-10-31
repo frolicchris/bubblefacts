@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
 import { MAX_BUBBLES } from "./fact-ranking";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
@@ -1203,6 +1203,46 @@ describe("no facts for this song, or for this artist (issue #262)", () => {
     expect(allowedFacts(glass, saved)).toEqual(saved);
     setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
     expect(allowedFacts(glass, saved).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+  });
+});
+
+describe("how long the AI took for a song (issue #314)", () => {
+  const ferry = { title: "Slow Ferry", artist: "Wren Halloway" };
+  const c = config as { factVerification: boolean };
+  const article = `Slow Ferry\nSlow Ferry is a song by Wren Halloway. ${MODEL_LINES}`;
+  let now = 1_000_000;
+  let clock: jest.SpyInstance;
+  beforeEach(() => {
+    c.factVerification = true;
+    clock = jest.spyOn(Date, "now").mockImplementation(() => now);
+    mockCreate.mockImplementation(async () => {
+      now += 45_000;
+      return reply(MODEL_LINES);
+    });
+    (fetchGrounding as jest.Mock).mockResolvedValue(article);
+  });
+  afterEach(() => {
+    clock.mockRestore();
+    (fetchGrounding as jest.Mock).mockResolvedValue("");
+    saveSongFacts({ ...ferry, facts: [], noFacts: false });
+  });
+
+  it("is measured from the request for facts to the facts being ready", async () => {
+    await generateFacts(ferry);
+    expect(aiTimeFor(ferry)).toBe(45_000);
+  });
+
+  it("is blank for the next play, which comes from the cache", async () => {
+    await generateFacts(ferry);
+    await generateFacts(ferry);
+    expect(aiTimeFor(ferry)).toBeNull();
+  });
+
+  it("is blank for a song the AI didn't write for", async () => {
+    saveSongFacts({ ...ferry, facts: ["Written by hand."] });
+    await generateFacts(ferry);
+    expect(aiTimeFor(ferry)).toBeNull();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });
 

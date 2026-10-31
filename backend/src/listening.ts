@@ -17,3 +17,8 @@ export function listeningLine(source: Pick<SongSource, "name" | "isEventStreamCo
   if (what !== "file" && source.isEventStreamConnected()) return `Hearing your ${what} live`;
   return `Checking your ${what === "queue" ? "list" : what} every ${every(source.pollIntervalMs())}`;
 }
+
+/** "Facts took 45 s" for the dashboard (issue #314), or nothing when the AI wrote nothing for this song. */
+export function factsTookLine(ms: number | null): string {
+  return ms === null ? "" : `Facts took ${Math.max(1, Math.round(ms / 1000))} s`;
+}
