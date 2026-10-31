@@ -52,8 +52,6 @@
           <p class="eyebrow">BubbleFacts™, a free, open-source app for music streamers</p>
           <h1 id="hero-title">Fun facts about the song you're playing, right on your stream.</h1>
           <p class="pitch">BubbleFacts follows your song requests or your music player and shows short facts from Wikipedia and open music databases in game-inspired bubbles while you play, each one checked against its source.</p>
-          <p class="pitch"><strong>Easy to install:</strong> no coding, no Terminal, no AI setup. Download it, connect your songs, and drag it into OBS.</p>
-          <p class="made-by">Made by a musician who streams, so viewers learn about the music they're hearing and the music content creators playing it.</p>
 
           <div class="download" id="download">
             <a class="btn btn-primary" id="dl-primary" href="#all-downloads">Download BubbleFacts</a>
@@ -61,7 +59,7 @@
             <p class="dl-note" id="dl-alt" hidden></p>
             <p class="dl-note">Free and open source for Mac, Windows and Linux.</p>
             <p class="dl-note" data-beta-only>Not signed yet: your computer may ask you to confirm the app the first time you open it. <a href="download.html#first-launch">See what to click</a>.</p>
-            <p class="dl-note" data-stable-only>Your computer may ask you to confirm the app the first time you open it. <a href="download.html#first-launch">See what to click</a>.</p>
+            <p class="dl-note" data-stable-only>It isn't signed yet, so your computer may ask you to confirm it the first time you open it. Every download is built publicly from the GitHub source. <a href="download.html#first-launch">See what to click</a>.</p>
 
             <div class="dl-other" id="all-downloads">
               <h2 id="dl-other-heading">All downloads</h2>
@@ -105,13 +103,20 @@
 
     <section class="section" aria-labelledby="steps-title">
       <div class="wrap">
-        <h2 id="steps-title">Get running in two steps</h2>
-        <ol class="steps two">
+        <h2 id="steps-title">Get running in three steps</h2>
+        <ol class="steps three">
+          <li>
+            <div class="rpg">
+              <span class="step-num" aria-hidden="true"></span>
+              <h3>Install and confirm</h3>
+              <p>Install it like any app. The first time you open it, your computer asks you to confirm. <a href="download.html#first-launch">See what to click</a>.</p>
+            </div>
+          </li>
           <li>
             <div class="rpg">
               <span class="step-num" aria-hidden="true"></span>
               <h3>Connect your songs</h3>
-              <p>Sign in with StreamerSongList, using your Twitch account. Or paste a token from your StreamElements dashboard.</p>
+              <p>Sign in with StreamerSongList, paste a StreamElements token, or pick Streamling, Nightbot or any app that saves the song to a text file.</p>
             </div>
           </li>
           <li>
@@ -124,6 +129,7 @@
         </ol>
         <p style="margin-top:1.5rem">A test bubble appears in OBS as soon as you add it, so you know it worked.</p>
         <p><strong>No coding. No Terminal. No AI setup.</strong> BubbleFacts finishes getting ready in the background, so you don't wait for it.</p>
+        <p>Made by a musician who streams, so viewers learn about the music they're hearing and the music content creators playing it.</p>
         <p class="credit">Want to make it yours? Optionally, tell it about <a href="guide.html#your-music">your originals and live learns, or add your own facts</a>. The <a href="guide.html">setup guide</a> shows every click.</p>
       </div>
     </section>
