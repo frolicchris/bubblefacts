@@ -457,7 +457,7 @@ async function askAnthropic(prompt: string): Promise<string> {
   const res = await anthropic.messages.create({
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
-    temperature: config.temperature,
+    // No temperature: Anthropic SDK 1.x (API 2026-10-21) rejects it.
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
@@ -475,23 +475,53 @@ async function postJSON<T>(url: string, body: unknown, timeoutMs: number, header
   return (await res.json()) as T;
 }
 
-/** Groq, OpenRouter, Gemini, LM Studio, vLLM: anything speaking chat completions. */
-async function askOpenAICompatible(prompt: string): Promise<string> {
-  const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
-    `${config.openaiBaseUrl}/chat/completions`,
-    {
-      model: config.openaiModel,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: prompt },
-      ],
-      temperature: config.temperature,
-      max_tokens: HOSTED_MAX_TOKENS,
-    },
-    config.openaiTimeoutMs,
-    { Authorization: `Bearer ${config.openaiApiKey}` }
-  );
-  return data.choices?.[0]?.message?.content ?? "";
+/** The model Groq falls back to when a hand-set one is gone (see askOpenAICompatible). */
+const GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b";
+
+/** True when Groq says the model doesn't exist (any more): not found, or decommissioned. */
+function isModelGone(err: unknown): boolean {
+  return err instanceof Error && /returned (404|400):/.test(err.message) && /model_not_found|model_decommissioned|decommissioned|does not exist/i.test(err.message);
+}
+
+/**
+ * Groq, OpenRouter, Gemini, LM Studio, vLLM: anything speaking chat completions.
+ * On Groq, a hand-set model that Groq has since retired falls back once to the default model
+ * instead of failing every song.
+ */
+export async function askOpenAICompatible(prompt: string): Promise<string> {
+  const send = async (model: string) => {
+    const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
+      `${config.openaiBaseUrl}/chat/completions`,
+      {
+        model,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+        temperature: config.temperature,
+        max_tokens: HOSTED_MAX_TOKENS,
+      },
+      config.openaiTimeoutMs,
+      { Authorization: `Bearer ${config.openaiApiKey}` }
+    );
+    return data.choices?.[0]?.message?.content ?? "";
+  };
+  try {
+    return await send(config.openaiModel);
+  } catch (err) {
+    if (!isGroqUrl(config.openaiBaseUrl) || config.openaiModel === GROQ_FALLBACK_MODEL || !isModelGone(err)) throw err;
+    console.warn(`Groq no longer has the model "${config.openaiModel}"; using ${GROQ_FALLBACK_MODEL} instead.`);
+    return send(GROQ_FALLBACK_MODEL);
+  }
+}
+
+/** Whether a base URL's host is Groq's, wherever else the name might appear in it. */
+function isGroqUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.groq.com";
+  } catch {
+    return false;
+  }
 }
 
 /** Primary Ollama host, then the fallback host if one is configured. Returns the text and the host that answered. */

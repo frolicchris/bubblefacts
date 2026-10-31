@@ -162,6 +162,10 @@
         {
           "from": "desktop/runtime/node",
           "to": "runtime/node"
+        },
+        {
+          "from": "desktop/runtime/LICENSE",
+          "to": "runtime/LICENSE"
         }
       ]
     },

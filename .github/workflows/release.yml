@@ -66,7 +66,13 @@ jobs:
       # ship the official one setup-node just installed.
       - name: Bundle Node.js for the fact server (Linux)
         if: runner.os == 'Linux'
-        run: mkdir -p desktop/runtime && cp "$(node -p 'process.execPath')" desktop/runtime/node && desktop/runtime/node --version
+        shell: bash
+        run: |
+          mkdir -p desktop/runtime
+          cp "$(node -p 'process.execPath')" desktop/runtime/node
+          # Node's MIT license and the notices of its bundled libraries travel with the binary.
+          cp "$(node -p 'require("path").resolve(path.dirname(process.execPath), "..", "LICENSE")')" desktop/runtime/LICENSE
+          desktop/runtime/node --version
       # The YouTube Data API key is a repository secret, written into the build only (never committed).
       # It's restricted to the YouTube Data API. Without it, song titles are read from the video title alone.
       - name: Add the YouTube API key
