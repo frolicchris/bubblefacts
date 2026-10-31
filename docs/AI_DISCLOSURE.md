@@ -46,7 +46,7 @@ is responsible for everything this repository ships, whoever wrote it. Before a 
 released:
 
 1. **Checks.** Typecheck, lint and tests run on every pull request on Linux,
-   and typecheck, tests and a build on macOS and Windows. `main` is protected, so changes can't skip them without
+   and typecheck, tests and a build on macOS 15 and Windows. `main` is protected, so changes can't skip them without
    the maintainer's say-so.
 2. **Review.** The maintainer reviews every change. Before the 2.0 beta, the
    whole app also had an independent AI code review, and every issue it found
@@ -66,10 +66,13 @@ rewrites details from the song's Wikipedia article, and every caption is
 screened against the article before it's shown: names, who did what, years,
 consoles, and award or chart claims must appear there. That screening is
 word-level, not full verification, so a caption can still mix up details the
-article does mention; the Wrong button takes one off the stream. When there's no article, the
-AI isn't used: facts from [Wikidata](https://www.wikidata.org) or
+article does mention; the Wrong button takes one off the stream. Captions
+and facts from data also have to meet a content standard: about the music and
+family-friendly. Facts from [Wikidata](https://www.wikidata.org) or
 [MusicBrainz](https://musicbrainz.org) are fixed sentences filled in from
-their data, and custom facts go on stream exactly as written. See
+their data, with no AI. They can show before the AI's captions, and they're
+all there is when there's no article, or none BubbleFacts is sure is the
+song's. Your own facts go on stream exactly as written. See
 [docs/ARCHITECTURE.md](ARCHITECTURE.md) for how the check works.
 
 Found a wrong fact or a problem?

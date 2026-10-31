@@ -128,8 +128,8 @@ a bug there only shows up in OBS.
 
 ## Questions
 
-Setup questions are welcome in
-[Discussions](https://github.com/frolicchris/bubblefacts/discussions),
+Setup questions are welcome in the
+[BubbleFacts Discord](https://discord.gg/3YS3eWkWrW), in #help,
 where the answer can help the next person too.
 
 By taking part, you agree to the [code of conduct](CODE_OF_CONDUCT.md).

@@ -19,6 +19,7 @@ Code carry a `Co-Authored-By: Claude` trailer.
 ## Beta Testers
 
 - DarkN8V
+- Epic Realms
 - izzyparadox
 - MacYoda
 - SaxDragon

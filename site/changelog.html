@@ -7,6 +7,8 @@
   <meta name="description" content="What changed in each version of BubbleFacts.">
   <link rel="canonical" href="https://bubblefacts.frolic.org/changelog.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#07071a">
 
   <meta property="og:type" content="article">
@@ -24,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.2">
-  <script src="assets/site.js?v=2.1.0-beta.2" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0">
+  <script src="assets/site.js?v=2.1.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -51,6 +53,23 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-1">
+          <h2 id="v2-1">Version 2.1.0 <span class="tag">October 30, 2026</span></h2>
+          <p>More ways to follow your music, facts the moment a song starts, and fewer wrong ones. Shaped by beta testers' live streams.</p>
+          <ul>
+            <li>New: follow a now playing file instead of a song list. Streamling and Nightbot are one click, or pick any app that writes the song to a text file. In Settings, under <span class="ui">Your song list</span>.</li>
+            <li>New: <span class="ui">No facts for this song</span> and <span class="ui">No facts for this artist</span>, under <span class="ui">Your facts for</span> a song, or one click under <span class="ui">Earlier songs</span>.</li>
+            <li>Improved: more classical pieces find the right article, catalog numbers and nicknames included.</li>
+            <li>New: now and then, a bubble says where the facts come from. Turn it off under <span class="ui">Bubbles</span>.</li>
+            <li>Improved: basic facts show the moment a song starts, and the AI's facts follow when they're ready.</li>
+            <li>Improved: with StreamerSongList, BubbleFacts hears the moment you move to the next song, and the dashboard says whether it's listening live or checking every 15 seconds.</li>
+            <li>Improved: fewer facts about the wrong song, game, film, place or person.</li>
+            <li>Improved: a stronger family-friendly filter leaves out scandals, crime and threats, and anything that labels who a person is. No filter is perfect, so Wrong is always there.</li>
+            <li>Fixed: an overlay that reloads mid-song, after a scene switch or with a second output, gets the rest of that song's bubbles.</li>
+            <li>Security: the app's framework (Electron) and two small libraries are updated with security fixes.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-1-beta2">
           <h2 id="v2-1-beta2">Version 2.1.0-beta.2 <span class="tag">Beta, October 26, 2026</span></h2>
@@ -304,7 +323,6 @@
       <nav aria-label="Site">
       <ul class="footer-links">
         <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
-        <li><a href="https://github.com/frolicchris/bubblefacts/discussions">Discussions</a></li>
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
         <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -312,6 +330,8 @@
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
         <li><a href="support.html">Help and support</a></li>
+        <li><a href="https://discord.gg/3YS3eWkWrW">Discord</a></li>
+        <li><a href="mailto:bubblefacts@frolic.org">Email BubbleFacts</a></li>
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="credits.html">Credits and licenses</a></li>
         <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
@@ -319,7 +339,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>, or with High quality, Meta's Llama 3.1, used under the <a href="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.</p>
     </div>
   </footer>
 </body>

@@ -17,6 +17,14 @@ describe("redact", () => {
   });
 });
 
+describe("redact account names", () => {
+  it("removes the account name from Mac, Linux and Windows paths", () => {
+    expect(redact("Could not save /Users/some-name/Library/x.json", [])).toBe("Could not save /Users/[removed]/Library/x.json");
+    expect(redact("open /home/some-name/.config/x", [])).toBe("open /home/[removed]/.config/x");
+    expect(redact("EPERM C:\\Users\\some-name\\AppData\\x", [])).toBe("EPERM C:\\Users\\[removed]\\AppData\\x");
+  });
+});
+
 describe("problem reports", () => {
   it("fills the bug form without secrets, and fits in a web address", () => {
     const lines = Array.from({ length: 800 }, (_, i) => `[Server] line ${i} with secret-token-xyz ${"x".repeat(60)}`);
