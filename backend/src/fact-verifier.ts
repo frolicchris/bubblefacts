@@ -5647,9 +5647,9 @@ function sourceReason(fact: string, context: string, track: string | undefined):
 }
 
 /**
- * Keep only facts the reference visibly supports. With no reference (only
- * when FACT_VERIFICATION=off) the source checks are skipped but formatting,
- * meta-commentary, risky claims, length and duplicates are still screened.
+ * Keep only facts the reference visibly supports. With no reference the
+ * source checks are skipped but formatting, meta-commentary, risky claims,
+ * length and duplicates are still screened.
  *
  * `otherParts`: the other parts of the soundtrack the reference was cut from.
  * `track`: set when the article isn't the track's own (an artist's, a game's):

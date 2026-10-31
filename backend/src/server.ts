@@ -322,7 +322,7 @@ control.post("/pause", (req, res) => {
       pausedAt = Date.now();
       for (const ws of clients.keys()) send(ws, { type: "clear" });
     } else if (!resumeSameSong()) {
-      void onSongChange(songList.getCurrentSong());
+      onSongChange(songList.getCurrentSong()).catch((err) => console.error("[Server] Song change failed:", err));
     }
   }
   res.json({ paused });
