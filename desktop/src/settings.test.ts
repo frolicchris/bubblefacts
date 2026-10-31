@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { customFactsProblem, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -248,6 +248,41 @@ describe("the last version whose What's new was seen", () => {
 
   it("belongs to the app: the window and a backup can't set it", () => {
     expect(fromWindow({ lastVersionSeen: "9.9.9" })).toEqual({});
+  });
+});
+
+describe("sharing song facts with other apps", () => {
+  const on = { ...DEFAULTS, channel: "jane", token: "t", shareFacts: true, shareUrl: "https://share.example.com/events", shareChannel: "madeupchannel", shareKey: "made-up-key-12345" };
+
+  it("is off by default", () => {
+    expect(DEFAULTS.shareFacts).toBe(false);
+    expect(toServerEnv({ ...DEFAULTS, channel: "jane", token: "t" }, paths)).not.toHaveProperty("SHARE_FACTS_URL");
+  });
+
+  it("goes to the server only when switched on with a channel and a key", () => {
+    expect(toServerEnv(on, paths)).toMatchObject({ SHARE_FACTS_URL: "https://share.example.com/events", SHARE_FACTS_CHANNEL: "madeupchannel", SHARE_FACTS_KEY: "made-up-key-12345" });
+    for (const missing of [{ shareFacts: false }, { shareUrl: "" }, { shareChannel: "" }, { shareKey: "" }]) {
+      const env = toServerEnv({ ...on, ...missing }, paths);
+      expect(env).not.toHaveProperty("SHARE_FACTS_URL");
+      expect(env).not.toHaveProperty("SHARE_FACTS_KEY");
+    }
+  });
+
+  it("keeps the key encrypted on disk and out of reports", () => {
+    saveSettings(on);
+    expect(fs.readFileSync(file, "utf8")).not.toContain("made-up-key-12345");
+    expect(loadSettings()).toMatchObject({ shareFacts: true, shareKey: "made-up-key-12345" });
+    expect(secretsOf(on)).toContain("made-up-key-12345");
+  });
+
+  it("refuses an address that isn't https, except on this computer", () => {
+    expect(shareUrlProblem({ shareUrl: "http://share.example.com/events" })).toMatch(/https/);
+    expect(shareUrlProblem({ shareUrl: "http://localhost:8123/events" })).toBeNull();
+    expect(sanitize({ ...on, shareUrl: "http://share.example.com/events" }).shareUrl).toBe("");
+  });
+
+  it("tidies a pasted channel name", () => {
+    expect(sanitize({ ...on, shareChannel: " @madeupchannel " }).shareChannel).toBe("madeupchannel");
   });
 });
 

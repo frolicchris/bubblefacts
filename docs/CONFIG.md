@@ -194,6 +194,24 @@ top of `frontend/obs/obs-overlay.css`.
 
 ---
 
+## Sharing song facts with other apps
+
+Off by default. When all three settings below are set, each song and its facts go to that address as context the other app may use to answer questions. Nothing else is sent, and paused bubbles aren't shared. Failures are logged by reason only.
+
+Each request is a POST with `Authorization: Bearer <key>` and a JSON body:
+
+```json
+{"eventType": "INTEGRATION_STATE", "data": {"channelName": "yourchannel", "sourceId": "bubblefacts", "content": "Now playing: ...", "ttl": 420}}
+```
+
+`ttl` is in seconds. Empty `content`, with no `ttl`, clears what was sent.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `SHARE_FACTS_URL` | (none) | Where facts go. Must be `https`, or `http` on this computer only. |
+| `SHARE_FACTS_KEY` | (none) | Your API key for that app. |
+| `SHARE_FACTS_CHANNEL` | (none) | The channel the key belongs to. |
+
 ## Connection
 
 | Setting | Default | What it does |
