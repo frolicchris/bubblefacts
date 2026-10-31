@@ -424,9 +424,15 @@
     else if (status.state === "running") {
       kind = "ok";
       title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
+      // What is happening right now, in the words of the title above.
+      const waiting = !h.currentSong ? "BubbleFacts will show facts when your next song starts."
+        : nowShowing > 0 ? "This song's facts pop up on your stream while it plays."
+        // Nothing reliable, facts off, a live learn or a failure: the note under On stream now says which.
+        : nowReady ? "No bubbles for this song. The note below says why."
+        : "Looking up facts for this song. They appear in a few seconds.";
       detail = downloading
         ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
-        : "BubbleFacts is connected and waiting.";
+        : waiting;
     }
     banner.className = "banner " + kind;
     $("#status-title").textContent = title;
@@ -553,6 +559,23 @@
     }
   }
 
+  /**
+   * Marks the fact on your stream right now, or says when the next bubble comes. Updates the
+   * list in place, so a button being clicked doesn't move.
+   */
+  function markOnStream(onStream) {
+    const up = new Set((onStream && onStream.up) || []);
+    for (const li of $$("#now-facts li")) {
+      const live = up.has($(".fact-text", li).textContent);
+      $(".fact-live", li).hidden = !live;
+      li.classList.toggle("on-stream", live);
+    }
+    const next = onStream && onStream.nextInSeconds;
+    const note = $("#now-next");
+    note.hidden = !(up.size === 0 && next > 0 && $("#now-facts").children.length > 0);
+    note.textContent = note.hidden ? "" : `Next bubble in about ${next} seconds`;
+  }
+
   async function refreshRecent() {
     const r = await api.recent();
     if (nowShowing !== (r.facts || []).length || nowReady !== !!r.ready) {
@@ -563,6 +586,7 @@
     const song = r.song ? r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "") : null;
     $("#now-title").textContent = state && state.paused ? "Paused: these show when you resume" : "On stream now";
     // Redraw only when something changed, so a list being clicked doesn't move under the pointer.
+    markOnStream(r.onStream);
     const drawn = JSON.stringify([song, r.ready, r.outcome, (r.facts || []).map((f) => f.text), (r.earlier || []).map((e) => [e.song.title, e.facts.length, e.off])]);
     if (drawn === lastRecent) return;
     lastRecent = drawn;
@@ -577,6 +601,7 @@
     // With nothing playing, the first button already asks which song.
     $("#song-facts-other").hidden = !$("#song-facts-form").hidden || !r.song;
     const hasOwn = (r.facts || []).some((f) => f.source === "Your facts for this song");
+    markOnStream(r.onStream);
     $("#song-facts-open").textContent = !r.song ? "Add facts for a song" : hasOwn ? "Edit your facts for this song" : "Add facts for this song";
   }
 

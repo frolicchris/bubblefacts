@@ -151,3 +151,20 @@ export function factOnScreen(facts: Fact[], shownAt: number, now = Date.now(), s
   if (before && elapsed - latest.delaySeconds < JUST_APPEARED_SECONDS && stillUp(before)) return before;
   return latest;
 }
+
+/**
+ * What the overlay is showing now, for the dashboard: the texts of the bubbles up, and how many
+ * seconds until the next one when none is. Same schedule as the overlay (delays count from
+ * `shownAt`, a bubble stays its reading time, a later bubble in the same spot replaces it).
+ * Nothing is up before the facts went out (`shownAt` 0).
+ */
+export function bubbleNow(facts: Fact[], shownAt: number, now = Date.now()): { up: string[]; nextInSeconds: number | null } {
+  if (!shownAt) return { up: [], nextInSeconds: null };
+  const elapsed = (now - shownAt) / 1000;
+  const started = facts.filter((f) => f.delaySeconds <= elapsed);
+  const up = started
+    .filter((f) => elapsed < f.delaySeconds + readingSeconds(f) && !started.some((g) => g !== f && g.delaySeconds > f.delaySeconds && spotOf(g) === spotOf(f)))
+    .map((f) => f.text);
+  const later = facts.filter((f) => f.delaySeconds > elapsed).map((f) => f.delaySeconds - elapsed);
+  return { up, nextInSeconds: later.length ? Math.ceil(Math.min(...later)) : null };
+}
