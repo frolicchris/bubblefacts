@@ -43,6 +43,11 @@ export interface Settings {
   /** One credit bubble before the first song's facts and about every 5 songs: where facts come from, and to report a mistake. */
   creditBubble: boolean;
   liveLearnBanner: boolean;
+  /** Share song facts with other apps: off by default. Sends the song and its facts to ai_licia (share-song-facts.ts in the server). */
+  shareFacts: boolean;
+  /** The channel the ai_licia key belongs to. */
+  shareChannel: string;
+  ailiciaKey: string;
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
   myOriginals: string[];
@@ -112,6 +117,9 @@ export const DEFAULTS: Settings = {
   nowPlaying: true,
   creditBubble: true,
   liveLearnBanner: true,
+  shareFacts: false,
+  shareChannel: "",
+  ailiciaKey: "",
   myFacts: [],
   myOriginals: [],
   ai: "builtin",
@@ -133,7 +141,7 @@ export const DEFAULTS: Settings = {
   lastVersionSeen: "",
 };
 
-const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey", "twitchToken", "twitchRefreshToken"] as const;
+const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey", "ailiciaKey", "twitchToken", "twitchRefreshToken"] as const;
 const file = () => path.join(app.getPath("userData"), "settings.json");
 
 
@@ -285,6 +293,8 @@ export function sanitize(s: Settings): Settings {
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
     seJwt: s.seJwt.trim(),
+    shareChannel: s.shareChannel.trim().replace(/^@/, ""),
+    ailiciaKey: s.ailiciaKey.trim(),
     ollamaUrl: webAddress(s.ollamaUrl) ?? DEFAULTS.ollamaUrl,
   };
 }
@@ -321,7 +331,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareChannel", "ailiciaKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
@@ -429,6 +439,7 @@ export function toServerEnv(
     });
     if (s.tokenKind === "oauth") Object.assign(env, { SSL_CLIENT_ID: paths.clientId, SSL_STREAMER_ID: String(s.streamerId) });
   }
+  if (s.shareFacts && s.shareChannel && s.ailiciaKey) Object.assign(env, { SHARE_FACTS: "on", AILICIA_CHANNEL: s.shareChannel, AILICIA_API_KEY: s.ailiciaKey });
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
   if (s.instrument) env.INSTRUMENT = s.instrument;
   if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });

@@ -69,6 +69,31 @@ export async function testStreamElements(channel: string, jwt: string): Promise<
   }
 }
 
+const AILICIA_EVENTS_URL = "https://api.getailicia.com/v1/events";
+
+/**
+ * Try an ai_licia key and channel by clearing this app's own entry there:
+ * empty content sends no song or fact, and a wrong key or channel is refused.
+ */
+export async function testSharing(channel: string, key: string, url = AILICIA_EVENTS_URL): Promise<{ ok: true } | { ok: false; reason: string; detail?: string }> {
+  const name = channel.trim().replace(/^@/, "");
+  if (!name) return { ok: false, reason: "Enter your ai_licia channel name." };
+  if (!key.trim()) return { ok: false, reason: "Paste your ai_licia API key." };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType: "INTEGRATION_STATE", data: { channelName: name, sourceId: "bubblefacts", content: "" } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 401 || res.status === 403) return { ok: false, reason: "ai_licia didn't accept that. Check the API key, and that the channel name is the one the key belongs to." };
+    if (!res.ok) return { ok: false, reason: "ai_licia isn't answering right now. Try again in a minute.", detail: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: plainError(err, { service: "ai_licia", fallback: cantReach("ai_licia") }), detail: errorDetail(err) };
+  }
+}
+
 /**
  * Compare versions like 2.0.0 and 2.0.0-beta.2 the semver way: a prerelease
  * comes before its release, and prerelease parts compare number by number.

@@ -233,6 +233,35 @@ describe("the last version whose What's new was seen", () => {
   });
 });
 
+describe("sharing song facts with other apps", () => {
+  const on = { ...DEFAULTS, channel: "jane", token: "t", shareFacts: true, shareChannel: "madeupchannel", ailiciaKey: "made-up-key-12345" };
+
+  it("is off by default", () => {
+    expect(DEFAULTS.shareFacts).toBe(false);
+    expect(toServerEnv({ ...DEFAULTS, channel: "jane", token: "t" }, paths)).not.toHaveProperty("SHARE_FACTS");
+  });
+
+  it("goes to the server only when switched on with a channel and a key", () => {
+    expect(toServerEnv(on, paths)).toMatchObject({ SHARE_FACTS: "on", AILICIA_CHANNEL: "madeupchannel", AILICIA_API_KEY: "made-up-key-12345" });
+    for (const missing of [{ shareFacts: false }, { shareChannel: "" }, { ailiciaKey: "" }]) {
+      const env = toServerEnv({ ...on, ...missing }, paths);
+      expect(env).not.toHaveProperty("SHARE_FACTS");
+      expect(env).not.toHaveProperty("AILICIA_API_KEY");
+    }
+  });
+
+  it("keeps the key encrypted on disk and out of reports", () => {
+    saveSettings(on);
+    expect(fs.readFileSync(file, "utf8")).not.toContain("made-up-key-12345");
+    expect(loadSettings()).toMatchObject({ shareFacts: true, ailiciaKey: "made-up-key-12345" });
+    expect(secretsOf(on)).toContain("made-up-key-12345");
+  });
+
+  it("tidies a pasted channel name", () => {
+    expect(sanitize({ ...on, shareChannel: " @madeupchannel " }).shareChannel).toBe("madeupchannel");
+  });
+});
+
 describe("toServerEnv", () => {
   it("passes the app's sign-in as a bearer token with the client and channel IDs", () => {
     const env = toServerEnv({ ...DEFAULTS, channel: "jane", token: "t", tokenKind: "oauth", streamerId: 42 }, paths);

@@ -53,7 +53,7 @@
         <p class="eyebrow">Privacy</p>
         <h1>Your data, in plain words</h1>
         <div class="rpg has-cursor" style="margin-bottom:2.5rem">
-          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to the song list service you connect (StreamerSongList or StreamElements), to a file your music app writes, if you use one, to Wikipedia, Wikidata and MusicBrainz to look songs up, to Hugging Face once to download the built-in AI, to GitHub to check for updates, to Twitch or YouTube only in the cases below, and to an online AI only if you choose one. Nothing is sent to this project.</p>
+          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to the song list service you connect (StreamerSongList or StreamElements), to a file your music app writes, if you use one, to Wikipedia, Wikidata and MusicBrainz to look songs up, to Hugging Face once to download the built-in AI, to GitHub to check for updates, to Twitch or YouTube only in the cases below, to an online AI only if you choose one, and to ai_licia only if you turn on sharing. Nothing is sent to this project.</p>
         </div>
 
         <ul class="privacy-list">
@@ -93,6 +93,10 @@
             <h2>The AI</h2>
             <p>With the built-in AI, the default, captions are written on your computer. The AI model is downloaded once, from Hugging Face, a site that hosts AI models. After that, nothing is sent anywhere to write captions.</p>
             <p>If you choose an online AI (Groq or Anthropic), only the song title, artist and the Wikipedia article text are sent to that service to write the captions. Nothing about you or your channel is. Their own privacy policies apply. If you choose your own Ollama, they go to the Ollama address you set.</p>
+          </li>
+          <li>
+            <h2>Sharing song facts (only if you turn it on)</h2>
+            <p>This is off unless you turn on <span class="ui">Share song facts with ai_licia</span> in Settings and add your own ai_licia API key, which is saved encrypted like your other keys. While it's on, the app sends ai_licia your ai_licia channel name, the song's title and artist, and that song's facts. It doesn't send who requested the song, or anything else about you or your stream. ai_licia's own privacy policy applies. Turn it off in Settings at any time.</p>
           </li>
           <li>
             <h2>Nothing is sent to the project</h2>

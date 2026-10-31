@@ -86,6 +86,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, settings and About. Plain JavaScript, no build step. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
+| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to ai_licia beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code) and reading another channel's About. |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |

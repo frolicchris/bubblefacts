@@ -194,6 +194,17 @@ top of `frontend/obs/obs-overlay.css`.
 
 ---
 
+## Sharing song facts with other apps
+
+Off by default. When on, each song and its facts go to [ai_licia](https://docs.getailicia.com/docs/public-api/rest/events/) as context it may use to answer questions. Nothing else is sent, and paused bubbles aren't shared. Failures are logged by reason only.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `SHARE_FACTS` | `off` | `on` shares, once the two settings below are set too. |
+| `AILICIA_CHANNEL` | (none) | The channel your ai_licia API key belongs to. |
+| `AILICIA_API_KEY` | (none) | Your ai_licia API key. |
+| `AILICIA_EVENTS_URL` | ai_licia's | Where events go. For testing against a stand-in server. |
+
 ## Connection
 
 | Setting | Default | What it does |

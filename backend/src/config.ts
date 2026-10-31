@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import os from "os";
 import path from "path";
 import { presetFolder } from "./now-playing-folder";
+import { AILICIA_EVENTS_URL } from "./share-song-facts";
 
 /** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -172,6 +173,12 @@ export const config = {
     ["artist-title", "title", "youtube-title"] as const,
     nowPlayingPreset === "none" ? "artist-title" : NOW_PLAYING_PRESETS[nowPlayingPreset].format
   ),
+
+  // Share song facts with other apps (off unless all of this is set): share-song-facts.ts.
+  shareFacts: oneOf("SHARE_FACTS", ["on", "off"] as const, "off") === "on" && !!process.env.AILICIA_API_KEY && !!process.env.AILICIA_CHANNEL,
+  ailiciaApiKey: process.env.AILICIA_API_KEY || "",
+  ailiciaChannel: process.env.AILICIA_CHANNEL || "",
+  ailiciaEventsUrl: process.env.AILICIA_EVENTS_URL || AILICIA_EVENTS_URL,
 
   // Model
   aiProvider,
