@@ -6,6 +6,7 @@
 
 **Fun facts about the song you're playing, right on your stream.**
 
+For musicians and DJs who stream, on any platform OBS reaches.
 BubbleFacts follows the song you're playing and shows short facts from
 Wikipedia and open music databases in game-inspired bubbles in OBS, each one
 checked against its source. It reads your
@@ -24,26 +25,21 @@ the website. It's free, for Mac, Windows and Linux.
 
 Already have it? See [Updating to a newer version](https://bubblefacts.frolic.org/download.html#update): your settings are kept.
 
-**Some of this page is new in the 2.1 beta:** following a now playing file
-(Streamling, Nightbot or another music app), facts the moment a song starts,
-and the family-friendly screening and one-click switches described below. The
-website's download is 2.0.1 until 2.1.0 is out. To try the beta now,
-[download it from its release page](https://github.com/frolicchris/bubblefacts/releases/tag/v2.1.0-beta.2),
-or choose **Beta** updates in Settings, under General.
-
 The app isn't signed yet, so the first time you open it, your computer may
 ask you to confirm. The [download page](https://bubblefacts.frolic.org/download.html#first-launch)
 shows exactly what to click.
 
-## Get running in two steps
+## Get running in three steps
 
-1. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
+1. **Install and confirm.** Install it like any app, and confirm it the first
+   time you open it.
+2. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
    with Twitch. Take requests through StreamElements instead? Choose
    **StreamElements** and paste your JWT token from the StreamElements
    dashboard. Use Streamling or Nightbot's desktop app? Choose
    **Now playing file**, then **Streamling** or **Nightbot**. Another music
    app that writes the song to a text file works too: **Another app's file**.
-2. **Put BubbleFacts on your stream.** Drag the tile from the app into the
+3. **Put BubbleFacts on your stream.** Drag the tile from the app into the
    **Sources** list in OBS. A test bubble appears, and the app says
    **It's on your stream!**
 
@@ -92,7 +88,7 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 ## Help
 
 - [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step
-- [Ask a question in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
+- [Ask a question in Discord (#help)](https://discord.gg/3YS3eWkWrW)
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** under **Help and troubleshooting** fills in
   the details for you.
@@ -139,7 +135,7 @@ High quality chosen in Settings, Meta's Llama 3.1 8B, used under the
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,
-DarkN8V, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
+DarkN8V, Epic Realms, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
 Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
@@ -147,3 +143,4 @@ coding agent: see [AUTHORS.md](AUTHORS.md) and the
 [AI disclosure](docs/AI_DISCLOSURE.md). The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
 trademarks and aren't covered by the MIT license: forks
 are welcome, under a different name. See the [trademark policy](TRADEMARKS.md).
+BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.

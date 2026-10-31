@@ -13,7 +13,9 @@ export function redact(text: string, secrets: string[]): string {
   for (const s of secrets) out = out.split(s).join("[removed]");
   return out
     .replace(/\b(sk-ant-[A-Za-z0-9_-]{10,}|gsk_[A-Za-z0-9]{10,})\b/g, "[removed]")
-    .replace(/(Authorization:\s*\w+\s+)\S+/gi, "$1[removed]");
+    .replace(/(Authorization:\s*\w+\s+)\S+/gi, "$1[removed]")
+    // Error messages can carry a full path, and the folder after Users or home is the person's account name.
+    .replace(/([/\\](?:Users|home)[/\\])[^/\\\s"']+/gi, "$1[removed]");
 }
 
 function issueUrl(template: string, fields: Record<string, string>): string {
