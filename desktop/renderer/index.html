@@ -475,10 +475,11 @@
           <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later.</p>
           <label class="inline"><input name="liveLearnBanner" type="checkbox"> Show a LIVE LEARN bubble during a live learn</label>
           <div class="grid3">
-            <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
+            <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12" aria-describedby="s-facts-hint"></label>
             <label>A new bubble every (seconds) <input name="intervalSeconds" type="number" min="3" max="300"></label>
             <label>Each bubble stays up (seconds) <input name="durationSeconds" type="number" min="2" max="120"></label>
           </div>
+          <p class="hint" id="s-facts-hint">BubbleFacts finds up to 4 facts for a song. A higher number makes room for your own, which can go past that.</p>
           <p class="hint" id="s-timing-hint"></p>
           <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
           <select id="s-wrongkey" name="wrongKey">

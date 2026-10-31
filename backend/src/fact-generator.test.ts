@@ -52,6 +52,7 @@ jest.mock("./fact-verifier", () => ({
 
 import { config } from "./config";
 import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
+import { MAX_BUBBLES } from "./fact-ranking";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
@@ -1202,6 +1203,33 @@ describe("no facts for this song, or for this artist (issue #262)", () => {
     expect(allowedFacts(glass, saved)).toEqual(saved);
     setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
     expect(allowedFacts(glass, saved).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+  });
+});
+
+describe("facts per song above the cap on found facts", () => {
+  const ferry = { title: "Night Ferry", artist: "Wren Halloway" };
+  const c = config as { factsPerSong: number; factVerification: boolean };
+  beforeEach(() => {
+    c.factsPerSong = 8;
+  });
+  afterEach(() => {
+    c.factsPerSong = 5;
+    saveSongFacts({ ...ferry, facts: [] });
+  });
+
+  it(`stops found facts at ${MAX_BUBBLES}, even with room for more`, async () => {
+    c.factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Night Ferry\nNight Ferry is a song by Wren Halloway. ${MODEL_LINES}`);
+    const facts = await generateFacts(ferry);
+    expect(facts.length).toBeGreaterThan(0);
+    expect(facts.length).toBeLessThanOrEqual(MAX_BUBBLES);
+  });
+
+  it("lets the streamer's own facts go past it, up to the setting", async () => {
+    const own = ["One.", "Two.", "Three.", "Four.", "Five.", "Six.", "Seven.", "Eight.", "Nine."].map((f) => `Wren wrote part ${f}`);
+    saveSongFacts({ ...ferry, facts: own });
+    const facts = await generateFacts(ferry);
+    expect(facts.map((f) => f.text)).toEqual(own.slice(0, 8));
   });
 });
 
