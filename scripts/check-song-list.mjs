@@ -45,16 +45,7 @@ let captured = [];
 const quiet = (...a) => captured.push(a.map(String).join(" "));
 const real = { log: console.log, warn: console.warn };
 
-const words = (s) => verifier.normalizeTitle(s ?? "").split(" ").filter((w) => w.length > 2);
-/** Why an article looks wrong for a song, or "" when nothing stands out. */
-function suspicion(song, article) {
-  if (!article) return "";
-  const a = new Set(words(article));
-  const shared = [...words(song.title), ...words(song.artist)].filter((w) => a.has(w));
-  if (!shared.length) return "shares no words with the title or artist";
-  if (/\b(video game|game)\)?$/i.test(article) && verifier.looksLikeArtistName(song.artist ?? "")) return "a game, for what looks like an artist";
-  return "";
-}
+const { suspicion } = await import(path.join(dist, "song-list-check.js"));
 
 const csv = [["title", "artist", "game", "track", "article", "chars", "suspect", "log"].join(",")];
 const cell = (v) => `"${String(v ?? "").replace(/"/g, '""').replace(/\s+/g, " ")}"`;
