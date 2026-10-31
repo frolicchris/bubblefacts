@@ -72,7 +72,7 @@ You'll need:
 | What | Why | Where to get it |
 |---|---|---|
 | **OBS Studio** 28 or newer | Shows the overlay on your stream | [obsproject.com/download](https://obsproject.com/download) |
-| **A StreamerSongList account** | The overlay reads your request queue from it | [streamersonglist.com](https://streamersonglist.com) |
+| **A StreamerSongList account** | The overlay reads your request queue from it. (Use StreamElements, or a text file your music app writes, instead? See [CONFIG.md](CONFIG.md#your-streamelements-account).) | [streamersonglist.com](https://streamersonglist.com) |
 | **Node.js** 20 or newer | Runs the overlay's small server on your computer | [nodejs.org/en/download](https://nodejs.org/en/download), the "LTS" version |
 | **An AI model** | Rewrites Wikipedia text into captions | See [step 3](#3-choose-where-the-ai-runs) |
 
@@ -111,6 +111,10 @@ The overlay needs permission to read your queue.
 3. Copy it. You'll paste it in step 4.
 
 Treat the token like a password: keep it off your stream and out of screenshots.
+
+Not using StreamerSongList? Skip this step. For StreamElements or a now
+playing file (Streamling, Nightbot or another app), use the settings in
+[CONFIG.md](CONFIG.md#your-streamelements-account) in step 4 instead.
 
 ### 3. Choose where the AI runs
 
@@ -250,6 +254,10 @@ so you can see the format:
 They're examples, not a maintained collection: they won't be expanded or
 updated, and changes to them aren't accepted into the project. Use them as
 they are, trim them, or replace them with your own.
+
+A line starting with a name in brackets goes only with that: `[Song of Storms]
+It plays in a windmill.` shows for that song, and `[Chopin] ...` is shared by
+all of that artist's or game's songs, one per song.
 
 To choose which packs to use, list them in `.env`:
 

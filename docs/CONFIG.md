@@ -12,7 +12,9 @@ setting, stop the overlay (Ctrl-C in its window) and start it again.
 **Most people only need two settings:** `SSL_STREAMER_NAME` and
 `SSL_ACCESS_TOKEN`. Everything else has a default that works. If your song
 requests come through StreamElements instead, see
-[Your StreamElements account](#your-streamelements-account).
+[Your StreamElements account](#your-streamelements-account). To follow a text
+file your music app writes, such as Streamling's or Nightbot's, see
+[A now playing file](#a-now-playing-file).
 
 If a setting has a typo or an impossible value (a word where a number belongs,
 or a number that's out of range), the overlay refuses to start and tells you
@@ -75,8 +77,8 @@ show. BubbleFacts can follow that file instead of a request queue. Set
 | Setting | Default | What it does |
 |---|---|---|
 | `NOW_PLAYING_FILE` | *required with a now playing file* | The text file to follow. A full path, or with a preset just the file's name. |
-| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with `nightbot`) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
-| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt`; `nightbot` reads the newest `.txt` in `Documents/Nightbot` (Windows and Mac) as a YouTube title. Either way `NOW_PLAYING_FILE` can stay empty. If your Documents folder lives in OneDrive, the preset looks there when the usual `Documents` folder doesn't have the app's folder. |
+| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with either preset) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
+| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt` (Windows); `nightbot` reads the newest `.txt` in `Documents/Nightbot` (Windows and Mac). Both read the line as a YouTube title. Either way `NOW_PLAYING_FILE` can stay empty. If your Documents folder lives in OneDrive, the preset looks there when the usual `Documents` folder doesn't have the app's folder. |
 
 Good to know:
 
@@ -84,6 +86,8 @@ Good to know:
 - A file that hasn't changed for 15 minutes counts as no song too, so last night's song never comes back when you start streaming.
 - The file says nothing about who asked or how long the song is, so facts built from those don't appear. Neither do live learns.
 - The line is read every 2 seconds. A new song shows once two checks in a row agree, so expect about 2 to 4 seconds.
+- Nightbot's file is written by its desktop app, so the app has to be running while you play. Nightbot's own docs don't name the file or its line, so BubbleFacts takes the newest `.txt` in the folder and drops a trailing "requested by ..." or "added by ...".
+- A line with a title and no artist (a YouTube title like "Song - Official Music Video") gets an artist only when MusicBrainz knows exactly one artist with a recording of that title. Common titles stay without one. Such a song shows basic facts from the databases, no AI captions.
 
 ---
 
@@ -153,7 +157,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 |---|---|---|
 | `PROMPT_STYLE` | *unset* | How the AI's instructions are laid out. The default is CROSS (Context, Role, Objective, Source, Scope). `rules` switches to the older numbered rule list. In trials of 72 songs each, CROSS gave about three times as many chart and award facts and broke fewer rules; a few more of its captions were screened out, so one extra is requested. |
 | `CITE_SENTENCES` | `off` | `on` numbers the article's sentences and has the AI name the one each caption retells, so screening checks the caption against that sentence. Off by default: small models miscount the numbers, and true captions get dropped. |
-| `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claim the article doesn't state, no repeats). |
+| `FACT_VERIFICATION` | `on` | `on` looks up each song on Wikipedia, has the AI write only from that article, and drops any caption the article doesn't support. With no article, it looks the song up on Wikidata, then MusicBrainz, and fills fixed sentences from their data, with no AI. `off` lets the AI write from memory: faster, but wrong often enough that viewers will notice. Either way, captions are still cleaned up (no "Here are 5 facts:", no award or chart claim the article doesn't state, no repeats). Basic facts from data can go out first, before the AI's captions, when the article is about the artist or game or is surely the song's own. |
 | `MB_LINK` | `on` | When Wikipedia search finds no article for a song, `on` asks MusicBrainz for the recording and follows its own link (through Wikidata) to the song's or the artist's English Wikipedia article. The page must still be about that song or performer. `off` skips this step. |
 | `ABSTAIN` | `on` | When BubbleFacts isn't sure the article is about the song playing (a series' article for one game's track, a film named like the band, the artist's article found after dropping a note, or a page Wikipedia's own summary calls a disambiguation page or a film), `on` skips the AI's captions for that song and shows only facts from Wikidata or MusicBrainz and your own facts. `off` writes captions from that article anyway. |
 | `SOURCE_RISK` | `on` | `on` holds back the AI's captions that retell a risky sentence (someone's words or view, a long sentence, one the caption shortened a lot or lost a "usually" or "about" from), unless the song would show fewer than three bubbles, then shows the most interesting first, at most four. `off` shows the captions their sentences support best, in the order written, up to `FACTS_PER_SONG`. |
@@ -161,6 +165,12 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `GROUNDING_TIMEOUT_MS` | `5000` | How long to wait for a Wikipedia search. |
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |
 | `WIKIPEDIA_CONTACT` | this project's page | Wikipedia asks programs that use it to leave a contact. Set it to your channel or your copy of the project. |
+
+The content standard has no setting. Captions and facts from data never say
+what isn't family-friendly or about the music (scandals, crime, threats,
+private life), or label who a person is, and an article edited in the last 72
+hours is read as it was before. See
+[the content standard](ARCHITECTURE.md#the-content-standard).
 
 ---
 

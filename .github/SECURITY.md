@@ -80,7 +80,7 @@ command-line overlay. In particular:
 - **The overlay only accepts connections from your own computer** by default.
   With the command-line version, change `HOST` only if you understand the
   risk, and only on a network you trust.
-- **Only the newest release is supported.** Update when a new one comes out.
+- **Only the newest release on your update channel (Stable or Beta) is supported.** Update when a new one comes out.
   The app tells you when there is one.
 
 ## What 2.x promises

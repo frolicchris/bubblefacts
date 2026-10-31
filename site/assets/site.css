@@ -328,6 +328,13 @@ main {
   max-width: 34rem;
 }
 
+.made-by {
+  color: var(--muted);
+  font-size: 1rem;
+  max-width: 34rem;
+  margin-top: 0.25rem;
+}
+
 .pitch strong {
   color: var(--text);
 }

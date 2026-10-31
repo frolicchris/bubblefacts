@@ -24,13 +24,6 @@ the website. It's free, for Mac, Windows and Linux.
 
 Already have it? See [Updating to a newer version](https://bubblefacts.frolic.org/download.html#update): your settings are kept.
 
-**Some of this page is new in the 2.1 beta:** following a now playing file
-(Streamling, Nightbot or another music app), facts the moment a song starts,
-and the family-friendly screening and one-click switches described below. The
-website's download is 2.0.1 until 2.1.0 is out. To try the beta now,
-[download it from its release page](https://github.com/frolicchris/bubblefacts/releases/tag/v2.1.0-beta.2),
-or choose **Beta** updates in Settings, under General.
-
 The app isn't signed yet, so the first time you open it, your computer may
 ask you to confirm. The [download page](https://bubblefacts.frolic.org/download.html#first-launch)
 shows exactly what to click.
@@ -139,7 +132,7 @@ High quality chosen in Settings, Meta's Llama 3.1 8B, used under the
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,
-DarkN8V, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
+DarkN8V, Epic Realms, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
 Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
@@ -147,3 +140,4 @@ coding agent: see [AUTHORS.md](AUTHORS.md) and the
 [AI disclosure](docs/AI_DISCLOSURE.md). The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
 trademarks and aren't covered by the MIT license: forks
 are welcome, under a different name. See the [trademark policy](TRADEMARKS.md).
+BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.
