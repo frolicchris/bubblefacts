@@ -47,6 +47,8 @@ jest.mock("./fact-generator", () => ({
   pulledWithWrong: () => [],
   positionsFor: () => [{ top: "8%", left: "33%" }],
   positionsForSong: () => [{ top: "8%", left: "33%" }],
+  spotsForSong: () => () => ({ position: { top: "8%", left: "33%" }, vertical: { top: "15%" } }),
+  verticalPositionsFor: () => [{ top: "15%" }],
   primeFacts: () => {},
   showsBanner: () => true,
   recentShown: () => [],
@@ -144,6 +146,20 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     expect(await third.batch()).toEqual(caughtUp);
     // No second NOW PLAYING banner.
     expect(second.messages[0]).toMatchObject({ type: "new_song", quiet: true });
+  });
+
+  it("gets the vertical overlay's spots too (issue #175)", async () => {
+    await overlay();
+    const left = { top: "8%", left: "3%" };
+    const right = { top: "8%", left: "60%" };
+    const vertical = { top: "15%" };
+    await play([{ ...fact("One.", 0), position: left, vertical }, { ...fact("Two.", 4), position: right, vertical }, { ...fact("Three.", 30), vertical }]);
+    now += 6000;
+    const phone = await overlay();
+    const caughtUp = await phone.batch();
+    // Both still up in their own landscape spots; each keeps its vertical spot for the vertical page.
+    expect(caughtUp.map((f) => [f.text, f.delaySeconds])).toEqual([["One.", 0], ["Two.", 0], ["Three.", 24]]);
+    expect(caughtUp.every((f) => f.vertical?.top === "15%")).toBe(true);
   });
 
   it("gets no repeats of what's already shown when it reconnects", async () => {
