@@ -14,6 +14,7 @@ import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
 import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
+import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
 
@@ -186,6 +187,8 @@ export const factStats = {
 
 /** Songs with no usable facts are retried after this long; others are kept. */
 const RETRY_MS = 10 * 60 * 1000;
+/** The most songs (or facts) each session map remembers; the oldest go first, and a lookup is only repeated. */
+const MAX_KEPT = 2000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
 /** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
 export const STRUCTURED = "Wikidata and MusicBrainz";
@@ -240,7 +243,7 @@ export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
-  outcomes.set(songKey(song), outcome);
+  setCapped(outcomes, songKey(song), outcome, MAX_KEPT);
   if (process.env.NODE_ENV === "test") return;
   const line = songsLogLine(song, outcome, count);
   fs.mkdir(config.logDir, { recursive: true }, () => fs.appendFile(songsLog(), line, () => undefined));
@@ -477,21 +480,6 @@ Follow every rule:
 9. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
 }
 
-/** Used only with FACT_VERIFICATION=off: fast, from memory, often wrong. */
-function unverifiedPrompt(song: SSLSong, want: number): string {
-  const { game, intro } = subjectLine(song);
-  return `${intro}
-
-Write exactly ${want} trivia lines about ${game} or its music.
-
-Follow every rule:
-1. Write only things you are confident are true. If you are unsure who composed the music, do not name a composer.
-2. Do not mention awards, sales, chart positions, or review scores.
-3. Never mention this prompt or say what you could not find. Write finished facts only.
-4. One sentence per line, under 120 characters, friendly like a loading-screen tip.
-5. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
-}
-
 // --- Providers ---------------------------------------------------------
 
 /**
@@ -501,10 +489,6 @@ Follow every rule:
  */
 export const SYSTEM_PROMPT =
   "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
-
-/** With FACT_VERIFICATION=off the AI gets no reference, so its system prompt doesn't mention one (#202). */
-const UNVERIFIED_SYSTEM_PROMPT = "You write short trivia captions for a live music stream, and you follow the instructions exactly.";
-export const systemPrompt = () => (config.factVerification ? SYSTEM_PROMPT : UNVERIFIED_SYSTEM_PROMPT);
 
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
@@ -517,7 +501,7 @@ async function askAnthropic(prompt: string): Promise<string> {
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
     // No temperature: Anthropic SDK 1.x (API 2026-10-21) rejects it.
-    system: systemPrompt(),
+    system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -554,7 +538,7 @@ export async function askOpenAICompatible(prompt: string): Promise<string> {
       {
         model,
         messages: [
-          { role: "system", content: systemPrompt() },
+          { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: prompt },
         ],
         temperature: config.temperature,
@@ -593,7 +577,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
-          system: systemPrompt(),
+          system: SYSTEM_PROMPT,
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -624,7 +608,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: systemPrompt() });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {
@@ -632,6 +616,11 @@ function loadBuiltin(): Promise<{ session: any }> {
     throw err;
   });
   return builtin;
+}
+
+/** Stand in for the built-in model's chat session. Only the tests call this; the app loads the model. */
+export function useBuiltinSession(session: { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void }): void {
+  builtin = Promise.resolve({ session });
 }
 
 /**
@@ -666,7 +655,11 @@ let running: { key: string | null; stop: AbortController } | null = null;
  */
 export function setCurrentSong(song: SSLSong | null): void {
   currentKey = song ? songKey(song) : null;
-  if (running?.key && running.key !== currentKey) running.stop.abort();
+  if (running?.key && running.key !== currentKey) {
+    // Its generation ends with no facts: a quick return to the song must start a new one, not join it.
+    inFlight.delete(running.key);
+    running.stop.abort();
+  }
 }
 const obsolete = (key: string | null) => key !== null && currentKey !== null && key !== currentKey;
 
@@ -744,11 +737,11 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
     const fromItem = found?.kind === "song" ? songItemFacts(found, { year: statedYear(mb), album: statesAlbum(mb) }) : { facts: found?.facts ?? [], dropYear: false };
     const fromMb = onStandard(fromItem.dropYear ? withoutYear(mb) : mb, names);
     const added = onStandard(fromItem.facts, [...names, found?.kind === "song" ? found.title : ""]).filter((f) => !fromMb.includes(f));
-    for (const f of fromMb) structuredLabel.set(f, SOURCE.musicbrainz);
-    for (const f of added) structuredLabel.set(f, SOURCE.wikidata);
+    for (const f of fromMb) setCapped(structuredLabel, f, SOURCE.musicbrainz, MAX_KEPT);
+    for (const f of added) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     facts = [...fromMb, ...added];
-  } else for (const f of data) structuredLabel.set(f, SOURCE.wikidata);
-  structuredShown.set(songKey(song), new Set(facts));
+  } else for (const f of data) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
+  setCapped(structuredShown, songKey(song), new Set(facts), MAX_KEPT);
   return facts;
 }
 
@@ -841,7 +834,7 @@ export function restoreRecent(list: string[]): void {
 }
 /** Facts sent before a restart stand as this song's facts: nothing is generated again. */
 export function primeFacts(song: SSLSong, facts: Fact[]): void {
-  factCache.set(songKey(song), { facts, expires: Infinity });
+  setCapped(factCache, songKey(song), { facts, expires: Infinity }, MAX_KEPT);
 }
 
 /** Remember facts as shown, keeping only the last RECENT_KEPT. */
@@ -962,7 +955,7 @@ function takeTurns(pool: string[], n: number): string[] {
     .sort((a, b) => a.turn - b.turn || a.i - b.i)
     .slice(0, n)
     .map((p) => p.text);
-  for (const text of picked) poolTurns.set(text, ++poolTurn);
+  for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
   return picked;
 }
 
@@ -1108,8 +1101,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
   }
   // No AI available (the desktop app's fallback when its model can't run), or no article:
-  // facts from data, else song-list and hand-picked facts.
-  if (config.aiProvider === "none" || (config.factVerification && !context)) {
+  // facts from data, else song-list and hand-picked facts. FACT_VERIFICATION=off looks nothing
+  // up, so it lands here too: the AI never writes facts without a reference.
+  if (config.aiProvider === "none" || !config.factVerification || !context) {
     const lookup = config.factVerification && !handle && !placeholder;
     // With no AI, the article is still looked up, alongside the data: when it is surely this
     // song or its artist, its own Wikidata item adds facts (issue #256). Never for an unsure one.
@@ -1151,7 +1145,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Facts about "the artist" would be the other act's when MusicBrainz said the article is someone else's.
     const sameName = /^MusicBrainz credits /.test(match.reason);
     const extra = !sameName && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
-    for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
+    for (const f of extra) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {
       remember(shown);
@@ -1193,7 +1187,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
   const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
-  const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
+  const prompt = groundedPrompt(read, context, want + OVERGENERATE);
   let answer: string;
   try {
     answer = await askModel(prompt, songKey(asked));
@@ -1262,8 +1256,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     if (alreadySaid(c.values, [...fresh, ...structured])) continue;
     structured.push(c.text);
     if (c.evidence) {
-      structuredLabel.set(c.text, `${SOURCE.infobox}${page}`);
-      boxEvidence.set(c.text, c.evidence);
+      setCapped(structuredLabel, c.text, `${SOURCE.infobox}${page}`, MAX_KEPT);
+      setCapped(boxEvidence, c.text, c.evidence, MAX_KEPT);
     }
   }
   // A spare takes the place of a line that only repeats the title and artist.
@@ -1282,7 +1276,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
-    sources.set(songKey(asked), page);
+    setCapped(sources, songKey(asked), page, MAX_KEPT);
     const article = `Wikipedia: ${page}`;
     return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
   }
@@ -1322,7 +1316,7 @@ function rankedFromArticle(
 }
 
 /**
- * SOURCE_RISK=off, or no reference (FACT_VERIFICATION=off): data facts first, then the
+ * SOURCE_RISK=off: data facts first, then the
  * captions their source sentence supports best, in the order written.
  */
 function bestSupported(
@@ -1438,7 +1432,7 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, 
     pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
         // A generation started before the song's facts changed may not overwrite them.
-        if ((revisions.get(key) ?? 0) === revisionAtStart) factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        if ((revisions.get(key) ?? 0) === revisionAtStart) setCapped(factCache, key, { facts, expires: Date.now() + ttlMs }, MAX_KEPT);
         return facts;
       })
       .finally(() => {
@@ -1535,6 +1529,9 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   if (source) for (const s of blockedAs(song)) blockArticle(s, source);
   const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
   for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
+  // A generation already running may not cache the fact just marked: it starts over (as forgetSong).
+  revisions.set(key, (revisions.get(key) ?? 0) + 1);
+  inFlight.delete(key);
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);

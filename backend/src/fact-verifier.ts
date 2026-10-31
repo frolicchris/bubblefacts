@@ -5,6 +5,7 @@ import { topic } from "./topic";
 import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments, withoutRequestCredit } from "./text";
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
+import { setCapped } from "./capped-map";
 import { anotherArtist, linkedGrounding } from "./musicbrainz";
 import { clearClassicalCache, isPersonPage, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, WikidataBusy, WorkItem, workItems } from "./wikidata";
 
@@ -39,6 +40,7 @@ class RateLimited extends Error {}
  * articles found through the track, and misses, belong to that song only.
  */
 const groundingCache = new Map<string, { text: string; at: number }>();
+const MAX_GROUNDING = 300;
 
 // --- Title parsing -----------------------------------------------------
 
@@ -1373,8 +1375,7 @@ export async function loadWikitext(page: string): Promise<string> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = (await res.json()) as { query?: { pages?: Array<{ revisions?: Array<{ slots?: { main?: { content?: string } } }> }> } };
   const text = data.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content ?? "";
-  if (wikitextCache.size > 60) wikitextCache.delete(wikitextCache.keys().next().value as string);
-  wikitextCache.set(page, { text, at: Date.now() });
+  setCapped(wikitextCache, page, { text, at: Date.now() }, 60);
   return text;
 }
 
@@ -2007,6 +2008,7 @@ export interface GameArticles {
   music: { page: string; full: string; series?: boolean } | null;
 }
 const gameArticles = new Map<string, GameArticles>();
+const MAX_GAME_ARTICLES = 40;
 
 /** Track names too common to search an article for: every game has a "Title Theme". */
 const GENERIC_TRACK = /^(opening|ending|theme|main theme|title|title theme|title screen|credits|intro|menu|boss|battle|overworld|prologue|epilogue|finale|stage \d+|level \d+|act \d+|\d+ ?[ap]m)$/i;
@@ -2730,7 +2732,7 @@ async function groundSongAlone(song: SSLSong, title: string, usable: (title: str
         if (extract.length < MIN_CONTEXT_CHARS) continue;
         const text = `${page}\n${writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, [title])}`;
         console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars, the song by its title alone)`);
-        groundingCache.set(key, { text, at: Date.now() });
+        setCapped(groundingCache, key, { text, at: Date.now() }, MAX_GROUNDING);
         return { text, unreachable: false };
       }
     }
@@ -2740,7 +2742,7 @@ async function groundSongAlone(song: SSLSong, title: string, usable: (title: str
     return { text: "", unreachable: true };
   }
   console.log(`[Grounding] No reference for "${song.title}" by its title alone`);
-  groundingCache.set(key, { text: "", at: Date.now() });
+  setCapped(groundingCache, key, { text: "", at: Date.now() }, MAX_GROUNDING);
   return { text: "", unreachable: false };
 }
 
@@ -3058,7 +3060,7 @@ async function classicalGrounding(song: SSLSong, usable: (title: string) => bool
   try {
     const person = await personItem(artist);
     if (!person || !(parsed.classical || person.historic || person.classicalPerformer)) {
-      groundingCache.set(key, { text: "", at: Date.now() });
+      setCapped(groundingCache, key, { text: "", at: Date.now() }, MAX_GROUNDING);
       return none;
     }
     let found: { work: WorkItem; by: Exclude<WorkFit, ""> } | null = null;
@@ -3097,7 +3099,7 @@ async function classicalGrounding(song: SSLSong, usable: (title: string) => bool
     }
     if (!found) {
       console.log(`[Grounding] No Wikidata work for "${song.title}" by ${person.label}`);
-      groundingCache.set(key, { text: "", at: Date.now() });
+      setCapped(groundingCache, key, { text: "", at: Date.now() }, MAX_GROUNDING);
       return none;
     }
     // The request names a movement when only the catalog code matched ("Prelude" of BWV 1007),
@@ -3107,13 +3109,13 @@ async function classicalGrounding(song: SSLSong, usable: (title: string) => bool
     const article = await classicalArticle(found.work, hinted, composer, usable, performer, found.by === "set");
     if (!article) {
       console.log(`[Grounding] Wikidata's work ${found.work.id} (${found.work.label}) for "${song.title}" has no article to read`);
-      groundingCache.set(key, { text: "", at: Date.now() });
+      setCapped(groundingCache, key, { text: "", at: Date.now() }, MAX_GROUNDING);
       return none;
     }
     classicalPages.set(classicalKey(article.page, song.title), { section: article.section });
     const how = article.section === null ? "its own article" : article.section ? "its parent work's article, with a section on it" : "its parent work's article";
     console.log(`[Grounding] "${song.title}" -> ${article.page} (${article.text.length} chars, Wikidata's work ${found.work.id}: ${how})`);
-    groundingCache.set(key, { text: article.text, at: Date.now() });
+    setCapped(groundingCache, key, { text: article.text, at: Date.now() }, MAX_GROUNDING);
     return { text: article.text, unreachable: false };
   } catch (err) {
     if (err instanceof WikidataBusy || err instanceof RateLimited) {
@@ -3673,7 +3675,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   if (!artist && track && track !== game && !generic && !song.artistUncertain && !noOwnArticle.has(trackCacheKey) && !groundingCache.get(trackCacheKey)?.text) {
     const own = await trackOwnArticle(song, game, track, usable);
     if (own) {
-      groundingCache.set(trackCacheKey, { text: own, at: Date.now() });
+      setCapped(groundingCache, trackCacheKey, { text: own, at: Date.now() }, MAX_GROUNDING);
       return { text: own, unreachable: false };
     }
     // Null when throttled or unreachable: the game's article below still serves, and this is tried again next time.
@@ -3687,7 +3689,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   if (kept && usable(kept.page)) {
     const drop = isPerformerArticle(kept.page, kept.full) ? null : await otherWorkScope([kept, kept.music], game);
     const text = withoutSentences(drop, !!track && track !== game && !generic, () => gameTrackText(kept, track, usable, game));
-    groundingCache.set(trackCacheKey, { text, at: Date.now() });
+    setCapped(groundingCache, trackCacheKey, { text, at: Date.now() }, MAX_GROUNDING);
     return { text, unreachable: false };
   }
   // The game's reference or the track's, or a recent miss.
@@ -3854,14 +3856,14 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         }
         const articles = { page, full, music };
         // Shared by the game's tracks, unless this track has blocked articles of its own.
-        if (!blocked.size) gameArticles.set(gameCacheKey, articles);
+        if (!blocked.size) setCapped(gameArticles, gameCacheKey, articles, MAX_GAME_ARTICLES);
         const both = ofWork ? await otherWorkScope([articles, music], game) : null;
         text = withoutSentences(both, saves, () => gameTrackText(articles, track, usable, game));
         if (music) console.log(`[Grounding] "${game}" has a music article: ${music.page}${music.series ? " (series-wide: used for tracks it names)" : ""}`);
       }
       console.log(`[Grounding] "${song.title}" -> ${text.split("\n")[0]} (${text.length} chars)`);
       // Shared by the game's tracks, unless this track has blocked articles of its own.
-      groundingCache.set(byGame && !artist && !toPerformer && !blocked.size && !installment ? gameCacheKey : trackCacheKey, { text, at: Date.now() });
+      setCapped(groundingCache, byGame && !artist && !toPerformer && !blocked.size && !installment ? gameCacheKey : trackCacheKey, { text, at: Date.now() }, MAX_GROUNDING);
       return { text, unreachable: false };
     } catch (err) {
       unreachable = err instanceof RateLimited ? "rate-limited" : "lookup failed";
@@ -3877,7 +3879,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       ` — tried: ${terms.join(" | ")}`
   );
   // A miss caused by this song's blocked articles says nothing about the game's other tracks.
-  if (!unreachable) groundingCache.set(artist || blocked.size ? trackCacheKey : gameCacheKey, { text: "", at: Date.now() });
+  if (!unreachable) setCapped(groundingCache, artist || blocked.size ? trackCacheKey : gameCacheKey, { text: "", at: Date.now() }, MAX_GROUNDING);
   return { text: "", unreachable: !!unreachable };
 }
 
@@ -5645,9 +5647,9 @@ function sourceReason(fact: string, context: string, track: string | undefined):
 }
 
 /**
- * Keep only facts the reference visibly supports. With no reference (only
- * when FACT_VERIFICATION=off) the source checks are skipped but formatting,
- * meta-commentary, risky claims, length and duplicates are still screened.
+ * Keep only facts the reference visibly supports. With no reference the
+ * source checks are skipped but formatting, meta-commentary, risky claims,
+ * length and duplicates are still screened.
  *
  * `otherParts`: the other parts of the soundtrack the reference was cut from.
  * `track`: set when the article isn't the track's own (an artist's, a game's):

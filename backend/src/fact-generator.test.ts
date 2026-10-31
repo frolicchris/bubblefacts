@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { ARTIST_SONG_RULE, RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, showsBanner, unmarkWrong, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
@@ -79,6 +79,11 @@ const reply = (text: string) => ({ content: [{ type: "text", text }] });
 /** The model's lines citing reference sentences, as the grounded prompt asks: sentence `from + i` for line i. */
 const citing = (lines: string, from = 1) => lines.split("\n").map((l, i) => `${from + i} | ${l}`).join("\n");
 const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
+/** The AI writes only from a reference: turn the lookup on, and have it find an article with the model's lines. */
+function withArticle(title: string): void {
+  (config as { factVerification: boolean }).factVerification = true;
+  (fetchGrounding as jest.Mock).mockResolvedValue(`${title} (song)\n${MODEL_LINES}`);
+}
 
 function entry(song: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> = {}): SSLQueueItem {
   return {
@@ -91,7 +96,7 @@ function entry(song: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueItem> 
 beforeEach(() => {
   clearFactCache();
   mockCreate.mockReset().mockResolvedValue(reply(MODEL_LINES));
-  (fetchGrounding as jest.Mock).mockClear();
+  (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
   (config as { factVerification: boolean }).factVerification = false;
   delete process.env.CITE_SENTENCES;
 });
@@ -108,6 +113,7 @@ describe("generateFacts", () => {
   });
 
   it("tells the AI about the song only, nothing about the streamer (final QA #7)", async () => {
+    withArticle("Prompt Song");
     await generateFacts({ title: "Prompt Song", artist: "Prompt Artist" });
     const prompt = JSON.stringify(mockCreate.mock.calls[0]);
     expect(prompt).toContain("Prompt Song");
@@ -116,9 +122,10 @@ describe("generateFacts", () => {
 
   it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
     // Two songs by the same artist, both written from the artist's article.
+    withArticle("Same Artist");
     const first = (await generateFacts({ title: "Song One", artist: "Same Artist" })).map((f) => f.text);
     const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
-    expect(first).toHaveLength(5);
+    expect(first.length).toBeGreaterThan(0);
     expect(second.filter((t) => first.includes(t))).toEqual([]);
   });
 
@@ -319,6 +326,7 @@ describe("generateFacts", () => {
 
   it("never lets a generation that was running overwrite facts saved meanwhile (QA follow-up #2)", async () => {
     const song = { title: "Held Song", artist: "Held Artist" };
+    withArticle("Held Song");
     let release: (v: unknown) => void = () => undefined;
     mockCreate.mockReturnValueOnce(new Promise((r) => (release = r)));
     const first = generateFacts(song);
@@ -373,6 +381,7 @@ describe("generateFacts", () => {
       for (const title of ["Theme One", "Theme Two", "Theme Three", "Theme Four"]) {
         // The mock writes the same lines for every song: let each count as new.
         restoreRecent([]);
+        withArticle(title);
         const facts = await generateFacts({ title, artist: "Moonfall Saga" });
         const theirs = facts.filter((f) => isPool(f.text));
         expect(theirs).toHaveLength(1);
@@ -571,25 +580,31 @@ describe("generateFacts", () => {
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("temperature");
   });
 
-  it("doesn't promise a reference in the system prompt when fact checking is off (#202)", async () => {
-    await generateFacts({ title: "Unchecked Song", artist: "System Artist" });
-    expect(mockCreate.mock.calls[0][0].system).not.toMatch(/reference/);
+  it("never asks the AI for facts without a reference, even with fact checking off", async () => {
+    const facts = await generateFacts({ title: "Unchecked Song", artist: "System Artist" }, entry({ timesPlayed: 3 }));
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(facts.map((f) => f.source).every((s) => s === SOURCE.songList || s === SOURCE.custom || s === undefined)).toBe(true);
+    expect(facts.some((f) => f.text.includes("3 times"))).toBe(true);
   });
 
   it("caches a song's facts", async () => {
+    withArticle("Test Song");
     const first = await generateFacts(song);
     expect(await generateFacts(song)).toBe(first);
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it("shares one generation between concurrent requests for the same song", async () => {
+    withArticle("Test Song");
     const results = await Promise.all([generateFacts(song), generateFacts(song), generateFacts(song)]);
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(results[1]).toBe(results[0]);
     expect(results[2]).toBe(results[0]);
   });
 
-  it("still screens the model's output when verification is off", async () => {
+  it("screens the model's output", async () => {
+    withArticle("Test Song");
     mockCreate.mockResolvedValue(reply(`Here are 5 trivia lines about Test Song:\n1. ${MODEL_LINES}`));
     const texts = (await generateFacts(song)).map((f) => f.text);
     expect(texts.some((t) => /^Here are/.test(t))).toBe(false);
@@ -597,6 +612,7 @@ describe("generateFacts", () => {
   });
 
   it("falls back to entry and curated facts when the model fails", async () => {
+    withArticle("Test Song");
     mockCreate.mockRejectedValue(new Error("API Error"));
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     const facts = await generateFacts(song, entry({ timesPlayed: 3 }));
@@ -984,6 +1000,21 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
     expect(await shown({ kind: "song", name: "Harbor Lights", artists: [] })).toBe(true);
   });
 
+  it("never caches a fact marked Wrong while the AI was still writing", async () => {
+    let release: (v: unknown) => void = () => undefined;
+    mockCreate.mockImplementationOnce(() => new Promise((r) => (release = r)));
+    let early: Fact[] = [];
+    const first = generateFacts(request, null, (data) => (early = data));
+    while (!early.length) await new Promise((r) => setImmediate(r));
+    expect(early.map((f) => f.text)).toEqual([dataFact]);
+    // The streamer marks the early data fact Wrong before the AI is done.
+    expect(markWrong(request, dataFact, SOURCE.wikidata)).toBe(STRUCTURED);
+    release(reply(MODEL_LINES));
+    expect((await first).map((f) => f.text)).not.toContain(dataFact);
+    expect((await generateFacts(request)).map((f) => f.text)).not.toContain(dataFact);
+    resetWrongFacts();
+  });
+
   it("takes nothing from the article's item when the match is unsure", async () => {
     (fetchGrounding as jest.Mock).mockResolvedValue("Harbor Lights (album)\nHarbor Lights is the second studio album by American dream pop band Velvet Lark, released in 2004.");
     const early = jest.fn();
@@ -1261,5 +1292,43 @@ describe("logs say why a fact was dropped, never what it said (issue #262)", () 
     } finally {
       log.mockRestore();
     }
+  });
+});
+
+describe("a song that comes back while its stopped generation winds down", () => {
+  const request = { title: "Copper Kite", artist: "Marlo Venn" };
+  const page = `Copper Kite (Marlo Venn song)\n"Copper Kite" is a song by Marlo Venn. ${MODEL_LINES}`;
+  beforeEach(() => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (config as { aiProvider: string }).aiProvider = "builtin";
+    (fetchGrounding as jest.Mock).mockResolvedValue(page);
+    (articleItem as jest.Mock).mockReset().mockResolvedValue(null);
+  });
+  afterEach(() => {
+    (config as { aiProvider: string }).aiProvider = "anthropic";
+    (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
+    setCurrentSong(null);
+  });
+
+  it("gets its facts after a quick skip away and back", async () => {
+    const prompts: AbortSignal[] = [];
+    useBuiltinSession({
+      resetChatHistory: () => undefined,
+      // Like node-llama-cpp with stopOnAbortSignal: a stopped prompt ends a moment later with what it wrote.
+      prompt: (_text, { signal }) => {
+        prompts.push(signal);
+        if (prompts.length > 1) return Promise.resolve(MODEL_LINES);
+        return new Promise((r) => signal.addEventListener("abort", () => setTimeout(() => r(""), 10)));
+      },
+    });
+    setCurrentSong(request);
+    const first = generateFacts(request);
+    while (!prompts.length) await new Promise((r) => setImmediate(r));
+    // Skipped to another song and straight back, before the stopped prompt has ended.
+    setCurrentSong({ title: "Tin Harbor", artist: "Marlo Venn" });
+    setCurrentSong(request);
+    const back = generateFacts(request);
+    expect(await first).toEqual([]);
+    expect((await back).length).toBeGreaterThan(0);
   });
 });

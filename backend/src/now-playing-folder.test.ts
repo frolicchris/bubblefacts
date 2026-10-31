@@ -43,4 +43,13 @@ describe("presetFolder", () => {
     const nowhere = path.join(path.sep, "no-such-onedrive-folder");
     expect(presetFolder(["Nightbot"], { OneDrive: nowhere }, path.join(nowhere, "home"))).toBe(path.join(nowhere, "home", "Documents", "Nightbot"));
   });
+
+  it("tries the Documents folder the app names first, then the home one", () => {
+    const system = path.join(path.sep, "Redirected", "Documents");
+    const there = path.join(system, "Nightbot");
+    const env = { BUBBLEFACTS_DOCUMENTS_DIR: system };
+    expect(presetFolder(["Nightbot"], env, home, existing(there, usual))).toBe(there);
+    expect(presetFolder(["Nightbot"], env, home, existing(usual))).toBe(usual);
+    expect(presetFolder(["Nightbot"], env, home, existing())).toBe(there);
+  });
 });
