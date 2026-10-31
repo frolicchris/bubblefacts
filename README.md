@@ -28,15 +28,17 @@ The app isn't signed yet, so the first time you open it, your computer may
 ask you to confirm. The [download page](https://bubblefacts.frolic.org/download.html#first-launch)
 shows exactly what to click.
 
-## Get running in two steps
+## Get running in three steps
 
-1. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
+1. **Install and confirm.** Install it like any app, and confirm it the first
+   time you open it.
+2. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
    with Twitch. Take requests through StreamElements instead? Choose
    **StreamElements** and paste your JWT token from the StreamElements
    dashboard. Use Streamling or Nightbot's desktop app? Choose
    **Now playing file**, then **Streamling** or **Nightbot**. Another music
    app that writes the song to a text file works too: **Another app's file**.
-2. **Put BubbleFacts on your stream.** Drag the tile from the app into the
+3. **Put BubbleFacts on your stream.** Drag the tile from the app into the
    **Sources** list in OBS. A test bubble appears, and the app says
    **It's on your stream!**
 
