@@ -211,8 +211,9 @@ flip the site default in `site/assets/site.css`, as `site/README.md`
 **If 2.0.0 has a serious problem:** releases are immutable and version tags
 are locked, so the way back is forward: fix it on `main` and release 2.0.1
 the same way, as soon as possible. Serious means a release blocker as
-defined above. Post in Discussions (Announcements) what happened and what to
-do meanwhile; if the in-app update itself is broken, the post links the
+defined above. Publish the post in Discussions (Announcements) and Discord
+(`announce.yml` does both: write the title and body, then run it from
+Actions > Announce) with what happened and what to do meanwhile; if the in-app update itself is broken, the post links the
 download page. People who want the earlier version can install it over the
 new one (see Troubleshooting).
 

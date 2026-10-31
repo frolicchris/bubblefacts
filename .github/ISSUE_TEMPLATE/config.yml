@@ -3,6 +3,9 @@ contact_links:
   - name: Setup question or help getting started
     url: https://github.com/frolicchris/bubblefacts/discussions/categories/q-a
     about: Ask in Discussions. Other music content creators can help, and the answer helps the next person.
+  - name: Chat and quick questions
+    url: https://discord.gg/3YS3eWkWrW
+    about: Live chat in the BubbleFacts Discord (#help). Answers worth keeping go to Discussions.
   - name: Security problem
     url: https://github.com/frolicchris/bubblefacts/security/advisories/new
     about: Report it privately, not in a public issue.
