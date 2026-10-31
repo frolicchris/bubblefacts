@@ -88,7 +88,7 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 ## Help
 
 - [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step
-- [Ask a question in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
+- [Ask a question in Discord (#help)](https://discord.gg/3YS3eWkWrW)
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** under **Help and troubleshooting** fills in
   the details for you.
