@@ -23,6 +23,24 @@ bash scripts/start-overlay.sh
 ```
 Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
 
+## Sources of truth
+Change the source first. Everything else copies from it.
+
+| What | Source | Copies |
+| --- | --- | --- |
+| How it works | code on `main`, `docs/ARCHITECTURE.md` | site guide |
+| What a version does | GitHub Releases | `site/changelog.html`, announcements |
+| News | `.github/workflows/announce.yml` | Discussions Announcements, Discord #announcements |
+| What's planned | GitHub milestones and issues | Discord "What's coming next" post, pinned in #feature-requests |
+| Bugs and wrong facts | GitHub issues | none |
+| Questions and answers | Discord #help | none |
+| Ideas | Discord #feature-requests until approved, then a GitHub issue | none |
+| How to get help | `.github/SUPPORT.md` | `site/support.html`, Discord #help "Start here" post |
+| Conduct | `.github/CODE_OF_CONDUCT.md`, Discord #rules | Discord Server Rules (Access page), kept in step with #rules |
+| Who to thank | `AUTHORS.md` | README, app About, site credits |
+| Releases | `docs/RELEASING.md` | none |
+| Website | `site/` on `main` | the live site, which must match it |
+
 ## Rules
 - Everything runs compiled (`node dist/backend/server.js`). No ts-node-dev.
 - Never commit `.env`. It holds the StreamerSongList token.
@@ -41,7 +59,9 @@ Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
   streamer's or tester's. Don't name the web host or its setup anywhere in the repo.
 - Docs are for streamers first: plain words, numbered steps, no unexplained
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.
-- Send people to GitHub Discussions (Q&A) for help, not Discord, until
-  BubbleFacts has a Discord server of its own.
+- Help: Discord #help is the one support channel (one post per question,
+  searchable inside Discord). Ideas start in #feature-requests; approved ones
+  become GitHub issues. Announcements go out through announce.yml to
+  both places, never by hand.
 - Call other streamers "music content creators" (they may stream on Twitch,
   Kick or elsewhere), not "other streamers".

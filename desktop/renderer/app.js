@@ -965,11 +965,11 @@
   }
   $("#report-problem").addEventListener("click", () => api.reportProblem());
   $("#report-beta").addEventListener("click", () => api.reportBeta());
-  // The same report without GitHub: to paste in a message or in Discussions.
+  // The same report without GitHub: to paste in Discord or an email.
   for (const [id, kind] of [["copy-report", "problem"], ["copy-beta-report", "beta"]]) {
     $("#" + id).addEventListener("click", async () => {
       await api.copyReport(kind);
-      setResult($("#report-result"), "Copied. Paste it in a message to the developer or in GitHub Discussions.", "ok");
+      setResult($("#report-result"), "Copied. Paste it in a post in #help on the Discord, or in an email. Read it first.", "ok");
       setTimeout(() => setResult($("#report-result"), ""), 8000);
     });
   }

@@ -19,6 +19,7 @@ import {
   USER_AGENT,
   wikiExtract,
 } from "./fact-verifier";
+import { pageArtistIds } from "./wikidata";
 import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
 import { fitOrSplit } from "./data-facts";
@@ -193,6 +194,32 @@ export function firstYear(matches: Recording[], diedIn?: number): string | undef
 export function creditedArtistId(recordings: Recording[], title: string, artist: string): string | undefined {
   const artistKeys = artistNames(artist);
   return matchingRecordings(recordings, title, artist)[0]?.["artist-credit"]?.find((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? "")))?.artist?.id;
+}
+
+const creditCache = new Map<string, string>();
+
+/**
+ * Whether MusicBrainz credits this song to a different artist of the same name
+ * than an article's: the recording's artist isn't one the article's Wikidata
+ * item names. False when either side is unknown, so a song MusicBrainz lacks
+ * keeps its article. Never throws.
+ */
+export async function anotherArtist(page: string, title: string, artist: string): Promise<boolean> {
+  try {
+    const ids = await pageArtistIds(page);
+    if (!ids.length) return false;
+    const key = `${normalizeTitle(artist)}\0${normalizeTitle(title)}`;
+    let credited = creditCache.get(key);
+    if (credited === undefined) {
+      const { recordings } = await search(`recording:${quote(title)} AND artist:${quote(artist)}`);
+      credited = creditedArtistId(recordings, title, artist) ?? "";
+      creditCache.set(key, credited);
+      if (creditCache.size > 500) creditCache.delete(creditCache.keys().next().value as string);
+    }
+    return Boolean(credited) && !ids.includes(credited);
+  } catch {
+    return false;
+  }
 }
 
 /**
