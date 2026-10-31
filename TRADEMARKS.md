@@ -53,8 +53,8 @@ These need written permission:
   MIT license; it's the name that needs asking.)
 - Merchandise with the name or logo.
 
-To ask, post in #help on the
-[BubbleFacts Discord](https://discord.gg/3YS3eWkWrW), and say what you'd like to do.
+To ask, email [bubblefacts@frolic.org](mailto:bubblefacts@frolic.org), and say
+what you'd like to do.
 
 ## Questions
 

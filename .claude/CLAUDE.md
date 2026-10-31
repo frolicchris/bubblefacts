@@ -41,8 +41,9 @@ Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
   streamer's or tester's. Don't name the web host or its setup anywhere in the repo.
 - Docs are for streamers first: plain words, numbered steps, no unexplained
   jargon. Technical reasoning belongs in `docs/ARCHITECTURE.md`.
-- Help: Discord #help is the one support channel (one thread per question,
-  searchable inside Discord). Announcements go out through announce.yml to
+- Help: Discord #help is the one support channel (one post per question,
+  searchable inside Discord). Ideas start in #feature-requests; approved ones
+  become GitHub issues. Announcements go out through announce.yml to
   both places, never by hand.
 - Call other streamers "music content creators" (they may stream on Twitch,
   Kick or elsewhere), not "other streamers".

@@ -1,10 +1,11 @@
 # Getting help
 
-Everything happens in one place: the **#help** channel of the [BubbleFacts Discord](https://discord.gg/3YS3eWkWrW). Search the forum first, since your answer may already be there. If it isn't, start a thread for each question.
+Start in **#help** on the [BubbleFacts Discord](https://discord.gg/3YS3eWkWrW). Search it first, since your answer may already be there. If it isn't, start a new post for each question. No Discord account? Email [bubblefacts@frolic.org](mailto:bubblefacts@frolic.org).
 
 - **How do I…?** Start with the [guide](https://bubblefacts.frolic.org/guide.html), then ask in **#help**.
-- **Something's broken?** In the app, open **Help and troubleshooting** and click **Report a problem**. It fills in your version and recent log lines, and opens a GitHub report.
+- **Something's broken?** In the app, open **Help and troubleshooting** and click **Report a problem**. It fills in your version and recent log lines, and opens a GitHub report. No GitHub account? Click **Copy report** and paste it in a post in **#help**.
 - **A wrong fact?** Click **Wrong** next to it on the dashboard, then **Report it (opens GitHub)**.
+- **An idea?** Post it in **#feature-requests** on Discord. Approved ideas become GitHub issues, so you can follow them.
 - **A security problem?** See [SECURITY.md](SECURITY.md). Please don't post it in public.
 
 ## Where news goes
