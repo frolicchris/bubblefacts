@@ -54,7 +54,7 @@ What's different with StreamElements:
 
 ## Following a now playing file instead
 
-A third song source, **Now playing file**, for musicians whose music app writes the song that's playing to a text file. It's in the first setup step and in Settings. The steps for streamers are in the setup guide, under
+A third song source, **Now playing file**, for musicians and DJs whose music app or helper tool writes the song that's playing to a text file. It's in the first setup step and in Settings. The steps for streamers are in the setup guide, under
 [Follow a now playing file instead](https://bubblefacts.frolic.org/guide.html#song-list-file).
 
 - **Streamling** is one click: the server reads Streamling's own file in the Documents folder (`NOW_PLAYING_PRESET=streamling`), which is "Artist - Title", or a YouTube title like "Song - Official Music Video". The app shows the folder it reads and says it's Windows only.

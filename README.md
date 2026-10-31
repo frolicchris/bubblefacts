@@ -6,6 +6,7 @@
 
 **Fun facts about the song you're playing, right on your stream.**
 
+For musicians and DJs who stream, on any platform OBS reaches.
 BubbleFacts follows the song you're playing and shows short facts from
 Wikipedia and open music databases in game-inspired bubbles in OBS, each one
 checked against its source. It reads your
