@@ -195,6 +195,7 @@
               <li>Choose the scene you normally stream from.</li>
               <li>In BubbleFacts, drag the tile that says <span class="ui">Drag this into your Sources list</span> onto the <span class="ui">Sources</span> list in OBS.</li>
             </ol>
+            <img src="assets/guide-drag-tile.jpg" width="1100" height="593" loading="lazy" style="margin:1rem 0;border-radius:8px" alt="The BubbleFacts setup screen. A dashed tile says Drag this into your Sources list.">
             <p>As soon as OBS loads it, BubbleFacts puts a test bubble on your stream and says <span class="ui">It's on your stream!</span> OBS names the new source "BubbleFacts" and sizes it to fit your canvas.</p>
             <p>Next time, open OBS and BubbleFacts in either order. For a few seconds after BubbleFacts starts, the dashboard says <span class="ui">Connecting to OBS</span> while OBS picks it back up. If the BubbleFacts source reloads in the middle of a song, its bubbles catch up within a few seconds, without repeating the ones viewers already saw.</p>
             <p>Not ready yet? Click <span class="ui">I'll add it later</span>. The app's dashboard has a <span class="ui">Drag into OBS</span> tile for when you are.</p>
@@ -325,8 +326,6 @@
               <li>Optional: facts about your original pieces go under <span class="ui">You and your music</span>. Check <span class="ui">I play my own compositions</span>, then type them in <span class="ui">About your own compositions</span> just below. These show when the song's artist is your channel name or <span class="ui">Your name on stream</span>, so a friend's piece never gets them.</li>
             </ol>
             <p>Five or more custom facts keep the same ones from repeating song after song.</p>
-            <p>While the box is empty, it shows a few gray example lines. They only show the format and never go on stream.</p>
-            <p id="custom-facts-packs">Older versions had example fact packs under <span class="ui">Advanced</span>. They're gone from the app, so if you used them, those facts no longer show. Your own facts stay as you wrote them.</p>
 
             <h3 id="song-facts">Add facts for one song</h3>
             <p>Some songs aren't on Wikipedia or in any music database: a music content creator's original, a friend's band, a song you wrote together. You can give a song its own facts.</p>
@@ -394,8 +393,7 @@
           </table>
         </div>
         <h3 id="high-quality">High quality: a bigger AI, on a strong computer</h3>
-        <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">High quality</span>. High quality uses a bigger AI. In our latest fact check it made more mistakes than Standard, so Standard is the better choice for now. It's a bigger download (about 5 GB), needs 16 GB of memory and a graphics chip that can hold it (any Apple silicon Mac, or a graphics card with about 6 GB of its own memory on Windows and Linux), and writes more slowly. Without that graphics chip it can be several times slower, so you may get fewer bubbles per song. See <a href="requirements.html#high-quality">the requirements</a>.</p>
-        <p>When you switch, the AI you have keeps writing facts while the other one downloads. Once it's ready, the old one is deleted to save space, so switching back downloads it again.</p>
+        <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">High quality</span>. Stay on Standard for now: in our latest fact check, High quality made more mistakes, and it's a bigger download that needs a stronger computer. See <a href="requirements.html#high-quality">the requirements</a>.</p>
         <p>An <strong>API key</strong> is a long password that lets the app use an online service for you. Copy it from the service's website and paste it into BubbleFacts. It's stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
         <div class="note">
           <p class="note-title">If the built-in AI can't run on your computer</p>
