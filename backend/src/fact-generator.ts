@@ -494,9 +494,18 @@ export async function askOpenAICompatible(prompt: string): Promise<string> {
   try {
     return await send(config.openaiModel);
   } catch (err) {
-    if (!config.openaiBaseUrl.includes("api.groq.com") || config.openaiModel === GROQ_FALLBACK_MODEL || !isModelGone(err)) throw err;
+    if (!isGroqUrl(config.openaiBaseUrl) || config.openaiModel === GROQ_FALLBACK_MODEL || !isModelGone(err)) throw err;
     console.warn(`Groq no longer has the model "${config.openaiModel}"; using ${GROQ_FALLBACK_MODEL} instead.`);
     return send(GROQ_FALLBACK_MODEL);
+  }
+}
+
+/** Whether a base URL's host is Groq's, wherever else the name might appear in it. */
+function isGroqUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.groq.com";
+  } catch {
+    return false;
   }
 }
 
