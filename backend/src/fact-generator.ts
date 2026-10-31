@@ -4,6 +4,7 @@ import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
+import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
@@ -120,12 +121,12 @@ export const positionsFor = (area: string = config.bubbleArea, banner: boolean =
   const spots = AREAS[area] ?? POSITIONS;
   return banner ? spots.map(clearOfBanner) : spots;
 };
-/** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off. */
-export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying);
+/** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off, and a commercial or ident has none. */
+export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying && !isNotMusic(song));
 /** The spots for a song's bubbles, clear of its banner while it shows. */
 export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
 
-export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff";
+export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff" | "notMusic";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
@@ -139,6 +140,7 @@ export const factStats = {
   generationFailed: 0,
   nothingSurvived: 0,
   factsOff: 0,
+  notMusic: 0,
   cacheHits: 0,
   lastDurationMs: 0,
   lastEndpoint: "",
@@ -187,6 +189,7 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   nothingSurvived: "curated",
   generationFailed: "curated",
   factsOff: "off",
+  notMusic: "notmusic",
 };
 
 /** How each song's facts last turned out, so the dashboard can tell "nothing reliable" from "failed". */
@@ -1349,11 +1352,13 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
  * "No facts for this song" or "No facts for this artist" (issue #262): the streamer's own
  * facts only, their facts for this song and their custom facts tagged for it, its artist or
  * its game. Nothing is looked up and the AI writes nothing; no song-list or untagged custom
- * facts either. Null when neither switch is on. Logged by the song's title alone.
+ * facts either. A track that isn't music (not-music.ts) is treated the same way. Null when
+ * neither switch is on. Logged by the song's title alone.
  */
 export function ownFactsOnly(song: SSLSong): Fact[] | null {
   const off = factsOff(song);
-  if (!off.song && !off.artist) return null;
+  const notMusic = isNotMusic(song);
+  if (!off.song && !off.artist && !notMusic) return null;
   const want = config.factsPerSong;
   const theirs = findSongFacts(song);
   const mine = theirs && hasOwnFacts(theirs) ? songFactLines(theirs, want) : [];
@@ -1361,15 +1366,16 @@ export function ownFactsOnly(song: SSLSong): Fact[] | null {
   const custom = [...tagged.forSong, ...takeTurns(tagged.pool, Math.max(0, want - mine.length - tagged.forSong.length))]
     .filter((t) => !mine.includes(t))
     .slice(0, Math.max(0, want - mine.length));
-  console.log(`[FactGen] "${song.title}": facts are off for this ${off.song ? "song" : "artist"}, so only the streamer's own (${mine.length + custom.length})`);
-  record(song, "factsOff", mine.length + custom.length);
+  const why = off.song ? "facts are off for this song" : off.artist ? "facts are off for this artist" : "this doesn't look like music";
+  console.log(`[FactGen] "${song.title}": ${why}, so only the streamer's own (${mine.length + custom.length})`);
+  record(song, off.song || off.artist ? "factsOff" : "notMusic", mine.length + custom.length);
   return toFacts(song, [...mine, ...custom], (t) => (mine.includes(t) ? SOURCE.yours : SOURCE.custom));
 }
 
 /** What may still show for a song after its switches changed: everything, or only the streamer's own facts. */
 export function allowedFacts(song: SSLSong, facts: Fact[]): Fact[] {
   const off = factsOff(song);
-  return off.song || off.artist ? facts.filter((f) => WRITTEN_BY_STREAMER.has(f.source)) : facts;
+  return off.song || off.artist || isNotMusic(song) ? facts.filter((f) => WRITTEN_BY_STREAMER.has(f.source)) : facts;
 }
 
 /**

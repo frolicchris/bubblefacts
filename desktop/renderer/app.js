@@ -476,6 +476,7 @@
     if (!r.song) return "Facts appear here a few seconds after a song starts.";
     if (!r.ready) return "Looking for facts about this song…";
     if (r.song.liveLearn || r.outcome === "liveLearn") return "Live learn: the banner shows. No source knew this request, so no facts.";
+    if (r.outcome === "notMusic") return "This looks like a commercial or station ident, not a song, so no bubbles.";
     if (r.outcome === "factsOff") return "Facts are off for this song or its artist, and you haven't written any of your own for it.";
     if (r.outcome === "generationFailed") return "BubbleFacts couldn't write facts for this song. It tries again the next time it plays.";
     return "No reliable facts for this song, so no bubbles. That's normal: BubbleFacts stays quiet rather than guess. Everything is working.";

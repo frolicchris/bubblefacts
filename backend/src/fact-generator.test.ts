@@ -1205,6 +1205,46 @@ describe("no facts for this song, or for this artist (issue #262)", () => {
   });
 });
 
+describe("tracks that aren't music", () => {
+  const ad = { title: "Moonbrew Cola (Fake Commercial)", artist: "Harbor FM" };
+  afterEach(() => {
+    saveSongFacts({ ...ad, facts: [], noFacts: false, noArtistFacts: false });
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+  });
+
+  it("get no facts: nothing is looked up or written", async () => {
+    (wikidataFacts as jest.Mock).mockClear();
+    (config as { factVerification: boolean }).factVerification = true;
+    expect(await generateFacts(ad, entry(ad))).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(wikidataFacts).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(outcomeFor(ad)).toBe("notMusic");
+  });
+
+  it("still show what the streamer wrote for them", async () => {
+    saveSongFacts({ ...ad, facts: ["Our sponsor has never existed."] });
+    const facts = await generateFacts(ad, entry(ad));
+    expect(facts.map((f) => [f.text, f.source])).toEqual([["Our sponsor has never existed.", SOURCE.yours]]);
+  });
+
+  it("get no NOW PLAYING banner", () => {
+    const c = config as { nowPlaying?: boolean };
+    c.nowPlaying = true;
+    try {
+      expect(showsBanner(ad)).toBe(false);
+      expect(showsBanner({ title: "Jingle Bell Rock", artist: "Wren Halloway" })).toBe(true);
+    } finally {
+      delete c.nowPlaying;
+    }
+  });
+
+  it("lose found facts carried over a restart", () => {
+    const found = { text: "A found fact.", source: "Wikipedia: Cola", delaySeconds: 0, durationSeconds: 8, position: {} } as Fact;
+    expect(allowedFacts(ad, [found])).toEqual([]);
+  });
+});
+
 describe("Wrong on the song that's on pulls the rest of its bubbles from that source (issue #262)", () => {
   const bubble = (text: string, source: string, i: number): Fact => ({ text, source, delaySeconds: i * 15, durationSeconds: 8, position: {} });
   const facts = [

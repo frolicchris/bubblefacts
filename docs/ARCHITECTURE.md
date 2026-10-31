@@ -543,6 +543,14 @@ Issue #262's rules, for when a fact must not be shown at all:
   on now, the found bubbles come off (`remove_fact`), and a restart keeps them
   off (`allowedFacts`). They're in the editor and, one click each, under
   Earlier songs.
+- **Tracks that aren't music** (`not-music.ts`) go the same way with no switch:
+  commercials, station idents and jingles get no Now Playing bubble and only
+  the streamer's own facts. A player reports them like songs and only their
+  words tell them apart, so the rule is narrow: phrases like "fake commercial"
+  or "station ID", a tag alone in brackets like "(Jingle)", an artist field
+  like "Commercials", or, with no artist, a title ending in such a word. A
+  commercial with none of these words still looks like a song; a real song
+  losing its facts is the worse mistake, so the rule stays narrow.
 - **Wrong on the song on now** takes off the bubble and the rest of this play's
   bubbles from the source it blocks (`pulledWithWrong`): the same article, or
   Wikidata and MusicBrainz together.
