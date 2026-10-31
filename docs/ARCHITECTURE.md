@@ -61,6 +61,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. |
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
+| `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -598,6 +599,22 @@ otherwise match the general article about overtures. More rules in
   articles don't, the search asks for "`<name>` band", and an article with no
   label in brackets must open like one about a performer ("Milestone" the
   road marker doesn't).
+- **A show as the artist gives its music, never just its name.** When the
+  artist field is a film's or a show's name and no performer has that name
+  on Wikipedia, the show's article is skipped unless it names the track. Its
+  own music article ("Music of Some Show", "Some Show (soundtrack)") is taken
+  only when its text or one of its track listings names the track
+  (`listingMusicArticle`). A performer's article under the name still wins,
+  and one taken in place of the search's page ("Some Name" to "Aurelio Some
+  Name") is never read as a longer-named installment.
+- **"Some Name Theme" can be the music of "Some Name".** Only when every
+  reading and MusicBrainz's link missed, the name has two words or more, and
+  no performer has the artist's name (`themeGrounding`): the article under
+  exactly that name, if it isn't a person's (no life dates in its lead, not a
+  human on Wikidata) and has a section on its own music ("Song", "Music",
+  "Theme song") with a music word in its lead. Only its lead and those
+  sections are read, so facts come from the work and its music. The artist
+  may be an arranger the article never names.
 - **For an artist, the song's own article wins** over the artist's, wherever
   it ranks ("Industry Baby" over "Lil Nas X"). A song article only has to
   mention the lead artist of a multi-artist credit.
@@ -842,6 +859,16 @@ superseded song's facts aren't in it. Each fact is logged once per play of a
 song, however many overlays get it (`shown-log.ts`); nothing is logged while
 no overlay is connected, and the first one to connect gets them, logged then.
 
+The same facts go into `aired-facts.json` in the data folder
+(`aired-facts.ts`): the song, the fact, its source and link, and when it
+went out, newest 500, written whole each time like `session.json`. The app
+reads it through `/control/aired` (or the file, when the server isn't
+running) so reports don't depend on the log: a **Wrong** report gets the
+exact fact with its source and time, plus the other facts from that play of
+the song, and **Report a problem** gets the latest ten after the log. Secrets
+are removed from them like the log, and when the web address is too long the
+log is trimmed before them.
+
 ### What gets remembered between songs?
 
 - What was shown is saved to `session.json` in the data folder: after a
@@ -886,7 +913,12 @@ what's playing" depends on the source. The server reads its methods for
 three missed polls), `authRejected()` (401 or 403: `unauthorized`), and the
 optional `backingOff()` (honoring `Retry-After`, not stale) and
 `followingProblem()` (a reason string: `degraded`). The desktop app restarts
-the server after two minutes of `degraded`, never for `unauthorized`.
+the server after two minutes of `degraded`, never for `unauthorized`. When
+`degraded` only means fetches are failing (an internet or song-service
+outage), it restarts only if the polling loop itself has stopped: `/health`
+reports `lastPollAttemptAgeMs` (failed fetches keep it small) and the app
+allows three poll intervals, at least two minutes. A restart can't bring the
+internet back, and it reloads the AI and blanks the overlay.
 
 **StreamerSongList** (`songlist-client.ts`):
 
@@ -1272,7 +1304,11 @@ interface: a change that breaks one waits for 3.0 (SemVer).
 
 - **Settings** (`settings.json`): a version reads any older 2.x file. A
   setting it doesn't know is kept when it saves, so going back a version and
-  forward again loses nothing. `settingsVersion` records the format.
+  forward again loses nothing. `settingsVersion` records the format. A file
+  that reads but isn't a settings object is renamed to `.unreadable`. One that
+  can't be read at all (a lock from an antivirus program or OneDrive) is tried
+  a few times, then the defaults stand in for this run and nothing is saved
+  over it, so the sign-in survives.
 - **Facts files:** `song-facts.json`, `wrong-facts.json`, and the custom
   facts in settings.
 - **Backups:** `formatVersion` 1; a newer format is refused with a plain

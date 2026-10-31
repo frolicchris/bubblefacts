@@ -171,19 +171,49 @@ export const secretsWaiting = () => secretsPending;
 const sameType = (value: unknown, fallback: unknown): boolean =>
   Array.isArray(fallback) ? Array.isArray(value) && value.every((v) => typeof v === "string") : typeof value === typeof fallback;
 
+/** Reads that fail for a reason other than a missing file (an antivirus or OneDrive lock) are tried again this many times. */
+const READ_RETRIES = 3;
+const READ_RETRY_MS = 150;
+
+/** The file couldn't be read at all (locked), so the defaults in memory stand in and nothing is saved over it. */
+let readFailed = false;
+
+/** The saved settings text, retrying a few times when something has the file locked. Null if there is no file. */
+function readSettingsFile(): string | null {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return fs.readFileSync(file(), "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if (attempt >= READ_RETRIES) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, READ_RETRY_MS);
+    }
+  }
+}
+
 export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
+  let text: string | null;
   try {
-    raw = JSON.parse(fs.readFileSync(file(), "utf8"));
-    if (!raw || typeof raw !== "object") throw new Error("not an object");
+    text = readSettingsFile();
   } catch (err) {
-    // Keep an unreadable file for a problem report instead of overwriting it.
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      try {
-        fs.renameSync(file(), file() + ".unreadable");
-      } catch {
-        // Nothing more to do: start from the defaults.
-      }
+    // Locked, not broken: the file is probably fine and the sign-in in it is still wanted. Starting from the
+    // defaults without saving leaves it for the next start (or the next load) instead of renaming it away.
+    readFailed = true;
+    console.error(`[App] Couldn't read settings.json (${(err as NodeJS.ErrnoException).code ?? err}); using defaults for now and not saving.`);
+    return { ...DEFAULTS, updateChannel: firstChannel() };
+  }
+  readFailed = false;
+  if (text === null) return { ...DEFAULTS, updateChannel: firstChannel() };
+  try {
+    raw = JSON.parse(text);
+    if (!raw || typeof raw !== "object") throw new Error("not an object");
+  } catch {
+    // It read but isn't settings: keep it for a problem report instead of overwriting it.
+    try {
+      fs.renameSync(file(), file() + ".unreadable");
+    } catch {
+      // Nothing more to do: start from the defaults.
     }
     return { ...DEFAULTS, updateChannel: firstChannel() };
   }
@@ -319,7 +349,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 export function saveSettings(settings: Settings): void {
-  if (secretsPending) return;
+  if (secretsPending || readFailed) return;
   // Settings a newer version saved are kept, so going back a version and forward again loses nothing.
   let kept: Record<string, unknown> = {};
   try {

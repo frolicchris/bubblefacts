@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { artistByTitle, cachedArtistByTitle, clearLinkCache, closeName, clearOrderCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
+import { artistByTitle, artistPageFit, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, closeName, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -47,6 +47,21 @@ describe("performerFacts", () => {
       "Band"
     );
     expect(facts).toEqual([]);
+  });
+
+  it("states no year when the artist's same title came out earlier on another recording", () => {
+    const later = rec("Glass Harbor", "Ola Brandt", "2008-07-14", [["Quiet Rooms"]]);
+    // The first recording credits others too, so it scores low and isn't a match itself.
+    const first = { ...rec("Glass Harbor", "Ola Brandt", "1986", [["Green Room"]], 81), "artist-credit": [{ name: "Ola Brandt" }, { name: "Mara Quill" }] };
+    expect(performerFacts([later, first], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Quiet Rooms.']);
+    expect(performerFacts([later], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" came out in 2008 and is on the album Quiet Rooms.']);
+  });
+
+  it("takes no year from a recording marked as a re-recording or a live take", () => {
+    const redo = { ...rec("Glass Harbor", "Ola Brandt", "2011", [["Second Light"]]), disambiguation: "2011 re-recording" };
+    expect(performerFacts([redo], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Second Light.']);
+    const live = { ...rec("Glass Harbor", "Ola Brandt", "2012", [["Third Light"]]), disambiguation: "live, 2012-03-01: Harbor Hall" };
+    expect(firstYear([live])).toBeUndefined();
   });
 
   it("reads back its year and album, and drops the year alone (#256)", () => {
@@ -228,6 +243,22 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     asked.length = 0;
     await fetchGrounding({ title: "Glass Harbour", artist: "Traditional" });
     expect(asked.some((u) => toMusicBrainz(u))).toBe(false);
+  });
+});
+
+describe("artistPageFit: an opening the content standard left out", () => {
+  // Made-up names. The first sentence ("... is a Cuban-American musician") breaks the identity list and is gone.
+  const full = "Known for his style of dress, Ravel Quillon is considered a leading figure in the dark cabaret genre. He has released 13 studio albums.";
+
+  it("reads Wikidata's description when the opening says nothing", () => {
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"])).toMatchObject({ ok: false });
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"], "Cuban-American musician")).toEqual({ ok: true });
+  });
+
+  it("holds the description to the same tests, and never over an opening that says something", () => {
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"], "French philosopher")).toMatchObject({ ok: false });
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"], "2004 film by a musician")).toMatchObject({ ok: false });
+    expect(artistPageFit("Aurelio Quillon", "Aurelio Quillon is a 2004 film about a musician.", ["quillon"], "Cuban-American musician")).toMatchObject({ ok: false });
   });
 });
 

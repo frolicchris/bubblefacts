@@ -413,7 +413,7 @@ const RELEASE_ITEM = /\b(album|EP|soundtrack|mixtape)\b/i;
 
 /** What the article's item is, cut down to what its facts need. */
 export type ArticleItem =
-  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null }
+  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null; knownBy?: string | null }
   | { kind: "artist"; facts: string[] }
   | null;
 
@@ -468,15 +468,17 @@ export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artis
  * Sentences from a song's item, leaving out what MusicBrainz already says for the song
  * (`covered`): its year and whether it named an album. When the two years differ, the
  * earlier stands only if it is MusicBrainz's, which leaves out reissues, compilations and
- * live albums; when Wikidata's is earlier, neither is shown (`dropYear`).
+ * live albums; when Wikidata's is earlier, neither is shown (`dropYear`). `knownBy`: the
+ * earliest year the item or its infobox dates the song, kept when the two disagree and no
+ * year is shown: MusicBrainz's later year (a re-recording) goes then too.
  */
 export function songItemFacts(
-  item: { title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null },
+  item: { title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null; knownBy?: string | null },
   covered: { year?: string | null; album?: boolean } = {}
 ): { facts: string[]; dropYear: boolean } {
   const q = `"${item.title}"`;
   const earlier = (y: string | null | undefined) => Boolean(covered.year && y && y < covered.year);
-  const dropYear = earlier(item.year) || earlier(item.albumYear);
+  const dropYear = earlier(item.year) || earlier(item.albumYear) || earlier(item.knownBy);
   const y = covered.year ? null : item.year;
   const partOf = covered.album ? null : item.partOf;
   const basics = y && partOf
@@ -534,7 +536,9 @@ export async function articleItem(page: string, artist: string[], titles: string
       const box = await songBoxOf(page, artist);
       const told = box ? boxYear(box) : null;
       const album = box ? await albumYear(box) : null;
+      const knownBy = [item.year, told].filter((y): y is string => Boolean(y)).sort()[0] ?? null;
       if (item.year && ((told && told !== item.year) || (album && album < item.year))) item = { ...item, year: null };
+      if (knownBy && knownBy !== item.year) item = { ...item, knownBy };
       if (album) item = { ...item, albumYear: album };
     }
     console.log(`[Wikidata] "${page}" -> ${entity?.id ?? "no item"}: ${item ? (item.kind === "song" ? "a song" : "the artist") : "nothing to tell"}`);
@@ -584,6 +588,19 @@ export async function placeOrTeam(page: string): Promise<string> {
     return entity ? placeOrTeamFrom(entity, labels) : "";
   } catch {
     return "";
+  }
+}
+
+/**
+ * Whether an English Wikipedia article's item is a person's (an instance of human). True when
+ * Wikidata can't be read, so a caller that refuses people refuses then too. Never throws.
+ */
+export async function isPersonPage(page: string): Promise<boolean> {
+  try {
+    const { entity } = await pageItem(page);
+    return !!entity && itemIds(entity, "P31").includes(HUMAN);
+  } catch {
+    return true;
   }
 }
 
