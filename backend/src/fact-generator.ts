@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, namesLoosely, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -1032,7 +1032,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const { game } = resolveGameAndTrack(read);
     const page = context.split("\n")[0];
     const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
-    const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
+    // Facts about "the artist" would be the other act's when MusicBrainz said the article is someone else's.
+    const sameName = /^MusicBrainz credits /.test(match.reason);
+    const extra = !sameName && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {
@@ -1096,8 +1098,11 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   });
   const songFacts = await dataFacts;
   // A cover read from the original's article: who wrote it holds for the cover; the original's release, label and producers don't.
-  const cover = context ? isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
   const allBox = await boxLookup;
+  // An infobox naming another artist is that artist's record, even when the article never mentions this one.
+  const boxArtists = allBox.find((b) => b.about?.kind === "song")?.about?.artists ?? [];
+  const othersBox = boxArtists.length > 0 && !boxArtists.some((a) => namesLoosely(normalizeTitle(a), artistNames(read.artist ?? "")));
+  const cover = context ? othersBox || isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
   const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
     (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
   );
