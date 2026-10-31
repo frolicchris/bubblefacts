@@ -7,6 +7,7 @@ import {
   isCoverOf,
   italicSentences,
   originalsRecord,
+  otherVersionsRecord,
   otherWorkSentences,
   repairQualifier,
   requestedWork,
@@ -181,5 +182,48 @@ describe("italicSentences: markup nested to survive one pass", () => {
     const s = italicSentences("<scr<script>ipt>x</script> ''Comet Runner'' is a 2004 game.\n");
     expect(s.map((x) => x.text).join(" ")).not.toMatch(/[<>]/);
     expect(s.flatMap((x) => x.works.map((w) => w.title))).toEqual(["Comet Runner"]);
+  });
+});
+
+describe("other versions of a song (made-up song)", () => {
+  const FULL = [
+    '"Paper Kites" is a song by the Lamplighters, released in 1982. It reached number 3 in the UK.',
+    "== Background ==",
+    "The band wrote it on tour in Leeds during a long winter.",
+    "== Jo Marsh version ==",
+    "Jo Marsh recorded it in 2003. Her single was number one for three weeks.",
+    "== Other versions ==",
+    "=== Harbor Static ===",
+    "It appeared on their album Underdog in 1999.",
+    "Their single peaked at number 12 in Canada.",
+    "=== The Lamplighters live ===",
+    "The band played it at the Roundhouse in 1990.",
+    "== Legacy ==",
+    "A 2010 cover by Dana Reyes charted at number 9 in Ireland.",
+  ].join("\n");
+
+  it("leaves another performer's version out of the original's request", () => {
+    const drop = otherVersionsRecord(FULL, "The Lamplighters");
+    expect(drop).toContain("Her single was number one for three weeks.");
+    expect(drop).not.toContain("It appeared on their album Underdog in 1999.");
+    expect(drop).toContain("Their single peaked at number 12 in Canada.");
+    expect(drop).toContain("A 2010 cover by Dana Reyes charted at number 9 in Ireland.");
+  });
+
+  it("keeps the requested artist's own lines", () => {
+    const drop = otherVersionsRecord(FULL, "The Lamplighters");
+    expect(drop).not.toContain("The band played it at the Roundhouse in 1990.");
+    expect(drop).not.toContain("It reached number 3 in the UK.");
+    expect(drop).not.toContain("The band wrote it on tour in Leeds during a long winter.");
+  });
+
+  it("keeps a cover's own section when reading the original's record", () => {
+    const drop = originalsRecord(FULL, "Jo Marsh");
+    expect(drop).not.toContain("Her single was number one for three weeks.");
+    expect(drop).toContain("It reached number 3 in the UK.");
+  });
+
+  it("drops nothing with no artist named", () => {
+    expect(otherVersionsRecord(FULL, "").size).toBe(0);
   });
 });

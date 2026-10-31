@@ -509,6 +509,16 @@ async function pageItem(page: string): Promise<{ entity: Entity | null; labels: 
   return found;
 }
 
+/** The MusicBrainz artist ids an article's Wikidata item names (P434). Empty when it names none or can't be read. Never throws. */
+export async function pageArtistIds(page: string): Promise<string[]> {
+  try {
+    const { entity } = await pageItem(page);
+    return entity ? rankedClaims(entity, "P434").map((c) => c.mainsnak?.datavalue?.value).filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * What the article's own Wikidata item says (`articleItemFrom`), for an article the
  * lookup surely matched to the request. Null when it has no item or nothing to tell.

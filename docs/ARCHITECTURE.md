@@ -218,6 +218,14 @@ sign-ins and the built-in AI. Its design decisions are in
    original's release, charts, sales, video and the band's own doings
    (`originalsRecord`; `COVER_SCOPE=off` turns it off), and of the infobox
    facts only who wrote it is kept: the rest would read as the cover's.
+   An infobox that names another artist counts as a cover for its facts.
+   The other way around, a song's own article is read without sections on
+   one other performer's version or lines on a version's charts
+   (`otherVersionsRecord`); a plain "covered by" line stays, since it's true
+   of the song. A film that only uses the song's name gets no AI captions,
+   and neither does an act that shares the name when MusicBrainz credits the
+   song to someone else (`anotherArtist`, comparing the recording's artist
+   with the article's Wikidata item; unknown on either side keeps the article).
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
