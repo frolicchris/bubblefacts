@@ -134,6 +134,7 @@ export class NowPlayingFileSource implements SongSource {
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private inFlight: Promise<void> | null = null;
   private lastSuccessfulFetchAt: number | null = null;
+  private lastPollAttemptAt: number | null = null;
   private stopped = false;
   /** The last state logged ("missing", "stale", an error), so a quiet file isn't logged every 2 seconds. */
   private lastNote = "";
@@ -152,6 +153,10 @@ export class NowPlayingFileSource implements SongSource {
 
   getCurrentSong(): SSLQueueItem | null {
     return this.currentSong;
+  }
+
+  lastPollAttemptAgeMs(): number | null {
+    return this.lastPollAttemptAt === null ? null : Date.now() - this.lastPollAttemptAt;
   }
 
   lastSuccessfulFetchAgeMs(): number | null {
@@ -312,9 +317,11 @@ export class NowPlayingFileSource implements SongSource {
 
   private schedulePoll(): void {
     if (this.stopped) return;
+    this.lastPollAttemptAt ??= Date.now();
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = setTimeout(async () => {
       if (this.stopped) return;
+      this.lastPollAttemptAt = Date.now();
       await this.checkNow();
       if (!this.stopped) this.schedulePoll();
     }, this.pollMs);
