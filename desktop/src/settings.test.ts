@@ -261,6 +261,11 @@ describe("toServerEnv", () => {
       expect(toServerEnv({ ...DEFAULTS, bubbleArea: spot }, paths).BUBBLE_AREA).toBe(spot);
     }
     expect(sanitize({ ...DEFAULTS, bubbleArea: "center" as "left" }).bubbleArea).toBe("anywhere");
+    // Setup asks new installs where bubbles go; someone already set up keeps their spot, or Anywhere.
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", bubbleArea: "right" }));
+    expect(loadSettings().bubbleArea).toBe("right");
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane" }));
+    expect(loadSettings().bubbleArea).toBe("anywhere");
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "file:///etc/passwd" }).ollamaUrl).toBe(DEFAULTS.ollamaUrl);
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "http://studio-pc:11434" }).ollamaUrl).toBe("http://studio-pc:11434");
     expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });
