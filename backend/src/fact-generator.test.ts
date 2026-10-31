@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
