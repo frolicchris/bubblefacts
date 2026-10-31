@@ -6,8 +6,8 @@ import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments, withoutReques
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { setCapped } from "./capped-map";
-import { linkedGrounding } from "./musicbrainz";
-import { WikidataBusy, WorkItem, clearClassicalCache, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, workItems } from "./wikidata";
+import { anotherArtist, linkedGrounding } from "./musicbrainz";
+import { clearClassicalCache, isPersonPage, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, WikidataBusy, WorkItem, workItems } from "./wikidata";
 
 /**
  * Grounding and screening.
@@ -158,6 +158,12 @@ function trimSeparators(s: string): string {
   return s.slice(start, end);
 }
 
+/** Without the quotation marks around it: '"Fantaisie-Impromptu"' is "Fantaisie-Impromptu". */
+function unquote(s: string): string {
+  const m = /^["“”](.*)["“”]$/.exec(s.trim());
+  return (m ? m[1] : s).trim();
+}
+
 export function parseClassicalTitle(title: string): ClassicalTitle {
   let t = ` ${title.trim()} `;
   let movement: ClassicalTitle["movement"] = null;
@@ -195,13 +201,18 @@ export function parseClassicalTitle(title: string): ClassicalTitle {
     }
   }
   const bracket = /^(.*?)\s*[([]([^)\]]+)[)\]]\s*$/.exec(t.trim());
-  const alias = bracket && !isVariantTag(bracket[2]) ? bracket[2].trim() : "";
-  if (bracket && alias) t = bracket[1];
-  const name = trimSeparators(
-    t
-      .replace(/\s*[([]\s*[)\]]\s*/g, " ")
-      .replace(/\s*,\s*(?:,\s*)+/g, ", ")
-      .replace(/\s+/g, " ")
+  // What's left in the brackets once the numbers are out: "(op. 3, no. 1, "Elegie")" names "Elegie";
+  // "(L. 75, no. 3, from Suite Bergamasque)" names only the set it's from, which is no other name for it.
+  const inner = bracket ? unquote(trimSeparators(bracket[2].replace(/(?:^|[\s,;:])from\s.*$/i, ""))) : "";
+  const alias = bracket && !isVariantTag(bracket[2]) ? inner : "";
+  if (bracket && (alias || !/[\p{L}\p{N}]/u.test(inner))) t = bracket[1];
+  const name = unquote(
+    trimSeparators(
+      t
+        .replace(/\s*[([]\s*[)\]]\s*/g, " ")
+        .replace(/\s*,\s*(?:,\s*)+/g, ", ")
+        .replace(/\s+/g, " ")
+    )
   );
   const classical = catalogs.length > 0 || !!key || !!movement || FORM_WORDS.test(name);
   return { name, alias, catalogs, numbers: [...new Set(numbers)], key, movement, classical };
@@ -1427,9 +1438,57 @@ export function isCoverOf(page: string, full: string, artist: string, title: str
   return names.length > 0 && !mentionsName(lead, names) && mentionsName(normalizeTitle(full), names);
 }
 
-/** For a cover: the original's sentences that would read as the cover's: its release, charts, sales, video, performers' moves. */
-export function originalsRecord(full: string): Set<string> {
-  return new Set(full.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).map((s) => s.trim())).filter((s) => ORIGINALS_RECORD.test(s)));
+const sentencesOf = (text: string) => text.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).map((s) => s.trim()));
+
+/** A heading for another recording of the song: "Cover versions", "Gary Jules version", "Other recordings". */
+const VERSION_HEADING = /\b(?:versions?|covers?|recordings?|renditions?|remakes?|remix(?:es)?)\b/i;
+/** A sentence that says it is about a version: "a cover by...", "the 2001 version by...". */
+const VERSION_SENTENCE = /\b(?:covers?|covered|versions?|renditions?|remakes?)\b/i;
+
+/** A version section with no performer in its heading: "Cover versions", "Other recordings". */
+const LIST_OF_VERSIONS = /^(?:(?:other|notable|cover|later|selected|alternative|alternate)\s+)*(?:versions?|covers?|recordings?|renditions?|remakes?|remix(?:es)?)$/i;
+/** A sentence that gives a recording's own success, not just that it exists. */
+const CHART_RECORD = /\b(?:charts?|charted|peak(?:ed|s)?|number(?:-| )(?:one|\d+)|No\. ?\d+|top (?:\d+|ten|forty)|Hot 100|Billboard|certifi\w+|platinum|gold|sold|sales|copies)\b/i;
+
+/** Each section under a version heading, its subsections included: whether the heading names the requested artist, or any performer. */
+function versionSections(full: string, names: string[]): Array<{ body: string; own: boolean; list: boolean }> {
+  const out: Array<{ level: number; body: string; own: boolean; list: boolean }> = [];
+  let open: { level: number; body: string; own: boolean; list: boolean } | null = null;
+  for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
+    const level = marks.length;
+    if (open && level > open.level) {
+      // A subsection named for one performer is that performer's, whatever the section is.
+      if (mentionsName(normalizeTitle(heading), names)) out.push({ level, body, own: true, list: false });
+      else open.body += `\n${body}`;
+      continue;
+    }
+    open = VERSION_HEADING.test(heading) ? { level, body, own: mentionsName(normalizeTitle(heading), names), list: LIST_OF_VERSIONS.test(heading.trim()) } : null;
+    if (open) out.push(open);
+  }
+  return out;
+}
+
+/**
+ * For the original's request, or a song's own article: what would read as this
+ * recording's but is another's: a section on one other performer's version
+ * ("Gary Jules version"), and elsewhere a sentence on a version's charts or
+ * sales, unless it names the requested artist. That others covered the song
+ * is true of the song, so "Cover versions" keeps its plain lines.
+ */
+export function otherVersionsRecord(full: string, artist: string): Set<string> {
+  const names = artistNames(artist.replace(/\s*\([^)]*\)\s*$/, ""));
+  if (!coverScope.on || !names.length) return new Set();
+  const own = (s: string) => mentionsName(normalizeTitle(s), names);
+  const drop = versionSections(full, names).filter((v) => !v.own).flatMap((v) => sentencesOf(v.body).filter((s) => !own(s) && (!v.list || CHART_RECORD.test(s))));
+  const stated = sentencesOf(full.replace(/^==+.*==+$/gm, "")).filter((s) => VERSION_SENTENCE.test(s) && CHART_RECORD.test(s) && !own(s));
+  return new Set([...drop, ...stated]);
+}
+
+/** For a cover: the original's sentences that would read as the cover's: its release, charts, sales, video, performers' moves. A section on the requested artist's own version stays. */
+export function originalsRecord(full: string, artist = ""): Set<string> {
+  const names = artist ? artistNames(artist.replace(/\s*\([^)]*\)\s*$/, "")) : [];
+  const own = new Set(versionSections(full, names).filter((v) => names.length && v.own).flatMap((v) => sentencesOf(v.body)));
+  return new Set(sentencesOf(full).filter((s) => ORIGINALS_RECORD.test(s) && !own.has(s)));
 }
 
 /** Every sentence `selectSections` keeps, unbudgeted: what a piece's own sentences are looked for in. */
@@ -1666,6 +1725,8 @@ const SERIES_WORD = /\b(series|franchise)\b/i;
 /** A kind of work a song is not from when its artist is a performer: "(1961 film)", "a concert documentary film". */
 const SCREEN_OR_BOOK = /\b(film|movie|documentary|television|tv series|miniseries|sitcom|novel|manga|play)s?\b/i;
 const AN_ALBUM = /\b(album|EP|mixtape|compilation)s?\b/i;
+/** A film about a performer, whose lead reads like the performer's: "a 1988 short film about the singer...", not "a film composer". */
+const A_FILM_ABOUT = /\b(?:film|movie|documentary|miniseries|novel)\b(?: (?:about|directed|written|based|starring|that)\b|[,.]|$)/i;
 
 /** The first `n` sentences of an article's lead. */
 function leadSentences(full: string, n: number): string {
@@ -1756,7 +1817,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   if (piece && isPieceArticle(page, full)) return unsure(`"${page}" is another piece's article`);
 
   // The artist's article.
-  const theArtist = isPerformerArticle(page, full) || (names.includes(normalizeTitle(base)) && !isWorkArticle(page, full));
+  const theArtist = !isNonMusicWork(page, full) && !A_FILM_ABOUT.test(says) && (isPerformerArticle(page, full) || (names.includes(normalizeTitle(base)) && !isWorkArticle(page, full)));
   if (theArtist) {
     if (piece && !named && noted) return unsure("the artist's article never names the song, and was found only after dropping a note");
     return sure(named ? "the artist's article names the song" : "the artist's article");
@@ -1776,6 +1837,9 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   if (piece && !named && SERIES_WORD.test(says) && !SERIES_WORD.test(asked.artist ?? "")) return unsure("a series' article for one game's track, which it never names");
   const kind = (SCREEN_OR_BOOK.exec(qualifier) ?? (/\bgames?\b/i.test(says) ? null : SCREEN_OR_BOOK.exec(says)))?.[0];
   if (piece && !named && kind && !SCREEN_OR_BOOK.test(asked.artist ?? "")) return unsure(`a ${kind.toLowerCase()}'s article that never names the song`);
+  // "Superstar: The Karen Carpenter Story" for the Carpenters' song, "Beverly Hills Cop: Axel F" for the theme: a film that
+  // uses the name, not where the song comes from. Its article is about the film, even though it names the song.
+  if (piece && kind && !title.every((t) => work.includes(t)) && (!work.every((t) => title.includes(t)) || startsWith(title, work))) return unsure(`"${page}" is a ${kind.toLowerCase()}'s article, not the song's`);
   return sure("the work's own article");
 }
 
@@ -1892,12 +1956,15 @@ export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grou
   return `${described}, another work that never names the song`;
 }
 
+const bareName = (name: string) => name.replace(/^the /, "");
+
 /**
  * The work match after Wikipedia's page summary (`summaryMismatch`): the reason the
  * article may not be the requested work, or "" when the summary doesn't say so or
  * can't be read. On a person's or a band's article for a song, it also asks whether
  * the song has an article of its own ("Song (Some Band song)", "Song (song)", "Song")
  * that describes it as a song naming the artist: then the artist's article is not the song's.
+ * An act that only shares the name, per MusicBrainz, is not the requested one either.
  */
 export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSong = song): Promise<string> {
   const page = grounding.split("\n")[0];
@@ -1915,6 +1982,9 @@ export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSo
       if (!own || own.type !== "standard" || describedKind(own.description) !== "song" || blocked.has(own.title)) continue;
       if (mentionsName(normalizeTitle(`${own.description} ${own.extract}`), names)) return `the song has an article of its own ("${own.title}"), not "${page}"`;
     }
+    // A band that only shares the name: nothing in the article ties it to the song, and MusicBrainz credits someone else.
+    const full = articleText(page);
+    if (full && !namesPiece(full, track) && names.map(bareName).includes(bareName(normalizeTitle(withoutQualifier(page)))) && (await anotherArtist(page, track, game))) return `MusicBrainz credits "${track}" to another ${game} than "${page}"`;
     return "";
   } catch {
     return "";
@@ -2317,6 +2387,15 @@ function worksInTitle(franchise: string, title: string, notGame: boolean): Readi
  * - no one ("Traditional", "Italian Folk Song"): the title alone, as a song.
  */
 export function readings(song: SSLSong): Reading[] {
+  const out = listedReadings(song);
+  // "Some Song (from Some Show)": the song's own article under the show first. Only that article
+  // will do (`trackOnly`), so the usual reading still follows, and its performer's article with it.
+  const from = workFromTitle(dropVersionTags(song.title.trim()).replace(TITLE_ARRANGER, ""));
+  const at = from ? out.findIndex((r) => r.trackOnly && r.game === from.work && r.track === from.track) : -1;
+  return at > 0 ? [out[at], ...out.slice(0, at), ...out.slice(at + 1)] : out;
+}
+
+function listedReadings(song: SSLSong): Reading[] {
   const artist = song.artist?.trim() ?? "";
   const first = resolveGameAndTrack(song);
   if (song.performer || song.artistUncertain) return [first];
@@ -2367,6 +2446,31 @@ const YEAR_TAG = /\s*[([]\s*(?:19|20)\d\d\s*[)\]]/g;
 const FEATURED_TAG = /\s*[([]\s*(?:feat|ft|featuring)\b[^)\]]*[)\]]/gi;
 /** A note after the name, closed or not: "(Australian)", "(Cherokee/Irish)", "(LGBTQ+". */
 const TRAILING_NOTE = /\s*[([][^)\]]*(?:[)\]]|$)\s*$/;
+/** The work a song is from, in brackets: "(from Some Show)", "(From "Some Film")". */
+const FROM_TAG = /\s*[([]\s*from\s+["“'‘]?([^)\]]*?)["”'’]?\s*[)\]]/i;
+/**
+ * The work after "from" with no brackets: "Some Song from Some Long Show". Two capitalized words
+ * at least, so "Pennies from Heaven" and "The Girl from Ipanema" stay whole.
+ */
+const FROM_WORK = /^(.+?)\s+[Ff]rom\s+((?:the\s+)?\p{Lu}[\p{L}'’.]*(?:\s+(?:of|the|and|in|on|a|an|to|for|&|\p{Lu}[\p{L}'’.]*|\d+))*\s+\p{Lu}[\p{L}'’.]*(?:\s+\d+)?)\s*$/u;
+/** An arranger after the title: "Some Song arr. Some Pianist", "Some Song arranged by Some Pianist". */
+const TITLE_ARRANGER = /\s+(?:arr\.|arranged by|arrangement by)\s+\S.*$/i;
+/** A track number before the title: "14. Some Song". "1979", "7 AM" and "99 Luftballons" have no period after the number. */
+const TRACK_NUMBER = /^\d{1,3}\.\s+(?=\p{L})/u;
+/** An arranger's mark between two names: "Some Pianist (arr) Some Composer" is Some Composer's piece. */
+const ARRANGED_BY_FIRST = /^.*?\S\s*[([]\s*arr(?:\.|anged|anger)?\s*[)\]]\s*(\p{L}.*)$/iu;
+
+/** The work a title names after "from", bracketed or not, or "": "Some Song (from Some Show)" is from "Some Show". */
+export function workFromTitle(title: string): { track: string; work: string } | null {
+  const tag = FROM_TAG.exec(title);
+  const bare = tag ? null : FROM_WORK.exec(title.trim());
+  const found = tag
+    ? { track: (title.slice(0, tag.index) + title.slice(tag.index + tag[0].length)).trim(), work: tag[1].replace(/\s+/g, " ").trim() }
+    : bare && { track: bare[1].trim(), work: bare[2].trim() };
+  // "Theme from Some Show" names no piece of its own: the show's article is another rule's (themeOf).
+  if (!found || !found.track || !found.work || GENERIC_TRACK.test(normalizeTitle(found.track)) || /\btheme$/i.test(found.track)) return null;
+  return found;
+}
 
 /**
  * The song as a lookup can read it once a song list's own notes are dropped:
@@ -2381,7 +2485,13 @@ export function lookupForm(song: SSLSong): SSLSong | null {
   for (let m: RegExpExecArray | null; (m = TRAILING_NOTE.exec(artist)) && /\p{L}/u.test(artist.slice(0, m.index)); ) {
     artist = artist.slice(0, m.index).trim();
   }
-  const title = song.title.replace(YEAR_TAG, "").replace(FEATURED_TAG, "").trim();
+  // Who arranged it isn't who wrote it: "Some Show arr. Some Pianist", "Some Pianist (arr) Some Composer".
+  artist = ARRANGED_BY_FIRST.exec(artist)?.[1].trim() ?? artist;
+  if (/\p{L}/u.test(artist.replace(ARRANGER, ""))) artist = artist.replace(ARRANGER, "").trim();
+  let title = song.title.replace(YEAR_TAG, "").replace(FEATURED_TAG, "").trim();
+  // A list's own notes in the title: a track number, an arranger, the work it's from (another reading's job).
+  title = title.replace(TRACK_NUMBER, "").replace(TITLE_ARRANGER, "").trim();
+  title = workFromTitle(title)?.track ?? title;
   if (!/\p{L}|\p{N}/u.test(title.replace(/[()[\]]/g, "")) || (title === song.title.trim() && artist === (song.artist ?? "").trim())) return null;
   return { ...song, title, artist };
 }
@@ -2398,6 +2508,9 @@ export function lookupForm(song: SSLSong): SSLSong | null {
 function namedInTitle(title: string, first: { game: string; track: string }): Reading[] {
   // The usual reading already took the work from the title.
   if (first.track !== title) return [];
+  // "Some Song (from Some Show)", "Some Song from Some Long Show": the show is the work, as a game in the artist field is.
+  const from = workFromTitle(title.replace(TITLE_ARRANGER, ""));
+  if (from) return [{ game: from.work, track: from.track, trackOnly: true }];
   const bracket = /^(.+?)\s*\(([^)]+)\)$/.exec(title);
   if (bracket) return isVariantTag(bracket[2]) ? [] : [{ game: bracket[2].trim(), track: bracket[1].trim(), trackOnly: true }];
   const dash = /^(.+)\s[-–—]\s(.+)$/.exec(title);
@@ -3092,7 +3205,87 @@ async function findGrounding(song: SSLSong, skip: ReadonlySet<string>): Promise<
   // Every reading missed: the article MusicBrainz's own Wikidata link names, gated (issue #245).
   const linked = config.mbLink && !isPlaceholderRequest(song) && !hasNoArtist(song.artist) ? await linkedGrounding(song, usable) : "";
   if (linked) linkedPages.add(linked.split("\n")[0]);
-  return linked;
+  // Still nothing for "Some Name Theme": the article of what the theme is named for, gated.
+  return linked || (isPlaceholderRequest(song) ? "" : await themeGrounding(song, usable));
+}
+
+/** "Some Name Theme", "Some Name Main Theme", "Theme from Some Name": the name the theme is named for, or "" (one word or none). */
+export function themeOf(title: string): string {
+  const t = dropVersionTags(title.trim());
+  const name = (/^(.+?)\s+(?:main\s+)?theme$/i.exec(t)?.[1] ?? /^theme\s+from\s+(.+)$/i.exec(t)?.[1] ?? "").replace(/\s*[-–—:]$/, "").trim();
+  // Two words or more: "Love Theme" and "Halloween Theme" name an everyday word's article, not a work's.
+  const n = normalizeTitle(name);
+  return significantTokens(n).length >= 2 && !GENERIC_TRACK.test(n) ? name : "";
+}
+
+/** A section about the subject's own music: "Song", "Music", "Theme song", "Soundtrack". */
+const OWN_MUSIC_HEADING = /^(?:the )?(?:songs?|music|theme(?: songs?| music| tune)?|soundtracks?|score|jingles?|music and sound)$/i;
+/** A word in the lead for music the subject has: "merged a Japanese denpa song with an animated cat". */
+const OWN_MUSIC_WORD = /\b(?:songs?|tunes?|themes?|melod(?:y|ies)|jingles?|music)\b/i;
+/** A person's lead: "(born 1967)", "(1900–1980)". */
+const LIFE_DATES = /\((?:[^()]*\b)?(?:born|died|née)\b|\(\s*(?:c\.\s*)?\d{3,4}\s*[–-]\s*\d{3,4}\s*\)/;
+
+/**
+ * The lead and the sections about the subject's own music, subsections and all, or "" when the
+ * article has no such section or its lead never says the subject has music (`themeGrounding`).
+ */
+export function ownMusicParts(full: string): string {
+  const [lead, ...rest] = full.split(/\n(?===)/);
+  if (!OWN_MUSIC_WORD.test(lead)) return "";
+  const kept: string[] = [];
+  let under = 0;
+  for (const chunk of rest) {
+    const h = /^(=+)\s*([^=\n]+?)\s*=+/.exec(chunk);
+    if (!h) continue;
+    const level = h[1].length;
+    if (under && level <= under) under = 0;
+    if (!under && OWN_MUSIC_HEADING.test(h[2])) under = level;
+    if (under) kept.push(chunk.trim());
+  }
+  return kept.length ? [lead.trim(), ...kept].join("\n\n") : "";
+}
+
+const themeCache = new Map<string, { text: string; at: number }>();
+
+/**
+ * For "Some Name Theme" that every reading missed: the "Some Name" article, when it isn't a
+ * person's and says the subject has music of its own (`ownMusicParts`), cut to its lead and those
+ * sections. The artist may be an arranger the article never names ("Nyan Cat Theme" by a chiptune
+ * artist is the Nyan Cat video's song). Never when a performer has the artist's name, or "".
+ */
+async function themeGrounding(song: SSLSong, usable: (title: string) => boolean): Promise<string> {
+  const name = themeOf(song.title);
+  if (!name || song.artistUncertain) return "";
+  const artist = (song.artist ?? "").trim();
+  const key = `${normalizeTitle(name)}\0${normalizeTitle(artist)}`;
+  const hit = themeCache.get(key);
+  if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS)) return hit.text && usable(hit.text.split("\n")[0]) ? hit.text : "";
+  const refuse = (why: string) => {
+    console.log(`[Grounding] "${song.title}": ${why}, not taking it for the theme`);
+    themeCache.set(key, { text: "", at: Date.now() });
+    return "";
+  };
+  try {
+    if (artist && !hasNoArtist(artist) && (await performerPages(artist.replace(/\s*\([^)]*\)\s*$/, ""), song.title)).performer) return refuse(`a performer is called "${artist}"`);
+    const found = (await wikiResolveTitles([name])).get(name);
+    if (!found || found.fragment || !usable(found.page) || normalizeTitle(withoutQualifier(found.page)) !== normalizeTitle(name)) return refuse(`no article is called "${name}"`);
+    const page = found.page;
+    const full = await wikiExtract(page);
+    if (!full) return refuse(`"${page}" can't be read`);
+    if (isPerformerArticle(page, full) || LIFE_DATES.test(full.slice(0, 400)) || (await isPersonPage(page))) return refuse(`"${page}" is a person's article`);
+    const parts = ownMusicParts(full);
+    if (!parts) return refuse(`"${page}" never says it has music of its own`);
+    const budget = MAX_CONTEXT_CHARS - page.length - 1;
+    const extract = ownArticleExtract(parts, budget, [name]);
+    if (extract.length < MIN_CONTEXT_CHARS) return refuse(`"${page}" is too short to write from (${extract.length} chars)`);
+    const text = `${page}\n${writingText(parts, extract, budget, [name])}`;
+    console.log(`[Grounding] "${song.title}" -> ${page} (${text.length} chars, the article of what the theme is named for: its lead and music only)`);
+    themeCache.set(key, { text, at: Date.now() });
+    return text;
+  } catch {
+    // Throttled or unreachable: nothing is remembered, and it's asked again next time.
+    return "";
+  }
 }
 
 /** What a game, a film or a show is called in its article's first sentence or its title's brackets. */
@@ -3281,7 +3474,7 @@ async function performerArticle(
   page: string,
   full: string,
   usable: (title: string) => boolean
-): Promise<{ page: string; subject: boolean } | "reject" | null> {
+): Promise<{ page: string; subject: boolean; music?: boolean } | "reject" | null> {
   const { game, track } = reading;
   const aGame = /game\)$/i.test(page) || /\b(?:video )?games?\b/i.test(openingSays(full));
   const unnamed = !namesPiece(full, track);
@@ -3302,7 +3495,54 @@ async function performerArticle(
     if (name.length >= 5 && mentionsName(normalizeTitle(full.split(/\n==/)[0]), [name])) return null;
   } else if (!otherMusic && (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name])))) return null;
   if (found.performer && found.performer !== page && usable(found.performer)) return { page: found.performer, subject: true };
+  // No performer of the name: a show's or a film's music article whose track listing has the track ("Music of Some Show").
+  const music = nonMusic && !concert && !song.performer && !reading.aPerformer ? await listingMusicArticle(artist, track, usable) : null;
+  if (music && music !== page) return { page: music, subject: true, music: true };
   return "reject";
+}
+
+/** The titles in an article's {{Track listing}} templates, without links, refs or bold. */
+export function listedTracks(wikitext: string): string[] {
+  const out: string[] = [];
+  for (const m of wikitext.matchAll(/\{\{\s*track ?listing\b/gi)) {
+    // To the template's own closing braces, past the ones nested in it.
+    let depth = 0;
+    let end = m.index;
+    while (end < wikitext.length) {
+      if (wikitext.startsWith("{{", end)) (depth++, (end += 2));
+      else if (wikitext.startsWith("}}", end)) {
+        end += 2;
+        if (--depth === 0) break;
+      } else end++;
+    }
+    const block = wikitext
+      .slice(m.index, end)
+      .replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/gi, "")
+      .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, "$1")
+      .replace(/'{2,}/g, "");
+    for (const t of block.matchAll(/\|\s*title\d+\s*=([^|\n]*)/gi)) if (t[1].trim()) out.push(t[1].trim());
+  }
+  return out;
+}
+
+/**
+ * A show's or a film's own music article ("Music of Some Show", "Some Show
+ * (soundtrack)") that names the track as music or lists it on one of its
+ * albums, or null. Its prose may never name a short cue that its track
+ * listings do ("Green Bird" | "Cowboy Bebop").
+ */
+async function listingMusicArticle(work: string, track: string, usable: (title: string) => boolean): Promise<string | null> {
+  const name = normalizeTitle(track);
+  if (!work || name.length < 3 || GENERIC_TRACK.test(name)) return null;
+  const named = await wikiResolveTitles([`Music of ${work}`, `${work} (soundtrack)`]);
+  for (const page of new Set([...named.values()].filter((r) => !r.fragment).map((r) => r.page))) {
+    if (!usable(page) || !isMusicArticleFor(page, work)) continue;
+    const full = await wikiExtract(page);
+    if (!full) continue;
+    const listed = listedTracks(await wikitextOf(page)).some((t) => normalizeTitle(t) === name);
+    if (listed || namesPiece(full, track)) return page;
+  }
+  return null;
 }
 
 /**
@@ -3540,6 +3780,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       let byGame = matchedGame(page);
       let full = await wikiExtract(page);
       let toPerformer = false;
+      // Taken in place of the search's page: never read as a longer-named installment of the subject.
+      let swapped = false;
       // A performer's song: its own article if Wikipedia has one, and never a film or a book that shares the name.
       if (byGame && full && track && track !== game && !generic && !reading.fromTitle && !reading.notGame && !song.artistUncertain) {
         const swap = await performerArticle(song, reading, page, full, usable);
@@ -3553,11 +3795,13 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         if (swap && tooShort && isPerformerArticle(page, full)) {
           console.log(`[Grounding] "${swap.page}" is too short to write from: keeping the performer's article "${page}"`);
         } else if (swap) {
-          console.log(`[Grounding] "${page}" -> ${swap.page} (${swap.subject ? "the performer's article" : "the song's own article"})`);
+          const what = swap.music ? "the work's music article, which lists the track" : swap.subject ? "the performer's article" : "the song's own article";
+          console.log(`[Grounding] "${page}" -> ${swap.page} (${what})`);
           page = swap.page;
           full = songFull ?? (await wikiExtract(page));
           byGame = swap.subject;
-          toPerformer = swap.subject;
+          toPerformer = swap.subject && !swap.music;
+          swapped = true;
         }
       }
       // A concert film or documentary named for the song or the band is the film's article, not the song's.
@@ -3572,7 +3816,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
         console.log(`[Grounding] "${page}" is a place or a team (Wikidata: ${place}), not a work, skipping`);
         continue;
       }
-      const installment = byGame && extendsGame(page) && track !== game && !reading.page;
+      const installment = byGame && !swapped && extendsGame(page) && track !== game && !reading.page;
       const why = pageMisfit(song, reading, page, full, { byGame, installment, names, classical });
       if (why) {
         console.log(`[Grounding] "${page}" ${why}, skipping`);
@@ -3594,7 +3838,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // A cover's request read from the original's article: not the original's release, charts or video.
       const cover = !byGame && ownArticle && artist && !!full && isCoverOf(page, full, game, song.title);
       if (cover) console.log(`[Grounding] "${page}": the request is a cover; the original's release and charts left out`);
-      const drop = cover ? originalsRecord(full!) : otherWork;
+      const others = !cover && !byGame && ownArticle && artist && full ? otherVersionsRecord(full, game) : null;
+      const drop = cover ? originalsRecord(full!, game) : others?.size ? new Set([...(otherWork ?? []), ...others]) : otherWork;
       let text = withoutSentences(drop, saves && !cover, () =>
         scoped
           ? `${page}\n${writingText(scoped, orderExtract(scoped, MAX_CONTEXT_CHARS - page.length - 1, [track], false), MAX_CONTEXT_CHARS - page.length - 1, [track])}`
@@ -3602,7 +3847,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       );
       // "Chrono Trigger" and "Kingdom Hearts" read like people's names, so the article decides: is it a game's?
       const aGame = !artist || /game\)$/i.test(page) || GAME_LEAD.test(full?.slice(0, 600) ?? "");
-      if (byGame && aGame && !toPerformer && !song.performer && !ownArticle && !installment && full) {
+      if (byGame && aGame && !swapped && !song.performer && !ownArticle && !installment && full) {
         let music: GameArticles["music"] = null;
         try {
           music = await findMusicArticle(game, usable);
@@ -3640,6 +3885,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
 
 export function clearGroundingCache(): void {
   linkedPages.clear();
+  themeCache.clear();
   summaries.clear();
   classicalPages.clear();
   clearClassicalCache();

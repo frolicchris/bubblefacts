@@ -12,7 +12,7 @@ import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
 import { presetFoldersShown } from "./now-playing-folder";
-import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
+import { AiredFact, airedFrom, betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
 import { errorDetail, plainError, PlainOptions } from "./plain-errors";
 import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
@@ -55,7 +55,7 @@ const DIRS = {
 const ALLOWED_HOSTS = [
   "github.com", "streamersonglist.com", "www.streamersonglist.com", "id.streamersonglist.com", "console.groq.com", "platform.claude.com",
   "bubblefacts.frolic.org", "www.twitch.tv", "obsproject.com", "huggingface.co", "www.llama.com", "ollama.com",
-  "streamelements.com", "en.wikipedia.org",
+  "streamelements.com", "en.wikipedia.org", "discord.gg",
 ];
 
 // Loaded once the app is ready: before that, Windows and Linux can't read the keychain.
@@ -976,8 +976,19 @@ handle("install-update", () => {
   app.quit();
 });
 
-handle("report-problem", () =>
-  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+/** The facts that went out to the overlay, for a report: from the server, or its file when the server isn't running. */
+async function airedFacts(): Promise<AiredFact[]> {
+  const fromServer = await control("aired");
+  if (fromServer) return airedFrom(fromServer);
+  try {
+    return airedFrom(JSON.parse(fs.readFileSync(path.join(DATA, "aired-facts.json"), "utf8")));
+  } catch {
+    return [];
+  }
+}
+
+handle("report-problem", async () =>
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 handle("report-beta", () =>
   openExternal(
@@ -993,16 +1004,17 @@ handle("report-beta", () =>
   )
 );
 /** The same reports, as text to paste anywhere: no GitHub account needed. */
-handle("copy-report", (_e, kind: unknown) => {
+handle("copy-report", async (_e, kind: unknown) => {
   const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
+  const aired = kind === "beta" ? [] : await airedFacts();
   clipboard.writeText(
     kind === "beta"
       ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource, nowPlayingPreset: settings.nowPlayingPreset })
-      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai })
+      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai, aired })
   );
 });
-handle("report-fact", (_e, song: string, fact: string) =>
-  openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings) }))
+handle("report-fact", async (_e, song: string, fact: string) =>
+  openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 
 // --- Lifecycle -----------------------------------------------------------

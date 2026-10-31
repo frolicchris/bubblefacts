@@ -840,6 +840,42 @@ td {
   color: var(--muted);
 }
 
+@media (max-width: 639px) {
+  table.stack-phone,
+  .stack-phone tbody,
+  .stack-phone tr,
+  .stack-phone th,
+  .stack-phone td {
+    display: block;
+  }
+  table.stack-phone {
+    min-width: 0;
+  }
+  .stack-phone thead {
+    display: none;
+  }
+  .stack-phone tr {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .stack-phone tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .stack-phone th,
+  .stack-phone td {
+    padding: 0.4rem 1rem;
+    border-bottom: 0;
+  }
+  .stack-phone td:nth-of-type(1)::before {
+    content: "Likely reason: ";
+    color: #ffffff;
+  }
+  .stack-phone td:nth-of-type(2)::before {
+    content: "What to do: ";
+    color: #ffffff;
+  }
+}
+
 /* ---------- Privacy ---------- */
 
 .privacy-list {

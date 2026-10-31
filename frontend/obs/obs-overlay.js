@@ -1,15 +1,15 @@
 /* BubbleFacts
  * ====================
  *
- * v2.1.0-beta.2
+ * v2.1.0
  *
  *  <https://github.com/frolicchris/bubblefacts>
  *
  * Help
  * ----
  *
- *  Questions, bug reports and wrong facts: open an issue or ask in
- *  Discussions on the page above.
+ *  Bug reports and wrong facts: open an issue on the page above.
+ *  Questions: #help on the BubbleFacts Discord, https://discord.gg/3YS3eWkWrW
  *
  * Setup
  * -----

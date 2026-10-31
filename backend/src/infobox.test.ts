@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { groundingTimeoutMs: 5000, topic: "general" } }));
 
-import { alreadySaid, boxBacksPlace, boxBacksYear, boxMisfit, boxProducers, boxWriters, earliestYear, factsFromInfobox, infoboxFacts, items, parseInfobox, sameCredits, valuesIn } from "./infobox";
+import { alreadySaid, boxBacksPlace, boxBacksYear, boxMisfit, PLATFORM_TAG, boxProducers, boxWriters, earliestYear, factsFromInfobox, infoboxFacts, items, parseInfobox, sameCredits, valuesIn } from "./infobox";
 
 const texts = (page: string, wikitext: string) => {
   const box = parseInfobox(wikitext);
@@ -152,6 +152,14 @@ describe("data facts only from the requested work (#256)", () => {
     expect(boxMisfit(box("Moon Garden Sound Collection", "Various artists"), request)).toMatch(/Moon Garden/);
     expect(boxMisfit(box("Star Orchard 2 Original Soundtrack", "Various artists"), request)).toBe("");
     expect(boxMisfit(box("Night Ferry", "Moth Choir"), { game: "Moth Choir", titles: ["Paper Lantern"] })).toBe("");
+  });
+
+  it("takes nothing from a film's soundtrack album for a game's track of the same name", () => {
+    const film = about("Glass Comet (soundtrack)", `{{Infobox album\n| name = Glass Comet: Original Motion Picture Soundtrack\n| type = soundtrack\n| artist = Ada Penn\n| released = 1987\n}}`);
+    expect(boxMisfit(film, { game: "Glass Comet", titles: ["Title"], gameTrack: true })).toMatch(/film's or a show's soundtrack/);
+    expect(boxMisfit(film, { game: "Glass Comet", titles: ["Title"] })).toBe("");
+    expect(PLATFORM_TAG.test("Glass Comet (GB)")).toBe(true);
+    expect(PLATFORM_TAG.test("Glass Comet (Live)")).toBe(false);
   });
 
   it("takes nothing from a song's infobox under another title", () => {

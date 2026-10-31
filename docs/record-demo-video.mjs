@@ -1,26 +1,26 @@
 // Records site/assets/demo.mp4 from the real overlay (frontend/obs), not a mock-up.
-// A stand-in server sends one song and three facts; Playwright's fake clock drives the
+// A stand-in server sends one song and two facts; Playwright's fake clock drives the
 // overlay's timers and every CSS animation is seeked to the same clock, so each frame
 // is exactly 1/30 s apart. Needs Playwright and ffmpeg, which are not project dependencies:
-//   npm install --no-save playwright && node docs/record-demo-video.mjs frontend/obs/obs-overlay.html BACKDROP.jpg /tmp/frames 15
+//   npm install --no-save playwright && node docs/record-demo-video.mjs frontend/obs/obs-overlay.html BACKDROP.jpg /tmp/frames 20
 //   ffmpeg -framerate 30 -i /tmp/frames/f%04d.png -c:v libx264 -preset slow -crf 24 -pix_fmt yuv420p -movflags +faststart site/assets/demo.mp4
 // BACKDROP is a 1600x900 image behind the bubbles. The site clip uses a plain dark navy glow, so the example
 // shows BubbleFacts rather than any one streamer.
-// The facts are the same source-checked ones the earlier still image showed.
+// The facts are the same source-checked ones the earlier still image showed. They show one at a time, for as long
+// as the overlay keeps a fact of that length up, and at a large bubble size so the clip reads on a phone.
 import { chromium } from 'playwright';
 import { mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const [overlayArg, bgArg, out, seconds = '15'] = process.argv.slice(2);
+const [overlayArg, bgArg, out, seconds = '20'] = process.argv.slice(2);
 const overlay = resolve(overlayArg), bg = resolve(bgArg);
 const FPS = 30, W = 1600, H = 900;
 rmSync(out, { recursive: true, force: true }); mkdirSync(out, { recursive: true });
 
 const song = { title: 'Song of Storms', artist: 'The Legend of Zelda: Ocarina of Time' };
 const facts = [
-	{ text: 'Koji Kondo wrote The Legend of Zelda’s overworld theme within a day, after learning Ravel’s “Boléro” wasn’t yet public domain in Japan.', delaySeconds: 0.6, durationSeconds: 8, position: { top: '9%', left: '33%' } },
-	{ text: 'In Ocarina of Time, Link learns the Song of Storms from a man in Kakariko Village’s windmill.', delaySeconds: 3.2, durationSeconds: 7, position: { top: '40%', left: '9%' } },
-	{ text: 'Ocarina of Time was released in 1998 for the Nintendo 64.', delaySeconds: 5.6, durationSeconds: 6, position: { top: '63%', left: '42%' } },
+	{ text: 'Koji Kondo wrote The Legend of Zelda’s overworld theme within a day, after learning Ravel’s “Boléro” wasn’t yet public domain in Japan.', delaySeconds: 0.6, durationSeconds: 8, position: { top: '16%', left: '18%' } },
+	{ text: 'In Ocarina of Time, Link learns the Song of Storms from a man in Kakariko Village’s windmill.', delaySeconds: 11, durationSeconds: 7, position: { top: '20%', left: '18%' } },
 ];
 
 const browser = await chromium.launch();
@@ -41,7 +41,7 @@ await page.addInitScript(({ song, facts }) => {
 await page.clock.install({ time: 0 });
 await page.clock.pauseAt(1000);
 await page.goto('file://' + overlay);
-await page.addStyleTag({ content: `html{background:#0b0d1a url("file://${bg}") center/cover no-repeat}#connection-status{display:none}` });
+await page.addStyleTag({ content: `html{background:#0b0d1a url("file://${bg}") center/cover no-repeat}#connection-status{display:none}:root{--bf-scale:2.2;--toast-font-size:calc(1.944vh * 1.6)}` });
 await page.evaluate(() => {
 	const started = new WeakMap();
 	window.__sync = (now) => {

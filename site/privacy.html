@@ -7,6 +7,8 @@
   <meta name="description" content="What BubbleFacts sends where, in plain words. It runs on your computer and sends nothing to the project.">
   <link rel="canonical" href="https://bubblefacts.frolic.org/privacy.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#07071a">
 
   <meta property="og:type" content="article">
@@ -24,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.2">
-  <script src="assets/site.js?v=2.1.0-beta.2" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0">
+  <script src="assets/site.js?v=2.1.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -51,7 +53,7 @@
         <p class="eyebrow">Privacy</p>
         <h1>Your data, in plain words</h1>
         <div class="rpg has-cursor" style="margin-bottom:2.5rem">
-          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to your song request service (StreamerSongList or StreamElements), to Wikipedia, Wikidata and MusicBrainz to look songs up, and to an online AI only if you choose one. Nothing is sent to this project.</p>
+          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to the song list service you connect (StreamerSongList or StreamElements), to a file your music app writes, if you use one, to Wikipedia, Wikidata and MusicBrainz to look songs up, to Hugging Face once to download the built-in AI, to GitHub to check for updates, to Twitch or YouTube only in the cases below, and to an online AI only if you choose one. Nothing is sent to this project.</p>
         </div>
 
         <ul class="privacy-list">
@@ -61,7 +63,7 @@
           </li>
           <li>
             <h2>Your settings stay on your computer</h2>
-            <p>Your settings are saved in the app's folder on your computer, along with the facts you add for particular songs, the sources you've marked <span class="ui">Wrong</span>, and the facts your current stream has shown (so a restart doesn't repeat them). They stay on your computer. A backup you make with <span class="ui">Back up…</span> holds your settings and facts, never your sign-in, your keys or which AI you use, and goes only where you save it. Your StreamerSongList sign-in (or token), your StreamElements JWT token, your Twitch connection if you made one, and any API keys are encrypted using your system's keychain, the same secure storage your computer uses for its own passwords. On Linux that needs a keyring such as GNOME Keyring or KWallet; without one, they're saved without real encryption, and the app warns you.</p>
+            <p>Your settings are saved in the app's folder on your computer, along with the facts you add for particular songs, the sources you've marked <span class="ui">Wrong</span>, the facts your current stream has shown (so a restart doesn't repeat them), and a list of the last 500 facts shown on your overlay, so a report can say exactly which fact it means. They stay on your computer. A backup you make with <span class="ui">Back up…</span> holds your settings and facts, never your sign-in, your keys or which AI you use, and goes only where you save it. Your StreamerSongList sign-in (or token), your StreamElements JWT token, your Twitch connection if you made one, and any API keys are encrypted using your system's keychain, the same secure storage your computer uses for its own passwords. On Linux that needs a keyring such as GNOME Keyring or KWallet; without one, they're saved without real encryption, and the app warns you.</p>
           </li>
           <li>
             <h2>StreamerSongList</h2>
@@ -72,8 +74,12 @@
             <p>If you use StreamElements instead, the app uses your JWT token and channel name to ask StreamElements which song request is playing, and to get told when it changes. You copy the token from your StreamElements dashboard yourself.</p>
           </li>
           <li>
+            <h2>A now playing file</h2>
+            <p>If you follow a now playing file (Streamling, Nightbot's desktop app, or another app's), BubbleFacts only reads that file on your computer. Nothing is sent to anyone to do that. The song it holds is then looked up like any other (next).</p>
+          </li>
+          <li>
             <h2>Wikipedia, Wikidata and MusicBrainz</h2>
-            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song. When Wikipedia has no article, the same names are sent to Wikidata, then MusicBrainz, two public music databases.</p>
+            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song, and to Wikidata and MusicBrainz, two public music databases, for plain facts such as the year and the album. For a classical piece, the composer, catalog number or nickname from the title also go to Wikidata, to find the piece. Like any website, they see your computer's internet address. Nothing else about you or your stream is sent. A note in a song's title or artist naming who commissioned or requested it is left out of every lookup: that viewer's name is never searched, sent to an AI or written to the log.</p>
           </li>
           <li>
             <h2>Twitch (only if you connect it)</h2>
@@ -94,7 +100,7 @@
           </li>
           <li id="reports">
             <h2>Problem reports only happen when you click</h2>
-            <p>A report is only created when you click <span class="ui">Report it (opens GitHub)</span> after marking a fact <span class="ui">Wrong</span>, or <span class="ui">Report a problem</span>. It opens GitHub in your browser with the report already filled in, so GitHub receives those details when the page opens: things like the song, the fact, the app version, your system and recent log lines. Your token is removed. Clicking <span class="ui">Wrong</span> on its own sends nothing: BubbleFacts just remembers it on your computer. <span class="ui">Copy report</span> sends nothing either: it puts the same report, token removed, on your clipboard, and it goes only where you paste it.</p>
+            <p>A report is only created when you click <span class="ui">Report it (opens GitHub)</span> after marking a fact <span class="ui">Wrong</span>, or <span class="ui">Report a problem</span>. It opens GitHub in your browser with the report already filled in, so GitHub receives those details when the page opens: things like the song, the fact, the app version, your system, recent log lines and the facts shown recently. Your token is removed. Clicking <span class="ui">Wrong</span> on its own sends nothing: BubbleFacts just remembers it on your computer. <span class="ui">Copy report</span> sends nothing either: it puts the same report, token removed, on your clipboard, and it goes only where you paste it.</p>
             <p>Nothing is posted until you click <span class="ui">Create</span>. If you do, it's posted on GitHub <strong>publicly, under your own GitHub account</strong>, where anyone can see it. Edit out anything you don't want to share before you submit.</p>
           </li>
           <li>
@@ -103,7 +109,7 @@
           </li>
         </ul>
 
-        <p>Questions? Ask in the <a href="https://github.com/frolicchris/bubblefacts/discussions/categories/q-a">Q&amp;A on GitHub Discussions</a>. The app is open source, so anyone can check what it does on <a href="https://github.com/frolicchris/bubblefacts">GitHub</a>.</p>
+        <p>Questions? Ask in <a href="https://discord.gg/3YS3eWkWrW">#help on the BubbleFacts Discord</a>. The app is open source, so anyone can check what it does on <a href="https://github.com/frolicchris/bubblefacts">GitHub</a>.</p>
       </div>
     </section>
   </main>
@@ -113,7 +119,6 @@
       <nav aria-label="Site">
       <ul class="footer-links">
         <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
-        <li><a href="https://github.com/frolicchris/bubblefacts/discussions">Discussions</a></li>
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
         <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -121,6 +126,8 @@
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
         <li><a href="support.html">Help and support</a></li>
+        <li><a href="https://discord.gg/3YS3eWkWrW">Discord</a></li>
+        <li><a href="mailto:bubblefacts@frolic.org">Email BubbleFacts</a></li>
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="credits.html">Credits and licenses</a></li>
         <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
@@ -128,7 +135,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>, or with High quality, Meta's Llama 3.1, used under the <a href="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.</p>
     </div>
   </footer>
 </body>

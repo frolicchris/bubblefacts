@@ -45,6 +45,7 @@ import {
   clearGroundingCache,
   readings,
   lookupForm,
+  workFromTitle,
   isRespelling,
   isSameWorkRedirect,
   editDistance,
@@ -1056,6 +1057,47 @@ describe("lookupForm (issue #186)", () => {
     const song = { title: "Glass Anthem (1979)", artist: "Velvet Foxes (Australian)", performer: true };
     expect(lookupForm(song)).toEqual({ title: "Glass Anthem", artist: "Velvet Foxes", performer: true });
     expect(song.title).toBe("Glass Anthem (1979)");
+  });
+});
+
+describe("a song list's notes in the title and the artist field", () => {
+  it("reads the work a song is from, bracketed or after \"from\", as the work, the way a game in the artist field is", () => {
+    expect(workFromTitle("Lantern Song (from The Paper Harbor)")).toEqual({ track: "Lantern Song", work: "The Paper Harbor" });
+    expect(workFromTitle('Lantern Song (From "Paper Harbor")')).toEqual({ track: "Lantern Song", work: "Paper Harbor" });
+    expect(workFromTitle("Lantern Song (from Kiki's  Paper Harbor)")).toEqual({ track: "Lantern Song", work: "Kiki's Paper Harbor" });
+    expect(workFromTitle("Lantern Song from Pirates of the Paper Harbor")).toEqual({ track: "Lantern Song", work: "Pirates of the Paper Harbor" });
+    const read = readings({ title: "Lantern Song (from The Paper Harbor)", artist: "Wren Halloway & Ivo Marsh" });
+    // The song's own article under the work first; the song as listed after.
+    expect(read.map((r) => [r.game, r.track, !!r.trackOnly])).toEqual([
+      ["The Paper Harbor", "Lantern Song", true],
+      ["Wren Halloway & Ivo Marsh", "Lantern Song (from The Paper Harbor)", false],
+    ]);
+    expect(readings({ title: "Lantern Song from Pirates of the Paper Harbor", artist: "Ivo Marsh" })[0]).toMatchObject({ game: "Pirates of the Paper Harbor", track: "Lantern Song", trackOnly: true });
+    expect(readings({ title: "Pennies from Heaven", artist: "Ivo Marsh" })).toHaveLength(1);
+    expect(lookupForm({ title: "Lantern Song (from The Paper Harbor)", artist: "Wren Halloway" })?.title).toBe("Lantern Song");
+    expect(lookupForm({ title: "Lantern Song from Pirates of the Paper Harbor", artist: "Wren Halloway" })?.title).toBe("Lantern Song");
+  });
+
+  it("keeps titles that hold \"from\" as part of their name", () => {
+    for (const title of ["Pennies from Heaven", "The Girl From Ipanema", "Letter from the Harbor", "Theme from Paper Harbor", "Main Theme (from Paper Harbor)"]) {
+      expect(workFromTitle(title)).toBeNull();
+      expect(lookupForm({ title, artist: "Wren Halloway" })).toBeNull();
+    }
+  });
+
+  it("drops an arranger from the title or the artist, keeping the composer or the work", () => {
+    expect(lookupForm({ title: "Lantern Song arr. Ivo Marsh", artist: "The Paper Harbor" })).toEqual({ title: "Lantern Song", artist: "The Paper Harbor" });
+    expect(lookupForm({ title: "Lantern Song arranged by Ivo Marsh", artist: "The Paper Harbor" })?.title).toBe("Lantern Song");
+    expect(lookupForm({ title: "Lantern Song", artist: "The Paper Harbor arr. Ivo Marsh" })?.artist).toBe("The Paper Harbor");
+    expect(lookupForm({ title: "Lantern Song", artist: "Ivo Marsh (arr) Wren Halloway (composer)" })?.artist).toBe("Wren Halloway");
+    expect(lookupForm({ title: "Lantern Song", artist: "Ivo Marsh (arr.) Wren Halloway" })?.artist).toBe("Wren Halloway");
+    expect(lookupForm({ title: "Arrival", artist: "Arrow Harbor" })).toBeNull();
+  });
+
+  it("drops a track number before the title, never a number that is the title's own", () => {
+    expect(lookupForm({ title: "14. Lantern Song", artist: "Paper Harbor Piano Collections" })?.title).toBe("Lantern Song");
+    expect(lookupForm({ title: "1. Lantern Song (Wren's Theme)", artist: "Paper Harbor Piano Collections" })?.title).toBe("Lantern Song (Wren's Theme)");
+    for (const title of ["1979", "7 AM", "5 PM", "99 Luftballons", "1. 2. 3."]) expect(lookupForm({ title, artist: "Wren Halloway" })).toBeNull();
   });
 });
 

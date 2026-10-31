@@ -1,5 +1,7 @@
 # How it works
 
+*Current as of 2.1.0 (October 2026).*
+
 This is for anyone changing the code. It explains how a song becomes fact
 bubbles, and why the less obvious parts are the way they are. Each of those
 decisions came from something going wrong on a live stream, so please read
@@ -23,8 +25,8 @@ the relevant section before changing it.
 
 ```
 StreamerSongList ─┐ REST + live events                 WebSocket
-StreamElements ───┴──────────────► Server ──────────────────────► Overlay in OBS
-                                     │
+StreamElements ───┤──────────────► Server ──────────────────────► Overlay in OBS
+Now playing file ─┘ reads the file   │
    song facts → Wikipedia → AI → screen → Wikidata / MusicBrainz → custom facts
 ```
 
@@ -38,7 +40,8 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/source-polling.ts` | What the two web clients share: Retry-After backoff, one fetch at a time, debounce, the polling loop. |
 | `backend/src/streamelements-client.ts` | StreamElements: reads the song request player and works out what's playing. |
 | `backend/src/astro-client.ts` | StreamElements' live song request events. |
-| `backend/src/now-playing-file.ts` | A text file a now-playing app (such as Streamling) keeps up to date. |
+| `backend/src/now-playing-file.ts` | A text file a now-playing app (Streamling, Nightbot or another) keeps up to date. |
+| `backend/src/now-playing-folder.ts` | Where a preset's folder is: `Documents`, or the same folder in OneDrive. |
 | `backend/src/youtube-title.ts` | Reads a song and artist out of a YouTube video title. |
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
@@ -46,7 +49,11 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/content-standard.ts` | The content standard's word lists: what no article sentence, caption or data fact may say. |
 | `backend/src/wiki-html.ts` | An older article version's HTML as plain text, for the 72-hour rule. |
 | `backend/src/list-profile.ts` | How one streamer writes their song list (a dash or brackets for the game), worked out from the list itself. |
-| `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts when there's no article about the song. |
+| `backend/src/wikidata.ts`, `backend/src/musicbrainz.ts` | Structured facts from data: the song's year, album and credits, an artist's basics, classical pieces, and a missing artist for a bare title. |
+| `backend/src/data-facts.ts` | Packs those facts into as few bubbles as fit (a song's year and album as one). |
+| `backend/src/infobox.ts` | Facts from the article's own infobox, used only when it describes the requested work. |
+| `backend/src/fact-ranking.ts` | Which of the captions and data facts are shown, and in what order. |
+| `backend/src/credit.ts` | The credit bubble that says where the facts come from. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
@@ -54,6 +61,7 @@ StreamElements ───┴──────────────► Server 
 | `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. |
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
+| `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -211,6 +219,14 @@ sign-ins and the built-in AI. Its design decisions are in
    original's release, charts, sales, video and the band's own doings
    (`originalsRecord`; `COVER_SCOPE=off` turns it off), and of the infobox
    facts only who wrote it is kept: the rest would read as the cover's.
+   An infobox that names another artist counts as a cover for its facts.
+   The other way around, a song's own article is read without sections on
+   one other performer's version or lines on a version's charts
+   (`otherVersionsRecord`); a plain "covered by" line stays, since it's true
+   of the song. A film that only uses the song's name gets no AI captions,
+   and neither does an act that shares the name when MusicBrainz credits the
+   song to someone else (`anotherArtist`, comparing the recording's artist
+   with the article's Wikidata item; unknown on either side keeps the article).
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
@@ -354,7 +370,8 @@ sign-ins and the built-in AI. Its design decisions are in
 8. **Structured facts.** With no article, `wikidata.ts`, then `musicbrainz.ts`,
    fill fixed sentences, with no AI and so no screening but the content standard. When the article is
    the artist's or the game's rather than the song's, structured facts about
-   the song go before the AI's captions. When the article may be about another
+   the song go before the AI's captions, and so they do when the article is
+   surely the song's own. When the article may be about another
    work, they are all that is shown (see "Is it the requested work?").
 9. **Fall back if needed.** No source, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus custom
@@ -441,6 +458,20 @@ Why these: on judged runs, captions from the lead were about 5% wrong and
 those from the body about 13%, and release and sales sentences were both the
 dullest and the most often wrong, so accuracy and fun mostly pull the same way.
 
+### The credit bubble
+
+One extra bubble tells viewers where the facts come from and that they may be
+wrong ("Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a
+mistake? Let the streamer know."; `credit.ts`, issue #278, `CREDIT_BUBBLE=off`
+hides it). It goes out before the first song's facts after BubbleFacts starts,
+then with about every 5th song that has facts (`CreditCounter`), and the
+song's facts start after it. A song with no facts, bubbles paused, no overlay
+connected, or a test bubble in the last 20 seconds doesn't use up a turn. The
+credit is only sent to the overlay, never put in the song's record, so **Wrong**,
+the dashboard and the shown log never see it, and an overlay that reloads
+mid-song isn't given it again. The count is kept in `session.json`, so a
+restart in the middle of a stream carries on.
+
 ### The content standard
 
 "About the music. Safe for any stream." A bubble never says what a polite
@@ -497,6 +528,13 @@ Issue #262's rules, for when a fact must not be shown at all:
   line, no report. The overlay's banner and the dashboard show the song as
   listed. `songKey` leaves it out too, and Wrong marks saved with one are still
   found. A handle ("Jane (@janeplayskeys)") is not a note.
+- **Who asked or paid for a song** ("Some Band, Commissioned by Name", "Some
+  Song (requested by Name)", "Some Band, for Name") is a viewer's name, so it
+  goes before anything else sees the song: `toSong` drops it from the title
+  and the artist (`withoutRequestCredit` in `text.ts`), `withoutArtistNote`
+  drops it with the note, and `fetchGrounding` drops it again at the lookup.
+  It is never searched, prompted, shown or logged. "For" counts only after a
+  separator in the artist field: "Tears for Fears" stays whole.
 - **No facts for this song** and **No facts for this artist** (`noFacts`,
   `noArtistFacts` in `song-facts.json`) leave only the streamer's own facts:
   their facts for the song and their tagged custom facts. `generateFacts`
@@ -568,6 +606,22 @@ otherwise match the general article about overtures. More rules in
   articles don't, the search asks for "`<name>` band", and an article with no
   label in brackets must open like one about a performer ("Milestone" the
   road marker doesn't).
+- **A show as the artist gives its music, never just its name.** When the
+  artist field is a film's or a show's name and no performer has that name
+  on Wikipedia, the show's article is skipped unless it names the track. Its
+  own music article ("Music of Some Show", "Some Show (soundtrack)") is taken
+  only when its text or one of its track listings names the track
+  (`listingMusicArticle`). A performer's article under the name still wins,
+  and one taken in place of the search's page ("Some Name" to "Aurelio Some
+  Name") is never read as a longer-named installment.
+- **"Some Name Theme" can be the music of "Some Name".** Only when every
+  reading and MusicBrainz's link missed, the name has two words or more, and
+  no performer has the artist's name (`themeGrounding`): the article under
+  exactly that name, if it isn't a person's (no life dates in its lead, not a
+  human on Wikidata) and has a section on its own music ("Song", "Music",
+  "Theme song") with a music word in its lead. Only its lead and those
+  sections are read, so facts come from the work and its music. The artist
+  may be an arranger the article never names.
 - **For an artist, the song's own article wins** over the artist's, wherever
   it ranks ("Industry Baby" over "Lil Nas X"). A song article only has to
   mention the lead artist of a multi-artist credit.
@@ -589,6 +643,18 @@ other ways to read one, each checked by all the rules above:
   video game. A title with a name in brackets gets no series article: it may
   be from another game ("Aquatic Ambiance (Donkey Kong Country)").
 - **An arranger** ("Elton John arr. Brent Edstrom"): the name alone.
+- **A list's own notes**, tried after the song as listed (`lookupForm`):
+  brackets after the artist, a year or "feat." tag in the title, a track
+  number before it ("14. Some Song", never "1979" or "7 AM"), an arranger
+  after it ("Some Song arr. Some Pianist"), and an arranger's mark between
+  names ("Some Pianist (arr) Some Composer" is the composer's piece).
+- **The work a song is from** in the title ("Some Song (from Some Show)",
+  "Some Song from Some Long Show"): the show is the work, as a game in the
+  artist field is, and only the song's own article counts (`workFromTitle`).
+  This reading goes first: the usual one would take the composer's article
+  before trying it.
+  Without brackets the work needs two capitalized words, so "Pennies from
+  Heaven" stays whole; "Theme from Some Show" is left to the theme rule.
 - **Several names** joined by "/", " - ", " x " or "ft." ("Frederic
   Chopin/Arranger", "Queen - David Bowie", "Titanic - Celine Dion"), the
   main name not always first: the song's own article under each name first,
@@ -716,6 +782,9 @@ work is found there:
   written (E-flat, Eb, E♭, C#), and a movement ("3rd Movement", "2nd mvt",
   "I. Allegro"), kept as a hint for which section to read first, never
   searched. A bare "Prelude" or "Nocturne" names no one work and is skipped.
+  One bracket may hold it all, "(op. 3, no. 1, "Elegie")": the nickname left
+  once the numbers are out is another name for the piece, without its quotes,
+  and "from Some Suite" in it is the set the piece is from, not a name for it.
 - A composer's works are searched with the composer (P86), so a nickname in
   the item's aliases or P1449 finds the work. Only an item whose names hold the
   request's words, with every number it gives and the same key, counts: the
@@ -811,6 +880,16 @@ overlay's catch-up), not where they're written, so a skipped, paused or
 superseded song's facts aren't in it. Each fact is logged once per play of a
 song, however many overlays get it (`shown-log.ts`); nothing is logged while
 no overlay is connected, and the first one to connect gets them, logged then.
+
+The same facts go into `aired-facts.json` in the data folder
+(`aired-facts.ts`): the song, the fact, its source and link, and when it
+went out, newest 500, written whole each time like `session.json`. The app
+reads it through `/control/aired` (or the file, when the server isn't
+running) so reports don't depend on the log: a **Wrong** report gets the
+exact fact with its source and time, plus the other facts from that play of
+the song, and **Report a problem** gets the latest ten after the log. Secrets
+are removed from them like the log, and when the web address is too long the
+log is trimmed before them.
 
 ### What gets remembered between songs?
 
@@ -932,9 +1011,11 @@ apps that write the playing song into one text file:
   wouldn't help. Logs name the file, never its folder, which holds the
   computer's user name.
 - Presets (`NOW_PLAYING_PRESETS` in `config.ts`) give the folder; a name or
-  relative `NOW_PLAYING_FILE` is found in it. Streamling's page names its
-  folder (`Documents\streamling\livetext`) but not the file or its line
-  format, so the file name stays a setting until a real one is checked.
+  relative `NOW_PLAYING_FILE` is found in it. Streamling's is
+  `Documents\streamling\livetext\nowplaying-minimal.txt`, the file its author
+  recommends: one "Artist - Song" line, though it can also be a YouTube
+  title ("Song - Official Music Video"), so the preset reads it as one
+  (`youtube-title`), as Nightbot's is read.
 - Preset folders are looked up by `presetFolder` (`now-playing-folder.ts`):
   `~/Documents/<folder>` first, then `Documents/<folder>` in each of the
   `OneDrive`, `OneDriveConsumer` and `OneDriveCommercial` folders the computer
@@ -967,8 +1048,11 @@ request's YouTube title and channel. `parseVideoTitle(title, channel)`:
 
 1. drops hashtags and label brackets ("(Official Video)", "[4K]", "ft. X",
    also in Spanish, Portuguese, French and German), labels that name the
-   artist or the song too ("(Some Band Official Music Video)"), and variant
-   brackets ("(Live)", "(Remix)");
+   artist or the song too ("(Some Band Official Music Video)"), variant
+   brackets ("(Live)", "(Remix)"), and a later segment that names where it was
+   performed, not the song (a late-night show, "Tiny Desk", "SNL", "Live
+   on/at/from ..."; `PERFORMANCE_SEGMENT`, whole segments only, so "Tonight"
+   and "Live Forever" stay songs);
 2. reads the work from "(From "Frozen")", "(... OST)", "| Game of Thrones" or a
    "Series: Subtitle" bracket, and the artist from "(by X)";
 3. splits "Artist - Song" on a spaced dash, `~`, ` / ` or ` // ` (never
@@ -980,7 +1064,10 @@ request's YouTube title and channel. `parseVideoTitle(title, channel)`:
    one search for both orders, cached, through the paced queue, waiting at
    most 1.5 s before the song change) and turn the reading round only when
    MusicBrainz has the other order's recording and not this one's;
-4. otherwise tries `Artist "Song"`, `X's "Song"` and "A x B";
+4. otherwise tries `Artist "Song"`, `X's "Song"`, "A x B" and, when nothing
+   else named the artist, `Artist_Song` (`underscoreSplit`: one underscore,
+   words on both sides, neither starting in lowercase; never a filename, a
+   slug, a username, or a "requested by dana_k" note);
 5. falls back to the uploader's channel, trusted only when official
    ("CiaraVEVO", "Ciara - Topic").
 
@@ -1010,9 +1097,11 @@ or when a lookup fails, the title is parsed as usual.
 
 ### Where structured facts come from
 
-Both run only with no AI or no article about the song itself, need no AI and
-no screening, and are skipped for a song whose structured facts were marked
-**Wrong**.
+Both need no AI and no screening beyond the content standard, and are skipped
+for a song whose structured facts were marked **Wrong**. They are the facts
+when there's no article about the song itself, and they also go out ahead of
+the AI's captions when the article is about the artist or game, or surely the
+song's own (see "Data first, captions later" below).
 
 - **Wikidata** (`wikidata.ts`). `wbsearchentities` in the title's own
   language (`searchLanguages`: Japanese, Korean or Russian when the title is in
@@ -1224,6 +1313,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/wrong`, `/control/unwrong` | **Wrong** and **Undo** (above). |
 | `/control/wrong-current` | **Hands-free Wrong** (above): the bubble on stream now, or the one shown last for this song. |
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts of up to 300 characters, 5 songwriters, a 200-character link). Over a limit, the save is refused with `error`, a reason the editor shows; nothing is trimmed. Answers as soon as it's saved (the app waits 3 seconds at most), then shows them if the song is still on. |
+| `/control/facts-off` | **No facts for this song** and **No facts for this artist**, in the editor and one click each under **Earlier songs**. Saves the switch, forgets the song's cached facts and, for the song on now, takes the found bubbles off (the streamer's own stay). |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
@@ -1267,6 +1357,8 @@ folder; `data/` for the command-line version):
 - `wrong-facts.json`: sources marked **Wrong** (above).
 - `session.json`: the song that was showing, its facts, when they went out,
   and recent facts (see "What gets remembered between songs?").
+- `wrong-log.jsonl`: one line per **Wrong** press, the newest 500 (see the
+  file table above).
 
 These, `settings.json` and backups are written to a temporary file beside
 them that then replaces the old one (`atomic-write.ts`, one copy for the
