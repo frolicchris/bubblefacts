@@ -519,6 +519,13 @@ Issue #262's rules, for when a fact must not be shown at all:
   line, no report. The overlay's banner and the dashboard show the song as
   listed. `songKey` leaves it out too, and Wrong marks saved with one are still
   found. A handle ("Jane (@janeplayskeys)") is not a note.
+- **Who asked or paid for a song** ("Some Band, Commissioned by Name", "Some
+  Song (requested by Name)", "Some Band, for Name") is a viewer's name, so it
+  goes before anything else sees the song: `toSong` drops it from the title
+  and the artist (`withoutRequestCredit` in `text.ts`), `withoutArtistNote`
+  drops it with the note, and `fetchGrounding` drops it again at the lookup.
+  It is never searched, prompted, shown or logged. "For" counts only after a
+  separator in the artist field: "Tears for Fears" stays whole.
 - **No facts for this song** and **No facts for this artist** (`noFacts`,
   `noArtistFacts` in `song-facts.json`) leave only the streamer's own facts:
   their facts for the song and their tagged custom facts. `generateFacts`
@@ -611,6 +618,18 @@ other ways to read one, each checked by all the rules above:
   video game. A title with a name in brackets gets no series article: it may
   be from another game ("Aquatic Ambiance (Donkey Kong Country)").
 - **An arranger** ("Elton John arr. Brent Edstrom"): the name alone.
+- **A list's own notes**, tried after the song as listed (`lookupForm`):
+  brackets after the artist, a year or "feat." tag in the title, a track
+  number before it ("14. Some Song", never "1979" or "7 AM"), an arranger
+  after it ("Some Song arr. Some Pianist"), and an arranger's mark between
+  names ("Some Pianist (arr) Some Composer" is the composer's piece).
+- **The work a song is from** in the title ("Some Song (from Some Show)",
+  "Some Song from Some Long Show"): the show is the work, as a game in the
+  artist field is, and only the song's own article counts (`workFromTitle`).
+  This reading goes first: the usual one would take the composer's article
+  before trying it.
+  Without brackets the work needs two capitalized words, so "Pennies from
+  Heaven" stays whole; "Theme from Some Show" is left to the theme rule.
 - **Several names** joined by "/", " - ", " x " or "ft." ("Frederic
   Chopin/Arranger", "Queen - David Bowie", "Titanic - Celine Dion"), the
   main name not always first: the song's own article under each name first,
@@ -738,6 +757,9 @@ work is found there:
   written (E-flat, Eb, E♭, C#), and a movement ("3rd Movement", "2nd mvt",
   "I. Allegro"), kept as a hint for which section to read first, never
   searched. A bare "Prelude" or "Nocturne" names no one work and is skipped.
+  One bracket may hold it all, "(op. 3, no. 1, "Elegie")": the nickname left
+  once the numbers are out is another name for the piece, without its quotes,
+  and "from Some Suite" in it is the set the piece is from, not a name for it.
 - A composer's works are searched with the composer (P86), so a nickname in
   the item's aliases or P1449 finds the work. Only an item whose names hold the
   request's words, with every number it gives and the same key, counts: the

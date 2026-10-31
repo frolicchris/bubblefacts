@@ -156,6 +156,12 @@ function trimSeparators(s: string): string {
   return s.slice(start, end);
 }
 
+/** Without the quotation marks around it: '"Fantaisie-Impromptu"' is "Fantaisie-Impromptu". */
+function unquote(s: string): string {
+  const m = /^["“”](.*)["“”]$/.exec(s.trim());
+  return (m ? m[1] : s).trim();
+}
+
 export function parseClassicalTitle(title: string): ClassicalTitle {
   let t = ` ${title.trim()} `;
   let movement: ClassicalTitle["movement"] = null;
@@ -193,13 +199,18 @@ export function parseClassicalTitle(title: string): ClassicalTitle {
     }
   }
   const bracket = /^(.*?)\s*[([]([^)\]]+)[)\]]\s*$/.exec(t.trim());
-  const alias = bracket && !isVariantTag(bracket[2]) ? bracket[2].trim() : "";
-  if (bracket && alias) t = bracket[1];
-  const name = trimSeparators(
-    t
-      .replace(/\s*[([]\s*[)\]]\s*/g, " ")
-      .replace(/\s*,\s*(?:,\s*)+/g, ", ")
-      .replace(/\s+/g, " ")
+  // What's left in the brackets once the numbers are out: "(op. 3, no. 1, "Elegie")" names "Elegie";
+  // "(L. 75, no. 3, from Suite Bergamasque)" names only the set it's from, which is no other name for it.
+  const inner = bracket ? unquote(trimSeparators(bracket[2].replace(/(?:^|[\s,;:])from\s.*$/i, ""))) : "";
+  const alias = bracket && !isVariantTag(bracket[2]) ? inner : "";
+  if (bracket && (alias || !/[\p{L}\p{N}]/u.test(inner))) t = bracket[1];
+  const name = unquote(
+    trimSeparators(
+      t
+        .replace(/\s*[([]\s*[)\]]\s*/g, " ")
+        .replace(/\s*,\s*(?:,\s*)+/g, ", ")
+        .replace(/\s+/g, " ")
+    )
   );
   const classical = catalogs.length > 0 || !!key || !!movement || FORM_WORDS.test(name);
   return { name, alias, catalogs, numbers: [...new Set(numbers)], key, movement, classical };
@@ -2315,6 +2326,15 @@ function worksInTitle(franchise: string, title: string, notGame: boolean): Readi
  * - no one ("Traditional", "Italian Folk Song"): the title alone, as a song.
  */
 export function readings(song: SSLSong): Reading[] {
+  const out = listedReadings(song);
+  // "Some Song (from Some Show)": the song's own article under the show first. Only that article
+  // will do (`trackOnly`), so the usual reading still follows, and its performer's article with it.
+  const from = workFromTitle(dropVersionTags(song.title.trim()).replace(TITLE_ARRANGER, ""));
+  const at = from ? out.findIndex((r) => r.trackOnly && r.game === from.work && r.track === from.track) : -1;
+  return at > 0 ? [out[at], ...out.slice(0, at), ...out.slice(at + 1)] : out;
+}
+
+function listedReadings(song: SSLSong): Reading[] {
   const artist = song.artist?.trim() ?? "";
   const first = resolveGameAndTrack(song);
   if (song.performer || song.artistUncertain) return [first];
@@ -2365,6 +2385,31 @@ const YEAR_TAG = /\s*[([]\s*(?:19|20)\d\d\s*[)\]]/g;
 const FEATURED_TAG = /\s*[([]\s*(?:feat|ft|featuring)\b[^)\]]*[)\]]/gi;
 /** A note after the name, closed or not: "(Australian)", "(Cherokee/Irish)", "(LGBTQ+". */
 const TRAILING_NOTE = /\s*[([][^)\]]*(?:[)\]]|$)\s*$/;
+/** The work a song is from, in brackets: "(from Some Show)", "(From "Some Film")". */
+const FROM_TAG = /\s*[([]\s*from\s+["“'‘]?([^)\]]*?)["”'’]?\s*[)\]]/i;
+/**
+ * The work after "from" with no brackets: "Some Song from Some Long Show". Two capitalized words
+ * at least, so "Pennies from Heaven" and "The Girl from Ipanema" stay whole.
+ */
+const FROM_WORK = /^(.+?)\s+[Ff]rom\s+((?:the\s+)?\p{Lu}[\p{L}'’.]*(?:\s+(?:of|the|and|in|on|a|an|to|for|&|\p{Lu}[\p{L}'’.]*|\d+))*\s+\p{Lu}[\p{L}'’.]*(?:\s+\d+)?)\s*$/u;
+/** An arranger after the title: "Some Song arr. Some Pianist", "Some Song arranged by Some Pianist". */
+const TITLE_ARRANGER = /\s+(?:arr\.|arranged by|arrangement by)\s+\S.*$/i;
+/** A track number before the title: "14. Some Song". "1979", "7 AM" and "99 Luftballons" have no period after the number. */
+const TRACK_NUMBER = /^\d{1,3}\.\s+(?=\p{L})/u;
+/** An arranger's mark between two names: "Some Pianist (arr) Some Composer" is Some Composer's piece. */
+const ARRANGED_BY_FIRST = /^.*?\S\s*[([]\s*arr(?:\.|anged|anger)?\s*[)\]]\s*(\p{L}.*)$/iu;
+
+/** The work a title names after "from", bracketed or not, or "": "Some Song (from Some Show)" is from "Some Show". */
+export function workFromTitle(title: string): { track: string; work: string } | null {
+  const tag = FROM_TAG.exec(title);
+  const bare = tag ? null : FROM_WORK.exec(title.trim());
+  const found = tag
+    ? { track: (title.slice(0, tag.index) + title.slice(tag.index + tag[0].length)).trim(), work: tag[1].replace(/\s+/g, " ").trim() }
+    : bare && { track: bare[1].trim(), work: bare[2].trim() };
+  // "Theme from Some Show" names no piece of its own: the show's article is another rule's (themeOf).
+  if (!found || !found.track || !found.work || GENERIC_TRACK.test(normalizeTitle(found.track)) || /\btheme$/i.test(found.track)) return null;
+  return found;
+}
 
 /**
  * The song as a lookup can read it once a song list's own notes are dropped:
@@ -2379,7 +2424,13 @@ export function lookupForm(song: SSLSong): SSLSong | null {
   for (let m: RegExpExecArray | null; (m = TRAILING_NOTE.exec(artist)) && /\p{L}/u.test(artist.slice(0, m.index)); ) {
     artist = artist.slice(0, m.index).trim();
   }
-  const title = song.title.replace(YEAR_TAG, "").replace(FEATURED_TAG, "").trim();
+  // Who arranged it isn't who wrote it: "Some Show arr. Some Pianist", "Some Pianist (arr) Some Composer".
+  artist = ARRANGED_BY_FIRST.exec(artist)?.[1].trim() ?? artist;
+  if (/\p{L}/u.test(artist.replace(ARRANGER, ""))) artist = artist.replace(ARRANGER, "").trim();
+  let title = song.title.replace(YEAR_TAG, "").replace(FEATURED_TAG, "").trim();
+  // A list's own notes in the title: a track number, an arranger, the work it's from (another reading's job).
+  title = title.replace(TRACK_NUMBER, "").replace(TITLE_ARRANGER, "").trim();
+  title = workFromTitle(title)?.track ?? title;
   if (!/\p{L}|\p{N}/u.test(title.replace(/[()[\]]/g, "")) || (title === song.title.trim() && artist === (song.artist ?? "").trim())) return null;
   return { ...song, title, artist };
 }
@@ -2396,6 +2447,9 @@ export function lookupForm(song: SSLSong): SSLSong | null {
 function namedInTitle(title: string, first: { game: string; track: string }): Reading[] {
   // The usual reading already took the work from the title.
   if (first.track !== title) return [];
+  // "Some Song (from Some Show)", "Some Song from Some Long Show": the show is the work, as a game in the artist field is.
+  const from = workFromTitle(title.replace(TITLE_ARRANGER, ""));
+  if (from) return [{ game: from.work, track: from.track, trackOnly: true }];
   const bracket = /^(.+?)\s*\(([^)]+)\)$/.exec(title);
   if (bracket) return isVariantTag(bracket[2]) ? [] : [{ game: bracket[2].trim(), track: bracket[1].trim(), trackOnly: true }];
   const dash = /^(.+)\s[-–—]\s(.+)$/.exec(title);
