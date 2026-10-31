@@ -166,9 +166,9 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | `GROUNDING_EXTRACT_TIMEOUT_MS` | `15000` | How long to wait for the article itself, which can be large. |
 | `WIKIPEDIA_CONTACT` | this project's page | Wikipedia asks programs that use it to leave a contact. Set it to your channel or your copy of the project. |
 
-The content standard has no setting. Captions and facts from data never say
+The content standard has no setting. Captions and facts from data are filtered to leave out
 what isn't family-friendly or about the music (scandals, crime, threats,
-private life), or label who a person is, and an article edited in the last 72
+private life) or labels who a person is, and an article edited in the last 72
 hours is read as it was before. See
 [the content standard](ARCHITECTURE.md#the-content-standard).
 
