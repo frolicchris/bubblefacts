@@ -61,6 +61,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. |
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
+| `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -833,6 +834,16 @@ overlay's catch-up), not where they're written, so a skipped, paused or
 superseded song's facts aren't in it. Each fact is logged once per play of a
 song, however many overlays get it (`shown-log.ts`); nothing is logged while
 no overlay is connected, and the first one to connect gets them, logged then.
+
+The same facts go into `aired-facts.json` in the data folder
+(`aired-facts.ts`): the song, the fact, its source and link, and when it
+went out, newest 500, written whole each time like `session.json`. The app
+reads it through `/control/aired` (or the file, when the server isn't
+running) so reports don't depend on the log: a **Wrong** report gets the
+exact fact with its source and time, plus the other facts from that play of
+the song, and **Report a problem** gets the latest ten after the log. Secrets
+are removed from them like the log, and when the web address is too long the
+log is trimmed before them.
 
 ### What gets remembered between songs?
 

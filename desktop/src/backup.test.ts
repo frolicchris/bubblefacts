@@ -122,5 +122,6 @@ describe("the Wrong log in backups and in Remove my data", () => {
     for (const name of REMOVED_WITH_DATA) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
     expect(fs.existsSync(path.join(dir, "wrong-log.jsonl"))).toBe(false);
     expect(REMOVED_WITH_DATA).toContain("wrong-log.jsonl");
+    expect(REMOVED_WITH_DATA).toContain("aired-facts.json");
   });
 });
