@@ -51,7 +51,8 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
+import { RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE } from "./fact-generator";
+import { MAX_BUBBLES } from "./fact-ranking";
 import { blockedArticles, resetWrongFacts } from "./wrong-facts";
 import fs from "fs";
 import path from "path";
@@ -1202,6 +1203,113 @@ describe("no facts for this song, or for this artist (issue #262)", () => {
     expect(allowedFacts(glass, saved)).toEqual(saved);
     setFactsOff({ title: "Night Ferry", artist: "Wren Halloway" }, "artist", true);
     expect(allowedFacts(glass, saved).map((f) => f.text)).toEqual(["Wren wrote it on a porch."]);
+  });
+});
+
+describe("how long the AI took for a song (issue #314)", () => {
+  const ferry = { title: "Slow Ferry", artist: "Wren Halloway" };
+  const c = config as { factVerification: boolean };
+  const article = `Slow Ferry\nSlow Ferry is a song by Wren Halloway. ${MODEL_LINES}`;
+  let now = 1_000_000;
+  let clock: jest.SpyInstance;
+  beforeEach(() => {
+    c.factVerification = true;
+    clock = jest.spyOn(Date, "now").mockImplementation(() => now);
+    mockCreate.mockImplementation(async () => {
+      now += 45_000;
+      return reply(MODEL_LINES);
+    });
+    (fetchGrounding as jest.Mock).mockResolvedValue(article);
+  });
+  afterEach(() => {
+    clock.mockRestore();
+    (fetchGrounding as jest.Mock).mockResolvedValue("");
+    saveSongFacts({ ...ferry, facts: [], noFacts: false });
+  });
+
+  it("is measured from the request for facts to the facts being ready", async () => {
+    await generateFacts(ferry);
+    expect(aiTimeFor(ferry)).toBe(45_000);
+  });
+
+  it("is blank for the next play, which comes from the cache", async () => {
+    await generateFacts(ferry);
+    await generateFacts(ferry);
+    expect(aiTimeFor(ferry)).toBeNull();
+  });
+
+  it("is blank for a song the AI didn't write for", async () => {
+    saveSongFacts({ ...ferry, facts: ["Written by hand."] });
+    await generateFacts(ferry);
+    expect(aiTimeFor(ferry)).toBeNull();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("facts per song above the cap on found facts", () => {
+  const ferry = { title: "Night Ferry", artist: "Wren Halloway" };
+  const c = config as { factsPerSong: number; factVerification: boolean };
+  beforeEach(() => {
+    c.factsPerSong = 8;
+  });
+  afterEach(() => {
+    c.factsPerSong = 5;
+    saveSongFacts({ ...ferry, facts: [] });
+  });
+
+  it(`stops found facts at ${MAX_BUBBLES}, even with room for more`, async () => {
+    c.factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Night Ferry\nNight Ferry is a song by Wren Halloway. ${MODEL_LINES}`);
+    const facts = await generateFacts(ferry);
+    expect(facts.length).toBeGreaterThan(0);
+    expect(facts.length).toBeLessThanOrEqual(MAX_BUBBLES);
+  });
+
+  it("lets the streamer's own facts go past it, up to the setting", async () => {
+    const own = ["One.", "Two.", "Three.", "Four.", "Five.", "Six.", "Seven.", "Eight.", "Nine."].map((f) => `Wren wrote part ${f}`);
+    saveSongFacts({ ...ferry, facts: own });
+    const facts = await generateFacts(ferry);
+    expect(facts.map((f) => f.text)).toEqual(own.slice(0, 8));
+  });
+});
+
+describe("tracks that aren't music", () => {
+  const ad = { title: "Moonbrew Cola (Fake Commercial)", artist: "Harbor FM" };
+  afterEach(() => {
+    saveSongFacts({ ...ad, facts: [], noFacts: false, noArtistFacts: false });
+    (topic as { taggedFacts: unknown }).taggedFacts = [];
+  });
+
+  it("get no facts: nothing is looked up or written", async () => {
+    (wikidataFacts as jest.Mock).mockClear();
+    (config as { factVerification: boolean }).factVerification = true;
+    expect(await generateFacts(ad, entry(ad))).toEqual([]);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+    expect(wikidataFacts).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(outcomeFor(ad)).toBe("notMusic");
+  });
+
+  it("still show what the streamer wrote for them", async () => {
+    saveSongFacts({ ...ad, facts: ["Our sponsor has never existed."] });
+    const facts = await generateFacts(ad, entry(ad));
+    expect(facts.map((f) => [f.text, f.source])).toEqual([["Our sponsor has never existed.", SOURCE.yours]]);
+  });
+
+  it("get no NOW PLAYING banner", () => {
+    const c = config as { nowPlaying?: boolean };
+    c.nowPlaying = true;
+    try {
+      expect(showsBanner(ad)).toBe(false);
+      expect(showsBanner({ title: "Jingle Bell Rock", artist: "Wren Halloway" })).toBe(true);
+    } finally {
+      delete c.nowPlaying;
+    }
+  });
+
+  it("lose found facts carried over a restart", () => {
+    const found = { text: "A found fact.", source: "Wikipedia: Cola", delaySeconds: 0, durationSeconds: 8, position: {} } as Fact;
+    expect(allowedFacts(ad, [found])).toEqual([]);
   });
 });
 
