@@ -1207,6 +1207,7 @@
     renderMyFacts();
     renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
+    $("#s-share-box").hidden = !form.elements.shareFacts.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
@@ -1316,6 +1317,9 @@
     if (tooLong) return tooLong;
     if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return "Add your Groq key first.";
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return "Add your Anthropic key first.";
+    if (changes.shareFacts && !changes.shareUrl) return "Add the address to share with first, or turn sharing off.";
+    if (changes.shareFacts && !changes.shareChannel) return "Add your channel name first, or turn sharing off.";
+    if (changes.shareFacts && !changes.shareKey && !state.settings.shareKeySet) return "Add your API key first, or turn sharing off.";
     const switching = changes.songSource !== state.settings.songSource;
     if (changes.songSource === "nowplaying") {
       if (changes.nowPlayingPreset === "none" && !changes.nowPlayingFile) return "Choose the file your music app writes the song to first.";
@@ -1401,6 +1405,13 @@
   }
 
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
+  form.elements.shareFacts.addEventListener("change", (e) => ($("#s-share-box").hidden = !e.target.checked));
+  $("#s-share-test").addEventListener("click", async () => {
+    const result = $("#s-share-result");
+    setResult(result, "Checking...");
+    const r = await api.testSharing(form.elements.shareUrl.value, form.elements.shareChannel.value, form.elements.shareKey.value);
+    setResult(result, r.ok ? "✓ Connected." : r.reason, r.ok ? "ok" : "bad");
+  });
 
   function showSettingsSource() {
     const source = form.elements.songSource.value;

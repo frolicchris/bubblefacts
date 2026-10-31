@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import os from "os";
 import path from "path";
 import { presetFolder } from "./now-playing-folder";
+import { shareAddress } from "./share-song-facts";
 
 /** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -172,6 +173,11 @@ export const config = {
     ["artist-title", "title", "youtube-title"] as const,
     nowPlayingPreset === "none" ? "artist-title" : NOW_PLAYING_PRESETS[nowPlayingPreset].format
   ),
+
+  // Share song facts with other apps (off unless all three are set): share-song-facts.ts.
+  shareFactsUrl: shareAddress(process.env.SHARE_FACTS_URL || "") ?? "",
+  shareFactsKey: process.env.SHARE_FACTS_KEY || "",
+  shareFactsChannel: process.env.SHARE_FACTS_CHANNEL || "",
 
   // Model
   aiProvider,

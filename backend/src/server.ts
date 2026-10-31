@@ -19,6 +19,7 @@ import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
+import { SongFactSharer } from "./share-song-facts";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -104,6 +105,16 @@ const aired = new AiredFacts();
 const shown = new ShownLog(aired);
 const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
 
+/** Share song facts with other apps: the streamer's choice, and off by default. */
+const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFactsChannel
+  ? new SongFactSharer({ url: config.shareFactsUrl, apiKey: config.shareFactsKey, channel: config.shareFactsChannel })
+  : null;
+
+/** Gives the sharer what's on stream now. Paused bubbles aren't shared, and a fact taken off stream goes from there too. */
+function shareNow(): void {
+  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], songList.getCurrentSong()?.song?.durationSeconds);
+}
+
 /** `credit`: a bubble that goes to the overlay ahead of a facts_ready batch but is no part of the song's record. */
 function broadcast(payload: FactsPayload, credit?: Fact): void {
   // A new song moves the one that was showing into the earlier list.
@@ -121,6 +132,7 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   if ((payload.type === "facts_ready" || payload.type === "remove_fact") && lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   // A new play of a song starts a new record, even of the same song; a quiet one (resuming) carries on.
   if (payload.type === "new_song" && !payload.quiet) shown.newPlay();
+  shareNow();
   if (paused && payload.type !== "clear") return;
   const sent: FactsPayload = credit && payload.type === "facts_ready" ? { ...payload, facts: [credit, ...(payload.facts ?? [])] } : payload;
   for (const ws of clients.keys()) send(ws, sent);
@@ -226,6 +238,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
       // The record stays the full set and when it first went out: an overlay connecting later joins in from there.
       factsShownAt = before.shownAt;
       lastSent = { song, facts: before.facts, ready: true };
+      shareNow();
       remember(song, before.facts);
       return;
     }
@@ -280,6 +293,7 @@ function sendLater(song: SSLSong, early: Fact[], facts: Fact[]): void {
     return;
   }
   lastSent = { song: lastSent.song, facts: merged, ready: true };
+  shareNow();
   remember(lastSent.song!, merged);
   if (paused) return;
   const remaining = remainingFacts(merged, factsShownAt);
@@ -324,6 +338,7 @@ control.post("/pause", (req, res) => {
     } else if (!resumeSameSong()) {
       onSongChange(songList.getCurrentSong()).catch((err) => console.error("[Server] Song change failed:", err));
     }
+    shareNow();
   }
   res.json({ paused });
 });
