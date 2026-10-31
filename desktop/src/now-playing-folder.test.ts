@@ -27,4 +27,14 @@ describe("the folder the picker names", () => {
     expect(presetFoldersShown(env, home, existing(moved))).toEqual({ streamling: "", nightbot: moved });
     expect(presetFoldersShown({}, home, existing())).toEqual({ streamling: "", nightbot: "" });
   });
+
+  it("tries the system's Documents folder first, then the home one", () => {
+    const system = path.join(path.sep, "Redirected", "Documents");
+    const there = path.join(system, "Nightbot");
+    const inHome = path.join(home, "Documents", "Nightbot");
+    expect(presetFolder(["Nightbot"], {}, home, existing(there, inHome), system)).toBe(there);
+    expect(presetFolder(["Nightbot"], {}, home, existing(inHome), system)).toBe(inHome);
+    expect(presetFolder(["Nightbot"], {}, home, existing(), system)).toBe(there);
+    expect(folderShownInstead(["Nightbot"], {}, home, existing(there), system)).toBe("");
+  });
 });

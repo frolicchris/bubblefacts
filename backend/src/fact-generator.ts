@@ -14,6 +14,7 @@ import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
 import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
+import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
 
@@ -146,6 +147,8 @@ export const factStats = {
 
 /** Songs with no usable facts are retried after this long; others are kept. */
 const RETRY_MS = 10 * 60 * 1000;
+/** The most songs (or facts) each session map remembers; the oldest go first, and a lookup is only repeated. */
+const MAX_KEPT = 2000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
 /** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
 export const STRUCTURED = "Wikidata and MusicBrainz";
@@ -200,7 +203,7 @@ export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
-  outcomes.set(songKey(song), outcome);
+  setCapped(outcomes, songKey(song), outcome, MAX_KEPT);
   if (process.env.NODE_ENV === "test") return;
   const line = songsLogLine(song, outcome, count);
   fs.mkdir(config.logDir, { recursive: true }, () => fs.appendFile(songsLog(), line, () => undefined));
@@ -704,11 +707,11 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
     const fromItem = found?.kind === "song" ? songItemFacts(found, { year: statedYear(mb), album: statesAlbum(mb) }) : { facts: found?.facts ?? [], dropYear: false };
     const fromMb = onStandard(fromItem.dropYear ? withoutYear(mb) : mb, names);
     const added = onStandard(fromItem.facts, [...names, found?.kind === "song" ? found.title : ""]).filter((f) => !fromMb.includes(f));
-    for (const f of fromMb) structuredLabel.set(f, SOURCE.musicbrainz);
-    for (const f of added) structuredLabel.set(f, SOURCE.wikidata);
+    for (const f of fromMb) setCapped(structuredLabel, f, SOURCE.musicbrainz, MAX_KEPT);
+    for (const f of added) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     facts = [...fromMb, ...added];
-  } else for (const f of data) structuredLabel.set(f, SOURCE.wikidata);
-  structuredShown.set(songKey(song), new Set(facts));
+  } else for (const f of data) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
+  setCapped(structuredShown, songKey(song), new Set(facts), MAX_KEPT);
   return facts;
 }
 
@@ -801,7 +804,7 @@ export function restoreRecent(list: string[]): void {
 }
 /** Facts sent before a restart stand as this song's facts: nothing is generated again. */
 export function primeFacts(song: SSLSong, facts: Fact[]): void {
-  factCache.set(songKey(song), { facts, expires: Infinity });
+  setCapped(factCache, songKey(song), { facts, expires: Infinity }, MAX_KEPT);
 }
 
 /** Remember facts as shown, keeping only the last RECENT_KEPT. */
@@ -922,7 +925,7 @@ function takeTurns(pool: string[], n: number): string[] {
     .sort((a, b) => a.turn - b.turn || a.i - b.i)
     .slice(0, n)
     .map((p) => p.text);
-  for (const text of picked) poolTurns.set(text, ++poolTurn);
+  for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
   return picked;
 }
 
@@ -1111,7 +1114,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Facts about "the artist" would be the other act's when MusicBrainz said the article is someone else's.
     const sameName = /^MusicBrainz credits /.test(match.reason);
     const extra = !sameName && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
-    for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
+    for (const f of extra) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {
       remember(shown);
@@ -1222,8 +1225,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     if (alreadySaid(c.values, [...fresh, ...structured])) continue;
     structured.push(c.text);
     if (c.evidence) {
-      structuredLabel.set(c.text, `${SOURCE.infobox}${page}`);
-      boxEvidence.set(c.text, c.evidence);
+      setCapped(structuredLabel, c.text, `${SOURCE.infobox}${page}`, MAX_KEPT);
+      setCapped(boxEvidence, c.text, c.evidence, MAX_KEPT);
     }
   }
   // A spare takes the place of a line that only repeats the title and artist.
@@ -1242,7 +1245,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
-    sources.set(songKey(asked), page);
+    setCapped(sources, songKey(asked), page, MAX_KEPT);
     const article = `Wikipedia: ${page}`;
     return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
   }
@@ -1398,7 +1401,7 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, 
     pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
         // A generation started before the song's facts changed may not overwrite them.
-        if ((revisions.get(key) ?? 0) === revisionAtStart) factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        if ((revisions.get(key) ?? 0) === revisionAtStart) setCapped(factCache, key, { facts, expires: Date.now() + ttlMs }, MAX_KEPT);
         return facts;
       })
       .finally(() => {

@@ -61,10 +61,14 @@ const RESTART_WINDOW_MS = 10 * 60_000;
 const STEADY_HEALTH_MS = 5 * 60_000;
 const LOG_LINES_KEPT = 800;
 const PORT_SEARCH = 10;
+/** The longest to wait for a killed server to exit before starting its replacement anyway. */
+const EXIT_WAIT_MS = 10_000;
 
 /** The running fact server, however it was started. */
 interface ServerProcess {
   kill(): void;
+  /** Resolves once the process has really exited. */
+  exited: Promise<void>;
   send(message: { type: string; token: string }): void;
 }
 
@@ -86,6 +90,10 @@ export class Supervisor extends EventEmitter {
   private listening = false;
   /** The port the musician chose; automatic moves search upward from here. */
   private basePort = 0;
+  /** The date (UTC) of the log file being written; a new date prunes old logs. */
+  private logDay = "";
+  private logStream: fs.WriteStream | null = null;
+  private logsFlushed: Promise<void> = Promise.resolve();
   readonly lines: string[] = [];
   status: Status = { state: "stopped", health: null, message: "", restarts: 0, port: 3000 };
 
@@ -127,6 +135,7 @@ export class Supervisor extends EventEmitter {
     this.restartTimer = this.healthTimer = null;
     this.child?.kill();
     this.child = null;
+    void this.endLog();
     this.set("stopped", "");
   }
 
@@ -156,13 +165,13 @@ export class Supervisor extends EventEmitter {
       proc.stderr?.on("data", output);
       proc.on("error", (err) => this.log(`[App] Couldn't start the fact server: ${err.message}`));
       proc.on("exit", (code) => onExit(code));
-      child = { kill: () => proc.kill(), send: (m) => void (proc.connected && proc.send(m)) };
+      child = { kill: () => proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => void (proc.connected && proc.send(m)) };
     } else {
       const proc = utilityProcess.fork(this.serverScript, [], { env, stdio: "pipe", serviceName: "BubbleFacts server" });
       proc.stdout?.on("data", output);
       proc.stderr?.on("data", output);
       proc.on("exit", (code) => onExit(code));
-      child = { kill: () => void proc.kill(), send: (m) => proc.postMessage(m) };
+      child = { kill: () => void proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => proc.postMessage(m) };
     }
     this.child = child;
     const onExit = (code: number | null) => {
@@ -204,9 +213,19 @@ export class Supervisor extends EventEmitter {
       this.log(`[App] The built-in AI ${how} using the GPU; retrying on the processor.`);
       this.env = { ...this.env, LLAMA_GPU: "off" };
       this.emit("gpu-off");
-      this.child?.kill();
+      // The old server may still hold the port and the model file: relaunch once it has gone.
+      const old = this.child;
       this.child = null;
-      if (!this.stopping) this.launch("Restarting");
+      old?.kill();
+      if (this.stopping || this.restartTimer) return;
+      const relaunch = () => {
+        if (!this.restartTimer) return;
+        clearTimeout(this.restartTimer);
+        this.restartTimer = null;
+        this.launch("Restarting");
+      };
+      this.restartTimer = setTimeout(relaunch, old ? EXIT_WAIT_MS : 0);
+      void old?.exited.then(relaunch);
       return;
     }
     this.log(`[App] The built-in AI ${how}${process.platform === "darwin" ? "" : " on the processor too"}.`);
@@ -294,13 +313,44 @@ export class Supervisor extends EventEmitter {
       if (/Built-in model failed to load/.test(line)) this.modelFailed("failed to load");
       this.lines.push(line);
       if (this.lines.length > LOG_LINES_KEPT) this.lines.shift();
-      try {
-        fs.mkdirSync(this.logDir, { recursive: true });
-        fs.appendFileSync(path.join(this.logDir, `bubblefacts-${new Date().toISOString().slice(0, 10)}.log`), line + "\n");
-      } catch {
-        // Logging must never take the app down.
-      }
+      this.writeLog(line + "\n");
     }
+  }
+
+  /** One buffered stream for the day's log file, instead of reopening the file for every line. */
+  private writeLog(text: string): void {
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      if (!this.logStream || day !== this.logDay) {
+        void this.endLog();
+        fs.mkdirSync(this.logDir, { recursive: true });
+        // A stream can run for days: tidy up when the date changes, not only at startup.
+        pruneLogs(this.logDir);
+        const stream = fs.createWriteStream(path.join(this.logDir, `bubblefacts-${day}.log`), { flags: "a" });
+        // Logging must never take the app down: a failed write only drops lines.
+        stream.on("error", () => {
+          if (this.logStream === stream) this.logStream = null;
+        });
+        this.logStream = stream;
+        this.logDay = day;
+      }
+      this.logStream.write(text);
+    } catch {
+      // Logging must never take the app down.
+    }
+  }
+
+  /** Close the log stream, flushing what it holds. */
+  private endLog(): Promise<void> {
+    const stream = this.logStream;
+    this.logStream = null;
+    if (stream) this.logsFlushed = Promise.all([this.logsFlushed, new Promise<void>((resolve) => stream.end(resolve))]).then(() => undefined);
+    return this.logsFlushed;
+  }
+
+  /** Resolves when every closed log stream has finished writing (for tests and a clean quit). */
+  whenLogsWritten(): Promise<void> {
+    return this.logsFlushed;
   }
 }
 
@@ -314,12 +364,30 @@ function pollLoopStuck(health: Health): boolean {
   return age > Math.max(DEGRADED_BEFORE_RESTART_MS, 3 * (health.pollIntervalMs ?? 0));
 }
 
-/** Keep the last week of daily log files. */
+const SONGS_LOG_MAX_BYTES = 1_000_000;
+const SONGS_LOG_KEPT = 3;
+
+/** Keep the last week of daily log files, and move a songs.log over 1 MB aside (songs.1.log, newest, to songs.3.log). */
 export function pruneLogs(logDir: string, keep = 7): void {
+  rotateSongsLog(logDir);
   try {
     const files = fs.readdirSync(logDir).filter((f) => /^bubblefacts-\d{4}-\d{2}-\d{2}\.log$/.test(f)).sort();
     for (const f of files.slice(0, Math.max(0, files.length - keep))) fs.unlinkSync(path.join(logDir, f));
   } catch {
     // Nothing to prune yet.
+  }
+}
+
+function rotateSongsLog(logDir: string): void {
+  try {
+    const live = path.join(logDir, "songs.log");
+    if (fs.statSync(live).size <= SONGS_LOG_MAX_BYTES) return;
+    // The fact server appends by path, so the next line starts a fresh songs.log.
+    for (let i = SONGS_LOG_KEPT; i >= 1; i--) {
+      const from = i === 1 ? live : path.join(logDir, `songs.${i - 1}.log`);
+      if (fs.existsSync(from)) fs.renameSync(from, path.join(logDir, `songs.${i}.log`));
+    }
+  } catch {
+    // No songs.log yet.
   }
 }

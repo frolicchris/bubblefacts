@@ -348,6 +348,9 @@ export const SETTINGS_VERSION = 1;
  */
 const RETIRED_KEYS = new Set(["topics"]);
 
+/** The settings that sanitize holds to a list of values. */
+const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "wrongKey", "updateChannel"] as const;
+
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
   // Settings a newer version saved are kept, so going back a version and forward again loses nothing.
@@ -355,12 +358,20 @@ export function saveSettings(settings: Settings): void {
   try {
     const raw = JSON.parse(fs.readFileSync(file(), "utf8")) as Record<string, unknown>;
     kept = Object.fromEntries(Object.entries(raw).filter(([k]) => !(k in DEFAULTS) && !RETIRED_KEYS.has(k)));
+    // A choice only a newer version knows ("ai": "gemini") was swapped for a safe default in memory. While it is
+    // still that default, the saved choice stays; picking anything else replaces it.
+    for (const key of ENUM_KEYS) {
+      const saved = raw[key];
+      if (typeof saved !== "string") continue;
+      const safe = sanitize({ ...settings, [key]: saved })[key];
+      if (safe !== saved && settings[key] === safe) kept[key] = saved;
+    }
   } catch {
     // No file yet, or unreadable: nothing to keep.
   }
   // A file a newer version wrote keeps its higher number: it may hold what only that version understands.
   const version = Math.max(SETTINGS_VERSION, typeof kept.settingsVersion === "number" ? kept.settingsVersion : 0);
-  const stored: Record<string, unknown> = { ...kept, ...settings, settingsVersion: version };
+  const stored: Record<string, unknown> = { ...settings, ...kept, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
   fs.mkdirSync(path.dirname(file()), { recursive: true });
   writeFileAtomic(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
@@ -385,7 +396,7 @@ export function secretsUnprotected(): boolean {
 /** The settings as the server's environment variables. */
 export function toServerEnv(
   s: Settings,
-  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string }
+  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
     // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
@@ -406,6 +417,8 @@ export function toServerEnv(
     BUBBLEFACTS_LOG_DIR: paths.logDir,
     NODE_ENV: "production",
   };
+  // Where the system keeps Documents, for the Streamling and Nightbot presets: tried before the home folder's.
+  if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;

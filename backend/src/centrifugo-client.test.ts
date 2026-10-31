@@ -1,6 +1,6 @@
 import { AddressInfo } from "net";
 import { WebSocket, WebSocketServer } from "ws";
-import { CentrifugoStream, SSLEvent } from "./centrifugo-client";
+import { CentrifugoStream, SSLEvent, StreamTiming } from "./centrifugo-client";
 
 // A local stand-in for StreamerSongList's Centrifugo, speaking its unidirectional protocol.
 describe("CentrifugoStream", () => {
@@ -40,9 +40,9 @@ describe("CentrifugoStream", () => {
     socket.send(JSON.stringify({ connect: { client: "c-1", version: "6.9.4 OSS", ...(Object.keys(subs).length ? { subs } : {}), ping: 25, session: "s-1" } }));
   };
 
-  async function start(onPublication: (channel: string, event: SSLEvent) => void = () => undefined) {
+  async function start(onPublication: (channel: string, event: SSLEvent) => void = () => undefined, timing?: StreamTiming) {
     const connected = jest.fn();
-    stream = new CentrifugoStream(url, CHANNELS, onPublication, connected);
+    stream = new CentrifugoStream(url, CHANNELS, onPublication, connected, timing);
     stream.start();
     await waitFor(() => connected.mock.calls.length > 0);
     return connected;
@@ -88,6 +88,35 @@ describe("CentrifugoStream", () => {
       ["streamer:4242-queue", ""],
       ["streamer:4242", ""],
     ]);
+  });
+
+  it("reconnects when the server goes silent, not even a ping", async () => {
+    reply = centrifugo;
+    const connected = await start(undefined, { stableMs: 60_000, readTimeoutMs: 150 });
+    await waitFor(() => connected.mock.calls.length >= 2, 4000);
+    expect(requests).toHaveLength(2);
+  });
+
+  it("backs off from a server that connects and drops at once, instead of retrying every second", async () => {
+    reply = (request, socket) => {
+      centrifugo(request, socket);
+      setTimeout(() => socket.close(), 20);
+    };
+    const connected = await start(undefined, { stableMs: 60_000, readTimeoutMs: 60_000 });
+    await waitFor(() => connected.mock.calls.length >= 2, 4000);
+    await new Promise((r) => setTimeout(r, 50));
+    expect((stream as any).reconnectDelayMs).toBe(4_000);
+  });
+
+  it("goes back to the short wait once a connection has held", async () => {
+    reply = (request, socket) => {
+      centrifugo(request, socket);
+      setTimeout(() => socket.close(), 150);
+    };
+    const connected = await start(undefined, { stableMs: 50, readTimeoutMs: 60_000 });
+    await waitFor(() => connected.mock.calls.length >= 1);
+    await new Promise((r) => setTimeout(r, 100));
+    expect((stream as any).reconnectDelayMs).toBe(1_000);
   });
 });
 
