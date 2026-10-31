@@ -100,7 +100,7 @@ Good to know:
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app never uses the example packs, only the facts you type in its Settings. Keep `general`, or your own pack with originals lines, if you play your own compositions. Five or more facts keep them from repeating often. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
 | `NOW_PLAYING` | `on` | `off` hides the Now Playing bubble on a song change, for when your own overlay already shows the song. |
-| `CREDIT_BUBBLE` | `on` | `off` hides the credit bubble: "Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." It shows once before the first song's facts after BubbleFacts starts, then with about every 5th song that has facts, for viewers who join later. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
+| `CREDIT_BUBBLE` | `on` | `off` hides the credit bubble: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." It shows once before the first song's facts after BubbleFacts starts, then with about every 5th song that has facts, for viewers who join later. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
 | `LIVE_LEARN_BANNER` | `on` | `off` hides the LIVE LEARN bubble that stays up during a live learn. |
 | `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner for off-list requests; facts show only when a source knows the song. `off` treats them like any other song. |
 
@@ -139,7 +139,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 |---|---|---|
 | `OPENAI_API_KEY` | *none* | Your key from the service. Setting it switches the overlay to this option. |
 | `OPENAI_BASE_URL` | Groq | The service's address. OpenRouter: `https://openrouter.ai/api/v1`. Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`. |
-| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, within its [daily limits](https://console.groq.com/docs/rate-limits). |
+| `OPENAI_MODEL` | `openai/gpt-oss-20b` | The model name as your service lists it. The default is free on Groq, within its [daily limits](https://console.groq.com/docs/rate-limits). On Groq, if a model you set is retired, BubbleFacts switches to the default for that song. |
 | `OPENAI_TIMEOUT_MS` | `30000` | How long to wait for an answer. |
 
 ### Anthropic Claude
@@ -147,7 +147,7 @@ These all use the same "OpenAI-compatible" connection. Groq is set up by default
 | Setting | Default | What it does |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | *none* | Your key from [platform.claude.com](https://platform.claude.com/settings/keys). Setting it switches the overlay to Claude. |
-| `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Which Claude model to use. |
+| `ANTHROPIC_MODEL` | `claude-haiku-5-5` | Which Claude model to use. |
 
 ---
 

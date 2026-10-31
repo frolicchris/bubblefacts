@@ -5,7 +5,7 @@ import path from "path";
 const SAVED = { ...process.env };
 const KEYS = [
   "SONG_SOURCE", "SSL_STREAMER_NAME", "SSL_ACCESS_TOKEN", "SE_CHANNEL", "SE_JWT", "STREAMER_DISPLAY_NAME", "AI_PROVIDER",
-  "NOW_PLAYING_FILE", "NOW_PLAYING_FORMAT", "NOW_PLAYING_PRESET", "OneDrive", "OneDriveConsumer", "OneDriveCommercial", "CREDIT_BUBBLE",
+  "NOW_PLAYING_FILE", "NOW_PLAYING_FORMAT", "NOW_PLAYING_PRESET", "OneDrive", "OneDriveConsumer", "OneDriveCommercial", "CREDIT_BUBBLE", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
 ];
 
 function load(env: Record<string, string>) {
@@ -129,5 +129,14 @@ describe("config credit bubble", () => {
     expect(load({ ...base, CREDIT_BUBBLE: "on" }).creditBubble).toBe(true);
     expect(load({ ...base, CREDIT_BUBBLE: "off" }).creditBubble).toBe(false);
     expect(() => load({ ...base, CREDIT_BUBBLE: "sometimes" })).toThrow(/CREDIT_BUBBLE must be one of/);
+  });
+});
+
+describe("config Anthropic model", () => {
+  const base = { SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "k" };
+
+  it("defaults to claude-haiku-5-5 and takes ANTHROPIC_MODEL when set", () => {
+    expect(load(base).anthropicModel).toBe("claude-haiku-5-5");
+    expect(load({ ...base, ANTHROPIC_MODEL: "claude-test-model" }).anthropicModel).toBe("claude-test-model");
   });
 });
