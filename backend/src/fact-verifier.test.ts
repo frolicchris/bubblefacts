@@ -12,6 +12,11 @@ import {
   companyHistory,
   unresolvedPronoun,
   screenClaims,
+  leftBehindReferent,
+  repairScope,
+  workMatchConfidence,
+  mergedClauses,
+  otherRecordingSection,
   numberedReference,
   referenceSentences,
   parseCitation,
@@ -2564,5 +2569,91 @@ describe("companyHistory", () => {
     );
     expect(rejected.map((r) => r.reason)).toEqual(["a company's business, not the music"]);
     expect(kept).toEqual(["The game's music was composed by Ada Penn."]);
+  });
+});
+
+describe("captions that lean on the sentence around them", () => {
+  const titles = ["Paper Lanterns", "Moth Hour"];
+  it("drops a count that points at a sentence not on screen", () => {
+    expect(leftBehindReferent("Jo Vance's \"Hello\" held it off the top for the first of these three weeks.", titles)).toBe("these three weeks");
+    expect(leftBehindReferent("A rival single held it off the top for the next two weeks.", titles)).toBe("the next two weeks");
+  });
+  it("keeps a period the caption itself sets up", () => {
+    expect(leftBehindReferent("Paper Lanterns spent three weeks at number one.", titles)).toBeNull();
+    expect(leftBehindReferent("It was recorded over the last two days of March.", titles)).toBeNull();
+  });
+  it("drops a dated recording nobody performs", () => {
+    expect(leftBehindReferent("The 1937 recording lasted 8 minutes.", titles)).toBe("The 1937 recording");
+    expect(leftBehindReferent("The 1937 recording by Jo Vance lasted 8 minutes.", titles)).toBeNull();
+  });
+  it("drops a sales total with no product", () => {
+    expect(leftBehindReferent("By March 2017, total sales reached 1.3 million copies.", titles)).toBe("total sales");
+    expect(leftBehindReferent("By March 2017, total sales of Paper Lanterns reached 1.3 million.", titles)).toBeNull();
+  });
+  it("drops a film nobody names, unless the request is that film", () => {
+    expect(leftBehindReferent("Bo Lind shot the film in ten days.", titles)).toBe("the film");
+    expect(leftBehindReferent("The film was shot in ten days.", ["Paper Lanterns"], ["Paper Lanterns"])).toBeNull();
+    expect(leftBehindReferent("Bo Lind shot the film \"Moth Hour\" in ten days.", titles)).toBeNull();
+  });
+});
+
+describe("two statements told as one", () => {
+  const context = "Lamp Street\nLamp Street is a band. It was formed in 1976 by Ann Roe and Bo Lind, who formed a production and songwriting team known as Roe & Lind. Roe began her career in 1963, after forming the group Sparrows with Cy Hale.";
+  it("drops a year from the other clause", () => {
+    expect(mergedClauses("Ann Roe and Bo Lind formed a production and songwriting team in 1976.", context)).toBe("1976");
+    expect(mergedClauses("Roe formed the group Sparrows with Cy Hale in 1963.", context)).toBe("1963");
+  });
+  it("keeps a caption that stays in one clause", () => {
+    expect(mergedClauses("Ann Roe and Bo Lind formed a production and songwriting team.", context)).toBeNull();
+    expect(mergedClauses("Roe began her career in 1963.", context)).toBeNull();
+  });
+});
+
+describe("a section about another recording", () => {
+  const context = "Moth Hour\n\"Moth Hour\" is a song by Lamp Street.\n\nBo Lind version: It was the second of two singles from his LP.\n\nB-sides: \"Tin Cup\" was played live a few times during 2004.\n\nLamp Street version: It was their first hit single in Norway.";
+  it("drops what the heading makes another recording's", () => {
+    expect(otherRecordingSection("\"Moth Hour\" was the second of two singles from his LP.", context, ["lamp street"])).toBe("Bo Lind version");
+    expect(otherRecordingSection("\"Tin Cup\" was played live a few times during 2004.", context, ["lamp street"])).toBe("B-sides");
+  });
+  it("keeps the requested artist's own section and a caption naming the performer", () => {
+    expect(otherRecordingSection("\"Moth Hour\" was their first hit single in Norway.", context, ["lamp street"])).toBeNull();
+    expect(otherRecordingSection("Bo Lind's version was the second of two singles from his LP.", context, ["lamp street"])).toBeNull();
+  });
+});
+
+describe("what a retelling must keep", () => {
+  it("keeps partial credit and being credited", () => {
+    const context = "Moth Hour\nDrums were provided in part by Cy Hale on the recording. The band is credited with advancing the sound of folk rock.";
+    expect(droppedHedge("Drums were provided by Cy Hale on the recording.", context)).toBe("in part");
+    expect(droppedHedge("The band advanced the sound of folk rock.", context)).toBe("is credited with");
+  });
+  it("keeps both halves of a pair", () => {
+    const context = "Moth Hour\nMore than a thousand recordings were released by jazz and pop musicians around the world.";
+    expect(lostQualifier("More than a thousand recordings were released by jazz musicians.", context)).toContain("pop");
+    expect(lostQualifier("More than a thousand recordings were released by jazz and pop musicians.", context)).toBeNull();
+  });
+  it("keeps a comparison", () => {
+    const context = "Moth Hour\nThe album stayed at number one for longer than any record for 13 years.";
+    expect(lostQualifier("The album stayed at number one for 13 years.", context)).toBe("drops what it's compared with");
+  });
+  it("does not lift the tail of a quote with no speaker", () => {
+    const context = "Moth Hour\nAnn Roe said \"It is a letter home. In essence, a reminder of what the road can do to a person.\"\n\nThe band toured Norway that spring.";
+    expect(lostQualifier("In essence, a reminder of what the road can do to a person.", context)).toBe("someone's words, without who said them");
+  });
+  it("does not swap in another edition", () => {
+    const context = "Moth Hour\nExe:Dawn[st] came out in 2017. Halo Works later published this version on Steam in 2018. Exe:Dawn[cl] was nominated at the Game Awards.";
+    expect(lostQualifier("Halo Works published Exe:Dawn on Steam in 2018.", context)).toBe("doesn't say which version");
+    expect(lostQualifier("Exe:Dawn was nominated at the Game Awards.", context)).toContain("cuts another edition");
+  });
+  it("puts back a region that opens the sentence", () => {
+    const context = "Moth Hour\nSales: In the United States, Moth Hour sold 620,000 copies by August 2006.";
+    expect(repairScope("Moth Hour sold 620,000 copies by August 2006.", context)).toBe("In the United States, Moth Hour sold 620,000 copies by August 2006.");
+  });
+});
+
+describe("a remake's article for the original's track", () => {
+  it("is unsure, so no AI captions", () => {
+    const grounding = "Orbit: Reforged\nOrbit: Reforged is a 2026 action game. It is a remake of Orbit: First Light, released in 2001, with new visuals.";
+    expect(workMatchConfidence({ title: "Starfall", artist: "Orbit: First Light" } as never, grounding).level).toBe("unsure");
   });
 });

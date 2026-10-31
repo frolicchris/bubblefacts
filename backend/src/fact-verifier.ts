@@ -1831,6 +1831,8 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
     const rest = work.slice(title.length).join(" ");
     if (!mentionsName(significantTokens(normalizeTitle(leadSentences(full, 1))).join(" "), [rest])) return unsure(`the article is about ${base}, not ${game}`);
   }
+  // "Orbit: Reforged", "a remake of Orbit: First Light", for a track of the first game: the remake's dates, platforms and makers aren't the game's.
+  if (work.length && !work.every((t) => title.includes(t)) && /\b(?:remake|reboot|remaster|sequel|spin-?off) of\b/i.test(leadSentences(full, 2)) && mentionsName(normalizeTitle(leadSentences(full, 2)), [normalizeTitle(game)])) return unsure(`"${page}" is a remake or sequel of ${game}`);
   // "Depeche Mode: M" for a Depeche Mode song: another work named after the artist.
   if (piece && !named && startsWith(title, work) && !SERIES_WORD.test(game)) return unsure(`"${page}" is another work named after ${game}`);
   if (piece && !named && SERIES_WORD.test(says) && !SERIES_WORD.test(asked.artist ?? "")) return unsure("a series' article for one game's track, which it never names");
@@ -4334,6 +4336,7 @@ const ORDINALS = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eig
  * a word of the same kind.
  */
 const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
+  { label: "including", fact: /\bincluding\b/i, source: /\b(?:includ|among|such as|especially|notably)/i },
   { label: "a cause", fact: /\b(due to|because|owing to|thanks to|as a result)\b/i, source: /\b(due to|because|owing to|thanks to|as a result|since|so|as (?:he|she|they|it|the|a|his|her|their))\b/i },
   { label: "a consequence", fact: /\b(led to|leading to|lead to|resulted in|prompted|caused)\b/i, source: /\b(led|lead|leading|result\w*|prompt\w*|caus\w*)\b/i },
   { label: "an order", fact: /\bafter\b/i, source: /\b(after|following|afterwards?|previously|when|once|upon|then|subsequently)\b/i },
@@ -4534,6 +4537,20 @@ const FROM_AN_ALBUM = /\b(?:from|off|of|on)\s+(?:(?:the|their|his|her|its|a|an)\
  */
 export function lostQualifier(fact: string, context: string): string | null {
   const retold = retoldSentences(fact, context);
+  // "by jazz musicians" from "by jazz and pop musicians".
+  for (const [, first, noun] of fact.matchAll(/\b(\p{Ll}{3,}) (?=(\p{Ll}{4,})\b)/gu)) {
+    const pair = new RegExp(`\\b${escapeRe(first)} and (\\p{L}+) ${escapeRe(noun)}\\b`, "iu").exec(retold.join(" "));
+    if (pair && !hasWord(pair[1], fact)) return `"${first} ${noun}", without "${pair[1]}"`;
+  }
+  // "Acme published Orbit" from "Acme published this version", and "Orbit" for "Orbit[st]": another edition's.
+  const edition = /\bthis (version|edition|release|port|remake|remaster)\b/i.exec(retold.length === 1 ? retold[0] : "");
+  if (edition && !hasWord(edition[1], fact)) return `doesn't say which ${edition[1].toLowerCase()}`;
+  const cut = (fact.match(/\p{Lu}[\p{L}\d:'’-]+/gu) ?? []).find((w) => retold.length > 0 && retold.every((s) => s.includes(`${w}[`)));
+  if (cut) return `"${cut}" cuts another edition's name short`;
+  // "remained at number one for 13 years" from "for longer than any record for 13 years".
+  if (retold.length && retold.every((s) => /\bthan any\b/i.test(s)) && !/\bthan\b/i.test(fact)) return "drops what it's compared with";
+  // The tail of someone's words: the sentence closes a quote it never opened, so no speaker comes with it.
+  if (retold.length === 1 && /^[^"“]*["”](?:\s|$)/.test(retold[0]) && !/["“]/.test(fact)) return "someone's words, without who said them";
   const pair = /\b(\d+) and (\d+)\b/.exec(fact);
   if (pair) {
     const rest = fact.slice(pair.index + pair[0].length);
@@ -4901,9 +4918,95 @@ export function unnamedReference(fact: string, context: string): string | null {
   return sourceSentences(context).some((s) => isOne.test(s)) ? null : `the ${group[1].toLowerCase()}`;
 }
 
+/** Periods told as "these three weeks": the count belongs to a sentence that isn't on screen. */
+const TIME_UNIT = "(?:days?|weeks?|months?|years?|decades?|nights?|shows?|dates?|tracks?|songs?|singles?|albums?)";
+const DANGLING_SPAN = new RegExp(`\\b(?:these|those)\\s+(?:[\\p{L}\\d-]+\\s+)?${TIME_UNIT}\\b|\\bthe (?:next|following) (?:two|three|four|five|six|seven|eight|nine|ten|\\d+)(?:\\s+${TIME_UNIT})?\\b`, "iu");
+/** "The 1937 recording", with no one named: on a song with many versions a viewer takes it for the one playing. */
+const BARE_RECORDING = /^The (?:\d{4}|original|first|later|studio|live) (?:recording|version|performance|rendition)\b/i;
+/** A film or book nobody names: on a song's bubble it reads as a film of the song. */
+const BARE_OTHER_WORK = /\b[Tt]he (film|movie|documentary|novel|book|play)\b(?!\s+["“\p{Lu}])/u;
+/** A sales total with no product: whose? */
+const BARE_TOTAL = /\b(?:total|worldwide|global|overall|combined) sales\b/i;
+
+/**
+ * A caption that leans on something the source sentence had around it: "for the first of
+ * these three weeks", "for the next two weeks", "The 1937 recording lasted...", "The film
+ * was shot at Bard College", "By 2017, total sales reached 1.36 million". Returns what is
+ * left unnamed, or null. `titles` and `artists` are what a viewer already knows the bubble
+ * is about: a film named in the request is no mystery.
+ */
+export function leftBehindReferent(fact: string, titles: string[], artists: string[] = []): string | null {
+  const span = DANGLING_SPAN.exec(fact);
+  if (span) return span[0];
+  const namesWork = titles.some((t) => t && hasWord(t, fact)) || /["“]/.test(fact);
+  const recording = BARE_RECORDING.exec(fact);
+  if (recording && !namesWork && !fact.slice(recording[0].length).match(/\p{Lu}/u)) return recording[0];
+  const total = BARE_TOTAL.exec(fact);
+  if (total && !namesWork) return total[0];
+  const other = BARE_OTHER_WORK.exec(fact);
+  const known = [...titles, ...artists].map(normalizeTitle);
+  if (other && !namesWork && !known.some((a, i) => i > 0 && a && known[0].includes(a))) return `the ${other[1].toLowerCase()}`;
+  return null;
+}
+
+/** Where a sentence stops one statement and starts another. */
+const CLAUSE_BREAK = /,\s+(?=(?:who|whom|whose|which|while|whereas|but|although|though|after|before)\b)|;\s+/;
+
+/**
+ * Two statements of one sentence told as one, where every word is in the source: "formed
+ * a songwriting team in 1976" from "It was formed in 1976 by Ann and Bo, who formed a
+ * songwriting team". The caption's words sit mostly in one clause, and a year or a name it
+ * joins to them sits only in another.
+ * Returns the stray year or name, or null.
+ */
+export function mergedClauses(fact: string, context: string): string | null {
+  const retold = retoldSentences(fact, context);
+  if (retold.length !== 1) return null;
+  const clauses = retold[0].split(CLAUSE_BREAK).map((c) => c.trim()).filter(Boolean);
+  if (clauses.length < 2) return null;
+  const years = fact.match(YEAR) ?? [];
+  // Names joined on with "with": the subject of a caption is usually who the sentence is about.
+  const names = [...fact.matchAll(/\bwith ((?:\p{Lu}[\p{L}'’-]+\s?)+)/gu)].flatMap((m) => m[1].trim().split(/\s+/)).filter((n) => hasWord(n, retold[0]));
+  const anchors = [...years, ...names];
+  if (!anchors.length) return null;
+  // What the caption says of them, without its names and years.
+  const rest = fact.replace(YEAR, " ").replace(/\b\p{Lu}[\p{L}'’-]+/gu, " ");
+  const scored = clauses.map((c, i) => ({ c, i, share: share(rest, c) })).sort((a, b) => b.share - a.share);
+  if (scored[0].share < 0.5 || scored[0].share - scored[1].share < 0.2) return null;
+  const main = scored[0];
+  for (const a of anchors) {
+    if (hasWord(a, main.c)) continue;
+    const at = clauses.findIndex((c) => hasWord(a, c));
+    // A name in an earlier clause is usually who the later one is about; a year never is.
+    if (at >= 0 && (/^\d{4}$/.test(a) || at > main.i)) return a;
+  }
+  return null;
+}
+
+/** A heading for what isn't this recording: another performer's version, the single's B-sides. */
+const OTHER_RECORDING_HEADING = /^(?:[^:\n]{2,40}\s(?:version|cover|rendition|remix)|cover versions?|other versions?|b-sides?|remixes)$/i;
+
+/**
+ * A caption from a section about another recording: `"Allemande" was played live` under
+ * "B-sides", or "It was the second single from their LP" under "Nightjar version". The
+ * sentence's "it" is that other recording, and the caption doesn't say so. Returns the heading, or null.
+ */
+export function otherRecordingSection(fact: string, context: string, artists: string[] = []): string | null {
+  const retold = retoldSentences(fact, context);
+  if (!retold.length) return null;
+  const seen: string[] = [];
+  for (const line of context.split("\n").slice(1)) {
+    const heading = /^([^:\n]{2,60}): /.exec(line)?.[1];
+    if (!heading || !OTHER_RECORDING_HEADING.test(heading) || mentionsName(normalizeTitle(heading), artists)) continue;
+    const leans = (s: string) => /^b-side/i.test(heading) || /^(?:It|Its|They|Their)\b/.test(s.replace(`${heading}: `, ""));
+    if (lineSentences(line).some((s) => retold.includes(s) && leans(s)) && !hasWord(heading.replace(/\s\S+$/, ""), fact)) seen.push(heading);
+  }
+  return seen[0] ?? null;
+}
+
 /** Words that keep a statement uncertain. */
 const HEDGE =
-  /\b(?:may|might|could) have\b|\b(?:possibly|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b/i;
+  /\b(?:may|might|could) have\b|\b(?:possibly|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b|\b(?:is|are|was|were) credited with\b|\bin part\b|\b(?:partly|partially)\b/i;
 
 /**
  * A hedge the caption drops: "General Ardent suggested the symphony" when the
@@ -5187,7 +5290,7 @@ const REGIONS: Array<[string, string[]]> = [
   ["Asia", ["asia", "asian"]],
 ];
 const REGION_NAMES = REGIONS.map(([r]) => r.replace(/^the /, "")).sort((a, b) => b.length - a.length).join("|");
-const REGION_PHRASE = new RegExp(String.raw`\b(?:in|across|throughout) (?:the )?(${REGION_NAMES})(?: alone)?\b`, "g");
+const REGION_PHRASE = new RegExp(String.raw`\b(?:[Ii]n|[Aa]cross|[Tt]hroughout) (?:the )?(${REGION_NAMES})(?: alone)?\b`, "g");
 /** Any mention of a region, to tell whether a sentence names only one. */
 const ANY_REGION = new RegExp(String.raw`\b(?:${REGION_NAMES}|Japanese|North American|European|American|British)\b`, "g");
 /** "on the Billboard Hot 100", "on the UK Singles Chart", "on the Oricon weekly charts": a named chart. */
@@ -5289,7 +5392,7 @@ export function repairScope(caption: string, context: string): string {
   // A country or region, when the sentence names only one.
   // "internationally", "in other regions": the sentence sets more than one scope, so which one a caption keeps isn't clear.
   const regions = WIDER_SCOPE.test(sentence) || WIDER_SCOPE.test(caption) ? [] : [...sentence.matchAll(REGION_PHRASE)];
-  if (regions.length === 1 && new Set([...sentence.matchAll(ANY_REGION)].map((m) => m[0])).size === 1 && sameClause(sentence, regions[0].index ?? 0, capNums)) {
+  if (regions.length === 1 && new Set([...sentence.matchAll(ANY_REGION)].map((m) => m[0])).size === 1 && ((regions[0].index === 0 && sentence[regions[0][0].length] === ",") || sameClause(sentence, regions[0].index ?? 0, capNums))) {
     const region = regions[0];
     const forms = REGIONS.find(([r]) => r.replace(/^the /, "") === region[1])?.[1] ?? [];
     const anyRegion = REGIONS.some(([, f]) => f.some((w) => said.includes(` ${w} `)));
@@ -5577,6 +5680,8 @@ function captionReason(fact: string, titles: string[], otherParts: string[], nam
   if (works && !isTitle && !namesSomeone(fact)) return `doesn't say whose ${works[1]}`;
   const pronoun = unresolvedPronoun(fact);
   if (pronoun) return `doesn't say who "${pronoun}" is`;
+  const leftBehind = leftBehindReferent(fact, titles, names);
+  if (leftBehind) return `doesn't say what "${leftBehind}" is`;
   if (companyHistory(fact, titles)) return "a company's business, not the music";
   if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
   // A Mondstadt fact under a Liyue track: true, but about another part of the soundtrack.
@@ -5626,6 +5731,8 @@ function sourceReason(fact: string, context: string, track: string | undefined):
   if (doer) return `the sentence it retells is about ${doer}`;
   const role = reversedRole(fact, context);
   if (role) return `the source names someone else's ${role}`;
+  const merged = mergedClauses(fact, context);
+  if (merged) return `joins two statements: "${merged}" belongs to another clause`;
   const hedge = droppedHedge(fact, context);
   if (hedge) return `drops the source's "${hedge}"`;
   const placed = misplacedYear(fact, context);
@@ -5665,6 +5772,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
   const reasonToDrop = (fact: string): string | null =>
     captionReason(fact, titles, opts.otherParts ?? [], opts.artists, context) ??
     sourceReason(fact, context, opts.track) ??
+    (context && otherRecordingSection(fact, context, opts.artists) ? "from a section about another recording" : null) ??
     (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
   // Told to cite, the model numbers each caption with the sentence it retells (`numberedReference`).

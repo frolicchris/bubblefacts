@@ -250,6 +250,12 @@ sign-ins and the built-in AI. Its design decisions are in
    words at most (`alteredQuote`). A caption opening with "He" or "She" is
    dropped: a viewer can't tell who. Music terms get a few fixed plain words
    (`explainMusicTerms`), never the model's own explanation.
+   A caption must also stand alone (`leftBehindReferent`): "for the first of
+   these three weeks", "the 1937 recording" with no performer, "total sales"
+   with no product and a film nobody names are dropped. So is a year or a
+   "with" name taken from another clause of the sentence it retells
+   (`mergedClauses`), and a caption whose "it" belongs to a section on another
+   recording or a B-side (`otherRecordingSection`).
    A credit needs a source sentence that ties the person to the role
    (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
    just a role word nearby; an ambiguous credit is dropped. "Wrote" counts as
