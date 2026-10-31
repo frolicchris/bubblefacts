@@ -1,4 +1,4 @@
-import { foldCase, removeAll, songIdentity, withoutArtistNote, withoutRefsAndComments } from "./text";
+import { foldCase, removeAll, songIdentity, withoutArtistNote, withoutRefsAndComments, withoutRequestCredit } from "./text";
 
 describe("foldCase", () => {
   it("lowercases and drops accents, keeping punctuation", () => {
@@ -35,6 +35,30 @@ describe("withoutArtistNote (issue #262)", () => {
     const started = Date.now();
     withoutArtistNote(long);
     expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
+describe("withoutRequestCredit: who asked or paid for a song", () => {
+  it("leaves out a note naming who commissioned or requested it, bracketed or not", () => {
+    expect(withoutArtistNote("Wren Halloway, Commissioned by Moss Tinker")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Wren Halloway, Commissioned by A")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Wren Halloway (commissioned by Moss Tinker)")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Wren Halloway - requested by Moss Tinker")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Wren Halloway | req. by Moss Tinker")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Wren Halloway, for Moss Tinker")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Wren Halloway (note), Commissioned by Moss Tinker")).toBe("Wren Halloway");
+    expect(withoutArtistNote("Requested by Moss Tinker")).toBe("");
+    expect(withoutRequestCredit("Glass Orchard (requested by Moss Tinker)")).toBe("Glass Orchard");
+    expect(withoutRequestCredit("Glass Orchard - Suggested by Moss Tinker")).toBe("Glass Orchard");
+  });
+
+  it("keeps names and titles that only hold the words", () => {
+    expect(withoutArtistNote("Lanterns for Hollows")).toBe("Lanterns for Hollows");
+    expect(withoutArtistNote("Wren, Hollow & Fire")).toBe("Wren, Hollow & Fire");
+    expect(withoutArtistNote("Special Request")).toBe("Special Request");
+    // "for" counts only in an artist field: a title is often "A Song for Someone".
+    expect(withoutRequestCredit("Glass Orchard, for Wren")).toBe("Glass Orchard, for Wren");
+    expect(withoutRequestCredit("The Request")).toBe("The Request");
   });
 });
 

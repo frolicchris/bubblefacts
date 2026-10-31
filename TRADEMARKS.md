@@ -53,9 +53,8 @@ These need written permission:
   MIT license; it's the name that needs asking.)
 - Merchandise with the name or logo.
 
-To ask, start a discussion in
-[GitHub Discussions](https://github.com/frolicchris/bubblefacts/discussions)
-(Q&A), and say what you'd like to do.
+To ask, email [bubblefacts@frolic.org](mailto:bubblefacts@frolic.org), and say
+what you'd like to do.
 
 ## Questions
 

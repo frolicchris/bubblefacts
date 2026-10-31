@@ -13,7 +13,9 @@ export function redact(text: string, secrets: string[]): string {
   for (const s of secrets) out = out.split(s).join("[removed]");
   return out
     .replace(/\b(sk-ant-[A-Za-z0-9_-]{10,}|gsk_[A-Za-z0-9]{10,})\b/g, "[removed]")
-    .replace(/(Authorization:\s*\w+\s+)\S+/gi, "$1[removed]");
+    .replace(/(Authorization:\s*\w+\s+)\S+/gi, "$1[removed]")
+    // Error messages can carry a full path, and the folder after Users or home is the person's account name.
+    .replace(/([/\\](?:Users|home)[/\\])[^/\\\s"']+/gi, "$1[removed]");
 }
 
 function issueUrl(template: string, fields: Record<string, string>): string {
@@ -69,13 +71,29 @@ export function betaReportUrl(opts: { version: string; build: string; systemVers
   });
 }
 
+const REQUEST_CREDIT = /(?:^|[\s,;:|/([–—-])(?:commission(?:ed)?|requested|request|req\.?|suggested|sponsored|donated|gifted|paid)\s+(?:by|from)(?=\s|$)/i;
+const FOR_CREDIT = /\s*[,;|–—]\s*for\s+(?=\S)|\s+-\s+for\s+(?=\S)/i;
+const LEFT_OVER = /[\s,;:|/([–—-]/;
+
+/** The artist without a note naming who asked or paid for the song: "Some Band, Commissioned by Name". */
+function withoutRequestCredit(artist: string): string {
+  const credit = REQUEST_CREDIT.exec(artist);
+  const forName = FOR_CREDIT.exec(artist);
+  const at = Math.min(credit ? credit.index : Infinity, forName ? forName.index : Infinity);
+  if (at === Infinity) return artist.trim();
+  let end = at;
+  while (end > 0 && LEFT_OVER.test(artist[end - 1])) end--;
+  return artist.slice(0, end).trim();
+}
+
 /**
  * The artist without the notes a song list adds after the name in brackets (issue #262):
- * "Some Band (note)" is "Some Band". The same rule as `withoutArtistNote` in
- * backend/src/text.ts, which the server uses; keep them alike.
+ * "Some Band (note)" is "Some Band", and without a note naming who asked or paid for the
+ * song. The same rule as `withoutArtistNote` in backend/src/text.ts, which the server
+ * uses; keep them alike.
  */
 export function withoutArtistNote(artist: string): string {
-  let a = artist.trim();
+  let a = withoutRequestCredit(artist);
   for (;;) {
     const closer = a.endsWith(")") ? "(" : a.endsWith("]") ? "[" : "";
     const at = closer ? a.lastIndexOf(closer) : Math.max(a.lastIndexOf("("), a.lastIndexOf("["));

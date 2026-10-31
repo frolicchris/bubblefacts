@@ -33,7 +33,7 @@ Everything you might need to download or sign up for, in one place.
 
 - [Releases](https://github.com/frolicchris/bubblefacts/releases): from the newest one, download **bubblefacts.zip**
 - [All versions and what changed](https://github.com/frolicchris/bubblefacts/releases)
-- [Ask a setup question](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
+- [Ask a setup question](https://discord.gg/3YS3eWkWrW) (in #help)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new/choose)
 
 **Required**
@@ -72,7 +72,7 @@ You'll need:
 | What | Why | Where to get it |
 |---|---|---|
 | **OBS Studio** 28 or newer | Shows the overlay on your stream | [obsproject.com/download](https://obsproject.com/download) |
-| **A StreamerSongList account** | The overlay reads your request queue from it | [streamersonglist.com](https://streamersonglist.com) |
+| **A StreamerSongList account** | The overlay reads your request queue from it. (Use StreamElements, or a text file your music app writes, instead? See [CONFIG.md](CONFIG.md#your-streamelements-account).) | [streamersonglist.com](https://streamersonglist.com) |
 | **Node.js** 20 or newer | Runs the overlay's small server on your computer | [nodejs.org/en/download](https://nodejs.org/en/download), the "LTS" version |
 | **An AI model** | Rewrites Wikipedia text into captions | See [step 3](#3-choose-where-the-ai-runs) |
 
@@ -111,6 +111,10 @@ The overlay needs permission to read your queue.
 3. Copy it. You'll paste it in step 4.
 
 Treat the token like a password: keep it off your stream and out of screenshots.
+
+Not using StreamerSongList? Skip this step. For StreamElements or a now
+playing file (Streamling, Nightbot or another app), use the settings in
+[CONFIG.md](CONFIG.md#your-streamelements-account) in step 4 instead.
 
 ### 3. Choose where the AI runs
 
@@ -251,6 +255,10 @@ They're examples, not a maintained collection: they won't be expanded or
 updated, and changes to them aren't accepted into the project. Use them as
 they are, trim them, or replace them with your own.
 
+A line starting with a name in brackets goes only with that: `[Song of Storms]
+It plays in a windmill.` shows for that song, and `[Chopin] ...` is shared by
+all of that artist's or game's songs, one per song.
+
 To choose which packs to use, list them in `.env`:
 
 ```env
@@ -360,7 +368,7 @@ in a web browser and add `?test=1` to the end of the address. A sample bubble
 and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
-Still stuck? [Ask in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a),
+Still stuck? [Ask in the Discord #help channel](https://discord.gg/3YS3eWkWrW),
 or if it looks like a bug, [open an issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
 Include the relevant lines from the newest file in the `logs` folder, with
 your token removed.

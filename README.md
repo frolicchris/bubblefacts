@@ -6,10 +6,13 @@
 
 **Fun facts about the song you're playing, right on your stream.**
 
-BubbleFacts watches your [StreamerSongList](https://streamersonglist.com) or
-[StreamElements](https://streamelements.com) song requests and shows short
-facts from Wikipedia and open music databases in game-inspired bubbles in OBS
-while you play, each one checked against its source. The
+For musicians and DJs who stream, on any platform OBS reaches.
+BubbleFacts follows the song you're playing and shows short facts from
+Wikipedia and open music databases in game-inspired bubbles in OBS, each one
+checked against its source. It reads your
+[StreamerSongList](https://streamersonglist.com) or
+[StreamElements](https://streamelements.com) song requests, or the text file
+your music app keeps, such as Streamling or Nightbot's. The
 captions are written by a small AI model, and the app itself was written with
 an AI coding agent: see [AI disclosure](#ai-disclosure).
 
@@ -26,13 +29,17 @@ The app isn't signed yet, so the first time you open it, your computer may
 ask you to confirm. The [download page](https://bubblefacts.frolic.org/download.html#first-launch)
 shows exactly what to click.
 
-## Get running in two steps
+## Get running in three steps
 
-1. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
+1. **Install and confirm.** Install it like any app, and confirm it the first
+   time you open it.
+2. **Connect your songs.** Click **Sign in with StreamerSongList** and sign in
    with Twitch. Take requests through StreamElements instead? Choose
    **StreamElements** and paste your JWT token from the StreamElements
-   dashboard.
-2. **Put BubbleFacts on your stream.** Drag the tile from the app into the
+   dashboard. Use Streamling or Nightbot's desktop app? Choose
+   **Now playing file**, then **Streamling** or **Nightbot**. Another music
+   app that writes the song to a text file works too: **Another app's file**.
+3. **Put BubbleFacts on your stream.** Drag the tile from the app into the
    **Sources** list in OBS. A test bubble appears, and the app says
    **It's on your stream!**
 
@@ -47,12 +54,18 @@ When a song starts, BubbleFacts finds its Wikipedia article (or the game's or
 film's), and the AI writes captions **only from that article**. Every caption
 is screened: names, who did what, years, consoles, and award or chart claims
 must appear in the article, or it's dropped. Captions that only repeat the
-title and artist are dropped too. That catches most mistakes, not every one
+title and artist are dropped too. So is anything that isn't family-friendly or
+about the music: scandals, crime, threats, and anything that labels who a
+person is. That catches most mistakes, not every one
 (a caption can still mix up details the article does mention), so
-**Wrong** next to a fact in the app takes it off your stream. Playing when you
-spot it? Mark it after the song, under **Earlier songs**.
-With no article, no AI is used: free music databases (Wikidata, MusicBrainz)
-fill in plain facts, or your own facts show, or nothing.
+**Wrong** next to a fact in the app takes it off your stream, along with the
+song's other bubbles from the same source. Playing when you spot it? Mark it
+after the song, under **Earlier songs**, where **No facts for this song** and
+**No facts for this artist** are one click too.
+Basic facts from Wikidata and MusicBrainz, such as a song's year and album,
+can show first, the moment the song starts, and the AI's captions follow.
+With no article, or none BubbleFacts is sure about, no AI is used: those
+databases fill in plain facts, or your own facts show, or nothing.
 
 ## AI disclosure
 
@@ -75,7 +88,7 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 ## Help
 
 - [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step
-- [Ask a question in Discussions](https://github.com/frolicchris/bubblefacts/discussions/categories/q-a)
+- [Ask a question in Discord (#help)](https://discord.gg/3YS3eWkWrW)
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** under **Help and troubleshooting** fills in
   the details for you.
@@ -87,7 +100,8 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
   version, computer and log; **Copy beta test report** needs no GitHub account.
 - [Security policy](.github/SECURITY.md): report security problems privately.
 
-Only the newest release is supported; the app tells you when there's a new
+Only the newest release on your update channel (Stable or Beta) is supported;
+the app tells you when there's a new
 one. What every 2.x release keeps working, and how security problems are
 handled, is in [SECURITY.md](.github/SECURITY.md#what-2x-promises).
 
@@ -121,7 +135,7 @@ High quality chosen in Settings, Meta's Llama 3.1 8B, used under the
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,
-DarkN8V, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
+DarkN8V, Epic Realms, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
 Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
@@ -129,3 +143,4 @@ coding agent: see [AUTHORS.md](AUTHORS.md) and the
 [AI disclosure](docs/AI_DISCLOSURE.md). The code is © 2026 Christopher Feyrer, [MIT licensed](LICENSE). The BubbleFacts name and logo are
 trademarks and aren't covered by the MIT license: forks
 are welcome, under a different name. See the [trademark policy](TRADEMARKS.md).
+BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.

@@ -97,6 +97,11 @@ describe("SongListClient", () => {
     });
   });
 
+  it("never carries who commissioned or requested a song in its title or artist", () => {
+    const listed = entry(9, "Glass Orchard (requested by Moss Tinker)", { song: { title: "Glass Orchard (requested by Moss Tinker)", artist: "Wren Halloway, Commissioned by Moss Tinker" } });
+    expect(toSong(listed)).toMatchObject({ title: "Glass Orchard", artist: "Wren Halloway" });
+  });
+
   it("prefers the now-playing slot over the head of the queue", async () => {
     mockFetch.mockResolvedValueOnce(ok(STREAMER)).mockResolvedValueOnce(
       ok({

@@ -2,11 +2,11 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 import { blockedArticles } from "./wrong-facts";
 import { topic } from "./topic";
-import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments } from "./text";
+import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments, withoutRequestCredit } from "./text";
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
-import { linkedGrounding } from "./musicbrainz";
-import { WikidataBusy, WorkItem, clearClassicalCache, isPersonPage, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, workItems } from "./wikidata";
+import { anotherArtist, linkedGrounding } from "./musicbrainz";
+import { clearClassicalCache, isPersonPage, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, WikidataBusy, WorkItem, workItems } from "./wikidata";
 
 /**
  * Grounding and screening.
@@ -429,6 +429,8 @@ export function isRelevantArticle(subject: string, pageTitle: string, subjectIsA
   const wantTokens = significantTokens(want);
   const gotTokens = significantTokens(got);
   if (!want || !got || !wantTokens.length || !gotTokens.length) return false;
+  // Single letters aren't significant tokens, so "Luis F. Rodriguez" would match "Luis J. Rodriguez".
+  if (initialsDiffer(subject, withoutQualifier(pageTitle))) return false;
 
   // "Nier series" is the series' own article: "Nier (series)", or "Star Trek" itself.
   // Never a single installment: "Nier (video game)" isn't the series.
@@ -1424,9 +1426,57 @@ export function isCoverOf(page: string, full: string, artist: string, title: str
   return names.length > 0 && !mentionsName(lead, names) && mentionsName(normalizeTitle(full), names);
 }
 
-/** For a cover: the original's sentences that would read as the cover's: its release, charts, sales, video, performers' moves. */
-export function originalsRecord(full: string): Set<string> {
-  return new Set(full.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).map((s) => s.trim())).filter((s) => ORIGINALS_RECORD.test(s)));
+const sentencesOf = (text: string) => text.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})/u).map((s) => s.trim()));
+
+/** A heading for another recording of the song: "Cover versions", "Gary Jules version", "Other recordings". */
+const VERSION_HEADING = /\b(?:versions?|covers?|recordings?|renditions?|remakes?|remix(?:es)?)\b/i;
+/** A sentence that says it is about a version: "a cover by...", "the 2001 version by...". */
+const VERSION_SENTENCE = /\b(?:covers?|covered|versions?|renditions?|remakes?)\b/i;
+
+/** A version section with no performer in its heading: "Cover versions", "Other recordings". */
+const LIST_OF_VERSIONS = /^(?:(?:other|notable|cover|later|selected|alternative|alternate)\s+)*(?:versions?|covers?|recordings?|renditions?|remakes?|remix(?:es)?)$/i;
+/** A sentence that gives a recording's own success, not just that it exists. */
+const CHART_RECORD = /\b(?:charts?|charted|peak(?:ed|s)?|number(?:-| )(?:one|\d+)|No\. ?\d+|top (?:\d+|ten|forty)|Hot 100|Billboard|certifi\w+|platinum|gold|sold|sales|copies)\b/i;
+
+/** Each section under a version heading, its subsections included: whether the heading names the requested artist, or any performer. */
+function versionSections(full: string, names: string[]): Array<{ body: string; own: boolean; list: boolean }> {
+  const out: Array<{ level: number; body: string; own: boolean; list: boolean }> = [];
+  let open: { level: number; body: string; own: boolean; list: boolean } | null = null;
+  for (const [, marks, heading, body] of full.matchAll(/\n(==+)\s*([^=\n]+?)\s*==+\n([\s\S]*?)(?=\n==|$)/g)) {
+    const level = marks.length;
+    if (open && level > open.level) {
+      // A subsection named for one performer is that performer's, whatever the section is.
+      if (mentionsName(normalizeTitle(heading), names)) out.push({ level, body, own: true, list: false });
+      else open.body += `\n${body}`;
+      continue;
+    }
+    open = VERSION_HEADING.test(heading) ? { level, body, own: mentionsName(normalizeTitle(heading), names), list: LIST_OF_VERSIONS.test(heading.trim()) } : null;
+    if (open) out.push(open);
+  }
+  return out;
+}
+
+/**
+ * For the original's request, or a song's own article: what would read as this
+ * recording's but is another's: a section on one other performer's version
+ * ("Gary Jules version"), and elsewhere a sentence on a version's charts or
+ * sales, unless it names the requested artist. That others covered the song
+ * is true of the song, so "Cover versions" keeps its plain lines.
+ */
+export function otherVersionsRecord(full: string, artist: string): Set<string> {
+  const names = artistNames(artist.replace(/\s*\([^)]*\)\s*$/, ""));
+  if (!coverScope.on || !names.length) return new Set();
+  const own = (s: string) => mentionsName(normalizeTitle(s), names);
+  const drop = versionSections(full, names).filter((v) => !v.own).flatMap((v) => sentencesOf(v.body).filter((s) => !own(s) && (!v.list || CHART_RECORD.test(s))));
+  const stated = sentencesOf(full.replace(/^==+.*==+$/gm, "")).filter((s) => VERSION_SENTENCE.test(s) && CHART_RECORD.test(s) && !own(s));
+  return new Set([...drop, ...stated]);
+}
+
+/** For a cover: the original's sentences that would read as the cover's: its release, charts, sales, video, performers' moves. A section on the requested artist's own version stays. */
+export function originalsRecord(full: string, artist = ""): Set<string> {
+  const names = artist ? artistNames(artist.replace(/\s*\([^)]*\)\s*$/, "")) : [];
+  const own = new Set(versionSections(full, names).filter((v) => names.length && v.own).flatMap((v) => sentencesOf(v.body)));
+  return new Set(sentencesOf(full).filter((s) => ORIGINALS_RECORD.test(s) && !own.has(s)));
 }
 
 /** Every sentence `selectSections` keeps, unbudgeted: what a piece's own sentences are looked for in. */
@@ -1663,6 +1713,8 @@ const SERIES_WORD = /\b(series|franchise)\b/i;
 /** A kind of work a song is not from when its artist is a performer: "(1961 film)", "a concert documentary film". */
 const SCREEN_OR_BOOK = /\b(film|movie|documentary|television|tv series|miniseries|sitcom|novel|manga|play)s?\b/i;
 const AN_ALBUM = /\b(album|EP|mixtape|compilation)s?\b/i;
+/** A film about a performer, whose lead reads like the performer's: "a 1988 short film about the singer...", not "a film composer". */
+const A_FILM_ABOUT = /\b(?:film|movie|documentary|miniseries|novel)\b(?: (?:about|directed|written|based|starring|that)\b|[,.]|$)/i;
 
 /** The first `n` sentences of an article's lead. */
 function leadSentences(full: string, n: number): string {
@@ -1682,6 +1734,7 @@ export function namesLoosely(text: string, names: string[]): boolean {
     for (let size = Math.max(1, n - 1); size <= n + 1; size++) {
       for (let i = 0; i + size <= words.length; i++) {
         const got = words.slice(i, i + size).join("");
+        if (initialsDiffer(words.slice(i, i + size).join(" "), name)) continue;
         if (Math.abs(got.length - want.length) <= 2 && editDistance(got, want) <= Math.max(1, Math.floor(want.length * 0.15))) return true;
       }
     }
@@ -1752,7 +1805,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   if (piece && isPieceArticle(page, full)) return unsure(`"${page}" is another piece's article`);
 
   // The artist's article.
-  const theArtist = isPerformerArticle(page, full) || (names.includes(normalizeTitle(base)) && !isWorkArticle(page, full));
+  const theArtist = !isNonMusicWork(page, full) && !A_FILM_ABOUT.test(says) && (isPerformerArticle(page, full) || (names.includes(normalizeTitle(base)) && !isWorkArticle(page, full)));
   if (theArtist) {
     if (piece && !named && noted) return unsure("the artist's article never names the song, and was found only after dropping a note");
     return sure(named ? "the artist's article names the song" : "the artist's article");
@@ -1772,6 +1825,9 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   if (piece && !named && SERIES_WORD.test(says) && !SERIES_WORD.test(asked.artist ?? "")) return unsure("a series' article for one game's track, which it never names");
   const kind = (SCREEN_OR_BOOK.exec(qualifier) ?? (/\bgames?\b/i.test(says) ? null : SCREEN_OR_BOOK.exec(says)))?.[0];
   if (piece && !named && kind && !SCREEN_OR_BOOK.test(asked.artist ?? "")) return unsure(`a ${kind.toLowerCase()}'s article that never names the song`);
+  // "Superstar: The Karen Carpenter Story" for the Carpenters' song, "Beverly Hills Cop: Axel F" for the theme: a film that
+  // uses the name, not where the song comes from. Its article is about the film, even though it names the song.
+  if (piece && kind && !title.every((t) => work.includes(t)) && (!work.every((t) => title.includes(t)) || startsWith(title, work))) return unsure(`"${page}" is a ${kind.toLowerCase()}'s article, not the song's`);
   return sure("the work's own article");
 }
 
@@ -1888,12 +1944,15 @@ export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grou
   return `${described}, another work that never names the song`;
 }
 
+const bareName = (name: string) => name.replace(/^the /, "");
+
 /**
  * The work match after Wikipedia's page summary (`summaryMismatch`): the reason the
  * article may not be the requested work, or "" when the summary doesn't say so or
  * can't be read. On a person's or a band's article for a song, it also asks whether
  * the song has an article of its own ("Song (Some Band song)", "Song (song)", "Song")
  * that describes it as a song naming the artist: then the artist's article is not the song's.
+ * An act that only shares the name, per MusicBrainz, is not the requested one either.
  */
 export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSong = song): Promise<string> {
   const page = grounding.split("\n")[0];
@@ -1911,6 +1970,9 @@ export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSo
       if (!own || own.type !== "standard" || describedKind(own.description) !== "song" || blocked.has(own.title)) continue;
       if (mentionsName(normalizeTitle(`${own.description} ${own.extract}`), names)) return `the song has an article of its own ("${own.title}"), not "${page}"`;
     }
+    // A band that only shares the name: nothing in the article ties it to the song, and MusicBrainz credits someone else.
+    const full = articleText(page);
+    if (full && !namesPiece(full, track) && names.map(bareName).includes(bareName(normalizeTitle(withoutQualifier(page)))) && (await anotherArtist(page, track, game))) return `MusicBrainz credits "${track}" to another ${game} than "${page}"`;
     return "";
   } catch {
     return "";
@@ -2419,6 +2481,16 @@ export function editDistance(a: string, b: string): number {
 const numerals = (s: string) => significantTokens(normalizeTitle(s)).filter((t) => /\d/.test(t));
 
 /**
+ * Two names whose initials differ in the same place: "Luis F. Rodriguez" and
+ * "Luis J. Rodriguez" are two people, though only one letter apart.
+ */
+export function initialsDiffer(a: string, b: string): boolean {
+  const wa = normalizeTitle(a).split(" ");
+  const wb = normalizeTitle(b).split(" ");
+  return wa.length === wb.length && wa.some((w, i) => w !== wb[i] && w.length === 1 && wb[i].length === 1);
+}
+
+/**
  * The same name spelled differently: a letter or two, in one word, or only
  * the spacing ("Full Metal" and "Fullmetal"). "Eric Satie" and "Erik Satie",
  * but not "Windy Harper" and "Wendy Harmer", two words apart.
@@ -2427,6 +2499,7 @@ export function isRespelling(name: string, page: string): boolean {
   const a = normalizeTitle(name);
   const b = normalizeTitle(page);
   if (!a || !b || a === b) return false;
+  if (initialsDiffer(a, b)) return false;
   // "Memes" isn't a misspelled "Meme": a plural names many, the article one.
   if (a === `${b}s` || b === `${a}s`) return false;
   const d = editDistance(a.replace(/ /g, ""), b.replace(/ /g, ""));
@@ -3010,7 +3083,11 @@ interface Grounded {
  * When an article's older version couldn't be read on the way, Wikipedia is skipped for the song this
  * time (issue #242): data facts show instead, and the lookup is tried again later.
  */
-export async function fetchGrounding(song: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+export async function fetchGrounding(listed: SSLSong, skip: ReadonlySet<string> = new Set()): Promise<string> {
+  // Who asked or paid for the song is never searched: "Some Band, Commissioned by Name" is Some Band.
+  const title = withoutRequestCredit(listed.title) || listed.title;
+  const artist = withoutRequestCredit(listed.artist ?? "", true);
+  const song = title === listed.title.trim() && artist === (listed.artist ?? "").trim() ? listed : { ...listed, title, artist };
   const failedBefore = olderVersionFailures;
   const text = await findGrounding(song, skip);
   if (olderVersionFailures === failedBefore) return text;
@@ -3705,7 +3782,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // A cover's request read from the original's article: not the original's release, charts or video.
       const cover = !byGame && ownArticle && artist && !!full && isCoverOf(page, full, game, song.title);
       if (cover) console.log(`[Grounding] "${page}": the request is a cover; the original's release and charts left out`);
-      const drop = cover ? originalsRecord(full!) : otherWork;
+      const others = !cover && !byGame && ownArticle && artist && full ? otherVersionsRecord(full, game) : null;
+      const drop = cover ? originalsRecord(full!, game) : others?.size ? new Set([...(otherWork ?? []), ...others]) : otherWork;
       let text = withoutSentences(drop, saves && !cover, () =>
         scoped
           ? `${page}\n${writingText(scoped, orderExtract(scoped, MAX_CONTEXT_CHARS - page.length - 1, [track], false), MAX_CONTEXT_CHARS - page.length - 1, [track])}`

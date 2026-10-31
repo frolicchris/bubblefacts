@@ -1,0 +1,130 @@
+name: Announce
+
+# Posts a new release or an update in two places at once: a Discussion in
+# Announcements (the record people search and link to) and the BubbleFacts
+# Discord's #announcements channel, whose post links back to that Discussion.
+#
+# Runs when a release is published (the draft from the Release workflow, once
+# it is published by hand), or from Actions > Announce > Run workflow for an
+# update that is not a release. Set dry_run to see what would be posted
+# without posting anything. A title that already has a Discussion in
+# Announcements is skipped, so a rerun posts nothing twice.
+#
+# Needs one secret, DISCORD_ANNOUNCE_WEBHOOK: the webhook URL of #announcements
+# (Discord: Server Settings > Integrations > Webhooks). Without it the Discussion
+# still goes up and the Discord step is skipped with a warning.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      title:
+        description: Plain words, at most 72 characters
+        required: true
+        type: string
+      body:
+        description: Markdown, written for musicians and streamers
+        required: true
+        type: string
+      dry_run:
+        description: Show what would be posted, and post nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  discussions: write
+
+jobs:
+  announce:
+    name: Announce ${{ github.event.release.tag_name || inputs.title }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discussions and Discord
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+        with:
+          script: |
+            const release = context.payload.release;
+            const inputs = context.payload.inputs || {};
+            const dryRun = !release && String(inputs.dry_run) === "true";
+            const title = (release ? release.name || release.tag_name : inputs.title || "").trim();
+            const body = (release ? release.body || "" : inputs.body || "").trim();
+            if (!title || !body) return core.setFailed("A title and a body are both needed.");
+            if (title.length > 100) return core.setFailed(`Title is ${title.length} characters; keep it to 72 or so.`);
+
+            const { owner, repo } = context.repo;
+            const { repository } = await github.graphql(
+              `query($owner: String!, $name: String!) {
+                 repository(owner: $owner, name: $name) {
+                   id
+                   discussionCategories(first: 25) { nodes { id name } }
+                 }
+               }`,
+              { owner, name: repo }
+            );
+            const category = repository.discussionCategories.nodes.find((c) => c.name === "Announcements");
+            if (!category) return core.setFailed("No Announcements category in Discussions.");
+
+            const { repository: posted } = await github.graphql(
+              `query($owner: String!, $name: String!, $category: ID!) {
+                 repository(owner: $owner, name: $name) {
+                   discussions(first: 50, categoryId: $category) { nodes { title url } }
+                 }
+               }`,
+              { owner, name: repo, category: category.id }
+            );
+            const existing = posted.discussions.nodes.find((d) => d.title === title);
+            if (existing) {
+              core.info(`Already announced: ${existing.url}. Nothing posted.`);
+              return;
+            }
+
+            let url = "(a Discussion link appears here on a real run)";
+            if (!dryRun) {
+              const created = await github.graphql(
+                `mutation($repo: ID!, $category: ID!, $title: String!, $body: String!) {
+                   createDiscussion(input: { repositoryId: $repo, categoryId: $category, title: $title, body: $body }) {
+                     discussion { url }
+                   }
+                 }`,
+                { repo: repository.id, category: category.id, title, body }
+              );
+              url = created.createDiscussion.discussion.url;
+              core.info(`Discussion created: ${url}`);
+            }
+
+            // Discord shows a short summary and sends people to the full post.
+            const summary = body.length > 1200 ? body.slice(0, 1200).replace(/\s+\S*$/, "") + "…" : body;
+            const payload = {
+              allowed_mentions: { parse: [] },
+              embeds: [
+                {
+                  title: title.slice(0, 256),
+                  url,
+                  description: `${summary}\n\n[Read the full post](${url})`.slice(0, 4096),
+                  color: 0x2ec4b6,
+                  footer: { text: "Download: bubblefacts.frolic.org/download.html" },
+                },
+              ],
+            };
+
+            const hook = process.env.DISCORD_ANNOUNCE_WEBHOOK;
+            if (dryRun) {
+              core.info(`Dry run. Would post to Discord:\n${JSON.stringify(payload, null, 2)}`);
+              return;
+            }
+            if (!hook) {
+              core.warning("DISCORD_ANNOUNCE_WEBHOOK is not set, so nothing was posted to Discord.");
+              return;
+            }
+            // The webhook URL is a secret: never log it, and only report the status.
+            const res = await fetch(hook, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (!res.ok) return core.setFailed(`Discord answered ${res.status}. The Discussion is up; post in #announcements by hand.`);
+            else core.info("Posted to Discord #announcements.");

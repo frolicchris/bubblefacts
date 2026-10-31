@@ -164,7 +164,7 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
   const name = subjectName(page, box);
   const out: BoxFact[] = [];
   const kind = SONG_BOX.test(box.type) ? "song" : GAME_BOX.test(box.type) ? "game" : "album";
-  const about: BoxSubject = { kind, name, artists: kind === "album" ? items(f.artist ?? "") : [] };
+  const about: BoxSubject = { kind, name, artists: kind === "game" ? [] : items(f.artist ?? "") };
   const add = (text: string, field: string, values: string[]) => out.push({ text, evidence: `${field}: ${items(f[field] ?? "").join(", ") || f[field]}`, values, about });
 
   if (SONG_BOX.test(box.type)) {
