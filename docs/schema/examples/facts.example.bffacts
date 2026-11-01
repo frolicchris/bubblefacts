@@ -1,0 +1,54 @@
+{
+  "format": "bubblefacts-facts",
+  "formatVersion": 1,
+  "facts": [
+    {
+      "id": "fct_3k9m2x7q1v8c4n6p0r5t2h9wbe",
+      "text": "I've been composing since I was seven.",
+      "kind": "yours",
+      "scope": {
+        "type": "originals"
+      },
+      "created": "2026-10-11T21:00:00Z",
+      "modified": "2026-10-11T21:00:00Z",
+      "fingerprint": "97bd8e52dbd0aa98"
+    },
+    {
+      "id": "fct_7d4h1n8q3w6x2c9v5k0p4m7sar",
+      "text": "\"Harbor Lights\" is from my album Quiet Hours.",
+      "kind": "yours",
+      "scope": {
+        "type": "song",
+        "title": "Harbor Lights",
+        "artist": "Jane Doe"
+      },
+      "created": "2026-10-11T21:05:00Z",
+      "modified": "2026-10-11T21:05:00Z",
+      "fingerprint": "2668b2241a8c1b87"
+    },
+    {
+      "id": "fct_9c2v6x1m4q8h3n7d0w5r2t8kpg",
+      "text": "I'm singing in a winter concert on December 4 to 6, 2026.",
+      "kind": "yours",
+      "scope": {
+        "type": "all"
+      },
+      "expires": "2026-12-07",
+      "created": "2026-10-11T21:10:00Z",
+      "modified": "2026-10-11T21:10:00Z",
+      "fingerprint": "a7a95b04863518d6"
+    },
+    {
+      "id": "fct_1p5t8k3c7m2x9q4v6h0d3n8wze",
+      "text": "Chat voted: the metronome is secretly the band's drummer.",
+      "kind": "joke",
+      "scope": {
+        "type": "tag",
+        "tag": "Harbor Lights"
+      },
+      "created": "2026-10-11T21:15:00Z",
+      "modified": "2026-10-11T21:15:00Z",
+      "fingerprint": "e637a892b1708af8"
+    }
+  ]
+}

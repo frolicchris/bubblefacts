@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bubblefacts.frolic.org/schema/facts-1.json",
+  "title": "BubbleFacts own-facts file, version 1 (draft)",
+  "description": "The streamer's own facts as stored by the app. Draft (issue #193). Only what the normalization needs; see README.md for what is deliberately left out.",
+  "type": "object",
+  "required": [
+    "format",
+    "formatVersion",
+    "facts"
+  ],
+  "properties": {
+    "format": {
+      "const": "bubblefacts-facts"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "description": "Random and permanent: never built from the text.",
+      "pattern": "^[a-z]{3,4}_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "scope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "all"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "originals"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "tag"
+          ],
+          "properties": {
+            "type": {
+              "const": "tag"
+            },
+            "tag": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "title"
+          ],
+          "properties": {
+            "type": {
+              "const": "song"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "artist": {
+              "type": "string"
+            },
+            "songId": {
+              "type": "integer"
+            },
+            "videoId": {
+              "type": "string"
+            },
+            "mbid": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "required": [
+        "id",
+        "text",
+        "kind",
+        "scope",
+        "created",
+        "modified"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "As shown on stream. NFC, single spaces, straight quotes, no control characters."
+        },
+        "kind": {
+          "enum": [
+            "yours",
+            "joke"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "expires": {
+          "$ref": "#/$defs/date"
+        },
+        "created": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "modified": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$",
+          "description": "Derived. Finds likely duplicates; always confirmed by comparing the text."
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
