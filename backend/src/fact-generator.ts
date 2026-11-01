@@ -1219,7 +1219,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       console.log("[Screen] DROP (drops who said it)");
       return false;
     }
-    if (!loadedCaption(f, [read.title, read.artist ?? ""])) return true;
+    if (!loadedCaption(f, [read.title, read.artist ?? ""], isPerformerArticle(page, articleText(page) || context))) return true;
     console.log("[Screen] DROP (loaded wording)");
     return false;
   });

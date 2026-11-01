@@ -539,15 +539,16 @@ other.
 
 **Sources** (`artist-good.ts`, `artistGoodFromEntity` in `wikidata.ts`):
 
-- **Wikidata**, one template per statement: movement (P135, the only source
-  for one: an article's account of a movement is a characterization), a cause position (P39), a
+- **Wikidata**, one template per statement: movement (P135), a cause position (P39), a
   benefit show (P1344), a musicians' body (P463), students (P802) and up to two
   lifetime honors (P166). Competitive categories ("Grammy Award for Best ...")
   are left out: they are the dull ones and a song's own item already has them.
 - **The artist's Wikipedia article**: one sentence, as written, no AI, and only
   if it has the shape of a checkable act (`ACTS`): founded an organization,
   donated to, performed at or headlined a benefit, was named or appointed to a
-  role, taught, gave a masterclass, received an honor in an honors section, or a
+  role, taught, gave a masterclass, co-founded, led or took part in a movement
+  known by its name ("the Example Movement", "Example, a musical movement"; a
+  described "consciousness movement" fails), received an honor in an honors section, or a
   thing was named after them. This is an allow-list because block-lists leak:
   "supported", "opposed", "backed", "lobbied" and "has been involved in" say
   where someone stands on any subject, and fail by not matching. Its subject must
@@ -584,8 +585,9 @@ Why: a viewer of any politics should enjoy these bubbles, and a bubble naming a
 side makes the streamer look as if they took it. The content standard comes
 first and isn't loosened: a cause on one of its lists stays out, and for these
 facts an identity word counts even inside a name (`namesIdentity`). Every AI
-caption is also screened for the judging words (`loadedCaption`, not the wider
-list for these facts: "causes" is everyday in a sentence about a song), and the prompt
+caption is also screened for the judging words, and one written from an artist's
+article for motives too (`loadedCaption`). Captions don't get the wider list for
+these facts: "causes" is everyday in a sentence about a song. The prompt
 asks for the act when the reference is an artist's article (`NEUTRAL_PROMPT`).
 Word lists only, like the content standard: a miss keeps a fact off the stream.
 

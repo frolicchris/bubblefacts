@@ -104,6 +104,7 @@ const OUT: Array<{ reason: string; re: RegExp }> = [
 ];
 const SIDE_ACT = pattern(SIDE_ACTS);
 const LOADED_RE = pattern(LOADED);
+const MOTIVE_RE = pattern(MOTIVE);
 /** A sum a living person gave is theirs to tell. */
 const MONEY = /[$£€]\s?\d|\b\d+(?:\.\d+)?\s+(?:million|billion)\s+(?:dollars|pounds|euros)\b/i;
 /** "Is a patron of ...": no date to check it by. "Became a patron in 1999" is an act. */
@@ -122,7 +123,12 @@ export function neutralBreach(text: string, names: string[] = [], living = true)
   return SIDE_ACT.test(plain) && !OWN_TRADE.test(plain) ? "an act that states a side" : null;
 }
 
-/** Whether an AI caption judges rather than tells. A caption on any subject is held to `LOADED`. */
-export function loadedCaption(text: string, names: string[] = []): boolean {
-  return LOADED_RE.test(namesBlanked(text, names));
+/**
+ * Whether an AI caption judges rather than tells. Every caption is held to `LOADED`. One written
+ * from an artist's article (`artistArticle`) is about their life, so it is held to `MOTIVE` too;
+ * on a song's article "because" and "dedicated to" are how the music came about.
+ */
+export function loadedCaption(text: string, names: string[] = [], artistArticle = false): boolean {
+  const plain = namesBlanked(text, names);
+  return LOADED_RE.test(plain) || (artistArticle && MOTIVE_RE.test(plain));
 }

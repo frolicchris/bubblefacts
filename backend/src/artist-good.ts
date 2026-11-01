@@ -13,8 +13,8 @@ import { artistGoodFromEntity, artistGoodLabels, diedOf, sureArtist } from "./wi
  * an allow-list, because block-lists leak ("X supported Y" names a side on any subject). It is
  * shown as the article wrote it, only with a leading "He", "She", "They" or "The band" replaced by
  * the artist's name. A thing named for them ("A statue of her ...") counts in an honors section.
- * Movements never come from a sentence, only from Wikidata's statement: an article's account of
- * one is a characterization. `neutral-wording.ts` then applies its lists on top.
+ * A movement counts by its name and the artist's part in it, or from Wikidata's statement: an
+ * article's description of one is a characterization. `neutral-wording.ts` applies its lists on top.
  */
 
 /** A verb only counts in the shape of a checkable act: a verb, then what the sentence must also name. */
@@ -25,6 +25,8 @@ const HONOR = /\b(Hall of Fame|Medal|Order of|Knight\w*|Dame|Kennedy Center|Priz
 const SCHOOL = /\b(conservator\w+|universit\w+|colleges?|schools?|academ\w+)\b/i;
 const PRESERVED = /\b(traditional (?:songs?|music|tunes?)|folk songs|field recordings|endangered languages?|archives?|archival|recordings)\b/i;
 const NEW_ARTISTS = /\b(young|emerging|new|newer|up-and-coming) (?:musicians|artists|composers|bands)\b/i;
+/** A movement by its name: "the Example Movement", "Tropica, a musical movement". Never a description ("a consciousness movement"). */
+const NAMED_MOVEMENT = /(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)*(?:\s+[Mm]ovement\b|,\s+an?\s+(?:[\p{L}-]+\s+){0,3}movement\b)/u;
 const SHARED = /\b(free downloads?|for free|pay-what-you-want|Creative Commons|open[- ]licen[sc]\w+|stems)\b/i;
 
 /**
@@ -34,6 +36,7 @@ const SHARED = /\b(free downloads?|for free|pay-what-you-want|Creative Commons|o
  */
 const ACTS: Array<{ verb: string; needs: RegExp; inSection?: boolean }> = [
   { verb: String.raw`(?:co-?)?found(?:ed|s)|establish(?:ed|es)|set up|launch(?:ed|es)|start(?:ed|s)|creat(?:ed|es)`, needs: ORG },
+  { verb: String.raw`(?:co-?)?found(?:ed|s)|helped\s+(?:to\s+)?(?:found|lead|start|develop|create)|led|leads|t(?:ook|akes)\s+part\s+in|an?\s+(?:co-?)?founder\s+of`, needs: NAMED_MOVEMENT },
   { verb: String.raw`donat(?:ed|es)`, needs: /\b(?:to|for)\b/ },
   { verb: String.raw`raised\s+(?:money|funds|over|more than|about|nearly|millions|thousands|US\$|\$|£|€)`, needs: /\b(?:to|for)\b/ },
   { verb: String.raw`(?:produced and )?(?:perform(?:ed|s)|play(?:ed|s)|appear(?:ed|s)|sang)\s+(?:at|in|on|for)|headlin(?:ed|es)|(?:co-)?organi[sz](?:ed|es)|host(?:ed|s)|record(?:ed|s)|releas(?:ed|es)`, needs: BENEFIT },
@@ -79,7 +82,7 @@ function heading(line: string): { level: number; text: string } | null {
 /** A sentence too long for a bubble, without a closing clause that only adds to it. Dropping one can't overstate the act. */
 function shortened(text: string): string {
   if (text.length <= MAX_FACT_CHARS) return text;
-  const cut = /^(.{30,}?),\s(?:originally|which|who|including|with|as part of|in order to|to)\s/.exec(text);
+  const cut = /^(.{30,}?)(?:,\s(?:originally|which|who|including|with|as part of|in order to|to)|\s(?:that|which))\s/.exec(text);
   return cut && cut[1].length < MAX_FACT_CHARS ? `${cut[1]}.` : text;
 }
 
@@ -120,6 +123,8 @@ export function goodSentences(full: string, name: string): string[] {
   const about = new RegExp(String.raw`^${DATED}(?:${escapeRe(name)}|${surname ? `${escapeRe(surname)}|` : ""}He|She|They|The band|The group)\s`, "iu");
   const out: string[] = [];
   const open: Array<{ level: number; good: boolean; politics: boolean }> = [];
+  // The article's first sentence is about its subject, however fully it spells their name.
+  let opening = true;
   for (const line of full.split("\n")) {
     const h = heading(line);
     if (h) {
@@ -129,12 +134,13 @@ export function goodSentences(full: string, name: string): string[] {
       continue;
     }
     const here = open[open.length - 1];
-    if (!here || here.politics) continue;
+    if (here?.politics) continue;
     let aboutArtist = true;
     for (const s of sentencesOf(line)) {
-      const found = deed(s, name, aboutArtist, surname, here.good);
+      const found = deed(s, name, aboutArtist, surname, Boolean(here?.good));
       if (found && !out.includes(found)) out.push(found);
-      aboutArtist = about.test(s.trim());
+      aboutArtist = opening || about.test(s.trim());
+      opening = false;
     }
   }
   return out;

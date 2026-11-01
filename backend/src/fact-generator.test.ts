@@ -501,6 +501,23 @@ describe("generateFacts", () => {
     expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
   });
 
+  it("drops a loaded caption anywhere, and a motive only on an artist's article", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const loaded = "Mira Vale was a tireless voice for the harbor towns.";
+    const motive = "Mira Vale played the harbor towns because of her father.";
+    const log = console.log as unknown as jest.Mock;
+    log.mockClear();
+    const drops = () => log.mock.calls.filter(([line]) => String(line) === "[Screen] DROP (loaded wording)").length;
+    mockCreate.mockResolvedValue(reply([loaded, motive].join("\n")));
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Mira Vale\nMira Vale is an American singer.\n${loaded}\n${motive}`);
+    await generateFacts({ title: "Velvet Harbor", artist: "Mira Vale" });
+    expect(drops()).toBe(2);
+    log.mockClear();
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Plain Tune (song)\n"Plain Tune" is a song.\n${loaded}\n${motive}`);
+    await generateFacts({ title: "Plain Tune", artist: "Someone" });
+    expect(drops()).toBe(1);
+  });
+
   it("asks for the artist as the subject of a caption about another song, only on an artist's article", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Mira Vale\nMira Vale is an American singer.\n${MODEL_LINES}`);

@@ -21,11 +21,29 @@ describe("goodSentences", () => {
     ["Career", "Quillon revived traditional songs of the Ashford valley.", "Mara Quillon revived traditional songs of the Ashford valley."],
     ["Career", "Quillon released her stems for free download.", "Mara Quillon released her stems for free download."],
     ["Career", "Quillon performed at a benefit for flood relief.", "Mara Quillon performed at a benefit for flood relief."],
+    ["Career", "Quillon co-founded the Lowfield Movement in 1968.", "Mara Quillon co-founded the Lowfield Movement in 1968."],
+    ["Career", "She helped found the Harbor Song Movement.", "Mara Quillon helped found the Harbor Song Movement."],
+    ["Career", "Quillon took part in the Tropica movement.", "Mara Quillon took part in the Tropica movement."],
+    ["Career", "In the 1960s, she helped develop Tropica, a musical movement of the coast.", "In the 1960s, Mara Quillon helped develop Tropica, a musical movement of the coast."],
+    ["Career", "Quillon was a founder of the Nueva Ola Movement.", "Mara Quillon was a founder of the Nueva Ola Movement."],
     ["Honors", "A statue of her stands in Ashford, named in honor of her.", "A statue of Mara Quillon stands in Ashford, named in honor of her."],
     ["Honors", "Asteroid 90210 Quillon was named after Mara Quillon.", "Asteroid 90210 Quillon was named after Mara Quillon."],
     ["Honors", "She was inducted into the Ashford Hall of Fame in 2001.", "Mara Quillon was inducted into the Ashford Hall of Fame in 2001."],
   ])("takes the act: %s, %s", (section, body, want) => {
     expect(good(section, body)).toEqual([want]);
+  });
+
+  it("lets a pronoun follow the article's first sentence, whatever name that spells", () => {
+    expect(goodSentences("Mara Ines Quillon Reyes is a singer. She co-founded the Lowfield Movement.", "Mara Quillon")).toEqual(["Mara Quillon co-founded the Lowfield Movement."]);
+  });
+
+  it("reads the opening paragraph too", () => {
+    expect(goodSentences("Mara Quillon co-founded the Lowfield Movement in 1968.\n\n== Career ==\nShe sang.", "Mara Quillon")).toEqual(["Mara Quillon co-founded the Lowfield Movement in 1968."]);
+  });
+
+  it("keeps a named movement when a long clause about it won't fit", () => {
+    const long = "In the late 1960s, she helped develop Tropica, a coastal musical movement that combined the popular music of the region with rock and roll and many other avant-garde influences.";
+    expect(good("Career", long)).toEqual(["In the late 1960s, Mara Quillon helped develop Tropica, a coastal musical movement."]);
   });
 
   it("keeps the act and drops a closing clause that won't fit a bubble", () => {
@@ -41,7 +59,9 @@ describe("goodSentences", () => {
     ["a chance word beside a music verb", "Career", "Quillon recorded five tracks at Ashford College."],
     ["a name, not a deed", "Career", "Mara Quillon Archives holds her letters and the Lantern Foundation papers."],
     ["a commercial role", "Career", "In 2002, Quillon became the official spokesman of the Lantern Foundation."],
-    ["a movement told in a sentence", "Career", "Quillon was part of the Lowfield movement."],
+    ["a movement told as a part of it", "Career", "Quillon was part of the Lowfield movement."],
+    ["a described movement", "Career", "Quillon took part in a consciousness movement."],
+    ["a movement with no name", "Career", "Quillon helped found the movement."],
     ["a characterization", "Philanthropy", "Quillon has been involved in philanthropy across her career."],
     ["a concert outside a section about such things", "Career", "Quillon performed at the Ashford Festival."],
     ["a plan", "Philanthropy", "She announced a benefit concert to raise funds."],
@@ -125,6 +145,18 @@ describe("the neutral wording line", () => {
     expect(loadedCaption("The controversial singer played in Ashford.")).toBe(true);
     expect(loadedCaption("The song's bass causes the floor to shake.")).toBe(false);
     expect(loadedCaption("The song came out in 1999.")).toBe(false);
+  });
+
+  it("holds a caption from an artist's article to motives too, not one from a song's", () => {
+    expect(loadedCaption("Mara Quillon gave the concert because of her father.", [], true)).toBe(true);
+    expect(loadedCaption("Mara Quillon was passionate about clean water.", [], true)).toBe(true);
+    expect(loadedCaption("The song was dedicated to her father.", [], false)).toBe(false);
+  });
+
+  it("a named movement that takes a side still falls to the lists", () => {
+    expect(neutralBreach("Mara Quillon co-founded the Lowfield Socialist Movement.")).toBe("elections or parties");
+    expect(neutralBreach("Mara Quillon took part in the Lowfield Independence Movement.")).toBe("a contested fight");
+    expect(neutralBreach("Mara Quillon helped lead the Civil Rights Movement.")).toBe("loaded wording");
   });
 
   it("asks the writer for the act, not a verdict", () => {
