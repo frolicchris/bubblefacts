@@ -141,12 +141,17 @@ function joinNames(list: string[]): string {
 /** Release groups that reissue or record live what came out before: their date isn't the song's. */
 const REISSUE_TYPES = /^(compilation|live|dj-mix|remix|mixtape\/street)$/i;
 
+/** The same title, also when its brackets hold part of it: "Falling Down" and "Falling (Down)". */
+function sameRecordingTitle(a: string, b: string): boolean {
+  const words = (s: string) => normalizeTitle(s.replace(/[()[\]]/g, " "));
+  return normalizeTitle(a) === normalizeTitle(b) || words(a) === words(b);
+}
+
 /** The recordings of this title credited to this artist, earliest first. */
 function matchingRecordings(recordings: Recording[], title: string, artist: string): Recording[] {
-  const want = normalizeTitle(title);
   const artistKeys = artistNames(artist);
   return recordings
-    .filter((r) => (r.score ?? 0) >= 90 && normalizeTitle(r.title ?? "") === want)
+    .filter((r) => (r.score ?? 0) >= 90 && sameRecordingTitle(r.title ?? "", title))
     .filter((r) => (r["artist-credit"] ?? []).some((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
     .sort((a, b) => date(a).localeCompare(date(b)));
 }
@@ -161,10 +166,9 @@ const NOT_THE_ORIGINAL = /\b(live|re-?record(ed|ing)?|new recording|demo|remix(e
  * the artist first recorded it, with others, in 1986), so no year is stated.
  */
 export function knownEarlier(recordings: Recording[], title: string, artist: string, year: string): boolean {
-  const want = normalizeTitle(title);
   const artistKeys = artistNames(artist);
   return recordings
-    .filter((r) => normalizeTitle(r.title ?? "") === want)
+    .filter((r) => sameRecordingTitle(r.title ?? "", title))
     .filter((r) => (r["artist-credit"] ?? []).some((c) => artistKeys.includes(normalizeTitle(c.name ?? c.artist?.name ?? ""))))
     .some((r) => [r["first-release-date"], ...(r.releases ?? []).map((rel) => rel.date)].some((d) => /^\d{4}/.test(d ?? "") && (d ?? "").slice(0, 4) < year));
 }
@@ -235,10 +239,15 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
   const facts: string[] = [];
   const q = `"${title}"`;
   const found = yearKnown ? firstYear(matches, diedIn) : undefined;
-  const year = found && !knownEarlier(recordings, title, artist, found) ? found : undefined;
+  // A date with no month is often a copyright year, a soundtrack's a month before its film.
+  const dated = matches.some((r) => [r["first-release-date"], ...(r.releases ?? []).map((rel) => rel.date)].some((d) => d?.startsWith(`${found}-`)));
+  const year = found && dated && !knownEarlier(recordings, title, artist, found) ? found : undefined;
   // A studio album only (no compilations, live or soundtrack albums), and no
   // claim that it came out there first: an earlier single may not be listed.
-  const album = [...(first.releases ?? [])]
+  // An album more than a year after the song isn't where it came out: it may hold
+  // it only as one edition's bonus track, and the two side by side read as one release.
+  const earliest = Number((year ?? /^\d{4}/.exec(first["first-release-date"] ?? "")?.[0]) ?? 0);
+  const firstAlbum = [...(first.releases ?? [])]
     .filter(
       (r) =>
         r.status === "Official" &&
@@ -248,12 +257,27 @@ export function performerFacts(recordings: Recording[], title: string, artist: s
         !(r["release-group"]?.["secondary-types"] ?? []).length &&
         !NOT_AN_ALBUM.test(r.title)
     )
-    .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"))[0]?.title;
+    .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"))[0];
+  const albumYear = Number(/^\d{4}/.exec(firstAlbum?.date ?? "")?.[0] ?? 0);
+  const album = earliest && albumYear > earliest + 1 ? undefined : firstAlbum?.title;
   // One bubble when both are known and fit. "And is on", not "on": the song may have come out earlier, as a single.
   if (year && album) facts.push(...fitOrSplit(`${q} came out in ${year} and is on the album ${album}.`, [`${q} came out in ${year}.`, `${q} is on the album ${album}.`]));
   else if (year) facts.push(`${q} came out in ${year}.`);
   else if (album) facts.push(`${q} is on the album ${album}.`);
   return facts;
+}
+
+/**
+ * Whether MusicBrainz has this title credited to an artist of this name: a game's
+ * article may only share a band's name. False when it can't be read. Never throws.
+ */
+export async function creditsSong(title: string, artist: string): Promise<boolean> {
+  try {
+    const { recordings } = await search(`recording:${quote(title)} AND artist:${quote(artist)}`);
+    return matchingRecordings(recordings, title, artist).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** The year `performerFacts` gave a song, or null. */

@@ -3,7 +3,7 @@ import { artistNames, MAX_FACT_CHARS, mentionsName, namesLoosely, normalizeTitle
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
 import { fitOrSplit, packFacts } from "./data-facts";
-import { albumYear, anyBoxOf, boxBacksPlace, boxBacksYear, boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
+import { albumYear, anyBoxOf, boxBacksPlace, boxBacksYear, boxNeighbor, boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
 
 /**
  * Plain facts from Wikidata, for songs with no Wikipedia article (issue #23).
@@ -160,6 +160,13 @@ export function pickSong(
   return hit?.id ?? null;
 }
 
+/** Whether the item dates its earliest year no finer than the year: a rough date, often a composition's or another recording's. */
+function yearOnly(e: Entity): boolean {
+  const first = year(e);
+  const dates = rankedClaims(e, "P577").map((c) => c.mainsnak?.datavalue?.value as { time?: string; precision?: number } | undefined);
+  return !dates.some((d) => d?.time?.startsWith(`+${first}`) && (d.precision ?? 0) > 9);
+}
+
 /** The years an item's description gives: "1982 single by ...", "... released in 1999". */
 const describedYears = (e: Entity): string[] => (e.descriptions?.en?.value ?? "").match(/\b(?:1[89]|20)\d\d\b/g) ?? [];
 
@@ -171,8 +178,10 @@ const describedYears = (e: Entity): string[] => (e.descriptions?.en?.value ?? ""
  * composer or producer list cut to one name, and a year from before the release.
  * Undefined when the item has no English article. Writers and producers are told
  * only when the infobox lists the same people; a year only when neither the
- * infobox nor the item's description gives another, and the song's album (its
- * infobox's, `album`) didn't come out earlier.
+ * infobox nor the item's description gives another, the song's album (its
+ * infobox's, `album`) didn't come out earlier, and an item dated to the year alone
+ * has the infobox's year behind it; the single before or after only when the
+ * infobox names the same one.
  */
 export function factsFromEntity(song: Entity, labels: Record<string, Entity>, title: string, box?: Infobox | null, album: string | null = null): string[] {
   const named = (prop: string) => itemIds(song, prop).map((id) => label(labels[id])).filter(Boolean);
@@ -199,7 +208,8 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
   const told = box ? boxYear(box) : null;
   const first = year(song);
   // A later year than the song's album is a single's: the song came out with the album (`album`).
-  const y = first && (!described.length || described.includes(first)) && (!told || told === first) && !(album && album < first) ? first : null;
+  const dated = told ? told === first : box === undefined || !yearOnly(song);
+  const y = first && (!described.length || described.includes(first)) && dated && !(album && album < first) ? first : null;
   const partOf = named("P361");
   if (y && partOf.length) facts.push(...fitOrSplit(`${q} came out in ${y} and appears on ${partOf[0]}.`, [`${q} came out in ${y}.`, `${q} appears on ${partOf[0]}.`]));
   else if (y) facts.push(`${q} came out in ${y}.`);
@@ -226,8 +236,11 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
   // earlier song it covers ("1956 song performed by ..."), which isn't one.
   // An item in two series (a duet, a charity single) has two of them, and a
   // neighbor released on the wrong side of the song is a slip: skip both.
+  // The order is often wrong (a single dated by its later UK release, or the next
+  // one skipped): with an English article, its infobox must name the same single.
   const isSingle = (e: Entity | undefined) => /\bsingle\b/i.test(e?.descriptions?.en?.value ?? "");
   const yearOf = (e: Entity | undefined) => Number(/^(\d{4})\b/.exec(e?.descriptions?.en?.value ?? "")?.[1]) || null;
+  const inBox = (name: string, side: "prev" | "next") => box === undefined || Boolean(box && sameTitle(name, boxNeighbor(box, side) ?? ""));
   const singles = (prop: string, earlier: boolean) => {
     const ids = itemIds(song, prop);
     const mine = yearOf(song);
@@ -235,7 +248,8 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
       const theirs = yearOf(labels[id]);
       return isSingle(labels[id]) && !(mine && theirs && (earlier ? theirs > mine : theirs < mine));
     });
-    return isSingle(song) && ids.length === 1 && ok.length === 1 ? [cleanLabel(label(labels[ok[0]]))].filter((l) => l && !sameName(l)) : [];
+    const side = earlier ? "prev" : "next";
+    return isSingle(song) && ids.length === 1 && ok.length === 1 ? [cleanLabel(label(labels[ok[0]]))].filter((l) => l && !sameName(l) && inBox(l, side)) : [];
   };
   const before = singles("P155", true);
   if (before.length) facts.push(`${q} came after the single "${before[0]}".`);
@@ -413,7 +427,7 @@ const RELEASE_ITEM = /\b(album|EP|soundtrack|mixtape)\b/i;
 
 /** What the article's item is, cut down to what its facts need. */
 export type ArticleItem =
-  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null; knownBy?: string | null }
+  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null; knownBy?: string | null; yearOnly?: boolean }
   | { kind: "artist"; facts: string[] }
   | null;
 
@@ -456,7 +470,7 @@ export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artis
       .map((id) => cleanLabel(anyLabel(labels[id])))
       .find(Boolean) ?? null;
     const genres = itemIds(e, "P136").map((id) => anyLabel(labels[id])).filter(Boolean).slice(0, 2);
-    return { kind: "song", title, year, partOf, genres };
+    return { kind: "song", title, year, partOf, genres, ...(yearOnly(e) ? { yearOnly: true } : {}) };
   }
   const performer = (classes.includes(HUMAN) || classes.some((c) => GROUP_CLASSES.has(c))) && PERFORMER_ITEM.test(description);
   if (!performer || !sameArtist(anyLabel(e), names)) return null;
@@ -530,14 +544,15 @@ export async function articleItem(page: string, artist: string[], titles: string
   try {
     const { entity, labels } = await pageItem(page);
     let item = entity ? articleItemFrom(entity, labels, artist, titles, await anyBoxOf(page)) : null;
-    // The article's infobox, the fuller source, dates the song another year, or its album
-    // came out earlier (the year is a single's): no year, and none from MusicBrainz after the album's.
+    // The article's infobox, the fuller source, dates the song another year or none when the
+    // item gives only a year, or its album came out earlier (the year is a single's): no year,
+    // and none from MusicBrainz after the album's.
     if (item?.kind === "song") {
       const box = await songBoxOf(page, artist);
       const told = box ? boxYear(box) : null;
       const album = box ? await albumYear(box) : null;
       const knownBy = [item.year, told].filter((y): y is string => Boolean(y)).sort()[0] ?? null;
-      if (item.year && ((told && told !== item.year) || (album && album < item.year))) item = { ...item, year: null };
+      if (item.year && ((told ? told !== item.year : item.yearOnly) || (album && album < item.year))) item = { ...item, year: null };
       if (knownBy && knownBy !== item.year) item = { ...item, knownBy };
       if (album) item = { ...item, albumYear: album };
     }

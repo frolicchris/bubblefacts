@@ -6,7 +6,7 @@ import { escapeRe, hasNoArtist, removeAll, withoutRefsAndComments, withoutReques
 import { IDENTITY_REASON, selfDescribedIdentity, standardBreach, withinStandard } from "./content-standard";
 import { htmlToText } from "./wiki-html";
 import { setCapped } from "./capped-map";
-import { anotherArtist, linkedGrounding } from "./musicbrainz";
+import { anotherArtist, creditsSong, linkedGrounding } from "./musicbrainz";
 import { clearClassicalCache, isPersonPage, itemLabels, knownPerson, personItem, placeOrTeam, searchWorks, wholesOf, WikidataBusy, WorkItem, workItems } from "./wikidata";
 
 /**
@@ -3467,8 +3467,9 @@ export async function performerPages(artist: string, track: string): Promise<Per
  * "Heart of Darkness (video game)" for Heart's "Alone", Elton John's "The
  * Muse" for Muse's "Space Dementia". Then the song's own article wins
  * wherever it's found, and an album or a soundtrack gives way to a
- * performer's article under the name. A game's article stays: a band may
- * share a game's name.
+ * performer's article under the name. A game's article stays (a band may
+ * share a game's name) unless MusicBrainz credits the song to a performer
+ * who has an article under that name.
  */
 async function performerArticle(
   song: SSLSong,
@@ -3487,7 +3488,10 @@ async function performerArticle(
   const artist = game.replace(/\s*\([^)]*\)\s*$/, "").trim();
   const found = await performerPages(artist, track);
   if (found.song && found.song !== page && usable(found.song)) return { page: found.song, subject: false };
-  if (aGame) return null;
+  if (aGame) {
+    const band = found.performer && found.performer !== page && usable(found.performer) ? found.performer : null;
+    return band && (await creditsSong(track, artist)) ? { page: band, subject: true } : null;
+  }
   // Only to another page: a person's own article stays even when the opening doesn't call them a performer.
   const otherMusic = !nonMusic && unnamed && !!found.performer && found.performer !== page && !isPerformerArticle(page, full);
   if (!otherMusic && (!nonMusic || !(told || found.performer))) return null;

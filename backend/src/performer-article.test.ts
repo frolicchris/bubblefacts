@@ -140,6 +140,18 @@ describe("a performer's name shared with a film or a book", () => {
     expect(await fetchGrounding({ title: "Comet Ridge", artist: "Starfall" })).toMatch(/^Starfall \(video game\)/);
   });
 
+  it("leaves a game's article for the band's when MusicBrainz credits the band with the song", async () => {
+    hits = { "Starfall video game": ["Starfall (video game)"] };
+    extracts = { "Starfall (video game)": `Starfall is a 2003 platform video game.${LONG}`, "Starfall (band)": `Starfall are a Swedish pop band formed in 1994.${LONG}` };
+    descriptions = { "Starfall (band)": "Swedish pop band" };
+    const fetchGame = global.fetch;
+    const recordings = [{ score: 100, title: "Comet (Ridge)", "artist-credit": [{ name: "Starfall" }] }];
+    global.fetch = (async (url: string) =>
+      new URL(url).hostname === "musicbrainz.org" ? ({ ok: true, status: 200, json: async () => ({ recordings, count: 1 }) } as Response) : mock(url)) as unknown as typeof fetch;
+    expect(await fetchGrounding({ title: "Comet Ridge", artist: "Starfall" })).toMatch(/^Starfall \(band\)/);
+    global.fetch = fetchGame;
+  });
+
   it("takes a performer's article under a longer name, which no installment check reads", async () => {
     // The search finds a philosopher. Wikipedia's "Quillon (musician)" is "Aurelio Quillon", whose
     // first sentence breaks the identity list and is left out.
