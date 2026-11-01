@@ -7,7 +7,7 @@ import { escapeRe } from "./text";
  * family-friendly music stream. Twitch holds streamers responsible for
  * everything on their stream, and YouTube and Kick have the same rules, so
  * an article's sentences about crime, lawsuits, threats, stalking, drugs, sex,
- * private relationships, health and how someone died never reach the model, and a
+ * private relationships, health, how someone died and put-downs of the music never reach the model, and a
  * caption or data fact that still says such a thing is dropped. Nor does
  * anything saying who a person is (issue #262), unless in their own words.
  *
@@ -128,6 +128,26 @@ const LISTS: TopicList[] = [
       "plane crash", "car accident", "traffic accident", "autopsy", "coroner", "shot dead",
       "found dead", "gunshot", "drowned", "stabbed", "strangled", "death of his", "death of her",
       "death of their",
+    ],
+  },
+  {
+    // Chat etiquette: a bubble celebrates the music, so a song's or an artist's
+    // failure isn't trivia. "Failed to make the top 100" is a fact
+    // nobody needed. "Panned" alone is a sound moving left or right; "mixed reviews" stays.
+    label: "put-downs",
+    words: [
+      "failed to chart", "failed to make the", "failed to make it", "failed to make any", "failed to reach",
+      "failed to enter", "failed to crack", "failed to break", "failed to sell", "failed to gain",
+      "failing to chart", "failing to reach", "failing to make", "failure to chart", "did not chart",
+      "didn't chart", "never charted", "did not make the", "didn't make the", "did not reach",
+      "didn't reach", "missed the Hot 100", "missed the Billboard", "missed the charts", "missed the Top",
+      "commercial failure", "commercial flop", "commercial disappointment", "commercially unsuccessful",
+      "critical failure", "box office bomb", "box-office bomb", "flop", "flops", "flopped", "bombed",
+      "poorly received", "poorly reviewed", "poor reviews", "bad reviews", "negative reviews", "scathing",
+      "panned by", "critics panned", "critically panned", "widely panned", "universally panned", "was panned",
+      "were panned", "sold poorly", "poor sales", "disappointing sales", "low sales", "underperformed",
+      "least successful", "lowest-charting", "lowest charting", "worst album", "worst albums", "worst song",
+      "worst songs", "worst single", "worst singles", "Razzie", "Razzies",
     ],
   },
   {
