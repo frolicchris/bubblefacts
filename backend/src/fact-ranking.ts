@@ -16,6 +16,9 @@
  * it. Data facts and lead captions go first among equals, no two bubbles in a
  * row tell the same kind of fact when that can be helped, and a song shows at
  * most four.
+ * When the article is the artist's, a caption about another song of theirs
+ * ("Paper Kites" while "Velvet Harbor" plays) goes below the facts about the artist and
+ * at most one is shown (`namesOtherSong`).
  *
  * Every signal is a plain text comparison against the source: no model.
  */
@@ -37,7 +40,7 @@ export interface Candidate {
 }
 
 /** The kind of fact a bubble tells, so a song mixes them. */
-export type Hook = "picture" | "making" | "first" | "person" | "award" | "release" | "plain";
+export type Hook = "picture" | "making" | "first" | "person" | "good" | "award" | "release" | "plain";
 
 export interface Ranked extends Candidate {
   /** Why the source is risky to retell (empty for a data fact or a safe caption). */
@@ -45,6 +48,8 @@ export interface Ranked extends Candidate {
   /** Whether it is shown only to reach the floor of three. */
   refill: boolean;
   score: number;
+  /** Whether the caption is about another quoted song, on the artist's article. */
+  other?: boolean;
   hook: Hook;
   /** What the score is made of, for the log. */
   reasons: string[];
@@ -121,6 +126,9 @@ const PERSON =
 /** Awards, charts and sales: dull to most viewers and easy to get wrong. */
 const AWARD =
   /\b(?:chart(?:ed|s)?|peaked|number (?:one|\d+)|no\. ?\d+|top (?:\d+|ten|forty)|billboard|hot 100|certified|platinum|gold|awards?|awarded|nominat\w+|grammys?|won|sold|sales|copies|ranked|ranking)\b|#\d+/i;
+/** What an artist gave: charity, teaching, a founding, a movement, a lifetime honor, a thing named for them. */
+const GOOD =
+  /\b(?:charit(?:y|ies|able)|philanthrop\w+|humanitarian|ambassador|benefit concerts?|telethon|raised (?:over|more than|\$)|donat(?:ed|ions?)|scholarships?|masterclass\w*|mentor(?:ed|s)?|(?:co-?)?founded (?:the|an?)|Hall of Fame|Medal of|movement|royalties|conservation|preserv\w+|Creative Commons|free downloads?|statue|named (?:after|for)|asteroid)\b/i;
 /** Release dates, labels and formats. */
 const RELEASE = /\b(?:released (?:on|in|as|by|through|via)|re-?released|reissued|record label|label|catalog(?:ue)? number|b-side|vinyl|cassette|digital download)\b/i;
 
@@ -148,11 +156,33 @@ export function interest(text: string, sentence = text): { score: number; hook: 
     else add("plain", -2, "a first or a record the source doesn't state");
   }
   if (PERSON.test(text)) add("person", 1, "a relatable fact about a person");
+  if (GOOD.test(text)) add("good", 2, "what the artist gave");
   if (AWARD.test(text)) add("award", -1, "awards, charts or sales");
   if (RELEASE.test(text)) add("release", -1, "release details");
-  const order: Hook[] = ["picture", "making", "first", "person", "award", "release"];
+  const order: Hook[] = ["picture", "making", "first", "person", "good", "award", "release"];
   const hook = order.find((h) => kinds.includes(h)) ?? "plain";
   return { score, hook, reasons };
+}
+
+// --- Another song named in a caption ------------------------------------
+
+const DOUBLE_QUOTED = /["“]([^"”]+)["”]/g;
+const SINGLE_QUOTED = /(?<![\p{L}\p{N}])['‘]([^'’]+)['’](?![\p{L}\p{N}])/gu;
+const squash = (s: string) => (s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).join(" ");
+
+/**
+ * Whether a caption names a quoted title that isn't the song playing: the
+ * subject may be another song ("Paper Kites" while "Velvet Harbor" plays). A title that
+ * holds the playing title, or is held by it, counts as the song itself. With no
+ * title to compare, or no quoted title, false.
+ */
+export function namesOtherSong(caption: string, title: string): boolean {
+  const own = squash(title);
+  if (!own) return false;
+  const quotes = [...caption.matchAll(DOUBLE_QUOTED), ...caption.matchAll(SINGLE_QUOTED)].map((m) => m[1]);
+  const titles = quotes.filter(isTitle).map(squash).filter(Boolean);
+  if (!titles.length) return false;
+  return !titles.some((t) => t === own || ` ${t} `.includes(` ${own} `) || ` ${own} `.includes(` ${t} `));
 }
 
 // --- Choosing and ordering ----------------------------------------------
@@ -162,12 +192,14 @@ export function interest(text: string, sentence = text): { score: number; hook: 
  * facts, then captions as the writer wrote them. `unsure`: the article may be
  * about another work, so no caption is shown. `dataFirst`: the data facts are
  * about the song and the article is its artist's or game's, so they lead
- * whatever their interest ("describe the song, then tell about it"). `log` gets
- * one line per caption held back or left out.
+ * whatever their interest ("describe the song, then tell about it"). `artistArticle`
+ * with the playing `title`: the article is the artist's, so a caption about another
+ * quoted song ranks below the rest and only the first is kept. `log` gets one line
+ * per caption held back or left out.
  */
 export function rankFacts(
   candidates: Candidate[],
-  opts: { max?: number; floor?: number; unsure?: boolean; dataFirst?: boolean; log?: (line: string) => void } = {}
+  opts: { max?: number; floor?: number; unsure?: boolean; dataFirst?: boolean; artistArticle?: boolean; title?: string; log?: (line: string) => void } = {}
 ): Ranked[] {
   const max = Math.max(0, opts.max ?? MAX_BUBBLES);
   const floor = Math.min(opts.floor ?? FLOOR, max);
@@ -179,10 +211,18 @@ export function rankFacts(
       return [];
     }
     const flags = c.kind === "caption" ? sourceRisk(c.text, c.sentence ?? "", Boolean(c.lead)) : [];
-    return [{ ...c, flags, refill: false, order, ...interest(c.text, c.sentence || c.text) }];
+    const other = c.kind === "caption" && Boolean(opts.artistArticle) && namesOtherSong(c.text, opts.title ?? "");
+    return [{ ...c, flags, refill: false, order, other, ...interest(c.text, c.sentence || c.text) }];
   });
-  const safe = all.filter((c) => !c.flags.length);
-  const held = all.filter((c) => c.flags.length);
+  // On an artist's article, at most one caption about another song: the first the writer wrote.
+  const firstOther = all.find((c) => c.other)?.order;
+  const pool = all.filter((c) => {
+    if (!c.other || c.order === firstOther) return true;
+    log("[Rank] not shown (another song of the artist, one at most)");
+    return false;
+  });
+  const safe = pool.filter((c) => !c.flags.length);
+  const held = pool.filter((c) => c.flags.length);
   // Too few safe ones: the least risky held-back captions come back, a body sentence counting half a flag more.
   const risk = (c: (typeof all)[number]) => c.flags.length + (c.lead ? 0 : 0.5);
   const back = held
@@ -194,7 +234,7 @@ export function rankFacts(
   // Most interesting first; among equals, data facts and lead captions, then the writer's order.
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
-  const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
+  const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
   const kept = ranked.slice(0, max);
   // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.

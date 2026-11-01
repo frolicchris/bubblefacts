@@ -38,6 +38,10 @@ jest.mock("./songlist-client", () => ({
     toSong(item: SSLQueueItem & { bfSong: SSLSong }) { return item.bfSong; }
     displayTitle() { return ""; }
     connect() { return Promise.resolve(); }
+    lastSuccessfulFetchAgeMs() { return 0; }
+    authRejected() { return false; }
+    pollIntervalMs() { return 15_000; }
+    isEventStreamConnected() { return true; }
   },
 }));
 
@@ -59,6 +63,7 @@ jest.mock("./fact-generator", () => ({
   factStats: {},
   markWrong: () => "Some article",
   outcomeFor: () => "",
+  aiTimeFor: () => 45_000,
   ownFactKind: () => null,
   STRUCTURED: "structured",
   unmarkWrong: () => {},
@@ -171,6 +176,12 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     expect(texts(await second.batch())).toEqual(["One.", "Three."]);
   });
 
+  it("reports the song's AI time for the dashboard", async () => {
+    await play([fact("One.", 0)]);
+    const health = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as { factsTook: string };
+    expect(health.factsTook).toBe("Facts took 45 s");
+  });
+
   it("gets nothing between songs", async () => {
     await overlay();
     await play([fact("One.", 0)]);
@@ -190,5 +201,34 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     await settle();
     expect(late.messages).toEqual([]);
     await post("pause", { paused: false });
+  });
+});
+
+describe("the aired facts record, for the app's reports", () => {
+  const airedTexts = async () => ((await post("aired", {})) as { facts: Array<{ text: string; title: string }> }).facts;
+
+  it("has the facts that went out, once, and none while paused or with no overlay to show them", async () => {
+    const before = (await airedTexts()).length;
+    await overlay();
+    const song = await play([fact("Aired one.", 0), fact("Aired two.", 15)]);
+    // A second overlay catching up adds nothing.
+    await (await overlay()).batch();
+    let added = (await airedTexts()).slice(before);
+    expect(added.map((a) => [a.title, a.text])).toEqual([[song.title, "Aired one."], [song.title, "Aired two."]]);
+
+    await post("pause", { paused: true });
+    await play([fact("Held back.", 0)]);
+    expect((await airedTexts()).map((a) => a.text)).not.toContain("Held back.");
+    await post("pause", { paused: false });
+    sockets.splice(0).forEach((ws) => ws.terminate());
+    await settle();
+    await play([fact("Nobody watching.", 0)]);
+    added = (await airedTexts()).slice(before);
+    expect(added.map((a) => a.text)).not.toContain("Nobody watching.");
+  });
+
+  it("is only for the app", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/control/aired`, { method: "POST" });
+    expect(res.status).toBe(403);
   });
 });

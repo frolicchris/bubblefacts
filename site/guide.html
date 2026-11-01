@@ -4,15 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Setup guide: BubbleFacts</title>
-  <meta name="description" content="Install BubbleFacts, connect StreamerSongList or StreamElements, and put it on your stream in OBS, step by step.">
+  <meta name="description" content="Install BubbleFacts, connect your songs (StreamerSongList, StreamElements or a now playing file), and put it on your stream in OBS, step by step.">
   <link rel="canonical" href="https://bubblefacts.frolic.org/guide.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#07071a">
 
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="BubbleFacts">
   <meta property="og:title" content="BubbleFacts setup guide">
-  <meta property="og:description" content="Install BubbleFacts, connect StreamerSongList or StreamElements, and put it on your stream in OBS, step by step.">
+  <meta property="og:description" content="Install BubbleFacts, connect your songs (StreamerSongList, StreamElements or a now playing file), and put it on your stream in OBS, step by step.">
   <meta property="og:url" content="https://bubblefacts.frolic.org/guide.html">
   <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta property="og:image:width" content="1280">
@@ -20,12 +22,12 @@
   <meta property="og:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="BubbleFacts setup guide">
-  <meta name="twitter:description" content="Install BubbleFacts, connect StreamerSongList or StreamElements, and put it on your stream in OBS, step by step.">
+  <meta name="twitter:description" content="Install BubbleFacts, connect your songs (StreamerSongList, StreamElements or a now playing file), and put it on your stream in OBS, step by step.">
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.1">
-  <script src="assets/site.js?v=2.1.0-beta.1" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0">
+  <script src="assets/site.js?v=2.1.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -50,7 +52,7 @@
       <div class="wrap narrow">
         <p class="eyebrow">Setup guide</p>
         <h1>Getting started</h1>
-        <p class="section-intro">You'll need OBS Studio 28 or newer on the same computer, and a StreamerSongList or StreamElements account. Install the app, then set it up in two steps, the same two the app shows: Step 1, connect your songs; Step 2, put BubbleFacts on your stream.</p>
+        <p class="section-intro">You'll need OBS Studio 28 or newer on the same computer, and a way to tell BubbleFacts which song you're playing: a StreamerSongList or StreamElements account, or a music app that writes the song to a text file. Install the app, then set it up in two steps, the same two the app shows: Step 1, connect your songs; Step 2, put BubbleFacts on your stream.</p>
 
         <nav class="rpg toc" aria-label="Steps on this page">
           <ul>
@@ -86,6 +88,7 @@
               <li>Open BubbleFacts from your Applications folder. On macOS 15 (Sequoia) and newer, your Mac says <span class="ui">"BubbleFacts" Not Opened</span>. Click <span class="ui">Done</span>.</li>
               <li>Open <span class="ui">System Settings</span>, then <span class="ui">Privacy &amp; Security</span>. Scroll down and click <span class="ui">Open Anyway</span> next to the note about BubbleFacts, enter your Mac password, and click <span class="ui">Open Anyway</span> once more.</li>
             </ol>
+            <img src="assets/guide-open-anyway.jpg" width="476" height="170" loading="lazy" style="margin:1rem 0;border-radius:8px" alt="Mac Privacy &amp; Security settings. A line says BubbleFacts.app was blocked to protect your Mac, with an Open Anyway button beside it.">
             <p>On older Macs: <strong>right-click</strong> BubbleFacts (or Control-click), choose <span class="ui">Open</span>, then click <span class="ui">Open</span> again. You only need to do this once.</p>
 
             <h3 id="install-windows">Windows</h3>
@@ -117,7 +120,7 @@
           <div class="num" aria-hidden="true">1</div>
           <div class="body">
             <h2>Connect your songs</h2>
-            <p>The first time you open BubbleFacts, a short setup starts. Step 1 connects the app to your song requests, so it can see which song you're playing. It asks <span class="ui">Where do your song requests come from?</span> Leave <span class="ui">StreamerSongList</span> picked, or see <a href="#song-list-se">StreamElements</a> below.</p>
+            <p>The first time you open BubbleFacts, a short setup starts. Step 1 connects the app to your song requests, so it can see which song you're playing. It asks <span class="ui">Where do your song requests come from?</span> Leave <span class="ui">StreamerSongList</span> picked, or see <a href="#song-list-se">StreamElements</a> and <a href="#song-list-file">a now playing file</a> below.</p>
             <ol>
               <li>Click the big <span class="ui">Sign in with StreamerSongList</span> button. Your web browser opens.</li>
               <li>Sign in with the Twitch account you use on StreamerSongList.</li>
@@ -161,16 +164,17 @@
             <p>To switch later, or to paste a new token, open <span class="ui">Settings</span>, then <span class="ui">Your song list</span>, and click <span class="ui">Save</span>.</p>
 
             <h3 id="song-list-file">Follow a now playing file instead</h3>
-            <p>Does your music app write the song that's playing to a text file? BubbleFacts can follow that file, with no sign-in and no token.</p>
+            <p>Does your music app write the song that's playing to a text file? BubbleFacts can follow that file, with no sign-in and no token. DJs: most DJ software needs a helper app to write that file. Brand-new club tracks may get fewer facts, since BubbleFacts needs an article or database entry to work from.</p>
             <ol>
               <li>Under <span class="ui">Where do your song requests come from?</span>, choose <span class="ui">Now playing file</span>.</li>
               <li>Using Streamling on Windows? Leave <span class="ui">Streamling</span> picked. BubbleFacts reads the file Streamling keeps in your Documents folder, so there is nothing to choose.</li>
-              <li>Using Nightbot's desktop app on Windows or Mac? Pick <span class="ui">Nightbot</span>. BubbleFacts reads the song file Nightbot keeps in <span class="ui">Documents/Nightbot</span>, so there is nothing to choose.</li>
-              <li>Using another app? Pick <span class="ui">Another app's file</span>, click <span class="ui">Choose file</span>, and select the text file your app writes the song to.</li>
+              <li>Using Nightbot's desktop app on Windows or Mac? Pick <span class="ui">Nightbot</span>. BubbleFacts reads the newest song file Nightbot keeps in <span class="ui">Documents/Nightbot</span>, so there is nothing to choose. Keep Nightbot's desktop app running while you play, since it writes the file.</li>
+              <li>Using another app? Pick <span class="ui">Another app's file</span>, click <span class="ui">Choose file</span>, and select the text file your app writes the song to. Using the <a href="https://nowplayingapp.com/">Now Playing app</a>? In that app, add a File Output with the template <code>{{artist}} - {{title}}</code>, then choose that file here. File Output needs the app's Pro version.</li>
               <li>Tell BubbleFacts how the line reads: <span class="ui">Artist - Title</span>, or <span class="ui">Title only</span>.</li>
               <li>Click <span class="ui">Continue</span>, and setup moves on.</li>
             </ol>
-            <p>An empty file means no song is playing, and so does a file that hasn't changed in 15 minutes. A file says nothing about who requested a song, so there are no live learns with it.</p>
+            <p>The app shows which folder it reads (your OneDrive Documents folder, if that's where yours lives). The <span class="ui">Songs</span> light says <span class="ui">Following your file</span> while a song is in it, and <span class="ui">Watching your file</span> when there isn't one. An empty file means no song is playing, and so does a file that hasn't changed in 15 minutes. A file says nothing about who requested a song, so there are no live learns with it.</p>
+            <p>A line with only a title, like "Song - Official Music Video", gets an artist only when exactly one artist has a recording with that title. Common titles stay without one. That song gets basic facts from the music databases, without written captions.</p>
 
             <div class="note">
               <p class="note-title">Your sign-in stays private</p>
@@ -194,6 +198,7 @@
               <li>Choose the scene you normally stream from.</li>
               <li>In BubbleFacts, drag the tile that says <span class="ui">Drag this into your Sources list</span> onto the <span class="ui">Sources</span> list in OBS.</li>
             </ol>
+            <img src="assets/guide-drag-tile.jpg" width="1100" height="593" loading="lazy" style="margin:1rem 0;border-radius:8px" alt="The BubbleFacts setup screen. A dashed tile says Drag this into your Sources list.">
             <p>As soon as OBS loads it, BubbleFacts puts a test bubble on your stream and says <span class="ui">It's on your stream!</span> OBS names the new source "BubbleFacts" and sizes it to fit your canvas.</p>
             <p>Next time, open OBS and BubbleFacts in either order. For a few seconds after BubbleFacts starts, the dashboard says <span class="ui">Connecting to OBS</span> while OBS picks it back up. If the BubbleFacts source reloads in the middle of a song, its bubbles catch up within a few seconds, without repeating the ones viewers already saw.</p>
             <p>Not ready yet? Click <span class="ui">I'll add it later</span>. The app's dashboard has a <span class="ui">Drag into OBS</span> tile for when you are.</p>
@@ -254,12 +259,13 @@
             <h2>Check that it works</h2>
             <ol>
               <li>Make sure BubbleFacts is open.</li>
-              <li>Play a song from your StreamerSongList queue, or your StreamElements song requests.</li>
-              <li>A gold <span class="ui">Now Playing</span> bubble appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up.</li>
+              <li>Play a song from your StreamerSongList queue or your StreamElements song requests, or start one in the music app that writes your now playing file.</li>
+              <li>A gold <span class="ui">Now Playing</span> bubble appears at the bottom of your OBS preview. A few seconds later, the first fact bubble pops up. Basic facts, like a song's year and album, can come first. The written facts follow when they're ready.</li>
             </ol>
             <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>. It shows on top of whatever's playing and leaves that song's bubbles alone.</p>
-            <p>Under <span class="ui">Songs</span>, a small line says how BubbleFacts hears about your songs: <span class="ui">Hearing your queue live</span> when StreamerSongList or StreamElements is sending changes as they happen, or <span class="ui">Checking your list every 15 seconds</span> when it has to ask. Either way your songs come through; live is just quicker.</p>
+            <p>Under <span class="ui">Songs</span>, a small line says how BubbleFacts hears about your songs: <span class="ui">Hearing your queue live</span> (StreamerSongList) or <span class="ui">Hearing your song requests live</span> (StreamElements) when changes arrive as they happen, <span class="ui">Checking your list every 15 seconds</span> when it has to ask, or <span class="ui">Checking your file every 2 seconds</span> for a now playing file. Either way your songs come through; live is just quicker.</p>
             <p>Few or no facts at first? BubbleFacts may still be getting ready. The dashboard's <span class="ui">Facts</span> light shows how far along it is.</p>
+            <p>Bubbles coming late? Under the <span class="ui">Facts</span> light, <span class="ui">Facts took 45 s</span> says how long the AI needed for the song on now. A long time usually means the computer is busy with the stream.</p>
             <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See <a href="troubleshooting.html">If something goes wrong</a>.</p>
           </div>
         </div>
@@ -307,7 +313,7 @@
 
             <span id="backup-facts"></span><!-- the old name, for links shared before beta.3 -->
             <h3 id="custom-facts">Custom facts</h3>
-            <p>When a song has no Wikipedia article, the AI isn't used. BubbleFacts looks the song up on Wikidata, then MusicBrainz, two free music databases, and fills in plain sentences such as the year and the album.</p>
+            <p>When a song has no Wikipedia article, or BubbleFacts isn't sure the article is about that song, the AI isn't used. BubbleFacts looks the song up on Wikidata, then MusicBrainz, two free music databases, and fills in plain sentences such as the year and the album. Facts from the music databases and the AI's captions all stay about the music and family-friendly: no scandals, crime or threats, and nothing that labels who a person is.</p>
             <p>If neither has the song, the app shows your custom facts: short facts you write yourself. With none, that song gets no bubbles rather than filler, which suits request channels.</p>
 
             <p>Custom facts can show during <strong>any</strong> song no source knows, so write facts that fit any song, like something about you or your instrument. For a fact about one song, start the line with its title in brackets, like <code>[Song of Storms] It plays in a windmill.</code> It then shows only for that song, ahead of other facts. Start it with an artist or game instead, like <code>[Chopin] …</code>, and every song by them shares it: each song gets one, taking turns, so a game with hundreds of songs on your list doesn't open every one the same way. You can also <a href="#song-facts">add facts while the song plays</a>.</p>
@@ -324,19 +330,18 @@
               <li>Optional: facts about your original pieces go under <span class="ui">You and your music</span>. Check <span class="ui">I play my own compositions</span>, then type them in <span class="ui">About your own compositions</span> just below. These show when the song's artist is your channel name or <span class="ui">Your name on stream</span>, so a friend's piece never gets them.</li>
             </ol>
             <p>Five or more custom facts keep the same ones from repeating song after song.</p>
-            <p>While the box is empty, it shows a few gray example lines. They only show the format and never go on stream.</p>
-            <p id="custom-facts-packs">Older versions had example fact packs under <span class="ui">Advanced</span>. They're gone from the app, so if you used them, those facts no longer show. Your own facts stay as you wrote them.</p>
 
             <h3 id="song-facts">Add facts for one song</h3>
             <p>Some songs aren't on Wikipedia or in any music database: a music content creator's original, a friend's band, a song you wrote together. You can give a song its own facts.</p>
             <ol>
-              <li>While the song plays, click <span class="ui">Add facts for this song</span> under <span class="ui">On stream now</span>. Getting ready before a show? Click <span class="ui">Add facts for another song</span> (or <span class="ui">Add facts for a song</span> when nothing is playing) and start typing the title. With StreamerSongList, songs from your list that match show up under it; pick one with the mouse or the arrow keys and Enter, and the title and artist fill in exactly as your list has them. Not on your list, or using StreamElements? Type the title and the artist or game as they'll appear on the request.</li>
+              <li>While the song plays, click <span class="ui">Add facts for this song</span> under <span class="ui">On stream now</span> (it says <span class="ui">Edit your facts for this song</span> once you have some). Getting ready before a show? Click <span class="ui">Add facts for another song</span> (or <span class="ui">Add facts for a song</span> when nothing is playing) and start typing the title. With StreamerSongList, songs from your list that match show up under it; pick one with the mouse or the arrow keys and Enter, and the title and artist fill in exactly as your list has them. Not on your list, or using StreamElements? Type the title and the artist or game as they'll appear on the request.</li>
               <li>Optional: under <span class="ui">Who wrote it?</span>, type the songwriter, but only if you're sure. BubbleFacts never guesses who wrote a song.</li>
               <li>Optional: add their link, like their Twitch page. It always gets its own bubble: "More from" the songwriter you named, or "More from this song's creator" if you didn't name one.</li>
               <li>Another music content creator's song? Once the artist ends with their @name (like "Jane (@janeplayskeys)") or their link is their Twitch page, click <span class="ui">Fill from their Twitch About</span> to add the text from their channel's About, then check it and edit it. The first time, connect Twitch in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>: Twitch opens with a code already filled in. Check it matches the one BubbleFacts shows, then click <span class="ui">Authorize</span>.</li>
               <li>Type your facts, one per box (<span class="ui">Add another fact</span> gives you another box), and click <span class="ui">Save and show</span>. About 160 characters fit in a bubble. A fact can be up to 300 characters, and a song can have up to 20 facts; the editor shows a count as you get close.</li>
             </ol>
             <p id="no-facts">Want no facts at all for a song, or for everything by one artist? Check <span class="ui">No facts for this song</span> or <span class="ui">No facts for this artist</span> in the same place, or click them under <span class="ui">Earlier songs</span> after the song. BubbleFacts then looks nothing up for it, and only your own facts show.</p>
+            <p id="not-music">Playing commercials, station IDs or jingles between songs? BubbleFacts skips a track with no bubbles when its title says what it is, like "Moonbrew Cola (Commercial)", "(Jingle)" or "Station ID", or when its artist is "Commercials". A track without those words looks like any song, so add one to its title in your music player, or use the switches above.</p>
             <p>Every song you've done this for is listed in <span class="ui">Settings</span>, under <span class="ui">Songs with their own facts</span>, with <span class="ui">Edit</span> and <span class="ui">Remove</span>.</p>
             <p>If the song is still playing, they show right away. Either way, they show exactly as you wrote them every time that song plays. On the dashboard, each fact says where it came from, so you can tell your own from Wikipedia's. Click a Wikipedia source to see the sentence the fact was written from, and to open the article.</p>
 
@@ -344,9 +349,19 @@
             <ul>
               <li><strong>Bubbles covering your camera or keyboard?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Where bubbles appear</span> to the top, bottom, left or right. To have every bubble show in the same place, choose one spot, like <span class="ui">Top right</span> or <span class="ui">Bottom center</span>: each new bubble replaces the last one there. For anything finer, resize and move the BubbleFacts source in OBS.</li>
               <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
+              <li><strong>Want viewers to know where the facts come from?</strong> <span class="ui">Now and then, show where the facts come from</span> is on to start with. It adds one extra bubble when the first song's facts start, then about every 5 songs, for viewers who join later. To hide it, uncheck it in <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>.</li>
+              <li><strong>More facts per song?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Facts per song</span>. BubbleFacts finds up to 4 facts for a song, so a higher number only adds bubbles when you've <a href="#song-facts">written your own</a>. Your own facts can go past 4, up to the number you set.</li>
               <li><strong>Already show the song yourself?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, turn off <span class="ui">Show a Now Playing bubble when a song starts</span>. Fact bubbles stay.</li>
             </ul>
 
+            <h3 id="share-facts">Share song facts with other apps</h3>
+            <p>An app that takes song context can use the song's facts to answer chat's questions.</p>
+            <ol>
+              <li>Get the web address and an API key from the other app.</li>
+              <li>In BubbleFacts, open <span class="ui">Settings</span> and turn on <span class="ui">Share song facts with other apps</span>.</li>
+              <li>Enter the address and your channel name, paste the key, click <span class="ui">Test connection</span>, then save.</li>
+            </ol>
+            <p>Only the song and its facts are sent, and it's off until you turn it on. Pausing bubbles pauses sharing too. See the <a href="privacy.html">privacy page</a>.</p>
             <h3 id="backups">Your facts are backed up</h3>
             <ul>
               <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in, your keys or which AI writes your facts. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>
@@ -392,8 +407,7 @@
           </table>
         </div>
         <h3 id="high-quality">High quality: a bigger AI, on a strong computer</h3>
-        <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">High quality</span>. High quality uses a bigger AI. In our latest fact check it made more mistakes than Standard, so Standard is the better choice for now. It's a bigger download (about 5 GB), needs 16 GB of memory and a graphics chip that can hold it (any Apple silicon Mac, or a graphics card with about 6 GB of its own memory on Windows and Linux), and writes more slowly. Without that graphics chip it can be several times slower, so you may get fewer bubbles per song. See <a href="requirements.html#high-quality">the requirements</a>.</p>
-        <p>When you switch, the AI you have keeps writing facts while the other one downloads. Once it's ready, the old one is deleted to save space, so switching back downloads it again.</p>
+        <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">High quality</span>. Stay on Standard for now: in our latest fact check, High quality made more mistakes, and it's a bigger download that needs a stronger computer. See <a href="requirements.html#high-quality">the requirements</a>.</p>
         <p>An <strong>API key</strong> is a long password that lets the app use an online service for you. Copy it from the service's website and paste it into BubbleFacts. It's stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
         <div class="note">
           <p class="note-title">If the built-in AI can't run on your computer</p>
@@ -415,7 +429,6 @@
       <nav aria-label="Site">
       <ul class="footer-links">
         <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
-        <li><a href="https://github.com/frolicchris/bubblefacts/discussions">Discussions</a></li>
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
         <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -423,6 +436,8 @@
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
         <li><a href="support.html">Help and support</a></li>
+        <li><a href="https://discord.gg/3YS3eWkWrW">Discord</a></li>
+        <li><a href="mailto:bubblefacts@frolic.org">Email BubbleFacts</a></li>
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="credits.html">Credits and licenses</a></li>
         <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
@@ -430,7 +445,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>, or with High quality, Meta's Llama 3.1, used under the <a href="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.</p>
     </div>
   </footer>
 </body>

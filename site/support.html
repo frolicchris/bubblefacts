@@ -7,6 +7,8 @@
   <meta name="description" content="Where to get help with BubbleFacts, report a problem or a wrong fact, or report a security issue.">
   <link rel="canonical" href="https://bubblefacts.frolic.org/support.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#07071a">
 
   <meta property="og:type" content="article">
@@ -24,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.1.0-beta.1">
-  <script src="assets/site.js?v=2.1.0-beta.1" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.1.0">
+  <script src="assets/site.js?v=2.1.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -52,7 +54,7 @@
         <h1>Help and support</h1>
         <p class="section-intro">BubbleFacts is a free project maintained by one person, so replies may take a few days. Thanks for your patience.</p>
         <p data-stable-only>Only the newest version gets help. If yours is older, click <span class="ui">Update now</span> in the app first: it may already be fixed.</p>
-        <p data-beta-only>While 2.0 is being tested, only the newest test version gets help. If yours is older, click <span class="ui">Update now</span> in the app first: it may already be fixed.</p>
+        <p data-beta-only>While a new version is being tested, only the newest test version gets help. If yours is older, click <span class="ui">Update now</span> in the app first: it may already be fixed.</p>
 
         <ol class="support-list">
           <li class="rpg">
@@ -62,7 +64,7 @@
           <li class="rpg">
             <h2>2. Click "Report a problem" in the app</h2>
             <p>You'll find it under <span class="ui">Help and troubleshooting</span> on the dashboard. The app fills in a GitHub report with your app version, your system and recent log lines, with your token removed. It opens in your browser, so you can read and change it before you send it. You need a free GitHub account, and the report is public. See <a href="privacy.html#reports">how reports work</a>.</p>
-            <p>No GitHub account? Click <span class="ui">Copy report</span> next to it instead. It copies the same report, with your token removed, so you can paste it in a message to the developer or in <a href="https://github.com/frolicchris/bubblefacts/discussions/categories/q-a">GitHub Discussions</a>.</p>
+            <p>No GitHub account? Click <span class="ui">Copy report</span> next to it instead. It copies the same report, with your token removed, so you can paste it in a post in <a href="https://discord.gg/3YS3eWkWrW">#help on the Discord</a> or in an email. Read it first and take out anything you'd rather keep private.</p>
           </li>
           <li class="rpg">
             <h2>3. Wrong fact? Click "Wrong"</h2>
@@ -70,7 +72,12 @@
           </li>
           <li class="rpg">
             <h2>4. Ask a question</h2>
-            <p>Ask in the <a href="https://github.com/frolicchris/bubblefacts/discussions/categories/q-a">Q&amp;A on GitHub Discussions</a>. Other music content creators may have run into the same thing.</p>
+            <p>Ask in <a href="https://discord.gg/3YS3eWkWrW">#help on the BubbleFacts Discord</a>. Other music content creators may have run into the same thing.</p>
+            <p>No Discord account? Email <a href="mailto:bubblefacts@frolic.org">bubblefacts@frolic.org</a>.</p>
+          </li>
+          <li class="rpg">
+            <h2>5. Share an idea</h2>
+            <p>Post it in <a href="https://discord.gg/3YS3eWkWrW">#feature-requests on the BubbleFacts Discord</a>. Approved ideas become GitHub issues, so you can follow them.</p>
           </li>
         </ol>
 
@@ -124,28 +131,28 @@
           <details id="faq-offline">
             <summary>Does it work offline?</summary>
             <div class="answer">
-              <p>Partly. The built-in AI downloads once, on its own, when you first open the app. After that, it runs without the internet. But the app still needs the internet to read your song requests from StreamerSongList or StreamElements, and to look songs up on Wikipedia, Wikidata and MusicBrainz. Since you're streaming, you'll be online anyway.</p>
+              <p>Partly. The built-in AI downloads once, on its own, when you first open the app. After that, it runs without the internet. But the app still needs the internet to look songs up on Wikipedia, Wikidata and MusicBrainz, and to read your song requests from StreamerSongList or StreamElements, if you use one. Since you're streaming, you'll be online anyway.</p>
             </div>
           </details>
 
           <details id="faq-ssl">
             <summary>Can I use it without StreamerSongList?</summary>
             <div class="answer">
-              <p>Yes, if viewers request songs through StreamElements' Media Request player. BubbleFacts learns which song you're playing from your StreamerSongList queue or your StreamElements song requests, so you need one of the two. Both are free. See <a href="guide.html#song-list-se">how to connect StreamElements</a>.</p>
+              <p>Yes. BubbleFacts learns which song you're playing from your StreamerSongList queue, your StreamElements song requests (Media Request player), or a text file your music app writes, such as Streamling's, Nightbot's or the Now Playing app's. Both services are free, and a file needs no account. See <a href="guide.html#song-list-se">how to connect StreamElements</a> or <a href="guide.html#song-list-file">follow a now playing file</a>.</p>
             </div>
           </details>
 
           <details id="faq-ai">
             <summary>What does the built-in AI do?</summary>
             <div class="answer">
-              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never writes from memory, and every caption is screened against the article before it's shown: names, who did what, years and similar claims have to appear there. That catches most mistakes, not every one. The built-in AI is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
+              <p>It turns a few details from a Wikipedia article into short captions that fit on screen. That's all. It never writes from memory, and every caption is screened against the article before it's shown: names, who did what, years and similar claims have to appear there. That catches most mistakes, not every one. Facts also stay about the music and family-friendly: no scandals, crime or threats, and nothing that labels who a person is. The built-in AI is Llama 3.2, a small AI model made by Meta that runs on your own computer. It downloads once, about 2 GB. If you prefer, you can use Groq, Anthropic or your own Ollama instead: see <a href="guide.html#ai">using an online AI</a>.</p>
             </div>
           </details>
 
           <details id="faq-data">
             <summary>Where does my data go?</summary>
             <div class="answer">
-              <p>Almost nowhere. The app runs on your computer and reads your song requests from StreamerSongList or StreamElements. It sends song titles and artist names to Wikipedia, Wikidata and MusicBrainz to look songs up. If you pick an online AI, the song title and article text go to that service. Nothing is sent to this project. Your sign-in, token and keys are stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>). The <a href="privacy.html">privacy page</a> has the details.</p>
+              <p>Almost nowhere. The app runs on your computer and reads your song requests from StreamerSongList or StreamElements, or from a file on your computer. It sends song titles and artist names to Wikipedia, Wikidata and MusicBrainz to look songs up. If you pick an online AI, the song title and article text go to that service. Nothing is sent to this project. Your sign-in, token and keys are stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>). The <a href="privacy.html">privacy page</a> has the details.</p>
             </div>
           </details>
 
@@ -181,7 +188,7 @@
           <details id="faq-help">
             <summary>Where else can I get help?</summary>
             <div class="answer">
-              <p>Start with the <a href="troubleshooting.html">troubleshooting table</a>. Then ask in the <a href="https://github.com/frolicchris/bubblefacts/discussions/categories/q-a">Q&amp;A on GitHub Discussions</a>, or click <span class="ui">Report a problem</span> under <span class="ui">Help and troubleshooting</span> in the app. The steps at the top of this page list every option.</p>
+              <p>Start with the <a href="troubleshooting.html">troubleshooting table</a>. Then ask in <a href="https://discord.gg/3YS3eWkWrW">#help on the BubbleFacts Discord</a>, or click <span class="ui">Report a problem</span> under <span class="ui">Help and troubleshooting</span> in the app. The steps at the top of this page list every option.</p>
             </div>
           </details>
       </div>
@@ -193,7 +200,6 @@
       <nav aria-label="Site">
       <ul class="footer-links">
         <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
-        <li><a href="https://github.com/frolicchris/bubblefacts/discussions">Discussions</a></li>
         <li><a href="download.html">Download</a></li>
         <li><a href="guide.html">Setup guide</a></li>
         <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -201,6 +207,8 @@
         <li><a href="changelog.html">What's new</a></li>
         <li><a href="uninstall.html">Uninstall</a></li>
         <li><a href="support.html">Help and support</a></li>
+        <li><a href="https://discord.gg/3YS3eWkWrW">Discord</a></li>
+        <li><a href="mailto:bubblefacts@frolic.org">Email BubbleFacts</a></li>
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="credits.html">Credits and licenses</a></li>
         <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
@@ -208,7 +216,7 @@
       </nav>
       <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>, or with High quality, Meta's Llama 3.1, used under the <a href="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</a>.</p>
       <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
-      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with StreamerSongList, StreamElements, OBS, Wikipedia or Twitch.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.</p>
     </div>
   </footer>
 </body>

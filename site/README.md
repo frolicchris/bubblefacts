@@ -21,7 +21,7 @@ download script asking GitHub's public API for the newest release.
 | `credits.html` | Credits, licenses, "Built with Llama" notice |
 | `assets/site.css` | All styles |
 | `assets/site.js` | Picks the right download for the visitor's computer, switches beta wording to stable, Copy buttons, opens linked FAQ answers, plays the home page clip with a Pause button |
-| `assets/favicon.svg` | Browser tab icon |
+| `assets/favicon.svg`, `assets/favicon-32.png`, `favicon.ico`, `assets/apple-touch-icon.png` | Browser tab and home screen icons |
 | `assets/social-preview.png` | Copied from `docs/` in the repo |
 | `assets/demo.mp4`, `assets/demo-poster.jpg` | Home page clip and its still frame, recorded from the real overlay with `docs/record-demo-video.mjs` |
 

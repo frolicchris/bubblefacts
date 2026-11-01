@@ -3,7 +3,7 @@ import { artistNames, MAX_FACT_CHARS, mentionsName, namesLoosely, normalizeTitle
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
 import { fitOrSplit, packFacts } from "./data-facts";
-import { albumYear, anyBoxOf, boxBacksPlace, boxBacksYear, boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
+import { albumYear, anyBoxOf, boxBacksPlace, boxBacksYear, boxNeighbor, boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
 
 /**
  * Plain facts from Wikidata, for songs with no Wikipedia article (issue #23).
@@ -55,7 +55,7 @@ function namesArtist(text: string, names: string[]): boolean {
 }
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 
-interface Entity {
+export interface Entity {
   id: string;
   labels?: Record<string, { value: string }>;
   descriptions?: Record<string, { value: string }>;
@@ -160,6 +160,13 @@ export function pickSong(
   return hit?.id ?? null;
 }
 
+/** Whether the item dates its earliest year no finer than the year: a rough date, often a composition's or another recording's. */
+function yearOnly(e: Entity): boolean {
+  const first = year(e);
+  const dates = rankedClaims(e, "P577").map((c) => c.mainsnak?.datavalue?.value as { time?: string; precision?: number } | undefined);
+  return !dates.some((d) => d?.time?.startsWith(`+${first}`) && (d.precision ?? 0) > 9);
+}
+
 /** The years an item's description gives: "1982 single by ...", "... released in 1999". */
 const describedYears = (e: Entity): string[] => (e.descriptions?.en?.value ?? "").match(/\b(?:1[89]|20)\d\d\b/g) ?? [];
 
@@ -171,8 +178,10 @@ const describedYears = (e: Entity): string[] => (e.descriptions?.en?.value ?? ""
  * composer or producer list cut to one name, and a year from before the release.
  * Undefined when the item has no English article. Writers and producers are told
  * only when the infobox lists the same people; a year only when neither the
- * infobox nor the item's description gives another, and the song's album (its
- * infobox's, `album`) didn't come out earlier.
+ * infobox nor the item's description gives another, the song's album (its
+ * infobox's, `album`) didn't come out earlier, and an item dated to the year alone
+ * has the infobox's year behind it; the single before or after only when the
+ * infobox names the same one.
  */
 export function factsFromEntity(song: Entity, labels: Record<string, Entity>, title: string, box?: Infobox | null, album: string | null = null): string[] {
   const named = (prop: string) => itemIds(song, prop).map((id) => label(labels[id])).filter(Boolean);
@@ -199,7 +208,8 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
   const told = box ? boxYear(box) : null;
   const first = year(song);
   // A later year than the song's album is a single's: the song came out with the album (`album`).
-  const y = first && (!described.length || described.includes(first)) && (!told || told === first) && !(album && album < first) ? first : null;
+  const dated = told ? told === first : box === undefined || !yearOnly(song);
+  const y = first && (!described.length || described.includes(first)) && dated && !(album && album < first) ? first : null;
   const partOf = named("P361");
   if (y && partOf.length) facts.push(...fitOrSplit(`${q} came out in ${y} and appears on ${partOf[0]}.`, [`${q} came out in ${y}.`, `${q} appears on ${partOf[0]}.`]));
   else if (y) facts.push(`${q} came out in ${y}.`);
@@ -226,8 +236,11 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
   // earlier song it covers ("1956 song performed by ..."), which isn't one.
   // An item in two series (a duet, a charity single) has two of them, and a
   // neighbor released on the wrong side of the song is a slip: skip both.
+  // The order is often wrong (a single dated by its later UK release, or the next
+  // one skipped): with an English article, its infobox must name the same single.
   const isSingle = (e: Entity | undefined) => /\bsingle\b/i.test(e?.descriptions?.en?.value ?? "");
   const yearOf = (e: Entity | undefined) => Number(/^(\d{4})\b/.exec(e?.descriptions?.en?.value ?? "")?.[1]) || null;
+  const inBox = (name: string, side: "prev" | "next") => box === undefined || Boolean(box && sameTitle(name, boxNeighbor(box, side) ?? ""));
   const singles = (prop: string, earlier: boolean) => {
     const ids = itemIds(song, prop);
     const mine = yearOf(song);
@@ -235,7 +248,8 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
       const theirs = yearOf(labels[id]);
       return isSingle(labels[id]) && !(mine && theirs && (earlier ? theirs > mine : theirs < mine));
     });
-    return isSingle(song) && ids.length === 1 && ok.length === 1 ? [cleanLabel(label(labels[ok[0]]))].filter((l) => l && !sameName(l)) : [];
+    const side = earlier ? "prev" : "next";
+    return isSingle(song) && ids.length === 1 && ok.length === 1 ? [cleanLabel(label(labels[ok[0]]))].filter((l) => l && !sameName(l) && inBox(l, side)) : [];
   };
   const before = singles("P155", true);
   if (before.length) facts.push(`${q} came after the single "${before[0]}".`);
@@ -399,6 +413,45 @@ export async function artistFacts(name: string): Promise<string[]> {
   }
 }
 
+/** Honors worth a bubble: a lifetime's, not one competitive category ("Grammy Award for Best ..."). */
+const LIFETIME_HONOR = /\b(Hall of Fame|Medal|Lifetime Achievement|Kennedy Center|Order of|Knight|Dame|Commander|Commandeur|Chevalier|Officer of|Member of the|Fellow|Person of the Year|Peace|Polar Music|Nobel|Pulitzer|Laureate|Legion)\b/;
+/** A title one is made, not a prize one receives. */
+const TITLE_HONOR = /^(?:Honorary )?(?:Knight|Dame|Commander|Commandeur|Chevalier|Officer|Member|Companion|Grand|Fellow)\b/;
+/** Positions an artist holds for a cause, not an office. */
+const CAUSE_POSITION = /\b(ambassador|envoy|patron|spokes(?:person|man|woman)|trustee)\b/i;
+/** Musicians' bodies among the groups someone is a member of, not a band. */
+const MUSICIANS_BODY = /\b(Union|Guild|Federation|Academy)\b/;
+/** Benefit shows among the events someone took part in. */
+const BENEFIT_SHOW = /\b(Aid|Benefit|Telethon)\b|^(?:The )?Concert for\b/i;
+
+const withArticle = (s: string) => `${/^[AEIOU]/.test(s) ? "an" : "a"} ${s}`;
+
+/**
+ * The good an artist's item states, each a sentence built from one statement: a movement
+ * (P135, the only source for one), a position held for a cause
+ * (P39), a benefit show (P1344), a musicians' body (P463), notable students (P802), and up to
+ * two lifetime honors (P166), never one competitive category. No claim of why, no year.
+ */
+export function artistGoodFromEntity(e: Entity, labels: Record<string, Entity>): string[] {
+  const name = anyLabel(e);
+  if (!name) return [];
+  const named = (prop: string) => itemIds(e, prop).map((id) => cleanLabel(anyLabel(labels[id]).replace(/[\u200e\u200f]/g, "").replace(/\.$/, ""))).filter(Boolean);
+  const facts = named("P135").slice(0, 2).map((m) => `${name} was part of the ${m.replace(/\s+movement$/i, "")} movement.`);
+  for (const p of named("P39").filter((l) => CAUSE_POSITION.test(l)).slice(0, 1)) facts.push(`${name} has served as ${p}.`);
+  for (const show of named("P1344").filter((l) => BENEFIT_SHOW.test(l)).slice(0, 1)) facts.push(`${name} took part in ${show}.`);
+  for (const body of named("P463").filter((l) => MUSICIANS_BODY.test(l)).slice(0, 1)) facts.push(`${name} is a member of the ${body}.`);
+  const students = named("P802").slice(0, 2);
+  if (students.length) facts.push(`${name}'s students include ${names(students)}.`);
+  if (named("P166").some((a) => /^honorary doctor/i.test(a))) facts.push(`${name} received an honorary doctorate.`);
+  const awards = named("P166").filter((a) => /^\p{Lu}/u.test(a)).map((a) => a.replace(/^The\s+/, ""));
+  for (const a of awards.filter((a) => LIFETIME_HONOR.test(a)).slice(0, 2)) {
+    if (/Hall of Fame/.test(a)) facts.push(`${name} was inducted into the ${a}.`);
+    else if (TITLE_HONOR.test(a)) facts.push(`${name} was made ${withArticle(a)}.`);
+    else facts.push(`${name} received the ${a}.`);
+  }
+  return facts.filter((f) => f.length <= MAX_FACT_CHARS);
+}
+
 // --- The matched article's own item (issue #256) ---------------------------
 
 /** One piece of music: song, single, musical work, musical work/composition, composed musical work, track with vocals. */
@@ -413,7 +466,7 @@ const RELEASE_ITEM = /\b(album|EP|soundtrack|mixtape)\b/i;
 
 /** What the article's item is, cut down to what its facts need. */
 export type ArticleItem =
-  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null }
+  | { kind: "song"; title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null; knownBy?: string | null; yearOnly?: boolean }
   | { kind: "artist"; facts: string[] }
   | null;
 
@@ -456,7 +509,7 @@ export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artis
       .map((id) => cleanLabel(anyLabel(labels[id])))
       .find(Boolean) ?? null;
     const genres = itemIds(e, "P136").map((id) => anyLabel(labels[id])).filter(Boolean).slice(0, 2);
-    return { kind: "song", title, year, partOf, genres };
+    return { kind: "song", title, year, partOf, genres, ...(yearOnly(e) ? { yearOnly: true } : {}) };
   }
   const performer = (classes.includes(HUMAN) || classes.some((c) => GROUP_CLASSES.has(c))) && PERFORMER_ITEM.test(description);
   if (!performer || !sameArtist(anyLabel(e), names)) return null;
@@ -468,15 +521,17 @@ export function articleItemFrom(e: Entity, labels: Record<string, Entity>, artis
  * Sentences from a song's item, leaving out what MusicBrainz already says for the song
  * (`covered`): its year and whether it named an album. When the two years differ, the
  * earlier stands only if it is MusicBrainz's, which leaves out reissues, compilations and
- * live albums; when Wikidata's is earlier, neither is shown (`dropYear`).
+ * live albums; when Wikidata's is earlier, neither is shown (`dropYear`). `knownBy`: the
+ * earliest year the item or its infobox dates the song, kept when the two disagree and no
+ * year is shown: MusicBrainz's later year (a re-recording) goes then too.
  */
 export function songItemFacts(
-  item: { title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null },
+  item: { title: string; year: string | null; partOf: string | null; genres: string[]; albumYear?: string | null; knownBy?: string | null },
   covered: { year?: string | null; album?: boolean } = {}
 ): { facts: string[]; dropYear: boolean } {
   const q = `"${item.title}"`;
   const earlier = (y: string | null | undefined) => Boolean(covered.year && y && y < covered.year);
-  const dropYear = earlier(item.year) || earlier(item.albumYear);
+  const dropYear = earlier(item.year) || earlier(item.albumYear) || earlier(item.knownBy);
   const y = covered.year ? null : item.year;
   const partOf = covered.album ? null : item.partOf;
   const basics = y && partOf
@@ -510,6 +565,44 @@ async function pageItem(page: string): Promise<{ entity: Entity | null; labels: 
 }
 
 /**
+ * The requested artist behind a surely matched article, as an item and its English article:
+ * the article's own item when it is a performer of that name, else the performer the song's
+ * item names (P175). Never a name search, so a same-named act can't be picked. The article's
+ * match carries over to the artist. Null when neither holds. Throws when Wikidata can't be read.
+ */
+export async function sureArtist(page: string, artist: string[]): Promise<{ entity: Entity; page: string } | null> {
+  const names = artist.filter(Boolean);
+  const { entity } = await pageItem(page);
+  if (!entity || !names.length) return null;
+  const performer = (e: Entity) => (itemIds(e, "P31").includes(HUMAN) || itemIds(e, "P31").some((c) => GROUP_CLASSES.has(c))) && PERFORMER_ITEM.test(e.descriptions?.en?.value ?? "") && sameArtist(anyLabel(e), names);
+  if (performer(entity)) return { entity, page };
+  if (!itemIds(entity, "P31").some((c) => SONG_CLASSES.has(c))) return null;
+  const ids = itemIds(entity, "P175").slice(0, 10);
+  if (!ids.length) return null;
+  const data = await get<{ entities?: Record<string, FullEntity> }>({ action: "wbgetentities", ids: ids.join("|"), props: "claims|labels|descriptions|sitelinks", languages: "en|mul", sitefilter: "enwiki" });
+  const found = Object.values(data.entities ?? {}).find((e) => performer(e) && e.sitelinks?.enwiki?.title);
+  return found ? { entity: found, page: found.sitelinks?.enwiki?.title as string } : null;
+}
+
+/** Whether a person's item gives a date of death. */
+export const diedOf = (e: Entity): boolean => rankedClaims(e, "P570").length > 0;
+
+/** The labels `artistGoodFromEntity` needs. */
+export async function artistGoodLabels(e: Entity): Promise<Record<string, Entity>> {
+  return entities([...new Set(["P135", "P39", "P1344", "P463", "P802", "P166"].flatMap((p) => itemIds(e, p)))].slice(0, 50), "labels", "en|mul");
+}
+
+/** The MusicBrainz artist ids an article's Wikidata item names (P434). Empty when it names none or can't be read. Never throws. */
+export async function pageArtistIds(page: string): Promise<string[]> {
+  try {
+    const { entity } = await pageItem(page);
+    return entity ? rankedClaims(entity, "P434").map((c) => c.mainsnak?.datavalue?.value).filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * What the article's own Wikidata item says (`articleItemFrom`), for an article the
  * lookup surely matched to the request. Null when it has no item or nothing to tell.
  * Never throws.
@@ -518,13 +611,16 @@ export async function articleItem(page: string, artist: string[], titles: string
   try {
     const { entity, labels } = await pageItem(page);
     let item = entity ? articleItemFrom(entity, labels, artist, titles, await anyBoxOf(page)) : null;
-    // The article's infobox, the fuller source, dates the song another year, or its album
-    // came out earlier (the year is a single's): no year, and none from MusicBrainz after the album's.
+    // The article's infobox, the fuller source, dates the song another year or none when the
+    // item gives only a year, or its album came out earlier (the year is a single's): no year,
+    // and none from MusicBrainz after the album's.
     if (item?.kind === "song") {
       const box = await songBoxOf(page, artist);
       const told = box ? boxYear(box) : null;
       const album = box ? await albumYear(box) : null;
-      if (item.year && ((told && told !== item.year) || (album && album < item.year))) item = { ...item, year: null };
+      const knownBy = [item.year, told].filter((y): y is string => Boolean(y)).sort()[0] ?? null;
+      if (item.year && ((told ? told !== item.year : item.yearOnly) || (album && album < item.year))) item = { ...item, year: null };
+      if (knownBy && knownBy !== item.year) item = { ...item, knownBy };
       if (album) item = { ...item, albumYear: album };
     }
     console.log(`[Wikidata] "${page}" -> ${entity?.id ?? "no item"}: ${item ? (item.kind === "song" ? "a song" : "the artist") : "nothing to tell"}`);
@@ -574,6 +670,19 @@ export async function placeOrTeam(page: string): Promise<string> {
     return entity ? placeOrTeamFrom(entity, labels) : "";
   } catch {
     return "";
+  }
+}
+
+/**
+ * Whether an English Wikipedia article's item is a person's (an instance of human). True when
+ * Wikidata can't be read, so a caller that refuses people refuses then too. Never throws.
+ */
+export async function isPersonPage(page: string): Promise<boolean> {
+  try {
+    const { entity } = await pageItem(page);
+    return !!entity && itemIds(entity, "P31").includes(HUMAN);
+  } catch {
+    return true;
   }
 }
 

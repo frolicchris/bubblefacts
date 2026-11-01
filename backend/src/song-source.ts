@@ -21,6 +21,11 @@ export interface SongSource {
   toSong(item: SSLQueueItem): SSLSong;
   displayTitle(item: SSLQueueItem): string;
   lastSuccessfulFetchAgeMs(): number | null;
+  /**
+   * How long ago the polling loop last tried to fetch, whether or not the fetch worked; null if it hasn't
+   * been set going. Failing fetches keep this small; only a stuck loop lets it grow. Optional.
+   */
+  lastPollAttemptAgeMs?(): number | null;
   /** How often the source is polled right now; health allows three misses. */
   pollIntervalMs(): number;
   isEventStreamConnected(): boolean;

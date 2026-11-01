@@ -164,7 +164,7 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
   const name = subjectName(page, box);
   const out: BoxFact[] = [];
   const kind = SONG_BOX.test(box.type) ? "song" : GAME_BOX.test(box.type) ? "game" : "album";
-  const about: BoxSubject = { kind, name, artists: kind === "album" ? items(f.artist ?? "") : [] };
+  const about: BoxSubject = { kind, name, artists: kind === "game" ? [] : items(f.artist ?? "") };
   const add = (text: string, field: string, values: string[]) => out.push({ text, evidence: `${field}: ${items(f[field] ?? "").join(", ") || f[field]}`, values, about });
 
   if (SONG_BOX.test(box.type)) {
@@ -261,6 +261,12 @@ export function sameTitle(a: string, b: string): boolean {
   return Boolean(key(a)) && key(a) === key(b);
 }
 
+/** An album named as a film's or a show's soundtrack: "Some Quest: Original Motion Picture Soundtrack". */
+const SCREEN_SOUNDTRACK = /\b(motion picture|film|movie|television|tv series)\b/i;
+
+/** An artist field that names a game with its platform: "Some Quest (GB)", "Some Quest (Arcade)". */
+export const PLATFORM_TAG = /\((?:GB|GBC|GBA|NES|SNES|SFC|FC|N64|GC|DS|3DS|PS[1-5]?|PSX|PSP|Genesis|MD|SMS|GG|PCE|TG-?16|Arcade|Saturn|DC|Dreamcast|Wii|Wii U|Switch|Xbox|C64|Amiga|DOS|MSX|PC)\)\s*$/i;
+
 /**
  * Why an infobox is about another work than the one requested, or "" when it is
  * this one (issue #256: data facts about the wrong work). The lookup may keep an
@@ -271,9 +277,11 @@ export function sameTitle(a: string, b: string): boolean {
  * - A game's: its name is the requested game's, or ends with it ("The Legend of
  *   Some Quest" for "Some Quest"); never when the artist field is a performer
  *   (`performer`: MusicBrainz has this song by an artist of that name).
- * - An album's: its name or its artist names the requested game or artist.
+ * - An album's: its name or its artist names the requested game or artist, and it is
+ *   not a film's or a show's soundtrack for a game's track (`gameTrack`: the artist
+ *   field carries a platform tag, "Some Quest (GB)").
  */
-export function boxMisfit(about: BoxSubject, request: { game: string; titles: string[] }, performer = false): string {
+export function boxMisfit(about: BoxSubject, request: { game: string; titles: string[]; gameTrack?: boolean }, performer = false): string {
   const names = artistNames(request.game);
   const name = normalizeTitle(about.name);
   if (about.kind === "song") return request.titles.some((t) => sameTitle(t, about.name)) ? "" : `a song's infobox for "${about.name}", another title`;
@@ -282,6 +290,7 @@ export function boxMisfit(about: BoxSubject, request: { game: string; titles: st
     const spaced = (s: string) => ` ${s.replace(/\band\b/g, " ").replace(/\s+/g, " ").trim()} `;
     return names.some((n) => spaced(name).endsWith(spaced(n))) ? "" : `the infobox is about ${about.name}, not ${request.game}`;
   }
+  if (request.gameTrack && SCREEN_SOUNDTRACK.test(about.name)) return `a film's or a show's soundtrack album, ${about.name}, for a game's track`;
   const byArtist = about.artists.some((a) => namesLoosely(normalizeTitle(a), names));
   return byArtist || mentionsName(name, names) ? "" : `an album's infobox for ${about.name}, not ${request.game}'s`;
 }
@@ -323,6 +332,11 @@ function creditFields(box: Infobox, keys: string[]): string[] | null {
 export function boxYear(box: Infobox): string | null {
   const f = box.fields;
   return earliestYear(f.released ?? f.published ?? f.composed ?? f.year);
+}
+
+/** The single before or after this one in a song's infobox, or null when it names none. */
+export function boxNeighbor(box: Infobox, side: "prev" | "next"): string | null {
+  return items(box.fields[`${side} title`] ?? "")[0]?.replace(/^["“]|["”]$/g, "") ?? null;
 }
 
 /**

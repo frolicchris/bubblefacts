@@ -5,20 +5,20 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, Release, testSongList, testStreamElements } from "./checks";
+import { newerRelease, Release, testSharing, testSongList, testStreamElements } from "./checks";
 import { assetName, downloadUpdate, startInstall } from "./updater";
 import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
 import { presetFoldersShown } from "./now-playing-folder";
-import { betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
+import { AiredFact, airedFrom, betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
 import { errorDetail, plainError, PlainOptions } from "./plain-errors";
 import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, customFactsProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, customFactsProblem, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -55,7 +55,7 @@ const DIRS = {
 const ALLOWED_HOSTS = [
   "github.com", "streamersonglist.com", "www.streamersonglist.com", "id.streamersonglist.com", "console.groq.com", "platform.claude.com",
   "bubblefacts.frolic.org", "www.twitch.tv", "obsproject.com", "huggingface.co", "www.llama.com", "ollama.com",
-  "streamelements.com", "en.wikipedia.org",
+  "streamelements.com", "en.wikipedia.org", "discord.gg",
 ];
 
 // Loaded once the app is ready: before that, Windows and Linux can't read the keychain.
@@ -123,7 +123,7 @@ function activeModel(): ModelFile | null {
 }
 
 function serverEnv(): Record<string, string> {
-  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID });
+  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents") });
   const active = activeModel();
   if (settings.ai === "builtin" && (builtinFailed || !active)) env.AI_PROVIDER = "none";
   else if (settings.ai === "builtin" && active) env.MODEL_PATH = modelPath(DIRS.models, active);
@@ -160,9 +160,9 @@ function startServer(force = false): void {
 }
 
 function state() {
-  const { token, refreshToken, seJwt, groqKey, anthropicKey, twitchToken, twitchRefreshToken, ...rest } = settings;
+  const { token, refreshToken, seJwt, groqKey, anthropicKey, shareKey, twitchToken, twitchRefreshToken, ...rest } = settings;
   return {
-    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, twitchConnected: !!twitchRefreshToken },
+    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, shareKeySet: !!shareKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
     // Where the Streamling and Nightbot presets look when Documents isn't in the usual place; empty when it is.
     nowPlayingFolders: presetFoldersShown(),
@@ -664,6 +664,10 @@ handle("test-streamelements", async (_e, channel: string, jwt: string) =>
   logged("StreamElements test", await testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt))
 );
 
+handle("test-sharing", async (_e, url: string, channel: string, key: string) =>
+  logged("Sharing test", await testSharing(String(url ?? ""), String(channel ?? ""), String(key ?? "") || settings.shareKey))
+);
+
 /** Choose the text file another app writes the playing song to. The window saves the path with the other settings. */
 handle("choose-now-playing-file", async () => {
   const options = {
@@ -680,7 +684,7 @@ handle("choose-now-playing-file", async () => {
 /** The settings with the window's changes in: a blank secret field keeps the one already saved, and a pasted token replaces the sign-in. */
 function mergeSettings(changes: Partial<Settings>): Settings {
   const next: Settings = sanitize({ ...settings, ...changes });
-  for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
+  for (const key of ["token", "seJwt", "groqKey", "anthropicKey", "shareKey"] as const) if (!changes[key]) next[key] = settings[key];
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
   return next;
 }
@@ -713,7 +717,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
 handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
   // The window checks first; this is the backstop, so an over-long fact is never saved.
-  const problem = customFactsProblem(changes);
+  const problem = customFactsProblem(changes) ?? shareUrlProblem(changes);
   if (problem) return { error: problem };
   const previous = settings;
   settings = mergeSettings(changes);
@@ -976,8 +980,19 @@ handle("install-update", () => {
   app.quit();
 });
 
-handle("report-problem", () =>
-  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings) }))
+/** The facts that went out to the overlay, for a report: from the server, or its file when the server isn't running. */
+async function airedFacts(): Promise<AiredFact[]> {
+  const fromServer = await control("aired");
+  if (fromServer) return airedFrom(fromServer);
+  try {
+    return airedFrom(JSON.parse(fs.readFileSync(path.join(DATA, "aired-facts.json"), "utf8")));
+  } catch {
+    return [];
+  }
+}
+
+handle("report-problem", async () =>
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 handle("report-beta", () =>
   openExternal(
@@ -993,16 +1008,17 @@ handle("report-beta", () =>
   )
 );
 /** The same reports, as text to paste anywhere: no GitHub account needed. */
-handle("copy-report", (_e, kind: unknown) => {
+handle("copy-report", async (_e, kind: unknown) => {
   const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
+  const aired = kind === "beta" ? [] : await airedFacts();
   clipboard.writeText(
     kind === "beta"
       ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource, nowPlayingPreset: settings.nowPlayingPreset })
-      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai })
+      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai, aired })
   );
 });
-handle("report-fact", (_e, song: string, fact: string) =>
-  openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings) }))
+handle("report-fact", async (_e, song: string, fact: string) =>
+  openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 
 // --- Lifecycle -----------------------------------------------------------

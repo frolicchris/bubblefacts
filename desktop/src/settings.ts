@@ -2,6 +2,7 @@ import { app, safeStorage } from "electron";
 import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
+import { shareAddress } from "./checks";
 import { AiQuality, modelFor, modelPath } from "./model";
 
 /** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
@@ -43,11 +44,18 @@ export interface Settings {
   /** One credit bubble before the first song's facts and about every 5 songs: where facts come from, and to report a mistake. */
   creditBubble: boolean;
   liveLearnBanner: boolean;
+  /** Share song facts with other apps: off by default. Sends the song and its facts to `shareUrl` (share-song-facts.ts in the server). */
+  shareFacts: boolean;
+  /** Where they go: https, or http on this computer. */
+  shareUrl: string;
+  /** The channel the key belongs to. */
+  shareChannel: string;
+  shareKey: string;
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
   myOriginals: string[];
   ai: "builtin" | "groq" | "anthropic" | "ollama";
-  /** Which built-in model: the small default, or the bigger one that makes fewer mistakes (model.ts). */
+  /** Which built-in model: the small default, or the bigger one (model.ts). */
   aiQuality: AiQuality;
   groqKey: string;
   anthropicKey: string;
@@ -112,6 +120,10 @@ export const DEFAULTS: Settings = {
   nowPlaying: true,
   creditBubble: true,
   liveLearnBanner: true,
+  shareFacts: false,
+  shareUrl: "",
+  shareChannel: "",
+  shareKey: "",
   myFacts: [],
   myOriginals: [],
   ai: "builtin",
@@ -133,7 +145,7 @@ export const DEFAULTS: Settings = {
   lastVersionSeen: "",
 };
 
-const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey", "twitchToken", "twitchRefreshToken"] as const;
+const SECRET_KEYS = ["token", "refreshToken", "seJwt", "groqKey", "anthropicKey", "shareKey", "twitchToken", "twitchRefreshToken"] as const;
 const file = () => path.join(app.getPath("userData"), "settings.json");
 
 
@@ -171,19 +183,49 @@ export const secretsWaiting = () => secretsPending;
 const sameType = (value: unknown, fallback: unknown): boolean =>
   Array.isArray(fallback) ? Array.isArray(value) && value.every((v) => typeof v === "string") : typeof value === typeof fallback;
 
+/** Reads that fail for a reason other than a missing file (an antivirus or OneDrive lock) are tried again this many times. */
+const READ_RETRIES = 3;
+const READ_RETRY_MS = 150;
+
+/** The file couldn't be read at all (locked), so the defaults in memory stand in and nothing is saved over it. */
+let readFailed = false;
+
+/** The saved settings text, retrying a few times when something has the file locked. Null if there is no file. */
+function readSettingsFile(): string | null {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return fs.readFileSync(file(), "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if (attempt >= READ_RETRIES) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, READ_RETRY_MS);
+    }
+  }
+}
+
 export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
+  let text: string | null;
   try {
-    raw = JSON.parse(fs.readFileSync(file(), "utf8"));
-    if (!raw || typeof raw !== "object") throw new Error("not an object");
+    text = readSettingsFile();
   } catch (err) {
-    // Keep an unreadable file for a problem report instead of overwriting it.
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      try {
-        fs.renameSync(file(), file() + ".unreadable");
-      } catch {
-        // Nothing more to do: start from the defaults.
-      }
+    // Locked, not broken: the file is probably fine and the sign-in in it is still wanted. Starting from the
+    // defaults without saving leaves it for the next start (or the next load) instead of renaming it away.
+    readFailed = true;
+    console.error(`[App] Couldn't read settings.json (${(err as NodeJS.ErrnoException).code ?? err}); using defaults for now and not saving.`);
+    return { ...DEFAULTS, updateChannel: firstChannel() };
+  }
+  readFailed = false;
+  if (text === null) return { ...DEFAULTS, updateChannel: firstChannel() };
+  try {
+    raw = JSON.parse(text);
+    if (!raw || typeof raw !== "object") throw new Error("not an object");
+  } catch {
+    // It read but isn't settings: keep it for a problem report instead of overwriting it.
+    try {
+      fs.renameSync(file(), file() + ".unreadable");
+    } catch {
+      // Nothing more to do: start from the defaults.
     }
     return { ...DEFAULTS, updateChannel: firstChannel() };
   }
@@ -255,6 +297,9 @@ export function sanitize(s: Settings): Settings {
     channel: s.channel.trim(),
     seChannel: s.seChannel.trim(),
     seJwt: s.seJwt.trim(),
+    shareUrl: shareAddress(s.shareUrl) ?? "",
+    shareChannel: s.shareChannel.trim().replace(/^@/, ""),
+    shareKey: s.shareKey.trim(),
     ollamaUrl: webAddress(s.ollamaUrl) ?? DEFAULTS.ollamaUrl,
   };
 }
@@ -279,6 +324,12 @@ export function customFactsProblem(changes: Partial<Pick<Settings, "myFacts" | "
   return null;
 }
 
+/** Why the sharing address can't be saved as typed, or null. Refused with the reason: `sanitize` would blank it. */
+export function shareUrlProblem(changes: Partial<Pick<Settings, "shareUrl">>): string | null {
+  if (!changes.shareUrl || shareAddress(changes.shareUrl)) return null;
+  return "The sharing address must start with https:// (http:// is fine only on this computer).";
+}
+
 /** An http or https address, or null: Ollama is only ever reached over the web's own protocols. */
 function webAddress(s: string): string | null {
   try {
@@ -291,7 +342,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
@@ -318,19 +369,30 @@ export const SETTINGS_VERSION = 1;
  */
 const RETIRED_KEYS = new Set(["topics"]);
 
+/** The settings that sanitize holds to a list of values. */
+const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "wrongKey", "updateChannel"] as const;
+
 export function saveSettings(settings: Settings): void {
-  if (secretsPending) return;
+  if (secretsPending || readFailed) return;
   // Settings a newer version saved are kept, so going back a version and forward again loses nothing.
   let kept: Record<string, unknown> = {};
   try {
     const raw = JSON.parse(fs.readFileSync(file(), "utf8")) as Record<string, unknown>;
     kept = Object.fromEntries(Object.entries(raw).filter(([k]) => !(k in DEFAULTS) && !RETIRED_KEYS.has(k)));
+    // A choice only a newer version knows ("ai": "gemini") was swapped for a safe default in memory. While it is
+    // still that default, the saved choice stays; picking anything else replaces it.
+    for (const key of ENUM_KEYS) {
+      const saved = raw[key];
+      if (typeof saved !== "string") continue;
+      const safe = sanitize({ ...settings, [key]: saved })[key];
+      if (safe !== saved && settings[key] === safe) kept[key] = saved;
+    }
   } catch {
     // No file yet, or unreadable: nothing to keep.
   }
   // A file a newer version wrote keeps its higher number: it may hold what only that version understands.
   const version = Math.max(SETTINGS_VERSION, typeof kept.settingsVersion === "number" ? kept.settingsVersion : 0);
-  const stored: Record<string, unknown> = { ...kept, ...settings, settingsVersion: version };
+  const stored: Record<string, unknown> = { ...settings, ...kept, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
   fs.mkdirSync(path.dirname(file()), { recursive: true });
   writeFileAtomic(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
@@ -355,7 +417,7 @@ export function secretsUnprotected(): boolean {
 /** The settings as the server's environment variables. */
 export function toServerEnv(
   s: Settings,
-  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string }
+  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string }
 ): Record<string, string> {
   const env: Record<string, string> = {
     // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
@@ -376,6 +438,8 @@ export function toServerEnv(
     BUBBLEFACTS_LOG_DIR: paths.logDir,
     NODE_ENV: "production",
   };
+  // Where the system keeps Documents, for the Streamling and Nightbot presets: tried before the home folder's.
+  if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;
@@ -399,6 +463,7 @@ export function toServerEnv(
     });
     if (s.tokenKind === "oauth") Object.assign(env, { SSL_CLIENT_ID: paths.clientId, SSL_STREAMER_ID: String(s.streamerId) });
   }
+  if (s.shareFacts && s.shareUrl && s.shareChannel && s.shareKey) Object.assign(env, { SHARE_FACTS_URL: s.shareUrl, SHARE_FACTS_CHANNEL: s.shareChannel, SHARE_FACTS_KEY: s.shareKey });
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
   if (s.instrument) env.INSTRUMENT = s.instrument;
   if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });

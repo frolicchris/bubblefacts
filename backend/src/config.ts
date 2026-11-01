@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import os from "os";
 import path from "path";
 import { presetFolder } from "./now-playing-folder";
+import { shareAddress } from "./share-song-facts";
 
 /** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -173,6 +174,11 @@ export const config = {
     nowPlayingPreset === "none" ? "artist-title" : NOW_PLAYING_PRESETS[nowPlayingPreset].format
   ),
 
+  // Share song facts with other apps (off unless all three are set): share-song-facts.ts.
+  shareFactsUrl: shareAddress(process.env.SHARE_FACTS_URL || "") ?? "",
+  shareFactsKey: process.env.SHARE_FACTS_KEY || "",
+  shareFactsChannel: process.env.SHARE_FACTS_CHANNEL || "",
+
   // Model
   aiProvider,
   // The desktop app's built-in model: a GGUF file it downloaded (AI_PROVIDER=builtin).
@@ -196,7 +202,8 @@ export const config = {
   openaiModel: process.env.OPENAI_MODEL || "openai/gpt-oss-20b",
   openaiTimeoutMs: intEnv("OPENAI_TIMEOUT_MS", 30000, 1000, 600000),
   anthropicApiKey: aiProvider === "anthropic" ? requireEnv("ANTHROPIC_API_KEY") : "",
-  anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+  // Anthropic SDK 1.x (API 2026-10-21) rejects `temperature`, so none is sent to Anthropic.
+  anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
 
   // Grounding
   factVerification: oneOf("FACT_VERIFICATION", ["on", "off"] as const, "on") === "on",

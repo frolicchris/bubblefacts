@@ -7,7 +7,7 @@ import path from "path";
 /**
  * Runs the fact server in its own process and keeps it healthy without the
  * musician's help: it restarts the server after a crash, after it stops
- * answering, or after the song-list connection stalls, waiting a little
+ * answering, or after its song-list polling loop gets stuck, waiting a little
  * longer after each failure so a persistent problem doesn't spin.
  */
 
@@ -26,6 +26,12 @@ export interface Health {
   obsClients: number;
   clients: Array<{ addr: string; ua: string }>;
   lastQueueFetchAgeMs: number | null;
+  /** Why status is degraded or unauthorized; "no successful queue fetch recently" means fetches are failing. */
+  degradedReason?: string;
+  /** How long ago the server last tried to fetch the song list, worked or not; older servers leave it out. */
+  lastPollAttemptAgeMs?: number | null;
+  /** How often the server polls the song source; older servers leave it out. */
+  pollIntervalMs?: number;
   facts: Record<string, unknown>;
 }
 
@@ -46,15 +52,23 @@ const MISSES_BEFORE_RESTART = 4; // 20 seconds without an answer
  */
 const MODEL_LOAD_GRACE_MS = 3 * 60_000;
 const DEGRADED_BEFORE_RESTART_MS = 120_000;
+/** The server's degradedReason (server.ts) when fetches fail: no internet, or the song service is down. */
+const OUTAGE_REASON = "no successful queue fetch recently";
 const MAX_BACKOFF_MS = 60_000;
 const FAILING_AFTER = 5; // restarts within the window below
 const RESTART_WINDOW_MS = 10 * 60_000;
+/** How long the server must stay healthy before its crash history is forgotten. */
+const STEADY_HEALTH_MS = 5 * 60_000;
 const LOG_LINES_KEPT = 800;
 const PORT_SEARCH = 10;
+/** The longest to wait for a killed server to exit before starting its replacement anyway. */
+const EXIT_WAIT_MS = 10_000;
 
 /** The running fact server, however it was started. */
 interface ServerProcess {
   kill(): void;
+  /** Resolves once the process has really exited. */
+  exited: Promise<void>;
   send(message: { type: string; token: string }): void;
 }
 
@@ -67,6 +81,8 @@ export class Supervisor extends EventEmitter {
   private misses = 0;
   private degradedSince: number | null = null;
   private restartTimes: number[] = [];
+  /** When the current run of good health checks began; null while the server isn't healthy. */
+  private healthySince: number | null = null;
   private portConflict = false;
   private modelLoaded = false;
   private launchedAt = 0;
@@ -74,6 +90,10 @@ export class Supervisor extends EventEmitter {
   private listening = false;
   /** The port the musician chose; automatic moves search upward from here. */
   private basePort = 0;
+  /** The date (UTC) of the log file being written; a new date prunes old logs. */
+  private logDay = "";
+  private logStream: fs.WriteStream | null = null;
+  private logsFlushed: Promise<void> = Promise.resolve();
   readonly lines: string[] = [];
   status: Status = { state: "stopped", health: null, message: "", restarts: 0, port: 3000 };
 
@@ -115,6 +135,7 @@ export class Supervisor extends EventEmitter {
     this.restartTimer = this.healthTimer = null;
     this.child?.kill();
     this.child = null;
+    void this.endLog();
     this.set("stopped", "");
   }
 
@@ -126,6 +147,7 @@ export class Supervisor extends EventEmitter {
   private launch(verb: string): void {
     this.misses = 0;
     this.degradedSince = null;
+    this.healthySince = null;
     this.portConflict = false;
     this.modelLoaded = false;
     this.listening = false;
@@ -143,13 +165,13 @@ export class Supervisor extends EventEmitter {
       proc.stderr?.on("data", output);
       proc.on("error", (err) => this.log(`[App] Couldn't start the fact server: ${err.message}`));
       proc.on("exit", (code) => onExit(code));
-      child = { kill: () => proc.kill(), send: (m) => void (proc.connected && proc.send(m)) };
+      child = { kill: () => proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => void (proc.connected && proc.send(m)) };
     } else {
       const proc = utilityProcess.fork(this.serverScript, [], { env, stdio: "pipe", serviceName: "BubbleFacts server" });
       proc.stdout?.on("data", output);
       proc.stderr?.on("data", output);
       proc.on("exit", (code) => onExit(code));
-      child = { kill: () => void proc.kill(), send: (m) => proc.postMessage(m) };
+      child = { kill: () => void proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => proc.postMessage(m) };
     }
     this.child = child;
     const onExit = (code: number | null) => {
@@ -191,9 +213,19 @@ export class Supervisor extends EventEmitter {
       this.log(`[App] The built-in AI ${how} using the GPU; retrying on the processor.`);
       this.env = { ...this.env, LLAMA_GPU: "off" };
       this.emit("gpu-off");
-      this.child?.kill();
+      // The old server may still hold the port and the model file: relaunch once it has gone.
+      const old = this.child;
       this.child = null;
-      if (!this.stopping) this.launch("Restarting");
+      old?.kill();
+      if (this.stopping || this.restartTimer) return;
+      const relaunch = () => {
+        if (!this.restartTimer) return;
+        clearTimeout(this.restartTimer);
+        this.restartTimer = null;
+        this.launch("Restarting");
+      };
+      this.restartTimer = setTimeout(relaunch, old ? EXIT_WAIT_MS : 0);
+      void old?.exited.then(relaunch);
       return;
     }
     this.log(`[App] The built-in AI ${how}${process.platform === "darwin" ? "" : " on the processor too"}.`);
@@ -207,6 +239,7 @@ export class Supervisor extends EventEmitter {
     this.child?.kill();
     this.child = null;
     const now = Date.now();
+    this.healthySince = null;
     this.restartTimes = [...this.restartTimes.filter((t) => now - t < RESTART_WINDOW_MS), now];
     const count = this.restartTimes.length;
     const delay = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (count - 1));
@@ -235,13 +268,20 @@ export class Supervisor extends EventEmitter {
       }
       if (health.status === "degraded") {
         this.degradedSince ??= Date.now();
-        if (Date.now() - this.degradedSince > DEGRADED_BEFORE_RESTART_MS) {
+        // An outage makes fetches fail, but the server keeps trying and a restart only reloads the AI and
+        // blanks the overlay. Restart for that only when it has stopped trying at all. Other reasons
+        // (the player's events lost, a song not followed) are what a restart fixes.
+        const outage = health.degradedReason === OUTAGE_REASON;
+        if (Date.now() - this.degradedSince > DEGRADED_BEFORE_RESTART_MS && (!outage || pollLoopStuck(health))) {
           return this.scheduleRestart("The song-list connection stalled");
         }
       } else {
         this.degradedSince = null;
       }
-      if (this.status.state !== "running") this.restartTimes = this.restartTimes.slice(-1);
+      // One good answer proves little: a server that crashes on its first song answers fine until then.
+      // Only a steady stretch clears the history, so a crash loop still backs off and reaches "failing".
+      this.healthySince ??= Date.now();
+      if (Date.now() - this.healthySince >= STEADY_HEALTH_MS) this.restartTimes = [];
       this.set("running", health.status === "degraded" ? `Reconnecting to ${health.songSource ?? "StreamerSongList"}` : "");
     } catch {
       const loading = this.env.AI_PROVIDER === "builtin" && !this.modelLoaded;
@@ -273,22 +313,81 @@ export class Supervisor extends EventEmitter {
       if (/Built-in model failed to load/.test(line)) this.modelFailed("failed to load");
       this.lines.push(line);
       if (this.lines.length > LOG_LINES_KEPT) this.lines.shift();
-      try {
-        fs.mkdirSync(this.logDir, { recursive: true });
-        fs.appendFileSync(path.join(this.logDir, `bubblefacts-${new Date().toISOString().slice(0, 10)}.log`), line + "\n");
-      } catch {
-        // Logging must never take the app down.
-      }
+      this.writeLog(line + "\n");
     }
+  }
+
+  /** One buffered stream for the day's log file, instead of reopening the file for every line. */
+  private writeLog(text: string): void {
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      if (!this.logStream || day !== this.logDay) {
+        void this.endLog();
+        fs.mkdirSync(this.logDir, { recursive: true });
+        // A stream can run for days: tidy up when the date changes, not only at startup.
+        pruneLogs(this.logDir);
+        const stream = fs.createWriteStream(path.join(this.logDir, `bubblefacts-${day}.log`), { flags: "a" });
+        // Logging must never take the app down: a failed write only drops lines.
+        stream.on("error", () => {
+          if (this.logStream === stream) this.logStream = null;
+        });
+        this.logStream = stream;
+        this.logDay = day;
+      }
+      this.logStream.write(text);
+    } catch {
+      // Logging must never take the app down.
+    }
+  }
+
+  /** Close the log stream, flushing what it holds. */
+  private endLog(): Promise<void> {
+    const stream = this.logStream;
+    this.logStream = null;
+    if (stream) this.logsFlushed = Promise.all([this.logsFlushed, new Promise<void>((resolve) => stream.end(resolve))]).then(() => undefined);
+    return this.logsFlushed;
+  }
+
+  /** Resolves when every closed log stream has finished writing (for tests and a clean quit). */
+  whenLogsWritten(): Promise<void> {
+    return this.logsFlushed;
   }
 }
 
-/** Keep the last week of daily log files. */
+/**
+ * Whether the server's polling loop has stopped making attempts. A server that doesn't report its
+ * attempts (older, or no loop yet) counts as stuck, as before. Slow polling (up to five minutes) is allowed three misses.
+ */
+function pollLoopStuck(health: Health): boolean {
+  const age = health.lastPollAttemptAgeMs;
+  if (typeof age !== "number") return true;
+  return age > Math.max(DEGRADED_BEFORE_RESTART_MS, 3 * (health.pollIntervalMs ?? 0));
+}
+
+const SONGS_LOG_MAX_BYTES = 1_000_000;
+const SONGS_LOG_KEPT = 3;
+
+/** Keep the last week of daily log files, and move a songs.log over 1 MB aside (songs.1.log, newest, to songs.3.log). */
 export function pruneLogs(logDir: string, keep = 7): void {
+  rotateSongsLog(logDir);
   try {
     const files = fs.readdirSync(logDir).filter((f) => /^bubblefacts-\d{4}-\d{2}-\d{2}\.log$/.test(f)).sort();
     for (const f of files.slice(0, Math.max(0, files.length - keep))) fs.unlinkSync(path.join(logDir, f));
   } catch {
     // Nothing to prune yet.
+  }
+}
+
+function rotateSongsLog(logDir: string): void {
+  try {
+    const live = path.join(logDir, "songs.log");
+    if (fs.statSync(live).size <= SONGS_LOG_MAX_BYTES) return;
+    // The fact server appends by path, so the next line starts a fresh songs.log.
+    for (let i = SONGS_LOG_KEPT; i >= 1; i--) {
+      const from = i === 1 ? live : path.join(logDir, `songs.${i - 1}.log`);
+      if (fs.existsSync(from)) fs.renameSync(from, path.join(logDir, `songs.${i}.log`));
+    }
+  } catch {
+    // No songs.log yet.
   }
 }

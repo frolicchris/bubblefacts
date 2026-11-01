@@ -15,12 +15,13 @@ export const BACKUP_FORMAT = "bubblefacts-backup";
 /**
  * Left out: secrets, the sign-in a backup must not carry to another account,
  * and which AI writes the facts, so a backup someone shares can't send every
- * song to their own server. The built-in AI's quality belongs to the computer
+ * song to their own server. Sharing song facts with other apps is left out for
+ * the same reason, and stays this computer's own choice. The built-in AI's quality belongs to the computer
  * too: restored onto a smaller one, it would start a 5 GB download. The song
  * source and the now playing file are this computer's, like the sign-in.
  */
 const NOT_BACKED_UP = new Set<keyof Settings>([
-  "token", "seJwt", "groqKey", "anthropicKey", "songSource", "channel", "seChannel", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel",
+  "token", "seJwt", "groqKey", "anthropicKey", "shareKey", "shareFacts", "shareUrl", "shareChannel", "songSource", "channel", "seChannel", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel",
 ]);
 const BACKED_UP = EDITABLE.filter((k) => !NOT_BACKED_UP.has(k));
 
@@ -37,7 +38,7 @@ export interface Backup {
 }
 
 /** Everything in the data folder that "Remove my data" deletes. */
-export const REMOVED_WITH_DATA = ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "wrong-log.jsonl", "song-facts.json", "song-facts.before-switches.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"];
+export const REMOVED_WITH_DATA = ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "wrong-log.jsonl", "aired-facts.json", "song-facts.json", "song-facts.before-switches.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"];
 
 /** The lines of a wrong-log file's text that are whole records, newest 500 at most. */
 export function wrongLogLines(text: string): unknown[] {

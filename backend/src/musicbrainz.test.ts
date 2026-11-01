@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { config } from "./config";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { artistByTitle, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
+import { artistByTitle, artistPageFit, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, closeName, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -49,6 +49,21 @@ describe("performerFacts", () => {
     expect(facts).toEqual([]);
   });
 
+  it("states no year when the artist's same title came out earlier on another recording", () => {
+    const later = rec("Glass Harbor", "Ola Brandt", "2008-07-14", [["Quiet Rooms"]]);
+    // The first recording credits others too, so it scores low and isn't a match itself.
+    const first = { ...rec("Glass Harbor", "Ola Brandt", "1986", [["Green Room"]], 81), "artist-credit": [{ name: "Ola Brandt" }, { name: "Mara Quill" }] };
+    expect(performerFacts([later, first], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Quiet Rooms.']);
+    expect(performerFacts([later], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" came out in 2008 and is on the album Quiet Rooms.']);
+  });
+
+  it("takes no year from a recording marked as a re-recording or a live take", () => {
+    const redo = { ...rec("Glass Harbor", "Ola Brandt", "2011", [["Second Light"]]), disambiguation: "2011 re-recording" };
+    expect(performerFacts([redo], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Second Light.']);
+    const live = { ...rec("Glass Harbor", "Ola Brandt", "2012", [["Third Light"]]), disambiguation: "live, 2012-03-01: Harbor Hall" };
+    expect(firstYear([live])).toBeUndefined();
+  });
+
   it("reads back its year and album, and drops the year alone (#256)", () => {
     const both = ['"Lost Boy" came out in 2018 and is on the album Kids.'];
     expect([statedYear(both), statesAlbum(both)]).toEqual(["2018", true]);
@@ -56,6 +71,30 @@ describe("performerFacts", () => {
     const split = ['"Lost Boy" came out in 2018.', '"Lost Boy" is on the album Kids.'];
     expect(withoutYear(split)).toEqual(['"Lost Boy" is on the album Kids.']);
     expect([statedYear([]), statesAlbum(['"Lost Boy" came out in 2018.'])]).toEqual([null, false]);
+  });
+});
+
+describe("performerFacts: dates it can't vouch for", () => {
+  const release = (title: string, date: string, primary = "Album", secondary: string[] = []) => ({ title, date, status: "Official", "release-group": { "primary-type": primary, "secondary-types": secondary } });
+  const recording = (title: string, ...releases: ReturnType<typeof release>[]) => ({ id: "r1", score: 100, title, "first-release-date": releases[0]?.date, "artist-credit": [{ name: "Velvet Lark" }], releases });
+
+  it("states no year that no release dates to a month", () => {
+    expect(performerFacts([recording("Harbor Lights", release("Harbor Lights OST", "1997", "Album", ["Soundtrack"]))], "Harbor Lights", "Velvet Lark")).toEqual([]);
+    expect(performerFacts([recording("Harbor Lights", release("Quiet Water", "1997"))], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" is on the album Quiet Water.']);
+    expect(performerFacts([recording("Harbor Lights", release("Quiet Water", "1997-03-01"))], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" came out in 1997 and is on the album Quiet Water.']);
+  });
+
+  it("names no album from more than a year after the song", () => {
+    const song = (album: string) => recording("Harbor Lights", release("Harbor Lights OST", "1997-11-04", "Album", ["Soundtrack"]), release("Quiet Water", album));
+    expect(performerFacts([song("1999-09-21")], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" came out in 1997.']);
+    expect(performerFacts([song("1998-09-21")], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" came out in 1997 and is on the album Quiet Water.']);
+  });
+
+  it("finds a song whose title has brackets the request leaves out", () => {
+    const song = recording("Hollow (In My Sleep)", release("Quiet Water", "2000-09-12"));
+    expect(performerFacts([song], "Hollow In My Sleep", "Velvet Lark")).toEqual(['"Hollow In My Sleep" came out in 2000 and is on the album Quiet Water.']);
+    expect(performerFacts([song], "Hollow", "Velvet Lark")).toEqual(['"Hollow" came out in 2000 and is on the album Quiet Water.']);
+    expect(performerFacts([song], "Hollow Sleep", "Velvet Lark")).toEqual([]);
   });
 });
 
@@ -113,7 +152,7 @@ describe("release years (October 2026 fact checks)", () => {
   });
 
   it("takes no year after the credited artist died", () => {
-    const satie = [dated("Gnossienne No. 1", "Erik Satie", [["Satie Piano Music", "1995", []]])];
+    const satie = [dated("Gnossienne No. 1", "Erik Satie", [["Satie Piano Music", "1995-03-02", []]])];
     expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie", 1925)).toEqual(['"Gnossienne No. 1" is on the album Satie Piano Music.']);
     expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie")[0]).toBe('"Gnossienne No. 1" came out in 1995 and is on the album Satie Piano Music.');
   });
@@ -231,6 +270,22 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
   });
 });
 
+describe("artistPageFit: an opening the content standard left out", () => {
+  // Made-up names. The first sentence ("... is a Cuban-American musician") breaks the identity list and is gone.
+  const full = "Known for his style of dress, Ravel Quillon is considered a leading figure in the dark cabaret genre. He has released 13 studio albums.";
+
+  it("reads Wikidata's description when the opening says nothing", () => {
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"])).toMatchObject({ ok: false });
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"], "Cuban-American musician")).toEqual({ ok: true });
+  });
+
+  it("holds the description to the same tests, and never over an opening that says something", () => {
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"], "French philosopher")).toMatchObject({ ok: false });
+    expect(artistPageFit("Aurelio Quillon", full, ["quillon"], "2004 film by a musician")).toMatchObject({ ok: false });
+    expect(artistPageFit("Aurelio Quillon", "Aurelio Quillon is a 2004 film about a musician.", ["quillon"], "Cuban-American musician")).toMatchObject({ ok: false });
+  });
+});
+
 describe("musicbrainzFacts: no year it can't vouch for", () => {
   // Made-up names. Heart's "Alone" once got 2010 (a later EP: the 1987 single wasn't among the results),
   // and "Vampire Killer" 2015 (an album called "Castlevania" credited to "Castlevania").
@@ -249,7 +304,7 @@ describe("musicbrainzFacts: no year it can't vouch for", () => {
     const later = rec("Paper Moonlight", "Lantern", "2010", [["Later Sessions"]]);
     byArtist = { count: 40, recordings: Array.from({ length: 25 }, () => later) };
     expect(await musicbrainzFacts({ title: "Paper Moonlight", artist: "Lantern" })).not.toContainEqual(expect.stringMatching(/came out in/));
-    byArtist = { count: 1, recordings: [rec("Paper Lanterns", "Lantern", "1987", [["First Light"]])] };
+    byArtist = { count: 1, recordings: [rec("Paper Lanterns", "Lantern", "1987-05-01", [["First Light"]])] };
     expect(await musicbrainzFacts({ title: "Paper Lanterns", artist: "Lantern" })).toContain('"Paper Lanterns" came out in 1987 and is on the album First Light.');
   });
 
@@ -487,5 +542,13 @@ describe("settleTitleOrder: which side of a fan's \"X - Y\" is the artist", () =
   it("matches title and credit without case or accents", () => {
     expect(recordingOrder([recording("A Novidade", "Gíl Berto")] as never, "a novidade", "Gil Berto")).toBe("swap");
     expect(recordingOrder([] as never, "Copper Moon", "Juniper Reyes")).toBeNull();
+  });
+});
+
+describe("closeName: another middle initial is another person", () => {
+  it("refuses names one initial apart and keeps true respellings", () => {
+    expect(closeName("Rafa F. Moreno", "Rafa J. Moreno")).toBe(false);
+    expect(closeName("Rafa F. Morreno", "Rafa F. Moreno")).toBe(true);
+    expect(closeName("Girls Got Rythm", "Girls Got Rhythm")).toBe(true);
   });
 });

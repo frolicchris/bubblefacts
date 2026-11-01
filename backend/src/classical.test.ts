@@ -49,6 +49,22 @@ describe("parseClassicalTitle", () => {
     expect(parseClassicalTitle("Paper Lanterns")).toMatchObject({ classical: false, catalogs: [], numbers: [] });
   });
 
+  it("reads a long form: catalog, number, nickname and the set it's from in one bracket", () => {
+    expect(parseClassicalTitle("Lantern Song (L. 77, no. 3, from Suite Harborlight)")).toMatchObject({ name: "Lantern Song", alias: "", catalogs: ["L. 77"], numbers: ["77", "3"] });
+    expect(parseClassicalTitle("Arabesque in E Major (L. 69, no. 1)")).toMatchObject({ name: "Arabesque", alias: "", catalogs: ["L. 69"], numbers: ["69", "1"], key: "E major" });
+    expect(parseClassicalTitle('Sonata No. 19 in C# Minor (op. 31, no. 2, "Lighthouse") 3rd Movement')).toMatchObject({
+      name: "Sonata",
+      alias: "Lighthouse",
+      catalogs: ["Op. 31"],
+      numbers: ["31", "19", "2"],
+      key: "C-sharp minor",
+      movement: { n: 3 },
+    });
+    expect(parseClassicalTitle('Morceaux de Harbor (op. 5, no. 1, "Elegie")')).toMatchObject({ name: "Morceaux de Harbor", alias: "Elegie", catalogs: ["Op. 5"] });
+    expect(parseClassicalTitle('"Lantern-Impromptu" in C-sharp Minor (op. 71)')).toMatchObject({ name: "Lantern-Impromptu", key: "C-sharp minor", catalogs: ["Op. 71"] });
+    expect(parseClassicalTitle("Nocturne in F Minor (op. 58, no. 1)")).toMatchObject({ name: "Nocturne", alias: "" });
+  });
+
   it("finds a bare form word too vague to name one work", () => {
     expect(namesOneWork(parseClassicalTitle("Prelude"))).toBe(false);
     expect(namesOneWork(parseClassicalTitle("Prelude No. 4"))).toBe(true);

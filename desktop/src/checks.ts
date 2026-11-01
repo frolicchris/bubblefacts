@@ -69,6 +69,45 @@ export async function testStreamElements(channel: string, jwt: string): Promise<
   }
 }
 
+/** https, or plain http on this computer only, with no sign-in in the address. The address, or null. As in the server's share-song-facts.ts. */
+export function shareAddress(text: string): string | null {
+  try {
+    const url = new URL(text.trim());
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.username || url.password || !(url.protocol === "https:" || (url.protocol === "http:" && local))) return null;
+    return text.trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Try a sharing address, key and channel by clearing this app's own entry there:
+ * empty content sends no song or fact, and a wrong key or channel is refused.
+ */
+export async function testSharing(address: string, channel: string, key: string): Promise<{ ok: true } | { ok: false; reason: string; detail?: string }> {
+  const url = shareAddress(address);
+  const name = channel.trim().replace(/^@/, "");
+  if (!address.trim()) return { ok: false, reason: "Enter the address to share with." };
+  if (!url) return { ok: false, reason: "The sharing address must start with https:// (http:// is fine only on this computer)." };
+  if (!name) return { ok: false, reason: "Enter your channel name." };
+  if (!key.trim()) return { ok: false, reason: "Paste your API key." };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType: "INTEGRATION_STATE", data: { channelName: name, sourceId: "bubblefacts", content: "" } }),
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 401 || res.status === 403) return { ok: false, reason: "The other app didn't accept that. Check the API key, and that the channel name is the one the key belongs to." };
+    if (!res.ok) return { ok: false, reason: "The other app isn't answering right now. Check the address, or try again in a minute.", detail: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: plainError(err, { service: "The other app", fallback: cantReach("the other app") }), detail: errorDetail(err) };
+  }
+}
+
 /**
  * Compare versions like 2.0.0 and 2.0.0-beta.2 the semver way: a prerelease
  * comes before its release, and prerelease parts compare number by number.

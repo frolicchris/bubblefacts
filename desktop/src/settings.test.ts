@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { customFactsProblem, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -30,6 +30,13 @@ afterEach(() => {
   for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+describe("toServerEnv documents folder", () => {
+  it("passes the system's Documents folder to the server when the app knows it", () => {
+    expect(toServerEnv(DEFAULTS, { ...paths, documentsDir: "/Redirected/Documents" }).BUBBLEFACTS_DOCUMENTS_DIR).toBe("/Redirected/Documents");
+    expect(toServerEnv(DEFAULTS, paths)).not.toHaveProperty("BUBBLEFACTS_DOCUMENTS_DIR");
+  });
+});
 
 describe("loadSettings", () => {
   it("starts from the defaults on first run", () => {
@@ -50,6 +57,17 @@ describe("loadSettings", () => {
     const disk = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(disk).toMatchObject({ channel: "jane", displayName: "Jane Composer", fromAFutureVersion: "kept", settingsVersion: 2 });
     expect(disk).not.toHaveProperty("topics");
+  });
+
+  it("keeps a choice only a newer version knows, using a safe default meanwhile", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ai: "gemini-next", bubbleSize: "huge", settingsVersion: 2 }));
+    const loaded = loadSettings();
+    expect(loaded).toMatchObject({ ai: "builtin", bubbleSize: "standard" });
+    saveSettings({ ...loaded, displayName: "Jane Composer" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "gemini-next", bubbleSize: "huge", displayName: "Jane Composer" });
+    // Choosing something else in Settings replaces it.
+    saveSettings({ ...loaded, ai: "groq" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "groq", bubbleSize: "huge" });
   });
 
   it("loads a settings file from an early 2.0 beta without losing anything it had", () => {
@@ -117,6 +135,63 @@ describe("loadSettings", () => {
   });
 });
 
+describe("a settings file that can't be read right now (antivirus or OneDrive lock)", () => {
+  /** Makes reading settings.json fail with `code` for the first `times` reads (all of them by default). */
+  const lockFile = (code: string, times = Infinity) => {
+    const real = fs.readFileSync;
+    let left = times;
+    return jest.spyOn(fs, "readFileSync").mockImplementation(((p: fs.PathOrFileDescriptor, ...rest: unknown[]) => {
+      if (String(p) === file && left-- > 0) throw Object.assign(new Error(`${code}: resource busy or locked`), { code });
+      return (real as (...a: unknown[]) => unknown)(p, ...rest);
+    }) as typeof fs.readFileSync);
+  };
+  beforeEach(() => {
+    jest.spyOn(Atomics, "wait").mockReturnValue("timed-out");
+    jest.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each(["EBUSY", "EPERM", "EACCES"])("%s keeps the file, uses defaults and doesn't save over it", (code) => {
+    saveSettings({ ...DEFAULTS, channel: "jane", token: "secret-token" });
+    const before = fs.readFileSync(file, "utf8");
+    const spy = lockFile(code);
+    const s = loadSettings();
+    expect(s).toEqual(DEFAULTS);
+    expect(spy.mock.calls.filter(([p]) => String(p) === file)).toHaveLength(4); // the first try and three more
+    expect(fs.existsSync(file + ".unreadable")).toBe(false);
+    saveSettings({ ...s, displayName: "Someone Else" });
+    spy.mockRestore();
+    expect(fs.readFileSync(file, "utf8")).toBe(before);
+    expect(loadSettings()).toMatchObject({ channel: "jane", token: "secret-token" });
+  });
+
+  it("reads the file when the lock lifts within the retries", () => {
+    saveSettings({ ...DEFAULTS, channel: "jane", token: "secret-token" });
+    lockFile("EBUSY", 2);
+    expect(loadSettings()).toMatchObject({ channel: "jane", token: "secret-token" });
+    expect(fs.existsSync(file + ".unreadable")).toBe(false);
+  });
+
+  it("saves again once a later load can read the file", () => {
+    saveSettings({ ...DEFAULTS, channel: "jane" });
+    const spy = lockFile("EBUSY");
+    loadSettings();
+    spy.mockRestore();
+    saveSettings({ ...DEFAULTS, channel: "other" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).channel).toBe("jane");
+    saveSettings({ ...loadSettings(), channel: "other" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).channel).toBe("other");
+  });
+
+  it("still sets aside a file that reads but isn't a settings object", () => {
+    fs.writeFileSync(file, "42");
+    expect(loadSettings()).toEqual(DEFAULTS);
+    expect(fs.existsSync(file + ".unreadable")).toBe(true);
+    fs.writeFileSync(file, "null");
+    expect(loadSettings()).toEqual(DEFAULTS);
+  });
+});
+
 describe("update channel", () => {
   it("is Stable for a new install of a full release", () => {
     expect(loadSettings().updateChannel).toBe("stable");
@@ -176,6 +251,41 @@ describe("the last version whose What's new was seen", () => {
   });
 });
 
+describe("sharing song facts with other apps", () => {
+  const on = { ...DEFAULTS, channel: "jane", token: "t", shareFacts: true, shareUrl: "https://share.example.com/events", shareChannel: "madeupchannel", shareKey: "made-up-key-12345" };
+
+  it("is off by default", () => {
+    expect(DEFAULTS.shareFacts).toBe(false);
+    expect(toServerEnv({ ...DEFAULTS, channel: "jane", token: "t" }, paths)).not.toHaveProperty("SHARE_FACTS_URL");
+  });
+
+  it("goes to the server only when switched on with a channel and a key", () => {
+    expect(toServerEnv(on, paths)).toMatchObject({ SHARE_FACTS_URL: "https://share.example.com/events", SHARE_FACTS_CHANNEL: "madeupchannel", SHARE_FACTS_KEY: "made-up-key-12345" });
+    for (const missing of [{ shareFacts: false }, { shareUrl: "" }, { shareChannel: "" }, { shareKey: "" }]) {
+      const env = toServerEnv({ ...on, ...missing }, paths);
+      expect(env).not.toHaveProperty("SHARE_FACTS_URL");
+      expect(env).not.toHaveProperty("SHARE_FACTS_KEY");
+    }
+  });
+
+  it("keeps the key encrypted on disk and out of reports", () => {
+    saveSettings(on);
+    expect(fs.readFileSync(file, "utf8")).not.toContain("made-up-key-12345");
+    expect(loadSettings()).toMatchObject({ shareFacts: true, shareKey: "made-up-key-12345" });
+    expect(secretsOf(on)).toContain("made-up-key-12345");
+  });
+
+  it("refuses an address that isn't https, except on this computer", () => {
+    expect(shareUrlProblem({ shareUrl: "http://share.example.com/events" })).toMatch(/https/);
+    expect(shareUrlProblem({ shareUrl: "http://localhost:8123/events" })).toBeNull();
+    expect(sanitize({ ...on, shareUrl: "http://share.example.com/events" }).shareUrl).toBe("");
+  });
+
+  it("tidies a pasted channel name", () => {
+    expect(sanitize({ ...on, shareChannel: " @madeupchannel " }).shareChannel).toBe("madeupchannel");
+  });
+});
+
 describe("toServerEnv", () => {
   it("passes the app's sign-in as a bearer token with the client and channel IDs", () => {
     const env = toServerEnv({ ...DEFAULTS, channel: "jane", token: "t", tokenKind: "oauth", streamerId: 42 }, paths);
@@ -204,6 +314,11 @@ describe("toServerEnv", () => {
       expect(toServerEnv({ ...DEFAULTS, bubbleArea: spot }, paths).BUBBLE_AREA).toBe(spot);
     }
     expect(sanitize({ ...DEFAULTS, bubbleArea: "center" as "left" }).bubbleArea).toBe("anywhere");
+    // Setup asks new installs where bubbles go; someone already set up keeps their spot, or Anywhere.
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", bubbleArea: "right" }));
+    expect(loadSettings().bubbleArea).toBe("right");
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane" }));
+    expect(loadSettings().bubbleArea).toBe("anywhere");
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "file:///etc/passwd" }).ollamaUrl).toBe(DEFAULTS.ollamaUrl);
     expect(sanitize({ ...DEFAULTS, ollamaUrl: "http://studio-pc:11434" }).ollamaUrl).toBe("http://studio-pc:11434");
     expect(fromWindow({ nowPlaying: false })).toEqual({ nowPlaying: false });

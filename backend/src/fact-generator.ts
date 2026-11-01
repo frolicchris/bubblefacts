@@ -2,9 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, qualifierRepair, repairQualifier, mentionsName, normalizeTitle, numberedReference, otherParts, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
-import { hasNoArtist, withoutArtistNote } from "./text";
+import { isNotMusic } from "./not-music";
+import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
 import { readings } from "./list-profile";
@@ -12,8 +13,11 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
-import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, valuesIn } from "./infobox";
+import { artistGoodFacts } from "./artist-good";
+import { loadedCaption, NEUTRAL_PROMPT } from "./neutral-wording";
+import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
+import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
 
@@ -58,7 +62,13 @@ const lowSpots = (list: Array<[number, number]>) => list.map(([bottom, left]): F
  * Top of the Now Playing bubble, from obs-overlay.css: `bottom: 60px`, plus two
  * lines of 1.944vh text at line-height 1.35 and its padding and border, plus a gap.
  */
-const NOW_PLAYING_CLEARANCE = "calc(64px + 9.5vh * var(--bf-scale, 1))";
+const BANNER_TOP = "64px + 9.5vh * var(--bf-scale, 1)";
+const NOW_PLAYING_CLEARANCE = `calc(${BANNER_TOP})`;
+/**
+ * A spot measured down from the top below this could grow into the Now Playing bubble with a
+ * long fact at the largest bubble size, so while that bubble shows it's measured up from the bottom.
+ */
+const LOWEST_TOP = 30;
 
 /**
  * BUBBLE_AREA: the part of the screen bubbles keep to, for streamers whose
@@ -79,25 +89,46 @@ const AREAS: Record<string, Array<Fact["position"]>> = {
   "top-center": [{ top: "6%" }],
   "top-right": [{ top: "6%", right: "3%" }],
   "bottom-left": [{ bottom: "5%", left: "3%" }],
-  // At the bottom edge like the other bottom spots; just above the Now Playing bubble while it shows
-  // (positionsFor).
+  // At the bottom edge like the other bottom spots. Every bottom spot waits above the Now Playing
+  // bubble while it shows (positionsFor).
   "bottom-center": [{ bottom: "5%" }],
   "bottom-right": [{ bottom: "5%", right: "3%" }],
 };
 
+const pct = (v: string) => Number(v.replace("%", ""));
+
+/**
+ * The same spot, clear of the Now Playing bubble. It can be most of the screen wide, so height is
+ * what keeps them apart: bottom spots sit on top of it instead of the bottom edge, keeping their
+ * layout, and low top spots grow upward from where they were, never lower than its top.
+ */
+function clearOfBanner(p: Fact["position"]): Fact["position"] {
+  if (p.bottom) {
+    const b = pct(p.bottom) - 5;
+    return { ...p, bottom: b > 0 ? `calc(${BANNER_TOP} + ${b}%)` : NOW_PLAYING_CLEARANCE };
+  }
+  const t = pct(p.top ?? "0");
+  if (t <= LOWEST_TOP) return p;
+  const { top: _top, ...side } = p;
+  // A typical bubble is about a tenth of the screen tall, so its bottom edge stays about where it was.
+  return { ...side, bottom: `max(${100 - t - 10}%, ${NOW_PLAYING_CLEARANCE})` };
+}
+
 /**
  * The spots for the chosen area, in the order bubbles use them. `banner`: the Now Playing (or
- * LIVE LEARN) bubble shows at the bottom center, so a bubble there waits just above it (60px up,
- * and up to two lines of its text at any bubble size). With Now Playing off it's the true bottom center.
+ * LIVE LEARN) bubble shows at the bottom center, so no spot reaches it (60px up, and up to two
+ * lines of its text at any bubble size). With Now Playing off, bottom spots are at the true bottom.
  */
-export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> =>
-  area === "bottom-center" && banner ? [{ bottom: NOW_PLAYING_CLEARANCE }] : AREAS[area] ?? POSITIONS;
-/** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off. */
-export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying);
+export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> => {
+  const spots = AREAS[area] ?? POSITIONS;
+  return banner ? spots.map(clearOfBanner) : spots;
+};
+/** Whether a song starts with its banner: LIVE LEARN for a live learn, NOW PLAYING otherwise. Each can be turned off, and a commercial or ident has none. */
+export const showsBanner = (song: SSLSong) => (song.liveLearn ? config.liveLearnBanner : config.nowPlaying && !isNotMusic(song));
 /** The spots for a song's bubbles, clear of its banner while it shows. */
 export const positionsForSong = (song: SSLSong) => positionsFor(config.bubbleArea, showsBanner(song));
 
-export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff";
+export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff" | "notMusic";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
@@ -111,6 +142,7 @@ export const factStats = {
   generationFailed: 0,
   nothingSurvived: 0,
   factsOff: 0,
+  notMusic: 0,
   cacheHits: 0,
   lastDurationMs: 0,
   lastEndpoint: "",
@@ -119,6 +151,8 @@ export const factStats = {
 
 /** Songs with no usable facts are retried after this long; others are kept. */
 const RETRY_MS = 10 * 60 * 1000;
+/** The most songs (or facts) each session map remembers; the oldest go first, and a lookup is only repeated. */
+const MAX_KEPT = 2000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
 /** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
 export const STRUCTURED = "Wikidata and MusicBrainz";
@@ -157,23 +191,31 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   nothingSurvived: "curated",
   generationFailed: "curated",
   factsOff: "off",
+  notMusic: "notmusic",
 };
 
 /** How each song's facts last turned out, so the dashboard can tell "nothing reliable" from "failed". */
 const outcomes = new Map<string, Outcome>();
 export const outcomeFor = (song: SSLSong): string => outcomes.get(songKey(song)) ?? "";
 
+/** Songs the AI was asked about in the generation now running. */
+const aiAsked = new Set<string>();
+/** How long each song's latest generation with the AI took, from asking for its facts to having them (issue #314). */
+const aiTimes = new Map<string, number>();
+/** The song's AI time for this play, in ms; null when the AI wrote nothing for it this time. */
+export const aiTimeFor = (song: SSLSong): number | null => aiTimes.get(songKey(song)) ?? null;
+
 /** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
 export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
   const clean = (v: string) => (v ?? "").replace(/\s+/g, " ");
-  return [now.toISOString(), clean(song.title), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
+  return [now.toISOString(), clean(withoutRequestCredit(song.title)), clean(withoutArtistNote(song.artist ?? "")), SONGS_LOG_LABEL[outcome], count].join("\t") + "\n";
 }
 
 /** Count the outcome and append a line to logs/songs.log. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
-  outcomes.set(songKey(song), outcome);
+  setCapped(outcomes, songKey(song), outcome, MAX_KEPT);
   if (process.env.NODE_ENV === "test") return;
   const line = songsLogLine(song, outcome, count);
   fs.mkdir(config.logDir, { recursive: true }, () => fs.appendFile(songsLog(), line, () => undefined));
@@ -194,6 +236,8 @@ export const SOURCE = {
 export const MAX_DATA_FACTS = 2;
 /** The infobox field each infobox sentence was filled from, for the dashboard. */
 const boxEvidence = new Map<string, string>();
+/** Facts about the good an artist did (`artistGoodFacts`), and their article ("" for Wikidata). They only ever take a free slot. */
+const artistSentences = new Map<string, string>();
 
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
 const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
@@ -217,12 +261,14 @@ function toFacts(
   return told.map((text, i) => {
     const source = sourceOf(text);
     const fromBox = Boolean(page) && source === `${SOURCE.infobox}${page}`;
-    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox;
-    const evidence = fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
+    // A sentence from the artist's own article, which need not be this song's reference: it is its own evidence.
+    const artistPage = artistSentences.get(text);
+    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox || Boolean(artistPage);
+    const evidence = artistPage ? text : fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
-      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.replace(/ /g, "_"))}` } : {}),
+      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent((artistPage ?? page).replace(/ /g, "_"))}` } : {}),
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
@@ -268,7 +314,9 @@ export const citesSentences = () => process.env.CITE_SENTENCES === "on" && proce
  */
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
-  return citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want);
+  const page = context.split("\n")[0];
+  const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE + NEUTRAL_PROMPT : "";
+  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule;
 }
 
 /** The CROSS prompt's opening, the same with or without citations. */
@@ -336,6 +384,11 @@ export function copiesExample(caption: string, context: string): boolean {
   const source = ` ${words(context).join(" ")} `;
   return threeWords(words(caption)).some((g) => EXAMPLE_WORDING.has(g) && !source.includes(` ${g} `));
 }
+/**
+ * Added to the prompt when the reference is the artist's article: a statement about another
+ * of their songs must say so, or chat reads it as about the song playing ("Paper Kites" while "Velvet Harbor" plays).
+ */
+export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough hit was 'TITLE'." with the real title from the text. Never write it as if it were about the song playing now.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
@@ -403,21 +456,6 @@ Follow every rule:
 9. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
 }
 
-/** Used only with FACT_VERIFICATION=off: fast, from memory, often wrong. */
-function unverifiedPrompt(song: SSLSong, want: number): string {
-  const { game, intro } = subjectLine(song);
-  return `${intro}
-
-Write exactly ${want} trivia lines about ${game} or its music.
-
-Follow every rule:
-1. Write only things you are confident are true. If you are unsure who composed the music, do not name a composer.
-2. Do not mention awards, sales, chart positions, or review scores.
-3. Never mention this prompt or say what you could not find. Write finished facts only.
-4. One sentence per line, under 120 characters, friendly like a loading-screen tip.
-5. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
-}
-
 // --- Providers ---------------------------------------------------------
 
 /**
@@ -427,10 +465,6 @@ Follow every rule:
  */
 export const SYSTEM_PROMPT =
   "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
-
-/** With FACT_VERIFICATION=off the AI gets no reference, so its system prompt doesn't mention one (#202). */
-const UNVERIFIED_SYSTEM_PROMPT = "You write short trivia captions for a live music stream, and you follow the instructions exactly.";
-export const systemPrompt = () => (config.factVerification ? SYSTEM_PROMPT : UNVERIFIED_SYSTEM_PROMPT);
 
 let anthropic: import("@anthropic-ai/sdk").default | undefined;
 
@@ -442,8 +476,8 @@ async function askAnthropic(prompt: string): Promise<string> {
   const res = await anthropic.messages.create({
     model: config.anthropicModel,
     max_tokens: MAX_TOKENS,
-    temperature: config.temperature,
-    system: systemPrompt(),
+    // No temperature: Anthropic SDK 1.x (API 2026-10-21) rejects it.
+    system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -460,23 +494,53 @@ async function postJSON<T>(url: string, body: unknown, timeoutMs: number, header
   return (await res.json()) as T;
 }
 
-/** Groq, OpenRouter, Gemini, LM Studio, vLLM: anything speaking chat completions. */
-async function askOpenAICompatible(prompt: string): Promise<string> {
-  const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
-    `${config.openaiBaseUrl}/chat/completions`,
-    {
-      model: config.openaiModel,
-      messages: [
-        { role: "system", content: systemPrompt() },
-        { role: "user", content: prompt },
-      ],
-      temperature: config.temperature,
-      max_tokens: HOSTED_MAX_TOKENS,
-    },
-    config.openaiTimeoutMs,
-    { Authorization: `Bearer ${config.openaiApiKey}` }
-  );
-  return data.choices?.[0]?.message?.content ?? "";
+/** The model Groq falls back to when a hand-set one is gone (see askOpenAICompatible). */
+const GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b";
+
+/** True when Groq says the model doesn't exist (any more): not found, or decommissioned. */
+function isModelGone(err: unknown): boolean {
+  return err instanceof Error && /returned (404|400):/.test(err.message) && /model_not_found|model_decommissioned|decommissioned|does not exist/i.test(err.message);
+}
+
+/**
+ * Groq, OpenRouter, Gemini, LM Studio, vLLM: anything speaking chat completions.
+ * On Groq, a hand-set model that Groq has since retired falls back once to the default model
+ * instead of failing every song.
+ */
+export async function askOpenAICompatible(prompt: string): Promise<string> {
+  const send = async (model: string) => {
+    const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
+      `${config.openaiBaseUrl}/chat/completions`,
+      {
+        model,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+        temperature: config.temperature,
+        max_tokens: HOSTED_MAX_TOKENS,
+      },
+      config.openaiTimeoutMs,
+      { Authorization: `Bearer ${config.openaiApiKey}` }
+    );
+    return data.choices?.[0]?.message?.content ?? "";
+  };
+  try {
+    return await send(config.openaiModel);
+  } catch (err) {
+    if (!isGroqUrl(config.openaiBaseUrl) || config.openaiModel === GROQ_FALLBACK_MODEL || !isModelGone(err)) throw err;
+    console.warn(`Groq no longer has the model "${config.openaiModel}"; using ${GROQ_FALLBACK_MODEL} instead.`);
+    return send(GROQ_FALLBACK_MODEL);
+  }
+}
+
+/** Whether a base URL's host is Groq's, wherever else the name might appear in it. */
+function isGroqUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.groq.com";
+  } catch {
+    return false;
+  }
 }
 
 /** Primary Ollama host, then the fallback host if one is configured. Returns the text and the host that answered. */
@@ -489,7 +553,7 @@ async function askOllama(prompt: string): Promise<[string, string]> {
         `${host}/api/generate`,
         {
           model: config.ollamaModel,
-          system: systemPrompt(),
+          system: SYSTEM_PROMPT,
           prompt,
           stream: false,
           keep_alive: config.ollamaKeepAlive,
@@ -520,7 +584,7 @@ function loadBuiltin(): Promise<{ session: any }> {
     const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
     const model = await llama.loadModel({ modelPath: config.modelPath });
     const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: systemPrompt() });
+    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
     return { session };
   })().catch((err) => {
@@ -528,6 +592,11 @@ function loadBuiltin(): Promise<{ session: any }> {
     throw err;
   });
   return builtin;
+}
+
+/** Stand in for the built-in model's chat session. Only the tests call this; the app loads the model. */
+export function useBuiltinSession(session: { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void }): void {
+  builtin = Promise.resolve({ session });
 }
 
 /**
@@ -562,7 +631,11 @@ let running: { key: string | null; stop: AbortController } | null = null;
  */
 export function setCurrentSong(song: SSLSong | null): void {
   currentKey = song ? songKey(song) : null;
-  if (running?.key && running.key !== currentKey) running.stop.abort();
+  if (running?.key && running.key !== currentKey) {
+    // Its generation ends with no facts: a quick return to the song must start a new one, not join it.
+    inFlight.delete(running.key);
+    running.stop.abort();
+  }
 }
 const obsolete = (key: string | null) => key !== null && currentKey !== null && key !== currentKey;
 
@@ -600,6 +673,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
 
 async function askModel(prompt: string, key: string | null = null): Promise<string> {
   const started = Date.now();
+  if (key) aiAsked.add(key);
   let text: string;
   let endpoint: string;
   if (config.aiProvider === "builtin") {
@@ -640,12 +714,34 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
     const fromItem = found?.kind === "song" ? songItemFacts(found, { year: statedYear(mb), album: statesAlbum(mb) }) : { facts: found?.facts ?? [], dropYear: false };
     const fromMb = onStandard(fromItem.dropYear ? withoutYear(mb) : mb, names);
     const added = onStandard(fromItem.facts, [...names, found?.kind === "song" ? found.title : ""]).filter((f) => !fromMb.includes(f));
-    for (const f of fromMb) structuredLabel.set(f, SOURCE.musicbrainz);
-    for (const f of added) structuredLabel.set(f, SOURCE.wikidata);
+    for (const f of fromMb) setCapped(structuredLabel, f, SOURCE.musicbrainz, MAX_KEPT);
+    for (const f of added) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     facts = [...fromMb, ...added];
-  } else for (const f of data) structuredLabel.set(f, SOURCE.wikidata);
-  structuredShown.set(songKey(song), new Set(facts));
+  } else for (const f of data) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
+  // The good the artist did, when the article surely is theirs or their song's: one a song, the next
+  // not shown lately, competing with the rest in `rankFacts`. After the song's lookups, so its
+  // Wikidata requests never crowd theirs: the song's own facts come first.
+  const found = await sure;
+  const good = found ? await artistGoodFacts(found.page, found.names) : [];
+  const turn = good.find((f) => !blockedArticles(song).has(f.page) && !recentFacts.includes(f.text) && !facts.includes(f.text) && !restatesRequest(f.text, song));
+  if (turn) {
+    setCapped(structuredLabel, turn.text, turn.page ? `Wikipedia: ${turn.page}` : SOURCE.wikidata, MAX_KEPT);
+    setCapped(artistSentences, turn.text, turn.page, MAX_KEPT);
+    facts = [...facts, turn.text];
+  }
+  setCapped(structuredShown, songKey(song), new Set(facts), MAX_KEPT);
   return facts;
+}
+
+/**
+ * The game a title names in front of its track when it is another work than the artist
+ * field's and carries its name: "Super Rocket Drift II: Area 3" by "Rocket Drift". The
+ * artist field is then a series, and its year or album would be another game's. "" for none.
+ */
+export function titleGame(title: string, game: string): string {
+  const named = splitGameAndTrack(dropVersionTags(title)).game;
+  const spaced = (s: string) => ` ${normalizeTitle(s)} `;
+  return named !== title && normalizeTitle(named) !== normalizeTitle(game) && normalizeTitle(game) && spaced(named).includes(spaced(game)) ? named : "";
 }
 
 /** The titles a request may go by: as typed and as read, whole and without a game's name in front. */
@@ -665,7 +761,7 @@ async function boxForRequest(list: BoxFact[], page: string, song: SSLSong, read:
   const { game } = resolveGameAndTrack(read);
   const titles = requestTitles(song, read);
   const performer = about.kind === "game" ? await musicbrainzFacts(read).then((mb) => Boolean(statedYear(mb) || statesAlbum(mb))) : false;
-  const why = boxMisfit(about, { game, titles }, performer);
+  const why = boxMisfit(about, { game, titles, gameTrack: PLATFORM_TAG.test(song.artist ?? "") }, performer);
   if (why) {
     console.log(`[Infobox] "${page}": ${why}, no infobox facts`);
     return [];
@@ -714,8 +810,11 @@ function onStandard(facts: string[], names: string[] = []): string[] {
  * MAX_BUBBLES of them (`rankFacts`). SOURCE_RISK=off keeps them as found.
  */
 function rankedData(data: string[], want: number): string[] {
-  if (!config.sourceRisk) return data.slice(0, want);
-  return rankFacts(data.map((text) => ({ text, kind: "data" as const })), { max: Math.min(want, MAX_BUBBLES) }).map((c) => c.text);
+  const max = Math.min(want, MAX_BUBBLES);
+  const songs = data.filter((f) => !artistSentences.has(f));
+  if (!config.sourceRisk) return [...songs, ...data.filter((f) => artistSentences.has(f))].slice(0, want);
+  const free = songs.length < max ? data : songs;
+  return rankFacts(free.map((text) => ({ text, kind: "data" as const })), { max }).map((c) => c.text);
 }
 
 /** For the saved session: the recent facts, and putting them back after a restart. */
@@ -726,7 +825,7 @@ export function restoreRecent(list: string[]): void {
 }
 /** Facts sent before a restart stand as this song's facts: nothing is generated again. */
 export function primeFacts(song: SSLSong, facts: Fact[]): void {
-  factCache.set(songKey(song), { facts, expires: Infinity });
+  setCapped(factCache, songKey(song), { facts, expires: Infinity }, MAX_KEPT);
 }
 
 /** Remember facts as shown, keeping only the last RECENT_KEPT. */
@@ -847,7 +946,7 @@ function takeTurns(pool: string[], n: number): string[] {
     .sort((a, b) => a.turn - b.turn || a.i - b.i)
     .slice(0, n)
     .map((p) => p.text);
-  for (const text of picked) poolTurns.set(text, ++poolTurn);
+  for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
   return picked;
 }
 
@@ -993,8 +1092,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
   }
   // No AI available (the desktop app's fallback when its model can't run), or no article:
-  // facts from data, else song-list and hand-picked facts.
-  if (config.aiProvider === "none" || (config.factVerification && !context)) {
+  // facts from data, else song-list and hand-picked facts. FACT_VERIFICATION=off looks nothing
+  // up, so it lands here too: the AI never writes facts without a reference.
+  if (config.aiProvider === "none" || !config.factVerification || !context) {
     const lookup = config.factVerification && !handle && !placeholder;
     // With no AI, the article is still looked up, alongside the data: when it is surely this
     // song or its artist, its own Wikidata item adds facts (issue #256). Never for an unsure one.
@@ -1031,9 +1131,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Too few to fill the song: up to two about its artist or game, from Wikidata too.
     const { game } = resolveGameAndTrack(read);
     const page = context.split("\n")[0];
-    const about = isPerformerArticle(page, articleText(page) || context) ? page : game;
-    const extra = data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
-    for (const f of extra) structuredLabel.set(f, SOURCE.wikidata);
+    // A series in the artist field and one of its games in the title: the game's facts, never the series' first game's.
+    const about = isPerformerArticle(page, articleText(page) || context) ? page : titleGame(read.title, game) || game;
+    // Facts about "the artist" would be the other act's when MusicBrainz said the article is someone else's.
+    const sameName = /^MusicBrainz credits /.test(match.reason);
+    const extra = !sameName && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
+    for (const f of extra) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {
       remember(shown);
@@ -1075,7 +1178,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
   const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
-  const prompt = context ? groundedPrompt(read, context, want + OVERGENERATE) : unverifiedPrompt(song, want);
+  const prompt = groundedPrompt(read, context, want + OVERGENERATE);
   let answer: string;
   try {
     answer = await askModel(prompt, songKey(asked));
@@ -1096,8 +1199,11 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   });
   const songFacts = await dataFacts;
   // A cover read from the original's article: who wrote it holds for the cover; the original's release, label and producers don't.
-  const cover = context ? isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
   const allBox = await boxLookup;
+  // An infobox naming another artist is that artist's record, even when the article never mentions this one.
+  const boxArtists = allBox.find((b) => b.about?.kind === "song")?.about?.artists ?? [];
+  const othersBox = boxArtists.length > 0 && !boxArtists.some((a) => namesLoosely(normalizeTitle(a), artistNames(read.artist ?? "")));
+  const cover = context ? othersBox || isCoverOf(page, articleText(page), read.artist ?? "", song.title) : false;
   const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
     (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
   );
@@ -1109,8 +1215,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
   // A caption from a "someone said" sentence offered only because the clean ones ran short must keep who said it.
   const attributed = kept.filter((f) => {
-    if (!context || keepsAttribution(f, context)) return true;
-    console.log("[Screen] DROP (drops who said it)");
+    if (context && !keepsAttribution(f, context)) {
+      console.log("[Screen] DROP (drops who said it)");
+      return false;
+    }
+    if (!loadedCaption(f, [read.title, read.artist ?? ""], isPerformerArticle(page, articleText(page) || context))) return true;
+    console.log("[Screen] DROP (loaded wording)");
     return false;
   });
   const unseen = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
@@ -1133,7 +1243,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const plain = new Map(fresh.map((f) => [f, explainMusicTerms(repaired.get(f) as string)]));
   // Data facts: the song's own first, then the infobox's; at most dataRoom, none a caption already
   // says. Facts sent early stay as sent, and the infobox only fills in after them.
-  const candidates = [...(early.length ? [] : rankedData(songFacts, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
+  const aboutSong = songFacts.filter((f) => !artistSentences.has(f));
+  const candidates = [...(early.length ? [] : rankedData(aboutSong, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
   const structured: string[] = early.map((f) => f.text);
   for (const c of candidates) {
     if (structured.length >= dataRoom) break;
@@ -1141,10 +1252,13 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     if (alreadySaid(c.values, [...fresh, ...structured])) continue;
     structured.push(c.text);
     if (c.evidence) {
-      structuredLabel.set(c.text, `${SOURCE.infobox}${page}`);
-      boxEvidence.set(c.text, c.evidence);
+      setCapped(structuredLabel, c.text, `${SOURCE.infobox}${page}`, MAX_KEPT);
+      setCapped(boxEvidence, c.text, c.evidence, MAX_KEPT);
     }
   }
+  // The artist's fact is beyond the data facts' room: it never takes a song fact's place.
+  const artistFact = songFacts.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), fresh));
+  if (artistFact) structured.push(artistFact);
   // A spare takes the place of a line that only repeats the title and artist.
   const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
   const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));
@@ -1152,7 +1266,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
   const sent = early.map((f) => f.text);
   const lead = structured.filter((f) => !sent.includes(f));
-  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room) : bestSupported(lead, usable, context, plain, citedSentence, room);
+  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room, resolveGameAndTrack(read).track) : bestSupported(lead, usable, context, plain, citedSentence, room);
   const later = captions.filter((c) => !sent.includes(c));
   const shown = early.length ? [...sent, ...later] : captions;
   // Facts sent early were remembered when they went out.
@@ -1161,7 +1275,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
-    sources.set(songKey(asked), page);
+    setCapped(sources, songKey(asked), page, MAX_KEPT);
     const article = `Wikipedia: ${page}`;
     return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
   }
@@ -1183,7 +1297,8 @@ function rankedFromArticle(
   context: string,
   plain: ReadonlyMap<string, string>,
   cited: ReadonlyMap<string, string> | undefined,
-  want: number
+  want: number,
+  title = ""
 ): string[] {
   const full = articleText(context.split("\n")[0]);
   const candidates: Candidate[] = [
@@ -1194,11 +1309,13 @@ function rankedFromArticle(
     }),
   ];
   // Data facts here are about the song, and the article is its artist's or game's: they lead.
-  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, log: (line) => console.log(line) }).map((c) => c.text);
+  // On an artist's article, a caption about another of their songs ranks low, one at most (namesOtherSong).
+  const artistArticle = isPerformerArticle(context.split("\n")[0], full || context);
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 /**
- * SOURCE_RISK=off, or no reference (FACT_VERIFICATION=off): data facts first, then the
+ * SOURCE_RISK=off: data facts first, then the
  * captions their source sentence supports best, in the order written.
  */
 function bestSupported(
@@ -1220,10 +1337,15 @@ function bestSupported(
   return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
 }
 
-/** The song with its artist's note in brackets left out (`withoutArtistNote`): the same object when it has none. */
+/**
+ * The song with its artist's note in brackets left out (`withoutArtistNote`), and a note naming
+ * who asked or paid for it left out of the title too (`withoutRequestCredit`): the same object
+ * when it has neither.
+ */
 export function withoutNote(song: SSLSong): SSLSong {
   const artist = withoutArtistNote(song.artist ?? "");
-  return artist === (song.artist ?? "").trim() ? song : { ...song, artist };
+  const title = withoutRequestCredit(song.title) || song.title;
+  return artist === (song.artist ?? "").trim() && title === song.title ? song : { ...song, title, artist };
 }
 
 /**
@@ -1266,11 +1388,13 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
  * "No facts for this song" or "No facts for this artist" (issue #262): the streamer's own
  * facts only, their facts for this song and their custom facts tagged for it, its artist or
  * its game. Nothing is looked up and the AI writes nothing; no song-list or untagged custom
- * facts either. Null when neither switch is on. Logged by the song's title alone.
+ * facts either. A track that isn't music (not-music.ts) is treated the same way. Null when
+ * neither switch is on. Logged by the song's title alone.
  */
 export function ownFactsOnly(song: SSLSong): Fact[] | null {
   const off = factsOff(song);
-  if (!off.song && !off.artist) return null;
+  const notMusic = isNotMusic(song);
+  if (!off.song && !off.artist && !notMusic) return null;
   const want = config.factsPerSong;
   const theirs = findSongFacts(song);
   const mine = theirs && hasOwnFacts(theirs) ? songFactLines(theirs, want) : [];
@@ -1278,15 +1402,16 @@ export function ownFactsOnly(song: SSLSong): Fact[] | null {
   const custom = [...tagged.forSong, ...takeTurns(tagged.pool, Math.max(0, want - mine.length - tagged.forSong.length))]
     .filter((t) => !mine.includes(t))
     .slice(0, Math.max(0, want - mine.length));
-  console.log(`[FactGen] "${song.title}": facts are off for this ${off.song ? "song" : "artist"}, so only the streamer's own (${mine.length + custom.length})`);
-  record(song, "factsOff", mine.length + custom.length);
+  const why = off.song ? "facts are off for this song" : off.artist ? "facts are off for this artist" : "this doesn't look like music";
+  console.log(`[FactGen] "${song.title}": ${why}, so only the streamer's own (${mine.length + custom.length})`);
+  record(song, off.song || off.artist ? "factsOff" : "notMusic", mine.length + custom.length);
   return toFacts(song, [...mine, ...custom], (t) => (mine.includes(t) ? SOURCE.yours : SOURCE.custom));
 }
 
 /** What may still show for a song after its switches changed: everything, or only the streamer's own facts. */
 export function allowedFacts(song: SSLSong, facts: Fact[]): Fact[] {
   const off = factsOff(song);
-  return off.song || off.artist ? facts.filter((f) => WRITTEN_BY_STREAMER.has(f.source)) : facts;
+  return off.song || off.artist || isNotMusic(song) ? facts.filter((f) => WRITTEN_BY_STREAMER.has(f.source)) : facts;
 }
 
 /**
@@ -1301,18 +1426,26 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, 
   const cached = factCache.get(key);
   if (cached && Date.now() < cached.expires) {
     factStats.cacheHits++;
+    aiTimes.delete(key);
     return Promise.resolve(cached.facts);
   }
   const revisionAtStart = revisions.get(key) ?? 0;
   let pending = inFlight.get(key);
   if (!pending) {
+    const started = Date.now();
+    aiTimes.delete(key);
     pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
+        if (aiAsked.has(key)) {
+          aiTimes.set(key, Date.now() - started);
+          console.log(`[FactGen] "${withoutRequestCredit(song.title)}": facts took ${((Date.now() - started) / 1000).toFixed(1)}s with the AI`);
+        }
         // A generation started before the song's facts changed may not overwrite them.
-        if ((revisions.get(key) ?? 0) === revisionAtStart) factCache.set(key, { facts, expires: Date.now() + ttlMs });
+        if ((revisions.get(key) ?? 0) === revisionAtStart) setCapped(factCache, key, { facts, expires: Date.now() + ttlMs }, MAX_KEPT);
         return facts;
       })
       .finally(() => {
+        aiAsked.delete(key);
         if (inFlight.get(key) === pending) inFlight.delete(key);
       });
     inFlight.set(key, pending);
@@ -1406,6 +1539,9 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   if (source) for (const s of blockedAs(song)) blockArticle(s, source);
   const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
   for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
+  // A generation already running may not cache the fact just marked: it starts over (as forgetSong).
+  revisions.set(key, (revisions.get(key) ?? 0) + 1);
+  inFlight.delete(key);
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);
