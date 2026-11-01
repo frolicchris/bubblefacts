@@ -530,6 +530,31 @@ describe("the matched article's own item (#256)", () => {
     });
   });
 
+  it("gives no year-only date without the infobox's year, and keeps it to weigh MusicBrainz's (a tune an earlier record has)", async () => {
+    const item = single({ P577: [{ time: "+1955-00-00T00:00:00Z", precision: 9 }], P175: ids("Q20"), P136: ids("Q23") }, "song by Velvet Lark");
+    const read = async (infobox: string) => {
+      clearArticleItemCache();
+      global.fetch = jest.fn(async (url: string | URL | Request) => {
+        const u = new URL(String(url));
+        const params = u.searchParams;
+        const body = u.hostname === "en.wikipedia.org"
+          ? { query: { pages: [{ revisions: [{ slots: { main: { content: `{{Infobox song\n| name = Harbor Lights\n${infobox}\n}}` } } }] }] } }
+          : params.get("sites") === "enwiki"
+            ? { entities: { Q1: item } }
+            : { entities: Object.fromEntries((params.get("ids") ?? "").split("|").map((id) => [id, labels[id]])) };
+        return { ok: true, json: async () => body } as Response;
+      }) as unknown as typeof fetch;
+      const log = jest.spyOn(console, "log").mockImplementation(() => undefined);
+      const found = await articleItem(`Harbor Lights (${infobox.length} take)`, ["velvet lark"]);
+      log.mockRestore();
+      return found;
+    };
+    const none = await read("| genre = jazz");
+    expect(none).toMatchObject({ year: null, knownBy: "1955" });
+    expect(none?.kind === "song" && songItemFacts(none, { year: "1956" }).dropYear).toBe(true);
+    expect(await read("| released = 1955")).toMatchObject({ year: "1955" });
+  });
+
   it("gives no year that the item's own description contradicts anywhere in it (#256)", () => {
     const item = single({ P577: [day("+1998-06-01T00:00:00Z")], P175: ids("Q20") }, "song by Velvet Lark, released in 1999");
     expect(articleItemFrom(item, labels, ["velvet lark"])).toEqual({ kind: "song", title: "Harbor Lights", year: null, partOf: null, genres: [] });
@@ -579,10 +604,32 @@ describe("a song item checked against its article's infobox (#256)", () => {
   });
 
   it("tells no credits the article doesn't list, and keeps them for an item with no English article", () => {
-    const song = item({ P162: [{ id: "Q10" }], P577: [{ time: "+2004-01-01T00:00:00Z" }] });
+    const song = item({ P162: [{ id: "Q10" }], P577: [{ time: "+2004-01-01T00:00:00Z", precision: 11 }] });
     expect(factsFromEntity(song, L, t, box("| released = 2004"))).toEqual(['"Harbor Lights" came out in 2004.']);
     expect(factsFromEntity(song, L, t, null)).toEqual(['"Harbor Lights" came out in 2004.']);
     expect(factsFromEntity(song, L, t)).toEqual(['"Harbor Lights" came out in 2004.', '"Harbor Lights" was produced by Ola Brandt.']);
+  });
+
+  it("tells a year-only date only with the infobox's year behind it", () => {
+    const song = item({ P577: [{ time: "+1955-00-00T00:00:00Z", precision: 9 }] }, "song by Velvet Lark");
+    expect(factsFromEntity(song, L, t, box("| released = 1955"))).toEqual(['"Harbor Lights" came out in 1955.']);
+    expect(factsFromEntity(song, L, t, box("| genre = jazz"))).toEqual([]);
+    expect(factsFromEntity(song, L, t, null)).toEqual([]);
+    expect(factsFromEntity(song, L, t)).toEqual(['"Harbor Lights" came out in 1955.']);
+  });
+
+  it("names the single before or after only when the infobox names the same one", () => {
+    const labels = { ...L, Q24: { id: "Q24", labels: { en: { value: "Opening Night" } }, descriptions: { en: { value: "single by Velvet Lark" } } }, Q25: { id: "Q25", labels: { en: { value: "Closing Night" } }, descriptions: { en: { value: "single by Velvet Lark" } } } };
+    const song = item({ P155: [{ id: "Q24" }], P156: [{ id: "Q25" }] }, "single by Velvet Lark");
+    const after = '"Harbor Lights" came after the single "Opening Night".';
+    const before = '"Harbor Lights" was followed by the single "Closing Night".';
+    expect(factsFromEntity(song, labels, t, box("| prev_title = [[Opening Night (song)|Opening Night]]\n| next_title = \"[[Closing Night]]\""))).toEqual([after, before]);
+    // Another single on either side, and none named.
+    expect(factsFromEntity(song, labels, t, box("| prev_title = [[Early Light]]\n| next_title = [[Closing Night]]"))).toEqual([before]);
+    expect(factsFromEntity(song, labels, t, box("| prev_title = [[Opening Night]]\n| next_title = [[Late Tide]]"))).toEqual([after]);
+    expect(factsFromEntity(song, labels, t, box("| genre = pop"))).toEqual([]);
+    expect(factsFromEntity(song, labels, t, null)).toEqual([]);
+    expect(factsFromEntity(song, labels, t)).toEqual([after, before]);
   });
 
   it("gives no year the infobox or the description contradicts", () => {

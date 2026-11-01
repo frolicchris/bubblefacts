@@ -74,6 +74,30 @@ describe("performerFacts", () => {
   });
 });
 
+describe("performerFacts: dates it can't vouch for", () => {
+  const release = (title: string, date: string, primary = "Album", secondary: string[] = []) => ({ title, date, status: "Official", "release-group": { "primary-type": primary, "secondary-types": secondary } });
+  const recording = (title: string, ...releases: ReturnType<typeof release>[]) => ({ id: "r1", score: 100, title, "first-release-date": releases[0]?.date, "artist-credit": [{ name: "Velvet Lark" }], releases });
+
+  it("states no year that no release dates to a month", () => {
+    expect(performerFacts([recording("Harbor Lights", release("Harbor Lights OST", "1997", "Album", ["Soundtrack"]))], "Harbor Lights", "Velvet Lark")).toEqual([]);
+    expect(performerFacts([recording("Harbor Lights", release("Quiet Water", "1997"))], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" is on the album Quiet Water.']);
+    expect(performerFacts([recording("Harbor Lights", release("Quiet Water", "1997-03-01"))], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" came out in 1997 and is on the album Quiet Water.']);
+  });
+
+  it("names no album from more than a year after the song", () => {
+    const song = (album: string) => recording("Harbor Lights", release("Harbor Lights OST", "1997-11-04", "Album", ["Soundtrack"]), release("Quiet Water", album));
+    expect(performerFacts([song("1999-09-21")], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" came out in 1997.']);
+    expect(performerFacts([song("1998-09-21")], "Harbor Lights", "Velvet Lark")).toEqual(['"Harbor Lights" came out in 1997 and is on the album Quiet Water.']);
+  });
+
+  it("finds a song whose title has brackets the request leaves out", () => {
+    const song = recording("Hollow (In My Sleep)", release("Quiet Water", "2000-09-12"));
+    expect(performerFacts([song], "Hollow In My Sleep", "Velvet Lark")).toEqual(['"Hollow In My Sleep" came out in 2000 and is on the album Quiet Water.']);
+    expect(performerFacts([song], "Hollow", "Velvet Lark")).toEqual(['"Hollow" came out in 2000 and is on the album Quiet Water.']);
+    expect(performerFacts([song], "Hollow Sleep", "Velvet Lark")).toEqual([]);
+  });
+});
+
 describe("game composers (review: never from recording credits)", () => {
   it("considers recordings on releases naming the game, earliest first, skipping remix albums", () => {
     const ids = gameCandidates(
@@ -128,7 +152,7 @@ describe("release years (October 2026 fact checks)", () => {
   });
 
   it("takes no year after the credited artist died", () => {
-    const satie = [dated("Gnossienne No. 1", "Erik Satie", [["Satie Piano Music", "1995", []]])];
+    const satie = [dated("Gnossienne No. 1", "Erik Satie", [["Satie Piano Music", "1995-03-02", []]])];
     expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie", 1925)).toEqual(['"Gnossienne No. 1" is on the album Satie Piano Music.']);
     expect(performerFacts(satie, "Gnossienne No. 1", "Erik Satie")[0]).toBe('"Gnossienne No. 1" came out in 1995 and is on the album Satie Piano Music.');
   });
@@ -280,7 +304,7 @@ describe("musicbrainzFacts: no year it can't vouch for", () => {
     const later = rec("Paper Moonlight", "Lantern", "2010", [["Later Sessions"]]);
     byArtist = { count: 40, recordings: Array.from({ length: 25 }, () => later) };
     expect(await musicbrainzFacts({ title: "Paper Moonlight", artist: "Lantern" })).not.toContainEqual(expect.stringMatching(/came out in/));
-    byArtist = { count: 1, recordings: [rec("Paper Lanterns", "Lantern", "1987", [["First Light"]])] };
+    byArtist = { count: 1, recordings: [rec("Paper Lanterns", "Lantern", "1987-05-01", [["First Light"]])] };
     expect(await musicbrainzFacts({ title: "Paper Lanterns", artist: "Lantern" })).toContain('"Paper Lanterns" came out in 1987 and is on the album First Light.');
   });
 
