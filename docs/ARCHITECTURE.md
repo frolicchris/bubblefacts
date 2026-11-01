@@ -488,8 +488,8 @@ streamer responsible for everything on stream, and the riskiest true
 sentence in an artist's article is about a person, not the music: an
 arrest, an illness, a divorce, how someone died.
 
-`content-standard.ts` holds seven word lists (crime or lawsuits, drugs or
-addiction, sexual content, private life, health, how someone died, and who
+`content-standard.ts` holds eight word lists (crime or lawsuits, drugs or
+addiction, sexual content, private life, health, how someone died, put-downs of the music, and who
 someone is: ethnicity or an Indigenous nation, race, religion, sexuality,
 gender identity), each with a comment naming the platform rules it follows. Matching is whole words
 or phrases, any case. It runs in three places:
