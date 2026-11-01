@@ -320,6 +320,14 @@ sign-ins and the built-in AI. Its design decisions are in
    caption retells, a closely related one, or the one just before or after,
    and in the clause it retells when a semicolon splits that sentence
    (`misplacedYear`: the 1805 premiere told as the date of an 1807 encore).
+   What a sentence opens or ends on must stay too (`droppedFrame`): "According
+   to X," with no word of saying, "In <another work>," and "By this era" with
+   no year. So must a limit in its body (`droppedLimit`): "on the format", "on
+   his recording", a remake or film adaptation, a ranking's decade or body,
+   "respectively" with a pair of records. A span of time stays with its own
+   chart of a run (`movedChartDetail`), a chart claim names a chart or a place
+   (`unnamedChart`), and a critic's "compared Vale's vocals" isn't "Vale
+   compared" (`turnedRound`).
    `wrongOwner` drops what the source says of the music video told of the
    song, sales figures that belong to the single told of the album, and a
    radio date told as a chart peak's date; `lostQualifier` also catches

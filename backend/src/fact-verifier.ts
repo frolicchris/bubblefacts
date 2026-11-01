@@ -4348,6 +4348,7 @@ const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }> = [
   { label: "an order", fact: /\bafter\b/i, source: /\b(after|following|afterwards?|previously|when|once|upon|then|subsequently)\b/i },
   { label: "an order", fact: /\bbefore\b/i, source: /\b(before|prior|earlier|previously|until|first|originally)\b/i },
   { label: "a first", fact: /\b(?:for )?the first time\b|\bfirst[- ]ever\b/i, source: /\bfirst\b|\bdebut/i },
+  { label: "the only one", fact: /\bthe only\b/i, source: /\b(?:only|sole|solely|alone|exclusive\w*|unique\w*)\b/i },
   { label: "an intention", fact: /\boriginally (?:intended|meant|planned|supposed)|\b(?:was|were) (?:intended|meant|supposed|planned|going) to\b/i, source: /\b(originally|intend\w*|meant|plann?\w*|suppos\w*|initially)\b/i },
   { label: "a count", fact: /\b(twice|thrice|again|\w+ times)\b/i, source: /\b(twice|thrice|again|\w+ times|re-\w+|re(?:issued|released|recorded|turned|appeared|entered))\b/i },
   // "was originally titled X" when the source just names X; "was originally a cover" when someone later covered it.
@@ -4931,6 +4932,12 @@ const DANGLING_SPAN = new RegExp(`\\b(?:these|those)\\s+(?:[\\p{L}\\d-]+\\s+)?${
 const BARE_RECORDING = /^The (?:\d{4}|original|first|later|studio|live) (?:recording|version|performance|rendition)\b/i;
 /** A film or book nobody names: on a song's bubble it reads as a film of the song. */
 const BARE_OTHER_WORK = /\b[Tt]he (film|movie|documentary|novel|book|play)\b(?!\s+["“\p{Lu}])/u;
+/** Something that happened, told as if already named: "after the incident". */
+const BARE_EVENT = /\b[Tt]he (incident|controversy|dispute|scandal|accident|affair|lawsuit|ordeal)\b(?!\s+["“\p{Lu}])(?!\s+(?:of|over|with|about|between)\b)/u;
+/** A set counted with nothing named: "All three faces", "All songs". */
+const BARE_ALL = /^All (?:(?:two|three|four|five|six|seven|eight|nine|ten|\d+) )?(?:the )?(\p{Ll}+)\b/u;
+/** "the same arrangement": the same as what? */
+const BARE_SAME = /\b[Tt]he same (arrangement|recording|version|melody|tune|lyrics|session|lineup|line-up|band|musicians)\b(?! as\b)/;
 /** A sales total with no product: whose? */
 const BARE_TOTAL = /\b(?:total|worldwide|global|overall|combined) sales\b/i;
 
@@ -4941,9 +4948,15 @@ const BARE_TOTAL = /\b(?:total|worldwide|global|overall|combined) sales\b/i;
  * left unnamed, or null. `titles` and `artists` are what a viewer already knows the bubble
  * is about: a film named in the request is no mystery.
  */
-export function leftBehindReferent(fact: string, titles: string[], artists: string[] = []): string | null {
+export function leftBehindReferent(fact: string, titles: string[], artists: string[] = [], context = ""): string | null {
   const span = DANGLING_SPAN.exec(fact);
   if (span) return span[0];
+  const same = BARE_SAME.exec(fact);
+  if (same) return same[0];
+  const event = BARE_EVENT.exec(fact);
+  if (event) return `the ${event[1]}`;
+  const all = BARE_ALL.exec(fact);
+  if (all && (!namesSomeone(fact) || (/^(?:songs|tracks)$/.test(all[1]) && !/["“]/.test(fact)))) return all[0];
   const namesWork = titles.some((t) => t && hasWord(t, fact)) || /["“]/.test(fact);
   const recording = BARE_RECORDING.exec(fact);
   if (recording && !namesWork && !fact.slice(recording[0].length).match(/\p{Lu}/u)) return recording[0];
@@ -4951,7 +4964,192 @@ export function leftBehindReferent(fact: string, titles: string[], artists: stri
   if (total && !namesWork) return total[0];
   const other = BARE_OTHER_WORK.exec(fact);
   const known = [...titles, ...artists].map(normalizeTitle);
-  if (other && !namesWork && !known.some((a, i) => i > 0 && a && known[0].includes(a))) return `the ${other[1].toLowerCase()}`;
+  // A film the request or the article names, when the article is that film's: a bandleader's name on the bandleader's article is no film.
+  const leadSaysIt = !context || new RegExp(`\\b${other?.[1] ?? ""}\\b`, "i").test(context.split("\n").slice(0, 2).join(" ").slice(0, 300));
+  const namesOther = /["“]/.test(fact) || (leadSaysIt && (namesWork || known.some((a, i) => i > 0 && a && known[0].includes(a))));
+  if (other && !namesOther) return `the ${other[1].toLowerCase()}`;
+  return null;
+}
+
+/** The kinds of work an opening "In the film," can stand for. */
+const FRAME_WORK = "film|movie|show|series|sequel|prequel|remake|reboot|novel|musical|episode|book|play|documentary|adaptation|version|recording";
+/** Opens on someone's account, with that someone: "According to Dana Reyes, ...". */
+const OPENS_ON_ACCOUNT = /^According to ([^,]{2,60}),/i;
+/** Ends on someone's account: "..., according to Dana Reyes." */
+const ENDS_ON_ACCOUNT = /,\s*according to ([^,.]{2,60})\.?$/i;
+/** Opens on one work: "In Night Harbor Returns, ...", "In the 2019 film adaptation, ...". */
+const OPENS_ON_WORK = new RegExp(`^(?:In|On|For) ((?:the |this |that )?(?:\\p{Lu}[\\p{L}\\d'’:-]*|\\d{4}\\b)[^,]{0,60}|(?:the|this|that) (?:[\\p{L}\\d'’-]+ ){0,3}(?:${FRAME_WORK}))(?:,|\\s+\\(\\d{4}\\),)`, "u");
+/** Opens on a moment the sentence before set: "By this era", "At that point", "By then". */
+const OPENS_ON_MOMENT = /^(?:By|At|Around|During|Since|From) (?:(?:this|that|these|those) (?:era|time|point|stage|period|years?|days)|then)\b|^At the time\b/i;
+/** A limit that points back at what the text was already talking about: "on the format", "on his recording". */
+const POINTS_BACK = /\b(?:on|in) (?:the format|(?:this|that|his|her|their) (?:chart|list|format|recording|version|tour|show|film))\b/gi;
+/** A later work the statement belongs to. */
+const LATER_WORK = /\b(?:(?:film|stage|musical|television|TV) adaptation|remake|reboot)\b/gi;
+/** A contest or a pairing the claim holds for: "between Ana Bell and Rui Costa". */
+const BETWEEN_NAMES = /\bbetween (\p{Lu}[\p{L}'’-]+(?: \p{Lu}[\p{L}'’-]+)* and \p{Lu}[\p{L}'’-]+(?: \p{Lu}[\p{L}'’-]+)*)/u;
+/** Someone else's recording: "a 2001 version recorded by Ana Bell". */
+const ANOTHERS_VERSION = /\b(?:version|cover|rendition)s? (?:recorded |performed |sung )?by (\p{Lu}[\p{L}'’.-]+(?: \p{Lu}[\p{L}'’.-]+)*)/u;
+/** "the 1990s", or the like: a decade a ranking holds for. */
+const DECADE = /\b(?:1[89]|20)\d0s\b/;
+/** A ranking, which holds only where the source says it does. */
+const RANKING = /\b(?:(?:second|third|fourth|fifth)[- ])?most[- ](?:played|performed|streamed|watched|viewed|recorded|covered|broadcast)\b|\btop \d+ (?:most|best|highest)\b|\bbest[- ]selling\b|\bhighest[- ](?:charting|selling|grossing)\b/i;
+/** A claim about a chart: nothing means anything without which chart. */
+const CHART_CLAIM = /\b(?:reached|hit|peaked at|debuted at|climbed to|rose to) (?:number|No\.?|#)\s?(?:one|\d+)\b|\btop new entry\b|\bnew entry\b/i;
+/** Enough to tell which chart: a chart's name, a word for a chart, or a place. */
+const chartNamed = () => new RegExp(`\\b(?:charts?|Hot 100|Billboard|Oricon|Top 40|Top 100|Global 200|Official|ARIA|RPM|Cash Box|Gaon|Tracklist|countdown)\\b|\\b(?:${REGION_NAMES})\\b`, "i");
+/** A number of weeks, days or months: how long something took or lasted. */
+const SPAN = /\b(?:within|in|after|for) (?:only |just |about )?(?:\d+|two|three|four|five|six|seven|eight|nine|ten|\w+teen|twenty) (?:weeks?|days?|months?|years?)\b/gi;
+
+/** A sentence without the section heading it opens on: "Later appearances: By this era ...". */
+const withoutHeading = (s: string) => s.replace(/^[^:.!?"“]{2,50}:\s+/, "");
+/** The capitalized words of a phrase, the small ones aside. */
+const capitalsOf = (phrase: string) => (phrase.match(/\p{Lu}[\p{L}\d'’-]+/gu) ?? []).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
+
+/**
+ * What the sentence a caption retells says at its start or end about whose
+ * account it is, or which work and moment it belongs to, gone from the caption:
+ *
+ *   account  "According to Dale Hart, the song came from a family quarrel" told
+ *            as "Dale Hart wrote the song after a family quarrel".
+ *   work     "In Night Harbor Returns, the ghost appears as a face" told as
+ *            "The ghost appears as a face". A work the viewer already knows
+ *            (`titles`) needs no naming.
+ *   moment   "By this era the band used four singers" told as "The band used
+ *            four singers".
+ *
+ * Every sentence the caption retells must set the same kind of limit. Returns
+ * what was lost, or null.
+ */
+export function droppedFrame(fact: string, context: string, titles: string[] = []): string | null {
+  const retold = retoldSentences(fact, context).map(withoutHeading);
+  if (!retold.length) return null;
+  const known = titles.map(normalizeTitle).filter(Boolean);
+  const account = retold.map((s) => OPENS_ON_ACCOUNT.exec(s) ?? ENDS_ON_ACCOUNT.exec(s));
+  if (account.every(Boolean) && !ATTRIBUTION.test(fact)) return `according to ${(account[0] as RegExpExecArray)[1]}`;
+  const works = retold.map((s) => OPENS_ON_WORK.exec(s));
+  if (works.every(Boolean)) {
+    const frame = (works[0] as RegExpExecArray)[1];
+    const names = capitalsOf(frame);
+    const isPlace = new RegExp(`^(?:the )?(?:${REGION_NAMES})\\b`, "i").test(frame) || new RegExp(`^(?:the )?(?:${MONTHS})\\b`).test(frame) || /^\d{4}$/.test(frame);
+    const kind = new RegExp(`\\b(?:${FRAME_WORK})\\b`, "i");
+    const isWork = names.length > 0 ? names.length >= 2 || kind.test(frame) : kind.test(frame);
+    const named = names.some((w) => hasWord(w, fact)) || kind.exec(frame)?.some((w) => hasWord(w, fact)) || known.some((t) => t && normalizeTitle(frame).includes(t));
+    if (isWork && !isPlace && !named) return frame;
+  }
+  // "This arrangement is on a 1950 tape" told as "The arrangement is on a 1950 tape": which one?
+  const pointed = retold.map((s) => /^(?:This|That)(?: same)? (\p{Ll}+)\b/u.exec(s));
+  if (pointed.every(Boolean)) {
+    const noun = (pointed[0] as RegExpExecArray)[1];
+    if (new RegExp(`^The ${escapeRe(noun)}\\b`).test(fact)) return (pointed[0] as RegExpExecArray)[0];
+  }
+  const moments = retold.map((s) => OPENS_ON_MOMENT.exec(s));
+  if (moments.every(Boolean) && !(fact.match(YEAR) ?? []).length) return (moments[0] as RegExpExecArray)[0];
+  return null;
+}
+
+/**
+ * A limit in the sentence a caption retells that goes missing, and a claim that
+ * reads wider without it:
+ *
+ *   pointer   "the second most played song of the decade on the format".
+ *   later     "featured in the 2021 remake, sung by Ana Bell" told as "sung by Ana Bell".
+ *   ranking   "the most played song by ASCAP members in the 2000s": a ranking with
+ *             its decade or its body gone.
+ *   pairing   "A and B reached platinum and gold respectively": a caption
+ *             that keeps both names has to keep the pairing.
+ *
+ * Returns what was lost, or null.
+ */
+export function droppedLimit(fact: string, context: string, artists: string[] = []): string | null {
+  const retold = retoldSentences(fact, context);
+  if (!retold.length) return null;
+  const unquoted = retold.map((s) => s.replace(/["“][^"”]*["”]/g, ""));
+  const lacks = (phrase: string) => !phrase.toLowerCase().split(/\s+/).some((w) => w.length > 3 && hasWord(w, fact, ""));
+  const every = (re: RegExp) => unquoted.map((s) => [...s.matchAll(re)].map((m) => m[0]));
+  const pointer = every(POINTS_BACK);
+  if (pointer.every((p) => p.length) && lacks(pointer[0][0].replace(/^\S+ \S+ /, ""))) return pointer[0][0];
+  const pairing = unquoted.map((s) => BETWEEN_NAMES.exec(s));
+  if (pairing.every(Boolean) && lacks((pairing[0] as RegExpExecArray)[1])) return (pairing[0] as RegExpExecArray)[0];
+  const version = unquoted.map((s) => ANOTHERS_VERSION.exec(s));
+  if (version.every(Boolean)) {
+    const by = (version[0] as RegExpExecArray)[1];
+    if (lacks(by) && !mentionsName(normalizeTitle(by), artists.map(normalizeTitle).filter(Boolean))) return (version[0] as RegExpExecArray)[0];
+  }
+  const later = every(LATER_WORK);
+  if (later.every((l) => l.length) && lacks(later[0][0])) return later[0][0];
+  const ranked = RANKING.test(fact);
+  if (ranked && unquoted.every((s) => RANKING.test(s))) {
+    const decade = DECADE.exec(unquoted[0]);
+    if (decade && !hasWord(decade[0], fact, "")) return decade[0];
+    const by = /\bby ((?:\p{Lu}[\p{L}\d'’-]*\s*){1,4})/u.exec(unquoted[0]);
+    if (by && lacks(by[1])) return by[0].trim();
+  }
+  if (/\p{Lu}\S* and \p{Lu}/u.test(fact) && !/\brespectively\b/i.test(fact) && unquoted.every((s) => /\brespectively\b/i.test(s) && CHART_RECORD.test(s))) return "respectively";
+  return null;
+}
+
+/**
+ * A detail moved onto another chart of a run: "reached number one on the Hot 100,
+ * topped the Soul chart within three weeks" told as "reached number one on the
+ * Hot 100 within three weeks". The sentence names two charts, and the caption
+ * keeps one chart and a span of time the sentence gives only the other.
+ * Returns the span, or null.
+ */
+export function movedChartDetail(fact: string, context: string): string | null {
+  const charts = [...fact.matchAll(/\b(?:Hot 100|Billboard 200|[\p{Lu}][\p{L}\d&'’-]*(?: [\p{Lu}\d][\p{L}\d&'’-]*){0,4} (?:chart|Chart|Charts))\b/gu)].map((m) => m[0]);
+  if (charts.length !== 1) return null;
+  // "Hot" and "Singles" are in the names of many charts: what's left tells this one.
+  const chartWords = charts[0].split(" ").filter((w) => !/^(?:Billboard|Hot|Singles|Songs|Top|Chart|Charts|chart)$/.test(w));
+  for (const m of fact.matchAll(SPAN)) {
+    for (const s of retoldSentences(fact, context)) {
+      if (!new RegExp(`\\b${escapeRe(m[0])}\\b`, "i").test(s)) continue;
+      const parts = s.split(/,\s+(?:and\s+)?|;\s+/);
+      const own = parts.find((p) => p.toLowerCase().includes(m[0].toLowerCase())) ?? "";
+      if (parts.length >= 2 && !chartWords.some((w) => hasWord(w, own)) && parts.some((p) => chartWords.some((w) => hasWord(w, p)))) return m[0];
+    }
+  }
+  return null;
+}
+
+/**
+ * A chart claim that says nothing of which chart: "was the top new entry for the
+ * week", "reached number one". The reference sets the scope, and repairScope puts it
+ * back when it can; left without one, the claim reads as the biggest chart there
+ * is. Returns the claim, or null.
+ */
+export function unnamedChart(fact: string): string | null {
+  const claim = CHART_CLAIM.exec(fact);
+  return claim && !chartNamed().test(fact) ? claim[0] : null;
+}
+
+/**
+ * Who did something told the wrong way round: "Bruno Vale compared his vocals to Sam
+ * Ortiz" retelling "He compared Vale's vocals to Sam Ortiz", and "the sequel is
+ * being worked on by Rob Lane" retelling "Rob Lane confirmed the sequel is being
+ * worked on", and an event swapped for the one the sentence has: "at the Brit Awards"
+ * retelling "at the Mercury Prize". Returns the name, or null.
+ */
+export function turnedRound(fact: string, context: string): string | null {
+  const retold = retoldSentences(fact, context);
+  if (!retold.length) return null;
+  const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(\p{Ll}+ed)\b/u.exec(fact);
+  if (lead) {
+    const name = lead[1].split(/\s+/).pop() as string;
+    // "was developed by Rare" and "Rare developed" say the same.
+    const passive = new RegExp(`\\b(?:was|were|is|are|been|being|be)\\s+(?:\\p{Ll}+\\s+)?${escapeRe(lead[2])}\\b|\\b${escapeRe(lead[2])}\\s+by\\b`, "u");
+    const after = new RegExp(`\\b${escapeRe(lead[2])}\\b[^,;]*\\b${escapeRe(name)}['’]s?\\s`, "u");
+    const before = new RegExp(`\\b${escapeRe(name)}\\b[^,;]*\\b${escapeRe(lead[2])}\\b`, "u");
+    if (retold.every((s) => after.test(s) && !before.test(s) && !passive.test(s))) return name;
+  }
+  // "at the Brit Awards" retelling "at the Mercury Prize": both are in the article, but only one here.
+  const at = /\bat the ((?:\p{Lu}[\p{L}'’-]*\s?){1,4})/u.exec(fact);
+  const sAt = retold.map((s) => /\bat the ((?:\p{Lu}[\p{L}'’-]*\s?){1,4})/u.exec(s));
+  if (at && sAt.every(Boolean) && !capitalsOf(at[1]).some((w) => retold.some((s) => hasWord(w, s)))) return at[1].trim();
+  const by = /\bby ((?:\p{Lu}[\p{L}'’.-]*\s*){1,4})\.?$/u.exec(fact);
+  if (by) {
+    const name = (by[1].trim().split(/\s+/).pop() as string).replace(/\.$/, "");
+    if (retold.every((s) => speakers(s).includes(name) && !new RegExp(`\\bby (?:\\p{Lu}[\\p{L}'’.-]*\\s+)*${escapeRe(name)}\\b`, "u").test(s))) return name;
+  }
   return null;
 }
 
@@ -5012,7 +5210,7 @@ export function otherRecordingSection(fact: string, context: string, artists: st
 
 /** Words that keep a statement uncertain. */
 const HEDGE =
-  /\b(?:may|might|could) have\b|\b(?:possibly|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b|\b(?:is|are|was|were) credited with\b|\bin part\b|\b(?:partly|partially)\b/i;
+  /\b(?:may|might|could) have\b|\b(?:possibly|arguably|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b|\b(?:is|are|was|were) credited with\b|\bin part\b|\b(?:partly|partially)\b/i;
 
 /**
  * A hedge the caption drops: "General Ardent suggested the symphony" when the
@@ -5686,7 +5884,7 @@ function captionReason(fact: string, titles: string[], otherParts: string[], nam
   if (works && !isTitle && !namesSomeone(fact)) return `doesn't say whose ${works[1]}`;
   const pronoun = unresolvedPronoun(fact);
   if (pronoun) return `doesn't say who "${pronoun}" is`;
-  const leftBehind = leftBehindReferent(fact, titles, names);
+  const leftBehind = leftBehindReferent(fact, titles, names, context);
   if (leftBehind) return `doesn't say what "${leftBehind}" is`;
   if (companyHistory(fact, titles)) return "a company's business, not the music";
   if (ABOUT_THE_VIDEO.test(fact)) return "about the music video";
@@ -5701,7 +5899,7 @@ function captionReason(fact: string, titles: string[], otherParts: string[], nam
  * reference, each name, date, credit, quote and joining word checked against it. Null when none.
  * `track`: set when the article isn't the track's own, as for `screenClaims`.
  */
-function sourceReason(fact: string, context: string, track: string | undefined): string | null {
+function sourceReason(fact: string, context: string, track: string | undefined, titles: string[] = [], artists: string[] = []): string | null {
   for (const { re, label } of RISKY_PATTERNS) {
     const m = fact.match(re);
     if (m && !hasWord(m[0].trim(), context)) return label;
@@ -5741,6 +5939,16 @@ function sourceReason(fact: string, context: string, track: string | undefined):
   if (merged) return `joins two statements: "${merged}" belongs to another clause`;
   const hedge = droppedHedge(fact, context);
   if (hedge) return `drops the source's "${hedge}"`;
+  const frame = droppedFrame(fact, context, titles);
+  if (frame) return `drops what the source opens with: "${frame}"`;
+  const limit = droppedLimit(fact, context, artists);
+  if (limit) return `drops the source's limit: "${limit}"`;
+  const moved = movedChartDetail(fact, context);
+  if (moved) return `"${moved}" belongs to another chart`;
+  const round = turnedRound(fact, context);
+  if (round) return `the source doesn't have ${round} doing this`;
+  const chart = unnamedChart(fact);
+  if (chart) return `doesn't say which chart: "${chart}"`;
   const placed = misplacedYear(fact, context);
   if (placed) return `${placed} isn't the year of the sentence it retells`;
   const cutOff = droppedYear(fact, context);
@@ -5777,7 +5985,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
   const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
   const reasonToDrop = (fact: string): string | null =>
     captionReason(fact, titles, opts.otherParts ?? [], opts.artists, context) ??
-    sourceReason(fact, context, opts.track) ??
+    sourceReason(fact, context, opts.track, titles, opts.artists) ??
     (context && otherRecordingSection(fact, context, opts.artists) ? "from a section about another recording" : null) ??
     (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
