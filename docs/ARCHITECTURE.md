@@ -528,26 +528,32 @@ streamer's own facts are theirs and are never checked.
 ### Facts about the good an artist does
 
 Bubbles celebrate the artist: benefit shows and charity, disaster relief and
-money raised, movements they took part in, music education, mentoring,
+money raised, movements, music education, mentoring,
 preserving music, community work, roles such as goodwill ambassador or union
 officer, musicians' rights, the environment, open sharing, and public honors.
-There is no setting. At most one goes with a song, and it competes with the
-song's other facts in `rankFacts`.
+There is no setting. At most one goes with a song. It never takes a song fact's
+place: it needs a free slot among the data facts (`rankedData`), and on a song
+with an article it sits beyond the data facts' room, so at worst it takes the
+last caption's bubble. Within the bubbles shown, `rankFacts` orders it like any
+other.
 
 **Sources** (`artist-good.ts`, `artistGoodFromEntity` in `wikidata.ts`):
 
-- **Wikidata**, one template per statement: movement (P135, told as "is
-  associated with", which is all the statement says), a cause position (P39), a
+- **Wikidata**, one template per statement: movement (P135, the only source
+  for one: an article's account of a movement is a characterization), a cause position (P39), a
   benefit show (P1344), a musicians' body (P463), students (P802) and up to two
   lifetime honors (P166). Competitive categories ("Grammy Award for Best ...")
   are left out: they are the dull ones and a song's own item already has them.
-- **The artist's Wikipedia article**: one sentence, as written, no AI. `KINDS`
-  is one table of section headings and words per kind. A sentence counts only
-  if its subject is plainly the artist, its verb is a thing they did, and it
-  names a cause. A leading "She" becomes the artist's name, and only at the
+- **The artist's Wikipedia article**: one sentence, as written, no AI, and only
+  if it has the shape of a checkable act (`ACTS`): founded an organization,
+  donated to, performed at or headlined a benefit, was named or appointed to a
+  role, taught, gave a masterclass, received an honor in an honors section, or a
+  thing was named after them. This is an allow-list because block-lists leak:
+  "supported", "opposed", "backed", "lobbied" and "has been involved in" say
+  where someone stands on any subject, and fail by not matching. Its subject must
+  plainly be the artist. A leading "She" becomes the artist's name, only at the
   start of a paragraph or right after a sentence about them. A closing clause
-  may be cut to fit a bubble; nothing is added. A thing named for them ("A
-  statue of ...") counts in an honors section.
+  may be cut to fit a bubble; nothing is added.
 
 **Same names.** The artist comes from the surely matched article, never from a
 name search: that article's own item when it is the performer, else the
@@ -571,12 +577,15 @@ plain news does, not by topic:
   whatever reads as taking a side in a contested fight. Naming the side counts,
   so a petition, an open letter or a boycott stays out too, except about
   musicians' own pay and rights.
+- For someone living, no sums of money, and no undated "is a patron": "became a
+  patron in 1999" is an act, with a date to check it by.
 
 Why: a viewer of any politics should enjoy these bubbles, and a bubble naming a
 side makes the streamer look as if they took it. The content standard comes
 first and isn't loosened: a cause on one of its lists stays out, and for these
 facts an identity word counts even inside a name (`namesIdentity`). Every AI
-caption is also screened for the judging words (`loadedCaption`), and the prompt
+caption is also screened for the judging words (`loadedCaption`, not the wider
+list for these facts: "causes" is everyday in a sentence about a song), and the prompt
 asks for the act when the reference is an artist's article (`NEUTRAL_PROMPT`).
 Word lists only, like the content standard: a miss keeps a fact off the stream.
 

@@ -428,7 +428,7 @@ const withArticle = (s: string) => `${/^[AEIOU]/.test(s) ? "an" : "a"} ${s}`;
 
 /**
  * The good an artist's item states, each a sentence built from one statement: a movement
- * (P135, as "associated with", which is what the statement says), a position held for a cause
+ * (P135, the only source for one), a position held for a cause
  * (P39), a benefit show (P1344), a musicians' body (P463), notable students (P802), and up to
  * two lifetime honors (P166), never one competitive category. No claim of why, no year.
  */
@@ -436,7 +436,7 @@ export function artistGoodFromEntity(e: Entity, labels: Record<string, Entity>):
   const name = anyLabel(e);
   if (!name) return [];
   const named = (prop: string) => itemIds(e, prop).map((id) => cleanLabel(anyLabel(labels[id]).replace(/[\u200e\u200f]/g, "").replace(/\.$/, ""))).filter(Boolean);
-  const facts = named("P135").slice(0, 2).map((m) => `${name} is associated with the movement known as ${m}.`);
+  const facts = named("P135").slice(0, 2).map((m) => `${name} was part of the ${m.replace(/\s+movement$/i, "")} movement.`);
   for (const p of named("P39").filter((l) => CAUSE_POSITION.test(l)).slice(0, 1)) facts.push(`${name} has served as ${p}.`);
   for (const show of named("P1344").filter((l) => BENEFIT_SHOW.test(l)).slice(0, 1)) facts.push(`${name} took part in ${show}.`);
   for (const body of named("P463").filter((l) => MUSICIANS_BODY.test(l)).slice(0, 1)) facts.push(`${name} is a member of the ${body}.`);
@@ -583,6 +583,9 @@ export async function sureArtist(page: string, artist: string[]): Promise<{ enti
   const found = Object.values(data.entities ?? {}).find((e) => performer(e) && e.sitelinks?.enwiki?.title);
   return found ? { entity: found, page: found.sitelinks?.enwiki?.title as string } : null;
 }
+
+/** Whether a person's item gives a date of death. */
+export const diedOf = (e: Entity): boolean => rankedClaims(e, "P570").length > 0;
 
 /** The labels `artistGoodFromEntity` needs. */
 export async function artistGoodLabels(e: Entity): Promise<Record<string, Entity>> {

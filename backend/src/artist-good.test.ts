@@ -1,7 +1,7 @@
 process.env.SSL_ACCESS_TOKEN = "test-token";
 process.env.SSL_STREAMER_NAME = "tester";
 
-import { goodSentences, takingTurns } from "./artist-good";
+import { actsFirst, goodSentences } from "./artist-good";
 import { neutralBreach, loadedCaption, NEUTRAL_PROMPT } from "./neutral-wording";
 import { namesIdentity, standardBreach } from "./content-standard";
 import { artistGoodFromEntity, clearArticleItemCache, Entity, sureArtist } from "./wikidata";
@@ -17,10 +17,10 @@ describe("goodSentences", () => {
     ["Career", "Quillon headlined the Harbor Aid benefit concert.", "Mara Quillon headlined the Harbor Aid benefit concert."],
     ["Teaching", "She gave masterclasses at the Northfield Conservatory.", "Mara Quillon gave masterclasses at the Northfield Conservatory."],
     ["Community", "Quillon hosted a youth festival in Ashford.", "Mara Quillon hosted a youth festival in Ashford."],
-    ["Advocacy", "She is a patron of the Musicians' Benevolent Foundation.", "Mara Quillon is a patron of the Musicians' Benevolent Foundation."],
+    ["Advocacy", "She became a patron of the Harbor Trust in 1999.", "Mara Quillon became a patron of the Harbor Trust in 1999."],
     ["Career", "Quillon revived traditional songs of the Ashford valley.", "Mara Quillon revived traditional songs of the Ashford valley."],
     ["Career", "Quillon released her stems for free download.", "Mara Quillon released her stems for free download."],
-    ["Career", "Quillon was part of the Lowfield movement.", "Mara Quillon was part of the Lowfield movement."],
+    ["Career", "Quillon performed at a benefit for flood relief.", "Mara Quillon performed at a benefit for flood relief."],
     ["Honors", "A statue of her stands in Ashford, named in honor of her.", "A statue of Mara Quillon stands in Ashford, named in honor of her."],
     ["Honors", "Asteroid 90210 Quillon was named after Mara Quillon.", "Asteroid 90210 Quillon was named after Mara Quillon."],
     ["Honors", "She was inducted into the Ashford Hall of Fame in 2001.", "Mara Quillon was inducted into the Ashford Hall of Fame in 2001."],
@@ -40,7 +40,10 @@ describe("goodSentences", () => {
     ["raised, as in grew up", "Philanthropy", "She was raised in Ashford."],
     ["a chance word beside a music verb", "Career", "Quillon recorded five tracks at Ashford College."],
     ["a name, not a deed", "Career", "Mara Quillon Archives holds her letters and the Lantern Foundation papers."],
-    ["a report, not an act", "Philanthropy", "She reportedly raised around $9 million for relief."],
+    ["a commercial role", "Career", "In 2002, Quillon became the official spokesman of the Lantern Foundation."],
+    ["a movement told in a sentence", "Career", "Quillon was part of the Lowfield movement."],
+    ["a characterization", "Philanthropy", "Quillon has been involved in philanthropy across her career."],
+    ["a concert outside a section about such things", "Career", "Quillon performed at the Ashford Festival."],
     ["a plan", "Philanthropy", "She announced a benefit concert to raise funds."],
     ["a nomination", "Honors", "Quillon received an Emmy Award nomination."],
     ["a dangling reference", "Philanthropy", "Quillon was named chair of the board of the project."],
@@ -49,14 +52,25 @@ describe("goodSentences", () => {
     expect(good(section, body)).toEqual([]);
   });
 
-  it("gives each kind a turn before a second of any", () => {
-    const list = ["Mara Quillon received the Ashford Medal.", "Mara Quillon was inducted into the Ashford Hall of Fame.", "Mara Quillon donated $5 to charity."].map((text) => ({ text }));
-    expect(takingTurns(list)[1].text).toBe("Mara Quillon donated $5 to charity.");
+  it.each(["supported same-sex marriage", "opposed the Iraq War", "backed a ban on fracking", "is a lifetime member of the National Rifle Association", "lobbied for repeal of Don't Ask, Don't Tell", "supports the Occupy movement", "criticized the Ashford dam", "called for clean water", "campaigned for clean water"])(
+    "a stance has no act shape: %s",
+    (stance) => {
+      expect(good("Philanthropy", `Quillon ${stance} and the Lantern Foundation.`)).toEqual([]);
+    }
+  );
+
+  it("puts acts first and caps honors", () => {
+    const list = ["Mara Quillon received the Ashford Medal.", "Mara Quillon was inducted into the Ashford Hall of Fame.", "Mara Quillon founded a charity."].map((text) => ({ text }));
+    expect(actsFirst(list, 1).map((f) => f.text)).toEqual(["Mara Quillon founded a charity.", "Mara Quillon received the Ashford Medal."]);
   });
 });
 
 describe("the neutral wording line", () => {
   it.each([
+    "Mara Quillon headlined a concert against hunger.",
+    "Rage Against the Machine headlined a benefit for flood relief.",
+    "Mara Quillon performed at a Rock Against Racism benefit.",
+    "Mara Quillon became a patron of the Harbor Trust in 1999.",
     "Mara Quillon performed at a benefit for war refugees.",
     "Mara Quillon was named a UNICEF Goodwill Ambassador.",
     "Mara Quillon received the Presidential Medal of Freedom.",
@@ -73,7 +87,20 @@ describe("the neutral wording line", () => {
     ["Mara Quillon performed at a Green Party fundraiser.", "elections or parties"],
     ["Mara Quillon has backed the Lowfield independence movement.", "a contested fight"],
     ["Mara Quillon performed at a benefit for gun control.", "a contested fight"],
-    ["Mara Quillon campaigned against the Ashford dam.", "a contested fight"],
+    ["Mara Quillon performed at a concert against the war.", "a contested fight"],
+    ["Mara Quillon performed at a rally against the Ashford government.", "a contested fight"],
+    ["X supported same-sex marriage.", "a contested fight"],
+    ["X opposed the Iraq War.", "a contested fight"],
+    ["X backed a ban on fracking.", "a contested fight"],
+    ["X is a lifetime member of the National Rifle Association.", "a contested fight"],
+    ["X lobbied for repeal of Don't Ask, Don't Tell.", "a contested fight"],
+    ["X supports the Occupy movement.", "a contested fight"],
+    ["Mara Quillon performed for marriage equality in Hong Kong.", "a contested fight"],
+    ["Mara Quillon received an award for her activism.", "loaded wording"],
+    ["Mara Quillon donated to a human rights group.", "loaded wording"],
+    ["Mara Quillon reportedly raised funds for relief.", "a hedge"],
+    ["Mara Quillon is a patron of the Harbor Trust.", "an undated role"],
+    ["Mara Quillon donated $2 million to flood relief.", "a living person's money"],
     ["Mara Quillon signed an open letter on the Ashford treaty.", "an act that states a side"],
     ["Mara Quillon joined the boycott of Ashford.", "an act that states a side"],
     ["Mara Quillon is a champion of clean water.", "loaded wording"],
@@ -85,13 +112,18 @@ describe("the neutral wording line", () => {
     expect(neutralBreach(fact)).toBe(reason);
   });
 
+  it("allows a sum for someone no longer living", () => {
+    expect(neutralBreach("Mara Quillon donated $2 million to flood relief.", [], false)).toBeNull();
+  });
+
   it("reads the artist's name as a name", () => {
-    expect(neutralBreach("Campaign Against Silence donated $5 to charity.", ["Campaign Against Silence"])).toBeNull();
+    expect(neutralBreach("Campaign Against Silence donated to charity.", ["Campaign Against Silence"])).toBeNull();
     expect(loadedCaption("Legendary Lanterns played a benefit.", ["Legendary Lanterns"])).toBe(false);
   });
 
   it("screens a caption for judging words only", () => {
     expect(loadedCaption("The controversial singer played in Ashford.")).toBe(true);
+    expect(loadedCaption("The song's bass causes the floor to shake.")).toBe(false);
     expect(loadedCaption("The song came out in 1999.")).toBe(false);
   });
 
@@ -119,7 +151,7 @@ describe("artistGoodFromEntity", () => {
 
   it("builds each sentence from one statement and says no more", () => {
     expect(artistGoodFromEntity(artist, labels)).toEqual([
-      "Mara Quillon is associated with the movement known as Fluxmode.",
+      "Mara Quillon was part of the Fluxmode movement.",
       "Mara Quillon has served as UNICEF Goodwill Ambassador.",
       "Mara Quillon took part in Harbor Aid.",
       "Mara Quillon is a member of the Musicians' Union.",

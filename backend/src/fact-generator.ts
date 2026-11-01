@@ -236,7 +236,7 @@ export const SOURCE = {
 export const MAX_DATA_FACTS = 2;
 /** The infobox field each infobox sentence was filled from, for the dashboard. */
 const boxEvidence = new Map<string, string>();
-/** Facts that are a sentence of the artist's article (`artistGoodFacts`), and that article. */
+/** Facts about the good an artist did (`artistGoodFacts`), and their article ("" for Wikidata). They only ever take a free slot. */
 const artistSentences = new Map<string, string>();
 
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
@@ -703,8 +703,6 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
 async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Promise<SureArticle | null> = Promise.resolve(null)): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
   const names = [reading.title, reading.artist ?? ""];
-  // The good the artist did, when the article surely is theirs or their song's.
-  const good = sure.then((found) => (found ? artistGoodFacts(found.page, found.names) : []));
   const data = onStandard(await wikidataFacts(reading), names);
   let facts = data;
   if (!data.length) {
@@ -720,11 +718,15 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
     for (const f of added) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     facts = [...fromMb, ...added];
   } else for (const f of data) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
-  // One a song, the next one not shown lately: it competes with the rest in `rankFacts`.
-  const turn = (await good).find((f) => !blockedArticles(song).has(f.page) && !recentFacts.includes(f.text) && !facts.includes(f.text) && !restatesRequest(f.text, song));
+  // The good the artist did, when the article surely is theirs or their song's: one a song, the next
+  // not shown lately, competing with the rest in `rankFacts`. After the song's lookups, so its
+  // Wikidata requests never crowd theirs: the song's own facts come first.
+  const found = await sure;
+  const good = found ? await artistGoodFacts(found.page, found.names) : [];
+  const turn = good.find((f) => !blockedArticles(song).has(f.page) && !recentFacts.includes(f.text) && !facts.includes(f.text) && !restatesRequest(f.text, song));
   if (turn) {
     setCapped(structuredLabel, turn.text, turn.page ? `Wikipedia: ${turn.page}` : SOURCE.wikidata, MAX_KEPT);
-    if (turn.page) setCapped(artistSentences, turn.text, turn.page, MAX_KEPT);
+    setCapped(artistSentences, turn.text, turn.page, MAX_KEPT);
     facts = [...facts, turn.text];
   }
   setCapped(structuredShown, songKey(song), new Set(facts), MAX_KEPT);
@@ -808,8 +810,11 @@ function onStandard(facts: string[], names: string[] = []): string[] {
  * MAX_BUBBLES of them (`rankFacts`). SOURCE_RISK=off keeps them as found.
  */
 function rankedData(data: string[], want: number): string[] {
-  if (!config.sourceRisk) return data.slice(0, want);
-  return rankFacts(data.map((text) => ({ text, kind: "data" as const })), { max: Math.min(want, MAX_BUBBLES) }).map((c) => c.text);
+  const max = Math.min(want, MAX_BUBBLES);
+  const songs = data.filter((f) => !artistSentences.has(f));
+  if (!config.sourceRisk) return [...songs, ...data.filter((f) => artistSentences.has(f))].slice(0, want);
+  const free = songs.length < max ? data : songs;
+  return rankFacts(free.map((text) => ({ text, kind: "data" as const })), { max }).map((c) => c.text);
 }
 
 /** For the saved session: the recent facts, and putting them back after a restart. */
@@ -1238,7 +1243,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const plain = new Map(fresh.map((f) => [f, explainMusicTerms(repaired.get(f) as string)]));
   // Data facts: the song's own first, then the infobox's; at most dataRoom, none a caption already
   // says. Facts sent early stay as sent, and the infobox only fills in after them.
-  const candidates = [...(early.length ? [] : rankedData(songFacts, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
+  const aboutSong = songFacts.filter((f) => !artistSentences.has(f));
+  const candidates = [...(early.length ? [] : rankedData(aboutSong, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
   const structured: string[] = early.map((f) => f.text);
   for (const c of candidates) {
     if (structured.length >= dataRoom) break;
@@ -1250,6 +1256,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       setCapped(boxEvidence, c.text, c.evidence, MAX_KEPT);
     }
   }
+  // The artist's fact is beyond the data facts' room: it never takes a song fact's place.
+  const artistFact = songFacts.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), fresh));
+  if (artistFact) structured.push(artistFact);
   // A spare takes the place of a line that only repeats the title and artist.
   const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
   const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));

@@ -14,11 +14,14 @@ import { escapeRe } from "./text";
  *   1. Elections, candidates, parties and endorsements (`ELECTIONS`).
  *   2. Anything that reads as taking a side in a contested fight (`CONTESTED`), and acts that
  *      only state a side (`SIDE_ACTS`): naming a letter or a petition still spreads the side.
- *   3. Judging or heated words (`LOADED`), and motives (`MOTIVE`).
+ *   3. Judging or heated words (`LOADED`), characterizations (`CHARACTERIZING`), motives
+ *      (`MOTIVE`) and hedges (`HEDGES`).
+ *   4. For someone living: money figures, and an undated present-tense role.
  * The content standard (content-standard.ts) comes first and is never loosened by this file.
  *
- * Advocacy passes when it is told as an act: a benefit, a donation, a role. Word lists only, as
- * in the content standard: no AI decides, and a miss keeps the fact off the stream.
+ * These lists sit on top of an allow-list: an article sentence must first have the shape of a
+ * checkable act (`ACTS` in artist-good.ts). Word lists only, as in the content standard: no AI
+ * decides, and a miss keeps the fact off the stream.
  */
 
 /** Added to the prompt when the reference is an artist's article. */
@@ -41,8 +44,13 @@ const ELECTIONS = [
 const CONTESTED = [
   "abortion", "pro-choice", "pro-life", "gun control", "gun rights", "immigration", "Brexit", "secession",
   "independence movement", "Israel", "Israeli", "Palestine", "Palestinian", "Palestinians", "Zionist", "Zionism",
-  "Black Lives Matter", "regime", "dictator", "dictatorship", "coup", "impeach", "impeachment", "against",
+  "Black Lives Matter", "regime", "dictator", "dictatorship", "coup", "impeach", "impeachment", "Gaza", "West Bank",
+  "Hamas", "Hezbollah", "Tibet", "Taiwan", "Hong Kong", "climate change", "same-sex marriage", "marriage equality",
+  "minimum wage", "fracking", "Iraq War", "Vietnam War", "Occupy", "National Rifle Association", "NRA", "culling",
+  "repeal", "ban on",
 ];
+/** "Against" alone is too wide: "a concert against hunger", Rage Against the Machine. */
+const AGAINST_STATE = /\bagainst\s+the\s+(?:[\p{L}-]+\s+)?(?:government|war|law|regime|policy)\b/iu;
 
 /** Acts that do nothing but state a side. The rights of musicians themselves are the exception (`OWN_TRADE`). */
 const SIDE_ACTS = [
@@ -63,6 +71,17 @@ const LOADED = [
   "pioneering", "tremendous", "remarkable", "inspiring",
 ];
 
+/**
+ * Fine in a sentence about a song, so captions aren't held to these; in a fact about an artist's
+ * public life they characterize rather than tell.
+ */
+const CHARACTERIZING = [
+  "activism", "activist", "activists", "advocate", "advocates", "advocacy", "social justice", "human rights",
+  "civil rights", "consciousness", "causes",
+];
+
+const HEDGES = ["reportedly", "allegedly"];
+
 /** Why they did it: only the artist can say, and then the fact must say who said it. */
 const MOTIVE = [
   "because", "out of concern", "motivated by", "driven by", "passionate", "passion for", "believes", "believing",
@@ -78,24 +97,32 @@ const pattern = (words: string[]) =>
 const OUT: Array<{ reason: string; re: RegExp }> = [
   { reason: "elections or parties", re: pattern(ELECTIONS) },
   { reason: "a contested fight", re: pattern(CONTESTED) },
-  { reason: "loaded wording", re: pattern(LOADED) },
+  { reason: "a contested fight", re: AGAINST_STATE },
+  { reason: "loaded wording", re: pattern([...LOADED, ...CHARACTERIZING]) },
   { reason: "a motive", re: pattern(MOTIVE) },
+  { reason: "a hedge", re: pattern(HEDGES) },
 ];
 const SIDE_ACT = pattern(SIDE_ACTS);
-const LOADED_RE = OUT[2].re;
+const LOADED_RE = pattern(LOADED);
+/** A sum a living person gave is theirs to tell. */
+const MONEY = /[$£€]\s?\d|\b\d+(?:\.\d+)?\s+(?:million|billion)\s+(?:dollars|pounds|euros)\b/i;
+/** "Is a patron of ...": no date to check it by. "Became a patron in 1999" is an act. */
+const PRESENT_ROLE = /\b(?:is|are)\s+(?:(?:a|an|the)\s+)?(?:[\p{L}'’-]+\s+){0,3}?(?:patron|supporter|ambassador|trustee|spokes(?:person|man|woman))\b/iu;
 
 /**
  * Why a fact about an artist's public life can't be shown (see THE RULE), or null when it can.
- * `names` (the artist, titles) are read as names, not words.
+ * `names` (the artist, titles) are read as names, not words. `living`: whether they are alive.
  */
-export function neutralBreach(text: string, names: string[] = []): string | null {
+export function neutralBreach(text: string, names: string[] = [], living = true): string | null {
   const plain = namesBlanked(text, names).replace(HONOR_NAMES, "");
   const out = OUT.find(({ re }) => re.test(plain));
   if (out) return out.reason;
+  if (living && MONEY.test(plain)) return "a living person's money";
+  if (PRESENT_ROLE.test(plain) && !/\b(?:1[89]|20)\d\d\b/.test(plain)) return "an undated role";
   return SIDE_ACT.test(plain) && !OWN_TRADE.test(plain) ? "an act that states a side" : null;
 }
 
-/** Whether an AI caption judges rather than tells. A caption on any subject is held to this. */
+/** Whether an AI caption judges rather than tells. A caption on any subject is held to `LOADED`. */
 export function loadedCaption(text: string, names: string[] = []): boolean {
   return LOADED_RE.test(namesBlanked(text, names));
 }
