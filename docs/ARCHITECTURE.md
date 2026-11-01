@@ -86,6 +86,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, settings and About. Plain JavaScript, no build step. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
+| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code) and reading another channel's About. |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
@@ -250,6 +251,12 @@ sign-ins and the built-in AI. Its design decisions are in
    words at most (`alteredQuote`). A caption opening with "He" or "She" is
    dropped: a viewer can't tell who. Music terms get a few fixed plain words
    (`explainMusicTerms`), never the model's own explanation.
+   A caption must also stand alone (`leftBehindReferent`): "for the first of
+   these three weeks", "the 1937 recording" with no performer, "total sales"
+   with no product and a film nobody names are dropped. So is a year or a
+   "with" name taken from another clause of the sentence it retells
+   (`mergedClauses`), and a caption whose "it" belongs to a section on another
+   recording or a B-side (`otherRecordingSection`).
    A credit needs a source sentence that ties the person to the role
    (`statesRole`: "Chen composed", "composed by Chen", "composer Chen"), not
    just a role word nearby; an ambiguous credit is dropped. "Wrote" counts as
@@ -313,6 +320,14 @@ sign-ins and the built-in AI. Its design decisions are in
    caption retells, a closely related one, or the one just before or after,
    and in the clause it retells when a semicolon splits that sentence
    (`misplacedYear`: the 1805 premiere told as the date of an 1807 encore).
+   What a sentence opens or ends on must stay too (`droppedFrame`): "According
+   to X," with no word of saying, "In <another work>," and "By this era" with
+   no year. So must a limit in its body (`droppedLimit`): "on the format", "on
+   his recording", a remake or film adaptation, a ranking's decade or body,
+   "respectively" with a pair of records. A span of time stays with its own
+   chart of a run (`movedChartDetail`), a chart claim names a chart or a place
+   (`unnamedChart`), and a critic's "compared Vale's vocals" isn't "Vale
+   compared" (`turnedRound`).
    `wrongOwner` drops what the source says of the music video told of the
    song, sales figures that belong to the single told of the album, and a
    radio date told as a chart peak's date; `lostQualifier` also catches
@@ -447,7 +462,8 @@ model is asked.
    sample, a borrowed instrument, what inspired it) count +2; a first or a
    record +1, only when the source sentence says the same word (one it
    doesn't say counts -2: a caption never upgrades a claim); a relatable fact
-   about a person (an age, a hometown, teaching themselves) +1; awards,
+   about a person (an age, a hometown, teaching themselves) +1; what an artist
+   gave (see "Facts about the good an artist does") +2; awards,
    charts, sales and release details -1. Highest first; among equals, data
    facts and lead captions, then the writer's order. On an artist's or a
    game's article the song's own data facts still lead.
@@ -481,8 +497,8 @@ streamer responsible for everything on stream, and the riskiest true
 sentence in an artist's article is about a person, not the music: an
 arrest, an illness, a divorce, how someone died.
 
-`content-standard.ts` holds seven word lists (crime or lawsuits, drugs or
-addiction, sexual content, private life, health, how someone died, and who
+`content-standard.ts` holds eight word lists (crime or lawsuits, drugs or
+addiction, sexual content, private life, health, how someone died, put-downs of the music, and who
 someone is: ethnicity or an Indigenous nation, race, religion, sexuality,
 gender identity), each with a comment naming the platform rules it follows. Matching is whole words
 or phrases, any case. It runs in three places:
@@ -517,6 +533,73 @@ and a caption from it is kept only with the artist's name and those words
 There is no setting: the standard is always on for sourced captions. The
 streamer's own facts are theirs and are never checked.
 
+### Facts about the good an artist does
+
+Bubbles celebrate the artist: benefit shows and charity, disaster relief and
+money raised, movements, music education, mentoring,
+preserving music, community work, roles such as goodwill ambassador or union
+officer, musicians' rights, the environment, open sharing, and public honors.
+There is no setting. At most one goes with a song. It never takes a song fact's
+place: it needs a free slot among the data facts (`rankedData`), and on a song
+with an article it sits beyond the data facts' room, so at worst it takes the
+last caption's bubble. Within the bubbles shown, `rankFacts` orders it like any
+other.
+
+**Sources** (`artist-good.ts`, `artistGoodFromEntity` in `wikidata.ts`):
+
+- **Wikidata**, one template per statement: movement (P135), a cause position (P39), a
+  benefit show (P1344), a musicians' body (P463), students (P802) and up to two
+  lifetime honors (P166). Competitive categories ("Grammy Award for Best ...")
+  are left out: they are the dull ones and a song's own item already has them.
+- **The artist's Wikipedia article**: one sentence, as written, no AI, and only
+  if it has the shape of a checkable act (`ACTS`): founded an organization,
+  donated to, performed at or headlined a benefit, was named or appointed to a
+  role, taught, gave a masterclass, co-founded, led or took part in a named
+  music or arts movement ("the Example art movement", "Example, a musical movement"; a
+  described "consciousness movement" and any other movement fail, since no list can
+  name every political one), received an honor in an honors section, or a
+  thing was named after them. This is an allow-list because block-lists leak:
+  "supported", "opposed", "backed", "lobbied" and "has been involved in" say
+  where someone stands on any subject, and fail by not matching. Its subject must
+  plainly be the artist. A leading "She" becomes the artist's name, only at the
+  start of a paragraph or right after a sentence about them. A closing clause
+  may be cut to fit a bubble; nothing is added.
+
+**Same names.** The artist comes from the surely matched article, never from a
+name search: that article's own item when it is the performer, else the
+performer (P175) the song's item names (`sureArtist`). No sure match, no fact.
+
+**Left out as noise:** who an artist influenced (an opinion, unless someone says
+so by name), who founded what by Wikidata's "founded by" and things "named
+after" someone (both need a full-text search Wikidata rate-limits hard), and
+prison shows (the content standard's crime list blocks them, and stays as it is).
+
+**Neutral wording** (`neutral-wording.ts`, every rule in one file). Advocacy and
+politics are tied together, so the line is drawn by how a fact is told, the way
+plain news does, not by topic:
+
+- State the public act someone can check, not its merit: what the artist did and
+  for whom. "Performed at a benefit for X", "co-founded Y", "named a goodwill
+  ambassador".
+- No judging words ("champion of", "stood up to", "controversial"), no claim that
+  a cause is right or wrong, and no motive ("because", "commitment to").
+- Out whatever the wording: candidates, parties, elections, endorsements, and
+  whatever reads as taking a side in a contested fight. Naming the side counts,
+  so a petition, an open letter or a boycott stays out too, except about
+  musicians' own pay and rights.
+- For someone living, no sums of money, and no undated "is a patron": "became a
+  patron in 1999" is an act, with a date to check it by.
+
+Why: a viewer of any politics should enjoy these bubbles, and a bubble naming a
+side makes the streamer look as if they took it. The content standard comes
+first and isn't loosened: a cause on one of its lists stays out, and for these
+facts an identity word counts even inside a name (`namesIdentity`). Every AI
+caption is also screened for the judging words, and one written from an artist's
+article for motives too (`loadedCaption`). Captions don't get the wider list for
+these facts: "causes" is everyday in a sentence about a song. The prompt
+asks for the act when the reference is an artist's article (`NEUTRAL_PROMPT`).
+Word lists only, like the content standard: a miss keeps a fact off the stream.
+
 ### Notes, switches and Wrong
 
 Issue #262's rules, for when a fact must not be shown at all:
@@ -543,6 +626,18 @@ Issue #262's rules, for when a fact must not be shown at all:
   on now, the found bubbles come off (`remove_fact`), and a restart keeps them
   off (`allowedFacts`). They're in the editor and, one click each, under
   Earlier songs.
+- **Facts took** on the dashboard (`aiTimeFor`, `/health`) is how long the song
+  on now waited for facts when the AI wrote for it, from asking to having them,
+  so waiting its turn behind another song counts. Late bubbles start here. A
+  song the AI didn't write for, or a play from the cache, shows nothing.
+- **Tracks that aren't music** (`not-music.ts`) go the same way with no switch:
+  commercials, station idents and jingles get no Now Playing bubble and only
+  the streamer's own facts. A player reports them like songs and only their
+  words tell them apart, so the rule is narrow: phrases like "fake commercial"
+  or "station ID", a tag alone in brackets like "(Jingle)", an artist field
+  like "Commercials", or, with no artist, a title ending in such a word. A
+  commercial with none of these words still looks like a song; a real song
+  losing its facts is the worse mistake, so the rule stays narrow.
 - **Wrong on the song on now** takes off the bubble and the rest of this play's
   bubbles from the source it blocks (`pulledWithWrong`): the same article, or
   Wikidata and MusicBrainz together.
@@ -1374,7 +1469,9 @@ BubbleFacts data** deletes all of them.
 ### Licenses of the sources
 
 - **Wikipedia** text is CC BY-SA 4.0. Captions are short rewrites, and the
-  site and README ask streamers to credit the sources.
+  site and README ask streamers to credit the sources. A fact about the good
+  an artist does is one sentence as the article wrote it: the credit bubble names
+  Wikipedia, and the dashboard links the article.
 - **Wikidata** data is CC0. **MusicBrainz** core data (recordings, releases,
   works, relationships) is CC0; only those fields are read, never tags or
   annotations, which aren't CC0.

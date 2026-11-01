@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   unlockReady: () => ipcRenderer.send("unlock-ready"),
   testConnection: (channel: string, token: string, kind: string) => ipcRenderer.invoke("test-connection", channel, token, kind),
   testStreamElements: (channel: string, jwt: string) => ipcRenderer.invoke("test-streamelements", channel, jwt),
+  testSharing: (url: string, channel: string, key: string) => ipcRenderer.invoke("test-sharing", url, channel, key),
   chooseNowPlayingFile: () => ipcRenderer.invoke("choose-now-playing-file"),
   saveSettings: (changes: Record<string, unknown>) => ipcRenderer.invoke("save-settings", changes),
   signIn: () => ipcRenderer.invoke("sign-in"),

@@ -27,6 +27,9 @@ describe("the content standard's word lists (issue #242)", () => {
     ["health", "Ines Calloway was diagnosed with cancer during the tour."],
     ["how someone died", "Ronan Vey died in a car crash in 2004."],
     ["how someone died", "Ronan Vey died after a fall from a stage in 2004."],
+    ["put-downs", "The Tinfoil Lanterns' single failed to make the Billboard Hot 100."],
+    ["put-downs", "The album was a commercial failure and sold poorly."],
+    ["put-downs", "One magazine called it Mara Quillon's worst album."],
   ];
 
   it.each(cases)("leaves out a sentence about %s", (label, sentence) => {
@@ -406,5 +409,18 @@ describe("an older version's HTML as plain text", () => {
     expect(htmlToText(html)).toBe(
       "Glass Orchard is a song by Mara Quillon & the Lanterns.\n\n\n=== Strings – and brass ===\nStrings\nBrass\n<b> stays text, and &lt; stays &lt;."
     );
+  });
+});
+
+describe("put-downs stay out, and praise and plain sound words stay in", () => {
+  it.each([
+    "The guitar is panned hard left in the mix.",
+    "The single reached number five on the Billboard Hot 100.",
+    "The album received mixed reviews and went gold.",
+    "Mara Quillon failed to show at rehearsal, so the drummer sang.",
+  ])("keeps %s", (text) => expect(standardBreach(text)).toBeNull());
+
+  it("reads a song's own name as a name", () => {
+    expect(standardBreach("\"Flop\" opens the second side.", ["Flop"])).toBeNull();
   });
 });

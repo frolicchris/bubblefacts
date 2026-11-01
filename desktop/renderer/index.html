@@ -239,7 +239,7 @@
 
       <ul class="lights" aria-label="Status">
         <li id="light-songlist"><span class="dot" aria-hidden="true"></span><span><strong>Songs</strong><em></em><em class="hearing" id="songs-hearing" hidden></em></span></li>
-        <li id="light-ai"><span class="dot" aria-hidden="true"></span><span><strong>Facts</strong><em></em></span></li>
+        <li id="light-ai"><span class="dot" aria-hidden="true"></span><span><strong>Facts</strong><em></em><em class="hearing" id="facts-took" hidden></em></span></li>
         <li id="light-obs"><span class="dot" aria-hidden="true"></span><span><strong>Stream</strong><em></em></span></li>
       </ul>
 
@@ -476,10 +476,11 @@
           <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later.</p>
           <label class="inline"><input name="liveLearnBanner" type="checkbox"> Show a LIVE LEARN bubble during a live learn</label>
           <div class="grid3">
-            <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12"></label>
+            <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12" aria-describedby="s-facts-hint"></label>
             <label>A new bubble every (seconds) <input name="intervalSeconds" type="number" min="3" max="300"></label>
             <label>Each bubble stays up (seconds) <input name="durationSeconds" type="number" min="2" max="120"></label>
           </div>
+          <p class="hint" id="s-facts-hint">BubbleFacts finds up to 4 facts for a song. A higher number makes room for your own, which can go past that.</p>
           <p class="hint" id="s-timing-hint"></p>
           <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
           <select id="s-wrongkey" name="wrongKey">
@@ -524,6 +525,24 @@
           </select>
           <p class="hint">One bubble at a time: a new one replaces the last. After changing the size, right-click the source in OBS and choose <strong>Refresh</strong>.</p>
           <button class="ghost" type="button" data-test-overlay="vertical">Test the vertical overlay in your browser</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Share with other apps</legend>
+          <label class="inline"><input name="shareFacts" type="checkbox" aria-describedby="s-share-hint"> Share song facts with other apps</label>
+          <p class="hint indent" id="s-share-hint">An app that takes song context can use the song's facts to answer chat's questions. Only the song and its facts are sent, to the address you enter here. Off until you turn it on.</p>
+          <div id="s-share-box" class="indent">
+            <label for="s-share-url">Address <span class="hint">the web address the other app gives you, starting with https://</span></label>
+            <input id="s-share-url" name="shareUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://">
+            <label for="s-share-channel">Your channel name</label>
+            <input id="s-share-channel" name="shareChannel" type="text" autocomplete="off" spellcheck="false">
+            <label for="s-share-key">API key <span class="hint">from the other app</span></label>
+            <input id="s-share-key" name="shareKey" type="password" autocomplete="off" spellcheck="false" placeholder="Saved keys stay hidden. Paste to replace.">
+            <div class="toolbar">
+              <button type="button" class="ghost" id="s-share-test">Test connection</button>
+              <span id="s-share-result" class="result" role="status"></span>
+            </div>
+          </div>
         </fieldset>
 
         <fieldset>

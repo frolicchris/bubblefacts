@@ -426,6 +426,10 @@
     else if (switchingQuality() && status.state === "running") setStatusLight("light-ai", "ok", `Ready (${qualityName()}: ${downloadText(state.modelDownload) || "starting"})`);
     else if (status.state === "running") setStatusLight("light-ai", "ok", "Ready");
     else setStatusLight("light-ai", "", "Starting");
+    // How long the AI took for this song: for telling why bubbles came late.
+    const took = $("#facts-took");
+    took.textContent = h && h.factsTook ? h.factsTook : "";
+    took.hidden = !took.textContent;
 
     // Stream
     if (state.paused) setStatusLight("light-obs", "warn", "Bubbles paused");
@@ -478,6 +482,7 @@
     if (!r.song) return "Facts appear here a few seconds after a song starts.";
     if (!r.ready) return "Looking for facts about this song…";
     if (r.song.liveLearn || r.outcome === "liveLearn") return "Live learn: the banner shows. No source knew this request, so no facts.";
+    if (r.outcome === "notMusic") return "This looks like a commercial or station ident, not a song, so no bubbles.";
     if (r.outcome === "factsOff") return "Facts are off for this song or its artist, and you haven't written any of your own for it.";
     if (r.outcome === "generationFailed") return "BubbleFacts couldn't write facts for this song. It tries again the next time it plays.";
     return "No reliable facts for this song, so no bubbles. That's normal: BubbleFacts stays quiet rather than guess. Everything is working.";
@@ -1209,6 +1214,7 @@
     renderMyFacts();
     renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
+    $("#s-share-box").hidden = !form.elements.shareFacts.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
@@ -1318,6 +1324,9 @@
     if (tooLong) return tooLong;
     if (changes.ai === "groq" && !changes.groqKey && !state.settings.groqKeySet) return "Add your Groq key first.";
     if (changes.ai === "anthropic" && !changes.anthropicKey && !state.settings.anthropicKeySet) return "Add your Anthropic key first.";
+    if (changes.shareFacts && !changes.shareUrl) return "Add the address to share with first, or turn sharing off.";
+    if (changes.shareFacts && !changes.shareChannel) return "Add your channel name first, or turn sharing off.";
+    if (changes.shareFacts && !changes.shareKey && !state.settings.shareKeySet) return "Add your API key first, or turn sharing off.";
     const switching = changes.songSource !== state.settings.songSource;
     if (changes.songSource === "nowplaying") {
       if (changes.nowPlayingPreset === "none" && !changes.nowPlayingFile) return "Choose the file your music app writes the song to first.";
@@ -1403,6 +1412,13 @@
   }
 
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
+  form.elements.shareFacts.addEventListener("change", (e) => ($("#s-share-box").hidden = !e.target.checked));
+  $("#s-share-test").addEventListener("click", async () => {
+    const result = $("#s-share-result");
+    setResult(result, "Checking...");
+    const r = await api.testSharing(form.elements.shareUrl.value, form.elements.shareChannel.value, form.elements.shareKey.value);
+    setResult(result, r.ok ? "✓ Connected." : r.reason, r.ok ? "ok" : "bad");
+  });
 
   function showSettingsSource() {
     const source = form.elements.songSource.value;

@@ -5,7 +5,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, Release, testSongList, testStreamElements } from "./checks";
+import { newerRelease, Release, testSharing, testSongList, testStreamElements } from "./checks";
 import { assetName, downloadUpdate, startInstall } from "./updater";
 import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady, Progress } from "./model";
 import { installOverlay, OVERLAY_FILE, VERTICAL_OVERLAY_FILE } from "./overlay";
@@ -18,7 +18,7 @@ import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -164,9 +164,9 @@ function startServer(force = false): void {
 }
 
 function state() {
-  const { token, refreshToken, seJwt, groqKey, anthropicKey, twitchToken, twitchRefreshToken, ...rest } = settings;
+  const { token, refreshToken, seJwt, groqKey, anthropicKey, shareKey, twitchToken, twitchRefreshToken, ...rest } = settings;
   return {
-    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, twitchConnected: !!twitchRefreshToken },
+    settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, shareKeySet: !!shareKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
     // Where the Streamling and Nightbot presets look when Documents isn't in the usual place; empty when it is.
     nowPlayingFolders: presetFoldersShown(),
@@ -669,6 +669,10 @@ handle("test-streamelements", async (_e, channel: string, jwt: string) =>
   logged("StreamElements test", await testStreamElements(String(channel ?? ""), String(jwt ?? "") || settings.seJwt))
 );
 
+handle("test-sharing", async (_e, url: string, channel: string, key: string) =>
+  logged("Sharing test", await testSharing(String(url ?? ""), String(channel ?? ""), String(key ?? "") || settings.shareKey))
+);
+
 /** Choose the text file another app writes the playing song to. The window saves the path with the other settings. */
 handle("choose-now-playing-file", async () => {
   const options = {
@@ -685,7 +689,7 @@ handle("choose-now-playing-file", async () => {
 /** The settings with the window's changes in: a blank secret field keeps the one already saved, and a pasted token replaces the sign-in. */
 function mergeSettings(changes: Partial<Settings>): Settings {
   const next: Settings = sanitize({ ...settings, ...changes });
-  for (const key of ["token", "seJwt", "groqKey", "anthropicKey"] as const) if (!changes[key]) next[key] = settings[key];
+  for (const key of ["token", "seJwt", "groqKey", "anthropicKey", "shareKey"] as const) if (!changes[key]) next[key] = settings[key];
   if (changes.token) Object.assign(next, { tokenKind: "streamer", refreshToken: "", tokenExpiresAt: 0, streamerId: 0 });
   return next;
 }
@@ -718,7 +722,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
 handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
   // The window checks first; this is the backstop, so an over-long fact is never saved.
-  const problem = customFactsProblem(changes);
+  const problem = customFactsProblem(changes) ?? shareUrlProblem(changes);
   if (problem) return { error: problem };
   const previous = settings;
   settings = mergeSettings(changes);

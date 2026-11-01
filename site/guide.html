@@ -292,6 +292,7 @@
             <p>The dashboard shows three lights: <span class="ui">Songs</span>, <span class="ui">Facts</span> and <span class="ui">Stream</span>. To check the overlay any time, click <span class="ui">Show a test bubble</span>. It shows on top of whatever's playing and leaves that song's bubbles alone.</p>
             <p>Under <span class="ui">Songs</span>, a small line says how BubbleFacts hears about your songs: <span class="ui">Hearing your queue live</span> (StreamerSongList) or <span class="ui">Hearing your song requests live</span> (StreamElements) when changes arrive as they happen, <span class="ui">Checking your list every 15 seconds</span> when it has to ask, or <span class="ui">Checking your file every 2 seconds</span> for a now playing file. Either way your songs come through; live is just quicker.</p>
             <p>Few or no facts at first? BubbleFacts may still be getting ready. The dashboard's <span class="ui">Facts</span> light shows how far along it is.</p>
+            <p>Bubbles coming late? Under the <span class="ui">Facts</span> light, <span class="ui">Facts took 45 s</span> says how long the AI needed for the song on now. A long time usually means the computer is busy with the stream.</p>
             <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See <a href="troubleshooting.html">If something goes wrong</a>.</p>
           </div>
         </div>
@@ -367,6 +368,7 @@
               <li>Type your facts, one per box (<span class="ui">Add another fact</span> gives you another box), and click <span class="ui">Save and show</span>. About 160 characters fit in a bubble. A fact can be up to 300 characters, and a song can have up to 20 facts; the editor shows a count as you get close.</li>
             </ol>
             <p id="no-facts">Want no facts at all for a song, or for everything by one artist? Check <span class="ui">No facts for this song</span> or <span class="ui">No facts for this artist</span> in the same place, or click them under <span class="ui">Earlier songs</span> after the song. BubbleFacts then looks nothing up for it, and only your own facts show.</p>
+            <p id="not-music">Playing commercials, station IDs or jingles between songs? BubbleFacts skips a track with no bubbles when its title says what it is, like "Moonbrew Cola (Commercial)", "(Jingle)" or "Station ID", or when its artist is "Commercials". A track without those words looks like any song, so add one to its title in your music player, or use the switches above.</p>
             <p>Every song you've done this for is listed in <span class="ui">Settings</span>, under <span class="ui">Songs with their own facts</span>, with <span class="ui">Edit</span> and <span class="ui">Remove</span>.</p>
             <p>If the song is still playing, they show right away. Either way, they show exactly as you wrote them every time that song plays. On the dashboard, each fact says where it came from, so you can tell your own from Wikipedia's. Click a Wikipedia source to see the sentence the fact was written from, and to open the article.</p>
 
@@ -375,9 +377,18 @@
               <li><strong>Bubbles covering your camera or keyboard?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Where bubbles appear</span> to the top, bottom, left or right. To have every bubble show in the same place, choose one spot, like <span class="ui">Top right</span> or <span class="ui">Bottom center</span>: each new bubble replaces the last one there. For anything finer, resize and move the BubbleFacts source in OBS.</li>
               <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>.</li>
               <li><strong>Want viewers to know where the facts come from?</strong> <span class="ui">Now and then, show where the facts come from</span> is on to start with. It adds one extra bubble when the first song's facts start, then about every 5 songs, for viewers who join later. To hide it, uncheck it in <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>.</li>
+              <li><strong>More facts per song?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Facts per song</span>. BubbleFacts finds up to 4 facts for a song, so a higher number only adds bubbles when you've <a href="#song-facts">written your own</a>. Your own facts can go past 4, up to the number you set.</li>
               <li><strong>Already show the song yourself?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, turn off <span class="ui">Show a Now Playing bubble when a song starts</span>. Fact bubbles stay.</li>
             </ul>
 
+            <h3 id="share-facts">Share song facts with other apps</h3>
+            <p>An app that takes song context can use the song's facts to answer chat's questions.</p>
+            <ol>
+              <li>Get the web address and an API key from the other app.</li>
+              <li>In BubbleFacts, open <span class="ui">Settings</span> and turn on <span class="ui">Share song facts with other apps</span>.</li>
+              <li>Enter the address and your channel name, paste the key, click <span class="ui">Test connection</span>, then save.</li>
+            </ol>
+            <p>Only the song and its facts are sent, and it's off until you turn it on. Pausing bubbles pauses sharing too. See the <a href="privacy.html">privacy page</a>.</p>
             <h3 id="backups">Your facts are backed up</h3>
             <ul>
               <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in, your keys or which AI writes your facts. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>

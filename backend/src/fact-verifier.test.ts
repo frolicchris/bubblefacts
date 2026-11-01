@@ -9,9 +9,19 @@ jest.mock("./config", () => ({
 }));
 
 import {
+  droppedFrame,
+  droppedLimit,
+  movedChartDetail,
+  turnedRound,
+  unnamedChart,
   companyHistory,
   unresolvedPronoun,
   screenClaims,
+  leftBehindReferent,
+  repairScope,
+  workMatchConfidence,
+  mergedClauses,
+  otherRecordingSection,
   numberedReference,
   referenceSentences,
   parseCitation,
@@ -2564,5 +2574,195 @@ describe("companyHistory", () => {
     );
     expect(rejected.map((r) => r.reason)).toEqual(["a company's business, not the music"]);
     expect(kept).toEqual(["The game's music was composed by Ada Penn."]);
+  });
+});
+
+describe("captions that lean on the sentence around them", () => {
+  const titles = ["Paper Lanterns", "Moth Hour"];
+  it("drops a count that points at a sentence not on screen", () => {
+    expect(leftBehindReferent("Jo Vance's \"Hello\" held it off the top for the first of these three weeks.", titles)).toBe("these three weeks");
+    expect(leftBehindReferent("A rival single held it off the top for the next two weeks.", titles)).toBe("the next two weeks");
+  });
+  it("keeps a period the caption itself sets up", () => {
+    expect(leftBehindReferent("Paper Lanterns spent three weeks at number one.", titles)).toBeNull();
+    expect(leftBehindReferent("It was recorded over the last two days of March.", titles)).toBeNull();
+  });
+  it("drops a dated recording nobody performs", () => {
+    expect(leftBehindReferent("The 1937 recording lasted 8 minutes.", titles)).toBe("The 1937 recording");
+    expect(leftBehindReferent("The 1937 recording by Jo Vance lasted 8 minutes.", titles)).toBeNull();
+  });
+  it("drops a sales total with no product", () => {
+    expect(leftBehindReferent("By March 2017, total sales reached 1.3 million copies.", titles)).toBe("total sales");
+    expect(leftBehindReferent("By March 2017, total sales of Paper Lanterns reached 1.3 million.", titles)).toBeNull();
+  });
+  it("drops a film nobody names, unless the request is that film", () => {
+    expect(leftBehindReferent("Bo Lind shot the film in ten days.", titles)).toBe("the film");
+    expect(leftBehindReferent("The film was shot in ten days.", ["Paper Lanterns"], ["Paper Lanterns"])).toBeNull();
+    expect(leftBehindReferent("Bo Lind shot the film \"Moth Hour\" in ten days.", titles)).toBeNull();
+  });
+});
+
+describe("two statements told as one", () => {
+  const context = "Lamp Street\nLamp Street is a band. It was formed in 1976 by Ann Roe and Bo Lind, who formed a production and songwriting team known as Roe & Lind. Roe began her career in 1963, after forming the group Sparrows with Cy Hale.";
+  it("drops a year from the other clause", () => {
+    expect(mergedClauses("Ann Roe and Bo Lind formed a production and songwriting team in 1976.", context)).toBe("1976");
+    expect(mergedClauses("Roe formed the group Sparrows with Cy Hale in 1963.", context)).toBe("1963");
+  });
+  it("keeps a caption that stays in one clause", () => {
+    expect(mergedClauses("Ann Roe and Bo Lind formed a production and songwriting team.", context)).toBeNull();
+    expect(mergedClauses("Roe began her career in 1963.", context)).toBeNull();
+  });
+});
+
+describe("a section about another recording", () => {
+  const context = "Moth Hour\n\"Moth Hour\" is a song by Lamp Street.\n\nBo Lind version: It was the second of two singles from his LP.\n\nB-sides: \"Tin Cup\" was played live a few times during 2004.\n\nLamp Street version: It was their first hit single in Norway.";
+  it("drops what the heading makes another recording's", () => {
+    expect(otherRecordingSection("\"Moth Hour\" was the second of two singles from his LP.", context, ["lamp street"])).toBe("Bo Lind version");
+    expect(otherRecordingSection("\"Tin Cup\" was played live a few times during 2004.", context, ["lamp street"])).toBe("B-sides");
+  });
+  it("keeps the requested artist's own section and a caption naming the performer", () => {
+    expect(otherRecordingSection("\"Moth Hour\" was their first hit single in Norway.", context, ["lamp street"])).toBeNull();
+    expect(otherRecordingSection("Bo Lind's version was the second of two singles from his LP.", context, ["lamp street"])).toBeNull();
+  });
+});
+
+describe("what a retelling must keep", () => {
+  it("keeps partial credit and being credited", () => {
+    const context = "Moth Hour\nDrums were provided in part by Cy Hale on the recording. The band is credited with advancing the sound of folk rock.";
+    expect(droppedHedge("Drums were provided by Cy Hale on the recording.", context)).toBe("in part");
+    expect(droppedHedge("The band advanced the sound of folk rock.", context)).toBe("is credited with");
+  });
+  it("keeps both halves of a pair", () => {
+    const context = "Moth Hour\nMore than a thousand recordings were released by jazz and pop musicians around the world.";
+    expect(lostQualifier("More than a thousand recordings were released by jazz musicians.", context)).toContain("pop");
+    expect(lostQualifier("More than a thousand recordings were released by jazz and pop musicians.", context)).toBeNull();
+  });
+  it("keeps a comparison", () => {
+    const context = "Moth Hour\nThe album stayed at number one for longer than any record for 13 years.";
+    expect(lostQualifier("The album stayed at number one for 13 years.", context)).toBe("drops what it's compared with");
+  });
+  it("does not lift the tail of a quote with no speaker", () => {
+    const context = "Moth Hour\nAnn Roe said \"It is a letter home. In essence, a reminder of what the road can do to a person.\"\n\nThe band toured Norway that spring.";
+    expect(lostQualifier("In essence, a reminder of what the road can do to a person.", context)).toBe("someone's words, without who said them");
+  });
+  it("does not swap in another edition", () => {
+    const context = "Moth Hour\nExe:Dawn[st] came out in 2017. Halo Works later published this version on Steam in 2018. Exe:Dawn[cl] was nominated at the Game Awards.";
+    expect(lostQualifier("Halo Works published Exe:Dawn on Steam in 2018.", context)).toBe("doesn't say which version");
+    expect(lostQualifier("Exe:Dawn was nominated at the Game Awards.", context)).toContain("cuts another edition");
+  });
+  it("puts back a region that opens the sentence", () => {
+    const context = "Moth Hour\nSales: In the United States, Moth Hour sold 620,000 copies by August 2006.";
+    expect(repairScope("Moth Hour sold 620,000 copies by August 2006.", context)).toBe("In the United States, Moth Hour sold 620,000 copies by August 2006.");
+  });
+});
+
+describe("a remake's article for the original's track", () => {
+  it("is unsure, so no AI captions", () => {
+    const grounding = "Orbit: Reforged\nOrbit: Reforged is a 2026 action game. It is a remake of Orbit: First Light, released in 2001, with new visuals.";
+    expect(workMatchConfidence({ title: "Starfall", artist: "Orbit: First Light" } as never, grounding).level).toBe("unsure");
+  });
+});
+
+describe("captions that lose their context", () => {
+  it("keeps whose account it is", () => {
+    const context = "Paper Moons\n\"Paper Moons\" is a song by Tin Sail. According to Dale Hart, the song was written as a result of a quarrel with his brother.";
+    expect(droppedFrame("Dale Hart wrote the song as a result of a quarrel with his brother.", context)).toBe("according to Dale Hart");
+    expect(droppedFrame("Dale Hart said the song came from a quarrel with his brother.", context)).toBeNull();
+  });
+
+  it("keeps the work a sentence opens on", () => {
+    const context = "Lena Moss\nLena Moss appears across the series. In Night Harbor Returns, Lena's ghost is seen as a face in the window, an effect made with a mirror.";
+    expect(droppedFrame("Lena's ghost is seen as a face in the window.", context)).toBe("Night Harbor Returns");
+    expect(droppedFrame("In Night Harbor Returns, Lena's ghost is seen as a face in the window.", context)).toBeNull();
+    expect(droppedFrame("Lena's ghost is seen as a face in the window.", context, ["Night Harbor Returns"])).toBeNull();
+  });
+
+  it("leaves a place that opens a sentence to the scope repair", () => {
+    const context = "Moth Hour\nIn Nashville, Moth Hour was recorded over three days in a converted barn.";
+    expect(droppedFrame("Moth Hour was recorded over three days in a converted barn.", context)).toBeNull();
+  });
+
+  it("keeps a moment the sentence before set", () => {
+    const context = "Moth Hour\nLater shows: By this era the touring band was using four backing singers.";
+    expect(droppedFrame("The touring band used four backing singers.", context)).toBe("By this era");
+    expect(droppedFrame("By 1998 the touring band used four backing singers.", context)).toBeNull();
+  });
+
+  it("keeps a limit that points back", () => {
+    const context = "Moth Hour\nIt set a record on the Alt Songs chart. It was the second-most played song of the 2010s decade on the format.";
+    expect(droppedLimit("\"Moth Hour\" was the second-most played song of the 2010s decade.", context)).toBe("on the format");
+    expect(droppedLimit("\"Moth Hour\" was the second-most played song of the 2010s decade on the format.", context)).toBeNull();
+  });
+
+  it("keeps a remake or an adaptation", () => {
+    const context = "Moth Hour\nThe song was featured in the 2019 film adaptation, performed by Ana Bell and Rui Costa.";
+    expect(droppedLimit("The song was performed by Ana Bell and Rui Costa in 2019.", context)).toBe("film adaptation");
+    expect(droppedLimit("In the 2019 film adaptation, the song was performed by Ana Bell and Rui Costa.", context)).toBeNull();
+  });
+
+  it("keeps who a ranking is from", () => {
+    const context = "Snow Bells\nIt was among the top 25 most-performed holiday songs written by ASCAP members.";
+    expect(droppedLimit("\"Snow Bells\" is one of the top 25 most-performed holiday songs.", context)).toBe("by ASCAP");
+  });
+
+  it("keeps \"respectively\" with a pair of records", () => {
+    const context = "Tin Sail\nThe band found success, with Lanterns and Blue Door certified platinum six times and gold in the United States, respectively.";
+    expect(droppedLimit("Lanterns and Blue Door were certified platinum six times in the United States.", context)).toBe("respectively");
+    expect(droppedLimit("Blue Door was certified gold in the United States.", context)).toBeNull();
+  });
+
+  it("keeps a pairing, and someone else's version", () => {
+    const pair = "Moth Hour\nThe song was the theme for the Night Slam match between Ana Bell and Rui Costa.";
+    expect(droppedLimit("The song was the theme for the Night Slam match.", pair)).toBe("between Ana Bell and Rui Costa");
+    const cover = "Moth Hour\nThe song has been covered often, with a 2001 version recorded by Ana Bell that reached number one in the UK for three weeks.";
+    expect(droppedLimit("\"Moth Hour\" reached number one in the UK for three weeks.", cover)).toBe("version recorded by Ana Bell");
+    expect(droppedLimit("\"Moth Hour\" reached number one in the UK for three weeks.", cover, ["Ana Bell"])).toBeNull();
+  });
+
+  it("keeps \"this\" from turning into \"the\"", () => {
+    const context = "Moth Hour\nRui Costa kept the chords but wrote a new bridge. This arrangement is documented on a 1950 broadcast recording in Chicago.";
+    expect(droppedFrame("The arrangement is documented on a 1950 broadcast recording in Chicago.", context)).toBe("This arrangement");
+  });
+
+  it("catches an event swapped for the sentence's own", () => {
+    const context = "Moth Hour\nHer performance at the Mercury Prize in 2007 was included on the soundtrack. She later won at the Brit Awards.";
+    expect(turnedRound("Her performance at the Brit Awards was included on the soundtrack.", context)).toBe("Brit Awards");
+  });
+
+  it("drops a span moved to another chart of the run", () => {
+    const context = "Moth Hour\n\"Moth Hour\" reached number one on the Billboard Hot 100, topped the Billboard Hot Soul Singles chart within three weeks, and became her fastest-rising hit.";
+    expect(movedChartDetail("\"Moth Hour\" reached number one on the Billboard Hot 100 chart within three weeks.", context)).toBe("within three weeks");
+    expect(movedChartDetail("\"Moth Hour\" reached number one on the Billboard Hot 100.", context)).toBeNull();
+  });
+
+  it("wants a chart for a chart claim", () => {
+    expect(unnamedChart("\"Moth Hour\" was the top new entry for the week of 1-7 October.")).toBe("top new entry");
+    expect(unnamedChart("\"Moth Hour\" reached number 4 on the UK Singles Chart.")).toBeNull();
+  });
+
+  it("catches a statement turned round", () => {
+    const context = "Moth Hour\nCritic Sam Ortiz praised the song. He compared Vale's vocals to those of Rui Costa.";
+    expect(turnedRound("Ana Vale compared her vocals to those of Rui Costa.", context)).toBe("Vale");
+    const speaking = "Moth Hour\nIn June 2025, Rob Lane confirmed to Sound Weekly that a script for a sequel is still being worked on.";
+    expect(turnedRound("A script for a sequel is still being worked on by Rob Lane.", speaking)).toBe("Lane");
+  });
+
+  it("leaves a passive told as active alone", () => {
+    const context = "Orbit\nOrbit is a game developed by Lumen Works in 2004.";
+    expect(turnedRound("Lumen Works developed Orbit.", context)).toBeNull();
+  });
+
+  it("wants what the bubble points at named", () => {
+    expect(leftBehindReferent("Tin Sail got wide support after the incident.", ["Tin Sail"])).toBe("the incident");
+    expect(leftBehindReferent("All three faces were on the earlier singles.", ["Moth Hour"])).toBe("All three faces");
+    expect(leftBehindReferent("All songs were written by Ana Bell.", ["Moth Hour"])).toBe("All songs");
+    expect(leftBehindReferent("All songs on \"Blue Door\" were written by Ana Bell.", ["Moth Hour"])).toBeNull();
+    expect(leftBehindReferent("Rui Costa recorded the same arrangement in 1951.", ["Moth Hour"])).toBe("the same arrangement");
+  });
+
+  it("doesn't take a bandleader's name for a film", () => {
+    const context = "Big Lou (musician)\nBig Lou is a trombonist and bandleader from Mobile.";
+    expect(leftBehindReferent("Big Lou performed with a guest in the film.", ["Big Lou"], [], context)).toBe("the film");
+    expect(leftBehindReferent("Big Lou was shot in the film.", ["Big Lou"], [], "Big Lou\nBig Lou is a 1990 film.")).toBeNull();
   });
 });

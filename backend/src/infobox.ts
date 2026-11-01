@@ -334,6 +334,11 @@ export function boxYear(box: Infobox): string | null {
   return earliestYear(f.released ?? f.published ?? f.composed ?? f.year);
 }
 
+/** The single before or after this one in a song's infobox, or null when it names none. */
+export function boxNeighbor(box: Infobox, side: "prev" | "next"): string | null {
+  return items(box.fields[`${side} title`] ?? "")[0]?.replace(/^["“]|["”]$/g, "") ?? null;
+}
+
 /**
  * The year the album a song's infobox links to came out, from that album's own
  * infobox, or null. A song first out on an album and released as a single later

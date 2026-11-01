@@ -1,5 +1,8 @@
-import { compareVersions, newerRelease, testStreamElements } from "./checks";
+import http from "http";
+import { AddressInfo } from "net";
+import { compareVersions, newerRelease, testSharing, testStreamElements } from "./checks";
 
+const realFetch = global.fetch;
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 const LONG_AGO = "2026-01-01T00:00:00Z";
@@ -124,5 +127,57 @@ describe("testStreamElements", () => {
     // An answer that isn't JSON.
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => JSON.parse("<html>") });
     await expect(testStreamElements("jane", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/StreamElements sent an answer BubbleFacts can't read/) });
+  });
+});
+
+describe("testSharing", () => {
+  const key = "made-up-key-12345";
+  let status = 200;
+  let received: { auth?: string; body: { eventType: string; data: Record<string, unknown> } } | undefined;
+  const standIn = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      received = { auth: req.headers.authorization, body: JSON.parse(raw) };
+      res.statusCode = status;
+      res.end();
+    });
+  });
+  let url = "";
+
+  beforeAll(async () => {
+    global.fetch = realFetch;
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
+    url = `http://127.0.0.1:${(standIn.address() as AddressInfo).port}/v1/events`;
+  });
+  afterAll(() => new Promise((resolve) => { standIn.closeAllConnections(); standIn.close(resolve); }));
+  beforeEach(() => {
+    status = 200;
+    received = undefined;
+  });
+
+  it("asks for what's missing without calling out", async () => {
+    await expect(testSharing(url, "", key)).resolves.toMatchObject({ reason: expect.stringMatching(/channel name/) });
+    await expect(testSharing(url, "madeupchannel", " ")).resolves.toMatchObject({ reason: expect.stringMatching(/API key/) });
+    await expect(testSharing("http://share.example.com/events", "madeupchannel", key)).resolves.toMatchObject({ reason: expect.stringMatching(/https/) });
+    expect(received).toBeUndefined();
+  });
+
+  it("checks the key with empty content, so no song or fact is sent", async () => {
+    await expect(testSharing(url, "@madeupchannel", ` ${key} `)).resolves.toEqual({ ok: true });
+    expect(received?.auth).toBe(`Bearer ${key}`);
+    expect(received?.body).toEqual({ eventType: "INTEGRATION_STATE", data: { channelName: "madeupchannel", sourceId: "bubblefacts", content: "" } });
+  });
+
+  it("explains a refused key plainly, without the key", async () => {
+    status = 401;
+    const r = await testSharing(url, "madeupchannel", key);
+    expect(r).toMatchObject({ ok: false, reason: expect.stringMatching(/didn't accept/) });
+    expect(JSON.stringify(r)).not.toContain(key);
+  });
+
+  it("keeps a server error's code for the log", async () => {
+    status = 503;
+    await expect(testSharing(url, "madeupchannel", key)).resolves.toMatchObject({ ok: false, detail: "HTTP 503" });
   });
 });

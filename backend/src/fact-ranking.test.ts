@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { Candidate, FLOOR, MAX_BUBBLES, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
 
 // Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls).
@@ -185,5 +187,15 @@ describe("another song named on the artist's article (namesOtherSong)", () => {
     // Not the artist's article: untouched.
     expect(rankFacts(list, { title: "Velvet Harbor" })).toHaveLength(4);
     expect(rankFacts(list, { artistArticle: true, title: "Velvet Harbor" }).map((c) => c.text)[0]).not.toBe(otherA.text);
+  });
+});
+
+describe("the Facts per song setting", () => {
+  it("tells the streamer where found facts stop", () => {
+    const page = fs.readFileSync(path.join(__dirname, "..", "..", "desktop", "renderer", "index.html"), "utf8");
+    const hint = page.match(/<p class="hint" id="s-facts-hint">([^<]*)<\/p>/)?.[1] ?? "";
+    expect(hint).toContain(`up to ${MAX_BUBBLES} facts`);
+    expect(hint).toContain("your own");
+    expect(page).toMatch(/name="factsPerSong"[^>]*aria-describedby="s-facts-hint"/);
   });
 });
