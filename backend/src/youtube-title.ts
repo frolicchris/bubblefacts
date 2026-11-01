@@ -6,7 +6,7 @@
  *
  * The "artist" is whatever the song comes from, as on a StreamerSongList
  * list: a performer, a composer, or a game or film for soundtrack music.
- * `resolveGameAndTrack` in fact-verifier.ts reads it the same way.
+ * `resolveGameAndTrack` in grounding.ts reads it the same way.
  *
  * Everything here is deterministic string work. When a title can't be read
  * with confidence, the cleaned title is kept whole and the artist comes from
