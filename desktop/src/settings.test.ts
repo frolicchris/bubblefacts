@@ -314,6 +314,12 @@ describe("toServerEnv", () => {
       expect(toServerEnv({ ...DEFAULTS, bubbleArea: spot }, paths).BUBBLE_AREA).toBe(spot);
     }
     expect(sanitize({ ...DEFAULTS, bubbleArea: "center" as "left" }).bubbleArea).toBe("anywhere");
+    // The vertical overlay's own choices (issue #175), apart from the landscape ones.
+    expect(toServerEnv(DEFAULTS, paths).VERTICAL_AREA).toBe("top");
+    expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left", verticalArea: "above-chat" }, paths)).toMatchObject({ BUBBLE_AREA: "left", VERTICAL_AREA: "above-chat" });
+    expect(sanitize({ ...DEFAULTS, verticalArea: "left" as "top" }).verticalArea).toBe("top");
+    expect(sanitize({ ...DEFAULTS, verticalBubbleSize: "huge" as "large" }).verticalBubbleSize).toBe("standard");
+    expect(fromWindow({ verticalArea: "above-chat", verticalBubbleSize: "larger" })).toEqual({ verticalArea: "above-chat", verticalBubbleSize: "larger" });
     // Setup asks new installs where bubbles go; someone already set up keeps their spot, or Anywhere.
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", bubbleArea: "right" }));
     expect(loadSettings().bubbleArea).toBe("right");

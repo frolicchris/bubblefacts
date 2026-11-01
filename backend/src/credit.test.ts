@@ -72,6 +72,11 @@ describe("the credit bubble's content", () => {
     expect(CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts");
   });
 
+  it("takes the song's first vertical spot on the vertical overlay (issue #175)", () => {
+    const vertical = { top: "15%" };
+    expect(planCredit(new CreditCounter(), facts, { ...air, vertical }).credit).toMatchObject({ position, vertical });
+  });
+
   it("moves the song's facts after it without changing them or adding to them", () => {
     const planned = withCredit(facts, position);
     expect(planned.facts.map((f) => f.text)).toEqual(["One.", "Two."]);
