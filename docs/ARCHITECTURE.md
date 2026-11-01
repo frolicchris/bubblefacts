@@ -454,7 +454,8 @@ model is asked.
    sample, a borrowed instrument, what inspired it) count +2; a first or a
    record +1, only when the source sentence says the same word (one it
    doesn't say counts -2: a caption never upgrades a claim); a relatable fact
-   about a person (an age, a hometown, teaching themselves) +1; awards,
+   about a person (an age, a hometown, teaching themselves) +1; what an artist
+   gave (see "Facts about the good an artist does") +2; awards,
    charts, sales and release details -1. Highest first; among equals, data
    facts and lead captions, then the writer's order. On an artist's or a
    game's article the song's own data facts still lead.
@@ -523,6 +524,73 @@ and a caption from it is kept only with the artist's name and those words
 
 There is no setting: the standard is always on for sourced captions. The
 streamer's own facts are theirs and are never checked.
+
+### Facts about the good an artist does
+
+Bubbles celebrate the artist: benefit shows and charity, disaster relief and
+money raised, movements, music education, mentoring,
+preserving music, community work, roles such as goodwill ambassador or union
+officer, musicians' rights, the environment, open sharing, and public honors.
+There is no setting. At most one goes with a song. It never takes a song fact's
+place: it needs a free slot among the data facts (`rankedData`), and on a song
+with an article it sits beyond the data facts' room, so at worst it takes the
+last caption's bubble. Within the bubbles shown, `rankFacts` orders it like any
+other.
+
+**Sources** (`artist-good.ts`, `artistGoodFromEntity` in `wikidata.ts`):
+
+- **Wikidata**, one template per statement: movement (P135), a cause position (P39), a
+  benefit show (P1344), a musicians' body (P463), students (P802) and up to two
+  lifetime honors (P166). Competitive categories ("Grammy Award for Best ...")
+  are left out: they are the dull ones and a song's own item already has them.
+- **The artist's Wikipedia article**: one sentence, as written, no AI, and only
+  if it has the shape of a checkable act (`ACTS`): founded an organization,
+  donated to, performed at or headlined a benefit, was named or appointed to a
+  role, taught, gave a masterclass, co-founded, led or took part in a named
+  music or arts movement ("the Example art movement", "Example, a musical movement"; a
+  described "consciousness movement" and any other movement fail, since no list can
+  name every political one), received an honor in an honors section, or a
+  thing was named after them. This is an allow-list because block-lists leak:
+  "supported", "opposed", "backed", "lobbied" and "has been involved in" say
+  where someone stands on any subject, and fail by not matching. Its subject must
+  plainly be the artist. A leading "She" becomes the artist's name, only at the
+  start of a paragraph or right after a sentence about them. A closing clause
+  may be cut to fit a bubble; nothing is added.
+
+**Same names.** The artist comes from the surely matched article, never from a
+name search: that article's own item when it is the performer, else the
+performer (P175) the song's item names (`sureArtist`). No sure match, no fact.
+
+**Left out as noise:** who an artist influenced (an opinion, unless someone says
+so by name), who founded what by Wikidata's "founded by" and things "named
+after" someone (both need a full-text search Wikidata rate-limits hard), and
+prison shows (the content standard's crime list blocks them, and stays as it is).
+
+**Neutral wording** (`neutral-wording.ts`, every rule in one file). Advocacy and
+politics are tied together, so the line is drawn by how a fact is told, the way
+plain news does, not by topic:
+
+- State the public act someone can check, not its merit: what the artist did and
+  for whom. "Performed at a benefit for X", "co-founded Y", "named a goodwill
+  ambassador".
+- No judging words ("champion of", "stood up to", "controversial"), no claim that
+  a cause is right or wrong, and no motive ("because", "commitment to").
+- Out whatever the wording: candidates, parties, elections, endorsements, and
+  whatever reads as taking a side in a contested fight. Naming the side counts,
+  so a petition, an open letter or a boycott stays out too, except about
+  musicians' own pay and rights.
+- For someone living, no sums of money, and no undated "is a patron": "became a
+  patron in 1999" is an act, with a date to check it by.
+
+Why: a viewer of any politics should enjoy these bubbles, and a bubble naming a
+side makes the streamer look as if they took it. The content standard comes
+first and isn't loosened: a cause on one of its lists stays out, and for these
+facts an identity word counts even inside a name (`namesIdentity`). Every AI
+caption is also screened for the judging words, and one written from an artist's
+article for motives too (`loadedCaption`). Captions don't get the wider list for
+these facts: "causes" is everyday in a sentence about a song. The prompt
+asks for the act when the reference is an artist's article (`NEUTRAL_PROMPT`).
+Word lists only, like the content standard: a miss keeps a fact off the stream.
 
 ### Notes, switches and Wrong
 
@@ -1393,7 +1461,9 @@ BubbleFacts data** deletes all of them.
 ### Licenses of the sources
 
 - **Wikipedia** text is CC BY-SA 4.0. Captions are short rewrites, and the
-  site and README ask streamers to credit the sources.
+  site and README ask streamers to credit the sources. A fact about the good
+  an artist does is one sentence as the article wrote it: the credit bubble names
+  Wikipedia, and the dashboard links the article.
 - **Wikidata** data is CC0. **MusicBrainz** core data (recordings, releases,
   works, relationships) is CC0; only those fields are read, never tags or
   annotations, which aren't CC0.

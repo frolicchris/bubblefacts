@@ -33,6 +33,7 @@ jest.mock("./wikidata", () => ({
   articleItem: jest.fn().mockResolvedValue(null),
   songItemFacts: actual("./wikidata", "songItemFacts"),
 }));
+jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]) }));
 jest.mock("./musicbrainz", () => ({
   musicbrainzFacts: jest.fn().mockResolvedValue([]),
   artistByTitle: jest.fn().mockResolvedValue(""),
@@ -63,6 +64,7 @@ import { Fact } from "./types";
 import { BoxSubject } from "./infobox";
 import { fetchGrounding } from "./fact-verifier";
 import { articleItem, artistFacts, wikidataFacts } from "./wikidata";
+import { artistGoodFacts } from "./artist-good";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
 import { SSLQueueItem, SSLSong } from "./types";
 
@@ -499,6 +501,23 @@ describe("generateFacts", () => {
     expect(prompt.indexOf("EXAMPLES")).toBeLessThan(prompt.indexOf('"""'));
   });
 
+  it("drops a loaded caption anywhere, and a motive only on an artist's article", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const loaded = "Mira Vale was a tireless voice for the harbor towns.";
+    const motive = "Mira Vale played the harbor towns because of her father.";
+    const log = console.log as unknown as jest.Mock;
+    log.mockClear();
+    const drops = () => log.mock.calls.filter(([line]) => String(line) === "[Screen] DROP (loaded wording)").length;
+    mockCreate.mockResolvedValue(reply([loaded, motive].join("\n")));
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Mira Vale\nMira Vale is an American singer.\n${loaded}\n${motive}`);
+    await generateFacts({ title: "Velvet Harbor", artist: "Mira Vale" });
+    expect(drops()).toBe(2);
+    log.mockClear();
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Plain Tune (song)\n"Plain Tune" is a song.\n${loaded}\n${motive}`);
+    await generateFacts({ title: "Plain Tune", artist: "Someone" });
+    expect(drops()).toBe(1);
+  });
+
   it("asks for the artist as the subject of a caption about another song, only on an artist's article", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Mira Vale\nMira Vale is an American singer.\n${MODEL_LINES}`);
@@ -830,6 +849,40 @@ describe("data facts from the matched article's own item, with no AI (issue #256
     expect(facts.map((f) => [f.text, f.source])).toEqual([['"Harbor Lights" came out in 2004 and appears on Paper Boats. Its genres include dream pop.', SOURCE.wikidata]]);
     expect(articleItem).toHaveBeenCalledWith("Harbor Lights (Velvet Lark song)", ["velvet lark"], ["Harbr Lights (2004)", "Harbr Lights"]);
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  describe("the good the artist did", () => {
+    const good = { text: "Velvet Lark founded the Lantern Foundation.", page: "Velvet Lark" };
+    afterEach(() => {
+      (artistGoodFacts as jest.Mock).mockReset().mockResolvedValue([]);
+      (wikidataFacts as jest.Mock).mockReset().mockResolvedValue([]);
+      clearFactCache();
+    });
+
+    it("takes a free slot, linked to the artist's article, and rests on the sure article", async () => {
+      (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+      (artistGoodFacts as jest.Mock).mockResolvedValue([good]);
+      const facts = await generateFacts({ title: "Harbor Lights", artist: "Velvet Lark" });
+      expect(artistGoodFacts).toHaveBeenCalledWith("Harbor Lights (Velvet Lark song)", ["velvet lark"]);
+      const fact = facts.find((f) => f.text === good.text);
+      expect(fact?.source).toBe("Wikipedia: Velvet Lark");
+      expect(fact?.url).toBe("https://en.wikipedia.org/wiki/Velvet_Lark");
+    });
+
+    it("never takes a song fact's place when the bubbles are full", async () => {
+      (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
+      const songFacts = ['"Harbor Lights" came out in 2004.', '"Harbor Lights" was written by Ada Penn.', '"Harbor Lights" was produced by Bo Sample.', '"Harbor Lights" made the Ashford Chart.'];
+      (wikidataFacts as jest.Mock).mockResolvedValue(songFacts);
+      (artistGoodFacts as jest.Mock).mockResolvedValue([{ ...good, text: "Velvet Lark donated to charity." }]);
+      const facts = await generateFacts({ title: "Harbor Lights", artist: "Velvet Lark" });
+      expect(facts.map((f) => f.text).sort()).toEqual([...songFacts].sort());
+    });
+
+    it("looks nothing up without a sure article", async () => {
+      (fetchGrounding as jest.Mock).mockResolvedValue("");
+      await generateFacts({ title: "Harbor Lights", artist: "Velvet Lark" });
+      expect(artistGoodFacts).not.toHaveBeenCalled();
+    });
   });
 
   it("adds only what MusicBrainz didn't say, and shows neither year when Wikidata's is earlier", async () => {

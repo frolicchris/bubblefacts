@@ -40,7 +40,7 @@ export interface Candidate {
 }
 
 /** The kind of fact a bubble tells, so a song mixes them. */
-export type Hook = "picture" | "making" | "first" | "person" | "award" | "release" | "plain";
+export type Hook = "picture" | "making" | "first" | "person" | "good" | "award" | "release" | "plain";
 
 export interface Ranked extends Candidate {
   /** Why the source is risky to retell (empty for a data fact or a safe caption). */
@@ -126,6 +126,9 @@ const PERSON =
 /** Awards, charts and sales: dull to most viewers and easy to get wrong. */
 const AWARD =
   /\b(?:chart(?:ed|s)?|peaked|number (?:one|\d+)|no\. ?\d+|top (?:\d+|ten|forty)|billboard|hot 100|certified|platinum|gold|awards?|awarded|nominat\w+|grammys?|won|sold|sales|copies|ranked|ranking)\b|#\d+/i;
+/** What an artist gave: charity, teaching, a founding, a movement, a lifetime honor, a thing named for them. */
+const GOOD =
+  /\b(?:charit(?:y|ies|able)|philanthrop\w+|humanitarian|ambassador|benefit concerts?|telethon|raised (?:over|more than|\$)|donat(?:ed|ions?)|scholarships?|masterclass\w*|mentor(?:ed|s)?|(?:co-?)?founded (?:the|an?)|Hall of Fame|Medal of|movement|royalties|conservation|preserv\w+|Creative Commons|free downloads?|statue|named (?:after|for)|asteroid)\b/i;
 /** Release dates, labels and formats. */
 const RELEASE = /\b(?:released (?:on|in|as|by|through|via)|re-?released|reissued|record label|label|catalog(?:ue)? number|b-side|vinyl|cassette|digital download)\b/i;
 
@@ -153,9 +156,10 @@ export function interest(text: string, sentence = text): { score: number; hook: 
     else add("plain", -2, "a first or a record the source doesn't state");
   }
   if (PERSON.test(text)) add("person", 1, "a relatable fact about a person");
+  if (GOOD.test(text)) add("good", 2, "what the artist gave");
   if (AWARD.test(text)) add("award", -1, "awards, charts or sales");
   if (RELEASE.test(text)) add("release", -1, "release details");
-  const order: Hook[] = ["picture", "making", "first", "person", "award", "release"];
+  const order: Hook[] = ["picture", "making", "first", "person", "good", "award", "release"];
   const hook = order.find((h) => kinds.includes(h)) ?? "plain";
   return { score, hook, reasons };
 }
