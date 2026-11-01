@@ -25,8 +25,12 @@ const HONOR = /\b(Hall of Fame|Medal|Order of|Knight\w*|Dame|Kennedy Center|Priz
 const SCHOOL = /\b(conservator\w+|universit\w+|colleges?|schools?|academ\w+)\b/i;
 const PRESERVED = /\b(traditional (?:songs?|music|tunes?)|folk songs|field recordings|endangered languages?|archives?|archival|recordings)\b/i;
 const NEW_ARTISTS = /\b(young|emerging|new|newer|up-and-coming) (?:musicians|artists|composers|bands)\b/i;
-/** A movement by its name: "the Example Movement", "Tropica, a musical movement". Never a description ("a consciousness movement"). */
-const NAMED_MOVEMENT = /(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)*(?:\s+[Mm]ovement\b|,\s+an?\s+(?:[\p{L}-]+\s+){0,3}movement\b)/u;
+/**
+ * A movement in music or the arts, by its name: "Tropica, a musical movement", "the Tropica art movement".
+ * Never a description ("a consciousness movement"), and never a movement in general: "took part in"
+ * a political one states a side, and no list can name them all.
+ */
+const NAMED_MOVEMENT = /(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)*(?:,\s+an?(?:\s+[\p{L}-]+){0,2})?\s+(?:music|musical|art|artistic|cultural|literary|dance|film)\s+movement\b/u;
 const SHARED = /\b(free downloads?|for free|pay-what-you-want|Creative Commons|open[- ]licen[sc]\w+|stems)\b/i;
 
 /**

@@ -21,11 +21,11 @@ describe("goodSentences", () => {
     ["Career", "Quillon revived traditional songs of the Ashford valley.", "Mara Quillon revived traditional songs of the Ashford valley."],
     ["Career", "Quillon released her stems for free download.", "Mara Quillon released her stems for free download."],
     ["Career", "Quillon performed at a benefit for flood relief.", "Mara Quillon performed at a benefit for flood relief."],
-    ["Career", "Quillon co-founded the Lowfield Movement in 1968.", "Mara Quillon co-founded the Lowfield Movement in 1968."],
-    ["Career", "She helped found the Harbor Song Movement.", "Mara Quillon helped found the Harbor Song Movement."],
-    ["Career", "Quillon took part in the Tropica movement.", "Mara Quillon took part in the Tropica movement."],
+    ["Career", "Quillon co-founded the Lowfield art movement in 1968.", "Mara Quillon co-founded the Lowfield art movement in 1968."],
+    ["Career", "She helped found the Harbor Song music movement.", "Mara Quillon helped found the Harbor Song music movement."],
+    ["Career", "Quillon took part in the Tropica musical movement.", "Mara Quillon took part in the Tropica musical movement."],
     ["Career", "In the 1960s, she helped develop Tropica, a musical movement of the coast.", "In the 1960s, Mara Quillon helped develop Tropica, a musical movement of the coast."],
-    ["Career", "Quillon was a founder of the Nueva Ola Movement.", "Mara Quillon was a founder of the Nueva Ola Movement."],
+    ["Career", "Quillon was a founder of Nueva Ola, a film movement.", "Mara Quillon was a founder of Nueva Ola, a film movement."],
     ["Honors", "A statue of her stands in Ashford, named in honor of her.", "A statue of Mara Quillon stands in Ashford, named in honor of her."],
     ["Honors", "Asteroid 90210 Quillon was named after Mara Quillon.", "Asteroid 90210 Quillon was named after Mara Quillon."],
     ["Honors", "She was inducted into the Ashford Hall of Fame in 2001.", "Mara Quillon was inducted into the Ashford Hall of Fame in 2001."],
@@ -34,11 +34,11 @@ describe("goodSentences", () => {
   });
 
   it("lets a pronoun follow the article's first sentence, whatever name that spells", () => {
-    expect(goodSentences("Mara Ines Quillon Reyes is a singer. She co-founded the Lowfield Movement.", "Mara Quillon")).toEqual(["Mara Quillon co-founded the Lowfield Movement."]);
+    expect(goodSentences("Mara Ines Quillon Reyes is a singer. She co-founded the Lowfield art movement.", "Mara Quillon")).toEqual(["Mara Quillon co-founded the Lowfield art movement."]);
   });
 
   it("reads the opening paragraph too", () => {
-    expect(goodSentences("Mara Quillon co-founded the Lowfield Movement in 1968.\n\n== Career ==\nShe sang.", "Mara Quillon")).toEqual(["Mara Quillon co-founded the Lowfield Movement in 1968."]);
+    expect(goodSentences("Mara Quillon co-founded the Lowfield art movement in 1968.\n\n== Career ==\nShe sang.", "Mara Quillon")).toEqual(["Mara Quillon co-founded the Lowfield art movement in 1968."]);
   });
 
   it("keeps a named movement when a long clause about it won't fit", () => {
@@ -62,6 +62,8 @@ describe("goodSentences", () => {
     ["a movement told as a part of it", "Career", "Quillon was part of the Lowfield movement."],
     ["a described movement", "Career", "Quillon took part in a consciousness movement."],
     ["a movement with no name", "Career", "Quillon helped found the movement."],
+    ["a movement outside the arts", "Career", "Quillon took part in the Lowfield Movement."],
+    ["a movement outside the arts, spelled out", "Career", "Quillon led Lowfield, a national movement."],
     ["a characterization", "Philanthropy", "Quillon has been involved in philanthropy across her career."],
     ["a concert outside a section about such things", "Career", "Quillon performed at the Ashford Festival."],
     ["a plan", "Philanthropy", "She announced a benefit concert to raise funds."],

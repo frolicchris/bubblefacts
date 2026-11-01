@@ -546,9 +546,10 @@ other.
 - **The artist's Wikipedia article**: one sentence, as written, no AI, and only
   if it has the shape of a checkable act (`ACTS`): founded an organization,
   donated to, performed at or headlined a benefit, was named or appointed to a
-  role, taught, gave a masterclass, co-founded, led or took part in a movement
-  known by its name ("the Example Movement", "Example, a musical movement"; a
-  described "consciousness movement" fails), received an honor in an honors section, or a
+  role, taught, gave a masterclass, co-founded, led or took part in a named
+  music or arts movement ("the Example art movement", "Example, a musical movement"; a
+  described "consciousness movement" and any other movement fail, since no list can
+  name every political one), received an honor in an honors section, or a
   thing was named after them. This is an allow-list because block-lists leak:
   "supported", "opposed", "backed", "lobbied" and "has been involved in" say
   where someone stands on any subject, and fail by not matching. Its subject must
