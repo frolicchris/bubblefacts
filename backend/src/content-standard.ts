@@ -289,6 +289,19 @@ function withoutNames(text: string, names: string[]): string {
   return plain.replace(IDENTITY_NOT, (m) => "x".repeat(m.length)).replace(THREAT_NOT, (m) => "x".repeat(m.length));
 }
 
+/**
+ * Whether a text has an identity word anywhere, even in a name or beside music: stricter than
+ * `identityTerms`, for facts about a cause (a fund named for a faith ties the cause to it).
+ */
+export function namesIdentity(text: string, names: string[] = []): boolean {
+  const { re } = compiled.find((c) => c.label === IDENTITY)!;
+  re.lastIndex = 0;
+  return re.test(withoutNames(text, names));
+}
+
+/** The text with `names` read as names, for other word lists. */
+export const namesBlanked = withoutNames;
+
 /** Small words that open a sentence with a capital: "In" in "In Christian tradition" is no first name. */
 const NOT_A_NAME = new Set(["the", "a", "an", "in", "as", "his", "her", "their", "its", "for", "on", "at", "by", "with", "from", "of", "and", "but", "to", "both", "many", "some", "most", "other", "this", "that", "while", "after", "before"]);
 

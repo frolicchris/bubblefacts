@@ -13,6 +13,8 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
+import { artistGoodFacts } from "./artist-good";
+import { loadedCaption, NEUTRAL_PROMPT } from "./neutral-wording";
 import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { setCapped } from "./capped-map";
@@ -234,6 +236,8 @@ export const SOURCE = {
 export const MAX_DATA_FACTS = 2;
 /** The infobox field each infobox sentence was filled from, for the dashboard. */
 const boxEvidence = new Map<string, string>();
+/** Facts that are a sentence of the artist's article (`artistGoodFacts`), and that article. */
+const artistSentences = new Map<string, string>();
 
 /** Facts the streamer typed in go up as written; everything else must tell viewers something new. */
 const WRITTEN_BY_STREAMER: ReadonlySet<string | undefined> = new Set([SOURCE.yours, SOURCE.custom]);
@@ -257,12 +261,14 @@ function toFacts(
   return told.map((text, i) => {
     const source = sourceOf(text);
     const fromBox = Boolean(page) && source === `${SOURCE.infobox}${page}`;
-    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox;
-    const evidence = fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
+    // A sentence from the artist's own article, which need not be this song's reference: it is its own evidence.
+    const artistPage = artistSentences.get(text);
+    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox || Boolean(artistPage);
+    const evidence = artistPage ? text : fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
-      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.replace(/ /g, "_"))}` } : {}),
+      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent((artistPage ?? page).replace(/ /g, "_"))}` } : {}),
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
@@ -309,7 +315,7 @@ export const citesSentences = () => process.env.CITE_SENTENCES === "on" && proce
 function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
   const page = context.split("\n")[0];
-  const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE : "";
+  const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE + NEUTRAL_PROMPT : "";
   return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule;
 }
 
@@ -697,6 +703,8 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
 async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Promise<SureArticle | null> = Promise.resolve(null)): Promise<string[]> {
   if (blockedArticles(song).has(STRUCTURED)) return [];
   const names = [reading.title, reading.artist ?? ""];
+  // The good the artist did, when the article surely is theirs or their song's.
+  const good = sure.then((found) => (found ? artistGoodFacts(found.page, found.names) : []));
   const data = onStandard(await wikidataFacts(reading), names);
   let facts = data;
   if (!data.length) {
@@ -712,6 +720,13 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
     for (const f of added) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     facts = [...fromMb, ...added];
   } else for (const f of data) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
+  // One a song, the next one not shown lately: it competes with the rest in `rankFacts`.
+  const turn = (await good).find((f) => !blockedArticles(song).has(f.page) && !recentFacts.includes(f.text) && !facts.includes(f.text) && !restatesRequest(f.text, song));
+  if (turn) {
+    setCapped(structuredLabel, turn.text, turn.page ? `Wikipedia: ${turn.page}` : SOURCE.wikidata, MAX_KEPT);
+    if (turn.page) setCapped(artistSentences, turn.text, turn.page, MAX_KEPT);
+    facts = [...facts, turn.text];
+  }
   setCapped(structuredShown, songKey(song), new Set(facts), MAX_KEPT);
   return facts;
 }
@@ -1195,8 +1210,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
   // A caption from a "someone said" sentence offered only because the clean ones ran short must keep who said it.
   const attributed = kept.filter((f) => {
-    if (!context || keepsAttribution(f, context)) return true;
-    console.log("[Screen] DROP (drops who said it)");
+    if (context && !keepsAttribution(f, context)) {
+      console.log("[Screen] DROP (drops who said it)");
+      return false;
+    }
+    if (!loadedCaption(f, [read.title, read.artist ?? ""])) return true;
+    console.log("[Screen] DROP (loaded wording)");
     return false;
   });
   const unseen = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));

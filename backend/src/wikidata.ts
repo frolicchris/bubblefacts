@@ -55,7 +55,7 @@ function namesArtist(text: string, names: string[]): boolean {
 }
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 
-interface Entity {
+export interface Entity {
   id: string;
   labels?: Record<string, { value: string }>;
   descriptions?: Record<string, { value: string }>;
@@ -413,6 +413,45 @@ export async function artistFacts(name: string): Promise<string[]> {
   }
 }
 
+/** Honors worth a bubble: a lifetime's, not one competitive category ("Grammy Award for Best ..."). */
+const LIFETIME_HONOR = /\b(Hall of Fame|Medal|Lifetime Achievement|Kennedy Center|Order of|Knight|Dame|Commander|Commandeur|Chevalier|Officer of|Member of the|Fellow|Person of the Year|Peace|Polar Music|Nobel|Pulitzer|Laureate|Legion)\b/;
+/** A title one is made, not a prize one receives. */
+const TITLE_HONOR = /^(?:Honorary )?(?:Knight|Dame|Commander|Commandeur|Chevalier|Officer|Member|Companion|Grand|Fellow)\b/;
+/** Positions an artist holds for a cause, not an office. */
+const CAUSE_POSITION = /\b(ambassador|envoy|patron|spokes(?:person|man|woman)|trustee)\b/i;
+/** Musicians' bodies among the groups someone is a member of, not a band. */
+const MUSICIANS_BODY = /\b(Union|Guild|Federation|Academy)\b/;
+/** Benefit shows among the events someone took part in. */
+const BENEFIT_SHOW = /\b(Aid|Benefit|Telethon)\b|^(?:The )?Concert for\b/i;
+
+const withArticle = (s: string) => `${/^[AEIOU]/.test(s) ? "an" : "a"} ${s}`;
+
+/**
+ * The good an artist's item states, each a sentence built from one statement: a movement
+ * (P135, as "associated with", which is what the statement says), a position held for a cause
+ * (P39), a benefit show (P1344), a musicians' body (P463), notable students (P802), and up to
+ * two lifetime honors (P166), never one competitive category. No claim of why, no year.
+ */
+export function artistGoodFromEntity(e: Entity, labels: Record<string, Entity>): string[] {
+  const name = anyLabel(e);
+  if (!name) return [];
+  const named = (prop: string) => itemIds(e, prop).map((id) => cleanLabel(anyLabel(labels[id]).replace(/[\u200e\u200f]/g, "").replace(/\.$/, ""))).filter(Boolean);
+  const facts = named("P135").slice(0, 2).map((m) => `${name} is associated with the movement known as ${m}.`);
+  for (const p of named("P39").filter((l) => CAUSE_POSITION.test(l)).slice(0, 1)) facts.push(`${name} has served as ${p}.`);
+  for (const show of named("P1344").filter((l) => BENEFIT_SHOW.test(l)).slice(0, 1)) facts.push(`${name} took part in ${show}.`);
+  for (const body of named("P463").filter((l) => MUSICIANS_BODY.test(l)).slice(0, 1)) facts.push(`${name} is a member of the ${body}.`);
+  const students = named("P802").slice(0, 2);
+  if (students.length) facts.push(`${name}'s students include ${names(students)}.`);
+  if (named("P166").some((a) => /^honorary doctor/i.test(a))) facts.push(`${name} received an honorary doctorate.`);
+  const awards = named("P166").filter((a) => /^\p{Lu}/u.test(a)).map((a) => a.replace(/^The\s+/, ""));
+  for (const a of awards.filter((a) => LIFETIME_HONOR.test(a)).slice(0, 2)) {
+    if (/Hall of Fame/.test(a)) facts.push(`${name} was inducted into the ${a}.`);
+    else if (TITLE_HONOR.test(a)) facts.push(`${name} was made ${withArticle(a)}.`);
+    else facts.push(`${name} received the ${a}.`);
+  }
+  return facts.filter((f) => f.length <= MAX_FACT_CHARS);
+}
+
 // --- The matched article's own item (issue #256) ---------------------------
 
 /** One piece of music: song, single, musical work, musical work/composition, composed musical work, track with vocals. */
@@ -523,6 +562,31 @@ async function pageItem(page: string): Promise<{ entity: Entity | null; labels: 
   const found = { entity, labels, at: Date.now() };
   pageItemCache.set(page, found);
   return found;
+}
+
+/**
+ * The requested artist behind a surely matched article, as an item and its English article:
+ * the article's own item when it is a performer of that name, else the performer the song's
+ * item names (P175). Never a name search, so a same-named act can't be picked. The article's
+ * match carries over to the artist. Null when neither holds. Throws when Wikidata can't be read.
+ */
+export async function sureArtist(page: string, artist: string[]): Promise<{ entity: Entity; page: string } | null> {
+  const names = artist.filter(Boolean);
+  const { entity } = await pageItem(page);
+  if (!entity || !names.length) return null;
+  const performer = (e: Entity) => (itemIds(e, "P31").includes(HUMAN) || itemIds(e, "P31").some((c) => GROUP_CLASSES.has(c))) && PERFORMER_ITEM.test(e.descriptions?.en?.value ?? "") && sameArtist(anyLabel(e), names);
+  if (performer(entity)) return { entity, page };
+  if (!itemIds(entity, "P31").some((c) => SONG_CLASSES.has(c))) return null;
+  const ids = itemIds(entity, "P175").slice(0, 10);
+  if (!ids.length) return null;
+  const data = await get<{ entities?: Record<string, FullEntity> }>({ action: "wbgetentities", ids: ids.join("|"), props: "claims|labels|descriptions|sitelinks", languages: "en|mul", sitefilter: "enwiki" });
+  const found = Object.values(data.entities ?? {}).find((e) => performer(e) && e.sitelinks?.enwiki?.title);
+  return found ? { entity: found, page: found.sitelinks?.enwiki?.title as string } : null;
+}
+
+/** The labels `artistGoodFromEntity` needs. */
+export async function artistGoodLabels(e: Entity): Promise<Record<string, Entity>> {
+  return entities([...new Set(["P135", "P39", "P1344", "P463", "P802", "P166"].flatMap((p) => itemIds(e, p)))].slice(0, 50), "labels", "en|mul");
 }
 
 /** The MusicBrainz artist ids an article's Wikidata item names (P434). Empty when it names none or can't be read. Never throws. */
