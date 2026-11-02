@@ -23,6 +23,8 @@ import { CreditCounter, planCredit } from "./credit";
 import { SongFactSharer } from "./share-song-facts";
 import { Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
+import { playHistory } from "./play-history";
+import { isNotMusic } from "./not-music";
 import { settledRevision } from "./fact-verifier";
 import { songKey } from "./wrong-facts";
 
@@ -144,12 +146,21 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
-/** Every song to prepare (issue #293): the song list's, with how often each was played. */
+/**
+ * Every song to prepare: the song list's, with how often each was played (issue #293), and every
+ * song seen on stream (issue #297), which covers requests no list has and moves a played one up.
+ */
 function prepTargets(): PrepTarget[] {
-  return (songList.listedSongs?.() ?? []).map((s) => {
+  const targets = new Map<string, PrepTarget>();
+  for (const s of songList.listedSongs?.() ?? []) {
     const song: SSLSong = { title: s.title, artist: s.artist, songId: s.id };
-    return { key: songKey(song), song, requests: s.plays };
-  });
+    targets.set(songKey(song), { key: songKey(song), song, requests: s.plays });
+  }
+  for (const [key, played] of Object.entries(playHistory.all())) {
+    const listed = targets.get(key);
+    targets.set(key, listed ? { ...listed, requests: listed.requests + played.plays } : { key, song: played.song, requests: played.plays });
+  }
+  return [...targets.values()];
 }
 
 /** "Prepare my songs": the app starts it while the computer is free, and stops it when it isn't (issue #295). */
@@ -258,6 +269,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const song = songList.toSong(current);
   // Work for any other song is no longer wanted (see setCurrentSong).
   setCurrentSong(song);
+  // Kept on this computer to be prepared after the stream (issue #297): next time it plays, its facts are ready.
+  if (!isNotMusic(song)) playHistory.record(song);
 
   // The first song after a restart, and it's the one that was showing: carry on where it left off.
   const before = restored;

@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
-import { SSLSong } from "./types";
 
 /**
  * Prepared facts (issue #292): each song's facts, written ahead of time by the
@@ -203,9 +202,3 @@ export class PreparedStore {
 
 /** The one store the server and the fact generator share. */
 export const preparedStore = new PreparedStore();
-
-/** The song as the store keeps it: what the song source said, without who asked for it. */
-export function storedSong(song: SSLSong): SSLSong {
-  const { requestedBy: _who, ...rest } = song;
-  return rest;
-}

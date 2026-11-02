@@ -65,6 +65,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/prepared-facts.ts` | Songs' facts prepared ahead of time, kept in `prepared-facts.json` with their article's revision and the rules version (see [Prepared songs](#prepared-songs)). |
 | `backend/src/prep-context.ts` | What the pipeline keeps apart while it prepares a song rather than writes for the stream. |
 | `backend/src/preparer.ts` | **Prepare my songs**: which song is next, preparing it, saving it, and stopping at once. |
+| `backend/src/play-history.ts` | Songs seen on stream, kept in `play-history.json` to be prepared after the stream. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -1460,8 +1461,9 @@ or a report.
 **The preparer** (`preparer.ts`) runs in the server, which has the model and
 the pipeline, and only when told: `POST /control/prepare` with `run: true`
 starts it or carries on, `run: false` stops it. Before each song it reads the
-songs again (the StreamerSongList list as read at start, `listedSongs`, with
-each song's `timesPlayed`) and picks, in this order: a song never prepared,
+songs again (`prepTargets` in `server.ts`: the StreamerSongList list as read
+at start, `listedSongs`, with each song's `timesPlayed`, and the play history,
+whose plays add to a listed song's) and picks, in this order: a song never prepared,
 then one whose entry is stale (other rules, over 30 days), then one whose
 article is due its weekly check, each kind the most requested first. A
 checked article whose revision is unchanged only gets a new `checkedAt`.
@@ -1477,6 +1479,17 @@ going on; a song with facts saved after three such tries is kept as it is.
 
 The server refuses to start while an overlay is connected or there's no AI
 (`cantPrepare`), and stops the moment an overlay connects.
+
+**Songs from play history** (issue #297). StreamElements, Streamling,
+Nightbot and other now playing files have no list, but the same requests come
+back. `onSongChange` records each song (not a commercial or ident) in
+`play-history.json` (`play-history.ts`) by its song key, so a YouTube request
+is its video and a list song its ID: the song as its source named it, how
+often it played, and when; the requester never. The same song again within
+ten minutes is the same play (a pause, a restart). After the stream these
+songs are prepared like list songs, a live learn through its own lookup
+(`liveLearnLookup`), and the next time one plays its facts show at once. A
+list song that played is prepared sooner: its plays add to its count.
 
 ### Keeping generations in order
 
@@ -1569,6 +1582,9 @@ folder; `data/` for the command-line version):
 - `prepared-facts.json`: songs' facts prepared ahead of time, and the pace
   measured on this computer (see [Prepared songs](#prepared-songs)). Private
   (`0600`), never in backups: it's rebuilt from the song list.
+- `play-history.json`: the songs seen on stream, how often and when they last
+  played, never who asked for them, the 5,000 played last. Private (`0600`),
+  never in backups or reports.
 
 These, `settings.json` and backups are written to a temporary file beside
 them that then replaces the old one (`atomic-write.ts`, one copy for the
