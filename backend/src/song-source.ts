@@ -1,5 +1,5 @@
 import { SSLQueueItem, SSLSong } from "./types";
-import type { ListSong } from "./song-search";
+import type { ListedSong, ListSong } from "./song-search";
 
 /**
  * Where the server learns what's playing. StreamerSongList is the default;
@@ -37,4 +37,6 @@ export interface SongSource {
   followingProblem?(): string | null;
   /** Songs on the streamer's list matching what was typed, for the song facts editor. Only sources with a list. */
   searchSongs?(query: string, limit: number): ListSong[] | null;
+  /** Every song on the streamer's list with its play count, for preparing (issue #293); null until read. Only sources with a list. */
+  listedSongs?(): ListedSong[] | null;
 }

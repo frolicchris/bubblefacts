@@ -26,6 +26,8 @@ export interface PrepContext {
   model?: string;
   trouble: number;
   signal: AbortSignal;
+  /** Write with the model on stream rather than the preparing one: the second pass (issue #296). */
+  streamModel?: boolean;
   answers: Map<string, { answer: string; track: string }>;
 }
 

@@ -757,7 +757,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
   const prep = preparing();
   const run = async () => {
     if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
-    const { session } = await (prep ? loadPrepBuiltin() : loadBuiltin());
+    const { session } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
     session.resetChatHistory();
     const stop = new AbortController();
     running = { key, stop, prep: Boolean(prep) };
@@ -1353,7 +1353,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Not tied to the song on stream when preparing: a song change mustn't take it for an old one.
     answer = shared ? shared.answer : await askModel(prompt, prep ? null : songKey(asked));
     if (prep?.signal.aborted) throw new Obsolete();
-    if (prep) prep.model = prepModelName();
+    if (prep) prep.model = prep.streamModel ? streamModelName() : prepModelName();
     if (prep && shareKey && !shared) setCapped(prep.answers, shareKey, { answer, track }, MAX_SHARED_ANSWERS);
   } catch (err) {
     aiDone = true;
@@ -1544,11 +1544,17 @@ const STORED: Partial<Record<Outcome, PreparedOutcome>> = {
  * so `groundedFacts` with its screening and ranking), with no queue entry, so only facts from
  * a source are kept. Run in a preparation context (prep-context.ts), so it neither counts as
  * shown nor is thinned by what the stream showed, and `signal` stops its AI turn.
- * `answers` is shared by one run's songs. Never throws.
+ * `answers` is shared by one run's songs; `streamModel` writes with the model on stream (the
+ * second pass after the Standard model's first, issue #296). Never throws.
  */
-export async function prepareSong(song: SSLSong, signal: AbortSignal, answers: PrepContext["answers"] = new Map(), revisionOf: (page: string) => Promise<number | null> = settledRevision): Promise<PreparedSong & { revision: number }> {
+export async function prepareSong(
+  song: SSLSong,
+  signal: AbortSignal,
+  opts: { answers?: PrepContext["answers"]; revisionOf?: (page: string) => Promise<number | null>; streamModel?: boolean } = {}
+): Promise<PreparedSong & { revision: number }> {
   watchLookupTrouble();
-  const ctx: PrepContext = { recent: [], trouble: 0, signal, answers };
+  const revisionOf = opts.revisionOf ?? settledRevision;
+  const ctx: PrepContext = { recent: [], trouble: 0, signal, answers: opts.answers ?? new Map(), ...(opts.streamModel ? { streamModel: true } : {}) };
   const empty = { facts: [] as PreparedFact[], article: "", model: "", revision: 0 };
   // The streamer's switches: nothing is looked up for the song (issue #262), so there's nothing to prepare.
   const off = factsOff(song);

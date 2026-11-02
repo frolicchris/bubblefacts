@@ -64,6 +64,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
 | `backend/src/prepared-facts.ts` | Songs' facts prepared ahead of time, kept in `prepared-facts.json` with their article's revision and the rules version (see [Prepared songs](#prepared-songs)). |
 | `backend/src/prep-context.ts` | What the pipeline keeps apart while it prepares a song rather than writes for the stream. |
+| `backend/src/preparer.ts` | **Prepare my songs**: which song is next, preparing it, saving it, and stopping at once. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -1456,6 +1457,27 @@ request, and prepares the song again when it changed.
 `0600`, and goes with **Remove my BubbleFacts data**. It's never in a backup
 or a report.
 
+**The preparer** (`preparer.ts`) runs in the server, which has the model and
+the pipeline, and only when told: `POST /control/prepare` with `run: true`
+starts it or carries on, `run: false` stops it. Before each song it reads the
+songs again (the StreamerSongList list as read at start, `listedSongs`, with
+each song's `timesPlayed`) and picks, in this order: a song never prepared,
+then one whose entry is stale (other rules, over 30 days), then one whose
+article is due its weekly check, each kind the most requested first. A
+checked article whose revision is unchanged only gets a new `checkedAt`.
+Each song is saved the moment it's done, so stopping loses only the song in
+progress, and the next run simply carries on: the store is the progress.
+
+Stopping is immediate: the run's signal aborts the built-in model's turn, and
+the loop doesn't wait for a hosted AI's answer (`whenAborted`), which is then
+thrown away. A song that couldn't be prepared (stopped, the AI failed) isn't
+saved and is tried next run. When a song's lookups failed or were throttled,
+it isn't saved either, and the run waits a minute, doubling up to ten, before
+going on; a song with facts saved after three such tries is kept as it is.
+
+The server refuses to start while an overlay is connected or there's no AI
+(`cantPrepare`), and stops the moment an overlay connects.
+
 ### Keeping generations in order
 
 - **One model, one turn at a time.** The built-in model has one chat session.
@@ -1499,6 +1521,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts of up to 300 characters, 5 songwriters, a 200-character link). Over a limit, the save is refused with `error`, a reason the editor shows; nothing is trimmed. Answers as soon as it's saved (the app waits 3 seconds at most), then shows them if the song is still on. |
 | `/control/facts-off` | **No facts for this song** and **No facts for this artist**, in the editor and one click each under **Earlier songs**. Saves the switch, forgets the song's cached facts and, for the song on now, takes the found bubbles off (the streamer's own stay). |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
+| `/control/prepare` | **Prepare my songs** (see [Prepared songs](#prepared-songs)): `run: true` starts or carries on, `run: false` stops at once. Refused (`refused`) while an overlay is connected or there's no AI. Answers with where it stands. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.

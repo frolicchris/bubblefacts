@@ -1498,7 +1498,7 @@ describe("a song that comes back while its stopped generation winds down", () =>
 describe("prepared facts (issues #292 and #293)", () => {
   const listed: SSLSong = { title: "Harbor Lights", artist: "Marlo Venn", songId: 4242 };
   const noRevision = async () => 1234;
-  const prepare = (s: SSLSong, signal = new AbortController().signal) => prepareSong(s, signal, new Map(), noRevision);
+  const prepare = (s: SSLSong, signal = new AbortController().signal) => prepareSong(s, signal, { revisionOf: noRevision });
   const keep = (facts: PreparedFact[], article = "", over: Partial<PreparedEntry> = {}) =>
     preparedStore.put(songKey(listed), {
       title: listed.title, artist: listed.artist, outcome: "facts", facts, article, revision: 1,
@@ -1602,15 +1602,15 @@ describe("prepared facts (issues #292 and #293)", () => {
     const named = "Harbor Lights was first sketched on an upright piano at the studio.";
     (fetchGrounding as jest.Mock).mockResolvedValue(`Marlo Venn\nMarlo Venn is a singer. ${named}\n${MODEL_LINES}`);
     mockCreate.mockClear().mockResolvedValue(reply(`${named}\n${MODEL_LINES}`));
-    const first = await prepareSong({ title: "Harbor Lights", artist: "Marlo Venn" }, new AbortController().signal, answers, noRevision);
-    const second = await prepareSong({ title: "Tin Roof", artist: "Marlo Venn" }, new AbortController().signal, answers, noRevision);
+    const first = await prepareSong({ title: "Harbor Lights", artist: "Marlo Venn" }, new AbortController().signal, { answers, revisionOf: noRevision });
+    const second = await prepareSong({ title: "Tin Roof", artist: "Marlo Venn" }, new AbortController().signal, { answers, revisionOf: noRevision });
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(first.facts.map((f) => f.text)).toContain(named);
     expect(second.facts.length).toBeGreaterThan(0);
     expect(second.facts.map((f) => f.text).join(" ")).not.toContain("Harbor Lights");
     // Another article is asked for on its own.
     (fetchGrounding as jest.Mock).mockResolvedValue(`Quiet Pines\nQuiet Pines is a band. ${MODEL_LINES}`);
-    await prepareSong({ title: "Low Tide", artist: "Quiet Pines" }, new AbortController().signal, answers, noRevision);
+    await prepareSong({ title: "Low Tide", artist: "Quiet Pines" }, new AbortController().signal, { answers, revisionOf: noRevision });
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 });
