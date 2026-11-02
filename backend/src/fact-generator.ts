@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
@@ -310,12 +310,15 @@ function toFacts(
     const fromBox = Boolean(page) && source === `${SOURCE.infobox}${page}`;
     // A sentence from the artist's own article, which need not be this song's reference: it is its own evidence.
     const artistPage = artistSentences.get(text);
-    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox || Boolean(artistPage);
+    // The reference's article, or a companion article it quotes a line of (issue #48): the link goes to the one the caption came from.
+    const linked = source?.startsWith("Wikipedia: ") ? source.slice("Wikipedia: ".length) : "";
+    const ofReference = Boolean(page) && (linked === page || (Boolean(linked) && companionPages(context).includes(linked)));
+    const fromArticle = ofReference || fromBox || Boolean(artistPage);
     const evidence = artistPage ? text : fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
-      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent((artistPage ?? page).replace(/ /g, "_"))}` } : {}),
+      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent((artistPage ?? (ofReference ? linked : page)).replace(/ /g, "_"))}` } : {}),
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
@@ -1375,7 +1378,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     record(asked, "grounded", shown.length);
     setCapped(sources, songKey(asked), page, MAX_KEPT);
     const article = `Wikipedia: ${page}`;
-    return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
+    // A caption retelling a companion article's line is that article's: its label and link, and Wrong blocks it (issue #48).
+    const labelOf = (t: string) => {
+      const companion = companionPages(context).length ? companionOf(cites.get(t) ?? supportingSentence(t, context, Infinity), context) : "";
+      return companion ? `Wikipedia: ${companion}` : article;
+    };
+    return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? labelOf(t), context, cites), ttlMs: Infinity };
   }
   if (sourcedOnly) return none;
   const fallback = entryFacts(entry, want);

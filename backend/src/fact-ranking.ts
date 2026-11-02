@@ -267,5 +267,5 @@ export function isLeadSentence(sentence: string, context: string, full = ""): bo
   const block = blocks.find((b) => flat(b).includes(want));
   if (!block) return false;
   const first = block.trim();
-  return /^About this piece:/.test(first) || !(SECTION_LABEL.test(first) || /^(From the people who made it|How the music is built|How it was received): /.test(first));
+  return /^About this piece:/.test(first) || !(SECTION_LABEL.test(first) || /^(?:From the people who made it|How the music is built|How it was received|From the article "[^"\n]+"): /.test(first));
 }
