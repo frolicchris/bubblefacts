@@ -88,6 +88,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
+| `desktop/src/sign-in-check.ts` | Asks StreamerSongList whether the sign-in still holds, to tell an outage from an expired sign-in. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
 | `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
@@ -687,6 +688,8 @@ Issue #262's rules, for when a fact must not be shown at all:
   on now waited for facts when the AI wrote for it, from asking to having them,
   so waiting its turn behind another song counts. Late bubbles start here. A
   song the AI didn't write for, or a play from the cache, shows nothing.
+  When the computer can't keep up, the line below it says so (see
+  [A slow or busy computer](#a-slow-or-busy-computer)).
 - **Tracks that aren't music** (`not-music.ts`) go the same way with no switch:
   commercials, station idents and jingles get no Now Playing bubble and only
   the streamer's own facts. A player reports them like songs and only their
@@ -1111,6 +1114,53 @@ internet back, and it reloads the AI and blanks the overlay.
   lost. An update during a read triggers one more read afterward.
 - 429 and 503 back off for as long as `Retry-After` says.
 
+**Checking the sign-in** (`desktop/src/sign-in-check.ts`, issue #182). A
+queue request that times out could be StreamerSongList being down or slow,
+or a sign-in that ended; before this, the app only knew after a request came
+back 401 or 403. StreamerSongList's 2026-09-22 changelog ("For integrators")
+announced `GET https://id.streamersonglist.com/oauth2/validate`, which the
+app now asks:
+
+- Only for the app's own sign-in (`tokenKind: "oauth"`, sent as `Bearer`
+  with the app's `Client-Id`). A pasted Streamer or User token wasn't issued
+  by id.streamersonglist.com, and nothing says the endpoint knows it, so it
+  is never checked and works as before. The command-line version only has
+  pasted tokens and doesn't check at all.
+- Rarely, since StreamerSongList's rate limits mostly police how an app uses
+  the API: at start (when no refresh is due), after each refresh, and when
+  health says the queue was refused (unauthorized) or has stopped answering
+  (`no successful queue fetch recently`), at most once per `RECHECK_MS`
+  (5 minutes) per token.
+- Read defensively. Only a plain **401** means expired. A **200 whose body
+  is a JSON object** means the sign-in holds. Everything else (no answer, a
+  timeout, 403, 429, 5xx, a body that isn't a JSON object) means "can't
+  tell", and nothing changes: the queue decides, as before.
+- Expired leads to a refresh, not straight to the notice: an access token
+  can end while the refresh token is still good (a computer that slept past
+  the hour). If the refresh is turned down for good, the existing "Sign in to
+  StreamerSongList again" notice shows, now without waiting for a failed
+  queue request. If a token refreshed a moment ago is called expired too,
+  the endpoint isn't telling this app's tokens apart: it isn't asked again
+  that session, and the queue decides.
+- The queue stopped answering but the sign-in holds: the dashboard's
+  Reconnecting banner says StreamerSongList isn't answering and the sign-in
+  is fine, so there's nothing for the streamer to do.
+- The token is never logged; the log says only "still signed in", "expired"
+  or "can't tell" and why it asked.
+
+What was and wasn't confirmed about the endpoint: from where this was
+written, id.streamersonglist.com couldn't be reached at all (the network
+refused the connection), and no public documentation of the response was
+found. So the response shape, which header scheme it wants (`Bearer` is
+assumed, as for the API's own `api.streamersonglist.com/oauth2/validate`,
+which `signin.ts` already uses after sign-in and which answers
+`{ username, streamer_id }`), and whether it knows pasted tokens are all
+unconfirmed. The code above assumes as little as it can: a wrong guess means
+"can't tell", never a false "sign in again". Confirming the queue still works
+right after a refresh was left out: the server's next poll (within 15 s)
+already does that with the new token, and an extra request would only add to
+the calls.
+
 **StreamElements** (`streamelements-client.ts`), for streamers who take
 requests through its Media Request player:
 
@@ -1438,6 +1488,73 @@ the one marked.
   neither cached nor returned, and its caller gets fresh facts.
 - **No repeats across songs.** The last 80 facts shown (`recentFacts`) are
   kept for the session; a near-duplicate (`tooSimilar`) is dropped.
+
+### A slow or busy computer
+
+On a streaming PC the built-in model shares the CPU (and often the GPU) with
+OBS's encoder and a game. Before issue #314 a song's captions could arrive
+after the song was over, and the model's work could make the stream stutter.
+BubbleFacts now adapts on its own (`pace.ts`), only for the built-in model,
+the one AI that runs on the streamer's computer. There is no setting: a
+streamer can't know in advance how busy the computer will be.
+
+**What it measures.** For the song on now, how long viewers waited for the
+AI's facts: from the song starting (`setCurrentSong`) to its facts being
+ready, so a turn queued behind another song counts. A song that changes while
+the AI is still writing for it, after it was on at least `LATE_MS`, is a
+"missed" song; one skipped sooner says nothing about the computer. Alongside:
+the model's own speed in words a second (`askBuiltin`), whether it got a GPU,
+other programs' share of the CPU, and free memory. All of these are in
+`/health` under `computer` and in the `[Pace]` log line when the pace changes.
+
+**The steps** (`PaceKeeper`):
+
+1. **Full**: the usual prompt, `factsPerSong` plus spares.
+2. **Short**: when the average wait over the last `PACE_WINDOW` songs (at
+   least `MIN_SAMPLES`) is over `LATE_MS` (60 s). The AI is asked for
+   `SHORT_CAPTIONS` (2) captions from the first `SHORT_CONTEXT_CHARS` (1,200)
+   characters of the article (`shorterContext`: the title line and whole
+   sentences, so the lead). Reading is much of a small model's time on a
+   CPU, and fewer lines is fewer tokens to write. The dashboard says "Your
+   computer is busy, so fewer facts".
+3. **Quick**: as soon as one song is missed. No AI: the instant Wikidata and
+   MusicBrainz facts only, as for an unsure article, kept in the cache for
+   `RETRY_MS` only so a later play gets captions. The dashboard says "Your
+   computer is busy, so quick facts only".
+
+**Recovering.** Quick can't learn the computer is fast again without asking
+the AI, so every `QUICK_PROBE_EVERY` (3rd) song still asks it, the short
+way; one on time steps up to short. Short steps up to full after
+`RECOVER_SONGS` (3) songs in a row under `ON_TIME_MS` (30 s, half of late, so
+the full request has room and the two don't flip-flop). Each step starts its
+own count. Facts late on average step down again; a missed song steps
+straight to quick from anywhere.
+
+**Slow means fewer facts, never weaker checks.** Only the request changes.
+The captions go through the same screening as always (`screenClaims`,
+attribution, loaded wording, scope repair, ranking), against the same
+article; nothing is skipped to save time. The quick facts come from the same
+data path as everywhere else, and are never topped up from the topic packs;
+a slow song with no quick facts gets what any song with no reference gets.
+
+**A busy CPU.** Every `CPU_SAMPLE_MS` (5 s) the server reads all cores'
+times (`os.cpus()`) and leaves out its own use (`process.cpuUsage()`), or the
+AI's work would always look like a busy computer. `os.loadavg()` would be
+simpler but is always zero on Windows. When other programs use `CPU_BUSY`
+(70%) or more, the model gets `BUSY_THREAD_SHARE` of its threads (a quarter,
+at least one; `llama.maxThreads`, which node-llama-cpp applies from the next
+evaluation on) and the server process gets below-normal priority. Both come
+back after `CALM_SAMPLES` readings in a row under `CPU_CALM` (50%). The gap
+between the two keeps it from switching back and forth. Raising the priority
+back needs extra rights on Linux and macOS, so there it may stay low; that
+costs nothing, since priority only decides who waits when the CPU is full.
+On Linux, threads the model started before the change keep their old
+priority, so the thread limit does most of the work there.
+
+**Free memory** is measured and logged but changes nothing: the model's
+memory is taken when it loads, and fewer threads don't free any. It is there
+so a report from a slow stream shows whether the computer was short of
+memory.
 
 ### The app's control routes
 

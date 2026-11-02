@@ -22,6 +22,7 @@ import {
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
+import { SignInCheck, validateToken } from "./sign-in-check";
 
 /**
  * A YouTube Data API key restricted to that API, added to package.json at
@@ -35,7 +36,7 @@ const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || PACKAGE.bubblefacts?.yout
 const BUILD = buildInfo(PACKAGE);
 /** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
 const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
-import { pruneLogs, Status, Supervisor } from "./supervisor";
+import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
 
@@ -174,6 +175,7 @@ function state() {
     paused,
     ollama,
     signInExpired,
+    songListDown,
     unlocking: secretsWaiting(),
     modelDownload,
     status: supervisor.status,
@@ -226,6 +228,10 @@ function markWhatsNewSeen(): void {
 supervisor.on("status", (status: Status) => {
   // The streamer's Pause is the truth: a server that came back without it is told again.
   if (typeof status.health?.paused === "boolean" && status.health.paused !== paused) void control("pause", { paused });
+  // The queue turned the sign-in down, or StreamerSongList stopped answering: is the sign-in still good? (issue #182)
+  const h = status.health;
+  if (usesSignIn() && h && (h.status === "unauthorized" || h.degradedReason === OUTAGE_REASON)) void signInCheck.check("queue", settings.token);
+  else if (h?.status === "ok") setSongListDown(false);
   send("status", status);
   updateTray(status);
 });
@@ -346,6 +352,22 @@ async function ensureOllamaModel(): Promise<void> {
 
 // --- StreamerSongList sign-in ---------------------------------------------
 
+/** StreamerSongList stopped answering while the sign-in still holds: the dashboard says there's nothing to do. */
+let songListDown = false;
+function setSongListDown(down: boolean): void {
+  if (down === songListDown) return;
+  songListDown = down;
+  send("state", state());
+}
+/** The app's own StreamerSongList sign-in is in use (a pasted token isn't checked: issue #182). */
+const usesSignIn = () => settings.songSource === "streamersonglist" && settings.tokenKind === "oauth" && !!settings.token;
+const signInCheck = new SignInCheck({
+  validate: (token) => validateToken(token),
+  refresh: () => refreshSignIn(),
+  log: (line) => supervisor.note(line),
+  songListDown: setSongListDown,
+});
+
 /** Refresh five minutes before the hour-long access token runs out. */
 function scheduleRefresh(delayMs?: number): void {
   if (refreshTimer) clearTimeout(refreshTimer);
@@ -376,6 +398,8 @@ async function doRefresh(): Promise<void> {
       send("state", state());
     }
     scheduleRefresh();
+    // Does the new token hold? Told apart from StreamerSongList being down (issue #182).
+    if (usesSignIn()) void signInCheck.check("refresh", t.accessToken);
   } catch (err) {
     if (settings.refreshToken !== used) return;
     if (err instanceof SignInExpired) {
@@ -1101,6 +1125,8 @@ async function refreshSignInIfDue(): Promise<void> {
     await refreshSignIn();
   } else {
     scheduleRefresh();
+    // Before any queue request: a sign-in that ended while the app was closed is refreshed, or the notice shows, at once (issue #182).
+    if (usesSignIn()) void signInCheck.check("start", settings.token);
   }
 }
 

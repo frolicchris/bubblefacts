@@ -9,7 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
 import { factsTookLine, listeningLine } from "./listening";
-import { aiTimeFor, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
+import { aiTimeFor, paceReport, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
 import { connectAboutAsker, onAboutAnswer } from "./twitch-about";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
@@ -590,6 +590,7 @@ app.get("/health", (_req, res) => {
   const rejected = songList.authRejected();
   const notFollowing = songList.followingProblem?.() ?? null;
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;
+  const pace = paceReport();
 
   res.json({
     paused,
@@ -608,6 +609,10 @@ app.get("/health", (_req, res) => {
     listening: listeningLine(songList),
     // How long the AI took for the song on now ("Facts took 45 s"); empty when it wrote nothing for it.
     factsTook: factsTookLine(current ? aiTimeFor(songList.toSong(current)) : null),
+    // Whether the built-in AI is asking for less to keep up with a busy computer, in words for
+    // the dashboard ("Your computer is busy, so quick facts only"), and the measures behind it (issue #314).
+    pace: pace.line,
+    computer: pace,
     obsClients: clients.size,
     clients: [...clients.values()].map((c) => ({
       addr: c.addr,

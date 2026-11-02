@@ -66,6 +66,7 @@ jest.mock("./fact-generator", () => ({
   markWrong: () => "Some article",
   outcomeFor: () => "",
   aiTimeFor: () => 45_000,
+  paceReport: () => ({ line: "Your computer is busy, so quick facts only", pace: "quick" }),
   ownFactKind: () => null,
   STRUCTURED: "structured",
   unmarkWrong: () => {},
@@ -196,6 +197,12 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     await play([fact("One.", 0)]);
     const health = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as { factsTook: string };
     expect(health.factsTook).toBe("Facts took 45 s");
+  });
+
+  it("says when the AI is asking for less to keep up with a busy computer (issue #314)", async () => {
+    await play([fact("One.", 0)]);
+    const health = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as { pace: string };
+    expect(health.pace).toBe("Your computer is busy, so quick facts only");
   });
 
   it("gets nothing between songs", async () => {

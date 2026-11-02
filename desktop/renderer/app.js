@@ -430,6 +430,10 @@
     const took = $("#facts-took");
     took.textContent = h && h.factsTook ? h.factsTook : "";
     took.hidden = !took.textContent;
+    // Asking the AI for less while the computer is busy with the stream (it recovers by itself).
+    const pace = $("#facts-pace");
+    pace.textContent = h && h.pace ? h.pace : "";
+    pace.hidden = !pace.textContent;
 
     // Stream
     if (state.paused) setStatusLight("light-obs", "warn", "Bubbles paused");
@@ -457,7 +461,13 @@
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
     else if (status.state === "running" && !obs && obsGrace) { title = "Connecting to OBS"; detail = "If BubbleFacts is already in OBS, this takes a few seconds."; }
     else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
-    else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
+    else if (status.state === "running" && status.message) {
+      title = "Reconnecting";
+      // The sign-in was checked and still holds: StreamerSongList itself is down or slow.
+      detail = state.songListDown && !onStreamElements() && !onFile()
+        ? "StreamerSongList isn't answering right now. Your sign-in is fine, so there's nothing to do: BubbleFacts keeps trying."
+        : status.message + ".";
+    }
     else if (status.state === "running") {
       kind = "ok";
       title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
