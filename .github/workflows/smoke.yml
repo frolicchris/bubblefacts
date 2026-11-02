@@ -60,11 +60,6 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: scripts
-          # After a Release run, that build's scripts, not the default branch's.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       # Inputs go through env, never straight into the script: no shell injection.
       - name: Pick the release
         env:
@@ -91,9 +86,10 @@ jobs:
           ls -la installer
           # Releases from before Lite (2.2.0) have no Lite installers.
           if [ -z "$(ls installer)" ]; then echo "No installer named ${{ matrix.asset }} in $TAG"; exit 1; fi
-      - name: Cache the AI model
+      - name: Restore the AI model
+        id: model
         if: ${{ !matrix.lite }}
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: model.gguf
           key: model-${{ env.MODEL_SHA256 }}
@@ -103,6 +99,20 @@ jobs:
           [ -f model.gguf ] || curl -sSL -o model.gguf "$MODEL_URL"
           # Git Bash on Windows has sha256sum; macOS has shasum.
           if command -v sha256sum >/dev/null; then echo "$MODEL_SHA256  model.gguf" | sha256sum -c -; else echo "$MODEL_SHA256  model.gguf" | shasum -a 256 -c -; fi
+      - name: Keep the AI model for the next run
+        # Saved now, checked, before the build's own scripts are checked out below: nothing they run can reach the cache.
+        if: ${{ !matrix.lite && steps.model.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: model.gguf
+          key: model-${{ env.MODEL_SHA256 }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts
+          # After a Release run, that build's scripts, not the default branch's. Release only runs
+          # on this repository's tags and dispatches, and the commit is taken from no other repository.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
