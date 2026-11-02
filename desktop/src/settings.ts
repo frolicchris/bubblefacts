@@ -535,11 +535,14 @@ export function topicList(s: Settings): string[] {
  * The bubbles' look as the server reads it. Blank colors when custom colors are off, so a running
  * server told this (and any restart after it) goes back to the Style's own.
  */
-export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string } {
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string } {
   return {
     BUBBLE_STYLE: s.bubbleStyle,
     BUBBLE_ACCENT: s.customColors ? s.accentColor : "",
     BUBBLE_BACKGROUND: s.customColors ? s.backgroundColor : "",
+    // Bubble size goes the same way, so a new size shows without a Refresh in OBS.
+    BUBBLE_SCALE: String(BUBBLE_SCALE[s.bubbleSize]),
+    BUBBLE_VERTICAL_SCALE: String(VERTICAL_BUBBLE_SCALE[s.verticalBubbleSize]),
   };
 }
 
@@ -550,7 +553,7 @@ export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: st
  */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
   // The look goes to the running server too (POST /control/style), so a new one never restarts it.
-  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, ...rest } = env;
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

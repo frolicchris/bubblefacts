@@ -136,7 +136,10 @@ export const config = {
   liveLearnBanner: oneOf("LIVE_LEARN_BANNER", ["on", "off"] as const, "on") === "on",
   // The bubbles' look (issue #177): a built-in Style, and optionally the streamer's own accent and background.
   // Never a startup error: an unknown Style or a mistyped color falls back to the classic look.
-  bubbleStyle: styleFrom(process.env.BUBBLE_STYLE, process.env.BUBBLE_ACCENT, process.env.BUBBLE_BACKGROUND, (line) => console.warn(`[Config] ${line}`)),
+  bubbleStyle: styleFrom(process.env.BUBBLE_STYLE, process.env.BUBBLE_ACCENT, process.env.BUBBLE_BACKGROUND, (line) => console.warn(`[Config] ${line}`), {
+    scale: process.env.BUBBLE_SCALE,
+    verticalScale: process.env.BUBBLE_VERTICAL_SCALE,
+  }),
   // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.
   topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",
 

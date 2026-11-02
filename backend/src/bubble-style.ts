@@ -35,6 +35,19 @@ export interface StylePayload {
   type: "style";
   style: BubbleStyleName;
   colors?: StyleColors;
+  /** Bubble size for the landscape overlay and the vertical one (`--bf-scale`, `--bf-vertical-scale`), when set. */
+  scale?: number;
+  verticalScale?: number;
+}
+
+/** The sizes a Bubble size may be: smaller would be unreadable, bigger covers the stream. */
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 3;
+
+/** A bubble size as a number between MIN_SCALE and MAX_SCALE, or null for anything else. */
+export function scaleFrom(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  return Number.isFinite(n) && n >= MIN_SCALE && n <= MAX_SCALE ? n : null;
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -106,7 +119,7 @@ export function customColors(accent: string, background: string): StyleColors {
  * colors are used only when both are a real #rrggbb. A typo must never stop bubbles showing.
  * `warn` hears about anything ignored.
  */
-export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}): StylePayload {
+export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown } = {}): StylePayload {
   const raw = typeof style === "string" ? style.trim().toLowerCase() : "";
   const name = (BUBBLE_STYLES as readonly string[]).includes(raw) ? (raw as BubbleStyleName) : "classic";
   if (raw && raw !== name) warn(`Unknown bubble style "${String(style).slice(0, 40)}": using classic. Choose ${BUBBLE_STYLES.join(", ")}.`);
@@ -114,5 +127,14 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
   const b = hexColor(background);
   const given = [accent, background].some((v) => typeof v === "string" && v.trim());
   if (given && !(a && b)) warn("Custom bubble colors need both an accent and a background, each written like #5b6ee1: using the style's own colors.");
-  return a && b ? { type: "style", style: name, colors: customColors(a, b) } : { type: "style", style: name };
+  // Bubble size goes with the look, so it too changes on stream without a Refresh in OBS.
+  const scale = scaleFrom(sizes.scale);
+  const verticalScale = scaleFrom(sizes.verticalScale);
+  return {
+    type: "style",
+    style: name,
+    ...(a && b ? { colors: customColors(a, b) } : {}),
+    ...(scale !== null ? { scale } : {}),
+    ...(verticalScale !== null ? { verticalScale } : {}),
+  };
 }

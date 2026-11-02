@@ -146,6 +146,16 @@ describe("styleFrom", () => {
     expect(warnings).toHaveLength(3);
   });
 
+  it("carries a bubble size between 0.5 and 3, and leaves out anything else", () => {
+    expect(styleFrom("classic", "", "", undefined, { scale: "1.25", verticalScale: 1.5 })).toEqual({ type: "style", style: "classic", scale: 1.25, verticalScale: 1.5 });
+    for (const bad of ["", "big", "0.2", 4, NaN, undefined]) expect(styleFrom("classic", "", "", undefined, { scale: bad })).toEqual({ type: "style", style: "classic" });
+  });
+
+  it("keeps the bubble size's default with no specificity, so OBS's Custom CSS still wins", () => {
+    expect(CSS).toMatch(/:where\(html\) \{\s*--bf-scale: 1;/);
+    expect(CSS).not.toMatch(/(^|\n):root \{[^}]*--bf-scale:/);
+  });
+
   it("works out every color the overlay needs from an accent and a background", () => {
     expect(styleFrom("minimal", "#FF8800", "#ffffff")).toEqual({
       type: "style",

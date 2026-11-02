@@ -206,6 +206,8 @@ bubble size is `--bf-vertical-scale` in `obs-overlay.css`, apart from
 |---|---|---|
 | `BUBBLE_STYLE` | `classic` | The look of the bubbles and the Now Playing bubble, on both overlays: `classic` (dark blue), `light`, `minimal` or `retro`. Anything else shows `classic`, with a `[Config]` line in the log. |
 | `BUBBLE_ACCENT` | (empty) | Your own accent color for the border and the Now Playing label, written `#rrggbb` (like `#ff8800`). Used only together with `BUBBLE_BACKGROUND`. |
+| `BUBBLE_SCALE` | (empty) | Bubble size on the landscape overlay, from `0.5` to `3` (the app's Standard, Large and Larger are `1`, `1.25` and `1.5`). Empty keeps the size written in `obs-overlay.css`. The app sends a new size live, with no Refresh in OBS. |
+| `BUBBLE_VERTICAL_SCALE` | (empty) | The same for the vertical overlay. |
 | `BUBBLE_BACKGROUND` | (empty) | Your own background color, written `#rrggbb`. The text color is chosen for you, light or dark, so it always reads at WCAG AA contrast (4.5:1). The accent colors the Now Playing label only when it reads that well on the background; otherwise the label uses the text color. |
 
 A style changes colors, the font, corners and the Now Playing bubble's look,

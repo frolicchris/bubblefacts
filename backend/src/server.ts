@@ -407,7 +407,10 @@ control.post("/pause", (req, res) => {
 // included, with no restart (which would announce the song again) and no Refresh in OBS.
 // Anything it doesn't know falls back to the classic look rather than being refused.
 control.post("/style", (req, res) => {
-  bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`));
+  bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`), {
+    scale: req.body?.scale,
+    verticalScale: req.body?.verticalScale,
+  });
   console.log(`[Server] Bubble style: ${bubbleStyle.style}${bubbleStyle.colors ? ", with custom colors" : ""}`);
   for (const ws of clients.keys()) send(ws, bubbleStyle);
   res.json({ style: bubbleStyle.style, colors: bubbleStyle.colors ?? null, overlays: clients.size });

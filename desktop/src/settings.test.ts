@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { customFactsProblem, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -523,7 +523,14 @@ describe("the musician's own facts", () => {
 describe("bubble Styles and your own colors (issue #177)", () => {
   it("starts on the classic dark blue, with its own colors ready for the pickers", () => {
     expect(DEFAULTS).toMatchObject({ bubbleStyle: "classic", customColors: false, accentColor: "#5b6ee1", backgroundColor: "#0a0a3c" });
-    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "" });
+    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "", BUBBLE_SCALE: "1", BUBBLE_VERTICAL_SCALE: "1" });
+  });
+
+  it("sends a new bubble size to the running server, never restarting it", () => {
+    const larger = { ...DEFAULTS, bubbleSize: "larger" as const, verticalBubbleSize: "large" as const };
+    expect(styleEnv(larger)).toMatchObject({ BUBBLE_SCALE: "1.5", BUBBLE_VERTICAL_SCALE: String(VERTICAL_BUBBLE_SCALE.large) });
+    const env = (s: typeof DEFAULTS) => ({ AI_PROVIDER: "none", ...styleEnv(s) });
+    expect(serverSettingsSignature(env(larger), larger)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
   });
 
   it("keeps each built-in Style, and an unknown one falls back to classic", () => {

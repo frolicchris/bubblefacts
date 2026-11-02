@@ -172,6 +172,20 @@ describe("bubble Styles (issue #177)", () => {
     expect(o.root.dataset.style).toBe("light");
     expect(o.sheets).toEqual([]);
   });
+
+  it("changes the bubble size live, and ignores a size that would be unreadable or cover the stream", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "classic", scale: 1.25, verticalScale: 1.5 });
+    expect(o.sheets).toHaveLength(1);
+    expect(o.sheets[0].textContent).toContain("--bf-scale: 1.25;");
+    expect(o.sheets[0].textContent).toContain("--bf-vertical-scale: 1.5;");
+    // No specificity, so OBS's Custom CSS still wins.
+    expect(o.sheets[0].textContent).toMatch(/^:where\(html\) \{/);
+    for (const scale of [0.1, 9, "2; } .popup-bubble { display: none } :root {", null]) {
+      o.send({ type: "style", style: "classic", scale });
+      expect(o.sheets[0].textContent).toBe("");
+    }
+  });
 });
 
 describe("the vertical overlay (issue #175)", () => {

@@ -771,11 +771,17 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   void ensureOllamaModel();
   // A new sign-in always starts the server over; anything else only if the server would notice.
   startServer(newSignIn);
-  // A new look goes to the running server, which changes every overlay at once: no restart, no Refresh in OBS.
+  // A new look or bubble size goes to the running server, which changes every overlay at once: no restart, no Refresh in OBS.
   const style = styleEnv(settings);
   if (JSON.stringify(style) !== JSON.stringify(styleEnv(previous))) {
     supervisor.setEnv(style);
-    void control("style", { style: style.BUBBLE_STYLE, accent: style.BUBBLE_ACCENT, background: style.BUBBLE_BACKGROUND });
+    void control("style", {
+      style: style.BUBBLE_STYLE,
+      accent: style.BUBBLE_ACCENT,
+      background: style.BUBBLE_BACKGROUND,
+      scale: Number(style.BUBBLE_SCALE),
+      verticalScale: Number(style.BUBBLE_VERTICAL_SCALE),
+    });
   }
   backUpNow();
   if (channelChanged) void checkForUpdate();

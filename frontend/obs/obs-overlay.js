@@ -227,6 +227,7 @@
   /** How opaque a custom background is. The server checks text contrast at this (CUSTOM_ALPHA in bubble-style.ts). */
   const CUSTOM_ALPHA = 1;
   let colorSheet = null;
+  let sizeSheet = null;
 
   const rgbaOf = (hex, alpha) =>
     "rgba(" + [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ") + ", " + alpha + ")";
@@ -259,6 +260,7 @@
   /** The look the streamer chose: switched at once, bubbles on screen included. Only colors and fonts change. */
   function applyStyle(msg) {
     document.documentElement.dataset.style = STYLES.includes(msg.style) ? msg.style : "classic";
+    applySizes(msg);
     const c = msg.colors;
     const custom = !!c && COLOR_KEYS.every((k) => HEX.test(c[k]));
     if (!custom && !colorSheet) return;
@@ -267,6 +269,26 @@
       document.head.appendChild(colorSheet);
     }
     colorSheet.textContent = custom ? customColorsCss(c) : "";
+  }
+
+  /** A size the server sent, or null: never one that would make bubbles unreadable or cover the stream. */
+  const sizeOf = (n) => (typeof n === "number" && n >= 0.5 && n <= 3 ? n : null);
+
+  /**
+   * Bubble size, live: after the size written into the copied CSS in the page, so it wins over
+   * it, and with no specificity, so OBS's Custom CSS still wins over both. Bubbles already on
+   * screen change size at once; only transform and opacity animate.
+   */
+  function applySizes(msg) {
+    const scale = sizeOf(msg.scale);
+    const vertical = sizeOf(msg.verticalScale);
+    if (scale === null && vertical === null && !sizeSheet) return;
+    if (!sizeSheet) {
+      sizeSheet = document.createElement("style");
+      document.head.appendChild(sizeSheet);
+    }
+    const props = (scale !== null ? "  --bf-scale: " + scale + ";\n" : "") + (vertical !== null ? "  --bf-vertical-scale: " + vertical + ";\n" : "");
+    sizeSheet.textContent = props ? ":where(html) {\n" + props + "}" : "";
   }
 
   // --- Connection ---
