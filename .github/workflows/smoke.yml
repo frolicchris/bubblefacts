@@ -107,22 +107,24 @@ jobs:
           path: model.gguf
           key: model-${{ env.MODEL_SHA256 }}
 
-      # The scripts of the build being tested, not the default branch's: after a Release run the
-      # owner started (a tag, or Run workflow), its commit; for a tag asked for by hand, that tag;
-      # otherwise the default branch's. Code scanning takes who started the run as the proof the
-      # commit can be trusted here, where the job has the default branch's cache.
-      - name: Check out that build's test scripts
-        if: github.event_name == 'workflow_run' && github.actor == github.repository_owner
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: scripts
-          ref: ${{ github.event.workflow_run.head_sha }}
-      - name: Check out the test scripts
-        if: github.event_name != 'workflow_run' || github.actor != github.repository_owner
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: scripts
-          ref: ${{ inputs.tag || github.sha }}
+      # The test scripts of the build being tested, got the way its installer is: from the Release
+      # run's artifacts (Release uploads scripts/smoke-*.mjs as "smoke-scripts"), or from the tag
+      # of a published release. Nothing is checked out: this job holds the default branch's cache,
+      # and code scanning reads a checkout of another commit here as a way to poison it.
+      - name: Get that build's test scripts
+        env:
+          RUN_INPUT: ${{ inputs.run || github.event.workflow_run.id }}
+        run: |
+          rm -rf scripts && mkdir -p scripts
+          if [ -n "$RUN_INPUT" ]; then
+            gh run download "$RUN_INPUT" --repo "$GITHUB_REPOSITORY" --name smoke-scripts --dir scripts
+          else
+            for f in smoke-packaged.mjs smoke-llama-debug.mjs; do
+              gh api "repos/$GITHUB_REPOSITORY/contents/scripts/$f?ref=$TAG" -H "Accept: application/vnd.github.raw" > "scripts/$f"
+            done
+          fi
+          ls -la scripts
+          [ -s scripts/smoke-packaged.mjs ] || { echo "No smoke test scripts for $TAG"; exit 1; }
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
