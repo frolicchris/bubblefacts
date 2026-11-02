@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
@@ -20,6 +20,7 @@ import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } fro
 import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
+import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -27,7 +28,7 @@ import { logWrong } from "./wrong-log";
  *   live learn  -> no facts (the overlay shows a banner)
  *   original    -> facts from the queue entry, no lookup
  *   article     -> model restates it, screening filters the result
- *   no article  -> entry facts + topic packs, no model call
+ *   no article  -> a matching channel's Twitch About, else entry facts + topic packs, no model call
  *   failure     -> entry facts + topic packs
  */
 
@@ -168,7 +169,7 @@ export const spotsForSong = (song: SSLSong) => {
   return (i: number): Pick<Fact, "position" | "vertical"> => ({ position: landscape[i % landscape.length], vertical: vertical[i % vertical.length] });
 };
 
-export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff" | "notMusic";
+export type Outcome = "grounded" | "wikidata" | "musicbrainz" | "songFacts" | "twitchAbout" | "original" | "liveLearn" | "noReference" | "nothingSurvived" | "generationFailed" | "factsOff" | "notMusic";
 
 /** Per-session counts, reported on /health. */
 export const factStats = {
@@ -176,6 +177,7 @@ export const factStats = {
   wikidata: 0,
   musicbrainz: 0,
   songFacts: 0,
+  twitchAbout: 0,
   original: 0,
   liveLearn: 0,
   noReference: 0,
@@ -225,6 +227,7 @@ const SONGS_LOG_LABEL: Record<Outcome, string> = {
   wikidata: "wikidata",
   musicbrainz: "musicbrainz",
   songFacts: "yours",
+  twitchAbout: "twitch",
   original: "original",
   liveLearn: "livelearn",
   noReference: "curated",
@@ -270,10 +273,14 @@ export const SOURCE = {
   musicbrainz: "MusicBrainz",
   /** Followed by the article: "Wikipedia infobox: <article>". */
   infobox: "Wikipedia infobox: ",
+  /** Followed by the channel's name: "Twitch About: <name>". */
+  twitchAbout: "Twitch About: ",
 } as const;
 
 /** At most this many data facts (Wikidata, MusicBrainz, infobox) beside the captions written from an article. */
 export const MAX_DATA_FACTS = 2;
+/** At most this many bubbles from a channel's Twitch About. */
+const MAX_ABOUT_FACTS = 2;
 /** The infobox field each infobox sentence was filled from, for the dashboard. */
 const boxEvidence = new Map<string, string>();
 /** Facts about the good an artist did (`artistGoodFacts`), and their article ("" for Wikidata). They only ever take a free slot. */
@@ -1093,6 +1100,54 @@ async function liveLearnFacts(song: SSLSong, want: number, asked: SSLSong): Prom
   return { facts: [], ttlMs: found.ttlMs };
 }
 
+/**
+ * A song no source knows, by an artist whose name is exactly a Twitch channel's login: a fact or
+ * two from that channel's own About, word for word after the credit (`twitch-about.ts`). Null, so
+ * the song goes on as if nothing was tried, for a name that's unsafe to match, a song with custom
+ * facts tagged for it, a channel marked Wrong for it, an About with nothing fit to show, or Twitch
+ * being off, slow or down. Never throws.
+ */
+async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Promise<Generated | null> {
+  // A guessed artist is no name to match a stranger's channel on.
+  const login = song.artistFromTitle || song.artistUncertain ? "" : loginForArtist(song.artist ?? "");
+  if (!login || taggedFactsFor(song).length) return null;
+  try {
+    // Without an AI nothing has looked for the article yet, and a song with one is never looked up here.
+    if (config.aiProvider === "none" && (await findReference(song)).context) return null;
+    const about = await twitchAbout(login);
+    if (!about) return null;
+    const label = `${SOURCE.twitchAbout}${about.name}`;
+    if (blockedArticles(song).has(label)) return null;
+    const names = [song.title, song.artist ?? ""];
+    const fit = onStandard(about.facts, names).filter((f) => !notForStream(f) && !aboutIsChannelTalk(f) && !loadedCaption(f, names, true));
+    const shown = fit.map((f) => `${ABOUT_CREDIT}${f}`).filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, Math.min(want, MAX_ABOUT_FACTS));
+    if (!shown.length) return null;
+    console.log(`[FactGen] "${song.title}": ${shown.length} from the Twitch About of the channel named like its artist`);
+    remember(shown);
+    record(asked, "twitchAbout", shown.length);
+    return { facts: toFacts(song, shown, () => label), ttlMs: Infinity };
+  } catch (err) {
+    console.warn(`[FactGen] Twitch About skipped for "${song.title}": ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
+/** The app turned the Twitch About lookup off or disconnected Twitch: songs already given one look again. */
+export function forgetTwitchAbout(): void {
+  forgetAbouts();
+  for (const [key, cached] of factCache) if (cached.facts.some((f) => f.source?.startsWith(SOURCE.twitchAbout))) factCache.delete(key);
+}
+
+/**
+ * Someone else's original on the streamer's list: tagged "Originals", credited to another
+ * artist, and with no article. It takes the Twitch About before the facts of its queue entry.
+ */
+async function friendsOriginalAbout(song: SSLSong, entry: SSLQueueItem | null, want: number, asked: SSLSong): Promise<Generated | null> {
+  const names = [config.sslStreamerName, config.streamerDisplayName];
+  if (!canAskAbout() || !config.originals || !isOriginal(entry, names) || isOwnOriginal(entry, names)) return null;
+  return (await findReference(song)).context ? null : twitchAboutFacts(song, want, asked);
+}
+
 /** The streamer's original: facts from its queue entry and their notes, no lookup. Null when it isn't one. */
 function originalFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, asked: SSLSong): Generated | null {
   const names = [config.sslStreamerName, config.streamerDisplayName];
@@ -1147,6 +1202,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       record(asked, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
       return { facts: toFacts(song, shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
     }
+    // `data` rather than `shownData`: facts already shown still mean the databases know this song.
+    const fromTwitch = lookup && !data.length ? await twitchAboutFacts(song, want, asked) : null;
+    if (fromTwitch) return fromTwitch;
     if (sourcedOnly) return none;
     const lines = entryFacts(entry, want);
     console.log(`[FactGen] No reference for "${song.title}": using ${lines.length} entry and curated facts`);
@@ -1409,7 +1467,7 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
   try {
-    return originalFacts(song, entry, want, asked) ?? (await groundedFacts(song, entry, want, sourcedOnly, asked, onEarly));
+    return (await friendsOriginalAbout(song, entry, want, asked)) ?? originalFacts(song, entry, want, asked) ?? (await groundedFacts(song, entry, want, sourcedOnly, asked, onEarly));
   } catch (err) {
     if (err instanceof Obsolete) {
       // Not cached: the song may come back, and then it deserves a real try.
@@ -1530,7 +1588,7 @@ function blockedAs(song: SSLSong): SSLSong[] {
 
 /**
  * What a fact's own source label says to block: an article, Wikidata and
- * MusicBrainz, or nothing (the streamer's own facts and song-list facts).
+ * MusicBrainz, a Twitch channel's About, or nothing (the streamer's own facts and song-list facts).
  * Undefined when there's no label to go by.
  */
 export function blockFor(label: string | undefined): string | null | undefined {
@@ -1539,6 +1597,8 @@ export function blockFor(label: string | undefined): string | null | undefined {
   // A wrong infobox fact most often means the wrong article: the article is blocked.
   if (label.startsWith(SOURCE.infobox)) return label.slice(SOURCE.infobox.length);
   if (label === SOURCE.wikidata || label === SOURCE.musicbrainz) return STRUCTURED;
+  // The likely mistake is a stranger with the artist's name: that channel is blocked for the song.
+  if (label.startsWith(SOURCE.twitchAbout)) return label;
   return null;
 }
 

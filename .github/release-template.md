@@ -2,7 +2,7 @@ Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 
 **Already on 2.0.0-beta.5 or newer?** Open BubbleFacts, click **Update now**, then **Install now** between songs. Your settings are kept. On a Mac, click **Always Allow** when it asks to use your saved sign-in afterward.
 
-<!-- Fill in each section in plain words for musicians, one line per change,
+<!-- Fill in each section in plain words for musicians and DJs, one line per change,
      the most noticeable first. Delete a section with nothing in it, and
      delete these comments. Same lines as the changelog on the website. -->
 
@@ -19,7 +19,7 @@ Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 
 ## Known issues
 
-<!-- Open problems a musician might hit, with the workaround and the issue
+<!-- Open problems a streamer might hit, with the workaround and the issue
      link. Delete the section if there are none. -->
 
 ## Thanks
@@ -27,6 +27,8 @@ Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 <!-- Name everyone whose report, idea or contribution is in this release, by
      the name they asked for (see AUTHORS.md). For example:
      Thanks to Jane Example for spotting where the bubbles really landed. -->
+
+Questions? Ask in [#help on the BubbleFacts Discord](https://discord.gg/3YS3eWkWrW).
 
 Testing it? Tell us how it went with the [beta test form](https://github.com/frolicchris/bubblefacts/issues/new?template=beta_test.yml). In a beta or release candidate, **Send a beta test report** (or **Copy beta test report**, no GitHub account needed) under Help and troubleshooting fills it in for you. Full list: [changelog](https://bubblefacts.frolic.org/changelog.html).
 

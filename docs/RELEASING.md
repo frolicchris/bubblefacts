@@ -151,7 +151,7 @@ the reason in the pull request.
 
 **Release blockers** carry the `release blocker` label and the 2.0.0
 milestone. A blocker is anything that puts wrong or unsafe words on stream,
-stops bubbles mid-stream, loses a musician's settings or facts, breaks
+stops bubbles mid-stream, loses a streamer's settings or facts, breaks
 setup, sign-in or the in-app update, or a security problem. There must be
 none open to make a release candidate, and none to make the final release.
 
@@ -250,7 +250,7 @@ version; docs and tests.
 **Goes through betas:** new features or settings; wording or layout changes;
 behavior changes; AI model or prompt changes (except a screening fix); new
 dependencies; minor or major upgrades; Electron majors; refactors; anything a
-musician would have to relearn. If unsure, it goes through betas. The pull
+streamer would have to relearn. If unsure, it goes through betas. The pull
 request for a maintenance fix says what it fixes, who is affected and how it
 was checked.
 
@@ -266,7 +266,7 @@ stops. After 3.0.0, the last 2.x gets security fixes for three months.
 **Automated:** Dependabot opens security fixes as one grouped pull request
 against `main`, and version updates weekly (workflow actions monthly). Patch updates to development
 tools and workflow actions merge on their own once CI passes
-(`dependabot-automerge.yml`): they don't change what musicians install.
+(`dependabot-automerge.yml`): they don't change what streamers install.
 Everything that ships in the app (runtime packages, Electron) and every minor
 or major update waits for a person.
 

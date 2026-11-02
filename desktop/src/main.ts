@@ -1,5 +1,5 @@
 import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, wrongLogLines } from "./backup";
-import { factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
+import { answerAbout, factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import os from "os";
@@ -727,6 +727,7 @@ handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const previous = settings;
   settings = mergeSettings(changes);
   applySettingsChange(previous, changes);
+  if (previous.twitchAbout && !settings.twitchAbout) supervisor.tell({ type: "twitch-about-off" });
   return state();
 });
 
@@ -750,7 +751,20 @@ handle("connect-twitch", async () => {
 
 handle("disconnect-twitch", async () => {
   await twitch.disconnect();
+  supervisor.tell({ type: "twitch-about-off" });
   return state();
+});
+
+/** The server's question about a channel's About for a song no source knows: the token never leaves this process. */
+supervisor.on("server-message", (message: unknown) => {
+  const m = message as { type?: unknown; login?: unknown; chars?: unknown };
+  if (m?.type !== "twitch-about" || typeof m.login !== "string" || typeof m.chars !== "number") return;
+  const allowed = settings.twitchAbout && !!settings.twitchRefreshToken;
+  void answerAbout(m.login, m.chars, allowed, (login) => twitch.withToken((token) => getChannel(login, token))).then((answer) => {
+    // A lost connection shows under Connect Twitch, as for Fill.
+    if (answer.state === "failed") send("state", state());
+    supervisor.tell({ ...answer });
+  });
 });
 
 /** The Twitch channel a song points to, for the window to offer Fill: one rule, in twitch.ts. */
