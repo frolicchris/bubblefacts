@@ -50,6 +50,8 @@ import {
   receptionSentences,
   theorySentences,
   curatedFacts,
+  CURATED_REST_MS,
+  resetCuratedTurns,
   orderExtract,
   fetchGrounding,
   clearGroundingCache,
@@ -289,6 +291,8 @@ describe("screenClaims", () => {
 });
 
 describe("curatedFacts", () => {
+  beforeEach(() => resetCuratedTurns());
+
   it("returns the requested number of distinct facts from the packs", () => {
     const facts = curatedFacts(5);
     expect(facts).toHaveLength(5);
@@ -299,6 +303,21 @@ describe("curatedFacts", () => {
   it("does not exceed the pool, and handles zero", () => {
     expect(curatedFacts(9999)).toHaveLength(topic.curatedFacts.length);
     expect(curatedFacts(0)).toEqual([]);
+  });
+
+  it("takes turns, and rests a fact for an hour rather than repeat it (#190)", () => {
+    const all = topic.curatedFacts.length;
+    const start = 1_000_000;
+    const first = curatedFacts(2, start);
+    // Every other fact goes before either of these comes back.
+    const rest = curatedFacts(all, start + 60_000);
+    expect(rest).toHaveLength(all - 2);
+    expect(rest).not.toEqual(expect.arrayContaining([first[0]]));
+    expect(rest).not.toEqual(expect.arrayContaining([first[1]]));
+    // All shown within the hour: none, not a repeat.
+    expect(curatedFacts(3, start + 30 * 60_000)).toEqual([]);
+    // After their rest, the longest unused come back first.
+    expect(curatedFacts(5, start + CURATED_REST_MS).sort()).toEqual([...first].sort());
   });
 });
 
