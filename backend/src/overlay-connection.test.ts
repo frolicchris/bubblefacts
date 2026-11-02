@@ -27,7 +27,8 @@ function connectionsFrom(href: string, failFirst = 0): string[] {
   }
   vm.runInNewContext(SCRIPT, {
     location: { href, protocol: url.protocol, hostname: url.hostname, host: url.host, search: url.search },
-    document: { getElementById: element, createElement: element, body: element() },
+    document: { getElementById: element, createElement: element, body: element(), documentElement: { dataset: {} } },
+    window: { innerWidth: 1920, innerHeight: 1080, addEventListener() {} },
     WebSocket: FakeSocket,
     setTimeout: (fn: () => void) => timers.push(fn),
     clearTimeout: () => {},
@@ -58,9 +59,14 @@ describe("where the overlay connects", () => {
   });
 });
 
-/** Runs the overlay against a fake page and returns the texts of bubbles it shows. */
-function overlay() {
+/**
+ * Runs the overlay against a fake page and returns the texts of bubbles it shows.
+ * `layout`: "vertical" for obs-overlay-vertical.html, in a 1080x1920 source.
+ */
+function overlay(layout = "") {
   const shown: string[] = [];
+  /** Each bubble's spot, as the page placed it. */
+  const spots: Record<string, Record<string, unknown>> = {};
   // Bubbles taken off the page at once, without fading out.
   const gone: string[] = [];
   const hidden: string[] = [];
@@ -74,7 +80,7 @@ function overlay() {
       dataset: {},
       style: { setProperty() {} },
       appendChild() {},
-      append(t: unknown) { if (typeof t === "string") { el.text = t; shown.push(t); } },
+      append(t: unknown) { if (typeof t === "string") { el.text = t; shown.push(t); spots[t] = el.style as Record<string, unknown>; } },
       addEventListener() {},
       remove() { if (el.text) gone.push(String(el.text)); },
       offsetWidth: 0,
@@ -87,7 +93,8 @@ function overlay() {
   }
   vm.runInNewContext(SCRIPT, {
     location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
-    document: { getElementById: element, createElement: element, body: element() },
+    document: { getElementById: element, createElement: element, body: element(), documentElement: { dataset: { layout } }, querySelector: () => null },
+    window: layout === "vertical" ? { innerWidth: 1080, innerHeight: 1920, addEventListener() {} } : { innerWidth: 1920, innerHeight: 1080, addEventListener() {} },
     WebSocket: FakeSocket,
     setTimeout: (fn: () => void) => {
       timers.push({ id: ++timerId, fn });
@@ -110,8 +117,61 @@ function overlay() {
   send({ type: "new_song", song });
   // The Now Playing banner's timers: out of the way, so `step` reaches the bubbles.
   run();
-  return { shown, hidden, gone, send, run, step, song, fact };
+  return { shown, hidden, gone, spots, send, run, step, song, fact };
 }
+
+describe("the vertical overlay (issue #175)", () => {
+  const landscape = { top: "8%", left: "33%" };
+  const vertical = { top: "15%" };
+
+  it("puts each bubble in its vertical spot", () => {
+    const o = overlay("vertical");
+    o.send({ type: "facts_ready", song: o.song, facts: [{ ...o.fact("Tall.", landscape), vertical }] });
+    o.run();
+    expect(o.spots["Tall."]).toMatchObject({ top: "15%" });
+    expect(o.spots["Tall."].left).toBeUndefined();
+  });
+
+  it("falls back to the usual spot when the server sent none (an older version)", () => {
+    const o = overlay("vertical");
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Old.", landscape)] });
+    o.run();
+    expect(o.spots["Old."]).toMatchObject(landscape);
+  });
+
+  it("joining mid-song, shows only the latest of the bubbles still up, since an area is one spot", () => {
+    const o = overlay("vertical");
+    const up = (text: string, position: object) => ({ ...o.fact(text, position), vertical });
+    o.send({ type: "facts_ready", song: o.song, facts: [up("Older.", landscape), up("Newer.", { top: "8%", left: "60%" }), { ...up("Next.", landscape), delaySeconds: 20 }] });
+    o.run();
+    expect(o.shown).toEqual(["Newer.", "Next."]);
+  });
+
+  it("joining mid-song, the landscape overlay still shows every bubble still up in its own spot", () => {
+    const o = overlay();
+    const up = (text: string, position: object) => ({ ...o.fact(text, position), vertical });
+    o.send({ type: "facts_ready", song: o.song, facts: [up("Older.", landscape), up("Newer.", { top: "8%", left: "60%" })] });
+    o.run();
+    expect(o.shown).toEqual(["Older.", "Newer."]);
+  });
+
+  it("puts the AI's captions sent with keep in vertical spots too", () => {
+    const o = overlay("vertical");
+    o.send({ type: "facts_ready", song: o.song, facts: [{ ...o.fact("Data.", landscape), vertical }] });
+    o.step(1);
+    o.send({ type: "facts_ready", song: o.song, keep: true, facts: [{ ...o.fact("Caption.", landscape), delaySeconds: 15, vertical: { bottom: "39%" } }] });
+    o.run();
+    expect(o.shown).toEqual(["Data.", "Caption."]);
+    expect(o.spots["Caption."]).toMatchObject({ bottom: "39%" });
+  });
+
+  it("leaves the landscape overlay where it was", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [{ ...o.fact("Wide.", landscape), vertical }] });
+    o.run();
+    expect(o.spots["Wide."]).toMatchObject(landscape);
+  });
+});
 
 describe("taking a fact off the stream", () => {
   it("never shows a fact marked wrong before its turn", () => {

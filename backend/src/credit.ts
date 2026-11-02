@@ -64,6 +64,8 @@ export interface CreditContext {
   now: number;
   /** Where the credit sits: the song's first spot. */
   position: Fact["position"];
+  /** And on the vertical overlay: the song's first vertical spot. */
+  vertical?: Fact["vertical"];
 }
 
 /**
@@ -75,7 +77,7 @@ export interface CreditContext {
 export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditContext): { facts: Fact[]; credit?: Fact } {
   if (!c.enabled || !facts.length || !c.onAir) return { facts };
   if (!counter.songWithFacts(c.now - c.testAt >= TEST_QUIET_MS)) return { facts };
-  return withCredit(facts, c.position);
+  return withCredit(facts, c.position, c.vertical);
 }
 
 /**
@@ -83,8 +85,8 @@ export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditConte
  * takes. The credit is only sent to the overlay: it is never in the record of
  * the song's facts, so Wrong, the dashboard and the shown log never see it.
  */
-export function withCredit(facts: Fact[], position: Fact["position"]): { credit: Fact; facts: Fact[] } {
-  const credit: Fact = { text: CREDIT_TEXT, source: "BubbleFacts", delaySeconds: 0, durationSeconds: config.factDurationSeconds, position };
+export function withCredit(facts: Fact[], position: Fact["position"], vertical?: Fact["vertical"]): { credit: Fact; facts: Fact[] } {
+  const credit: Fact = { text: CREDIT_TEXT, source: "BubbleFacts", delaySeconds: 0, durationSeconds: config.factDurationSeconds, position, ...(vertical ? { vertical } : {}) };
   const lead = Math.ceil(readingSeconds(credit)) + GAP_SECONDS;
   return { credit, facts: facts.map((f) => ({ ...f, delaySeconds: f.delaySeconds + lead })) };
 }
