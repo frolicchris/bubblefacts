@@ -43,6 +43,12 @@ describe("loadSettings", () => {
     expect(loadSettings()).toEqual(DEFAULTS);
   });
 
+  it("checks Twitch for unknown artists by default, and the box never restarts the server", () => {
+    expect(DEFAULTS.twitchAbout).toBe(true);
+    expect(fromWindow({ twitchAbout: false })).toEqual({ twitchAbout: false });
+    expect(toServerEnv({ ...DEFAULTS, twitchAbout: false }, paths)).toEqual(toServerEnv(DEFAULTS, paths));
+  });
+
   it("round-trips, keeping secrets encrypted on disk", () => {
     saveSettings({ ...DEFAULTS, channel: "jane", token: "secret-token", refreshToken: "refresh-1" });
     const disk = fs.readFileSync(file, "utf8");

@@ -9,7 +9,8 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
 import { factsTookLine, listeningLine } from "./listening";
-import { aiTimeFor, allowedFacts, pulledWithWrong, positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { aiTimeFor, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, positionsForSong, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin } from "./fact-generator";
+import { connectAboutAsker, onAboutAnswer } from "./twitch-about";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
 import { allowedHost, allowedOrigin } from "./local-only";
@@ -649,15 +650,20 @@ void warmUpBuiltin();
 // through Electron's parentPort, or Node's IPC channel when the app runs the server under Node.js (Linux).
 function onAppMessage(data: unknown): void {
   const msg = data as { type?: string; token?: unknown };
+  if (msg?.type === "twitch-about") onAboutAnswer(msg);
+  if (msg?.type === "twitch-about-off") forgetTwitchAbout();
   if (msg?.type === "ssl-token" && typeof msg.token === "string" && msg.token) {
     setAccessToken(msg.token);
     console.log("[SSL] Sign-in refreshed");
   }
 }
-type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void };
+type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => void): void; postMessage(message: unknown): void };
 const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
 parentPort?.on("message", ({ data }) => onAppMessage(data));
 if (process.send) process.on("message", onAppMessage);
+// The app holds the Twitch sign-in, so it reads a channel's About for the server (twitch-about.ts).
+if (parentPort) connectAboutAsker((m) => parentPort.postMessage(m));
+else if (process.send) connectAboutAsker((m) => process.send?.(m));
 
 songList
   .connect()

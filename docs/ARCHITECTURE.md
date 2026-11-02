@@ -88,7 +88,8 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
-| `desktop/src/twitch.ts` | Connect Twitch (device code) and reading another channel's About. |
+| `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
+| `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
@@ -388,11 +389,38 @@ sign-ins and the built-in AI. Its design decisions are in
    the song go before the AI's captions, and so they do when the article is
    surely the song's own. When the article may be about another
    work, they are all that is shown (see "Is it the requested work?").
-9. **Fall back if needed.** No source, a failed AI call, or nothing that
+9. **Twitch About.** With no article and nothing from the databases, a song
+   by an artist named exactly like a Twitch channel can get up to two bubbles
+   from that channel's public About (`twitch-about.ts`). It needs Twitch
+   connected and **Check Twitch for artists no source knows** checked (on by
+   default). The words are the About's, cut by `factsFromAbout` as for **Fill
+   from their Twitch About**, never rewritten, after "From their Twitch About: "
+   so "I" can't read as the streamer. The dashboard's label is
+   "Twitch About: <name>", and Wrong blocks that channel for that song, like an
+   article.
+
+   A stranger with the same name is the risk, so it abstains on any doubt. The
+   artist must be one name that could be a login: no spaces (they are never
+   removed: "Blue Moon" isn't the channel bluemoon), so no "A & B" or "A feat.
+   B"; five characters or more; not on a short list of common words. A guessed
+   artist doesn't count, nor does a song with an article, its own facts or
+   custom facts tagged for it, nor a channel with an empty About. Each sentence
+   must pass the content standard, `loadedCaption` and `notForStream` (links,
+   chat commands, @mentions), and channel talk ("Follow…", "Discord…") stays off.
+
+   The sign-in stays in the app. The server asks with a `twitch-about` message
+   over the channel that hands it song list tokens (`process.parentPort`, or
+   Node's IPC on Linux), and the app calls Twitch and answers; "off" until
+   connected and checked, so neither changes the server's settings or restarts
+   it. A song waits at most 2 seconds. A channel or a miss is kept an hour
+   (`setCapped`), a failure five minutes, and a late answer is kept for the
+   artist's next song. A failure just means the next step. Unchecking the box
+   or disconnecting forgets those and any song's cached About facts.
+10. **Fall back if needed.** No source, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus custom
    facts, or nothing when the streamer has none (the app's default). The AI is
    never asked to write without a reference.
-10. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
+11. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
     counting from when the facts arrive. If the song has already changed by
     then, it throws the batch away. Each fact carries a `source` label for the
     dashboard: `Wikipedia: <article>`, `Wikidata`, `MusicBrainz`,

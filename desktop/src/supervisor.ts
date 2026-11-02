@@ -69,7 +69,7 @@ interface ServerProcess {
   kill(): void;
   /** Resolves once the process has really exited. */
   exited: Promise<void>;
-  send(message: { type: string; token: string }): void;
+  send(message: Record<string, unknown>): void;
 }
 
 export class Supervisor extends EventEmitter {
@@ -128,6 +128,11 @@ export class Supervisor extends EventEmitter {
     this.child?.send({ type: "ssl-token", token });
   }
 
+  /** Tell the running server something; lost if it's between runs, so nothing may depend on it arriving. */
+  tell(message: Record<string, unknown>): void {
+    this.child?.send(message);
+  }
+
   stop(): void {
     this.stopping = true;
     if (this.restartTimer) clearTimeout(this.restartTimer);
@@ -156,6 +161,7 @@ export class Supervisor extends EventEmitter {
 
     const env = { ...process.env, ...this.env };
     const output = (d: Buffer | string) => this.log(String(d));
+    const fromServer = (message: unknown) => this.emit("server-message", message);
     let child: ServerProcess;
     if (this.runtime) {
       // Linux: the fact server runs under a standard Node.js shipped with the app, because the
@@ -164,12 +170,14 @@ export class Supervisor extends EventEmitter {
       proc.stdout?.on("data", output);
       proc.stderr?.on("data", output);
       proc.on("error", (err) => this.log(`[App] Couldn't start the fact server: ${err.message}`));
+      proc.on("message", fromServer);
       proc.on("exit", (code) => onExit(code));
       child = { kill: () => proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => void (proc.connected && proc.send(m)) };
     } else {
       const proc = utilityProcess.fork(this.serverScript, [], { env, stdio: "pipe", serviceName: "BubbleFacts server" });
       proc.stdout?.on("data", output);
       proc.stderr?.on("data", output);
+      proc.on("message", fromServer);
       proc.on("exit", (code) => onExit(code));
       child = { kill: () => void proc.kill(), exited: new Promise((resolve) => proc.once("exit", () => resolve())), send: (m) => proc.postMessage(m) };
     }

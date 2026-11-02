@@ -55,6 +55,17 @@ const crashAfterGoodCheck = async () => {
   forks[forks.length - 1].emit("exit", 1);
 };
 
+describe("messages with the server", () => {
+  it("passes on what the server says, and tells it what the app says", () => {
+    const heard = jest.fn();
+    sup.on("server-message", heard);
+    forks[0].emit("message", { type: "twitch-about", login: "marlowkeys" });
+    expect(heard).toHaveBeenCalledWith({ type: "twitch-about", login: "marlowkeys" });
+    sup.tell({ type: "twitch-about-off" });
+    expect(forks[0].send).toHaveBeenCalledWith({ type: "twitch-about-off" });
+  });
+});
+
 describe("crash restarts (restart history)", () => {
   it("backs off and reaches failing when the server crashes after each good health check", async () => {
     for (let i = 0; i < 4; i++) {

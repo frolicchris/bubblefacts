@@ -24,6 +24,8 @@ export interface Settings {
   twitchRefreshToken: string;
   twitchTokenExpiresAt: number;
   twitchLogin: string;
+  /** With Twitch connected: a song no source knows, by an artist named exactly like a channel, gets a fact from its About. */
+  twitchAbout: boolean;
   /** StreamElements channel name, filled in from the token when it's tested. */
   seChannel: string;
   /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
@@ -108,6 +110,7 @@ export const DEFAULTS: Settings = {
   twitchRefreshToken: "",
   twitchTokenExpiresAt: 0,
   twitchLogin: "",
+  twitchAbout: true,
   seChannel: "",
   seJwt: "",
   nowPlayingPreset: "streamling",
@@ -342,7 +345,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
