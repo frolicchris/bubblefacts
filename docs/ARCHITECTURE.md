@@ -419,7 +419,12 @@ sign-ins and the built-in AI. Its design decisions are in
 10. **Fall back if needed.** No source, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus custom
    facts, or nothing when the streamer has none (the app's default). The AI is
-   never asked to write without a reference.
+   never asked to write without a reference. With `AI_PROVIDER=none` (the app
+   while its model downloads, and BubbleFacts Lite, which ships without the AI
+   engine) no AI is asked at all: articles aren't turned into captions, so only
+   facts that need no AI (Wikidata and MusicBrainz, a Twitch About, the song
+   list and the streamer's own) reach the stream, and
+   `node-llama-cpp` is never imported (it's loaded only for `builtin`).
 11. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
     counting from when the facts arrive. If the song has already changed by
     then, it throws the batch away. Each fact carries a `source` label for the

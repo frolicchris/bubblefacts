@@ -61,14 +61,19 @@ Release files have the version in their names, for example for `2.0.0-beta.1`:
 | `BubbleFacts-VERSION-windows-x64.exe` | Windows |
 | `BubbleFacts-VERSION-linux-x86_64.AppImage` | Other Linux |
 | `bubblefacts_VERSION_amd64.deb` | Ubuntu, Debian and similar |
+| `BubbleFacts-VERSION-lite-mac-arm64.dmg` and the rest with `-lite` | BubbleFacts Lite, with no AI (from 2.2.0) |
+| `bubblefacts-lite_VERSION_amd64.deb` | BubbleFacts Lite for Ubuntu, Debian and similar |
 | `SHA256SUMS.txt` | Checksums for all of the above |
 
 Betas are published as GitHub prereleases, which GitHub's `/releases/latest`
 link ignores. So the pages don't use fixed links. Instead:
 
 - Every download link has a `data-asset` attribute (`mac-arm64`, `mac-x64`,
-  `windows-x64`, `linux-appimage`, `linux-deb`, `sha256sums`) and a plain
-  `href` to the GitHub Releases page.
+  `windows-x64`, `linux-appimage`, `linux-deb`, `sha256sums`, and for Lite the
+  same with `lite-` in front, such as `lite-mac-arm64`) and a plain
+  `href` to the GitHub Releases page. The full app's patterns skip Lite's
+  files. The Lite box (`data-lite-shown`, and `data-beta-lite` in the beta box)
+  shows only when that release has Lite installers.
 - `assets/site.js` asks
   `https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=10`,
   takes the newest full release with installers (until 2.0.0 is out, the
