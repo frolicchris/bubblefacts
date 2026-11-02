@@ -1597,6 +1597,15 @@ describe("prepared facts (issues #292 and #293)", () => {
     expect((await prepare(listed, stop.signal)).outcome).toBeNull();
   });
 
+  it("keeps a song's database facts without asking the AI when it has no article (issue #296)", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue("");
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Glass Orchard" came out in 2011.']);
+    mockCreate.mockClear();
+    const ready = await prepare({ title: "Glass Orchard", artist: "Quiet Pines", songId: 5151 });
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(ready).toMatchObject({ outcome: "facts", article: "", model: "", facts: [{ text: '"Glass Orchard" came out in 2011.', source: SOURCE.wikidata }] });
+  });
+
   it("retells an artist's article once for every song that reads it, and drops a line naming the first song (issue #296)", async () => {
     const answers = new Map();
     const named = "Harbor Lights was first sketched on an upright piano at the studio.";

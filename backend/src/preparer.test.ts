@@ -30,9 +30,9 @@ function preparer(over: Partial<PreparerDeps> = {}) {
   const deps: PreparerDeps = {
     store,
     targets: () => list,
-    prepare: jest.fn(async (song: SSLSong) => {
+    prepare: jest.fn(async (song: SSLSong, _signal: AbortSignal, opts: { streamModel?: boolean }) => {
       prepared.push(song.title);
-      return found(song);
+      return found(song, { model: opts.streamModel ? "high.gguf" : "standard.gguf" });
     }),
     revisionOf: jest.fn(async () => 10),
     prepModel: () => "standard.gguf",
@@ -134,6 +134,25 @@ describe("Preparer (issue #293)", () => {
     expect(prepared.slice(3)).toEqual(["Harbor Lights", "Tin Roof"]);
     expect(Date.parse(store.saved("ssl:3")!.checkedAt)).toBeGreaterThan(Date.parse(weekAgo));
     expect(store.saved("ssl:3")!.preparedAt).not.toBe(store.saved("ssl:3")!.checkedAt);
+  });
+
+  it("writes again with the model on stream, last, the songs the faster model prepared (issue #296)", async () => {
+    const { p, deps, prepared } = preparer({ streamModel: () => "high.gguf" });
+    p.start();
+    await p.stopped();
+    // First pass: every song by the Standard model, then each again by High quality, most requested first.
+    expect(prepared).toEqual(["Tin Roof", "Low Tide", "Harbor Lights", "Tin Roof", "Low Tide", "Harbor Lights"]);
+    const calls = (deps.prepare as jest.Mock).mock.calls;
+    expect(calls.slice(0, 3).every((c) => !c[2].streamModel)).toBe(true);
+    expect(calls.slice(3).every((c) => c[2].streamModel)).toBe(true);
+  });
+
+  it("shares one run's answers between its songs (issue #296)", async () => {
+    const { p, deps } = preparer();
+    p.start();
+    await p.stopped();
+    const answers = (deps.prepare as jest.Mock).mock.calls.map((c) => c[2].answers);
+    expect(new Set(answers).size).toBe(1);
   });
 
   it("does nothing more once every song is prepared", async () => {

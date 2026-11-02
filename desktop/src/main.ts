@@ -36,6 +36,7 @@ const BUILD = buildInfo(PACKAGE);
 /** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
 const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
 import { pruneLogs, Status, Supervisor } from "./supervisor";
+import { prepareEnv } from "./preparing";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
 
@@ -127,7 +128,10 @@ function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents") });
   const active = activeModel();
   if (settings.ai === "builtin" && (builtinFailed || !active)) env.AI_PROVIDER = "none";
-  else if (settings.ai === "builtin" && active) env.MODEL_PATH = modelPath(DIRS.models, active);
+  else if (settings.ai === "builtin" && active) {
+    env.MODEL_PATH = modelPath(DIRS.models, active);
+    Object.assign(env, prepareEnv(settings, DIRS.models, (m) => modelReady(DIRS.models, m)));
+  }
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
   env.BUBBLEFACTS_DATA_DIR = DATA;
   env.BUBBLEFACTS_VERSION = app.getVersion();

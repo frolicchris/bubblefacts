@@ -1480,6 +1480,27 @@ going on; a song with facts saved after three such tries is kept as it is.
 The server refuses to start while an overlay is connected or there's no AI
 (`cantPrepare`), and stops the moment an overlay connects.
 
+**Faster for big lists** (issue #296). A list of 5,000 songs at a minute each
+is days of preparing, so three things cut the time without changing what is
+written:
+
+- A song with no article never reaches the AI, as on stream: its Wikidata
+  and MusicBrainz facts are kept as they are (no AI, no screening but the
+  content standard).
+- An article several songs share word for word (an artist's, or a game's when
+  a track has none of its own: `aboutTheSong` is false) is retold once per run.
+  The answer is kept by its exact reference (`answers` in the context, the 200
+  latest) and screened for each song as usual; a line naming the song it was
+  first written for is dropped (`names the song it was first written for`).
+  A song's own article is never shared.
+- With **High quality** chosen and the Standard model downloaded too, the app
+  passes `PREPARE_MODEL_PATH`, and the Standard model, several times faster,
+  writes the first pass. It's loaded beside the one on stream only while
+  preparing, and released after (`releasePrepModel`). Each entry records its
+  model, so once every song has a first pass the preparer writes the
+  Standard model's ones again with the model on stream (`upgrade`, last in
+  line), the most requested first.
+
 **Songs from play history** (issue #297). StreamElements, Streamling,
 Nightbot and other now playing files have no list, but the same requests come
 back. `onSongChange` records each song (not a commercial or ident) in
