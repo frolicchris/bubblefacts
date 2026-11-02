@@ -2458,6 +2458,18 @@ describe("true captions the screen dropped (#206, #207)", () => {
     const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
     expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
   });
+
+  it("still checks who is speaking when a one-word title is an opener (#230)", () => {
+    const reasons = (fact: string, title: string, ref: string) => screenClaims([fact], ref, { track: title }).rejected.map((r) => r.reason);
+    // Songs titled "I" and "We": the caption's "I" and "We" are someone's own words, not the title.
+    const i = "I (Dana Reyes song)\n\"I\" is a 2019 song by Dana Reyes. Reyes said: I wrote the whole song in a single night.";
+    expect(reasons("I wrote the whole song in a single night.", "I", i)).toContain("doesn't say who is speaking");
+    const we = "We (Pale Orchard song)\n\"We\" is a 2015 song by Pale Orchard. We recorded the song live in one take, the band said.";
+    expect(reasons("We recorded the song live in one take.", "We", we)).toContain("doesn't say who is speaking");
+    // A one-word title that isn't an opener still leads its caption, whatever case the list wrote it in.
+    const hurt = "Lanternfall\nLanternfall is a 2019 song by Dana Reyes. It was released as a single in 2019.";
+    expect(reasons("Lanternfall was released as a single in 2019.", "lanternfall", hurt)).not.toContain("doesn't say who is speaking");
+  });
 });
 
 describe("artist names written with symbols (#245)", () => {

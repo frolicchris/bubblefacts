@@ -5851,6 +5851,27 @@ export function parseCitation(line: string): { at: number; text: string } {
   return m ? { at: Number(m[1] ?? m[2]), text: m[3].trim() } : { at: 0, text: line.trim() };
 }
 
+/** Openers the screens below look for, which a one-word title can't stand in for: "I", "We", "This". */
+const OPENER_WORD = /^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our|He|She|They|His|Her|Their|It|This|That|These|Those|The)$/iu;
+
+/**
+ * Whether a caption opens with the song's or the article's title, so the speaker and "what is
+ * this" checks don't apply. A title of two or more words matches in any case, like
+ * `withoutTitles`; a one-word title only as written (first letter aside) and never when it is itself an opener: for a
+ * song titled "I" or "We", "I wrote it in a night" still says nobody (#230).
+ */
+function opensWithTitle(fact: string, titles: string[]): boolean {
+  return titles.some((raw) => {
+    const t = raw?.trim();
+    if (!t) return false;
+    const oneWord = !/\s/.test(t);
+    if (oneWord && OPENER_WORD.test(t)) return false;
+    // A caption's first letter is a capital whatever the list wrote: "hurt" opens as "Hurt".
+    const want = oneWord ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+    return new RegExp(`^${escapeRe(want)}(?![\\p{L}\\p{N}])`, oneWord ? "u" : "iu").test(fact);
+  });
+}
+
 /**
  * Why a caption can't go on screen whatever its reference says: unsafe for a stream, off the
  * content standard, about the prompt, too short, an opinion, an unnamed speaker, the music video,
@@ -5876,7 +5897,7 @@ function captionReason(fact: string, titles: string[], otherParts: string[], nam
   if (/^(He|She|They|His|Her|Their)\b/.test(fact)) return "doesn't say who";
   // "I had the whole thing fleshed out": someone's own words with no one named, which read as the streamer's.
   // ...unless the caption opens with the song's or the article's whole title: "My future was released as a single".
-  const isTitle = titles.some((t) => new RegExp(`^${escapeRe(t)}(?![\\p{L}\\p{N}])`, "iu").test(fact));
+  const isTitle = opensWithTitle(fact, titles);
   if (/^(?:I(?:['’](?:m|ve|d|ll))?|We|My|Our)\s+\p{Ll}/u.test(fact) && !isTitle) return "doesn't say who is speaking";
   // A bubble stands alone: "This was loosely based on ..." leans on a sentence that isn't on screen.
   const bare = BARE_DEMONSTRATIVE.exec(fact);
