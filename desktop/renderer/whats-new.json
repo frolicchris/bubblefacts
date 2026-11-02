@@ -1,4 +1,8 @@
 {
+  "2.2.0-beta.2": [
+    "A vertical overlay for phone-shaped streams.",
+    "Original songs by Twitch artists can get facts from the artist's Twitch About page."
+  ],
   "2.2.0-beta.1": [
     "New bubbles about the good artists do: charity work, benefit shows, public roles and honors.",
     "Fewer wrong facts, and no more facts about a song's or artist's failures.",

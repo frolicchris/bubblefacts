@@ -1,7 +1,7 @@
 /* BubbleFacts
  * ====================
  *
- * v2.2.0-beta.1
+ * v2.2.0-beta.2
  *
  *  <https://github.com/frolicchris/bubblefacts>
  *
