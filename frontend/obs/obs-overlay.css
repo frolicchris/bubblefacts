@@ -7,6 +7,13 @@
  *
  * OBS renders browser sources without GPU acceleration, so animate only
  * transform and opacity.
+ *
+ * The look: the --bf-* colors, font and corners below are the Classic Style.
+ * The app's Style setting switches them with data-style on <html>, live
+ * (issue #177). They're set with zero specificity (:where), so anything in
+ * OBS's Custom CSS box still wins, whether it sets these properties or styles
+ * .popup-bubble and .song-toast directly. A Style only sets --bf-* properties:
+ * never a size, an animation or the text itself.
  */
 :root {
   --bf-scale: 1;
@@ -16,6 +23,114 @@
   --toast-font-size: calc(1.944vh * var(--bf-scale));
   --bubble-max-width: calc(51.85vh * var(--bf-scale));
   --bubble-min-width: calc(27.78vh * var(--bf-scale));
+}
+
+/* === Styles. Classic, the default: a dark blue RPG dialog box === */
+:where(:root) {
+  --bf-font: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --bf-weight: 600;
+  --bf-letter-spacing: 0.01em;
+  --bf-toast-letter-spacing: 0.04em;
+  --bf-radius: 6px;
+  --bf-bg-1: rgba(10, 10, 60, 0.94);
+  --bf-bg-2: rgba(20, 20, 90, 0.94);
+  --bf-text: #f2f2f2;
+  /* Heavier shadow: larger text sits over more varied video content. */
+  --bf-text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+  --bf-accent: #5b6ee1;
+  --bf-border-width: 3px;
+  --bf-outline: rgba(91, 110, 225, 0.3);
+  --bf-outline-width: 2px;
+  --bf-cursor: var(--bf-accent);
+  --bf-sparkle: #fff;
+  /* Now Playing: an achievement notification */
+  --bf-toast-radius: 4px;
+  --bf-toast-bg-1: rgba(10, 10, 50, 0.92);
+  --bf-toast-bg-2: rgba(20, 20, 80, 0.92);
+  --bf-toast-text: #ffd700;
+  --bf-toast-glow: 0 0 6px rgba(255, 215, 0, 0.4);
+  --bf-toast-label: #8ca0ff;
+  --bf-toast-border: var(--bf-accent);
+  --bf-toast-border-width: 2px;
+  --bf-toast-highlight: rgba(255, 215, 0, 0.6);
+  --bf-live-learn: #ffd700;
+}
+
+/* Light: a white card with dark text, for bright scenes. */
+:where(html[data-style="light"]) {
+  --bf-radius: 14px;
+  --bf-bg-1: rgba(255, 255, 255, 0.96);
+  --bf-bg-2: rgba(238, 241, 252, 0.96);
+  --bf-text: #1b1d33;
+  --bf-text-shadow: none;
+  --bf-accent: #4152c9;
+  --bf-border-width: 2px;
+  --bf-outline: rgba(0, 0, 0, 0.12);
+  --bf-outline-width: 1px;
+  --bf-sparkle: #4152c9;
+  --bf-toast-radius: 14px;
+  --bf-toast-bg-1: rgba(255, 255, 255, 0.96);
+  --bf-toast-bg-2: rgba(238, 241, 252, 0.96);
+  --bf-toast-text: #1b1d33;
+  --bf-toast-glow: none;
+  --bf-toast-label: #3a47b0;
+  --bf-toast-highlight: transparent;
+  --bf-live-learn: #7a5200;
+}
+
+/* Minimal: plain see-through black, with no border, cursor or sparkles. */
+:where(html[data-style="minimal"]) {
+  --bf-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --bf-weight: 500;
+  --bf-letter-spacing: 0;
+  --bf-radius: 10px;
+  --bf-bg-1: rgba(0, 0, 0, 0.78);
+  --bf-bg-2: rgba(0, 0, 0, 0.78);
+  --bf-text: #ffffff;
+  --bf-text-shadow: none;
+  --bf-accent: #ffffff;
+  --bf-border-width: 0px;
+  --bf-outline: transparent;
+  --bf-outline-width: 0px;
+  --bf-cursor: transparent;
+  --bf-sparkle: transparent;
+  --bf-toast-radius: 10px;
+  --bf-toast-bg-1: rgba(0, 0, 0, 0.78);
+  --bf-toast-bg-2: rgba(0, 0, 0, 0.78);
+  --bf-toast-text: #ffffff;
+  --bf-toast-glow: none;
+  --bf-toast-label: #d0d0d0;
+  --bf-toast-border-width: 0px;
+  --bf-toast-highlight: transparent;
+  --bf-live-learn: #ffd700;
+}
+
+/* Retro: an 8-bit game's text box. Black, a thick white frame, square corners, a fixed-width font.
+   System fonts only: the overlay never loads a font from the internet. */
+:where(html[data-style="retro"]) {
+  --bf-font: 'Lucida Console', Menlo, Monaco, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace;
+  --bf-weight: 700;
+  --bf-letter-spacing: -0.06em;
+  --bf-toast-letter-spacing: -0.04em;
+  --bf-radius: 0px;
+  --bf-bg-1: rgba(0, 0, 0, 0.94);
+  --bf-bg-2: rgba(0, 0, 0, 0.94);
+  --bf-text: #ffffff;
+  --bf-text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9);
+  --bf-accent: #ffffff;
+  --bf-border-width: 4px;
+  --bf-outline: rgba(0, 0, 0, 0.94);
+  --bf-outline-width: 3px;
+  --bf-sparkle: #fff;
+  --bf-toast-radius: 0px;
+  --bf-toast-bg-1: rgba(0, 0, 0, 0.94);
+  --bf-toast-bg-2: rgba(0, 0, 0, 0.94);
+  --bf-toast-text: #f8d878;
+  --bf-toast-glow: 2px 2px 0 rgba(0, 0, 0, 0.9);
+  --bf-toast-label: #7cd8ff;
+  --bf-toast-border-width: 4px;
+  --bf-toast-highlight: transparent;
+  --bf-live-learn: #f8d878;
 }
 
 /* === Reset & Base — Transparent for OBS Browser Source === */
@@ -30,7 +145,7 @@ html, body {
   height: 100%;
   background: transparent;
   overflow: hidden;
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--bf-font);
 }
 
 #bubble-container {
@@ -53,26 +168,26 @@ html, body {
   min-width: var(--bubble-min-width);
   /* Padding scales with the font so the icon gutter stays proportional. */
   padding: 0.85em 1.05em 0.85em 2.6em;
-  /* Dark blue RPG dialog background */
+  /* The Style's background, a gentle diagonal gradient */
   background: linear-gradient(
     135deg,
-    rgba(10, 10, 60, 0.94) 0%,
-    rgba(20, 20, 90, 0.94) 50%,
-    rgba(10, 10, 60, 0.94) 100%
+    var(--bf-bg-1) 0%,
+    var(--bf-bg-2) 50%,
+    var(--bf-bg-1) 100%
   );
   /* Double border — outer glow + inner pixel border */
-  border: 3px solid #5b6ee1;
-  border-radius: 6px;
-  outline: 2px solid rgba(91, 110, 225, 0.3);
+  border: var(--bf-border-width) solid var(--bf-accent);
+  border-radius: var(--bf-radius);
+  outline: var(--bf-outline-width) solid var(--bf-outline);
   outline-offset: 2px;
-  color: #f2f2f2;
+  color: var(--bf-text);
+  font-family: var(--bf-font);
   font-size: var(--fact-font-size);
-  font-weight: 600;
+  font-weight: var(--bf-weight);
   line-height: 1.45;
   text-align: left;
-  letter-spacing: 0.01em;
-  /* Heavier shadow: larger text sits over more varied video content. */
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+  letter-spacing: var(--bf-letter-spacing);
+  text-shadow: var(--bf-text-shadow);
   z-index: 1001;
 
   /* Start hidden for animation */
@@ -111,7 +226,7 @@ html, body {
   height: 0;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 7px solid #5b6ee1;
+  border-top: 7px solid var(--bf-cursor);
   animation: cursorBlink 0.8s step-end infinite;
 }
 
@@ -189,7 +304,7 @@ html, body {
   position: absolute;
   width: 2px;
   height: 2px;
-  background: #fff;
+  background: var(--bf-sparkle);
   border-radius: 0;
   opacity: 0;
 }
@@ -228,23 +343,24 @@ html, body {
   transform: translateX(-50%);
   background: linear-gradient(
     90deg,
-    rgba(10, 10, 50, 0.92) 0%,
-    rgba(20, 20, 80, 0.92) 50%,
-    rgba(10, 10, 50, 0.92) 100%
+    var(--bf-toast-bg-1) 0%,
+    var(--bf-toast-bg-2) 50%,
+    var(--bf-toast-bg-1) 100%
   );
-  color: #ffd700; /* Gold — like achievement text */
+  color: var(--bf-toast-text); /* Classic: gold, like achievement text */
   padding: 0.7em 1.6em 0.7em 1.2em;
-  border-radius: 4px;
-  border: 2px solid #5b6ee1;
+  border-radius: var(--bf-toast-radius);
+  border: var(--bf-toast-border-width) solid var(--bf-toast-border);
+  font-family: var(--bf-font);
   font-size: var(--toast-font-size);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--bf-toast-letter-spacing);
   /* Wrap long titles; nowrap on a centered element clips both ends. */
   max-width: 80vw;
   white-space: normal;
   text-align: center;
   line-height: 1.35;
-  text-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+  text-shadow: var(--bf-toast-glow);
   opacity: 0;
   transition: opacity 0.5s ease;
   z-index: 1002;
@@ -253,7 +369,7 @@ html, body {
 
 /* "NOW PLAYING" prefix styling */
 .song-toast .toast-label {
-  color: #8ca0ff;
+  color: var(--bf-toast-label);
   font-weight: 400;
   font-size: 0.75em;
   text-transform: uppercase;
@@ -265,14 +381,15 @@ html, body {
   opacity: 1;
 }
 
-/* Live Learn: off-list request, no facts follow. Gold border, same dark
-   background, persistent until the next song. No new animation. */
+/* Live Learn: off-list request, no facts follow. A gold border (the Style's own gold), the same
+   background, persistent until the next song. No new animation. The label says LIVE LEARN,
+   so color is never the only sign. */
 .song-toast.live-learn {
-  border-color: #ffd700;
+  border-color: var(--bf-live-learn);
 }
 
 .song-toast.live-learn .toast-label {
-  color: #ffd700;
+  color: var(--bf-live-learn);
 }
 
 /* Gold highlight along the banner's top edge */
@@ -286,7 +403,7 @@ html, body {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 215, 0, 0.6),
+    var(--bf-toast-highlight),
     transparent
   );
 }
@@ -311,9 +428,7 @@ html, body {
 /* ============================================================
    VERTICAL — BubbleFacts Vertical.html, a 1080x1920 source for
    Twitch Dual Format, TikTok, YouTube Shorts and Instagram Live (issue #175)
-   =====================================================}
-
-/* ============================================================
+   ============================================================
    Phone apps draw their own top bar, live chat and buttons over the
    picture. Everything here stays inside the area all three leave clear:
    14% from the top, 38% from the bottom, 6% from the left and 12% from
@@ -375,7 +490,9 @@ html[data-layout="vertical"] .song-toast {
   font-weight: 600;
   line-height: 1.4;
   z-index: 1003;
-=======
+}
+
+/* ============================================================
    REDUCED MOTION: no float, sparkle or endless blink.
    The pop in and out stay (opacity and transform only) so bubbles still appear and leave.
    ============================================================ */

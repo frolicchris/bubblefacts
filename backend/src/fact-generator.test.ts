@@ -493,6 +493,26 @@ describe("generateFacts", () => {
     expect(facts[0].evidence).toBe(facts[0].text);
   });
 
+  it("credits and links a caption from a companion article's line to that article, so Wrong blocks it (issue #48)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const companion = "Mira Okafor recorded the choir for the piece in a single afternoon with forty singers.";
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Ashen Choir\nFrom the article "Music of the Lanternfall series": ${companion}\n\n${MODEL_LINES}`);
+    const own = MODEL_LINES.split("\n")[0];
+    mockCreate.mockResolvedValue(reply(`${companion}\n${own}`));
+    const request = { title: "Ashen Choir", artist: "Lanternfall" };
+    const facts = await generateFacts(request);
+    const fromCompanion = facts.find((f) => f.text === companion);
+    const fromOwn = facts.find((f) => f.text === own);
+    expect(fromCompanion?.source).toBe("Wikipedia: Music of the Lanternfall series");
+    expect(fromCompanion?.url).toBe("https://en.wikipedia.org/wiki/Music_of_the_Lanternfall_series");
+    expect(fromCompanion?.evidence).toBe(companion);
+    expect(fromOwn?.source).toBe("Wikipedia: Ashen Choir");
+    expect(fromOwn?.url).toBe("https://en.wikipedia.org/wiki/Ashen_Choir");
+    expect(markWrong(request, companion, fromCompanion?.source)).toBe("Music of the Lanternfall series");
+    expect(blockedArticles(request).has("Music of the Lanternfall series")).toBe(true);
+    expect(blockedArticles(request).has("Ashen Choir")).toBe(false);
+  });
+
   it("gives each article fact a link and the sentence it rests on, for the dashboard (citations off, the default)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);
@@ -1578,6 +1598,19 @@ describe("prepared facts (issues #292 and #293)", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("keeps a companion article's label on a prepared fact, so Wrong on the companion drops the entry (#48)", async () => {
+    const ready = await prepare(listed);
+    keep([{ text: "A companion line about the harbor festival recording.", source: "Wikipedia: Harbor Festival" }, ...ready.facts], ready.article);
+    clearFactCache();
+    expect((await generateFacts(listed)).map((f) => f.source)).toContain("Wikipedia: Harbor Festival");
+    blockArticleForTest(listed, "Harbor Festival");
+    clearFactCache();
+    restoreRecent([]);
+    await generateFacts(listed);
+    expect(preparedStore.saved(songKey(listed))).toBeUndefined();
+    unmarkWrong(listed, "Harbor Festival");
+  });
+
   it("ignores an entry from other rules or older than 30 days", async () => {
     const hidden = [{ text: "A prepared fact nobody should see.", source: "Wikidata" }];
     const old = new Date(Date.now() - 31 * 24 * 3600_000).toISOString();
@@ -1620,6 +1653,38 @@ describe("prepared facts (issues #292 and #293)", () => {
     // Another article is asked for on its own.
     (fetchGrounding as jest.Mock).mockResolvedValue(`Quiet Pines\nQuiet Pines is a band. ${MODEL_LINES}`);
     await prepareSong({ title: "Low Tide", artist: "Quiet Pines" }, new AbortController().signal, { answers, revisionOf: noRevision });
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a song whose captions all failed the screen (#203)", () => {
+  const failing = ["He did it.", "I wrote it in one night at home.", "They liked it a lot more than before."].join("\n");
+  const later = (ms: number) => jest.spyOn(Date, "now").mockReturnValue(Date.now() + ms);
+  afterEach(() => jest.restoreAllMocks());
+
+  it("isn't sent to the AI again for the same article, but is for another", async () => {
+    withArticle("Test Song");
+    mockCreate.mockResolvedValue(reply(failing));
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    // Past the retry time, the same article: the AI would write the same captions.
+    later(11 * 60 * 1000);
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    jest.restoreAllMocks();
+    // Another article: worth asking.
+    (fetchGrounding as jest.Mock).mockResolvedValue(`Test Song (other song)\n${MODEL_LINES}`);
+    later(22 * 60 * 1000);
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("is asked again once the streamer's changes reset the song", async () => {
+    withArticle("Test Song");
+    mockCreate.mockResolvedValue(reply(failing));
+    await generateFacts(song);
+    forgetSong(song);
+    await generateFacts(song);
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 });

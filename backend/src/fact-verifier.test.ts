@@ -50,6 +50,8 @@ import {
   receptionSentences,
   theorySentences,
   curatedFacts,
+  CURATED_REST_MS,
+  resetCuratedTurns,
   orderExtract,
   fetchGrounding,
   clearGroundingCache,
@@ -289,6 +291,8 @@ describe("screenClaims", () => {
 });
 
 describe("curatedFacts", () => {
+  beforeEach(() => resetCuratedTurns());
+
   it("returns the requested number of distinct facts from the packs", () => {
     const facts = curatedFacts(5);
     expect(facts).toHaveLength(5);
@@ -299,6 +303,21 @@ describe("curatedFacts", () => {
   it("does not exceed the pool, and handles zero", () => {
     expect(curatedFacts(9999)).toHaveLength(topic.curatedFacts.length);
     expect(curatedFacts(0)).toEqual([]);
+  });
+
+  it("takes turns, and rests a fact for an hour rather than repeat it (#190)", () => {
+    const all = topic.curatedFacts.length;
+    const start = 1_000_000;
+    const first = curatedFacts(2, start);
+    // Every other fact goes before either of these comes back.
+    const rest = curatedFacts(all, start + 60_000);
+    expect(rest).toHaveLength(all - 2);
+    expect(rest).not.toEqual(expect.arrayContaining([first[0]]));
+    expect(rest).not.toEqual(expect.arrayContaining([first[1]]));
+    // All shown within the hour: none, not a repeat.
+    expect(curatedFacts(3, start + 30 * 60_000)).toEqual([]);
+    // After their rest, the longest unused come back first.
+    expect(curatedFacts(5, start + CURATED_REST_MS).sort()).toEqual([...first].sort());
   });
 });
 
@@ -2457,6 +2476,18 @@ describe("true captions the screen dropped (#206, #207)", () => {
     // The whole title, not just its first words.
     const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
     expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
+  });
+
+  it("still checks who is speaking when a one-word title is an opener (#230)", () => {
+    const reasons = (fact: string, title: string, ref: string) => screenClaims([fact], ref, { track: title }).rejected.map((r) => r.reason);
+    // Songs titled "I" and "We": the caption's "I" and "We" are someone's own words, not the title.
+    const i = "I (Dana Reyes song)\n\"I\" is a 2019 song by Dana Reyes. Reyes said: I wrote the whole song in a single night.";
+    expect(reasons("I wrote the whole song in a single night.", "I", i)).toContain("doesn't say who is speaking");
+    const we = "We (Pale Orchard song)\n\"We\" is a 2015 song by Pale Orchard. We recorded the song live in one take, the band said.";
+    expect(reasons("We recorded the song live in one take.", "We", we)).toContain("doesn't say who is speaking");
+    // A one-word title that isn't an opener still leads its caption, whatever case the list wrote it in.
+    const hurt = "Lanternfall\nLanternfall is a 2019 song by Dana Reyes. It was released as a single in 2019.";
+    expect(reasons("Lanternfall was released as a single in 2019.", "lanternfall", hurt)).not.toContain("doesn't say who is speaking");
   });
 });
 

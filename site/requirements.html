@@ -206,6 +206,19 @@
       </div>
     </section>
 
+    <section class="section" aria-labelledby="lite">
+      <div class="wrap narrow">
+        <h2 id="lite">BubbleFacts Lite (no AI)</h2>
+        <p>BubbleFacts Lite is the same app without the built-in AI. Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get facts: mostly well-known songs, from Wikidata and MusicBrainz, plus your own facts. In return, it needs less:</p>
+        <ul>
+          <li><strong>Disk space:</strong> no AI model to download, so none of the 2 GB (or 5 GB for High quality) the AI takes. The installer is smaller too: on Linux, for example, the Lite AppImage is about 130 MB and the full one about 205 MB.</li>
+          <li><strong>Memory:</strong> none of the 1 to 3 GB the built-in AI uses while it writes facts.</li>
+          <li><strong>Graphics:</strong> nothing. The graphics card only speeds up the AI.</li>
+        </ul>
+        <p>Everything else in the table above still applies. In Lite's <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, you can still have an online AI or your own Ollama write facts. <a href="download.html#lite">Download BubbleFacts Lite</a>.</p>
+      </div>
+    </section>
+
     <section class="section" aria-labelledby="fallback">
       <div class="wrap narrow">
         <h2 id="fallback">If the built-in AI can't run</h2>
@@ -214,6 +227,7 @@
           <li>On Windows and Linux, the app tries a simpler mode that uses only the processor. This happens on its own.</li>
           <li>If that doesn't work either, the app tells you, and its <span class="ui">Switch to Groq</span> button opens Settings. Groq is free, with a daily limit, and does the AI work online.</li>
         </ol>
+        <p>Rather have no AI at all? Use <a href="#lite">BubbleFacts Lite</a>.</p>
         <p>Groq is also a good choice if your computer already works hard while you stream. You can switch any time in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span>. See <a href="guide.html#ai">using an online AI</a>.</p>
 
         <div class="note">

@@ -96,7 +96,10 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
    built-in AI crashes under Electron's own runtime there; from source it
    uses Electron's, so choose an online AI or Ollama in Settings while
    developing on Linux.
-4. `npm run dist` builds installers for your own system into `release/`.
+4. `npm run dist` builds installers for your own system into `release/`, and
+   `npm run dist:lite` builds BubbleFacts Lite (no AI engine) into
+   `release-lite/`. To see Lite's screens without building it, run
+   `BUBBLEFACTS_EDITION=lite npm run app`.
 
 On a Mac whose Desktop or Documents folder is synced by iCloud, build into a
 folder outside it, or code signing fails on the metadata Finder adds:

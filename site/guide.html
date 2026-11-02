@@ -293,6 +293,7 @@
             <p>Under <span class="ui">Songs</span>, a small line says how BubbleFacts hears about your songs: <span class="ui">Hearing your queue live</span> (StreamerSongList) or <span class="ui">Hearing your song requests live</span> (StreamElements) when changes arrive as they happen, <span class="ui">Checking your list every 15 seconds</span> when it has to ask, or <span class="ui">Checking your file every 2 seconds</span> for a now playing file. Either way your songs come through; live is just quicker.</p>
             <p>Few or no facts at first? BubbleFacts may still be getting ready. The dashboard's <span class="ui">Facts</span> light shows how far along it is.</p>
             <p>Bubbles coming late? Under the <span class="ui">Facts</span> light, <span class="ui">Facts took 45 s</span> says how long the AI needed for the song on now. A long time usually means the computer is busy with the stream.</p>
+            <p>BubbleFacts notices this by itself, with nothing to set. When facts keep coming late, it asks the built-in AI for fewer of them, and the dashboard says <span class="ui">Your computer is busy, so fewer facts</span>. When a song ends before its facts are ready, it shows only the quick facts from the music databases and says <span class="ui">Your computer is busy, so quick facts only</span>. While a game or OBS keeps the processor nearly full, the AI also works more slowly in the background, so your stream doesn't stutter. Every fact is still checked the same way. Once songs get their facts on time again, everything goes back to normal on its own.</p>
             <p>Seeing a small red dot in the bottom-right corner instead? The overlay can't reach the app. See <a href="troubleshooting.html">If something goes wrong</a>.</p>
           </div>
         </div>
@@ -356,7 +357,7 @@
               <li>In <span class="ui">Your own facts</span>, type one fact per line.</li>
               <li>Optional: facts about your original pieces go under <span class="ui">You and your music</span>. Check <span class="ui">I play my own compositions</span>, then type them in <span class="ui">About your own compositions</span> just below. These show when the song's artist is your channel name or <span class="ui">Your name on stream</span>, so a friend's piece never gets them.</li>
             </ol>
-            <p>Five or more custom facts keep the same ones from repeating song after song.</p>
+            <p>Your custom facts take turns, and one that showed in the last hour waits, so a song may get fewer bubbles instead of a repeat. Five or more custom facts keep the bubbles full.</p>
 
             <h3 id="song-facts">Add facts for one song</h3>
             <p>Some songs aren't on Wikipedia or in any music database: a music content creator's original, a friend's band, a song you wrote together. You can give a song its own facts.</p>
@@ -381,6 +382,14 @@
               <li><strong>More facts per song?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Facts per song</span>. BubbleFacts finds up to 4 facts for a song, so a higher number only adds bubbles when you've <a href="#song-facts">written your own</a>. Your own facts can go past 4, up to the number you set.</li>
               <li><strong>Already show the song yourself?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, turn off <span class="ui">Show a Now Playing bubble when a song starts</span>. Fact bubbles stay.</li>
             </ul>
+            <p id="bubble-style">To change how the bubbles look:</p>
+            <ol>
+              <li>Open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>.</li>
+              <li>Under <span class="ui">Style</span>, pick <span class="ui">Classic (dark blue)</span>, <span class="ui">Light</span>, <span class="ui">Minimal</span> or <span class="ui">Retro game</span>. It changes the fact bubbles and the Now Playing bubble, on your vertical stream too.</li>
+              <li>Want your own colors? Check <span class="ui">Use my own colors</span> and pick an <span class="ui">Accent</span> (the border and the Now Playing label) and a <span class="ui">Background</span>. BubbleFacts picks light or dark text, whichever is easier to read on your background.</li>
+              <li>Click <span class="ui">Save</span>. The bubbles change on stream right away; there's no need to touch OBS. To see it, click <span class="ui">Show a test bubble</span> on the dashboard.</li>
+            </ol>
+            <p>Every style keeps the text the same size and easy to read, and never changes what a fact says. Already styling the bubbles yourself in OBS's <span class="ui">Custom CSS</span> box? It keeps working, and wins over the style you pick here.</p>
 
             <h3 id="prepare">Prepare my songs: facts ready before you play</h3>
             <p>Writing a song's facts takes the AI on your computer a little while, so the first bubble of a song can come late. BubbleFacts can write them ahead of time, while you're not streaming, so they show as soon as each song starts.</p>
@@ -392,7 +401,7 @@
             <p>It starts with the songs your viewers request most. It works only while OBS is closed and your computer is plugged in, and stops the moment you open OBS, keeping everything it has done. Next time your computer is free, it carries on where it stopped.</p>
             <p>It prepares every song on your StreamerSongList list, and every song that has played on your stream, so requests from StreamElements, Streamling or Nightbot get ready too after you've played them once.</p>
             <p>To see how far it has come, click <span class="ui">Your songs</span> at the top of the BubbleFacts window. It says how many songs are ready and about when the rest will be, for example "1,240 of 5,000 songs ready. The rest by about Thursday.", worked out from how fast your computer has been going. It also shows how much of what your viewers request is ready, and the songs no source knows anything about. It's just information: there's nothing to check or approve.</p>
-            <p>It uses the AI on this computer (the built-in AI, or Ollama), never an online AI. The facts, and the list of songs played on your stream, stay on this computer. A fact you mark <span class="ui">Wrong</span> never shows again, prepared or not.</p>
+            <p>It uses the AI on this computer (the built-in AI, or Ollama), never an online AI, so BubbleFacts Lite doesn't have it. The facts, and the list of songs played on your stream, stay on this computer. A fact you mark <span class="ui">Wrong</span> never shows again, prepared or not.</p>
 
             <h3 id="share-facts">Share song facts with other apps</h3>
             <p>An app that takes song context can use the song's facts to answer chat's questions.</p>

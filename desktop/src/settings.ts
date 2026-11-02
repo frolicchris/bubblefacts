@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { shareAddress } from "./checks";
+import type { Edition } from "./build";
 import { AiQuality, modelFor, modelPath } from "./model";
 
 /** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
@@ -58,6 +59,7 @@ export interface Settings {
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
   myOriginals: string[];
+  /** "builtin" is the app's own: the built-in AI, or in Lite (which has none) no AI at all. */
   ai: "builtin" | "groq" | "anthropic" | "ollama";
   /** Which built-in model: the small default, or the bigger one (model.ts). */
   aiQuality: AiQuality;
@@ -74,6 +76,12 @@ export interface Settings {
   /** The vertical overlay (BubbleFacts Vertical.html), for phone-shaped streams: its own size and spots. */
   verticalBubbleSize: "standard" | "large" | "larger";
   verticalArea: "top" | "above-chat";
+  /** The bubbles' look (issue #177), for both overlays. See BUBBLE_STYLES. */
+  bubbleStyle: BubbleStyle;
+  /** Your own colors on top of the Style: an accent and a background, each #rrggbb. Text color is picked for contrast. */
+  customColors: boolean;
+  accentColor: string;
+  backgroundColor: string;
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -101,6 +109,10 @@ export const WRONG_KEYS = {
   f13: "F13",
 } as const;
 export type WrongKey = keyof typeof WRONG_KEYS;
+
+/** The built-in Styles, as the overlay's CSS names them (BUBBLE_STYLES in the server's bubble-style.ts). Classic is the dark blue. */
+export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro"] as const;
+export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
@@ -145,6 +157,11 @@ export const DEFAULTS: Settings = {
   bubbleArea: "anywhere",
   verticalBubbleSize: "standard",
   verticalArea: "top",
+  bubbleStyle: "classic",
+  customColors: false,
+  // Classic's own: turning custom colors on starts from the look already on stream.
+  accentColor: "#5b6ee1",
+  backgroundColor: "#0a0a3c",
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
@@ -282,6 +299,8 @@ export function unlockSecrets(settings: Settings): Settings {
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.includes(value) ? value : fallback);
+/** A color exactly as #rrggbb (what a color picker gives), lowercased; anything else is the fallback. */
+const hexColor = (value: string, fallback: string) => (/^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback);
 
 /** Keep every value in a range the server accepts, so no setting can stop it from starting. */
 export function sanitize(s: Settings): Settings {
@@ -299,6 +318,9 @@ export function sanitize(s: Settings): Settings {
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
     verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
+    bubbleStyle: oneOf(s.bubbleStyle, BUBBLE_STYLES, "classic"),
+    accentColor: hexColor(s.accentColor, DEFAULTS.accentColor),
+    backgroundColor: hexColor(s.backgroundColor, DEFAULTS.backgroundColor),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
@@ -357,7 +379,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -383,7 +405,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 /** The settings that sanitize holds to a list of values. */
-const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "wrongKey", "updateChannel"] as const;
+const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "wrongKey", "updateChannel"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
@@ -430,7 +452,7 @@ export function secretsUnprotected(): boolean {
 /** The settings as the server's environment variables. */
 export function toServerEnv(
   s: Settings,
-  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string }
+  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string; edition?: Edition }
 ): Record<string, string> {
   const env: Record<string, string> = {
     // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
@@ -444,6 +466,7 @@ export function toServerEnv(
     LIVE_LEARN_BANNER: s.liveLearnBanner ? "on" : "off",
     BUBBLE_AREA: s.bubbleArea,
     VERTICAL_AREA: s.verticalArea,
+    ...styleEnv(s),
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),
@@ -480,7 +503,9 @@ export function toServerEnv(
   if (s.shareFacts && s.shareUrl && s.shareChannel && s.shareKey) Object.assign(env, { SHARE_FACTS_URL: s.shareUrl, SHARE_FACTS_CHANNEL: s.shareChannel, SHARE_FACTS_KEY: s.shareKey });
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
   if (s.instrument) env.INSTRUMENT = s.instrument;
-  if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
+  // Lite has no AI engine: its own choice is no AI, so nothing goes to an AI and no model is loaded.
+  if (s.ai === "builtin" && paths.edition === "lite") env.AI_PROVIDER = "none";
+  else if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
   if (s.ai === "groq") Object.assign(env, { AI_PROVIDER: "openai", OPENAI_API_KEY: s.groqKey });
   if (s.ai === "anthropic") Object.assign(env, { AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: s.anthropicKey });
   if (s.ai === "ollama") Object.assign(env, { AI_PROVIDER: "ollama", OLLAMA_BASE_URL: s.ollamaUrl, OLLAMA_MODEL: s.ollamaModel });
@@ -507,12 +532,25 @@ export function topicList(s: Settings): string[] {
 }
 
 /**
+ * The bubbles' look as the server reads it. Blank colors when custom colors are off, so a running
+ * server told this (and any restart after it) goes back to the Style's own.
+ */
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string } {
+  return {
+    BUBBLE_STYLE: s.bubbleStyle,
+    BUBBLE_ACCENT: s.customColors ? s.accentColor : "",
+    BUBBLE_BACKGROUND: s.customColors ? s.backgroundColor : "",
+  };
+}
+
+/**
  * Everything the server reads at start, as one string: its environment and
  * the streamer's own facts (written to a pack it loads once). The sign-in
  * token is left out: a refreshed token is handed to the running server.
  */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
-  const { SSL_ACCESS_TOKEN: _token, ...rest } = env;
+  // The look goes to the running server too (POST /control/style), so a new one never restarts it.
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

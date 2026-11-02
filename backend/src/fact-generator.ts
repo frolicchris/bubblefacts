@@ -1,8 +1,9 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, curatedFacts, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
@@ -20,6 +21,7 @@ import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } fro
 import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
+import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
@@ -198,6 +200,13 @@ const RETRY_MS = 10 * 60 * 1000;
 /** The most songs (or facts) each session map remembers; the oldest go first, and a lookup is only repeated. */
 const MAX_KEPT = 2000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
+/**
+ * Songs whose AI captions all failed the screen, with the article they were written from. With
+ * the same article and temperature 0 the AI writes the same captions again, so the retry after
+ * RETRY_MS doesn't ask it; a different article does (issue #203). Kept for the session, so a new
+ * app version, which restarts the server, asks again.
+ */
+const screenedOut = new Map<string, string>();
 /** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
 export const STRUCTURED = "Wikidata and MusicBrainz";
 /** The Wikidata or MusicBrainz sentences each song was given, to tell which source a wrong fact came from. */
@@ -251,6 +260,50 @@ const aiAsked = new Set<string>();
 const aiTimes = new Map<string, number>();
 /** The song's AI time for this play, in ms; null when the AI wrote nothing for it this time. */
 export const aiTimeFor = (song: SSLSong): number | null => aiTimes.get(songKey(song)) ?? null;
+
+/**
+ * Keeping the built-in AI in step with the computer (issue #314, pace.ts). Only the built-in
+ * model runs on the streamer's computer; an online AI or Ollama is left as it is.
+ */
+let pacer = new PaceKeeper();
+/** A fresh start, as after launching the app. Only the tests call this. */
+export function resetPace(): void {
+  pacer = new PaceKeeper();
+}
+/** Preparing ahead of time (prep-context.ts) is never paced: its songs aren't on stream, so never late or missed, and never asked for less. */
+const paced = () => config.aiProvider === "builtin" && !preparing();
+/** When the song on now started, for how long its facts took from the viewers' side. */
+let songStartedAt = 0;
+/** The built-in model's last speed, whether it got a GPU, and whether it is making room for the stream. */
+const builtinInfo: { wordsPerSecond: number | null; gpu: string | null; makingRoom: boolean; threads: number | null } = { wordsPerSecond: null, gpu: null, makingRoom: false, threads: null };
+const cpuWatch = new CpuWatch();
+
+/** What /health reports on keeping up: the dashboard's line, and the measures behind it. */
+export function paceReport() {
+  const pace: Pace = paced() ? pacer.pace() : "full";
+  const average = pacer.averageMs();
+  return {
+    line: paceLine(pace),
+    pace,
+    averageWaitMs: average === null ? null : Math.round(average),
+    wordsPerSecond: builtinInfo.wordsPerSecond,
+    gpu: builtinInfo.gpu,
+    othersCpu: cpuWatch.latestShare === null ? null : Math.round(cpuWatch.latestShare * 100) / 100,
+    freeMemoryMb: Math.round(os.freemem() / 1024 / 1024),
+    makingRoom: builtinInfo.makingRoom,
+    threads: builtinInfo.threads,
+  };
+}
+
+/** Logs a change of pace with the measures behind it, so a slow stream can be read from the log afterwards. */
+function logPace(before: Pace, waitedMs: number, missed: boolean): void {
+  const after = pacer.pace();
+  if (after === before) return;
+  const r = paceReport();
+  const wait = `${missed ? "ended after" : "facts after"} ${Math.round(waitedMs / 1000)}s`;
+  const cpu = r.othersCpu === null ? "?" : `${Math.round(r.othersCpu * 100)}%`;
+  console.log(`[Pace] ${before} -> ${after} (this song: ${wait}; ${r.wordsPerSecond ?? "?"} words/s on ${r.gpu ?? "?"}, other programs ${cpu} CPU, ${r.freeMemoryMb} MB free)`);
+}
 
 /** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
 export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
@@ -320,12 +373,15 @@ function toFacts(
     const fromBox = Boolean(page) && source === `${SOURCE.infobox}${page}`;
     // A sentence from the artist's own article, which need not be this song's reference: it is its own evidence.
     const artistPage = artistSentences.get(text);
-    const fromArticle = (Boolean(page) && source === `Wikipedia: ${page}`) || fromBox || Boolean(artistPage);
+    // The reference's article, or a companion article it quotes a line of (issue #48): the link goes to the one the caption came from.
+    const linked = source?.startsWith("Wikipedia: ") ? source.slice("Wikipedia: ".length) : "";
+    const ofReference = Boolean(page) && (linked === page || (Boolean(linked) && companionPages(context).includes(linked)));
+    const fromArticle = ofReference || fromBox || Boolean(artistPage);
     const evidence = artistPage ? text : fromBox ? (boxEvidence.get(text) ?? "") : fromArticle ? (cites.get(text) ?? supportingSentence(text, context)) : "";
     return {
       text,
       source,
-      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent((artistPage ?? page).replace(/ /g, "_"))}` } : {}),
+      ...(fromArticle ? { url: `https://en.wikipedia.org/wiki/${encodeURIComponent((artistPage ?? (ofReference ? linked : page)).replace(/ /g, "_"))}` } : {}),
       ...(evidence ? { evidence } : {}),
       delaySeconds: i * config.factIntervalSeconds,
       durationSeconds: config.factDurationSeconds,
@@ -638,7 +694,13 @@ let builtin: Promise<Loaded> | undefined;
 let prepBuiltin: Promise<Loaded> | undefined;
 let llamaRuntime: Promise<any> | undefined;
 
-async function loadModelFile(modelPath: string): Promise<Loaded> {
+/**
+ * Load a model file on the one shared llama runtime. `stream`: the model on stream, which sets
+ * what the pacer knows (`builtinInfo`) and starts the CPU watch (issue #314), once per runtime. The
+ * model that only prepares songs (issue #296) does neither: the watch already limits the
+ * runtime's threads for both, and its speed says nothing about the stream's.
+ */
+async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
   const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
   // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
   llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
@@ -647,6 +709,10 @@ async function loadModelFile(modelPath: string): Promise<Loaded> {
   const context = await model.createContext({ contextSize: 4096 });
   const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
   console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+  if (stream) {
+    builtinInfo.gpu = llama.gpu || "cpu";
+    watchCpu(llama, context.idealThreads as number);
+  }
   return {
     session,
     dispose: async () => {
@@ -657,7 +723,7 @@ async function loadModelFile(modelPath: string): Promise<Loaded> {
 }
 
 function loadBuiltin(): Promise<Loaded> {
-  builtin ??= loadModelFile(config.modelPath).catch((err) => {
+  builtin ??= loadModelFile(config.modelPath, true).catch((err) => {
     builtin = undefined; // Let the next song retry the load.
     llamaRuntime = undefined;
     throw err;
@@ -670,7 +736,7 @@ const usesPrepModel = () => Boolean(config.prepareModelPath) && config.prepareMo
 
 function loadPrepBuiltin(): Promise<Loaded> {
   if (!usesPrepModel()) return loadBuiltin();
-  prepBuiltin ??= loadModelFile(config.prepareModelPath).catch((err) => {
+  prepBuiltin ??= loadModelFile(config.prepareModelPath, false).catch((err) => {
     prepBuiltin = undefined;
     throw err;
   });
@@ -688,7 +754,7 @@ export async function releasePrepModel(): Promise<void> {
 
 /** Which model writes for a song prepared now, for the store: "" when no AI does. */
 export function prepModelName(): string {
-  if (config.aiProvider === "builtin") return path.basename(usesPrepModel() ? config.prepareModelPath : config.modelPath);
+  if (config.aiProvider === "builtin") return path.basename((usesPrepModel() ? config.prepareModelPath : config.modelPath) ?? "");
   if (config.aiProvider === "anthropic") return `anthropic:${config.anthropicModel}`;
   if (config.aiProvider === "openai") return `openai:${config.openaiModel}`;
   if (config.aiProvider === "ollama") return `ollama:${config.ollamaModel}`;
@@ -696,7 +762,53 @@ export function prepModelName(): string {
 }
 
 /** The model on stream, by the same name: a song the prep model wrote is written again by this one, last (issue #296). */
-export const streamModelName = (): string => (config.aiProvider === "builtin" ? path.basename(config.modelPath) : prepModelName());
+export const streamModelName = (): string => (config.aiProvider === "builtin" ? path.basename(config.modelPath ?? "") : prepModelName());
+
+let cpuTimer: NodeJS.Timeout | undefined;
+
+/**
+ * Reads the CPU every CPU_SAMPLE_MS. While other programs keep it near full (a game and OBS's
+ * encoder), the model uses fewer threads and the server runs at low priority, so the stream
+ * gets the CPU first; all the threads come back once it has been calm for a while (issue #314).
+ */
+function watchCpu(llama: { maxThreads: number }, usualThreads: number): void {
+  if (cpuTimer) return;
+  const usualMax = llama.maxThreads;
+  let priority: number | null = null;
+  try {
+    priority = os.getPriority();
+  } catch {
+    // Unknown: left as it is.
+  }
+  let before = cpuTimes();
+  let ownBefore = process.cpuUsage();
+  cpuTimer = setInterval(() => {
+    const after = cpuTimes();
+    const own = process.cpuUsage(ownBefore);
+    const share = othersCpuShare(before, after, (own.user + own.system) / 1000);
+    before = after;
+    ownBefore = process.cpuUsage();
+    const busy = cpuWatch.read(share);
+    if (busy === builtinInfo.makingRoom) return;
+    builtinInfo.makingRoom = busy;
+    builtinInfo.threads = busy ? busyThreads(usualThreads) : null;
+    // maxThreads limits every evaluation from the next one on; 0 (the GPU default) means no limit.
+    llama.maxThreads = busy ? busyThreads(usualThreads) : usualMax;
+    try {
+      // Low priority costs nothing on a calm computer: it only decides who waits when the CPU is full.
+      if (busy) os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
+      else if (priority !== null) os.setPriority(priority);
+    } catch {
+      // Raising it back needs extra rights on Linux and macOS: it stays low, which only matters while busy.
+    }
+    console.log(
+      busy
+        ? `[Pace] Other programs use ${Math.round(share * 100)}% of the CPU: the AI uses ${busyThreads(usualThreads)} threads at low priority`
+        : "[Pace] The CPU is calm again: the AI uses all its threads"
+    );
+  }, CPU_SAMPLE_MS);
+  cpuTimer.unref();
+}
 
 /** Stand in for the built-in model's chat session. Only the tests call this; the app loads the model. */
 export function useBuiltinSession(session: { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void }): void {
@@ -734,9 +846,20 @@ let running: { key: string | null; stop: AbortController; prep: boolean } | null
  * front of the current one.
  */
 export function setCurrentSong(song: SSLSong | null): void {
-  currentKey = song ? songKey(song) : null;
   // A song on stream goes before one prepared ahead of time: that turn gives way, and the song is prepared later.
   if (song && running?.prep) running.stop.abort();
+  const key = song ? songKey(song) : null;
+  if (key !== currentKey) {
+    // The song ended while the AI was still writing for it: its facts would have come too late (issue #314).
+    if (paced() && currentKey && aiAsked.has(currentKey)) {
+      const before = pacer.pace();
+      pacer.missed(Date.now() - songStartedAt);
+      logPace(before, Date.now() - songStartedAt, true);
+    }
+    songStartedAt = Date.now();
+    if (key) pacer.songStarted();
+  }
+  currentKey = key;
   if (running?.key && running.key !== currentKey) {
     // Its generation ends with no facts: a quick return to the song must start a new one, not join it.
     inFlight.delete(running.key);
@@ -761,6 +884,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
     session.resetChatHistory();
     const stop = new AbortController();
     running = { key, stop, prep: Boolean(prep) };
+    const writing = Date.now();
     try {
       const text = (await session.prompt(prompt, {
         temperature: config.temperature,
@@ -769,6 +893,8 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
         stopOnAbortSignal: true,
       })) as string;
       if (stop.signal.aborted || prep?.signal.aborted) throw new Obsolete();
+      // The stream model's speed only: a preparing turn may run another model, and isn't a stream song (issue #314).
+      if (!prep) builtinInfo.wordsPerSecond = wordsPerSecond(text, Date.now() - writing) ?? builtinInfo.wordsPerSecond;
       return text;
     } finally {
       running = null;
@@ -996,7 +1122,8 @@ export async function findReference(song: SSLSong): Promise<{ context: string; r
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
   for (const s of stats) statLines.add(s);
-  return [...stats, ...curatedFacts(want - stats.length)];
+  // Preparing keeps no custom facts (they show live), so it takes no turn from the stream's rotation (issue #190).
+  return [...stats, ...(preparing() ? [] : curatedFacts(want - stats.length))];
 }
 
 /** Lines built from the song list, so the dashboard can tell them from custom facts. */
@@ -1055,7 +1182,8 @@ function takeTurns(pool: string[], n: number): string[] {
     .sort((a, b) => a.turn - b.turn || a.i - b.i)
     .slice(0, n)
     .map((p) => p.text);
-  for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
+  // Preparing never shows them, so it takes no turn from the stream.
+  if (!preparing()) for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
   return picked;
 }
 
@@ -1312,6 +1440,25 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
   }
 
+  // A computer too busy for the AI to finish before songs end (issue #314): the instant facts
+  // from Wikidata and MusicBrainz only, with no AI captions. Kept for a while only, so a later
+  // play gets the AI's facts once the computer keeps up again.
+  if (paced() && !pacer.aiThisSong()) {
+    const sureNow = match?.level === "sure" ? { page: context.split("\n")[0], names: [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])] } : null;
+    const data = (await structuredFacts(song, read, Promise.resolve(sureNow))).filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    const shown = rankedData(data, want);
+    console.log(`[Pace] "${song.title}": the computer is busy, ${shown.length} quick facts and no AI`);
+    if (shown.length) {
+      remember(shown);
+      record(asked, structuredLabel.get(shown[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shown.length);
+      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t)), ttlMs: RETRY_MS };
+    }
+    if (sourcedOnly) return none;
+    const lines = entryFacts(entry, want);
+    record(asked, "noReference", lines.length);
+    return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+  }
+
   // Facts from data about the song, looked up alongside the AI: when the article is about its
   // artist or game ("describe the song, then tell about it"), or surely about the song itself,
   // when its own Wikidata item can add to them (issue #256). They go to the overlay as soon as
@@ -1341,19 +1488,29 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
   const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
-  const prompt = groundedPrompt(read, context, want + OVERGENERATE);
+  // Running late on this computer (issue #314): fewer captions from the start of the article.
+  // Slow means fewer facts, never weaker checks: everything below screens them exactly as always.
+  // Never while preparing (`paced`): a prepared song isn't on stream, so it's never late.
+  const short = paced() && pacer.ask() === "short";
+  const source = short ? shorterContext(context) : context;
+  if (short) console.log(`[Pace] "${song.title}": facts have been late, asking for ${SHORT_CAPTIONS} captions from ${source.length} characters of the article`);
+  const prompt = groundedPrompt(read, source, short ? SHORT_CAPTIONS : want + OVERGENERATE);
+  const askedKey = songKey(asked);
+  // Captions from the whole article all failed last time (issue #203). A shorter ask isn't remembered: the full one may still do better.
+  const askedBefore = !short && screenedOut.get(askedKey) === page;
+  if (askedBefore) console.log(`[FactGen] "${song.title}": every caption from "${page}" failed the screen last time, so the AI isn't asked again`);
   const prep = preparing();
   // Preparing: a reference that isn't this song's own (its artist's or game's article) is retold
   // once for every song that reads it word for word (issue #296), then screened for each as usual.
   const { track } = resolveGameAndTrack(read);
-  const shareKey = prep && !aboutTheSong(read, context) ? `${want}\0${process.env.PROMPT_STYLE ?? ""}\0${citesSentences()}\0${context}` : "";
+  const shareKey = prep && !askedBefore && !aboutTheSong(read, context) ? `${want}\0${process.env.PROMPT_STYLE ?? ""}\0${citesSentences()}\0${context}` : "";
   const shared = shareKey ? prep?.answers.get(shareKey) : undefined;
   let answer: string;
   try {
     // Not tied to the song on stream when preparing: a song change mustn't take it for an old one.
-    answer = shared ? shared.answer : await askModel(prompt, prep ? null : songKey(asked));
+    answer = askedBefore ? "" : shared ? shared.answer : await askModel(prompt, prep ? null : askedKey);
     if (prep?.signal.aborted) throw new Obsolete();
-    if (prep) prep.model = prep.streamModel ? streamModelName() : prepModelName();
+    if (prep && !askedBefore) prep.model = prep.streamModel ? streamModelName() : prepModelName();
     if (prep && shareKey && !shared) setCapped(prep.answers, shareKey, { answer, track }, MAX_SHARED_ANSWERS);
   } catch (err) {
     aiDone = true;
@@ -1450,13 +1607,21 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Facts sent early were remembered when they went out.
   remember(early.length ? later : shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
+  // Not for an answer written for another song of the same article (preparing): this song's own ask may do better.
+  if (lines.length && !usable.length && !short && !shared) setCapped(screenedOut, askedKey, page, MAX_KEPT);
+  else if (usable.length) screenedOut.delete(askedKey);
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
     if (prep) prep.article = page;
     setCapped(sources, songKey(asked), page, MAX_KEPT);
     const article = `Wikipedia: ${page}`;
-    return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? article, context, cites), ttlMs: Infinity };
+    // A caption retelling a companion article's line is that article's: its label and link, and Wrong blocks it (issue #48).
+    const labelOf = (t: string) => {
+      const companion = companionPages(context).length ? companionOf(cites.get(t) ?? supportingSentence(t, context, Infinity), context) : "";
+      return companion ? `Wikipedia: ${companion}` : article;
+    };
+    return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? labelOf(t), context, cites), ttlMs: Infinity };
   }
   if (sourcedOnly) return none;
   const fallback = entryFacts(entry, want);
@@ -1739,6 +1904,13 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, 
     pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
         if (aiAsked.has(key)) {
+          // How long viewers waited: from the song starting, when it's the song on now (issue #314).
+          if (paced() && key === currentKey) {
+            const before = pacer.pace();
+            const waited = Math.max(0, Date.now() - songStartedAt);
+            pacer.ready(waited);
+            logPace(before, waited, false);
+          }
           aiTimes.set(key, Date.now() - started);
           console.log(`[FactGen] "${withoutRequestCredit(song.title)}": facts took ${((Date.now() - started) / 1000).toFixed(1)}s with the AI`);
         }
@@ -1781,6 +1953,8 @@ export function clearFactCache(): void {
   inFlight.clear();
   sources.clear();
   structuredShown.clear();
+  screenedOut.clear();
+  resetCuratedTurns();
 }
 
 /** The songs a block is saved under: the request, and for a live learn or a title alone also the song it was looked up as. */
@@ -1884,6 +2058,7 @@ export function forgetSong(song: SSLSong): void {
   // Its old sources too: Wrong on the new facts must not block an article from before.
   sources.delete(key);
   structuredShown.delete(key);
+  screenedOut.delete(key);
 }
 
 /** Undo "Wrong": the source may be used for the song again. */

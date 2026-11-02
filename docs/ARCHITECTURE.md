@@ -18,7 +18,7 @@ the relevant section before changing it.
 | **Structured facts** | Fixed sentences filled in from Wikidata or MusicBrainz data. No AI. |
 | **Song facts** | Facts the streamer wrote for one particular song (**Add facts for this song**). |
 | **Tagged custom facts** | A custom fact starting `[Name]` goes only with the song, artist or game it names (`taggedFactsFor`). Tagged for the song itself, it goes first, with the usual facts filling the slots left. Tagged for the artist or game, it joins a pool those songs share (`taggedFor`, `takeTurns`): one per song, second, the longest unused first, so a game with 200 songs on a list doesn't open each the same way; when no source knows the song, the pool fills its bubbles first; a song with its own facts gets one too while there's room, ahead of the creator's link. Turns reset when the app restarts. It never joins the any-song pool. A tag without a version matches every version of the title (`[Take On Me]` goes with `Take On Me [Instrumental]`, a tag song lists add often). A tag that names a version in brackets goes only with that version (`[Night Drive (Acoustic)]` never goes with `Night Drive (Remix)`), compared the way song facts are (`songIdentity` in `song-facts.ts`), with the list's own tags after it still allowed. |
-| **Custom facts** | The streamer's own facts for any song no source knows. In the app, only their own lines; the command-line version can also use the example topic packs (`topics/`), which are examples, not maintained content. |
+| **Custom facts** | The streamer's own facts for any song no source knows. In the app, only their own lines; the command-line version can also use the example topic packs (`topics/`), which are examples, not maintained content. They take turns (`curatedFacts`): never shown first, then the longest unused, and one shown in the last hour waits, so a small pool gives fewer bubbles instead of the same fact song after song (issue #190). Turns reset when the app restarts. |
 | **Entry facts** | Facts built from the queue entry itself: "played 12 times", "requested by X". |
 
 ## The pieces
@@ -71,6 +71,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
 | `backend/src/atomic-write.ts`, `text.ts`, `types.ts` | Crash-safe file writes, small text helpers, and the shared song and fact shapes. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
+| `backend/src/bubble-style.ts` | Which built-in Style the overlay shows, and the text colors for the streamer's own colors (issue #177). |
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
 
 New to the fact checking? Start with `screenClaims` in `fact-verifier.ts`
@@ -92,6 +93,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
+| `desktop/src/sign-in-check.ts` | Asks StreamerSongList whether the sign-in still holds, to tell an outage from an expired sign-in. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
 | `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
@@ -166,6 +168,25 @@ sign-ins and the built-in AI. Its design decisions are in
    certifications, sales, never opinions). In an article about a whole game
    or artist, only sentences that name the track or are plainly about music
    are lifted, and no reception.
+   A song's or a game track's own article with fewer than three such
+   sentences from its makers (`MIN_MAKING_SENTENCES`) gets a companion
+   article (`companionLine`, issue #48): the album its infobox names, a
+   "Music of" or soundtrack page it links to, or, for a game's track, the
+   game's "Music of <game>" or "Music of the <game> series" page. One title
+   lookup and one article read, both remembered; the wikitext is the infobox
+   facts' own. Only the companion's sentences that name the track in
+   quotation marks, or sit in a section headed with its name and name no other
+   title, are taken (`companionSentences`, at most 4, the makers' words
+   first), never an opinion, a critic or the soundtrack in general: a title
+   track's album is skipped, since every sentence about it names the track.
+   They go on a line of their own after the title, `From the article "Music of
+   Some Game": ...`, and the article's own text gets that much less of the
+   budget. A caption whose sentence is on that line is labelled and linked
+   `Wikipedia: <companion>` (`companionOf`), so **Wrong** blocks the companion
+   for the song, and a cached reference drops the line of a blocked companion
+   (`withoutBlockedCompanions`). Not for a cover (the album would be the
+   original's), and a companion that can't be read leaves the article to
+   serve alone, never keeping the song off Wikipedia.
    With section-aware selection (on by default; `SECTION_SELECT=off` turns
    it off) the reference is built differently (`selectSections`,
    `sectionExtract`): the lead first, which Wikipedia writes to stand alone,
@@ -424,7 +445,12 @@ sign-ins and the built-in AI. Its design decisions are in
 10. **Fall back if needed.** No source, a failed AI call, or nothing that
    passed screening all lead to the same place: entry facts plus custom
    facts, or nothing when the streamer has none (the app's default). The AI is
-   never asked to write without a reference.
+   never asked to write without a reference. With `AI_PROVIDER=none` (the app
+   while its model downloads, and BubbleFacts Lite, which ships without the AI
+   engine) no AI is asked at all: articles aren't turned into captions, so only
+   facts that need no AI (Wikidata and MusicBrainz, a Twitch About, the song
+   list and the streamer's own) reach the stream, and
+   `node-llama-cpp` is never imported (it's loaded only for `builtin`).
 11. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
     counting from when the facts arrive. If the song has already changed by
     then, it throws the batch away. Each fact carries a `source` label for the
@@ -440,7 +466,10 @@ instant. A song prepared ahead of time is instant the first time too (see
 [Prepared songs](#prepared-songs)). Only what the stream has shown is saved, in `session.json`, and
 only for 6 hours (see above). Several requests for the
 same song at once (two overlays, or one reconnecting mid-song) share a single
-generation. Songs that fell back are retried after ten minutes, and song facts
+generation. Songs that fell back are retried after ten minutes, except that a
+song whose AI captions all failed the screen isn't sent to the AI again while
+the lookup finds the same article: with temperature 0 it would write the same
+captions (issue #203). Song facts
 and originals are rebuilt every time, so edits, the play count and the
 requester stay current.
 
@@ -501,7 +530,14 @@ model is asked.
    charts, sales and release details -1. Highest first; among equals, data
    facts and lead captions, then the writer's order. On an artist's or a
    game's article the song's own data facts still lead.
-5. **At most four**, and no two of the same kind in a row when another kind
+5. **About the music first** (`aboutTheMusic`): a caption about the game,
+   film or show around the song (its voice cast, ports, series, plot,
+   developers) that says nothing about music goes after the music captions,
+   and at most two are shown (`MAX_OFF_MUSIC`): enough to say what the song
+   is from. The rest are left out, so an article with little about the music
+   gives fewer bubbles instead of trivia (issue #189). Data facts aren't
+   affected.
+6. **At most four**, and no two of the same kind in a row when another kind
    is left.
 
 Why these: on judged runs, captions from the lead were about 5% wrong and
@@ -664,6 +700,8 @@ Issue #262's rules, for when a fact must not be shown at all:
   on now waited for facts when the AI wrote for it, from asking to having them,
   so waiting its turn behind another song counts. Late bubbles start here. A
   song the AI didn't write for, or a play from the cache, shows nothing.
+  When the computer can't keep up, the line below it says so (see
+  [A slow or busy computer](#a-slow-or-busy-computer)).
 - **Tracks that aren't music** (`not-music.ts`) go the same way with no switch:
   commercials, station idents and jingles get no Now Playing bubble and only
   the streamer's own facts. A player reports them like songs and only their
@@ -1088,6 +1126,53 @@ internet back, and it reloads the AI and blanks the overlay.
   lost. An update during a read triggers one more read afterward.
 - 429 and 503 back off for as long as `Retry-After` says.
 
+**Checking the sign-in** (`desktop/src/sign-in-check.ts`, issue #182). A
+queue request that times out could be StreamerSongList being down or slow,
+or a sign-in that ended; before this, the app only knew after a request came
+back 401 or 403. StreamerSongList's 2026-09-22 changelog ("For integrators")
+announced `GET https://id.streamersonglist.com/oauth2/validate`, which the
+app now asks:
+
+- Only for the app's own sign-in (`tokenKind: "oauth"`, sent as `Bearer`
+  with the app's `Client-Id`). A pasted Streamer or User token wasn't issued
+  by id.streamersonglist.com, and nothing says the endpoint knows it, so it
+  is never checked and works as before. The command-line version only has
+  pasted tokens and doesn't check at all.
+- Rarely, since StreamerSongList's rate limits mostly police how an app uses
+  the API: at start (when no refresh is due), after each refresh, and when
+  health says the queue was refused (unauthorized) or has stopped answering
+  (`no successful queue fetch recently`), at most once per `RECHECK_MS`
+  (5 minutes) per token.
+- Read defensively. Only a plain **401** means expired. A **200 whose body
+  is a JSON object** means the sign-in holds. Everything else (no answer, a
+  timeout, 403, 429, 5xx, a body that isn't a JSON object) means "can't
+  tell", and nothing changes: the queue decides, as before.
+- Expired leads to a refresh, not straight to the notice: an access token
+  can end while the refresh token is still good (a computer that slept past
+  the hour). If the refresh is turned down for good, the existing "Sign in to
+  StreamerSongList again" notice shows, now without waiting for a failed
+  queue request. If a token refreshed a moment ago is called expired too,
+  the endpoint isn't telling this app's tokens apart: it isn't asked again
+  that session, and the queue decides.
+- The queue stopped answering but the sign-in holds: the dashboard's
+  Reconnecting banner says StreamerSongList isn't answering and the sign-in
+  is fine, so there's nothing for the streamer to do.
+- The token is never logged; the log says only "still signed in", "expired"
+  or "can't tell" and why it asked.
+
+What was and wasn't confirmed about the endpoint: from where this was
+written, id.streamersonglist.com couldn't be reached at all (the network
+refused the connection), and no public documentation of the response was
+found. So the response shape, which header scheme it wants (`Bearer` is
+assumed, as for the API's own `api.streamersonglist.com/oauth2/validate`,
+which `signin.ts` already uses after sign-in and which answers
+`{ username, streamer_id }`), and whether it knows pasted tokens are all
+unconfirmed. The code above assumes as little as it can: a wrong guess means
+"can't tell", never a false "sign in again". Confirming the queue still works
+right after a refresh was left out: the server's next poll (within 15 s)
+already does that with the new token, and an extra request would only add to
+the calls.
+
 **StreamElements** (`streamelements-client.ts`), for streamers who take
 requests through its Media Request player:
 
@@ -1423,6 +1508,17 @@ It runs inside a preparation context (`prep-context.ts`, an
   change mustn't take it for an old song), its own stop signal, and gives way
   to the song on stream (`setCurrentSong` aborts it; the song is prepared again
   later);
+- pacing (issue #314): `paced()` is false while preparing, so a prepared
+  song is never counted late or missed, never asked the short prompt, never
+  held to quick facts, and its turn doesn't set the stream model's measured
+  speed. Only the stream model's load starts the CPU watch (`watchCpu`, once
+  per runtime); the watch's thread limit applies to the shared runtime, so
+  the preparing model makes room too;
+- the stream's rotations: no custom fact (#190) or tagged pool fact takes a
+  turn while preparing, since none is stored;
+- a song whose captions all failed (#203) is skipped and recorded as on
+  stream, except after an answer shared from another song's ask: that song's
+  own ask may do better;
 - lookup trouble: `watchLookupTrouble` counts failed and throttled requests to
   Wikipedia, Wikidata and MusicBrainz made for the song. Their own helpers read
   a 429 as "nothing found, don't cache"; prepared once a month, that would
@@ -1494,7 +1590,10 @@ within a second. A song on stream also takes the model from a preparing turn
 at once (`setCurrentSong`), and the preparing model, when there is one, gives
 its memory back when a run ends. An online AI (Groq, Anthropic) is never used
 for preparing: every song would count against the streamer's own key and
-limits. The process's own priority isn't lowered: on Linux and macOS it can't
+limits. BubbleFacts Lite has no AI on the computer, so the setting and **Your
+songs** are hidden there (`data-edition="full"`) and the app never starts it.
+The process's own priority isn't lowered by preparing itself (the CPU watch of
+issue #314 may lower it while other programs are busy): on Linux and macOS it can't
 be raised again without administrator rights, which would slow the stream.
 
 **Faster for big lists** (issue #296). A list of 5,000 songs at a minute each
@@ -1558,6 +1657,73 @@ list song that played is prepared sooner: its plays add to its count.
 - **No repeats across songs.** The last 80 facts shown (`recentFacts`) are
   kept for the session; a near-duplicate (`tooSimilar`) is dropped.
 
+### A slow or busy computer
+
+On a streaming PC the built-in model shares the CPU (and often the GPU) with
+OBS's encoder and a game. Before issue #314 a song's captions could arrive
+after the song was over, and the model's work could make the stream stutter.
+BubbleFacts now adapts on its own (`pace.ts`), only for the built-in model,
+the one AI that runs on the streamer's computer. There is no setting: a
+streamer can't know in advance how busy the computer will be.
+
+**What it measures.** For the song on now, how long viewers waited for the
+AI's facts: from the song starting (`setCurrentSong`) to its facts being
+ready, so a turn queued behind another song counts. A song that changes while
+the AI is still writing for it, after it was on at least `LATE_MS`, is a
+"missed" song; one skipped sooner says nothing about the computer. Alongside:
+the model's own speed in words a second (`askBuiltin`), whether it got a GPU,
+other programs' share of the CPU, and free memory. All of these are in
+`/health` under `computer` and in the `[Pace]` log line when the pace changes.
+
+**The steps** (`PaceKeeper`):
+
+1. **Full**: the usual prompt, `factsPerSong` plus spares.
+2. **Short**: when the average wait over the last `PACE_WINDOW` songs (at
+   least `MIN_SAMPLES`) is over `LATE_MS` (60 s). The AI is asked for
+   `SHORT_CAPTIONS` (2) captions from the first `SHORT_CONTEXT_CHARS` (1,200)
+   characters of the article (`shorterContext`: the title line and whole
+   sentences, so the lead). Reading is much of a small model's time on a
+   CPU, and fewer lines is fewer tokens to write. The dashboard says "Your
+   computer is busy, so fewer facts".
+3. **Quick**: as soon as one song is missed. No AI: the instant Wikidata and
+   MusicBrainz facts only, as for an unsure article, kept in the cache for
+   `RETRY_MS` only so a later play gets captions. The dashboard says "Your
+   computer is busy, so quick facts only".
+
+**Recovering.** Quick can't learn the computer is fast again without asking
+the AI, so every `QUICK_PROBE_EVERY` (3rd) song still asks it, the short
+way; one on time steps up to short. Short steps up to full after
+`RECOVER_SONGS` (3) songs in a row under `ON_TIME_MS` (30 s, half of late, so
+the full request has room and the two don't flip-flop). Each step starts its
+own count. Facts late on average step down again; a missed song steps
+straight to quick from anywhere.
+
+**Slow means fewer facts, never weaker checks.** Only the request changes.
+The captions go through the same screening as always (`screenClaims`,
+attribution, loaded wording, scope repair, ranking), against the same
+article; nothing is skipped to save time. The quick facts come from the same
+data path as everywhere else, and are never topped up from the topic packs;
+a slow song with no quick facts gets what any song with no reference gets.
+
+**A busy CPU.** Every `CPU_SAMPLE_MS` (5 s) the server reads all cores'
+times (`os.cpus()`) and leaves out its own use (`process.cpuUsage()`), or the
+AI's work would always look like a busy computer. `os.loadavg()` would be
+simpler but is always zero on Windows. When other programs use `CPU_BUSY`
+(70%) or more, the model gets `BUSY_THREAD_SHARE` of its threads (a quarter,
+at least one; `llama.maxThreads`, which node-llama-cpp applies from the next
+evaluation on) and the server process gets below-normal priority. Both come
+back after `CALM_SAMPLES` readings in a row under `CPU_CALM` (50%). The gap
+between the two keeps it from switching back and forth. Raising the priority
+back needs extra rights on Linux and macOS, so there it may stay low; that
+costs nothing, since priority only decides who waits when the CPU is full.
+On Linux, threads the model started before the change keep their old
+priority, so the thread limit does most of the work there.
+
+**Free memory** is measured and logged but changes nothing: the model's
+memory is taken when it loads, and fewer threads don't free any. It is there
+so a report from a slow stream shows whether the computer was short of
+memory.
+
 ### The app's control routes
 
 `POST /control/*` routes need the header `X-BubbleFacts: 1`. A web page in a
@@ -1588,6 +1754,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/prepare` | **Prepare my songs** (see [Prepared songs](#prepared-songs)): `run: true` starts or carries on, `run: false` stops at once. Refused (`refused`) while an overlay is connected or there's no AI. Answers with where it stands. |
 | `/control/prepare/status` | Where preparing stands and how many songs are ready, for **Your songs** (`coverage`). |
+| `/control/style` | **Style** and **Use my own colors** in Settings (issue #177): sends the new look to every overlay at once, as a `style` message, with no restart and no Refresh in OBS. Never refused: an unknown Style is `classic`, and colors that aren't both `#rrggbb` are dropped. Returns the look it sent. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.
@@ -1703,5 +1870,36 @@ BubbleFacts data** deletes all of them.
   than tall (dropped onto a landscape canvas, or a new Browser source left at
   800x600), it says how to fix the size instead of drawing bubbles off the
   phone's screen.
+- **Styles are custom properties, switched live** (issue #177). The look
+  (colors, font, corners, the Now Playing bubble's) is a set of `--bf-*`
+  properties in `obs-overlay.css`: Classic's on `:where(:root)`, each other
+  Style's on `:where(html[data-style="…"])`. The server sends a `style`
+  message to every overlay as it connects, before anything else and even
+  while paused, and again from `/control/style` when the streamer saves, and
+  the overlay sets `data-style` on `<html>`. The rules use `:where()`, which
+  has no specificity, so anything in OBS's Custom CSS box still wins, whether
+  it sets a `--bf-` property or styles `.popup-bubble` directly. A Style sets
+  only `--bf-` properties, never a size, an animation or `content`
+  (`bubble-style.test.ts` checks), so text stays at its readable sizes (24px at
+  1080p, 40px on a 1080-wide vertical canvas, scaled only by Bubble size) and
+  animations stay transform and opacity. Fonts are system font stacks: a
+  Browser source may be offline, and a web font that hasn't loaded would
+  swap mid-bubble. Retro's fixed-width font is tightened (negative letter
+  spacing) so a long fact wraps to about as many lines as in Classic, keeping
+  the spots' room-for-a-long-fact sums (`BANNER_TOP`,
+  `VERTICAL_NOW_PLAYING_CLEARANCE`) true. An unknown Style, from a newer
+  version's settings or a typo, shows Classic; it never hides bubbles.
+- **Every palette keeps text at WCAG AA contrast (4.5:1).** The test reads
+  each Style's colors from the CSS and checks the fact text, the song title,
+  the Now Playing label and the LIVE LEARN label against both background
+  gradient stops, composited over black and over white video, since the
+  bubble is see-through. For the streamer's own colors, `customColors` picks
+  white or a soft black text, whichever reads better, and uses the accent for
+  the Now Playing label only when it reaches 4.5:1 on the background (the
+  text color otherwise). A custom background is opaque: a see-through
+  mid-tone (a gray, a medium blue) over changing video can't keep 4.5:1 with
+  any text color, while opaque, black or white always reaches at least about
+  4.58:1. LIVE LEARN is told apart by its words, not only its gold, so color is
+  never the only signal.
 - **The banner and the bubbles have separate timers,** so facts arriving right
   after a song change can't cancel the banner's fade-out.

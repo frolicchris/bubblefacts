@@ -1124,3 +1124,8 @@ code.cmd {
   gap: 0.5rem;
   align-items: center;
 }
+
+/* The beta's Lite buttons wait for a beta that has Lite installers. */
+.beta-buttons[hidden] {
+  display: none;
+}

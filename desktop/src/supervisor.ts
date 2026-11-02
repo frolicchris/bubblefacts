@@ -53,7 +53,7 @@ const MISSES_BEFORE_RESTART = 4; // 20 seconds without an answer
 const MODEL_LOAD_GRACE_MS = 3 * 60_000;
 const DEGRADED_BEFORE_RESTART_MS = 120_000;
 /** The server's degradedReason (server.ts) when fetches fail: no internet, or the song service is down. */
-const OUTAGE_REASON = "no successful queue fetch recently";
+export const OUTAGE_REASON = "no successful queue fetch recently";
 const MAX_BACKOFF_MS = 60_000;
 const FAILING_AFTER = 5; // restarts within the window below
 const RESTART_WINDOW_MS = 10 * 60_000;

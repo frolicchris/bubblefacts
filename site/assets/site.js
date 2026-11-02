@@ -18,12 +18,19 @@
   var CACHE_MS = 10 * 60 * 1000;
 
   // Release file names include the version, so match them by their ending.
+  // BubbleFacts Lite's have "-lite" after the version (bubblefacts-lite_ for the
+  // .deb): the full app's patterns must never pick those up.
   var PATTERNS = {
-    "mac-arm64": /-mac-arm64\.dmg$/,
-    "mac-x64": /-mac-x64\.dmg$/,
-    "windows-x64": /-windows-x64\.exe$/,
-    "linux-appimage": /-linux-x86_64\.AppImage$/,
-    "linux-deb": /_amd64\.deb$/,
+    "mac-arm64": /^(?!.*-lite-).*-mac-arm64\.dmg$/,
+    "mac-x64": /^(?!.*-lite-).*-mac-x64\.dmg$/,
+    "windows-x64": /^(?!.*-lite-).*-windows-x64\.exe$/,
+    "linux-appimage": /^(?!.*-lite-).*-linux-x86_64\.AppImage$/,
+    "linux-deb": /^bubblefacts_.*_amd64\.deb$/,
+    "lite-mac-arm64": /-lite-mac-arm64\.dmg$/,
+    "lite-mac-x64": /-lite-mac-x64\.dmg$/,
+    "lite-windows-x64": /-lite-windows-x64\.exe$/,
+    "lite-linux-appimage": /-lite-linux-x86_64\.AppImage$/,
+    "lite-linux-deb": /^bubblefacts-lite_.*_amd64\.deb$/,
     "sha256sums": /^SHA256SUMS\.txt$/
   };
 
@@ -80,6 +87,11 @@
       });
     });
     applyAssets();
+    // Releases from before Lite have no Lite installers: its box waits for one that does.
+    var hasLite = Object.keys(assetUrls).some(function (key) { return key.indexOf("lite-") === 0; });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-lite-shown]"), function (el) {
+      el.hidden = !hasLite;
+    });
   }
 
   function readCache() {
@@ -207,6 +219,10 @@
       Object.keys(PATTERNS).forEach(function (key) {
         if (!urls[key] && PATTERNS[key].test(asset.name)) urls[key] = asset.browser_download_url;
       });
+    });
+    var betaLite = Object.keys(urls).some(function (key) { return key.indexOf("lite-") === 0; });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-beta-lite]"), function (el) {
+      el.hidden = !betaLite;
     });
     var mine = OS_BUILDS[detectOS()];
     Array.prototype.forEach.call(document.querySelectorAll("[data-beta-asset]"), function (link) {

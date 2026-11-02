@@ -2,9 +2,11 @@ name: Smoke test
 
 # Installs a published release the way a streamer would, on each system, and
 # checks the installed app: its server starts and serves the overlay, and the
-# built-in AI loads (GPU if there is one, then processor-only). It starts by
-# itself when a Release run finishes successfully, on that run's artifacts. To
-# test a release again, use Actions > Smoke test > Run workflow.
+# built-in AI loads (GPU if there is one, then processor-only). BubbleFacts
+# Lite is installed and checked too, on Windows and Linux: its server starts
+# and serves the overlay, it says it's Lite, and no AI engine file is in it.
+# It starts by itself when a Release run finishes successfully, on that run's
+# artifacts. To test a release again, use Actions > Smoke test > Run workflow.
 
 on:
   # Runs the copy of this file on the default branch, whichever branch or tag
@@ -39,12 +41,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The full app's names end in the version and then the system ("2.2.0-mac-arm64.dmg"), so
+        # "*[0-9]-" never matches Lite's ("2.2.0-lite-mac-arm64.dmg") when downloading from a release.
         include:
-          - { name: windows, os: windows-latest, asset: "*-windows-x64.exe", artifact: windows-x64 }
-          - { name: linux-deb, os: ubuntu-24.04, asset: "*_amd64.deb", artifact: linux-x64 }
-          - { name: mac-arm64, os: macos-15, asset: "*-mac-arm64.dmg", artifact: mac-arm64 }
+          - { name: windows, os: windows-latest, asset: "*[0-9]-windows-x64.exe", artifact: windows-x64 }
+          - { name: linux-deb, os: ubuntu-24.04, asset: "bubblefacts_*_amd64.deb", artifact: linux-x64 }
+          - { name: mac-arm64, os: macos-15, asset: "*[0-9]-mac-arm64.dmg", artifact: mac-arm64 }
+          - { name: windows-lite, os: windows-latest, asset: "*-lite-windows-x64.exe", artifact: windows-x64-lite, lite: true }
+          - { name: linux-deb-lite, os: ubuntu-24.04, asset: "bubblefacts-lite_*_amd64.deb", artifact: linux-x64-lite, lite: true }
     env:
       GH_TOKEN: ${{ github.token }}
+      # The full app is tested with the AI model; Lite checks instead that it has no AI engine.
+      SMOKE_ARG: ${{ matrix.lite && '--lite' || 'model.gguf' }}
     defaults:
       run:
         shell: bash
@@ -76,12 +84,16 @@ jobs:
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${{ matrix.asset }}" --dir installer
           fi
           ls -la installer
+          # Releases from before Lite (2.2.0) have no Lite installers.
+          if [ -z "$(ls installer)" ]; then echo "No installer named ${{ matrix.asset }} in $TAG"; exit 1; fi
       - name: Cache the AI model
+        if: ${{ !matrix.lite }}
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: model.gguf
           key: model-${{ env.MODEL_SHA256 }}
       - name: Download the AI model
+        if: ${{ !matrix.lite }}
         run: |
           [ -f model.gguf ] || curl -sSL -o model.gguf "$MODEL_URL"
           # Git Bash on Windows has sha256sum; macOS has shasum.
@@ -143,15 +155,15 @@ jobs:
         run: |
           # A windowed app's output only reaches the log when redirected.
           $env:ELECTRON_RUN_AS_NODE = "1"
-          $p = Start-Process -FilePath $env:APP_EXE -ArgumentList @("scripts/smoke-packaged.mjs", "`"$env:APP_RESOURCES`"", "model.gguf") -NoNewWindow -Wait -PassThru -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          $p = Start-Process -FilePath $env:APP_EXE -ArgumentList @("scripts/smoke-packaged.mjs", "`"$env:APP_RESOURCES`"", $env:SMOKE_ARG) -NoNewWindow -Wait -PassThru -RedirectStandardOutput out.txt -RedirectStandardError err.txt
           Get-Content out.txt, err.txt
           exit $p.ExitCode
       - name: Run the smoke test (Linux and Mac)
         if: runner.os != 'Windows'
-        run: ELECTRON_RUN_AS_NODE=1 "$APP_EXE" scripts/smoke-packaged.mjs "$APP_RESOURCES" model.gguf
+        run: ELECTRON_RUN_AS_NODE=1 "$APP_EXE" scripts/smoke-packaged.mjs "$APP_RESOURCES" "$SMOKE_ARG"
 
       - name: Diagnose the built-in AI (Linux, only when the test failed)
-        if: failure() && runner.os == 'Linux'
+        if: failure() && runner.os == 'Linux' && !matrix.lite
         run: |
           set +e
           echo "--- libraries the AI's native files can't find"

@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { presetFolder } from "./now-playing-folder";
 import { shareAddress } from "./share-song-facts";
+import { styleFrom } from "./bubble-style";
 
 /** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -133,6 +134,9 @@ export const config = {
   // One credit bubble before the first song's facts and about every 5 songs with facts (issue #278).
   creditBubble: oneOf("CREDIT_BUBBLE", ["on", "off"] as const, "on") === "on",
   liveLearnBanner: oneOf("LIVE_LEARN_BANNER", ["on", "off"] as const, "on") === "on",
+  // The bubbles' look (issue #177): a built-in Style, and optionally the streamer's own accent and background.
+  // Never a startup error: an unknown Style or a mistyped color falls back to the classic look.
+  bubbleStyle: styleFrom(process.env.BUBBLE_STYLE, process.env.BUBBLE_ACCENT, process.env.BUBBLE_BACKGROUND, (line) => console.warn(`[Config] ${line}`)),
   // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.
   topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",
 

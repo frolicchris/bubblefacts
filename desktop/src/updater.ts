@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import type { Edition } from "./build";
 import { plainWithDetail } from "./plain-errors";
 
 /**
@@ -20,11 +21,15 @@ export interface Download {
   sumsUrl: string;
 }
 
-/** The installer this copy of the app can update itself from, or null (a .deb, or an unknown system). */
-export function assetName(version: string, platform = process.platform, arch = process.arch, appImage = Boolean(process.env.APPIMAGE)): string | null {
-  if (platform === "darwin") return `BubbleFacts-${version}-mac-${arch === "arm64" ? "arm64" : "x64"}.dmg`;
-  if (platform === "win32") return `BubbleFacts-${version}-windows-x64.exe`;
-  if (platform === "linux" && appImage) return `BubbleFacts-${version}-linux-x86_64.AppImage`;
+/**
+ * The installer this copy of the app can update itself from, or null (a .deb, or an unknown system).
+ * Lite updates to Lite and the full app to the full one: Lite's names have "-lite" after the version.
+ */
+export function assetName(version: string, platform = process.platform, arch = process.arch, appImage = Boolean(process.env.APPIMAGE), edition: Edition = "full"): string | null {
+  const v = edition === "lite" ? `${version}-lite` : version;
+  if (platform === "darwin") return `BubbleFacts-${v}-mac-${arch === "arm64" ? "arm64" : "x64"}.dmg`;
+  if (platform === "win32") return `BubbleFacts-${v}-windows-x64.exe`;
+  if (platform === "linux" && appImage) return `BubbleFacts-${v}-linux-x86_64.AppImage`;
   return null;
 }
 
