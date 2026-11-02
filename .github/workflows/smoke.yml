@@ -121,6 +121,22 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: scripts
+      # The scripts of the build being tested, not the default branch's: after a Release run the
+      # owner started (a tag, or Run workflow), its commit; for a tag asked for by hand, that tag;
+      # otherwise the default branch's. Code scanning takes who started the run as the proof the
+      # commit can be trusted here, where the job has the default branch's cache.
+      - name: Check out that build's test scripts
+        if: github.event_name == 'workflow_run' && github.actor == github.repository_owner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Check out the test scripts
+        if: github.event_name != 'workflow_run' || github.actor != github.repository_owner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts
+          ref: ${{ inputs.tag || github.sha }}
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
@@ -172,6 +188,7 @@ jobs:
           ud="$RUNNER_TEMP/bf-launch"; flag="$ud"
           [ "$RUNNER_OS" = Windows ] && { ud=$(cygpath -u "$RUNNER_TEMP")/bf-launch; flag=$(cygpath -w "$ud"); }
           mkdir -p "$ud"
+          [ "$RUNNER_OS" = macOS ] && codesign --verify --deep --strict "$HOME/Applications/BubbleFacts.app"
           app="${APP_LAUNCH:-$APP_EXE}"
           if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a "$app" --no-sandbox "--user-data-dir=$flag" > launch.txt 2>&1 &
           else "$app" "--user-data-dir=$flag" > launch.txt 2>&1 &
