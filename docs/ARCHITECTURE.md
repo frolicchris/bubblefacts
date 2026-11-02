@@ -1,6 +1,6 @@
 # How it works
 
-*Current as of 2.1.0 (October 2026).*
+*Current as of 2.2.0 (November 2026).*
 
 This is for anyone changing the code. It explains how a song becomes fact
 bubbles, and why the less obvious parts are the way they are. Each of those
@@ -69,7 +69,13 @@ Now playing file ─┘ reads the file   │
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
-| `backend/src/atomic-write.ts`, `text.ts`, `types.ts` | Crash-safe file writes, small text helpers, and the shared song and fact shapes. |
+| `backend/src/pace.ts` | Keeps the built-in AI in step with a slow or busy computer (see [A slow or busy computer](#a-slow-or-busy-computer)). |
+| `backend/src/artist-good.ts`, `neutral-wording.ts` | Facts about the good an artist does, and the neutral-wording rules on top of them. |
+| `backend/src/not-music.ts` | Spots commercials, station idents and jingles. |
+| `backend/src/listening.ts` | The dashboard's "Hearing your queue live" and "Facts took" lines. |
+| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
+| `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
+| `backend/src/atomic-write.ts`, `capped-map.ts`, `log-timestamps.ts`, `text.ts`, `types.ts` | Crash-safe file writes, session caches that can't grow for ever, a time on every log line, small text helpers, and the shared song and fact shapes. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
 | `backend/src/bubble-style.ts` | Which built-in Style the overlay shows, and the text colors for the streamer's own colors (issue #177). |
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
@@ -86,18 +92,17 @@ sign-ins and the built-in AI. Its design decisions are in
 
 | File | Job |
 |---|---|
-| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and every request from the window (`ipcMain.handle`). |
+| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and the requests from the window (`handle`, which checks each comes from the app's own window). A feature in its own file registers its messages through the `handle` main.ts passes in (`preparing.ts`). |
 | `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
-| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen. |
+| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen, `a11y.js` holds the screen reader announcements and `song-source.js` which Settings fields go with each song source. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
-| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
 | `desktop/src/sign-in-check.ts` | Asks StreamerSongList whether the sign-in still holds, to tell an outage from an expired sign-in. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
-| `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
+| `desktop/src/now-playing-folder.ts` | The app's copy of the preset folder rule (`presetFolder`), kept alike with the server's. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
@@ -457,8 +462,9 @@ sign-ins and the built-in AI. Its design decisions are in
 11. **Send.** The overlay shows one bubble every `FACT_INTERVAL_SECONDS`,
     counting from when the facts arrive. If the song has already changed by
     then, it throws the batch away. Each fact carries a `source` label for the
-    dashboard: `Wikipedia: <article>`, `Wikidata`, `MusicBrainz`,
-    `Your song list`, `Your custom facts` or `Your facts for this song`.
+    dashboard: `Wikipedia: <article>`, `Wikipedia infobox: <article>`,
+    `Wikidata`, `MusicBrainz`, `Twitch About: <name>`, `Your song list`,
+    `Your custom facts` or `Your facts for this song`.
     A fact from an article also carries the article's link and the sentence
     it most likely came from (`supportingSentence`: the one sharing at least
     half its content words), which the dashboard shows when the source is
@@ -550,8 +556,8 @@ dullest and the most often wrong, so accuracy and fun mostly pull the same way.
 ### The credit bubble
 
 One extra bubble tells viewers where the facts come from and that they may be
-wrong ("Facts from Wikipedia, Wikidata and MusicBrainz, retold by AI. Spot a
-mistake? Let the streamer know."; `credit.ts`, issue #278, `CREDIT_BUBBLE=off`
+wrong ("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold
+by AI. Spot a mistake? Let the streamer know. · BubbleFacts"; `credit.ts`, issue #278, `CREDIT_BUBBLE=off`
 hides it). It goes out before the first song's facts after BubbleFacts starts,
 then with about every 5th song that has facts (`CreditCounter`), and the
 song's facts start after it. A song with no facts, bubbles paused, no overlay
@@ -1577,8 +1583,8 @@ saved and is tried next run. When a song's lookups failed or were throttled,
 it isn't saved either, and the run waits a minute, doubling up to ten, before
 going on; a song with facts saved after three such tries is kept as it is.
 
-The server refuses to start while an overlay is connected or there's no AI
-(`cantPrepare`), and stops the moment an overlay connects.
+The server refuses to start while an overlay is connected, there's no AI or
+lookups are off (`cantPrepare`), and stops the moment an overlay connects.
 
 **Only when not streaming** (issue #295). The app decides when
 (`PrepareDriver` in `desktop/src/preparing.ts`), about once a second: the
@@ -1593,8 +1599,9 @@ within a second. A song on stream also takes the model from a preparing turn
 at once (`setCurrentSong`), and the preparing model, when there is one, gives
 its memory back when a run ends. An online AI (Groq, Anthropic) is never used
 for preparing: every song would count against the streamer's own key and
-limits. BubbleFacts Lite has no AI on the computer, so the setting and **Your
-songs** are hidden there (`data-edition="full"`) and the app never starts it.
+limits. BubbleFacts Lite has no AI engine of its own, so the setting and **Your
+songs** are hidden there (`data-edition="full"`), even with Ollama, and the app
+never starts it (`EDITION === "full"` in main.ts).
 The process's own priority isn't lowered by preparing itself (the CPU watch of
 issue #314 may lower it while other programs are busy): on Linux and macOS it can't
 be raised again without administrator rights, which would slow the stream.
@@ -1755,9 +1762,10 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts of up to 300 characters, 5 songwriters, a 200-character link). Over a limit, the save is refused with `error`, a reason the editor shows; nothing is trimmed. Answers as soon as it's saved (the app waits 3 seconds at most), then shows them if the song is still on. |
 | `/control/facts-off` | **No facts for this song** and **No facts for this artist**, in the editor and one click each under **Earlier songs**. Saves the switch, forgets the song's cached facts and, for the song on now, takes the found bubbles off (the streamer's own stay). |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
-| `/control/prepare` | **Prepare my songs** (see [Prepared songs](#prepared-songs)): `run: true` starts or carries on, `run: false` stops at once. Refused (`refused`) while an overlay is connected or there's no AI. Answers with where it stands. |
+| `/control/prepare` | **Prepare my songs** (see [Prepared songs](#prepared-songs)): `run: true` starts or carries on, `run: false` stops at once. Refused (`refused`: `overlay`, `no-ai` or `lookups-off`) while an overlay is connected, there's no AI, or `FACT_VERIFICATION=off`. Answers with where it stands. |
 | `/control/prepare/status` | Where preparing stands and how many songs are ready, for **Your songs** (`coverage`). |
-| `/control/style` | **Style** and **Use my own colors** in Settings (issue #177): sends the new look to every overlay at once, as a `style` message, with no restart and no Refresh in OBS. Never refused: an unknown Style is `classic`, and colors that aren't both `#rrggbb` are dropped. Returns the look it sent. |
+| `/control/style` | **Style**, **Use my own colors** and **Bubble size** in Settings (issue #177): sends the new look and sizes (`scale`, `verticalScale`) to every overlay at once, as a `style` message, with no restart and no Refresh in OBS. Never refused: an unknown Style is `classic`, colors that aren't both `#rrggbb` are dropped, and a size outside 0.5 to 3 is ignored. Returns the Style, the colors and how many overlays got it. |
+| `/control/aired` | The facts that went out (`aired-facts.json`), oldest first, for the app's reports (see [How do I see what a stream showed?](#how-do-i-see-what-a-stream-showed)). |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.
@@ -1802,6 +1810,9 @@ folder; `data/` for the command-line version):
   and recent facts (see "What gets remembered between songs?").
 - `wrong-log.jsonl`: one line per **Wrong** press, the newest 500 (see the
   file table above).
+- `aired-facts.json`: the facts that went out to the overlay, with song,
+  source, link and time, the newest 500. Private, never in backups (see
+  [How do I see what a stream showed?](#how-do-i-see-what-a-stream-showed)).
 - `prepared-facts.json`: songs' facts prepared ahead of time, and the pace
   measured on this computer (see [Prepared songs](#prepared-songs)). Private
   (`0600`), never in backups: it's rebuilt from the song list.
@@ -1814,10 +1825,12 @@ them that then replaces the old one (`atomic-write.ts`, one copy for the
 server and one for the app), so a crash mid-write leaves the old file whole,
 never half of one.
 
-The app's own files sit beside them: `settings.json`, `models/`, `overlay/`,
-`facts/` (the streamer's custom facts, as a pack), `logs/` and `backups/`
-(automatic copies of the settings and facts, never sign-ins, keys or which
-AI writes the facts). **Remove my
+The app's own files sit beside them: `settings.json` (and
+`settings.json.unreadable`, see above), `models/`, `overlay/`, `facts/` (the
+streamer's custom facts, as a pack), `logs/`, `backups/` (automatic copies of
+the settings, facts, Wrong marks and Wrong log, never sign-ins, keys or which
+AI writes the facts), `updates/` (a downloaded update) and a copy of
+`THIRD-PARTY-NOTICES.md`. **Remove my
 BubbleFacts data** deletes all of them.
 
 ### Licenses of the sources
@@ -1857,7 +1870,7 @@ BubbleFacts data** deletes all of them.
   OBS shares one source between scenes and canvases, so a single source can't
   be landscape in one and vertical in the other, and some streamers squeeze
   the landscape overlay into a tall strip on purpose. A file per layout also
-  gives each its own settings (`VERTICAL_AREA`, `--bf-vertical-scale`), so one
+  gives each its own settings (`VERTICAL_AREA`, `BUBBLE_VERTICAL_SCALE` or `--bf-vertical-scale`), so one
   app feeds both scenes at once. The vertical page sizes everything from the
   source's width (40px text at 1080 wide, about 17px on a phone) and keeps to
   the area TikTok, YouTube Shorts and Instagram Live all leave clear of their

@@ -57,6 +57,7 @@ To find your JWT token:
 | `SE_JWT` | *required with StreamElements* | Lets the overlay see what your song request player is playing. Keep it private. |
 | `SE_POLL_INTERVAL_MS` | `15000` | How often, in milliseconds, the overlay double-checks the player in case it missed a change. Between 5000 and 300000. |
 | `SE_REQUEST_TIMEOUT_MS` | `5000` | How long to wait for StreamElements before giving up on one check. |
+| `SE_API_BASE`, `SE_EVENTS_URL` | *StreamElements' own* | For testing against other StreamElements servers. Leave them out. |
 | `YOUTUBE_API_KEY` | *none* | Optional. A YouTube Data API key from Google. With it, for YouTube's auto-generated uploads (channels ending in "- Topic") only, the video ID is sent to Google and the exact artist and song are read from the video's description instead of guessed from its title. Each lookup uses 1 unit of the key's daily quota. Restrict the key to the YouTube Data API, and keep it private. |
 
 Good to know:
@@ -100,7 +101,7 @@ Good to know:
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app never uses the example packs, only the facts you type in its Settings. Keep `general`, or your own pack with originals lines, if you play your own compositions. They take turns, and one shown in the last hour waits, so five or more keep the bubbles full. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
 | `NOW_PLAYING` | `on` | `off` hides the Now Playing bubble on a song change, for when your own overlay already shows the song. |
-| `CREDIT_BUBBLE` | `on` | `off` hides the credit bubble: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." It shows once before the first song's facts after BubbleFacts starts, then with about every 5th song that has facts, for viewers who join later. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
+| `CREDIT_BUBBLE` | `on` | `off` hides the credit bubble: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts" It shows once before the first song's facts after BubbleFacts starts, then with about every 5th song that has facts, for viewers who join later. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
 | `LIVE_LEARN_BANNER` | `on` | `off` hides the LIVE LEARN bubble that stays up during a live learn. |
 | `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner for off-list requests; facts show only when a source knows the song. `off` treats them like any other song. |
 
@@ -178,7 +179,7 @@ hours is read as it was before. See
 
 | Setting | Default | What it does |
 |---|---|---|
-| `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. Facts from Wikipedia, Wikidata or MusicBrainz stop at four (see `SOURCE_RISK`). Songs with short articles may get fewer. |
+| `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. With `SOURCE_RISK=on` (the default), facts from Wikipedia, Wikidata or MusicBrainz stop at four. Songs with short articles may get fewer. |
 | `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. From 3 to 300. |
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up, from 2 to 120. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
@@ -197,8 +198,8 @@ the vertical overlay, `frontend/obs/obs-overlay-vertical.html`, a 1080x1920
 Browser source for Twitch Dual Format, TikTok, YouTube Shorts and Instagram Live. It has one spot
 in each case, inside the part of the screen those apps leave clear of their
 own buttons and chat (`VERTICAL_SAFE` in `backend/src/fact-generator.ts`). Its
-bubble size is `--bf-vertical-scale` in `obs-overlay.css`, apart from
-`--bf-scale`, so a landscape and a vertical scene can run at once.
+bubble size is `BUBBLE_VERTICAL_SCALE` (see [The look](#the-look)), apart from
+`BUBBLE_SCALE`, so a landscape and a vertical scene can run at once.
 
 ### The look
 
@@ -206,8 +207,8 @@ bubble size is `--bf-vertical-scale` in `obs-overlay.css`, apart from
 |---|---|---|
 | `BUBBLE_STYLE` | `classic` | The look of the bubbles and the Now Playing bubble, on both overlays: `classic` (dark blue), `light`, `minimal` or `retro`. Anything else shows `classic`, with a `[Config]` line in the log. |
 | `BUBBLE_ACCENT` | (empty) | Your own accent color for the border and the Now Playing label, written `#rrggbb` (like `#ff8800`). Used only together with `BUBBLE_BACKGROUND`. |
-| `BUBBLE_SCALE` | (empty) | Bubble size on the landscape overlay, from `0.5` to `3` (the app's Standard, Large and Larger are `1`, `1.25` and `1.5`). Empty keeps the size written in `obs-overlay.css`. The app sends a new size live, with no Refresh in OBS. |
-| `BUBBLE_VERTICAL_SCALE` | (empty) | The same for the vertical overlay. |
+| `BUBBLE_SCALE` | (empty) | Bubble size on the landscape overlay, from `0.5` to `3` (the app's Standard, Large and Larger are `1`, `1.25` and `1.5`). Empty, or a size outside that range, keeps the size written in `obs-overlay.css`. The app sends a new size live, with no Refresh in OBS. |
+| `BUBBLE_VERTICAL_SCALE` | (empty) | The same for the vertical overlay (the app's sizes there are `1`, `1.15` and `1.3`). |
 | `BUBBLE_BACKGROUND` | (empty) | Your own background color, written `#rrggbb`. The text color is chosen for you, light or dark, so it always reads at WCAG AA contrast (4.5:1). The accent colors the Now Playing label only when it reads that well on the background; otherwise the label uses the text color. |
 
 A style changes colors, the font, corners and the Now Playing bubble's look,
@@ -262,11 +263,13 @@ need them with a `.env` file.
 
 | Setting | What it does |
 |---|---|
-| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **High quality** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` shows custom facts only. |
+| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **High quality** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` uses no AI: songs get Wikidata, MusicBrainz and your own facts. The app uses it while the model downloads, if the built-in AI can't run, and in BubbleFacts Lite, where choosing the built-in AI means no AI. |
 | `PREPARE_MODEL_PATH` | With **High quality** chosen and the Standard model downloaded too: the Standard model writes the first pass of **Prepare my songs**, being faster. Songs it wrote are written again by High quality once every song has its first pass. |
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
 | `BUBBLEFACTS_PAUSED` | `1` starts the server with bubbles paused, so a restart while paused stays paused. |
-| `BUBBLEFACTS_DATA_DIR` | Where `wrong-facts.json` (sources marked **Wrong**, per song), `song-facts.json` (the streamer's facts for particular songs) and `session.json` (what the current stream has shown) go. Without it, the overlay uses a `data` folder in the overlay folder. |
+| `BUBBLEFACTS_DATA_DIR` | Where the server keeps its files: `song-facts.json` (your facts for particular songs, and the No facts switches), `wrong-facts.json` (sources marked **Wrong**, per song), `wrong-log.jsonl` (each Wrong press, newest 500), `session.json` (what the current stream has shown), `aired-facts.json` (the facts that went out, newest 500), `play-history.json` (songs seen on stream, never who asked) and `prepared-facts.json` (**Prepare my songs**). All stay on this computer. Without it, the overlay uses a `data` folder in the overlay folder. |
+| `BUBBLEFACTS_DOCUMENTS_DIR` | Where the system keeps Documents, tried first for the Streamling and Nightbot presets. |
+| `BUBBLEFACTS_VERSION` | The app's version, written into the Wrong log. |
 | `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |

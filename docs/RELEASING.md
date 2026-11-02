@@ -114,8 +114,8 @@ reads.
    tagging. The app shows them once on the dashboard after the update; a
    version without an entry shows nothing.
 2. The Release workflow passed for every system, and the draft has every
-   installer, full and Lite (`-lite` in the name), `SHA256SUMS.txt` and
-   `bubblefacts.zip`.
+   installer, full and Lite (`-lite` in the name), `SHA256SUMS.txt`,
+   `bubblefacts.zip` and `bubblefacts-sbom.spdx.json`.
 3. The **Smoke test** workflow starts by itself when the Release run finishes
    successfully, and tests that run's artifacts. (A draft release can't be
    downloaded by the workflow's read-only token, so it tests the run that built
