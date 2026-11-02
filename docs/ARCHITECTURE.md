@@ -1082,7 +1082,7 @@ internet back, and it reloads the AI and blanks the overlay.
   lost. An update during a read triggers one more read afterward.
 - 429 and 503 back off for as long as `Retry-After` says.
 
-**StreamElements** (`streamelements-client.ts`), for musicians who take
+**StreamElements** (`streamelements-client.ts`), for streamers who take
 requests through its Media Request player:
 
 - REST `GET /songrequest/<id>/player` (the state), then `/playing` (the song).
@@ -1388,7 +1388,7 @@ knows when the facts went out (`factsShownAt`) and each one's delay, and
 `readingSeconds` in `session.ts` mirrors the overlay's (keep them the same).
 Delays count from `factsShownAt`, so a resumed or restarted song works
 unchanged. A press within 1.5 seconds of a new bubble, while the one before
-is still up, means the one before (`JUST_APPEARED_SECONDS`): the musician
+is still up, means the one before (`JUST_APPEARED_SECONDS`): the streamer
 reacted to what they read. Nothing is marked while paused, before any bubble
 has gone out (no overlay connected counts), or for a song with no facts; the
 reason (`paused`, `no-song`, `not-ready`, `no-facts`, `none-shown`) becomes
