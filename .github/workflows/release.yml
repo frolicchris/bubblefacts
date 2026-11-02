@@ -1,7 +1,8 @@
 name: Release
 
 # Pushing a version tag (v2.0.0, v2.0.0-beta.1) builds every installer on its
-# own system and puts them in a *draft* release with checksums, for a person to
+# own system, the full app and BubbleFacts Lite (no AI engine, "-lite" in its
+# names), and puts them in a *draft* release with checksums, for a person to
 # read over and publish. Each file gets a build-provenance attestation, so
 # anyone can check it came from this workflow:
 #   gh attestation verify FILE --repo frolicchris/bubblefacts \
@@ -147,13 +148,37 @@ jobs:
           else
             npm run dist -- $ARGS
           fi
+      # BubbleFacts Lite (issue #34): the same app without the AI engine, for the same systems,
+      # signed the same way. scripts/dist-lite.mjs swaps package.json for Lite's while it builds,
+      # then puts it back. Its installers have "-lite" in their names and land in release-lite/.
+      - name: Build Lite
+        shell: bash
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+          EXTRA: ${{ steps.signing.outputs.extra }}
+          ARGS: ${{ matrix.args }}
+        run: |
+          # $ARGS and $EXTRA are split into words on purpose.
+          if [ -n "$EXTRA" ]; then
+            npm run dist:lite -- $ARGS $EXTRA "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
+          else
+            npm run dist:lite -- $ARGS
+          fi
+          # Lite must not carry the AI engine: stop here if any of it got in.
+          if find release-lite -path '*node_modules*' -iname '*llama*' | grep .; then echo "Lite has AI engine files"; exit 1; fi
       # Says in the log whether each installer came out signed.
       - name: Report signing
         shell: bash
         run: |
           case "$RUNNER_OS" in
-            macOS) for a in release/mac*/BubbleFacts.app; do codesign -dv "$a" 2>&1 | grep -E "Authority|Signature=adhoc" || true; done ;;
-            Windows) powershell -Command "Get-AuthenticodeSignature (Get-ChildItem release/BubbleFacts-*.exe) | Format-List Status,SignerCertificate" ;;
+            macOS) for a in release/mac*/BubbleFacts.app release-lite/mac*/BubbleFacts.app; do codesign -dv "$a" 2>&1 | grep -E "Authority|Signature=adhoc" || true; done ;;
+            Windows) powershell -Command "Get-AuthenticodeSignature (Get-ChildItem release/BubbleFacts-*.exe, release-lite/BubbleFacts-*.exe) | Format-List Path,Status,SignerCertificate" ;;
           esac
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -162,6 +187,10 @@ jobs:
             release/BubbleFacts-*.exe
             release/BubbleFacts-*.AppImage
             release/bubblefacts_*.deb
+            release-lite/BubbleFacts-*.dmg
+            release-lite/BubbleFacts-*.exe
+            release-lite/BubbleFacts-*.AppImage
+            release-lite/bubblefacts-lite_*.deb
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.name }}
@@ -171,6 +200,16 @@ jobs:
             release/BubbleFacts-*.exe
             release/BubbleFacts-*.AppImage
             release/bubblefacts_*.deb
+      # A separate artifact, so the smoke test can pick the full or the Lite installer by name.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.name }}-lite
+          if-no-files-found: error
+          path: |
+            release-lite/BubbleFacts-*.dmg
+            release-lite/BubbleFacts-*.exe
+            release-lite/BubbleFacts-*.AppImage
+            release-lite/bubblefacts-lite_*.deb
 
   release:
     name: Draft the release
