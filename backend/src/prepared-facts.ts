@@ -125,8 +125,10 @@ export class PreparedStore {
     return this.load();
   }
 
-  put(key: string, entry: PreparedEntry): void {
+  /** Save a song, and with `pace` how long it took, in one write: the file is rewritten whole each time. */
+  put(key: string, entry: PreparedEntry, pace?: { ms: number; activeMs: number; day: string }): void {
     this.load()[key] = entry;
+    if (pace) this.notePace(pace.ms, pace.activeMs, pace.day);
     this.save();
   }
 
@@ -155,13 +157,17 @@ export class PreparedStore {
   /** One song took `ms`; the time preparing today grows by `activeMs`. */
   addPace(ms: number, activeMs: number, day: string, keep = 50): void {
     this.load();
+    this.notePace(ms, activeMs, day, keep);
+    this.save();
+  }
+
+  private notePace(ms: number, activeMs: number, day: string, keep = 50): void {
     if (ms > 0) this.pace.recentMs = [...this.pace.recentMs, ms].slice(-keep);
     if (activeMs > 0) {
       this.pace.activeByDay[day] = (this.pace.activeByDay[day] ?? 0) + activeMs;
       const days = Object.keys(this.pace.activeByDay).sort();
       for (const d of days.slice(0, Math.max(0, days.length - 14))) delete this.pace.activeByDay[d];
     }
-    this.save();
   }
 
   /** For tests: read the file again. */

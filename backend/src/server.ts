@@ -157,7 +157,12 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
  * Every song to prepare: the song list's, with how often each was played (issue #293), and every
  * song seen on stream (issue #297), which covers requests no list has and moves a played one up.
  */
+/** The songs to prepare are built from the whole list and history: at most this often, as the window asks every 5 s. */
+const TARGETS_FRESH_MS = 30_000;
+let targetsBuilt: { at: number; targets: PrepTarget[] } | null = null;
+
 function prepTargets(): PrepTarget[] {
+  if (targetsBuilt && Date.now() - targetsBuilt.at < TARGETS_FRESH_MS) return targetsBuilt.targets;
   const targets = new Map<string, PrepTarget>();
   for (const s of songList.listedSongs?.() ?? []) {
     const song: SSLSong = { title: s.title, artist: s.artist, songId: s.id };
@@ -167,7 +172,8 @@ function prepTargets(): PrepTarget[] {
     const listed = targets.get(key);
     targets.set(key, listed ? { ...listed, requests: listed.requests + played.plays } : { key, song: played.song, requests: played.plays });
   }
-  return [...targets.values()];
+  targetsBuilt = { at: Date.now(), targets: [...targets.values()] };
+  return targetsBuilt.targets;
 }
 
 /** "Prepare my songs": the app starts it while the computer is free, and stops it when it isn't (issue #295). */

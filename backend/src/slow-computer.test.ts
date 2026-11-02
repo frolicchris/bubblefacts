@@ -39,7 +39,7 @@ jest.mock("./fact-verifier", () => ({
   loadWikitext: jest.fn().mockResolvedValue(""),
 }));
 
-import { clearFactCache, generateFacts, paceReport, prepareSong, resetPace, restoreRecent, setCurrentSong, useBuiltinSession } from "./fact-generator";
+import { clearFactCache, factStats, generateFacts, paceReport, prepareSong, resetPace, restoreRecent, setCurrentSong, useBuiltinSession } from "./fact-generator";
 import { fetchGrounding } from "./fact-verifier";
 import { wikidataFacts } from "./wikidata";
 import { LATE_MS, ON_TIME_MS, QUICK_PROBE_EVERY, RECOVER_SONGS } from "./pace";
@@ -224,5 +224,50 @@ describe("a slow or busy computer (issue #314)", () => {
     } finally {
       c.aiProvider = "builtin";
     }
+  });
+});
+
+describe("preparing with the faster model while another is on stream (issue #296)", () => {
+  /** The prep model's captions, none of which passes the screen: nobody is named. */
+  const FAILING = ["He did it in one night.", "They liked it a lot more than before.", "I wrote it at home."].join("\n");
+  const prepPrompts: string[] = [];
+  let c: { modelPath: string; prepareModelPath: string };
+
+  beforeEach(async () => {
+    c = (await import("./config")).config as typeof c;
+    c.modelPath = "/models/high.gguf";
+    c.prepareModelPath = "/models/standard.gguf";
+    prepPrompts.length = 0;
+    useBuiltinSession(
+      { resetChatHistory: () => undefined, prompt: (text) => (prompts.push(text), Promise.resolve(answer ?? [...lines(played), LATE_LINE].join("\n"))) },
+      { resetChatHistory: () => undefined, prompt: (text) => (prepPrompts.push(text), Promise.resolve(FAILING)) }
+    );
+  });
+  afterEach(() => {
+    c.modelPath = "";
+    c.prepareModelPath = "";
+  });
+
+  it("still asks the model on stream for a song the faster model got nothing usable for", async () => {
+    const song = nextSong();
+    const ready = await prepareSong(song, new AbortController().signal, { revisionOf: async () => 1 });
+    expect(ready.outcome).toBe("none");
+    expect(ready.model).toBe("standard.gguf");
+    expect(prepPrompts).toHaveLength(1);
+    // Every caption failed, but from the faster model: the one on stream gets its own try (issue #203 is per model).
+    const asked = prompts.length;
+    setCurrentSong(song);
+    expect((await generateFacts(song)).length).toBeGreaterThan(0);
+    expect(prompts.length).toBe(asked + 1);
+  });
+
+  it("leaves the stream's own measures to the stream: a preparing turn sets no endpoint or time on /health", async () => {
+    factStats.lastEndpoint = "";
+    factStats.lastDurationMs = 0;
+    await prepareSong(nextSong(), new AbortController().signal, { revisionOf: async () => 1 });
+    expect(factStats.lastEndpoint).toBe("");
+    expect(factStats.lastDurationMs).toBe(0);
+    await play(10_000);
+    expect(factStats.lastEndpoint).toBe("built-in model");
   });
 });

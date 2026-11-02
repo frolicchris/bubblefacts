@@ -207,6 +207,8 @@ const factCache = new Map<string, { facts: Fact[]; expires: number }>();
  * app version, which restarts the server, asks again.
  */
 const screenedOut = new Map<string, string>();
+/** What `screenedOut` remembers: the article and the model that wrote from it. Another model may do better (issue #296). */
+const screenedKey = (page: string, model: string) => `${page}\0${model}`;
 /** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
 export const STRUCTURED = "Wikidata and MusicBrainz";
 /** The Wikidata or MusicBrainz sentences each song was given, to tell which source a wrong fact came from. */
@@ -703,8 +705,13 @@ let llamaRuntime: Promise<any> | undefined;
 async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
   const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
   // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
-  llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
-  const llama = await llamaRuntime;
+  const runtime = (llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) }));
+  // Only a runtime that failed to start is let go: a model that failed to load leaves the
+  // runtime to the model already running on it, so the CPU watch keeps governing both.
+  const llama = await runtime.catch((err: unknown) => {
+    if (llamaRuntime === runtime) llamaRuntime = undefined;
+    throw err;
+  });
   const model = await llama.loadModel({ modelPath });
   const context = await model.createContext({ contextSize: 4096 });
   const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
@@ -725,7 +732,6 @@ async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded
 function loadBuiltin(): Promise<Loaded> {
   builtin ??= loadModelFile(config.modelPath, true).catch((err) => {
     builtin = undefined; // Let the next song retry the load.
-    llamaRuntime = undefined;
     throw err;
   });
   return builtin;
@@ -810,9 +816,15 @@ function watchCpu(llama: { maxThreads: number }, usualThreads: number): void {
   cpuTimer.unref();
 }
 
-/** Stand in for the built-in model's chat session. Only the tests call this; the app loads the model. */
-export function useBuiltinSession(session: { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void }): void {
+type FakeSession = { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void };
+
+/**
+ * Stand in for the built-in model's chat session, and for the one that prepares songs when
+ * `config.prepareModelPath` names another model. Only the tests call this; the app loads the models.
+ */
+export function useBuiltinSession(session: FakeSession, prepSession?: FakeSession): void {
   builtin = Promise.resolve({ session });
+  prepBuiltin = prepSession ? Promise.resolve({ session: prepSession }) : undefined;
 }
 
 /**
@@ -922,9 +934,14 @@ async function askModel(prompt: string, key: string | null = null): Promise<stri
   } else {
     [text, endpoint] = await askOllama(prompt);
   }
-  factStats.lastEndpoint = endpoint;
-  factStats.lastDurationMs = Date.now() - started;
-  console.log(`[FactGen] ${endpoint} answered in ${(factStats.lastDurationMs / 1000).toFixed(1)}s`);
+  const ms = Date.now() - started;
+  // A preparing turn isn't the stream's: /health and the dashboard say how the song on stream fared.
+  if (preparing()) console.log(`[Prepare] ${endpoint} answered in ${(ms / 1000).toFixed(1)}s`);
+  else {
+    factStats.lastEndpoint = endpoint;
+    factStats.lastDurationMs = ms;
+    console.log(`[FactGen] ${endpoint} answered in ${(ms / 1000).toFixed(1)}s`);
+  }
   return text;
 }
 
@@ -1496,21 +1513,24 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (short) console.log(`[Pace] "${song.title}": facts have been late, asking for ${SHORT_CAPTIONS} captions from ${source.length} characters of the article`);
   const prompt = groundedPrompt(read, source, short ? SHORT_CAPTIONS : want + OVERGENERATE);
   const askedKey = songKey(asked);
-  // Captions from the whole article all failed last time (issue #203). A shorter ask isn't remembered: the full one may still do better.
-  const askedBefore = !short && screenedOut.get(askedKey) === page;
-  if (askedBefore) console.log(`[FactGen] "${song.title}": every caption from "${page}" failed the screen last time, so the AI isn't asked again`);
   const prep = preparing();
+  // Which model writes now: the stream's, or the one preparing the first pass (issue #296).
+  const writer = prep && !prep.streamModel ? prepModelName() : streamModelName();
+  // Captions from the whole article all failed last time, from this model (issue #203). A shorter
+  // ask isn't remembered: the full one may still do better. Nor does one model's failure bind another.
+  const askedBefore = !short && screenedOut.get(askedKey) === screenedKey(page, writer);
+  if (askedBefore) console.log(`[FactGen] "${song.title}": every caption from "${page}" failed the screen last time, so the AI isn't asked again`);
   // Preparing: a reference that isn't this song's own (its artist's or game's article) is retold
-  // once for every song that reads it word for word (issue #296), then screened for each as usual.
+  // once for every song that reads it word for word, by the same model (issue #296), then screened for each as usual.
   const { track } = resolveGameAndTrack(read);
-  const shareKey = prep && !askedBefore && !aboutTheSong(read, context) ? `${want}\0${process.env.PROMPT_STYLE ?? ""}\0${citesSentences()}\0${context}` : "";
+  const shareKey = prep && !askedBefore && !aboutTheSong(read, context) ? `${writer}\0${want}\0${process.env.PROMPT_STYLE ?? ""}\0${citesSentences()}\0${context}` : "";
   const shared = shareKey ? prep?.answers.get(shareKey) : undefined;
   let answer: string;
   try {
     // Not tied to the song on stream when preparing: a song change mustn't take it for an old one.
     answer = askedBefore ? "" : shared ? shared.answer : await askModel(prompt, prep ? null : askedKey);
     if (prep?.signal.aborted) throw new Obsolete();
-    if (prep && !askedBefore) prep.model = prep.streamModel ? streamModelName() : prepModelName();
+    if (prep && !askedBefore) prep.model = writer;
     if (prep && shareKey && !shared) setCapped(prep.answers, shareKey, { answer, track }, MAX_SHARED_ANSWERS);
   } catch (err) {
     aiDone = true;
@@ -1608,7 +1628,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   remember(early.length ? later : shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
   // Not for an answer written for another song of the same article (preparing): this song's own ask may do better.
-  if (lines.length && !usable.length && !short && !shared) setCapped(screenedOut, askedKey, page, MAX_KEPT);
+  if (lines.length && !usable.length && !short && !shared) setCapped(screenedOut, askedKey, screenedKey(page, writer), MAX_KEPT);
   else if (usable.length) screenedOut.delete(askedKey);
 
   if (shown.length) {

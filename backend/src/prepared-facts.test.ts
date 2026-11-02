@@ -74,6 +74,13 @@ describe("PreparedStore (issue #292)", () => {
     expect(pace.activeByDay["2026-10-20"]).toBe(90_000);
   });
 
+  it("saves a song and how long it took in one go", () => {
+    const s = store();
+    s.put("a", entry(), { ms: 4_000, activeMs: 4_000, day: "2026-11-02" });
+    expect(store().saved("a")).toBeDefined();
+    expect(store().getPace()).toEqual({ recentMs: [4_000], activeByDay: { "2026-11-02": 4_000 } });
+  });
+
   it("counts an entry as current only under today's rules and within 30 days", () => {
     const now = Date.parse("2026-11-02T12:00:00Z");
     expect(isCurrent(entry({ preparedAt: "2026-10-20T12:00:00Z" }), now)).toBe(true);

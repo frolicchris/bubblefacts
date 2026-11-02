@@ -241,7 +241,12 @@ function markWhatsNewSeen(): void {
 
 // --- Supervisor events -------------------------------------------------
 
+let serverWasRunning = false;
 supervisor.on("status", (status: Status) => {
+  // A server that just came up is a new one: Prepare my songs asks it again rather than waiting its usual while.
+  const running = status.state === "running";
+  if (running && !serverWasRunning) preparing.serverRestarted();
+  serverWasRunning = running;
   // The streamer's Pause is the truth: a server that came back without it is told again.
   if (typeof status.health?.paused === "boolean" && status.health.paused !== paused) void control("pause", { paused });
   // The queue turned the sign-in down, or StreamerSongList stopped answering: is the sign-in still good? (issue #182)

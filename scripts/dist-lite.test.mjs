@@ -91,3 +91,9 @@ test("Lite's notices leave out the AI engine, the models and the Linux Node.js, 
   assert.match(out, new RegExp(`^## npm packages \\(${listed}\\)$`, "m"));
   assert.ok(out.includes("# Blue Oak Model License") === notices.includes("# Blue Oak Model License") || !keep.size);
 });
+
+test("runs npm through a shell on Windows, where it is npm.cmd", () => {
+  const source = fs.readFileSync(path.join(root, "scripts", "dist-lite.mjs"), "utf8");
+  const call = source.slice(source.indexOf('execFileSync("npm"'));
+  assert.match(call.slice(0, call.indexOf("\n")), /shell: process\.platform === "win32"/);
+});

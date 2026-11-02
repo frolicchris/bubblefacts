@@ -116,6 +116,16 @@ describe("PrepareDriver (issue #295)", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("asks a server that started over at once, rather than waiting its usual while", async () => {
+    const { d, calls } = driver({ conditions: free, obs: false });
+    await d.tick();
+    await d.tick();
+    expect(calls).toHaveLength(1);
+    d.serverRestarted();
+    await d.tick();
+    expect(calls).toEqual([{ run: true }, { run: true }]);
+  });
+
   it("asks again when the server didn't answer", async () => {
     let answer: Record<string, unknown> | null = null;
     const calls: unknown[] = [];

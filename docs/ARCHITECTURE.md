@@ -476,9 +476,10 @@ instant. A song prepared ahead of time is instant the first time too (see
 only for 6 hours (see above). Several requests for the
 same song at once (two overlays, or one reconnecting mid-song) share a single
 generation. Songs that fell back are retried after ten minutes, except that a
-song whose AI captions all failed the screen isn't sent to the AI again while
-the lookup finds the same article: with temperature 0 it would write the same
-captions (issue #203). Song facts
+song whose AI captions all failed the screen isn't sent to the same AI model
+again while the lookup finds the same article: with temperature 0 it would
+write the same captions (issue #203). Another model (the one on stream, after
+the faster one prepared the song) gets its own try. Song facts
 and originals are rebuilt every time, so edits, the play count and the
 requester stay current.
 
@@ -1526,8 +1527,9 @@ It runs inside a preparation context (`prep-context.ts`, an
 - the stream's rotations: no custom fact (#190) or tagged pool fact takes a
   turn while preparing, since none is stored;
 - a song whose captions all failed (#203) is skipped and recorded as on
-  stream, except after an answer shared from another song's ask: that song's
-  own ask may do better;
+  stream, per model, except after an answer shared from another song's ask:
+  that song's own ask may do better. A preparing turn sets none of the stream's
+  own measures on `/health` (`lastEndpoint`, `lastDurationMs`);
 - lookup trouble: `watchLookupTrouble` counts failed and throttled requests to
   Wikipedia, Wikidata and MusicBrainz made for the song. Their own helpers read
   a 429 as "nothing found, don't cache"; prepared once a month, that would
@@ -1569,25 +1571,34 @@ the pipeline, and only when told: `POST /control/prepare` with `run: true`
 starts it or carries on, `run: false` stops it. Before each song it reads the
 songs again (`prepTargets` in `server.ts`: the StreamerSongList list as read
 at start, `listedSongs`, with each song's `timesPlayed`, and the play history,
-whose plays add to a listed song's) and picks, in this order: a song never prepared,
-then one whose entry is stale (other rules, over 30 days), then one whose
-article is due its weekly check, each kind the most requested first. A
-checked article whose revision is unchanged only gets a new `checkedAt`.
-Each song is saved the moment it's done, so stopping loses only the song in
+whose plays add to a listed song's; built at most every 30 seconds, since the
+window asks for the coverage every 5) and picks, in this order: a song never
+prepared, then one whose entry is stale (other rules, over 30 days), then one
+whose article is due its weekly check, each kind the most requested first. A
+checked article whose revision is unchanged only gets a new `checkedAt`, and
+checks are paced like songs (`gapMs`), so a week's worth never reaches
+Wikipedia as one burst. Each song is saved the moment it's done, with the
+time it took, in one write (`put`), so stopping loses only the song in
 progress, and the next run simply carries on: the store is the progress.
 
 Stopping is immediate: the run's signal aborts the built-in model's turn, and
-the loop doesn't wait for a hosted AI's answer (`whenAborted`), which is then
-thrown away. A song that couldn't be prepared (stopped, the AI failed) isn't
-saved and is tried next run. When a song's lookups failed or were throttled,
-it isn't saved either, and the run waits a minute, doubling up to ten, before
-going on; a song with facts saved after three such tries is kept as it is.
+the loop doesn't wait for a hosted AI's answer (`unlessAborted`, whose abort
+listener goes with the answer), which is then thrown away. When a song's
+lookups failed or were throttled, or Wikipedia couldn't be asked for an
+article's version, or the AI itself got nothing (a model that won't load), the
+song isn't saved, and the run waits a minute, doubling up to ten, before going
+on; a song with facts saved after three such lookup failures is kept as it
+is. A run that only has such skipped songs left stops without calling itself
+finished (`finished`), so **Your songs** doesn't say every song is prepared
+while some are left; the next run tries them again.
 
 The server refuses to start while an overlay is connected, there's no AI or
 lookups are off (`cantPrepare`), and stops the moment an overlay connects.
 
 **Only when not streaming** (issue #295). The app decides when
-(`PrepareDriver` in `desktop/src/preparing.ts`), about once a second: the
+(`PrepareDriver` in `desktop/src/preparing.ts`), about once a second, and
+asks a server that started over (a settings change, a crash) at once rather
+than after its usual ten minutes (`serverRestarted`): the
 setting is on, setup is done, the AI runs on this computer, the server is up,
 the computer is plugged in (`powerMonitor.isOnBatteryPower()`), no overlay is
 connected (`obsClients` from `/health`) and OBS isn't running. The cheap
@@ -1625,7 +1636,12 @@ written:
   preparing, and released after (`releasePrepModel`). Each entry records its
   model, so once every song has a first pass the preparer writes the
   Standard model's ones again with the model on stream (`upgrade`, last in
-  line), the most requested first.
+  line), the most requested first: those with facts, and those it got
+  nothing usable for, which the bigger model may manage. Answers shared
+  between songs are kept per model, so an upgrade never reuses the Standard
+  model's. A stream model that fails to load leaves the shared llama runtime
+  to a preparing model already running on it, so the CPU watch keeps
+  governing both.
 
 **Coverage** (issue #294). `POST /control/prepare/status` answers with where
 preparing stands and `coverage` (`preparer.ts`): how many songs there are,

@@ -121,7 +121,8 @@ function main() {
   let status = 1;
   const noticesDir = path.join(root, NOTICES_DIR);
   try {
-    const tree = JSON.parse(execFileSync("npm", ["ls", "--omit=dev", "--all", "--json"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
+    // npm is npm.cmd on Windows, which only a shell can run (as scripts/bump-version.mjs does).
+    const tree = JSON.parse(execFileSync("npm", ["ls", "--omit=dev", "--all", "--json"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, shell: process.platform === "win32" }));
     fs.mkdirSync(noticesDir, { recursive: true });
     fs.writeFileSync(path.join(noticesDir, NOTICES), liteNotices(fs.readFileSync(path.join(root, NOTICES), "utf8"), liteKeep(tree)));
     fs.writeFileSync(file, JSON.stringify(liteManifest(pkg), null, 2) + "\n");

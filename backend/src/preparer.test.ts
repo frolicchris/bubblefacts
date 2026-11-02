@@ -1,5 +1,6 @@
 jest.mock("./config", () => ({ config: { dataDir: process.env.BUBBLEFACTS_DATA_DIR } }));
 
+import { getEventListeners } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -153,6 +154,74 @@ describe("Preparer (issue #293)", () => {
     await p.stopped();
     const answers = (deps.prepare as jest.Mock).mock.calls.map((c) => c[2].answers);
     expect(new Set(answers).size).toBe(1);
+  });
+
+  it("waits before going on when the AI itself got nothing, and doesn't call the run finished", async () => {
+    const waits: number[] = [];
+    const { p } = preparer({
+      prepare: jest.fn(async (song: SSLSong) => (song.title === "Low Tide" ? found(song, { outcome: null }) : found(song))),
+      sleep: async (ms) => void waits.push(ms),
+    });
+    p.start();
+    await p.stopped();
+    expect(waits).toContain(60_000);
+    expect(p.status().finished).toBe(false);
+    expect(store.saved("ssl:3")).toBeUndefined();
+  });
+
+  it("doesn't count an article as checked when Wikipedia couldn't be asked, and paces the checks it makes", async () => {
+    const { p } = preparer();
+    p.start();
+    await p.stopped();
+    const weekAgo = new Date(Date.now() - CHECK_EVERY_MS - 1000).toISOString();
+    for (const key of ["ssl:1", "ssl:2", "ssl:3"]) store.put(key, { ...store.saved(key)!, checkedAt: weekAgo });
+    const waits: number[] = [];
+    const again = preparer({
+      revisionOf: jest.fn(async (page: string) => {
+        if (page === "Tin Roof (song)") throw new Error("429");
+        return 10;
+      }),
+      sleep: async (ms) => void waits.push(ms),
+      gapMs: 7,
+    });
+    again.p.start();
+    await again.p.stopped();
+    // Tin Roof's check failed: still due next time, after a wait. The other two were checked, a gap apart.
+    expect(store.saved("ssl:2")!.checkedAt).toBe(weekAgo);
+    expect(Date.parse(store.saved("ssl:1")!.checkedAt)).toBeGreaterThan(Date.parse(weekAgo));
+    expect(Date.parse(store.saved("ssl:3")!.checkedAt)).toBeGreaterThan(Date.parse(weekAgo));
+    expect(waits).toContain(60_000);
+    expect(waits.filter((w) => w === 7)).toHaveLength(2);
+    expect(again.prepared).toEqual([]);
+  });
+
+  it("has the model on stream try again a song the faster model got nothing usable for (issue #296)", async () => {
+    const { p, prepared } = preparer({
+      streamModel: () => "high.gguf",
+      prepare: jest.fn(async (song: SSLSong, _signal: AbortSignal, opts: { streamModel?: boolean }) => {
+        prepared.push(song.title);
+        if (song.title === "Low Tide" && !opts.streamModel) return found(song, { outcome: "none", facts: [], model: "standard.gguf" });
+        return found(song, { model: opts.streamModel ? "high.gguf" : "standard.gguf" });
+      }),
+    });
+    p.start();
+    await p.stopped();
+    expect(prepared.filter((t) => t === "Low Tide")).toHaveLength(2);
+    expect(store.saved("ssl:3")).toMatchObject({ outcome: "facts", model: "high.gguf" });
+  });
+
+  it("leaves no abort listener behind for each song it prepares", async () => {
+    let signal: AbortSignal | undefined;
+    const { p } = preparer({
+      prepare: jest.fn(async (song: SSLSong, s: AbortSignal) => {
+        signal = s;
+        return found(song);
+      }),
+    });
+    p.start();
+    await p.stopped();
+    expect(signal).toBeDefined();
+    expect(getEventListeners(signal as AbortSignal, "abort")).toHaveLength(0);
   });
 
   it("does nothing more once every song is prepared, even after the store was read again", async () => {

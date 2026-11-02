@@ -131,6 +131,12 @@ export class PrepareDriver {
     }
   }
 
+  /** The server started over (a settings change, a crash): what it was asked no longer holds, so it's asked again on the next tick. */
+  serverRestarted(): void {
+    this.asked = null;
+    this.serverRunning = false;
+  }
+
   private async ask(run: boolean): Promise<void> {
     this.asked = run ? "run" : "stop";
     this.askedAt = this.now();

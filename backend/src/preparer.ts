@@ -60,8 +60,14 @@ const abortableSleep = (ms: number, signal: AbortSignal) =>
   });
 
 /** Resolves (to nothing) when the signal aborts. */
-const whenAborted = (signal: AbortSignal) =>
-  new Promise<null>((resolve) => (signal.aborted ? resolve(null) : signal.addEventListener("abort", () => resolve(null), { once: true })));
+/** `work`, or null once `signal` aborts first. The abort listener goes with the work, so a long run leaks none. */
+const unlessAborted = <T>(work: Promise<T>, signal: AbortSignal): Promise<T | null> =>
+  new Promise<T | null>((resolve, reject) => {
+    if (signal.aborted) return resolve(null);
+    const onAbort = () => resolve(null);
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
 
 /** The local calendar day of a time, as the pace is kept per day. */
 export const dayOf = (ms: number): string => {
@@ -240,7 +246,8 @@ export class Preparer {
       if (!saved) reason = "new";
       else if (!entry) reason = "stale";
       else if (entry.article && now - Date.parse(entry.checkedAt) >= CHECK_EVERY_MS) reason = "check";
-      else if (entry.outcome === "facts" && entry.model && entry.model === prepModel && prepModel !== streamModel) reason = "upgrade";
+      // The faster model's songs, facts or none at all, are written again by the one on stream (issue #296).
+      else if ((entry.outcome === "facts" || entry.outcome === "none") && entry.model && entry.model === prepModel && prepModel !== streamModel) reason = "upgrade";
       if (!reason) continue;
       const rank = RANK[reason];
       if (!best || rank < best.rank || (rank === best.rank && target.requests > best.target.requests)) best = { target, reason, entry, rank };
@@ -254,42 +261,58 @@ export class Preparer {
     while (!signal.aborted) {
       const next = this.next();
       if (!next) {
-        this.finished = true;
-        console.log(`[Prepare] Every song is prepared (${this.doneThisRun} this time)`);
+        // Songs skipped this run (lookups failing, a model that won't load) aren't done: the next run tries them.
+        this.finished = this.skipped.size === 0;
+        console.log(this.finished ? `[Prepare] Every song is prepared (${this.doneThisRun} this time)` : `[Prepare] Nothing more to try now: ${this.skipped.size} songs wait for the next run`);
         break;
       }
       const { target, reason, entry } = next;
       const started = this.now();
       this.current = target.song;
+      // Something failed or was throttled: skip the song, wait longer each time, then go on.
+      const backOff = async (why: string): Promise<void> => {
+        this.skipped.add(target.key);
+        this.addActive(started);
+        console.log(`[Prepare] ${why}: waiting ${Math.round(backoff / 1000)} s`);
+        this.backingOff = true;
+        await this.sleep(backoff, signal);
+        this.backingOff = false;
+        backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+      };
       if (reason === "check" && entry) {
         const revision = await this.deps.revisionOf(entry.article).catch(() => undefined);
         if (signal.aborted) break;
-        this.addActive(started);
-        // Unchanged, or it couldn't be asked (then it's asked again next week): no new facts needed.
-        if (revision === undefined || revision === entry.revision || (revision === null && !entry.revision)) {
+        // It couldn't be asked (Wikipedia slow or down): not a check, and no rush to ask about the next.
+        if (revision === undefined) {
+          await backOff("Wikipedia couldn't be asked for the article's version");
+          continue;
+        }
+        if (revision === entry.revision || (revision === null && !entry.revision)) {
+          // Unchanged: no new facts needed. Checks are paced like songs, so a week's worth never comes as one burst.
+          this.addActive(started);
           this.deps.store.checked(target.key, new Date(this.now()).toISOString());
+          await this.sleep(this.deps.gapMs ?? 2000, signal);
           continue;
         }
         console.log(`[Prepare] "${target.song.title}": its article has changed, preparing it again`);
       }
       // Raced with the stop: a hosted AI's answer can't be called back, so a stopped run doesn't wait for it.
-      const result = await Promise.race([this.deps.prepare(target.song, signal, { answers, ...(reason === "upgrade" ? { streamModel: true } : {}) }), whenAborted(signal)]);
+      const result = await unlessAborted(this.deps.prepare(target.song, signal, { answers, ...(reason === "upgrade" ? { streamModel: true } : {}) }), signal);
       if (signal.aborted || !result) break;
       const took = this.now() - started;
       if (result.trouble) {
         const tries = (this.troubled.get(target.key) ?? 0) + 1;
         this.troubled.set(target.key, tries);
         if (tries < MAX_TROUBLED_TRIES || !result.outcome || result.outcome !== "facts") {
-          // A lookup failed or was throttled: the miss says nothing. Wait, longer each time, then go on.
-          this.skipped.add(target.key);
-          this.addActive(started);
-          console.log(`[Prepare] Lookups are failing or slowed down: waiting ${Math.round(backoff / 1000)} s`);
-          this.backingOff = true;
-          await this.sleep(backoff, signal);
-          this.backingOff = false;
-          backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+          // A lookup failed or was throttled: the miss says nothing.
+          await backOff("Lookups are failing or slowed down");
           continue;
         }
+      } else if (!result.outcome) {
+        // Nothing came of it and no lookup failed: the AI itself (a model that won't load, say). The
+        // next song would hit the same, so it waits rather than trying the whole list in a tight loop.
+        await backOff("The AI couldn't write for the song");
+        continue;
       } else backoff = FIRST_BACKOFF_MS;
       if (!result.outcome) {
         this.skipped.add(target.key);
@@ -316,8 +339,7 @@ export class Preparer {
       model: result.model,
       preparedAt: at,
       checkedAt: at,
-    });
-    this.deps.store.addPace(took, took, dayOf(this.now()));
+    }, { ms: took, activeMs: took, day: dayOf(this.now()) });
   }
 
   private addActive(started: number): void {
