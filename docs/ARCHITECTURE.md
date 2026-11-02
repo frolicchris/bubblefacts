@@ -62,6 +62,10 @@ Now playing file ─┘ reads the file   │
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
+| `backend/src/prepared-facts.ts` | Songs' facts prepared ahead of time, kept in `prepared-facts.json` with their article's revision and the rules version (see [Prepared songs](#prepared-songs)). |
+| `backend/src/prep-context.ts` | What the pipeline keeps apart while it prepares a song rather than writes for the stream. |
+| `backend/src/preparer.ts` | **Prepare my songs**: which song is next, preparing it, saving it, and stopping at once. |
+| `backend/src/play-history.ts` | Songs seen on stream, kept in `play-history.json` to be prepared after the stream. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -84,7 +88,7 @@ sign-ins and the built-in AI. Its design decisions are in
 |---|---|
 | `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and every request from the window (`ipcMain.handle`). |
 | `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
-| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, settings and About. Plain JavaScript, no build step. |
+| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
@@ -99,6 +103,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
 | `desktop/src/plain-errors.ts` | Turns errors into plain words: what happened and what to do. |
+| `desktop/src/preparing.ts` | **Prepare my songs** in the app: when the computer is free (OBS closed, no overlay, plugged in), starting and stopping it, and its window messages. |
 | `desktop/src/whats-new.ts` | The "What's new" highlights shown once after an update, from `desktop/renderer/whats-new.json`. |
 | `desktop/src/build.ts`, `autostart.ts`, `atomic-write.ts` | Which build this is (release or test build), starting at login on Linux, and crash-safe file writes. |
 
@@ -457,7 +462,8 @@ sign-ins and the built-in AI. Its design decisions are in
     clicked.
 
 Facts are kept in memory for the rest of the session, so a repeated song is
-instant. Only what the stream has shown is saved, in `session.json`, and
+instant. A song prepared ahead of time is instant the first time too (see
+[Prepared songs](#prepared-songs)). Only what the stream has shown is saved, in `session.json`, and
 only for 6 hours (see above). Several requests for the
 same song at once (two overlays, or one reconnecting mid-song) share a single
 generation. Songs that fell back are retried after ten minutes, except that a
@@ -1480,6 +1486,162 @@ reason (`paused`, `no-song`, `not-ready`, `no-facts`, `none-shown`) becomes
 the dashboard's note. The test bubble is never in `lastSent`, so it's never
 the one marked.
 
+### Prepared songs
+
+Writing a song's facts takes the built-in AI tens of seconds, so the first
+bubbles of a song came late, every stream, for the same songs. Preparing
+writes them ahead of time, while the streamer isn't streaming, and keeps them
+on this computer (issues #292 to #297).
+
+**One pipeline.** A song is prepared by `prepareSong` in `fact-generator.ts`,
+which runs `generateRest`, and so `groundedFacts`, exactly as for the song on
+stream: the same lookup, prompt, screening, repairs and ranking. Nothing is
+written without a reference, there is no second AI, and nothing is padded.
+It runs inside a preparation context (`prep-context.ts`, an
+`AsyncLocalStorage`) that keeps apart only what belongs to one stream:
+
+- the recent facts: a prepared song gets an empty list of its own, so what one
+  stream showed can't thin it, and preparing never counts as shown;
+- the outcome: `record` hands it to the context instead of the stream's
+  counts and `songs.log`;
+- the AI's turn: preparing asks the built-in model with no song key (a song
+  change mustn't take it for an old song), its own stop signal, and gives way
+  to the song on stream (`setCurrentSong` aborts it; the song is prepared again
+  later);
+- pacing (issue #314): `paced()` is false while preparing, so a prepared
+  song is never counted late or missed, never asked the short prompt, never
+  held to quick facts, and its turn doesn't set the stream model's measured
+  speed. Only the stream model's load starts the CPU watch (`watchCpu`, once
+  per runtime); the watch's thread limit applies to the shared runtime, so
+  the preparing model makes room too;
+- the stream's rotations: no custom fact (#190) or tagged pool fact takes a
+  turn while preparing, since none is stored;
+- a song whose captions all failed (#203) is skipped and recorded as on
+  stream, except after an answer shared from another song's ask: that song's
+  own ask may do better;
+- lookup trouble: `watchLookupTrouble` counts failed and throttled requests to
+  Wikipedia, Wikidata and MusicBrainz made for the song. Their own helpers read
+  a 429 as "nothing found, don't cache"; prepared once a month, that would
+  freeze a miss, so a troubled song isn't saved.
+
+Only facts from a source are kept (`fromASource`): the queue entry is null,
+so no song-list facts, and custom facts are never stored. The outcome says
+what was found: `facts`, `none` (no source knows it), `own` (the streamer's
+own facts, an original, a switch or not music: nothing to prepare) or `live`
+(a Twitch About, looked up when it plays).
+
+**Shown when it plays.** `groundedFacts` first asks `preparedFacts`. A current
+entry (today's `PREPARED_RULES_VERSION`, under 30 days old) is shown at once,
+after the checks that can have changed since it was written: a fact whose
+source the streamer marked **Wrong** since (by its label, `blockFor`) drops the
+whole entry, and the song is looked up as usual and prepared again; facts
+shown lately (`tooSimilar`) and ones that only repeat the request are left
+out, and the rest are not topped up. Everything earlier in the order still
+comes first: the switches (`ownFactsOnly`, before the cache), the streamer's
+own facts, live learns, originals, and tagged custom facts mixed in by
+`generate`. **Wrong** on a prepared fact removes the entry at once
+(`markWrong`). `FACT_VERIFICATION=off` shows none.
+
+**Redone when it may be stale.** An entry records the rules version, the
+article and the revision it read (`settledRevision`: the newest version at
+least 72 hours old, which is what `wikiExtract` reads), the model that wrote
+it, and when. Raise `PREPARED_RULES_VERSION` with any change that would write
+different facts: entries from other rules are dropped when the file is read,
+and never shown. An entry over 30 days old is prepared again. The preparer
+checks an entry's article for a newer settled revision once a week, one small
+request, and prepares the song again when it changed.
+
+`prepared-facts.json` is written whole each time (`atomic-write.ts`), mode
+`0600`, and goes with **Remove my BubbleFacts data**. It's never in a backup
+or a report.
+
+**The preparer** (`preparer.ts`) runs in the server, which has the model and
+the pipeline, and only when told: `POST /control/prepare` with `run: true`
+starts it or carries on, `run: false` stops it. Before each song it reads the
+songs again (`prepTargets` in `server.ts`: the StreamerSongList list as read
+at start, `listedSongs`, with each song's `timesPlayed`, and the play history,
+whose plays add to a listed song's) and picks, in this order: a song never prepared,
+then one whose entry is stale (other rules, over 30 days), then one whose
+article is due its weekly check, each kind the most requested first. A
+checked article whose revision is unchanged only gets a new `checkedAt`.
+Each song is saved the moment it's done, so stopping loses only the song in
+progress, and the next run simply carries on: the store is the progress.
+
+Stopping is immediate: the run's signal aborts the built-in model's turn, and
+the loop doesn't wait for a hosted AI's answer (`whenAborted`), which is then
+thrown away. A song that couldn't be prepared (stopped, the AI failed) isn't
+saved and is tried next run. When a song's lookups failed or were throttled,
+it isn't saved either, and the run waits a minute, doubling up to ten, before
+going on; a song with facts saved after three such tries is kept as it is.
+
+The server refuses to start while an overlay is connected or there's no AI
+(`cantPrepare`), and stops the moment an overlay connects.
+
+**Only when not streaming** (issue #295). The app decides when
+(`PrepareDriver` in `desktop/src/preparing.ts`), about once a second: the
+setting is on, setup is done, the AI runs on this computer, the server is up,
+the computer is plugged in (`powerMonitor.isOnBatteryPower()`), no overlay is
+connected (`obsClients` from `/health`) and OBS isn't running. The cheap
+checks come first; the process list (`tasklist /FO CSV /NH` on Windows,
+`ps -A -o comm=` elsewhere, matched by `isObsProcess`: `obs64`, `obs32`,
+`OBS`, `obs`, never a helper like `obs-browser-page`) is read only when
+everything else says go, or while it runs, so a stream starting stops it
+within a second. A song on stream also takes the model from a preparing turn
+at once (`setCurrentSong`), and the preparing model, when there is one, gives
+its memory back when a run ends. An online AI (Groq, Anthropic) is never used
+for preparing: every song would count against the streamer's own key and
+limits. BubbleFacts Lite has no AI on the computer, so the setting and **Your
+songs** are hidden there (`data-edition="full"`) and the app never starts it.
+The process's own priority isn't lowered by preparing itself (the CPU watch of
+issue #314 may lower it while other programs are busy): on Linux and macOS it can't
+be raised again without administrator rights, which would slow the stream.
+
+**Faster for big lists** (issue #296). A list of 5,000 songs at a minute each
+is days of preparing, so three things cut the time without changing what is
+written:
+
+- A song with no article never reaches the AI, as on stream: its Wikidata
+  and MusicBrainz facts are kept as they are (no AI, no screening but the
+  content standard).
+- An article several songs share word for word (an artist's, or a game's when
+  a track has none of its own: `aboutTheSong` is false) is retold once per run.
+  The answer is kept by its exact reference (`answers` in the context, the 200
+  latest) and screened for each song as usual; a line naming the song it was
+  first written for is dropped (`names the song it was first written for`).
+  A song's own article is never shared.
+- With **High quality** chosen and the Standard model downloaded too, the app
+  passes `PREPARE_MODEL_PATH`, and the Standard model, several times faster,
+  writes the first pass. It's loaded beside the one on stream only while
+  preparing, and released after (`releasePrepModel`). Each entry records its
+  model, so once every song has a first pass the preparer writes the
+  Standard model's ones again with the model on stream (`upgrade`, last in
+  line), the most requested first.
+
+**Coverage** (issue #294). `POST /control/prepare/status` answers with where
+preparing stands and `coverage` (`preparer.ts`): how many songs there are,
+how many are ready (facts, nothing to prepare, or looked up as it plays), how
+many no source knows (the 200 most requested, by name), how many are left,
+the share of all requests (`timesPlayed` and plays on stream) that went to
+ready songs, and a finish. The finish uses the pace measured on this computer
+and saved with the store: the mean time of the latest 50 songs, times the
+songs left, spread over the mean time spent preparing per day on up to seven
+earlier days (today is still going). With fewer than three songs or two
+earlier days measured, it's hours of preparing instead, or nothing. The app's
+**Your songs** screen words it (`desktop/renderer/songs-report.js`). It's
+information only: no list of risky songs, nothing to review or approve
+(issue #258).
+
+**Songs from play history** (issue #297). StreamElements, Streamling,
+Nightbot and other now playing files have no list, but the same requests come
+back. `onSongChange` records each song (not a commercial or ident) in
+`play-history.json` (`play-history.ts`) by its song key, so a YouTube request
+is its video and a list song its ID: the song as its source named it, how
+often it played, and when; the requester never. The same song again within
+ten minutes is the same play (a pause, a restart). After the stream these
+songs are prepared like list songs, a live learn through its own lookup
+(`liveLearnLookup`), and the next time one plays its facts show at once. A
+list song that played is prepared sooner: its plays add to its count.
+
 ### Keeping generations in order
 
 - **One model, one turn at a time.** The built-in model has one chat session.
@@ -1590,6 +1752,8 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts of up to 300 characters, 5 songwriters, a 200-character link). Over a limit, the save is refused with `error`, a reason the editor shows; nothing is trimmed. Answers as soon as it's saved (the app waits 3 seconds at most), then shows them if the song is still on. |
 | `/control/facts-off` | **No facts for this song** and **No facts for this artist**, in the editor and one click each under **Earlier songs**. Saves the switch, forgets the song's cached facts and, for the song on now, takes the found bubbles off (the streamer's own stay). |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
+| `/control/prepare` | **Prepare my songs** (see [Prepared songs](#prepared-songs)): `run: true` starts or carries on, `run: false` stops at once. Refused (`refused`) while an overlay is connected or there's no AI. Answers with where it stands. |
+| `/control/prepare/status` | Where preparing stands and how many songs are ready, for **Your songs** (`coverage`). |
 | `/control/style` | **Style** and **Use my own colors** in Settings (issue #177): sends the new look to every overlay at once, as a `style` message, with no restart and no Refresh in OBS. Never refused: an unknown Style is `classic`, and colors that aren't both `#rrggbb` are dropped. Returns the look it sent. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
@@ -1635,6 +1799,12 @@ folder; `data/` for the command-line version):
   and recent facts (see "What gets remembered between songs?").
 - `wrong-log.jsonl`: one line per **Wrong** press, the newest 500 (see the
   file table above).
+- `prepared-facts.json`: songs' facts prepared ahead of time, and the pace
+  measured on this computer (see [Prepared songs](#prepared-songs)). Private
+  (`0600`), never in backups: it's rebuilt from the song list.
+- `play-history.json`: the songs seen on stream, how often and when they last
+  played, never who asked for them, the 5,000 played last. Private (`0600`),
+  never in backups or reports.
 
 These, `settings.json` and backups are written to a temporary file beside
 them that then replaces the old one (`atomic-write.ts`, one copy for the

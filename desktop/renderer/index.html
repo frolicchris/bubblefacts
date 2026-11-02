@@ -19,6 +19,7 @@
     <div class="brand"><img class="brand-mark" src="../build/tray@2x.png" alt="" width="26" height="26"><span>Bubble<span class="brand-accent">Facts</span></span></div>
     <nav id="nav" hidden>
       <button class="navlink" data-view="dashboard" aria-current="page">Dashboard</button>
+      <button class="navlink" data-view="songs" data-edition="full">Your songs</button>
       <button class="navlink" data-view="settings">Settings</button>
       <button class="navlink" data-view="about">About</button>
     </nav>
@@ -324,6 +325,24 @@
       </details>
     </section>
 
+    <!-- ====================== Your songs (issue #294) ====================== -->
+    <!-- Information only: how many songs have facts ready. Nothing here to check or approve. -->
+    <section id="view-songs" class="view" hidden>
+      <div class="panel">
+        <h1 tabindex="-1">Your songs</h1>
+        <p id="songs-ready" class="now-song">Counting your songs…</p>
+        <p id="songs-requests" class="fine" hidden></p>
+        <p id="songs-state" class="fine" role="status"></p>
+        <details id="songs-none" class="earlier" hidden>
+          <summary>Songs no source knows (<span id="songs-none-count"></span>)</summary>
+          <p class="fine">Wikipedia and the music databases have nothing on these. Your custom facts show for them, or no bubbles if you have none. To give one its own facts, use <strong>Add facts for another song</strong> on the dashboard.</p>
+          <ul id="songs-none-list" class="songfacts"></ul>
+        </details>
+        <p class="fine">Facts for each song are written ahead of time, so they show as soon as it starts. A song not ready yet gets its facts the usual way, a little later, and is prepared afterward. Everything stays on this computer.</p>
+        <button class="link" type="button" data-view="settings">Prepare my songs is in Settings</button>
+      </div>
+    </section>
+
     <!-- ====================== Settings ====================== -->
     <section id="view-settings" class="view" hidden>
       <form id="settings-form" class="panel" novalidate>
@@ -449,6 +468,14 @@
           <h3 class="subhead">Songs with their own facts</h3>
           <p class="fine" id="s-songfacts-empty">None yet. Click <strong>Add facts for this song</strong> on the dashboard while a song plays, or before a show.</p>
           <ul id="s-songfacts" class="songfacts"></ul>
+        </fieldset>
+
+        <!-- Preparing needs the AI on this computer, which Lite doesn't have: hidden there, and the app never runs it. -->
+        <fieldset data-edition="full">
+          <legend>Prepare my songs</legend>
+          <label class="inline"><input name="prepareSongs" type="checkbox" aria-describedby="s-prepare-hint"> Prepare facts for my songs while I'm not streaming</label>
+          <p class="hint indent" id="s-prepare-hint">Facts are written ahead of time, so they show as soon as a song starts. It runs only while OBS is closed and this computer is plugged in, and stops the moment you open OBS. It uses the AI on this computer, never an online one, and everything stays on this computer.</p>
+          <button class="link" type="button" data-view="songs">See how many songs are ready</button>
         </fieldset>
 
         <fieldset>
@@ -790,6 +817,7 @@
 
   <script src="a11y.js"></script>
   <script src="song-source.js"></script>
+  <script src="songs-report.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

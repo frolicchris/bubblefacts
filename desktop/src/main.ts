@@ -44,6 +44,7 @@ const versionWithBuild = () => versionLabel(app.getVersion(), BUILD, EDITION);
 /** Who writes the facts, for problem reports: Lite's own choice is no AI, not the built-in one. */
 const reportedAi = () => (EDITION === "lite" && settings.ai === "builtin" ? "none" : settings.ai);
 import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
+import { prepareEnv, registerPreparing } from "./preparing";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
 
@@ -137,7 +138,11 @@ function serverEnv(): Record<string, string> {
   const builtinAi = settings.ai === "builtin" && EDITION === "full";
   const active = builtinAi ? activeModel() : null;
   if (builtinAi && (builtinFailed || !active)) env.AI_PROVIDER = "none";
-  else if (builtinAi && active) env.MODEL_PATH = modelPath(DIRS.models, active);
+  else if (builtinAi && active) {
+    env.MODEL_PATH = modelPath(DIRS.models, active);
+    // Preparing's faster first-pass model (issue #296): only with a built-in model, so never in Lite.
+    Object.assign(env, prepareEnv(settings, DIRS.models, (m) => modelReady(DIRS.models, m)));
+  }
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
   env.BUBBLEFACTS_DATA_DIR = DATA;
   env.BUBBLEFACTS_VERSION = app.getVersion();
@@ -689,6 +694,21 @@ handle("unwrong-fact", async (_e, article: string, song: unknown) => {
 });
 handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
+/** Prepare my songs (preparing.ts): its window messages, and when the computer is free for it. */
+const preparing = registerPreparing({
+  handle,
+  control,
+  conditions: () => ({
+    // Lite has no built-in AI, and its window hides the setting: preparing never runs there.
+    enabled: settings.prepareSongs && EDITION === "full",
+    setupDone: settings.setupComplete,
+    ai: settings.ai === "groq" || settings.ai === "anthropic" ? "online" : settings.ai === "builtin" && (builtinFailed || !activeModel()) ? "none" : "local",
+    serverUp: supervisor.status.state === "running",
+    onBattery: powerMonitor.isOnBatteryPower(),
+    overlays: supervisor.status.health?.obsClients ?? 0,
+  }),
+});
+
 handle("get-state", () => state());
 
 /** A connection test's technical side goes in the log; the window gets the plain reason. */
@@ -943,7 +963,7 @@ handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for High quality), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for High quality), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the facts prepared for your songs and the songs played on stream, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -1174,6 +1194,7 @@ async function startApp(): Promise<void> {
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);
+  preparing.start();
   backUpNow();
   await checkForUpdate();
 }

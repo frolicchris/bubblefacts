@@ -39,7 +39,7 @@ jest.mock("./fact-verifier", () => ({
   loadWikitext: jest.fn().mockResolvedValue(""),
 }));
 
-import { clearFactCache, generateFacts, paceReport, resetPace, restoreRecent, setCurrentSong, useBuiltinSession } from "./fact-generator";
+import { clearFactCache, generateFacts, paceReport, prepareSong, resetPace, restoreRecent, setCurrentSong, useBuiltinSession } from "./fact-generator";
 import { fetchGrounding } from "./fact-verifier";
 import { wikidataFacts } from "./wikidata";
 import { LATE_MS, ON_TIME_MS, QUICK_PROBE_EVERY, RECOVER_SONGS } from "./pace";
@@ -191,6 +191,26 @@ describe("a slow or busy computer (issue #314)", () => {
     expect(paceReport().pace).toBe("full");
     await play(5_000);
     expect(prompts[prompts.length - 1]).toMatch(/Write 8 captions/);
+  });
+
+  it("never paces a song prepared ahead of time: full captions, quick facts never, and the stream's pace untouched (#293)", async () => {
+    await runLate();
+    expect(paceReport().pace).toBe("short");
+    const { freeMemoryMb: _m, ...before } = paceReport();
+    const song = nextSong();
+    takes = LATE_MS * 3;
+    const ready = await prepareSong(song, new AbortController().signal, { revisionOf: async () => 1 });
+    expect(prompts[prompts.length - 1]).toMatch(/Write 8 captions/);
+    expect(prompts[prompts.length - 1]).toContain(LATE_LINE);
+    expect(ready.outcome).toBe("facts");
+    // A slow prepared turn neither counts as late nor sets the stream model's speed.
+    expect(paceReport()).toMatchObject(before);
+    // Even once the stream is down to quick facts, a prepared song still gets the AI.
+    await missSong();
+    expect(paceReport().pace).toBe("quick");
+    const asked = prompts.length;
+    await prepareSong(nextSong(), new AbortController().signal, { revisionOf: async () => 1 });
+    expect(prompts.length).toBe(asked + 1);
   });
 
   it("leaves an online AI alone", async () => {

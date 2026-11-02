@@ -20,9 +20,21 @@ it("registers the now playing file picker behind the own-window check", () => {
   expect(preload).toContain('ipcRenderer.invoke("choose-now-playing-file")');
 });
 
-// A channel renamed on one side only would make a button do nothing, with no error until someone clicks it.
-it("has a handler in main.ts for every channel the preload bridge uses", () => {
+// Features register their own messages through main.ts's handle(), passed in, so main.ts doesn't grow with each.
+const SELF_REGISTERING = ["preparing.ts"];
+
+it("lets a feature's own file register messages only through the handle() main.ts passes it", () => {
   const main = fs.readFileSync(path.join(__dirname, "main.ts"), "utf8");
+  for (const file of SELF_REGISTERING) {
+    const source = fs.readFileSync(path.join(__dirname, file), "utf8");
+    expect(source).not.toMatch(/ipcMain/);
+    expect(main).toMatch(new RegExp(`register\\w+\\(\\{\\s*handle,`));
+  }
+});
+
+// A channel renamed on one side only would make a button do nothing, with no error until someone clicks it.
+it("has a handler in main.ts (or a file it wires in) for every channel the preload bridge uses", () => {
+  const main = [fs.readFileSync(path.join(__dirname, "main.ts"), "utf8"), ...SELF_REGISTERING.map((f) => fs.readFileSync(path.join(__dirname, f), "utf8"))].join("\n");
   const preload = fs.readFileSync(path.join(__dirname, "preload.ts"), "utf8");
   const channels = [...preload.matchAll(/ipcRenderer\.(?:invoke|send)\("([^"]+)"/g)].map((m) => m[1]);
   expect(channels.length).toBeGreaterThan(30);

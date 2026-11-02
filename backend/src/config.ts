@@ -189,6 +189,9 @@ export const config = {
   aiProvider,
   // The desktop app's built-in model: a GGUF file it downloaded (AI_PROVIDER=builtin).
   modelPath: aiProvider === "builtin" ? requireEnv("MODEL_PATH") : "",
+  // Preparing songs ahead of time (issue #296): the Standard model writes the first pass even when High
+  // quality is chosen, being several times faster. The app sets it only when that model is downloaded.
+  prepareModelPath: aiProvider === "builtin" ? process.env.PREPARE_MODEL_PATH || "" : "",
   // "off" runs the built-in model on the processor only, for computers where the GPU build fails.
   llamaGpu: oneOf("LLAMA_GPU", ["auto", "off"] as const, "auto"),
   // Where songs.log goes. The desktop app points this at its data folder.

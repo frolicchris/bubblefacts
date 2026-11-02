@@ -9,7 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
 import { factsTookLine, listeningLine } from "./listening";
-import { aiTimeFor, paceReport, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
+import { prepareSong, prepModelName, releasePrepModel, streamModelName, aiTimeFor, paceReport, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
 import { connectAboutAsker, onAboutAnswer } from "./twitch-about";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
@@ -21,6 +21,12 @@ import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
 import { SongFactSharer } from "./share-song-facts";
+import { coverage, Preparer, PrepTarget } from "./preparer";
+import { preparedStore } from "./prepared-facts";
+import { playHistory } from "./play-history";
+import { isNotMusic } from "./not-music";
+import { settledRevision } from "./fact-verifier";
+import { songKey } from "./wrong-facts";
 import { styleFrom, StylePayload } from "./bubble-style";
 
 /**
@@ -147,6 +153,42 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
+/**
+ * Every song to prepare: the song list's, with how often each was played (issue #293), and every
+ * song seen on stream (issue #297), which covers requests no list has and moves a played one up.
+ */
+function prepTargets(): PrepTarget[] {
+  const targets = new Map<string, PrepTarget>();
+  for (const s of songList.listedSongs?.() ?? []) {
+    const song: SSLSong = { title: s.title, artist: s.artist, songId: s.id };
+    targets.set(songKey(song), { key: songKey(song), song, requests: s.plays });
+  }
+  for (const [key, played] of Object.entries(playHistory.all())) {
+    const listed = targets.get(key);
+    targets.set(key, listed ? { ...listed, requests: listed.requests + played.plays } : { key, song: played.song, requests: played.plays });
+  }
+  return [...targets.values()];
+}
+
+/** "Prepare my songs": the app starts it while the computer is free, and stops it when it isn't (issue #295). */
+const preparer = new Preparer({
+  store: preparedStore,
+  targets: prepTargets,
+  prepare: prepareSong,
+  revisionOf: settledRevision,
+  prepModel: prepModelName,
+  streamModel: streamModelName,
+  release: releasePrepModel,
+});
+
+/** Why preparing can't run now, or "": an overlay is connected (a stream may be on), there's no AI, or lookups are off. */
+function cantPrepare(): string {
+  if (clients.size) return "overlay";
+  if (config.aiProvider === "none") return "no-ai";
+  if (!config.factVerification) return "lookups-off";
+  return "";
+}
+
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
   saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(config.creditBubble && creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
 }
@@ -161,6 +203,11 @@ wss.on("connection", (ws, req) => {
   };
   clients.set(ws, client);
   console.log(`[WS] Client #${client.id} connected from ${client.addr} (${client.ua}), total ${clients.size}`);
+  // OBS is up: the stream comes first. Preparing stops at once, and the app starts it again once OBS is closed.
+  if (preparer.running) {
+    console.log("[Prepare] An overlay connected: stopping");
+    preparer.stop();
+  }
 
   const drop = () => {
     if (clients.delete(ws)) console.log(`[WS] Client #${client.id} disconnected, total ${clients.size}`);
@@ -231,6 +278,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const song = songList.toSong(current);
   // Work for any other song is no longer wanted (see setCurrentSong).
   setCurrentSong(song);
+  // Kept on this computer to be prepared after the stream (issue #297): next time it plays, its facts are ready.
+  if (!isNotMusic(song)) playHistory.record(song);
 
   // The first song after a restart, and it's the one that was showing: carry on where it left off.
   const before = restored;
@@ -581,6 +630,20 @@ function pullSwitchedOff(): number {
 // The facts that went out to the overlay, oldest first, for the app's reports (aired-facts.ts).
 control.post("/aired", (_req, res) => {
   res.json({ facts: aired.list() });
+});
+
+// "Prepare my songs" (issue #293): {run: true} starts or carries on, {run: false} stops at once, keeping what's done.
+// The app decides when (issue #295); the server refuses while an overlay is connected, and stops when one connects.
+control.post("/prepare", (req, res) => {
+  const refused = req.body?.run === true ? cantPrepare() : "";
+  if (req.body?.run === true && !refused) preparer.start();
+  else preparer.stop();
+  res.json({ ...preparer.status(), ...(refused ? { refused } : {}) });
+});
+
+// Where preparing stands, and how many songs are ready (issue #294), for the app's window. Information only.
+control.post("/prepare/status", (_req, res) => {
+  res.json({ ...preparer.status(), coverage: coverage(prepTargets(), preparedStore) });
 });
 
 // "Add facts for another song": find it on the song list as the musician types.

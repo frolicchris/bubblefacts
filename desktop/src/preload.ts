@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   twitchDisconnect: () => ipcRenderer.invoke("disconnect-twitch"),
   twitchAbout: (artist: string, link: string) => ipcRenderer.invoke("twitch-about", artist, link),
   twitchLogin: (artist: string, link: string) => ipcRenderer.invoke("twitch-login", artist, link),
+  prepareStatus: () => ipcRenderer.invoke("prepare-status"),
   on: (channel: "status" | "state" | "model-progress" | "show-view" | "wrong-key", callback: (payload: unknown) => void) => {
     ipcRenderer.on(channel, (_e, payload) => callback(payload));
   },

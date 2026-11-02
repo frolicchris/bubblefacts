@@ -42,6 +42,8 @@ export interface Settings {
   /** "I play my own compositions" and "I do live learns", from setup. */
   originals: boolean;
   liveLearns: boolean;
+  /** Prepare my songs (issues #293 and #295): write facts for every song ahead of time, while OBS is closed and the computer is plugged in. Off until the streamer turns it on. */
+  prepareSongs: boolean;
   /** The NOW PLAYING bubble on a song change. */
   nowPlaying: boolean;
   /** One credit bubble before the first song's facts and about every 5 songs: where facts come from, and to report a mistake. */
@@ -135,6 +137,7 @@ export const DEFAULTS: Settings = {
   instrument: "",
   originals: false,
   liveLearns: true,
+  prepareSongs: false,
   nowPlaying: true,
   creditBubble: true,
   liveLearnBanner: true,
@@ -374,7 +377,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",

@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
@@ -23,6 +23,8 @@ import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-
 import { logWrong } from "./wrong-log";
 import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
+import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
+import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -220,6 +222,8 @@ const sources = new Map<string, string>();
  */
 const RECENT_KEPT = 80;
 const recentFacts: string[] = [];
+/** The stream's recent facts, or while a song is prepared ahead of time, that song's own (prep-context.ts). */
+const recentList = (): string[] => preparing()?.recent ?? recentFacts;
 /**
  * When each fact tagged for an artist or game was last picked. One game can
  * cover hundreds of songs on a list, so its facts take turns instead of
@@ -266,7 +270,8 @@ let pacer = new PaceKeeper();
 export function resetPace(): void {
   pacer = new PaceKeeper();
 }
-const paced = () => config.aiProvider === "builtin";
+/** Preparing ahead of time (prep-context.ts) is never paced: its songs aren't on stream, so never late or missed, and never asked for less. */
+const paced = () => config.aiProvider === "builtin" && !preparing();
 /** When the song on now started, for how long its facts took from the viewers' side. */
 let songStartedAt = 0;
 /** The built-in model's last speed, whether it got a GPU, and whether it is making room for the stream. */
@@ -308,6 +313,12 @@ export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now
 
 /** Count the outcome and append a line to logs/songs.log. */
 function record(song: SSLSong, outcome: Outcome, count: number): void {
+  // Preparing ahead of time isn't the stream: the outcome goes to the store, not the stream's counts or songs.log.
+  const prep = preparing();
+  if (prep) {
+    prep.outcome = outcome;
+    return;
+  }
   factStats[outcome]++;
   factStats.lastOutcome = outcome;
   setCapped(outcomes, songKey(song), outcome, MAX_KEPT);
@@ -676,27 +687,82 @@ async function askOllama(prompt: string): Promise<[string, string]> {
 // under CommonJS and fail, so the import is kept out of the compiler's reach.
 const importModule = new Function("specifier", "return import(specifier)") as (s: string) => Promise<any>;
 
-/** The loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
-let builtin: Promise<{ session: any }> | undefined;
+/** A loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
+type Loaded = { session: any; dispose?: () => Promise<void> };
+let builtin: Promise<Loaded> | undefined;
+/** The model that prepares songs ahead of time, when it isn't the one on stream (`config.prepareModelPath`). */
+let prepBuiltin: Promise<Loaded> | undefined;
+let llamaRuntime: Promise<any> | undefined;
 
-function loadBuiltin(): Promise<{ session: any }> {
-  builtin ??= (async () => {
-    const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
-    // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
-    const llama = await getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
-    const model = await llama.loadModel({ modelPath: config.modelPath });
-    const context = await model.createContext({ contextSize: 4096 });
-    const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
-    console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+/**
+ * Load a model file on the one shared llama runtime. `stream`: the model on stream, which sets
+ * what the pacer knows (`builtinInfo`) and starts the CPU watch (issue #314), once per runtime. The
+ * model that only prepares songs (issue #296) does neither: the watch already limits the
+ * runtime's threads for both, and its speed says nothing about the stream's.
+ */
+async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
+  const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
+  // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
+  llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) });
+  const llama = await llamaRuntime;
+  const model = await llama.loadModel({ modelPath });
+  const context = await model.createContext({ contextSize: 4096 });
+  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
+  console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+  if (stream) {
     builtinInfo.gpu = llama.gpu || "cpu";
     watchCpu(llama, context.idealThreads as number);
-    return { session };
-  })().catch((err) => {
+  }
+  return {
+    session,
+    dispose: async () => {
+      await context.dispose();
+      await model.dispose();
+    },
+  };
+}
+
+function loadBuiltin(): Promise<Loaded> {
+  builtin ??= loadModelFile(config.modelPath, true).catch((err) => {
     builtin = undefined; // Let the next song retry the load.
+    llamaRuntime = undefined;
     throw err;
   });
   return builtin;
 }
+
+/** Whether preparing uses its own model: Standard while High quality is on stream (issue #296). */
+const usesPrepModel = () => Boolean(config.prepareModelPath) && config.prepareModelPath !== config.modelPath;
+
+function loadPrepBuiltin(): Promise<Loaded> {
+  if (!usesPrepModel()) return loadBuiltin();
+  prepBuiltin ??= loadModelFile(config.prepareModelPath, false).catch((err) => {
+    prepBuiltin = undefined;
+    throw err;
+  });
+  return prepBuiltin;
+}
+
+/** Preparing stopped: a model loaded only for it gives its memory back, after any turn still using it. Never throws. */
+export async function releasePrepModel(): Promise<void> {
+  const loaded = prepBuiltin;
+  prepBuiltin = undefined;
+  if (!loaded) return;
+  await builtinQueue.catch(() => undefined);
+  await loaded.then((l) => l.dispose?.()).catch(() => undefined);
+}
+
+/** Which model writes for a song prepared now, for the store: "" when no AI does. */
+export function prepModelName(): string {
+  if (config.aiProvider === "builtin") return path.basename((usesPrepModel() ? config.prepareModelPath : config.modelPath) ?? "");
+  if (config.aiProvider === "anthropic") return `anthropic:${config.anthropicModel}`;
+  if (config.aiProvider === "openai") return `openai:${config.openaiModel}`;
+  if (config.aiProvider === "ollama") return `ollama:${config.ollamaModel}`;
+  return "";
+}
+
+/** The model on stream, by the same name: a song the prep model wrote is written again by this one, last (issue #296). */
+export const streamModelName = (): string => (config.aiProvider === "builtin" ? path.basename(config.modelPath ?? "") : prepModelName());
 
 let cpuTimer: NodeJS.Timeout | undefined;
 
@@ -771,7 +837,7 @@ let builtinQueue: Promise<unknown> = Promise.resolve();
 class Obsolete extends Error {}
 /** The song on stream now, set by the server; null when unknown (tests, the self-test). */
 let currentKey: string | null = null;
-let running: { key: string | null; stop: AbortController } | null = null;
+let running: { key: string | null; stop: AbortController; prep: boolean } | null = null;
 
 /**
  * The server says which song is on stream. Work for any other song is no
@@ -780,6 +846,8 @@ let running: { key: string | null; stop: AbortController } | null = null;
  * front of the current one.
  */
 export function setCurrentSong(song: SSLSong | null): void {
+  // A song on stream goes before one prepared ahead of time: that turn gives way, and the song is prepared later.
+  if (song && running?.prep) running.stop.abort();
   const key = song ? songKey(song) : null;
   if (key !== currentKey) {
     // The song ended while the AI was still writing for it: its facts would have come too late (issue #314).
@@ -808,22 +876,25 @@ const obsolete = (key: string | null) => key !== null && currentKey !== null && 
  * was written so far is still screened like any other output.
  */
 function askBuiltin(prompt: string, key: string | null = null): Promise<string> {
+  // Preparing ahead of time (prep-context.ts): stopping the run stops its turn, and it may use its own model.
+  const prep = preparing();
   const run = async () => {
-    if (obsolete(key)) throw new Obsolete();
-    const { session } = await loadBuiltin();
+    if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
+    const { session } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
     session.resetChatHistory();
     const stop = new AbortController();
-    running = { key, stop };
+    running = { key, stop, prep: Boolean(prep) };
     const writing = Date.now();
     try {
       const text = (await session.prompt(prompt, {
         temperature: config.temperature,
         maxTokens: MAX_TOKENS,
-        signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal]),
+        signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal, ...(prep ? [prep.signal] : [])]),
         stopOnAbortSignal: true,
       })) as string;
-      if (stop.signal.aborted) throw new Obsolete();
-      builtinInfo.wordsPerSecond = wordsPerSecond(text, Date.now() - writing) ?? builtinInfo.wordsPerSecond;
+      if (stop.signal.aborted || prep?.signal.aborted) throw new Obsolete();
+      // The stream model's speed only: a preparing turn may run another model, and isn't a stream song (issue #314).
+      if (!prep) builtinInfo.wordsPerSecond = wordsPerSecond(text, Date.now() - writing) ?? builtinInfo.wordsPerSecond;
       return text;
     } finally {
       running = null;
@@ -886,7 +957,7 @@ async function structuredFacts(song: SSLSong, reading: SSLSong = song, sure: Pro
   // Wikidata requests never crowd theirs: the song's own facts come first.
   const found = await sure;
   const good = found ? await artistGoodFacts(found.page, found.names) : [];
-  const turn = good.find((f) => !blockedArticles(song).has(f.page) && !recentFacts.includes(f.text) && !facts.includes(f.text) && !restatesRequest(f.text, song));
+  const turn = good.find((f) => !blockedArticles(song).has(f.page) && !recentList().includes(f.text) && !facts.includes(f.text) && !restatesRequest(f.text, song));
   if (turn) {
     setCapped(structuredLabel, turn.text, turn.page ? `Wikipedia: ${turn.page}` : SOURCE.wikidata, MAX_KEPT);
     setCapped(artistSentences, turn.text, turn.page, MAX_KEPT);
@@ -993,8 +1064,9 @@ export function primeFacts(song: SSLSong, facts: Fact[]): void {
 
 /** Remember facts as shown, keeping only the last RECENT_KEPT. */
 function remember(shown: string[]): void {
-  recentFacts.push(...shown);
-  recentFacts.splice(0, Math.max(0, recentFacts.length - RECENT_KEPT));
+  const list = recentList();
+  list.push(...shown);
+  list.splice(0, Math.max(0, list.length - RECENT_KEPT));
 }
 
 /** Whether the reference is the song's own article, rather than its artist's or game's. */
@@ -1050,7 +1122,8 @@ export async function findReference(song: SSLSong): Promise<{ context: string; r
 function entryFacts(entry: SSLQueueItem | null, want: number): string[] {
   const stats = buildStatFacts(entry, { streamerName: config.sslStreamerName }).slice(0, want);
   for (const s of stats) statLines.add(s);
-  return [...stats, ...curatedFacts(want - stats.length)];
+  // Preparing keeps no custom facts (they show live), so it takes no turn from the stream's rotation (issue #190).
+  return [...stats, ...(preparing() ? [] : curatedFacts(want - stats.length))];
 }
 
 /** Lines built from the song list, so the dashboard can tell them from custom facts. */
@@ -1109,7 +1182,8 @@ function takeTurns(pool: string[], n: number): string[] {
     .sort((a, b) => a.turn - b.turn || a.i - b.i)
     .slice(0, n)
     .map((p) => p.text);
-  for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
+  // Preparing never shows them, so it takes no turn from the stream.
+  if (!preparing()) for (const text of picked) setCapped(poolTurns, text, ++poolTurn, MAX_KEPT);
   return picked;
 }
 
@@ -1236,7 +1310,7 @@ async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Pr
     if (blockedArticles(song).has(label)) return null;
     const names = [song.title, song.artist ?? ""];
     const fit = onStandard(about.facts, names).filter((f) => !notForStream(f) && !aboutIsChannelTalk(f) && !loadedCaption(f, names, true));
-    const shown = fit.map((f) => `${ABOUT_CREDIT}${f}`).filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)).slice(0, Math.min(want, MAX_ABOUT_FACTS));
+    const shown = fit.map((f) => `${ABOUT_CREDIT}${f}`).filter((f) => !recentList().includes(f) && !restatesRequest(f, song)).slice(0, Math.min(want, MAX_ABOUT_FACTS));
     if (!shown.length) return null;
     console.log(`[FactGen] "${song.title}": ${shown.length} from the Twitch About of the channel named like its artist`);
     remember(shown);
@@ -1287,6 +1361,9 @@ function originalFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, 
  * the song list's and custom facts when nothing is found (unless `sourcedOnly`).
  */
 async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, sourcedOnly: boolean, asked: SSLSong, onEarly?: EarlyFacts): Promise<Generated> {
+  // Prepared ahead of time by this same function (issue #293): shown at once, after the same checks as here.
+  const ready = preparedFacts(song, asked, want);
+  if (ready) return ready;
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
   // Streamers write their lists differently ("Game - Track" with the composer as artist,
   // "Track (Film)"...). Each reading is tried until one finds an article; `read` is that one.
@@ -1312,7 +1389,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const sure = lookup && config.aiProvider === "none" ? sureArticle(song) : Promise.resolve(null);
     // No article: plain facts from Wikidata, then MusicBrainz, need no AI (issue #23).
     const data = lookup ? await structuredFacts(song, read, sure) : [];
-    const shownData = rankedData(data.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song)), want);
+    const shownData = rankedData(data.filter((f) => !recentList().includes(f) && !restatesRequest(f, song)), want);
     if (shownData.length) {
       remember(shownData);
       record(asked, structuredLabel.get(shownData[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shownData.length);
@@ -1340,7 +1417,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   }
   if (match?.level === "unsure") {
     console.log(`[Grounding] unsure: ${match.reason} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
-    const fresh = (list: string[]) => list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    const fresh = (list: string[]) => list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song));
     const data = fresh(await structuredFacts(song, read));
     // Too few to fill the song: up to two about its artist or game, from Wikidata too.
     const { game } = resolveGameAndTrack(read);
@@ -1393,7 +1470,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   let aiDone = false;
   let early: Fact[] = [];
   const dataFacts = (context && (!aboutTheSong(read, context) || sure) ? structuredFacts(song, read, Promise.resolve(sure)) : Promise.resolve([] as string[])).then((list) => {
-    const data = list.filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    const data = list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song));
     if (!aiDone && onEarly && data.length) {
       early = toFacts(song, rankedData(data, dataRoom), (t) => structuredLabel.get(t));
       if (early.length) {
@@ -1413,6 +1490,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
 
   // Running late on this computer (issue #314): fewer captions from the start of the article.
   // Slow means fewer facts, never weaker checks: everything below screens them exactly as always.
+  // Never while preparing (`paced`): a prepared song isn't on stream, so it's never late.
   const short = paced() && pacer.ask() === "short";
   const source = short ? shorterContext(context) : context;
   if (short) console.log(`[Pace] "${song.title}": facts have been late, asking for ${SHORT_CAPTIONS} captions from ${source.length} characters of the article`);
@@ -1421,9 +1499,19 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Captions from the whole article all failed last time (issue #203). A shorter ask isn't remembered: the full one may still do better.
   const askedBefore = !short && screenedOut.get(askedKey) === page;
   if (askedBefore) console.log(`[FactGen] "${song.title}": every caption from "${page}" failed the screen last time, so the AI isn't asked again`);
+  const prep = preparing();
+  // Preparing: a reference that isn't this song's own (its artist's or game's article) is retold
+  // once for every song that reads it word for word (issue #296), then screened for each as usual.
+  const { track } = resolveGameAndTrack(read);
+  const shareKey = prep && !askedBefore && !aboutTheSong(read, context) ? `${want}\0${process.env.PROMPT_STYLE ?? ""}\0${citesSentences()}\0${context}` : "";
+  const shared = shareKey ? prep?.answers.get(shareKey) : undefined;
   let answer: string;
   try {
-    answer = askedBefore ? "" : await askModel(prompt, askedKey);
+    // Not tied to the song on stream when preparing: a song change mustn't take it for an old one.
+    answer = askedBefore ? "" : shared ? shared.answer : await askModel(prompt, prep ? null : askedKey);
+    if (prep?.signal.aborted) throw new Obsolete();
+    if (prep && !askedBefore) prep.model = prep.streamModel ? streamModelName() : prepModelName();
+    if (prep && shareKey && !shared) setCapped(prep.answers, shareKey, { answer, track }, MAX_SHARED_ANSWERS);
   } catch (err) {
     aiDone = true;
     // The facts already on screen stand for the song when the AI fails (but not when the song changed).
@@ -1434,7 +1522,13 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     throw err;
   }
   aiDone = true;
+  // An answer written for another song of the same article: a line naming that song's track is about it, not this one.
+  const otherTrack = shared && normalizeTitle(shared.track) !== normalizeTitle(track) ? normalizeTitle(shared.track) : "";
   const lines = answer.split("\n").map((l) => l.trim()).filter(Boolean).filter((l) => {
+    if (otherTrack && mentionsName(normalizeTitle(l), [otherTrack])) {
+      console.log("[Screen] DROP (names the song it was first written for)");
+      return false;
+    }
     if (!context || !copiesExample(l, context)) return true;
     console.log("[Screen] DROP (copies an example)");
     return false;
@@ -1449,7 +1543,6 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
     (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
   );
-  const { track } = resolveGameAndTrack(read);
   const cited = Boolean(context) && citesSentences();
   const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
   // A dropped caption is logged by its reason alone, never its words, so logs and the reports
@@ -1465,7 +1558,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     console.log("[Screen] DROP (loaded wording)");
     return false;
   });
-  const unseen = attributed.filter((f) => !recentFacts.some((r) => tooSimilar(r, f)));
+  const unseen = attributed.filter((f) => !recentList().some((r) => tooSimilar(r, f)));
   if (unseen.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - unseen.length} already shown for an earlier song`);
   // A limit the source sets ("in Japan", "the arcade version", "over", "usually") goes back in when the
   // model dropped it; a caption with no clear place for it is dropped.
@@ -1490,7 +1583,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const structured: string[] = early.map((f) => f.text);
   for (const c of candidates) {
     if (structured.length >= dataRoom) break;
-    if (recentFacts.includes(c.text) || restatesRequest(c.text, song)) continue;
+    if (recentList().includes(c.text) || restatesRequest(c.text, song)) continue;
     if (alreadySaid(c.values, [...fresh, ...structured])) continue;
     structured.push(c.text);
     if (c.evidence) {
@@ -1514,11 +1607,13 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Facts sent early were remembered when they went out.
   remember(early.length ? later : shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
-  if (lines.length && !usable.length && !short) setCapped(screenedOut, askedKey, page, MAX_KEPT);
+  // Not for an answer written for another song of the same article (preparing): this song's own ask may do better.
+  if (lines.length && !usable.length && !short && !shared) setCapped(screenedOut, askedKey, page, MAX_KEPT);
   else if (usable.length) screenedOut.delete(askedKey);
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
+    if (prep) prep.article = page;
     setCapped(sources, songKey(asked), page, MAX_KEPT);
     const article = `Wikipedia: ${page}`;
     // A caption retelling a companion article's line is that article's: its label and link, and Wrong blocks it (issue #48).
@@ -1533,6 +1628,129 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   console.warn(`[FactGen] Nothing usable for "${song.title}", using ${fallback.length} entry and curated facts`);
   record(asked, "nothingSurvived", fallback.length);
   return { facts: toFacts(song, fallback, entrySource), ttlMs: RETRY_MS };
+}
+
+/** References whose AI answer a preparation run keeps for the other songs that read the same text. */
+const MAX_SHARED_ANSWERS = 200;
+
+/** Which outcome a prepared song's facts stand for, for the stream's counts and the dashboard. */
+function preparedOutcome(entry: PreparedEntry): Outcome {
+  if (entry.article) return "grounded";
+  return entry.facts[0]?.source === SOURCE.musicbrainz ? "musicbrainz" : "wikidata";
+}
+
+/**
+ * A song's facts prepared ahead of time (prepared-facts.ts), as the bubbles for this play, or
+ * null to write them now as usual. They were written and screened by `groundedFacts` itself;
+ * what can have changed since is checked here, as `groundedFacts` would: a source marked Wrong
+ * since (the entry is dropped, and the song looked up and prepared again), facts shown lately,
+ * and the number of bubbles. Nothing is added to make up for a fact left out.
+ */
+function preparedFacts(song: SSLSong, asked: SSLSong, want: number): Generated | null {
+  if (preparing() || !config.factVerification) return null;
+  const key = songKey(asked);
+  const entry = preparedStore.get(key);
+  if (!entry || entry.outcome !== "facts" || !entry.facts.length) return null;
+  const blocked = new Set([...blockedArticles(asked), ...blockedArticles(song)]);
+  if (entry.facts.some((f) => blocked.has(blockFor(f.source) ?? ""))) {
+    preparedStore.remove(key);
+    console.log(`[Prepared] "${song.title}": a source was marked Wrong after it was prepared, so it's looked up again`);
+    return null;
+  }
+  const recent = recentList();
+  const fresh = entry.facts.filter((f) => !recent.some((r) => tooSimilar(r, f.text)) && !restatesRequest(f.text, song)).slice(0, Math.min(want, MAX_BUBBLES));
+  if (!fresh.length) return null;
+  remember(fresh.map((f) => f.text));
+  record(asked, preparedOutcome(entry), fresh.length);
+  // What Wrong falls back on for a fact without a label, as for facts written now.
+  if (entry.article) setCapped(sources, key, entry.article, MAX_KEPT);
+  setCapped(structuredShown, key, new Set(fresh.filter((f) => blockFor(f.source) === STRUCTURED).map((f) => f.text)), MAX_KEPT);
+  const spotFor = spotsForSong(song);
+  const facts = fresh.map((f, i): Fact => ({
+    text: f.text,
+    ...(f.source ? { source: f.source } : {}),
+    ...(f.url ? { url: f.url } : {}),
+    ...(f.evidence ? { evidence: f.evidence } : {}),
+    delaySeconds: i * config.factIntervalSeconds,
+    durationSeconds: config.factDurationSeconds,
+    ...spotFor(i),
+  }));
+  console.log(`[Prepared] "${song.title}": ${facts.length} facts prepared ahead of time`);
+  return { facts, ttlMs: Infinity };
+}
+
+/** What preparing one song gave: null when it should be tried again (stopped, failed, or a lookup that wasn't answered). */
+export interface PreparedSong {
+  outcome: PreparedOutcome | null;
+  facts: PreparedFact[];
+  article: string;
+  model: string;
+  /** Lookups that failed or were throttled on the way: a miss then says nothing. */
+  trouble: number;
+}
+
+/** How the pipeline's outcomes are kept: facts, none, nothing to prepare, or only found live. Null: try again. */
+const STORED: Partial<Record<Outcome, PreparedOutcome>> = {
+  grounded: "facts",
+  wikidata: "facts",
+  musicbrainz: "facts",
+  noReference: "none",
+  nothingSurvived: "none",
+  liveLearn: "none",
+  songFacts: "own",
+  original: "own",
+  factsOff: "own",
+  notMusic: "own",
+  twitchAbout: "live",
+};
+
+/**
+ * Prepare one song ahead of time (issue #293): the same steps as when it plays (`generateRest`,
+ * so `groundedFacts` with its screening and ranking), with no queue entry, so only facts from
+ * a source are kept. Run in a preparation context (prep-context.ts), so it neither counts as
+ * shown nor is thinned by what the stream showed, and `signal` stops its AI turn.
+ * `answers` is shared by one run's songs; `streamModel` writes with the model on stream (the
+ * second pass after the Standard model's first, issue #296). Never throws.
+ */
+export async function prepareSong(
+  song: SSLSong,
+  signal: AbortSignal,
+  opts: { answers?: PrepContext["answers"]; revisionOf?: (page: string) => Promise<number | null>; streamModel?: boolean } = {}
+): Promise<PreparedSong & { revision: number }> {
+  watchLookupTrouble();
+  const revisionOf = opts.revisionOf ?? settledRevision;
+  const ctx: PrepContext = { recent: [], trouble: 0, signal, answers: opts.answers ?? new Map(), ...(opts.streamModel ? { streamModel: true } : {}) };
+  const empty = { facts: [] as PreparedFact[], article: "", model: "", revision: 0 };
+  // The streamer's switches: nothing is looked up for the song (issue #262), so there's nothing to prepare.
+  const off = factsOff(song);
+  if (off.song || off.artist || isNotMusic(song)) return { ...empty, outcome: "own", trouble: 0 };
+  try {
+    const result = await prepContext.run(ctx, async () => {
+      const r = await generateRest(song, null, config.factsPerSong);
+      // The version of the article read, to tell later whether it has changed.
+      const revision = ctx.article && STORED[ctx.outcome as Outcome] === "facts" ? await revisionOf(ctx.article).catch(() => null) : null;
+      return { ...r, revision: revision ?? 0 };
+    });
+    if (signal.aborted) return { ...empty, outcome: null, trouble: ctx.trouble };
+    const outcome = STORED[ctx.outcome as Outcome] ?? null;
+    const facts = outcome === "facts" ? result.facts.filter(fromASource).map((f) => ({ text: f.text, ...(f.source ? { source: f.source } : {}), ...(f.url ? { url: f.url } : {}), ...(f.evidence ? { evidence: f.evidence } : {}) })) : [];
+    return {
+      outcome: outcome === "facts" && !facts.length ? "none" : outcome,
+      facts,
+      article: outcome === "facts" ? (ctx.article ?? "") : "",
+      model: ctx.model ?? "",
+      revision: result.revision,
+      trouble: ctx.trouble,
+    };
+  } catch (err) {
+    console.warn(`[Prepared] "${song.title}" couldn't be prepared: ${err instanceof Error ? err.message : err}`);
+    return { ...empty, outcome: null, trouble: ctx.trouble };
+  }
+}
+
+/** Forget a song's prepared facts: it's looked up when it plays, and prepared again later. */
+export function forgetPrepared(song: SSLSong): void {
+  preparedStore.remove(songKey(song));
 }
 
 /**
@@ -1796,7 +2014,11 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   const key = songKey(song);
   const fromLabel = blockFor(label);
   const source = fromLabel !== undefined ? fromLabel : structuredShown.get(key)?.has(text) ? STRUCTURED : (sources.get(key) ?? null);
-  if (source) for (const s of blockedAs(song)) blockArticle(s, source);
+  // Its prepared facts go too: the song is looked up again, and prepared later without that source.
+  if (source) for (const s of blockedAs(song)) {
+    blockArticle(s, source);
+    preparedStore.remove(songKey(s));
+  }
   const dropped = new Set((factCache.get(key)?.facts ?? []).map((f) => f.text));
   for (let i = recentFacts.length - 1; i >= 0; i--) if (dropped.has(recentFacts[i])) recentFacts.splice(i, 1);
   // A generation already running may not cache the fact just marked: it starts over (as forgetSong).
