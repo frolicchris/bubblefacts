@@ -3937,6 +3937,8 @@ const NOT_FOR_STREAM: Array<{ re: RegExp; label: string }> = [
   { re: /(^|\s)![a-z]/i, label: "a chat command" },
   { re: /(^|\s)@\w/, label: "an @mention" },
 ];
+/** Why text from outside can't go on stream at all, or null: the first of NOT_FOR_STREAM it breaks. */
+export const notForStream = (text: string): string | null => NOT_FOR_STREAM.find(({ re }) => re.test(text))?.label ?? null;
 
 /**
  * The music video, or its shoot: "the original video", "after filming stopped",

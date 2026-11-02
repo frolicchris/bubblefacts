@@ -674,8 +674,11 @@
       showWrongNote(`${start} It's one of your own custom facts, so it can show again until you change it in Settings.`, null, () => editCustomFact(text));
       return;
     }
+    const twitch = /^Twitch About: (.+)/.exec(result.article || "");
     const what = result.structured
       ? "BubbleFacts won't use Wikidata or MusicBrainz facts for this song again."
+      : twitch
+        ? `BubbleFacts won't use ${twitch[1]}'s Twitch About for this song again.`
       : result.article
         ? `BubbleFacts won't use the "${result.article}" Wikipedia article for this song again.`
         : "";

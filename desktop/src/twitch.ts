@@ -248,17 +248,43 @@ export const BUBBLE_CHARS = 160;
 /**
  * Their About text as fact boxes for the streamer to review: whole sentences,
  * each short enough for a bubble, at most three. Empty when there's nothing.
+ * `chars`: less than a whole bubble, when a credit goes in front.
  */
-export function factsFromAbout(description: string): string[] {
+export function factsFromAbout(description: string, chars = BUBBLE_CHARS): string[] {
   const text = description.replace(/\s+/g, " ").trim();
   if (!text) return [];
   const sentences = text.split(/(?<=[.!?])\s+/);
   const facts: string[] = [];
   let current = "";
   for (const s of sentences) {
-    if (current && (current + " " + s).length > BUBBLE_CHARS) { facts.push(current); current = ""; }
+    if (current && (current + " " + s).length > chars) { facts.push(current); current = ""; }
     current = current ? `${current} ${s}` : s;
   }
   if (current) facts.push(current);
-  return facts.map((f) => (f.length > BUBBLE_CHARS ? `${f.slice(0, BUBBLE_CHARS - 1).replace(/\s+\S*$/, "")}…` : f)).slice(0, 3);
+  return facts.map((f) => (f.length > chars ? `${f.slice(0, chars - 1).replace(/\s+\S*$/, "")}…` : f)).slice(0, 3);
+}
+
+export interface AboutAnswer {
+  type: "twitch-about";
+  login: string;
+  state: "found" | "none" | "failed" | "off";
+  name?: string;
+  facts?: string[];
+}
+
+/**
+ * The fact server's question about a channel (its twitch-about.ts), answered here because the
+ * sign-in stays in the app. "off" with nothing asked of Twitch until `allowed`. A channel with an
+ * empty About is "none", and anything that goes wrong is "failed": a song's facts never wait on it.
+ */
+export async function answerAbout(login: string, chars: number, allowed: boolean, read: (login: string) => Promise<TwitchChannel | null>): Promise<AboutAnswer> {
+  if (!allowed) return { type: "twitch-about", login, state: "off" };
+  if (!LOGIN.test(login)) return { type: "twitch-about", login, state: "none" };
+  try {
+    const channel = await read(login);
+    const facts = channel ? factsFromAbout(channel.description, chars) : [];
+    return channel && facts.length ? { type: "twitch-about", login, state: "found", name: channel.displayName, facts } : { type: "twitch-about", login, state: "none" };
+  } catch {
+    return { type: "twitch-about", login, state: "failed" };
+  }
 }

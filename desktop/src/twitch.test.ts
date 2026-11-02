@@ -2,7 +2,7 @@ process.env.BUBBLEFACTS_TWITCH_CLIENT_ID = "test-client";
 
 import fs from "fs";
 import path from "path";
-import { BUBBLE_CHARS, factsFromAbout, finishDeviceCode, getChannel, refreshTwitch, startDeviceCode, TwitchSession, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
+import { answerAbout, BUBBLE_CHARS, factsFromAbout, finishDeviceCode, getChannel, refreshTwitch, startDeviceCode, TwitchSession, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -21,6 +21,31 @@ describe("twitchLoginFrom", () => {
     expect(twitchLoginFrom("Jane Composer", "")).toBe("");
     expect(twitchLoginFrom("Final Fantasy VI", "youtube.com/@janeplayskeys")).toBe("");
     expect(twitchLoginFrom("@abc", "")).toBe(""); // too short for a Twitch login
+  });
+});
+
+describe("answerAbout", () => {
+  const channel = { login: "marlowkeys", displayName: "MarlowKeys", description: "Marlow writes piano loops." };
+
+  it("asks Twitch nothing until connected and checked", async () => {
+    const read = jest.fn();
+    expect((await answerAbout("marlowkeys", 135, false, read)).state).toBe("off");
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("answers with the channel's name and its About, cut to the room left", async () => {
+    const answer = await answerAbout("marlowkeys", 20, true, async () => channel);
+    expect(answer).toMatchObject({ state: "found", name: "MarlowKeys" });
+    expect((answer.facts as string[])[0].length).toBeLessThanOrEqual(20);
+  });
+
+  it("abstains on no channel, an empty About or a bad login, and a failure is only a failure", async () => {
+    expect((await answerAbout("marlowkeys", 135, true, async () => null)).state).toBe("none");
+    expect((await answerAbout("marlowkeys", 135, true, async () => ({ ...channel, description: "  " }))).state).toBe("none");
+    const read = jest.fn();
+    expect((await answerAbout("not a login", 135, true, read)).state).toBe("none");
+    expect(read).not.toHaveBeenCalled();
+    expect((await answerAbout("marlowkeys", 135, true, async () => { throw new TwitchSignInExpired("ended"); })).state).toBe("failed");
   });
 });
 
