@@ -115,6 +115,8 @@
     }
     if (t.dataset.gotoStep) goStep(Number(t.dataset.gotoStep));
     if (t.dataset.view) show(t.dataset.view);
+    // A link to one part of a long page lands there, not at the top.
+    if (t.dataset.scrollTo) document.getElementById(t.dataset.scrollTo)?.scrollIntoView({ block: "start" });
   });
 
   function flash(button, text) {
@@ -1423,7 +1425,8 @@
     const newQuality = state.settings.aiQuality !== qualityBefore && switchingQuality();
     setResult($("#settings-result"), newQuality
       ? `✓ Saved. The ${qualityName()} AI is downloading; the one you have keeps writing facts until it's ready.`
-      : "✓ Saved. BubbleFacts restarted with your changes.", "ok");
+      // A new look changes on stream without a restart, so this doesn't claim one.
+      : "✓ Saved. Your changes are in use now.", "ok");
   }
 
   form.addEventListener("submit", async (e) => {

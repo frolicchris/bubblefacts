@@ -339,7 +339,7 @@
           <ul id="songs-none-list" class="songfacts"></ul>
         </details>
         <p class="fine">Facts for each song are written ahead of time, so they show as soon as it starts. A song not ready yet gets its facts the usual way, a little later, and is prepared afterward. Everything stays on this computer.</p>
-        <button class="link" type="button" data-view="settings">Prepare my songs is in Settings</button>
+        <button class="link" type="button" data-view="settings" data-scroll-to="s-prepare">Prepare my songs is in Settings</button>
       </div>
     </section>
 
@@ -471,7 +471,7 @@
         </fieldset>
 
         <!-- Preparing needs the AI on this computer, which Lite doesn't have: hidden there, and the app never runs it. -->
-        <fieldset data-edition="full">
+        <fieldset id="s-prepare" data-edition="full">
           <legend>Prepare my songs</legend>
           <label class="inline"><input name="prepareSongs" type="checkbox" aria-describedby="s-prepare-hint"> Prepare facts for my songs while I'm not streaming</label>
           <p class="hint indent" id="s-prepare-hint">Facts are written ahead of time, so they show as soon as a song starts. It runs only while OBS is closed and this computer is plugged in, and stops the moment you open OBS. It uses the AI on this computer, never an online one, and everything stays on this computer.</p>
