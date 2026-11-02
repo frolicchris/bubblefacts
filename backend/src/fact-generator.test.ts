@@ -1493,3 +1493,35 @@ describe("a song that comes back while its stopped generation winds down", () =>
     expect((await back).length).toBeGreaterThan(0);
   });
 });
+
+describe("a song whose captions all failed the screen (#203)", () => {
+  const failing = ["He did it.", "I wrote it in one night at home.", "They liked it a lot more than before."].join("\n");
+  const later = (ms: number) => jest.spyOn(Date, "now").mockReturnValue(Date.now() + ms);
+  afterEach(() => jest.restoreAllMocks());
+
+  it("isn't sent to the AI again for the same article, but is for another", async () => {
+    withArticle("Test Song");
+    mockCreate.mockResolvedValue(reply(failing));
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    // Past the retry time, the same article: the AI would write the same captions.
+    later(11 * 60 * 1000);
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    jest.restoreAllMocks();
+    // Another article: worth asking.
+    (fetchGrounding as jest.Mock).mockResolvedValue(`Test Song (other song)\n${MODEL_LINES}`);
+    later(22 * 60 * 1000);
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("is asked again once the streamer's changes reset the song", async () => {
+    withArticle("Test Song");
+    mockCreate.mockResolvedValue(reply(failing));
+    await generateFacts(song);
+    forgetSong(song);
+    await generateFacts(song);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+});

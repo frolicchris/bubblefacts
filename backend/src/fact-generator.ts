@@ -196,6 +196,13 @@ const RETRY_MS = 10 * 60 * 1000;
 /** The most songs (or facts) each session map remembers; the oldest go first, and a lookup is only repeated. */
 const MAX_KEPT = 2000;
 const factCache = new Map<string, { facts: Fact[]; expires: number }>();
+/**
+ * Songs whose AI captions all failed the screen, with the article they were written from. With
+ * the same article and temperature 0 the AI writes the same captions again, so the retry after
+ * RETRY_MS doesn't ask it; a different article does (issue #203). Kept for the session, so a new
+ * app version, which restarts the server, asks again.
+ */
+const screenedOut = new Map<string, string>();
 /** Stands for Wikidata and MusicBrainz in the blocklist, alongside Wikipedia article titles. */
 export const STRUCTURED = "Wikidata and MusicBrainz";
 /** The Wikidata or MusicBrainz sentences each song was given, to tell which source a wrong fact came from. */
@@ -1277,9 +1284,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
   const prompt = groundedPrompt(read, context, want + OVERGENERATE);
+  const askedKey = songKey(asked);
+  const askedBefore = screenedOut.get(askedKey) === page;
+  if (askedBefore) console.log(`[FactGen] "${song.title}": every caption from "${page}" failed the screen last time, so the AI isn't asked again`);
   let answer: string;
   try {
-    answer = await askModel(prompt, songKey(asked));
+    answer = askedBefore ? "" : await askModel(prompt, askedKey);
   } catch (err) {
     aiDone = true;
     // The facts already on screen stand for the song when the AI fails (but not when the song changed).
@@ -1370,6 +1380,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Facts sent early were remembered when they went out.
   remember(early.length ? later : shown);
   console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
+  if (lines.length && !usable.length) setCapped(screenedOut, askedKey, page, MAX_KEPT);
+  else if (usable.length) screenedOut.delete(askedKey);
 
   if (shown.length) {
     record(asked, "grounded", shown.length);
@@ -1577,6 +1589,7 @@ export function clearFactCache(): void {
   inFlight.clear();
   sources.clear();
   structuredShown.clear();
+  screenedOut.clear();
 }
 
 /** The songs a block is saved under: the request, and for a live learn or a title alone also the song it was looked up as. */
@@ -1676,6 +1689,7 @@ export function forgetSong(song: SSLSong): void {
   // Its old sources too: Wrong on the new facts must not block an article from before.
   sources.delete(key);
   structuredShown.delete(key);
+  screenedOut.delete(key);
 }
 
 /** Undo "Wrong": the source may be used for the song again. */

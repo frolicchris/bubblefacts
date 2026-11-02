@@ -434,7 +434,10 @@ Facts are kept in memory for the rest of the session, so a repeated song is
 instant. Only what the stream has shown is saved, in `session.json`, and
 only for 6 hours (see above). Several requests for the
 same song at once (two overlays, or one reconnecting mid-song) share a single
-generation. Songs that fell back are retried after ten minutes, and song facts
+generation. Songs that fell back are retried after ten minutes, except that a
+song whose AI captions all failed the screen isn't sent to the AI again while
+the lookup finds the same article: with temperature 0 it would write the same
+captions (issue #203). Song facts
 and originals are rebuilt every time, so edits, the play count and the
 requester stay current.
 
