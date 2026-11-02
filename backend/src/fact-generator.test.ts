@@ -492,6 +492,26 @@ describe("generateFacts", () => {
     expect(facts[0].evidence).toBe(facts[0].text);
   });
 
+  it("credits and links a caption from a companion article's line to that article, so Wrong blocks it (issue #48)", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    const companion = "Mira Okafor recorded the choir for the piece in a single afternoon with forty singers.";
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Ashen Choir\nFrom the article "Music of the Lanternfall series": ${companion}\n\n${MODEL_LINES}`);
+    const own = MODEL_LINES.split("\n")[0];
+    mockCreate.mockResolvedValue(reply(`${companion}\n${own}`));
+    const request = { title: "Ashen Choir", artist: "Lanternfall" };
+    const facts = await generateFacts(request);
+    const fromCompanion = facts.find((f) => f.text === companion);
+    const fromOwn = facts.find((f) => f.text === own);
+    expect(fromCompanion?.source).toBe("Wikipedia: Music of the Lanternfall series");
+    expect(fromCompanion?.url).toBe("https://en.wikipedia.org/wiki/Music_of_the_Lanternfall_series");
+    expect(fromCompanion?.evidence).toBe(companion);
+    expect(fromOwn?.source).toBe("Wikipedia: Ashen Choir");
+    expect(fromOwn?.url).toBe("https://en.wikipedia.org/wiki/Ashen_Choir");
+    expect(markWrong(request, companion, fromCompanion?.source)).toBe("Music of the Lanternfall series");
+    expect(blockedArticles(request).has("Music of the Lanternfall series")).toBe(true);
+    expect(blockedArticles(request).has("Ashen Choir")).toBe(false);
+  });
+
   it("gives each article fact a link and the sentence it rests on, for the dashboard (citations off, the default)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Sourced Song (song)\n${MODEL_LINES}`);

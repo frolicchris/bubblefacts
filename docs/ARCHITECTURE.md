@@ -161,6 +161,25 @@ sign-ins and the built-in AI. Its design decisions are in
    certifications, sales, never opinions). In an article about a whole game
    or artist, only sentences that name the track or are plainly about music
    are lifted, and no reception.
+   A song's or a game track's own article with fewer than three such
+   sentences from its makers (`MIN_MAKING_SENTENCES`) gets a companion
+   article (`companionLine`, issue #48): the album its infobox names, a
+   "Music of" or soundtrack page it links to, or, for a game's track, the
+   game's "Music of <game>" or "Music of the <game> series" page. One title
+   lookup and one article read, both remembered; the wikitext is the infobox
+   facts' own. Only the companion's sentences that name the track in
+   quotation marks, or sit in a section headed with its name and name no other
+   title, are taken (`companionSentences`, at most 4, the makers' words
+   first), never an opinion, a critic or the soundtrack in general: a title
+   track's album is skipped, since every sentence about it names the track.
+   They go on a line of their own after the title, `From the article "Music of
+   Some Game": ...`, and the article's own text gets that much less of the
+   budget. A caption whose sentence is on that line is labelled and linked
+   `Wikipedia: <companion>` (`companionOf`), so **Wrong** blocks the companion
+   for the song, and a cached reference drops the line of a blocked companion
+   (`withoutBlockedCompanions`). Not for a cover (the album would be the
+   original's), and a companion that can't be read leaves the article to
+   serve alone, never keeping the song off Wikipedia.
    With section-aware selection (on by default; `SECTION_SELECT=off` turns
    it off) the reference is built differently (`selectSections`,
    `sectionExtract`): the lead first, which Wikipedia writes to stand alone,
