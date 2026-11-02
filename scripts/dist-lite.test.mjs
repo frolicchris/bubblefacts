@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { liteManifest } from "./dist-lite.mjs";
+import { liteKeep, liteManifest, liteNotices } from "./dist-lite.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const full = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -19,8 +19,10 @@ test("Lite leaves the AI engine out of the app", () => {
   assert.ok(lite.build.files.includes("!node_modules/node-llama-cpp{,/**/*}"));
   assert.ok(lite.build.files.includes("!node_modules/@node-llama-cpp{,/**/*}"));
   assert.ok((lite.build.asarUnpack ?? []).every((f) => !engine(f)));
-  // The app's own files are all still copied.
-  for (const f of full.build.files.filter((f) => !engine(f))) assert.ok(lite.build.files.includes(f), f);
+  // The app's own files are all still copied, the notices as Lite's own under the same name.
+  for (const f of full.build.files.filter((f) => !engine(f) && f !== "THIRD-PARTY-NOTICES.md")) assert.ok(lite.build.files.includes(f), f);
+  assert.ok(!lite.build.files.includes("THIRD-PARTY-NOTICES.md"));
+  assert.deepEqual(lite.build.files.find((f) => typeof f === "object"), { from: "build-lite", to: ".", filter: ["THIRD-PARTY-NOTICES.md"] });
 });
 
 test("Lite says it's Lite, keeps everything else the app reads, and is the same app to the system", () => {
@@ -49,4 +51,43 @@ test("the full package.json is left as it was", () => {
   assert.equal(full.bubblefacts.edition, undefined);
   assert.ok(full.dependencies["node-llama-cpp"]);
   assert.notEqual(full.build.directories.output, "release-lite");
+});
+
+test("Lite ships only the packages reached without the AI engine", () => {
+  const tree = {
+    dependencies: {
+      express: { version: "4.0.0", dependencies: { "shared-lib": { version: "1.0.0" } } },
+      "node-llama-cpp": { version: "3.0.0", dependencies: { "engine-only": { version: "2.0.0" }, "shared-lib": { version: "1.0.0" } } },
+      "@node-llama-cpp/linux-x64": { version: "3.0.0" },
+    },
+  };
+  assert.deepEqual([...liteKeep(tree)].sort(), ["express", "shared-lib"]);
+});
+
+test("follows a package's dependencies wherever npm printed them, even under the engine", () => {
+  // npm printed on-finished in full under the engine first, and only as "deduped" under express.
+  const tree = {
+    dependencies: {
+      "node-llama-cpp": { version: "3.0.0", dependencies: { "on-finished": { version: "2.4.1", dependencies: { "ee-first": { version: "1.1.1" } } } } },
+      express: { version: "4.0.0", dependencies: { "on-finished": { version: "2.4.1" } } },
+    },
+  };
+  assert.deepEqual([...liteKeep(tree)].sort(), ["ee-first", "express", "on-finished"]);
+});
+
+test("Lite's notices leave out the AI engine, the models and the Linux Node.js, and keep the rest", () => {
+  const notices = fs.readFileSync(path.join(root, "THIRD-PARTY-NOTICES.md"), "utf8");
+  const names = [...notices.matchAll(/^### (\S+) /gm)].map((m) => m[1]);
+  const keep = new Set(names.filter((n) => !engine(n) && n !== "ipull"));
+  const out = liteNotices(notices, keep);
+  assert.doesNotMatch(out, /^### (?:node-llama-cpp|@node-llama-cpp\/|ipull) /m);
+  assert.doesNotMatch(out, /\*\*llama\.cpp\*\*|\*\*Llama 3\.[12] |\*\*Node\.js\*\*/);
+  assert.match(out, /^### express /m);
+  assert.match(out, /\*\*Electron\*\*/);
+  assert.match(out, /\*\*Facts\*\*/);
+  assert.match(out, /BubbleFacts Lite: it has no AI engine/);
+  // The count matches what's listed, and license texts with headings of their own come through whole.
+  const listed = [...out.matchAll(/^### /gm)].length;
+  assert.match(out, new RegExp(`^## npm packages \\(${listed}\\)$`, "m"));
+  assert.ok(out.includes("# Blue Oak Model License") === notices.includes("# Blue Oak Model License") || !keep.size);
 });

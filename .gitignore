@@ -6,5 +6,6 @@ coverage/
 logs/
 release/
 release-lite/
+build-lite/
 desktop/runtime/
 data/
