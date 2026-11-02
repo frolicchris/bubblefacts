@@ -52,9 +52,10 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
+import { prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { MAX_BUBBLES } from "./fact-ranking";
-import { blockedArticles, resetWrongFacts } from "./wrong-facts";
+import { blockArticle as blockArticleForTest, blockedArticles, resetWrongFacts, songKey } from "./wrong-facts";
+import { PreparedEntry, PreparedFact, preparedStore, PREPARED_RULES_VERSION } from "./prepared-facts";
 import fs from "fs";
 import path from "path";
 import { topic } from "./topic";
@@ -1491,5 +1492,125 @@ describe("a song that comes back while its stopped generation winds down", () =>
     const back = generateFacts(request);
     expect(await first).toEqual([]);
     expect((await back).length).toBeGreaterThan(0);
+  });
+});
+
+describe("prepared facts (issues #292 and #293)", () => {
+  const listed: SSLSong = { title: "Harbor Lights", artist: "Marlo Venn", songId: 4242 };
+  const noRevision = async () => 1234;
+  const prepare = (s: SSLSong, signal = new AbortController().signal) => prepareSong(s, signal, new Map(), noRevision);
+  const keep = (facts: PreparedFact[], article = "", over: Partial<PreparedEntry> = {}) =>
+    preparedStore.put(songKey(listed), {
+      title: listed.title, artist: listed.artist, outcome: "facts", facts, article, revision: 1,
+      rules: PREPARED_RULES_VERSION, model: "", preparedAt: new Date().toISOString(), checkedAt: new Date().toISOString(), ...over,
+    });
+
+  beforeEach(() => {
+    preparedStore.remove(songKey(listed));
+    resetWrongFacts();
+    withArticle("Harbor Lights");
+  });
+
+  it("writes a song's facts ahead of time through the same pipeline, and shows them when it plays without asking the AI", async () => {
+    const ready = await prepare(listed);
+    expect(ready.outcome).toBe("facts");
+    expect(ready.article).toBe("Harbor Lights (song)");
+    expect(ready.revision).toBe(1234);
+    expect(ready.facts.length).toBeGreaterThan(0);
+    expect(ready.facts.every((f) => f.source === "Wikipedia: Harbor Lights (song)")).toBe(true);
+    keep(ready.facts, ready.article);
+    clearFactCache();
+    mockCreate.mockClear();
+    const shown = await generateFacts(listed);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(shown.map((f) => f.text)).toEqual(ready.facts.map((f) => f.text));
+    expect(shown[0].url).toBe("https://en.wikipedia.org/wiki/Harbor_Lights_(song)");
+    expect(shown.map((f) => f.delaySeconds)).toEqual(shown.map((_f, i) => i * config.factIntervalSeconds));
+  });
+
+  it("doesn't count preparing as shown, or thin it by what the stream showed", async () => {
+    const before = factStats.grounded;
+    const unplayed = { title: "Paper Kites", artist: "Marlo Venn", songId: 4343 };
+    restoreRecent(MODEL_LINES.split("\n"));
+    const ready = await prepare(unplayed);
+    expect(ready.facts.length).toBeGreaterThan(0);
+    expect(factStats.grounded).toBe(before);
+    expect(outcomeFor(unplayed)).toBe("");
+    expect(recentShown()).toEqual(MODEL_LINES.split("\n"));
+  });
+
+  it("never shows a prepared fact whose source was marked Wrong since, and looks the song up again", async () => {
+    const ready = await prepare(listed);
+    keep(ready.facts, ready.article);
+    // Marked elsewhere (a restored backup, an older version): the block alone must keep it off.
+    blockArticleForTest(listed, ready.article);
+    clearFactCache();
+    (fetchGrounding as jest.Mock).mockResolvedValue("");
+    const shown = await generateFacts(listed);
+    expect(shown.some((f) => ready.facts.some((p) => p.text === f.text))).toBe(false);
+    expect(preparedStore.saved(songKey(listed))).toBeUndefined();
+    // Wrong pressed now forgets the prepared facts at once.
+    unmarkWrong(listed, ready.article);
+    keep(ready.facts, ready.article);
+    markWrong(listed, ready.facts[0].text, ready.facts[0].source);
+    expect(preparedStore.saved(songKey(listed))).toBeUndefined();
+    unmarkWrong(listed, ready.article);
+  });
+
+  it("keeps a song's switches first: with facts off for it, none of its prepared facts show", async () => {
+    const ready = await prepare(listed);
+    keep(ready.facts, ready.article);
+    setFactsOff(listed, "song", true);
+    clearFactCache();
+    expect(await generateFacts(listed)).toEqual([]);
+    expect((await prepare(listed)).outcome).toBe("own");
+    setFactsOff(listed, "song", false);
+  });
+
+  it("leaves out prepared facts the stream showed lately, and never pads the rest", async () => {
+    const ready = await prepare(listed);
+    keep(ready.facts, ready.article);
+    clearFactCache();
+    restoreRecent([ready.facts[0].text]);
+    mockCreate.mockClear();
+    const shown = (await generateFacts(listed)).map((f) => f.text);
+    expect(shown).toEqual(ready.facts.slice(1).map((f) => f.text));
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("ignores an entry from other rules or older than 30 days", async () => {
+    const hidden = [{ text: "A prepared fact nobody should see.", source: "Wikidata" }];
+    const old = new Date(Date.now() - 31 * 24 * 3600_000).toISOString();
+    for (const over of [{ rules: PREPARED_RULES_VERSION + 1 }, { preparedAt: old }]) {
+      keep(hidden, "", over);
+      clearFactCache();
+      expect((await generateFacts(listed)).map((f) => f.text)).not.toContain(hidden[0].text);
+    }
+  });
+
+  it("says nothing was found when no source knows the song, and gives no answer when it was stopped", async () => {
+    (fetchGrounding as jest.Mock).mockResolvedValue("");
+    expect((await prepare({ title: "Nobody Knows", artist: "Quiet Pines" })).outcome).toBe("none");
+    withArticle("Harbor Lights");
+    const stop = new AbortController();
+    stop.abort();
+    expect((await prepare(listed, stop.signal)).outcome).toBeNull();
+  });
+
+  it("retells an artist's article once for every song that reads it, and drops a line naming the first song (issue #296)", async () => {
+    const answers = new Map();
+    const named = "Harbor Lights was first sketched on an upright piano at the studio.";
+    (fetchGrounding as jest.Mock).mockResolvedValue(`Marlo Venn\nMarlo Venn is a singer. ${named}\n${MODEL_LINES}`);
+    mockCreate.mockClear().mockResolvedValue(reply(`${named}\n${MODEL_LINES}`));
+    const first = await prepareSong({ title: "Harbor Lights", artist: "Marlo Venn" }, new AbortController().signal, answers, noRevision);
+    const second = await prepareSong({ title: "Tin Roof", artist: "Marlo Venn" }, new AbortController().signal, answers, noRevision);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(first.facts.map((f) => f.text)).toContain(named);
+    expect(second.facts.length).toBeGreaterThan(0);
+    expect(second.facts.map((f) => f.text).join(" ")).not.toContain("Harbor Lights");
+    // Another article is asked for on its own.
+    (fetchGrounding as jest.Mock).mockResolvedValue(`Quiet Pines\nQuiet Pines is a band. ${MODEL_LINES}`);
+    await prepareSong({ title: "Low Tide", artist: "Quiet Pines" }, new AbortController().signal, answers, noRevision);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 });

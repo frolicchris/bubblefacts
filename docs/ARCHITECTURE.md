@@ -62,6 +62,8 @@ Now playing file ─┘ reads the file   │
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
+| `backend/src/prepared-facts.ts` | Songs' facts prepared ahead of time, kept in `prepared-facts.json` with their article's revision and the rules version (see [Prepared songs](#prepared-songs)). |
+| `backend/src/prep-context.ts` | What the pipeline keeps apart while it prepares a song rather than writes for the stream. |
 | `backend/src/stat-facts.ts` | Builds entry facts. |
 | `backend/src/topic.ts` | Loads the topic packs named in `TOPIC`. |
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
@@ -431,7 +433,8 @@ sign-ins and the built-in AI. Its design decisions are in
     clicked.
 
 Facts are kept in memory for the rest of the session, so a repeated song is
-instant. Only what the stream has shown is saved, in `session.json`, and
+instant. A song prepared ahead of time is instant the first time too (see
+[Prepared songs](#prepared-songs)). Only what the stream has shown is saved, in `session.json`, and
 only for 6 hours (see above). Several requests for the
 same song at once (two overlays, or one reconnecting mid-song) share a single
 generation. Songs that fell back are retried after ten minutes, and song facts
@@ -1395,6 +1398,64 @@ reason (`paused`, `no-song`, `not-ready`, `no-facts`, `none-shown`) becomes
 the dashboard's note. The test bubble is never in `lastSent`, so it's never
 the one marked.
 
+### Prepared songs
+
+Writing a song's facts takes the built-in AI tens of seconds, so the first
+bubbles of a song came late, every stream, for the same songs. Preparing
+writes them ahead of time, while the streamer isn't streaming, and keeps them
+on this computer (issues #292 to #297).
+
+**One pipeline.** A song is prepared by `prepareSong` in `fact-generator.ts`,
+which runs `generateRest`, and so `groundedFacts`, exactly as for the song on
+stream: the same lookup, prompt, screening, repairs and ranking. Nothing is
+written without a reference, there is no second AI, and nothing is padded.
+It runs inside a preparation context (`prep-context.ts`, an
+`AsyncLocalStorage`) that keeps apart only what belongs to one stream:
+
+- the recent facts: a prepared song gets an empty list of its own, so what one
+  stream showed can't thin it, and preparing never counts as shown;
+- the outcome: `record` hands it to the context instead of the stream's
+  counts and `songs.log`;
+- the AI's turn: preparing asks the built-in model with no song key (a song
+  change mustn't take it for an old song), its own stop signal, and gives way
+  to the song on stream (`setCurrentSong` aborts it; the song is prepared again
+  later);
+- lookup trouble: `watchLookupTrouble` counts failed and throttled requests to
+  Wikipedia, Wikidata and MusicBrainz made for the song. Their own helpers read
+  a 429 as "nothing found, don't cache"; prepared once a month, that would
+  freeze a miss, so a troubled song isn't saved.
+
+Only facts from a source are kept (`fromASource`): the queue entry is null,
+so no song-list facts, and custom facts are never stored. The outcome says
+what was found: `facts`, `none` (no source knows it), `own` (the streamer's
+own facts, an original, a switch or not music: nothing to prepare) or `live`
+(a Twitch About, looked up when it plays).
+
+**Shown when it plays.** `groundedFacts` first asks `preparedFacts`. A current
+entry (today's `PREPARED_RULES_VERSION`, under 30 days old) is shown at once,
+after the checks that can have changed since it was written: a fact whose
+source the streamer marked **Wrong** since (by its label, `blockFor`) drops the
+whole entry, and the song is looked up as usual and prepared again; facts
+shown lately (`tooSimilar`) and ones that only repeat the request are left
+out, and the rest are not topped up. Everything earlier in the order still
+comes first: the switches (`ownFactsOnly`, before the cache), the streamer's
+own facts, live learns, originals, and tagged custom facts mixed in by
+`generate`. **Wrong** on a prepared fact removes the entry at once
+(`markWrong`). `FACT_VERIFICATION=off` shows none.
+
+**Redone when it may be stale.** An entry records the rules version, the
+article and the revision it read (`settledRevision`: the newest version at
+least 72 hours old, which is what `wikiExtract` reads), the model that wrote
+it, and when. Raise `PREPARED_RULES_VERSION` with any change that would write
+different facts: entries from other rules are dropped when the file is read,
+and never shown. An entry over 30 days old is prepared again. The preparer
+checks an entry's article for a newer settled revision once a week, one small
+request, and prepares the song again when it changed.
+
+`prepared-facts.json` is written whole each time (`atomic-write.ts`), mode
+`0600`, and goes with **Remove my BubbleFacts data**. It's never in a backup
+or a report.
+
 ### Keeping generations in order
 
 - **One model, one turn at a time.** The built-in model has one chat session.
@@ -1482,6 +1543,9 @@ folder; `data/` for the command-line version):
   and recent facts (see "What gets remembered between songs?").
 - `wrong-log.jsonl`: one line per **Wrong** press, the newest 500 (see the
   file table above).
+- `prepared-facts.json`: songs' facts prepared ahead of time, and the pace
+  measured on this computer (see [Prepared songs](#prepared-songs)). Private
+  (`0600`), never in backups: it's rebuilt from the song list.
 
 These, `settings.json` and backups are written to a temporary file beside
 them that then replaces the old one (`atomic-write.ts`, one copy for the

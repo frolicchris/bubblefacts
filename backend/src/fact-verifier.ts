@@ -1549,6 +1549,23 @@ async function stableVersionText(pageTitle: string, now: number): Promise<string
 }
 
 /**
+ * The revision of an article that a lookup now reads: the newest one at least
+ * `STABLE_AGE_MS` old, which is the current one unless it was edited in the
+ * last 72 hours (`wikiExtract`). Null when it has none that old or no longer
+ * exists. One small request: the preparer asks it to tell whether a prepared
+ * song's article has changed since (issue #292). Throws when it can't be asked.
+ */
+export async function settledRevision(pageTitle: string, now = Date.now()): Promise<number | null> {
+  const before = new Date(now - STABLE_AGE_MS).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const data = await wikiGet<{ query?: { pages?: Record<string, { revisions?: Array<{ revid?: number }> }> } }>(
+    `action=query&prop=revisions&rvlimit=1&rvdir=older&rvstart=${encodeURIComponent(before)}&rvprop=ids&redirects=1&titles=${encodeURIComponent(pageTitle)}`,
+    config.groundingTimeoutMs,
+    "revision"
+  );
+  return Object.values(data.query?.pages ?? {})[0]?.revisions?.[0]?.revid ?? null;
+}
+
+/**
  * The article's plain text as the model may read it, or null for a
  * disambiguation page or one with no version old enough. Only a version at
  * least 72 hours old is read (it throws when that version can't be read),
