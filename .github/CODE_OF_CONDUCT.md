@@ -1,6 +1,6 @@
 # Code of conduct
 
-This project is for musicians and the people who help them. Everyone is
+This project is for musicians, DJs and the people who help them. Everyone is
 welcome, whatever their experience, background or identity.
 
 **Please:**
