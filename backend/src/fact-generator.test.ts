@@ -506,6 +506,10 @@ describe("generateFacts", () => {
     expect(fromCompanion?.source).toBe("Wikipedia: Music of the Lanternfall series");
     expect(fromCompanion?.url).toBe("https://en.wikipedia.org/wiki/Music_of_the_Lanternfall_series");
     expect(fromCompanion?.evidence).toBe(companion);
+    // Found through the song's own article: Wrong on that one takes it off too.
+    expect(fromCompanion?.via).toBe("Wikipedia: Ashen Choir");
+    expect(fromOwn?.via).toBeUndefined();
+    expect(pulledWithWrong(facts, fromOwn as Fact).map((f) => f.text)).toEqual(expect.arrayContaining([own, companion]));
     expect(fromOwn?.source).toBe("Wikipedia: Ashen Choir");
     expect(fromOwn?.url).toBe("https://en.wikipedia.org/wiki/Ashen_Choir");
     expect(markWrong(request, companion, fromCompanion?.source)).toBe("Music of the Lanternfall series");
@@ -1437,6 +1441,13 @@ describe("Wrong on the song that's on pulls the rest of its bubbles from that so
     expect(texts(pulledWithWrong(facts, facts[0]))).toEqual(["First from the article.", "Second from the article."]);
   });
 
+  it("takes a companion article's bubbles with the article they were found through, not the other way round (#48)", () => {
+    const companion = { ...bubble("From the album's article.", "Wikipedia: Orchard Songs", 7), via: "Wikipedia: Glass Orchard" };
+    const all = [...facts, companion];
+    expect(texts(pulledWithWrong(all, all[0]))).toEqual(["First from the article.", "Second from the article.", "From the album's article."]);
+    expect(texts(pulledWithWrong(all, companion))).toEqual(["From the album's article."]);
+  });
+
   it("takes Wikidata and MusicBrainz together, as Wrong blocks them together", () => {
     expect(texts(pulledWithWrong(facts, facts[3]))).toEqual(["From Wikidata.", "From MusicBrainz."]);
   });
@@ -1609,6 +1620,19 @@ describe("prepared facts (issues #292 and #293)", () => {
     await generateFacts(listed);
     expect(preparedStore.saved(songKey(listed))).toBeUndefined();
     unmarkWrong(listed, "Harbor Festival");
+  });
+
+  it("drops a prepared entry when the article its companion facts were found through is marked Wrong (#48)", async () => {
+    const line = { text: "A companion line about the harbor festival recording.", source: "Wikipedia: Harbor Festival", via: "Wikipedia: Harbor Lights (song)" };
+    keep([line], "Harbor Lights (song)");
+    clearFactCache();
+    expect((await generateFacts(listed)).map((f) => f.via)).toContain("Wikipedia: Harbor Lights (song)");
+    blockArticleForTest(listed, "Harbor Lights (song)");
+    clearFactCache();
+    restoreRecent([]);
+    await generateFacts(listed);
+    expect(preparedStore.saved(songKey(listed))).toBeUndefined();
+    unmarkWrong(listed, "Harbor Lights (song)");
   });
 
   it("ignores an entry from other rules or older than 30 days", async () => {

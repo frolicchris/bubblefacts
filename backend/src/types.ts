@@ -121,6 +121,8 @@ export interface Fact {
   position: Spot;
   /** Where the vertical overlay (1080x1920, for phone-shaped streams) shows it, by the same rules. */
   vertical?: Spot;
+  /** For a fact from a companion article: the article it was reached through ("Wikipedia: <article>"), so Wrong on that one takes it too. */
+  via?: string;
 }
 
 /** Where a bubble sits, as CSS lengths. */

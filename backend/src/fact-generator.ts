@@ -1221,7 +1221,7 @@ async function generate(song: SSLSong, entry: SSLQueueItem | null, onEarly?: Ear
   const sourced = new Map(others.map((f) => [f.text, f]));
   const facts = toFacts(song, lines, sourceOf).map((f) => {
     const was = sourced.get(f.text);
-    return was ? { ...f, ...(was.url ? { url: was.url } : {}), ...(was.evidence ? { evidence: was.evidence } : {}) } : f;
+    return was ? { ...f, ...(was.url ? { url: was.url } : {}), ...(was.evidence ? { evidence: was.evidence } : {}), ...(was.via ? { via: was.via } : {}) } : f;
   });
   return { facts, ttlMs: rest.ttlMs };
 }
@@ -1621,7 +1621,11 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       const companion = companionPages(context).length ? companionOf(cites.get(t) ?? supportingSentence(t, context, Infinity), context) : "";
       return companion ? `Wikipedia: ${companion}` : article;
     };
-    return { facts: toFacts(song, shown, (t) => structuredLabel.get(t) ?? labelOf(t), context, cites), ttlMs: Infinity };
+    // A companion's facts were found through this article: Wrong on it takes them off too.
+    const facts = toFacts(song, shown, (t) => structuredLabel.get(t) ?? labelOf(t), context, cites).map((f) =>
+      f.source?.startsWith("Wikipedia: ") && f.source !== article ? { ...f, via: article } : f
+    );
+    return { facts, ttlMs: Infinity };
   }
   if (sourcedOnly) return none;
   const fallback = entryFacts(entry, want);
@@ -1652,7 +1656,7 @@ function preparedFacts(song: SSLSong, asked: SSLSong, want: number): Generated |
   const entry = preparedStore.get(key);
   if (!entry || entry.outcome !== "facts" || !entry.facts.length) return null;
   const blocked = new Set([...blockedArticles(asked), ...blockedArticles(song)]);
-  if (entry.facts.some((f) => blocked.has(blockFor(f.source) ?? ""))) {
+  if (entry.facts.some((f) => blocked.has(blockFor(f.source) ?? "") || blocked.has(blockFor(f.via) ?? ""))) {
     preparedStore.remove(key);
     console.log(`[Prepared] "${song.title}": a source was marked Wrong after it was prepared, so it's looked up again`);
     return null;
@@ -1671,6 +1675,7 @@ function preparedFacts(song: SSLSong, asked: SSLSong, want: number): Generated |
     ...(f.source ? { source: f.source } : {}),
     ...(f.url ? { url: f.url } : {}),
     ...(f.evidence ? { evidence: f.evidence } : {}),
+    ...(f.via ? { via: f.via } : {}),
     delaySeconds: i * config.factIntervalSeconds,
     durationSeconds: config.factDurationSeconds,
     ...spotFor(i),
@@ -1733,7 +1738,7 @@ export async function prepareSong(
     });
     if (signal.aborted) return { ...empty, outcome: null, trouble: ctx.trouble };
     const outcome = STORED[ctx.outcome as Outcome] ?? null;
-    const facts = outcome === "facts" ? result.facts.filter(fromASource).map((f) => ({ text: f.text, ...(f.source ? { source: f.source } : {}), ...(f.url ? { url: f.url } : {}), ...(f.evidence ? { evidence: f.evidence } : {}) })) : [];
+    const facts = outcome === "facts" ? result.facts.filter(fromASource).map((f) => ({ text: f.text, ...(f.source ? { source: f.source } : {}), ...(f.url ? { url: f.url } : {}), ...(f.evidence ? { evidence: f.evidence } : {}), ...(f.via ? { via: f.via } : {}) })) : [];
     return {
       outcome: outcome === "facts" && !facts.length ? "none" : outcome,
       facts,
@@ -1988,7 +1993,8 @@ export function blockFor(label: string | undefined): string | null | undefined {
  */
 export function pulledWithWrong(facts: Fact[], fact: Fact): Fact[] {
   const source = blockFor(fact.source);
-  return facts.filter((f) => f.text === fact.text || (!!source && blockFor(f.source) === source));
+  // A companion article's facts go with the article they were found through (issue #48).
+  return facts.filter((f) => f.text === fact.text || (!!source && (blockFor(f.source) === source || blockFor(f.via) === source)));
 }
 
 /**

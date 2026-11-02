@@ -35,6 +35,8 @@ export interface PreparedFact {
   source?: string;
   url?: string;
   evidence?: string;
+  /** A companion article's fact: the article it was found through (issue #48). */
+  via?: string;
 }
 
 /**
@@ -84,7 +86,7 @@ const OUTCOMES: ReadonlySet<string> = new Set(["facts", "none", "own", "live"]);
 
 const isFact = (f: unknown): f is PreparedFact => {
   const x = f as PreparedFact;
-  return !!x && typeof x.text === "string" && ["source", "url", "evidence"].every((k) => x[k as keyof PreparedFact] === undefined || typeof x[k as keyof PreparedFact] === "string");
+  return !!x && typeof x.text === "string" && ["source", "url", "evidence", "via"].every((k) => x[k as keyof PreparedFact] === undefined || typeof x[k as keyof PreparedFact] === "string");
 };
 
 const isEntry = (e: unknown): e is PreparedEntry => {

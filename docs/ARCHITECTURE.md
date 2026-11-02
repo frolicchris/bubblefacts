@@ -184,7 +184,10 @@ sign-ins and the built-in AI. Its design decisions are in
    budget. A caption whose sentence is on that line is labelled and linked
    `Wikipedia: <companion>` (`companionOf`), so **Wrong** blocks the companion
    for the song, and a cached reference drops the line of a blocked companion
-   (`withoutBlockedCompanions`). Not for a cover (the album would be the
+   (`withoutBlockedCompanions`). Such a fact also carries the article it was
+   found through (`via`), so **Wrong** on that article takes the companion's
+   bubbles off the stream too (`pulledWithWrong`) and drops a prepared entry
+   holding them; Wrong on the companion leaves the article's own. Not for a cover (the album would be the
    original's), and a companion that can't be read leaves the article to
    serve alone, never keeping the song off Wikipedia.
    With section-aware selection (on by default; `SECTION_SELECT=off` turns
