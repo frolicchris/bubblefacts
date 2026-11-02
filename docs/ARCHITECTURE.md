@@ -498,7 +498,14 @@ model is asked.
    charts, sales and release details -1. Highest first; among equals, data
    facts and lead captions, then the writer's order. On an artist's or a
    game's article the song's own data facts still lead.
-5. **At most four**, and no two of the same kind in a row when another kind
+5. **About the music first** (`aboutTheMusic`): a caption about the game,
+   film or show around the song (its voice cast, ports, series, plot,
+   developers) that says nothing about music goes after the music captions,
+   and at most two are shown (`MAX_OFF_MUSIC`): enough to say what the song
+   is from. The rest are left out, so an article with little about the music
+   gives fewer bubbles instead of trivia (issue #189). Data facts aren't
+   affected.
+6. **At most four**, and no two of the same kind in a row when another kind
    is left.
 
 Why these: on judged runs, captions from the lead were about 5% wrong and

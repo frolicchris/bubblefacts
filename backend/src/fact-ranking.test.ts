@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Candidate, FLOOR, MAX_BUBBLES, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
+import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
 
 // Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls).
 const LONG_BODY =
@@ -197,5 +197,35 @@ describe("the Facts per song setting", () => {
     expect(hint).toContain(`up to ${MAX_BUBBLES} facts`);
     expect(hint).toContain("your own");
     expect(page).toMatch(/name="factsPerSong"[^>]*aria-describedby="s-facts-hint"/);
+  });
+});
+
+describe("captions about the music before the game around it (#189)", () => {
+  it("tells the work's own business from its music", () => {
+    // Made-up game "Starfall Saga" and its track "Ember Road".
+    expect(aboutTheMusic("The English voice cast of Starfall Saga was chosen in 1998.")).toBe(false);
+    expect(aboutTheMusic("Starfall Saga was later ported to two handheld consoles.")).toBe(false);
+    expect(aboutTheMusic("The design document for Starfall Saga is dated March 1995.")).toBe(false);
+    expect(aboutTheMusic("Ember Road was composed by Mara Quill for Starfall Saga.")).toBe(true);
+    expect(aboutTheMusic("The soundtrack of Starfall Saga was recorded with a live string quartet.")).toBe(true);
+    // Not about a work at all: nothing to hold back.
+    expect(aboutTheMusic("Mara Quill grew up in a small fishing town.")).toBe(true);
+  });
+
+  it("ranks music captions first and shows at most two about the game, never filling with more", () => {
+    const caption = (text: string): Candidate => ({ kind: "caption", text, sentence: text, lead: true });
+    const trivia = [
+      "The English voice cast of Starfall Saga was chosen in 1998.",
+      "Starfall Saga was later ported to two handheld consoles.",
+      "The design document for Starfall Saga is dated March 1995.",
+      "Starfall Saga's sequel introduced three new playable characters.",
+    ].map(caption);
+    const music = caption("Ember Road was composed by Mara Quill for Starfall Saga.");
+    const lines: string[] = [];
+    const shown = rankFacts([...trivia, music], { log: (l) => lines.push(l) });
+    expect(shown[0].text).toBe(music.text);
+    expect(shown.filter((c) => c.offMusic)).toHaveLength(MAX_OFF_MUSIC);
+    expect(shown).toHaveLength(1 + MAX_OFF_MUSIC);
+    expect(lines.filter((l) => l.includes("not about the music"))).toHaveLength(trivia.length - MAX_OFF_MUSIC);
   });
 });

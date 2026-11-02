@@ -16,6 +16,10 @@
  * it. Data facts and lead captions go first among equals, no two bubbles in a
  * row tell the same kind of fact when that can be helped, and a song shows at
  * most four.
+ * A caption about the game, film or show around the song rather than its music (voice casting,
+ * ports, the series, the plot: `aboutTheMusic`) goes below the music captions, and at most
+ * MAX_OFF_MUSIC are shown: enough to say what the song is from, and fewer bubbles rather than
+ * trivia when the article says little about the music (issue #189).
  * When the article is the artist's, a caption about another song of theirs
  * ("Paper Kites" while "Velvet Harbor" plays) goes below the facts about the artist and
  * at most one is shown (`namesOtherSong`).
@@ -27,6 +31,8 @@
 export const MAX_BUBBLES = 4;
 /** Held-back captions come back until a song has this many bubbles. */
 export const FLOOR = 3;
+/** Most captions a song shows about the game, film or show around it rather than its music. */
+export const MAX_OFF_MUSIC = 2;
 
 /** One bubble a song could show. */
 export interface Candidate {
@@ -50,6 +56,8 @@ export interface Ranked extends Candidate {
   score: number;
   /** Whether the caption is about another quoted song, on the artist's article. */
   other?: boolean;
+  /** Whether the caption is about the game, film or show around the song, not its music. */
+  offMusic?: boolean;
   hook: Hook;
   /** What the score is made of, for the log. */
   reasons: string[];
@@ -164,6 +172,24 @@ export function interest(text: string, sentence = text): { score: number; hook: 
   return { score, hook, reasons };
 }
 
+// --- About the music, or the work around it -----------------------------
+
+/** The music itself: who wrote or played it, how it sounds, how it was recorded. */
+const MUSIC_WORDS =
+  /\b(?:music\w*|songs?|soundtracks?|score[sd]?|scoring|compos\w+|themes?|melod\w+|tunes?|tracks?|lyric\w*|sing\w*|sang|sung|singers?|vocal\w*|bands?|albums?|chords?|rhythm\w*|tempo|beats?|arrang\w+|orchestra\w*|instrument\w*|record(?:ed|ing|ings)?|sounds?|audio|chiptune|synth\w*|piano|guitar\w*|drums?|bass|strings|choir|concerts?|perform\w*|played|plays)\b/i;
+/** The game, film or show around a song: its cast, story, ports and series. */
+const WORK_TRIVIA =
+  /\b(?:voice(?:d| acting| actors?| actress(?:es)?| cast)|voiced by|dub(?:bed|bing|s)?|locali[sz](?:ation|ations|ed)|translat(?:ion|ions|ed)|ported|ports?|design documents?|gameplay|characters?|protagonists?|antagonists?|villains?|storyline|plot|sequels?|prequels?|spin-?offs?|remaster(?:s|ed)?|remakes?|franchise|series|developers?|developed|publishers?|published|directors?|directed|programmers?|levels?|bosses|playable|consoles?|cartridges?|games?|episodes?|seasons?|films?|movies?|screenplay|box office)\b/i;
+
+/**
+ * Whether a caption is about the music rather than the work around it. False only for a caption
+ * that names the game, film or show's own business (cast, ports, series, plot) and says nothing
+ * about music: "The English voice cast was chosen in 1998" (issue #189).
+ */
+export function aboutTheMusic(text: string): boolean {
+  return MUSIC_WORDS.test(text) || MAKING.test(text) || !WORK_TRIVIA.test(text);
+}
+
 // --- Another song named in a caption ------------------------------------
 
 const DOUBLE_QUOTED = /["“]([^"”]+)["”]/g;
@@ -212,14 +238,23 @@ export function rankFacts(
     }
     const flags = c.kind === "caption" ? sourceRisk(c.text, c.sentence ?? "", Boolean(c.lead)) : [];
     const other = c.kind === "caption" && Boolean(opts.artistArticle) && namesOtherSong(c.text, opts.title ?? "");
-    return [{ ...c, flags, refill: false, order, other, ...interest(c.text, c.sentence || c.text) }];
+    const offMusic = c.kind === "caption" && !aboutTheMusic(c.text);
+    return [{ ...c, flags, refill: false, order, other, offMusic, ...interest(c.text, c.sentence || c.text) }];
   });
   // On an artist's article, at most one caption about another song: the first the writer wrote.
   const firstOther = all.find((c) => c.other)?.order;
+  // At most MAX_OFF_MUSIC about the work around the song: the first the writer wrote.
+  let offMusic = 0;
   const pool = all.filter((c) => {
-    if (!c.other || c.order === firstOther) return true;
-    log("[Rank] not shown (another song of the artist, one at most)");
-    return false;
+    if (c.other && c.order !== firstOther) {
+      log("[Rank] not shown (another song of the artist, one at most)");
+      return false;
+    }
+    if (c.offMusic && ++offMusic > MAX_OFF_MUSIC) {
+      log(`[Rank] not shown (not about the music, ${MAX_OFF_MUSIC} at most)`);
+      return false;
+    }
+    return true;
   });
   const safe = pool.filter((c) => !c.flags.length);
   const held = pool.filter((c) => c.flags.length);
@@ -234,7 +269,7 @@ export function rankFacts(
   // Most interesting first; among equals, data facts and lead captions, then the writer's order.
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
-  const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
+  const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
   const kept = ranked.slice(0, max);
   // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.
