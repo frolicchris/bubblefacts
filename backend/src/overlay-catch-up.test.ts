@@ -248,6 +248,8 @@ describe("the bubbles' look (issue #177)", () => {
   it("changes on every overlay at once when the app saves a new one, with no song announced again", async () => {
     const [a, b] = await Promise.all([overlay(), overlay()]);
     await play([fact("Mid-song.", 0)]);
+    // The song's own messages first: on a slow runner they can still be on their way.
+    await Promise.all([a.batch(), b.batch()]);
     const before = a.messages.length;
     const answer = (await post("style", { style: "light", accent: "#FF8800", background: "#ffffff" })) as { overlays: number; colors: object };
     expect(answer).toMatchObject({ style: "light", colors: { accent: "#ff8800", background: "#ffffff", text: "#111111" } });
