@@ -88,6 +88,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
+| `desktop/src/sign-in-check.ts` | Asks StreamerSongList whether the sign-in still holds, to tell an outage from an expired sign-in. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
 | `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `desktop/src/model.ts` | The built-in AI's two models (Standard and High quality) and downloading them. |
@@ -1083,6 +1084,53 @@ internet back, and it reloads the AI and blanks the overlay.
   events make a change show at once, and the poll caps the wait when one is
   lost. An update during a read triggers one more read afterward.
 - 429 and 503 back off for as long as `Retry-After` says.
+
+**Checking the sign-in** (`desktop/src/sign-in-check.ts`, issue #182). A
+queue request that times out could be StreamerSongList being down or slow,
+or a sign-in that ended; before this, the app only knew after a request came
+back 401 or 403. StreamerSongList's 2026-09-22 changelog ("For integrators")
+announced `GET https://id.streamersonglist.com/oauth2/validate`, which the
+app now asks:
+
+- Only for the app's own sign-in (`tokenKind: "oauth"`, sent as `Bearer`
+  with the app's `Client-Id`). A pasted Streamer or User token wasn't issued
+  by id.streamersonglist.com, and nothing says the endpoint knows it, so it
+  is never checked and works as before. The command-line version only has
+  pasted tokens and doesn't check at all.
+- Rarely, since StreamerSongList's rate limits mostly police how an app uses
+  the API: at start (when no refresh is due), after each refresh, and when
+  health says the queue was refused (unauthorized) or has stopped answering
+  (`no successful queue fetch recently`), at most once per `RECHECK_MS`
+  (5 minutes) per token.
+- Read defensively. Only a plain **401** means expired. A **200 whose body
+  is a JSON object** means the sign-in holds. Everything else (no answer, a
+  timeout, 403, 429, 5xx, a body that isn't a JSON object) means "can't
+  tell", and nothing changes: the queue decides, as before.
+- Expired leads to a refresh, not straight to the notice: an access token
+  can end while the refresh token is still good (a computer that slept past
+  the hour). If the refresh is turned down for good, the existing "Sign in to
+  StreamerSongList again" notice shows, now without waiting for a failed
+  queue request. If a token refreshed a moment ago is called expired too,
+  the endpoint isn't telling this app's tokens apart: it isn't asked again
+  that session, and the queue decides.
+- The queue stopped answering but the sign-in holds: the dashboard's
+  Reconnecting banner says StreamerSongList isn't answering and the sign-in
+  is fine, so there's nothing for the streamer to do.
+- The token is never logged; the log says only "still signed in", "expired"
+  or "can't tell" and why it asked.
+
+What was and wasn't confirmed about the endpoint: from where this was
+written, id.streamersonglist.com couldn't be reached at all (the network
+refused the connection), and no public documentation of the response was
+found. So the response shape, which header scheme it wants (`Bearer` is
+assumed, as for the API's own `api.streamersonglist.com/oauth2/validate`,
+which `signin.ts` already uses after sign-in and which answers
+`{ username, streamer_id }`), and whether it knows pasted tokens are all
+unconfirmed. The code above assumes as little as it can: a wrong guess means
+"can't tell", never a false "sign in again". Confirming the queue still works
+right after a refresh was left out: the server's next poll (within 15 s)
+already does that with the new token, and an extra request would only add to
+the calls.
 
 **StreamElements** (`streamelements-client.ts`), for streamers who take
 requests through its Media Request player:
