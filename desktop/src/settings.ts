@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { shareAddress } from "./checks";
+import type { Edition } from "./build";
 import { AiQuality, modelFor, modelPath } from "./model";
 
 /** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
@@ -56,6 +57,7 @@ export interface Settings {
   /** The musician's own custom facts, one per line in Settings. */
   myFacts: string[];
   myOriginals: string[];
+  /** "builtin" is the app's own: the built-in AI, or in Lite (which has none) no AI at all. */
   ai: "builtin" | "groq" | "anthropic" | "ollama";
   /** Which built-in model: the small default, or the bigger one (model.ts). */
   aiQuality: AiQuality;
@@ -427,7 +429,7 @@ export function secretsUnprotected(): boolean {
 /** The settings as the server's environment variables. */
 export function toServerEnv(
   s: Settings,
-  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string }
+  paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string; edition?: Edition }
 ): Record<string, string> {
   const env: Record<string, string> = {
     // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
@@ -477,7 +479,9 @@ export function toServerEnv(
   if (s.shareFacts && s.shareUrl && s.shareChannel && s.shareKey) Object.assign(env, { SHARE_FACTS_URL: s.shareUrl, SHARE_FACTS_CHANNEL: s.shareChannel, SHARE_FACTS_KEY: s.shareKey });
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
   if (s.instrument) env.INSTRUMENT = s.instrument;
-  if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
+  // Lite has no AI engine: its own choice is no AI, so nothing goes to an AI and no model is loaded.
+  if (s.ai === "builtin" && paths.edition === "lite") env.AI_PROVIDER = "none";
+  else if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
   if (s.ai === "groq") Object.assign(env, { AI_PROVIDER: "openai", OPENAI_API_KEY: s.groqKey });
   if (s.ai === "anthropic") Object.assign(env, { AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: s.anthropicKey });
   if (s.ai === "ollama") Object.assign(env, { AI_PROVIDER: "ollama", OLLAMA_BASE_URL: s.ollamaUrl, OLLAMA_MODEL: s.ollamaModel });
