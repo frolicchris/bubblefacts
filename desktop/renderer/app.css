@@ -200,6 +200,9 @@ legend { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 4
 .colors label { display: flex; gap: 10px; align-items: center; font-weight: 400; margin: 6px 0; }
 input[type="color"] { width: 48px; height: 32px; padding: 2px; background: #0a0c22; border: 1px solid var(--field-border); border-radius: 6px; cursor: pointer; }
 .subhead { margin-top: 22px; }
+/* Heading levels follow the page outline; these keep the look they had as an h3 and an h2. */
+h2.subhead { font-size: 1.17em; margin-bottom: 1em; color: inherit; }
+.unlocking-box h1 { font-size: 17px; margin: 0 0 10px; color: var(--gold); }
 textarea { resize: vertical; line-height: 1.45; }
 /* Settings is long: its help text reads a size up, and Save stays in reach at the bottom. */
 #settings-form .fine, #settings-form .hint { font-size: 14px; }
