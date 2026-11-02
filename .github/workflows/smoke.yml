@@ -110,9 +110,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: scripts
-          # After a Release run, that build's scripts, not the default branch's. Release only runs
-          # on this repository's tags and dispatches, and the commit is taken from no other repository.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_sha || github.sha }}
+          # The scripts of the build being tested, not the default branch's: after a Release run, its
+          # commit (Release only runs on this repository's tags and dispatches, and the commit is taken
+          # from no other repository); for a tag asked for by hand, that tag.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_sha || inputs.tag || github.sha }}
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
@@ -164,6 +165,7 @@ jobs:
           ud="$RUNNER_TEMP/bf-launch"; flag="$ud"
           [ "$RUNNER_OS" = Windows ] && { ud=$(cygpath -u "$RUNNER_TEMP")/bf-launch; flag=$(cygpath -w "$ud"); }
           mkdir -p "$ud"
+          [ "$RUNNER_OS" = macOS ] && codesign --verify --deep --strict "$HOME/Applications/BubbleFacts.app"
           app="${APP_LAUNCH:-$APP_EXE}"
           if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a "$app" --no-sandbox "--user-data-dir=$flag" > launch.txt 2>&1 &
           else "$app" "--user-data-dir=$flag" > launch.txt 2>&1 &
