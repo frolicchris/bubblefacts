@@ -1,6 +1,7 @@
 import type http from "http";
 import WebSocket from "ws";
 import type { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
+import type { StylePayload } from "./bubble-style";
 
 /**
  * The real server, with a stand-in song list and fact generator, and overlays
@@ -101,15 +102,20 @@ async function until(check: () => boolean): Promise<void> {
 /** An overlay: connects and records every message the server sends it. */
 async function overlay() {
   const messages: FactsPayload[] = [];
+  /** The bubbles' look, kept apart: every overlay gets it as it connects (issue #177). */
+  const styles: StylePayload[] = [];
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   sockets.push(ws);
-  ws.on("message", (data) => messages.push(JSON.parse(String(data))));
+  ws.on("message", (data) => {
+    const msg = JSON.parse(String(data));
+    (msg.type === "style" ? styles : messages).push(msg);
+  });
   await new Promise((r) => ws.once("open", r));
   const batch = async () => {
     await until(() => messages.some((m) => m.type === "facts_ready"));
     return messages.find((m) => m.type === "facts_ready")!.facts!;
   };
-  return { ws, messages, batch };
+  return { ws, messages, styles, batch };
 }
 
 const fact = (text: string, delaySeconds: number): Fact => ({ text, delaySeconds, durationSeconds: 8, position: { top: "8%", left: "33%" } });
@@ -224,6 +230,45 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     await settle();
     expect(late.messages).toEqual([]);
     await post("pause", { paused: false });
+  });
+});
+
+describe("the bubbles' look (issue #177)", () => {
+  afterAll(() => post("style", { style: "classic" }));
+
+  it("goes to every overlay as it connects, before anything else, even while paused", async () => {
+    await post("pause", { paused: true });
+    const o = await overlay();
+    await until(() => o.styles.length > 0);
+    expect(o.styles).toEqual([{ type: "style", style: "classic" }]);
+    expect(o.messages).toEqual([]);
+    await post("pause", { paused: false });
+  });
+
+  it("changes on every overlay at once when the app saves a new one, with no song announced again", async () => {
+    const [a, b] = await Promise.all([overlay(), overlay()]);
+    await play([fact("Mid-song.", 0)]);
+    const before = a.messages.length;
+    const answer = (await post("style", { style: "light", accent: "#FF8800", background: "#ffffff" })) as { overlays: number; colors: object };
+    expect(answer).toMatchObject({ style: "light", colors: { accent: "#ff8800", background: "#ffffff", text: "#111111" } });
+    expect(answer.overlays).toBeGreaterThanOrEqual(2);
+    await until(() => a.styles.length === 2 && b.styles.length === 2);
+    expect(a.styles[1]).toEqual({ type: "style", style: "light", colors: answer.colors });
+    expect(a.messages.length).toBe(before);
+    // An overlay that connects later gets the new look too.
+    const late = await overlay();
+    await until(() => late.styles.length > 0);
+    expect(late.styles[0]).toMatchObject({ style: "light" });
+  });
+
+  it("falls back to the classic look for anything it doesn't know, rather than refusing", async () => {
+    expect(await post("style", { style: "neon", accent: "orange", background: "#fff" })).toEqual({ style: "classic", colors: null, overlays: expect.any(Number) });
+    expect(await post("style", {})).toMatchObject({ style: "classic", colors: null });
+  });
+
+  it("is only for the app", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/control/style`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ style: "retro" }) });
+    expect(res.status).toBe(403);
   });
 });
 

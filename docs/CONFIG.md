@@ -189,8 +189,8 @@ the same spot, use `top-left`, `top-center`, `top-right`, `bottom-left`,
 there. No bubble covers the Now Playing bubble: bottom spots sit just above
 it, and low spots grow upward. With that bubble off (`NOW_PLAYING=off`, and
 for a live learn `LIVE_LEARN_BANNER=off`), bottom spots are at the very bottom. The exact spots are the
-lists at the top of `backend/src/fact-generator.ts`. Text size, colors and animation are at the
-top of `frontend/obs/obs-overlay.css`.
+lists at the top of `backend/src/fact-generator.ts`. Text size and animation are at the
+top of `frontend/obs/obs-overlay.css`; for colors, see [The look](#the-look).
 
 `VERTICAL_AREA` (`top` or `above-chat`; default `top`) is where bubbles go in
 the vertical overlay, `frontend/obs/obs-overlay-vertical.html`, a 1080x1920
@@ -199,6 +199,20 @@ in each case, inside the part of the screen those apps leave clear of their
 own buttons and chat (`VERTICAL_SAFE` in `backend/src/fact-generator.ts`). Its
 bubble size is `--bf-vertical-scale` in `obs-overlay.css`, apart from
 `--bf-scale`, so a landscape and a vertical scene can run at once.
+
+### The look
+
+| Setting | Default | What it does |
+|---|---|---|
+| `BUBBLE_STYLE` | `classic` | The look of the bubbles and the Now Playing bubble, on both overlays: `classic` (dark blue), `light`, `minimal` or `retro`. Anything else shows `classic`, with a `[Config]` line in the log. |
+| `BUBBLE_ACCENT` | (empty) | Your own accent color for the border and the Now Playing label, written `#rrggbb` (like `#ff8800`). Used only together with `BUBBLE_BACKGROUND`. |
+| `BUBBLE_BACKGROUND` | (empty) | Your own background color, written `#rrggbb`. The text color is chosen for you, light or dark, so it always reads at WCAG AA contrast (4.5:1). The accent colors the Now Playing label only when it reads that well on the background; otherwise the label uses the text color. |
+
+A style changes colors, the font, corners and the Now Playing bubble's look,
+never the text size, the animations or the fact itself. A color that isn't
+exactly `#rrggbb`, or only one of the two colors, is ignored with a line in
+the log, and the style's own colors show. OBS's Custom CSS box still wins
+over any style.
 
 ---
 

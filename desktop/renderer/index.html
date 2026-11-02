@@ -456,6 +456,22 @@
             <option value="large">Large</option>
             <option value="larger">Larger</option>
           </select>
+          <label for="s-style">Style <span class="hint">the look of the bubbles and the Now Playing bubble, on both overlays</span></label>
+          <select id="s-style" name="bubbleStyle" aria-describedby="s-style-hint">
+            <option value="classic">Classic (dark blue)</option>
+            <option value="light">Light</option>
+            <option value="minimal">Minimal</option>
+            <option value="retro">Retro game</option>
+          </select>
+          <label class="inline"><input name="customColors" type="checkbox"> Use my own colors</label>
+          <div id="s-colors-box" class="indent">
+            <div class="colors">
+              <label>Accent <span class="hint">border and Now Playing label</span> <input name="accentColor" type="color"></label>
+              <label>Background <input name="backgroundColor" type="color"></label>
+            </div>
+            <p class="hint">BubbleFacts picks light or dark text, whichever is easier to read on your background.</p>
+          </div>
+          <p class="hint" id="s-style-hint">Changes on stream as soon as you save. Click <strong>Show a test bubble</strong> on the dashboard to see it.</p>
           <label for="s-area">Where bubbles appear <span class="hint">keep them clear of your camera, keyboard or chat</span></label>
           <select id="s-area" name="bubbleArea">
             <option value="anywhere">Anywhere</option>
