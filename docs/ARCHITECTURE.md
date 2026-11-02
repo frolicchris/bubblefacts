@@ -67,6 +67,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/local-only.ts` | Answers only to this computer: checks the Host header against DNS rebinding. |
 | `backend/src/atomic-write.ts`, `text.ts`, `types.ts` | Crash-safe file writes, small text helpers, and the shared song and fact shapes. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
+| `backend/src/bubble-style.ts` | Which built-in Style the overlay shows, and the text colors for the streamer's own colors (issue #177). |
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
 
 New to the fact checking? Start with `screenClaims` in `fact-verifier.ts`
@@ -1438,6 +1439,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/song-facts/get`, `/control/song-facts` | **Add facts for this song**: read, then save (up to 20 facts of up to 300 characters, 5 songwriters, a 200-character link). Over a limit, the save is refused with `error`, a reason the editor shows; nothing is trimmed. Answers as soon as it's saved (the app waits 3 seconds at most), then shows them if the song is still on. |
 | `/control/facts-off` | **No facts for this song** and **No facts for this artist**, in the editor and one click each under **Earlier songs**. Saves the switch, forgets the song's cached facts and, for the song on now, takes the found bubbles off (the streamer's own stay). |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
+| `/control/style` | **Style** and **Use my own colors** in Settings (issue #177): sends the new look to every overlay at once, as a `style` message, with no restart and no Refresh in OBS. Never refused: an unknown Style is `classic`, and colors that aren't both `#rrggbb` are dropped. Returns the look it sent. |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.
@@ -1547,5 +1549,36 @@ BubbleFacts data** deletes all of them.
   than tall (dropped onto a landscape canvas, or a new Browser source left at
   800x600), it says how to fix the size instead of drawing bubbles off the
   phone's screen.
+- **Styles are custom properties, switched live** (issue #177). The look
+  (colors, font, corners, the Now Playing bubble's) is a set of `--bf-*`
+  properties in `obs-overlay.css`: Classic's on `:where(:root)`, each other
+  Style's on `:where(html[data-style="…"])`. The server sends a `style`
+  message to every overlay as it connects, before anything else and even
+  while paused, and again from `/control/style` when the streamer saves, and
+  the overlay sets `data-style` on `<html>`. The rules use `:where()`, which
+  has no specificity, so anything in OBS's Custom CSS box still wins, whether
+  it sets a `--bf-` property or styles `.popup-bubble` directly. A Style sets
+  only `--bf-` properties, never a size, an animation or `content`
+  (`bubble-style.test.ts` checks), so text stays at its readable sizes (24px at
+  1080p, 40px on a 1080-wide vertical canvas, scaled only by Bubble size) and
+  animations stay transform and opacity. Fonts are system font stacks: a
+  Browser source may be offline, and a web font that hasn't loaded would
+  swap mid-bubble. Retro's fixed-width font is tightened (negative letter
+  spacing) so a long fact wraps to about as many lines as in Classic, keeping
+  the spots' room-for-a-long-fact sums (`BANNER_TOP`,
+  `VERTICAL_NOW_PLAYING_CLEARANCE`) true. An unknown Style, from a newer
+  version's settings or a typo, shows Classic; it never hides bubbles.
+- **Every palette keeps text at WCAG AA contrast (4.5:1).** The test reads
+  each Style's colors from the CSS and checks the fact text, the song title,
+  the Now Playing label and the LIVE LEARN label against both background
+  gradient stops, composited over black and over white video, since the
+  bubble is see-through. For the streamer's own colors, `customColors` picks
+  white or a soft black text, whichever reads better, and uses the accent for
+  the Now Playing label only when it reaches 4.5:1 on the background (the
+  text color otherwise). A custom background is opaque: a see-through
+  mid-tone (a gray, a medium blue) over changing video can't keep 4.5:1 with
+  any text color, while opaque, black or white always reaches at least about
+  4.58:1. LIVE LEARN is told apart by its words, not only its gold, so color is
+  never the only signal.
 - **The banner and the bubbles have separate timers,** so facts arriving right
   after a song change can't cancel the banner's fade-out.

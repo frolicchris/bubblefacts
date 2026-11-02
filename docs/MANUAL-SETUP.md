@@ -320,7 +320,25 @@ bubbles keep clear of those apps' buttons and chat. Choose where they go with
 
 ### The look
 
-Colors, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
+Pick a style for both overlays, and if you like, your own colors:
+
+```env
+BUBBLE_STYLE=classic         # or light, minimal, retro
+BUBBLE_ACCENT=#ff8800        # optional: the border and the Now Playing label
+BUBBLE_BACKGROUND=#ffffff    # optional: set both colors, or neither
+```
+
+The text turns light or dark by itself, whichever is easier to read on your
+background. Restart BubbleFacts after changing these; there's no need to
+refresh the source in OBS. A style name or color it doesn't recognize shows
+the classic look instead, with a line in the log saying why.
+
+OBS's **Custom CSS** box in the source's properties still works on top of any
+style. The style's colors, font and corners are the `--bf-` settings near the
+top of `frontend/obs/obs-overlay.css`, so a line like
+`:root { --bf-radius: 20px; }` in that box changes just the corners.
+
+Everything else (sizes and animation) is in `frontend/obs/obs-overlay.css`. To make the
 text bigger or smaller, change `--fact-font-size` near the top. Save the file,
 then right-click the source in OBS and choose **Refresh**.
 
