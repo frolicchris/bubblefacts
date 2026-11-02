@@ -20,7 +20,7 @@ import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } fro
 import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
-import { ABOUT_CREDIT, aboutIsChannelTalk, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
+import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -1098,6 +1098,16 @@ export function forgetTwitchAbout(): void {
   for (const [key, cached] of factCache) if (cached.facts.some((f) => f.source?.startsWith(SOURCE.twitchAbout))) factCache.delete(key);
 }
 
+/**
+ * Someone else's original on the streamer's list: tagged "Originals", credited to another
+ * artist, and with no article. It takes the Twitch About before the facts of its queue entry.
+ */
+async function friendsOriginalAbout(song: SSLSong, entry: SSLQueueItem | null, want: number, asked: SSLSong): Promise<Generated | null> {
+  const names = [config.sslStreamerName, config.streamerDisplayName];
+  if (!canAskAbout() || !config.originals || !isOriginal(entry, names) || isOwnOriginal(entry, names)) return null;
+  return (await findReference(song)).context ? null : twitchAboutFacts(song, want, asked);
+}
+
 /** The streamer's original: facts from its queue entry and their notes, no lookup. Null when it isn't one. */
 function originalFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, asked: SSLSong): Generated | null {
   const names = [config.sslStreamerName, config.streamerDisplayName];
@@ -1417,7 +1427,7 @@ async function generateRest(listed: SSLSong, entry: SSLQueueItem | null, want: n
   const none = { facts: [] as Fact[], ttlMs: RETRY_MS };
 
   try {
-    return originalFacts(song, entry, want, asked) ?? (await groundedFacts(song, entry, want, sourcedOnly, asked, onEarly));
+    return (await friendsOriginalAbout(song, entry, want, asked)) ?? originalFacts(song, entry, want, asked) ?? (await groundedFacts(song, entry, want, sourcedOnly, asked, onEarly));
   } catch (err) {
     if (err instanceof Obsolete) {
       // Not cached: the song may come back, and then it deserves a real try.

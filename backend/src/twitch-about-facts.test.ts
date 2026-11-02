@@ -51,7 +51,7 @@ import { resetSongFacts, saveSongFacts } from "./song-facts";
 import { topic } from "./topic";
 import { ABOUT_CREDIT, connectAboutAsker, forgetAbouts, onAboutAnswer } from "./twitch-about";
 import { resetWrongFacts } from "./wrong-facts";
-import { SSLSong } from "./types";
+import { SSLQueueItem, SSLSong } from "./types";
 
 const song = (title: string, artist = "MarlowKeys"): SSLSong => ({ title, artist });
 const about = ["Marlow writes piano loops in Lisbon.", "Marlow scored two short films."];
@@ -85,6 +85,16 @@ describe("Twitch About for a song no source knows", () => {
     expect(facts.map((f) => f.text)).toEqual(about.map((f) => `${ABOUT_CREDIT}${f}`));
     expect(facts.every((f) => f.source === `${SOURCE.twitchAbout}MarlowKeys`)).toBe(true);
     expect(factStats.twitchAbout).toBe(before + 1);
+  });
+
+  it("covers another artist's song tagged Originals, but never the streamer's own", async () => {
+    const tagged = (artist: string) => ({ song: { attributes: [{ name: "Originals" }], artist } }) as unknown as SSLQueueItem;
+    const facts = await generateFacts(song("Rain Loop"), tagged("MarlowKeys"));
+    expect(facts[0].text).toBe(`${ABOUT_CREDIT}${about[0]}`);
+    asked = [];
+    clearFactCache();
+    await generateFacts(song("Rain Loop", config.sslStreamerName), tagged(config.sslStreamerName));
+    expect(asked).toEqual([]);
   });
 
   it("never asks about a song with an article or database facts", async () => {
