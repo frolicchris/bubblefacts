@@ -430,6 +430,10 @@
     const took = $("#facts-took");
     took.textContent = h && h.factsTook ? h.factsTook : "";
     took.hidden = !took.textContent;
+    // Asking the AI for less while the computer is busy with the stream (it recovers by itself).
+    const pace = $("#facts-pace");
+    pace.textContent = h && h.pace ? h.pace : "";
+    pace.hidden = !pace.textContent;
 
     // Stream
     if (state.paused) setStatusLight("light-obs", "warn", "Bubbles paused");

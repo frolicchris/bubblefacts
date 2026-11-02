@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
@@ -20,6 +21,7 @@ import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } fro
 import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
+import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
 
 /**
@@ -247,6 +249,49 @@ const aiAsked = new Set<string>();
 const aiTimes = new Map<string, number>();
 /** The song's AI time for this play, in ms; null when the AI wrote nothing for it this time. */
 export const aiTimeFor = (song: SSLSong): number | null => aiTimes.get(songKey(song)) ?? null;
+
+/**
+ * Keeping the built-in AI in step with the computer (issue #314, pace.ts). Only the built-in
+ * model runs on the streamer's computer; an online AI or Ollama is left as it is.
+ */
+let pacer = new PaceKeeper();
+/** A fresh start, as after launching the app. Only the tests call this. */
+export function resetPace(): void {
+  pacer = new PaceKeeper();
+}
+const paced = () => config.aiProvider === "builtin";
+/** When the song on now started, for how long its facts took from the viewers' side. */
+let songStartedAt = 0;
+/** The built-in model's last speed, whether it got a GPU, and whether it is making room for the stream. */
+const builtinInfo: { wordsPerSecond: number | null; gpu: string | null; makingRoom: boolean; threads: number | null } = { wordsPerSecond: null, gpu: null, makingRoom: false, threads: null };
+const cpuWatch = new CpuWatch();
+
+/** What /health reports on keeping up: the dashboard's line, and the measures behind it. */
+export function paceReport() {
+  const pace: Pace = paced() ? pacer.pace() : "full";
+  const average = pacer.averageMs();
+  return {
+    line: paceLine(pace),
+    pace,
+    averageWaitMs: average === null ? null : Math.round(average),
+    wordsPerSecond: builtinInfo.wordsPerSecond,
+    gpu: builtinInfo.gpu,
+    othersCpu: cpuWatch.latestShare === null ? null : Math.round(cpuWatch.latestShare * 100) / 100,
+    freeMemoryMb: Math.round(os.freemem() / 1024 / 1024),
+    makingRoom: builtinInfo.makingRoom,
+    threads: builtinInfo.threads,
+  };
+}
+
+/** Logs a change of pace with the measures behind it, so a slow stream can be read from the log afterwards. */
+function logPace(before: Pace, waitedMs: number, missed: boolean): void {
+  const after = pacer.pace();
+  if (after === before) return;
+  const r = paceReport();
+  const wait = `${missed ? "ended after" : "facts after"} ${Math.round(waitedMs / 1000)}s`;
+  const cpu = r.othersCpu === null ? "?" : `${Math.round(r.othersCpu * 100)}%`;
+  console.log(`[Pace] ${before} -> ${after} (this song: ${wait}; ${r.wordsPerSecond ?? "?"} words/s on ${r.gpu ?? "?"}, other programs ${cpu} CPU, ${r.freeMemoryMb} MB free)`);
+}
 
 /** One line of logs/songs.log: time, title, artist field (without a note in brackets: issue #262), outcome, count. */
 export function songsLogLine(song: SSLSong, outcome: Outcome, count: number, now = new Date()): string {
@@ -633,12 +678,60 @@ function loadBuiltin(): Promise<{ session: any }> {
     const context = await model.createContext({ contextSize: 4096 });
     const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
     console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+    builtinInfo.gpu = llama.gpu || "cpu";
+    watchCpu(llama, context.idealThreads as number);
     return { session };
   })().catch((err) => {
     builtin = undefined; // Let the next song retry the load.
     throw err;
   });
   return builtin;
+}
+
+let cpuTimer: NodeJS.Timeout | undefined;
+
+/**
+ * Reads the CPU every CPU_SAMPLE_MS. While other programs keep it near full (a game and OBS's
+ * encoder), the model uses fewer threads and the server runs at low priority, so the stream
+ * gets the CPU first; all the threads come back once it has been calm for a while (issue #314).
+ */
+function watchCpu(llama: { maxThreads: number }, usualThreads: number): void {
+  if (cpuTimer) return;
+  const usualMax = llama.maxThreads;
+  let priority: number | null = null;
+  try {
+    priority = os.getPriority();
+  } catch {
+    // Unknown: left as it is.
+  }
+  let before = cpuTimes();
+  let ownBefore = process.cpuUsage();
+  cpuTimer = setInterval(() => {
+    const after = cpuTimes();
+    const own = process.cpuUsage(ownBefore);
+    const share = othersCpuShare(before, after, (own.user + own.system) / 1000);
+    before = after;
+    ownBefore = process.cpuUsage();
+    const busy = cpuWatch.read(share);
+    if (busy === builtinInfo.makingRoom) return;
+    builtinInfo.makingRoom = busy;
+    builtinInfo.threads = busy ? busyThreads(usualThreads) : null;
+    // maxThreads limits every evaluation from the next one on; 0 (the GPU default) means no limit.
+    llama.maxThreads = busy ? busyThreads(usualThreads) : usualMax;
+    try {
+      // Low priority costs nothing on a calm computer: it only decides who waits when the CPU is full.
+      if (busy) os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
+      else if (priority !== null) os.setPriority(priority);
+    } catch {
+      // Raising it back needs extra rights on Linux and macOS: it stays low, which only matters while busy.
+    }
+    console.log(
+      busy
+        ? `[Pace] Other programs use ${Math.round(share * 100)}% of the CPU: the AI uses ${busyThreads(usualThreads)} threads at low priority`
+        : "[Pace] The CPU is calm again: the AI uses all its threads"
+    );
+  }, CPU_SAMPLE_MS);
+  cpuTimer.unref();
 }
 
 /** Stand in for the built-in model's chat session. Only the tests call this; the app loads the model. */
@@ -677,7 +770,18 @@ let running: { key: string | null; stop: AbortController } | null = null;
  * front of the current one.
  */
 export function setCurrentSong(song: SSLSong | null): void {
-  currentKey = song ? songKey(song) : null;
+  const key = song ? songKey(song) : null;
+  if (key !== currentKey) {
+    // The song ended while the AI was still writing for it: its facts would have come too late (issue #314).
+    if (paced() && currentKey && aiAsked.has(currentKey)) {
+      const before = pacer.pace();
+      pacer.missed(Date.now() - songStartedAt);
+      logPace(before, Date.now() - songStartedAt, true);
+    }
+    songStartedAt = Date.now();
+    if (key) pacer.songStarted();
+  }
+  currentKey = key;
   if (running?.key && running.key !== currentKey) {
     // Its generation ends with no facts: a quick return to the song must start a new one, not join it.
     inFlight.delete(running.key);
@@ -700,6 +804,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
     session.resetChatHistory();
     const stop = new AbortController();
     running = { key, stop };
+    const writing = Date.now();
     try {
       const text = (await session.prompt(prompt, {
         temperature: config.temperature,
@@ -708,6 +813,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
         stopOnAbortSignal: true,
       })) as string;
       if (stop.signal.aborted) throw new Obsolete();
+      builtinInfo.wordsPerSecond = wordsPerSecond(text, Date.now() - writing) ?? builtinInfo.wordsPerSecond;
       return text;
     } finally {
       running = null;
@@ -1247,6 +1353,25 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
   }
 
+  // A computer too busy for the AI to finish before songs end (issue #314): the instant facts
+  // from Wikidata and MusicBrainz only, with no AI captions. Kept for a while only, so a later
+  // play gets the AI's facts once the computer keeps up again.
+  if (paced() && !pacer.aiThisSong()) {
+    const sureNow = match?.level === "sure" ? { page: context.split("\n")[0], names: [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])] } : null;
+    const data = (await structuredFacts(song, read, Promise.resolve(sureNow))).filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    const shown = rankedData(data, want);
+    console.log(`[Pace] "${song.title}": the computer is busy, ${shown.length} quick facts and no AI`);
+    if (shown.length) {
+      remember(shown);
+      record(asked, structuredLabel.get(shown[0]) === SOURCE.musicbrainz ? "musicbrainz" : "wikidata", shown.length);
+      return { facts: toFacts(song, shown, (t) => structuredLabel.get(t)), ttlMs: RETRY_MS };
+    }
+    if (sourcedOnly) return none;
+    const lines = entryFacts(entry, want);
+    record(asked, "noReference", lines.length);
+    return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+  }
+
   // Facts from data about the song, looked up alongside the AI: when the article is about its
   // artist or game ("describe the song, then tell about it"), or surely about the song itself,
   // when its own Wikidata item can add to them (issue #256). They go to the overlay as soon as
@@ -1276,7 +1401,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   if (edition) console.log(`[Infobox] "${page}" doesn't name the edition "${edition}": no infobox facts`);
   const boxLookup: Promise<BoxFact[]> = context && !edition && !blockedArticles(song).has(STRUCTURED) ? infoboxFacts(page).then((list) => boxForRequest(list, page, song, read)) : Promise.resolve([]);
 
-  const prompt = groundedPrompt(read, context, want + OVERGENERATE);
+  // Running late on this computer (issue #314): fewer captions from the start of the article.
+  // Slow means fewer facts, never weaker checks: everything below screens them exactly as always.
+  const short = paced() && pacer.ask() === "short";
+  const source = short ? shorterContext(context) : context;
+  if (short) console.log(`[Pace] "${song.title}": facts have been late, asking for ${SHORT_CAPTIONS} captions from ${source.length} characters of the article`);
+  const prompt = groundedPrompt(read, source, short ? SHORT_CAPTIONS : want + OVERGENERATE);
   let answer: string;
   try {
     answer = await askModel(prompt, songKey(asked));
@@ -1535,6 +1665,13 @@ export function generateFacts(song: SSLSong, entry: SSLQueueItem | null = null, 
     pending = generate(song, entry, onEarly)
       .then(({ facts, ttlMs }) => {
         if (aiAsked.has(key)) {
+          // How long viewers waited: from the song starting, when it's the song on now (issue #314).
+          if (paced() && key === currentKey) {
+            const before = pacer.pace();
+            const waited = Math.max(0, Date.now() - songStartedAt);
+            pacer.ready(waited);
+            logPace(before, waited, false);
+          }
           aiTimes.set(key, Date.now() - started);
           console.log(`[FactGen] "${withoutRequestCredit(song.title)}": facts took ${((Date.now() - started) / 1000).toFixed(1)}s with the AI`);
         }
