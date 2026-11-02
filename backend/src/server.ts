@@ -758,6 +758,9 @@ type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => voi
 const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
 parentPort?.on("message", ({ data }) => onAppMessage(data));
 if (process.send) process.on("message", onAppMessage);
+// A promise someone forgot to catch must not end the server mid-stream: the bubbles would stop
+// until the app restarts it. Log it so it can be fixed where it started.
+process.on("unhandledRejection", (err) => console.error("[Server] Unhandled error, still running:", err));
 // The app holds the Twitch sign-in, so it reads a channel's About for the server (twitch-about.ts).
 if (parentPort) connectAboutAsker((m) => parentPort.postMessage(m));
 else if (process.send) connectAboutAsker((m) => process.send?.(m));
