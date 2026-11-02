@@ -1,7 +1,7 @@
 name: Dependabot auto-merge
 
 # Patch updates to development tools and workflow actions merge on their own
-# once every required check passes. They don't change what musicians
+# once every required check passes. They don't change what streamers
 # install. Anything that ships in the app (runtime packages, Electron), and
 # every minor or major update, waits for a person (docs/RELEASING.md).
 # Needs "Allow auto-merge" on in the repository settings.

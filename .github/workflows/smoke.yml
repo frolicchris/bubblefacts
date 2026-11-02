@@ -1,6 +1,6 @@
 name: Smoke test
 
-# Installs a published release the way a musician would, on each system, and
+# Installs a published release the way a streamer would, on each system, and
 # checks the installed app: its server starts and serves the overlay, and the
 # built-in AI loads (GPU if there is one, then processor-only). It starts by
 # itself when a Release run finishes successfully, on that run's artifacts. To
@@ -118,7 +118,7 @@ jobs:
 
       - name: Let the test run the app as Node.js
         # The app as shipped refuses to (electronFuses in package.json), so another
-        # program can't borrow it to read the musician's saved keys. This copy is only for the test.
+        # program can't borrow it to read the streamer's saved keys. This copy is only for the test.
         shell: bash
         run: |
           app="$APP_EXE"; [ "$RUNNER_OS" = macOS ] && app="$HOME/Applications/BubbleFacts.app"
