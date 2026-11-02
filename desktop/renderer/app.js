@@ -15,7 +15,7 @@
 
   // --- Views -------------------------------------------------------------
 
-  const VIEW_HEADINGS = { dashboard: "#status-title", settings: "#view-settings h1", about: "#view-about h1" };
+  const VIEW_HEADINGS = { dashboard: "#status-title", songs: "#view-songs h1", settings: "#view-settings h1", about: "#view-about h1" };
   function show(view, { focus = true } = {}) {
     for (const v of $$(".view")) v.hidden = v.id !== "view-" + view;
     for (const b of $$(".navlink")) b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
@@ -25,9 +25,49 @@
       refreshRecent();
       recentTimer = setInterval(refreshRecent, 4000);
     }
+    if (view === "songs") {
+      refreshSongs();
+      recentTimer = setInterval(refreshSongs, 5000);
+    }
     if (view === "settings") fillSettings();
     // A screen reader user lands on the new view's heading, not on a button that just disappeared.
     if (focus && VIEW_HEADINGS[view]) $(VIEW_HEADINGS[view])?.focus();
+  }
+
+  // --- Your songs (issue #294): how many are prepared. Information only. ----
+
+  /** What the Your songs screen last showed, so a list nobody changed isn't redrawn under the reader. */
+  let lastSongs = "";
+  async function refreshSongs() {
+    let r;
+    try {
+      r = await api.prepareStatus();
+    } catch {
+      r = null;
+    }
+    const report = window.SongsReport;
+    const c = r && r.server && r.server.coverage;
+    $("#songs-ready").textContent = c ? report.readyLine(c) : "BubbleFacts can't count your songs while it isn't running.";
+    const requests = report.requestsLine(c);
+    $("#songs-requests").textContent = requests;
+    $("#songs-requests").hidden = !requests;
+    const said = report.stateLine(r ? r.waiting : "server", r && r.server);
+    if ($("#songs-state").textContent !== said) $("#songs-state").textContent = said;
+    const none = (c && c.noFactsSongs) || [];
+    const key = JSON.stringify([c && c.noFacts, none]);
+    if (key === lastSongs) return;
+    lastSongs = key;
+    $("#songs-none").hidden = !none.length;
+    $("#songs-none-count").textContent = c ? Number(c.noFacts).toLocaleString("en-US") : "0";
+    const list = $("#songs-none-list");
+    const items = none.map((s) => (s.artist ? `${s.title} — ${s.artist}` : s.title));
+    // The most requested come first; a long list is cut short.
+    if (c && c.noFacts > none.length) items.push(`and ${Number(c.noFacts - none.length).toLocaleString("en-US")} more`);
+    list.replaceChildren(...items.map((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      return li;
+    }));
   }
 
   function goStep(n) {

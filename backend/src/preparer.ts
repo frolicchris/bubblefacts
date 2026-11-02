@@ -81,6 +81,77 @@ export interface PreparerStatus {
   waitingForLookups: boolean;
 }
 
+/**
+ * How far preparing has come (issue #294), for the one screen the streamer reads. Information
+ * only: nothing in it asks them to check or approve anything (issue #258: they're musicians,
+ * not fact checkers).
+ */
+export interface Coverage {
+  /** Songs on the list or seen on stream. */
+  total: number;
+  /** Prepared with facts, or nothing to prepare (their own facts, a switch), or looked up as it plays. */
+  ready: number;
+  /** Prepared, and no source knows them. */
+  noFacts: number;
+  /** Not prepared yet, or due again. */
+  left: number;
+  /** The share of all requests (plays) that went to ready songs, 0 to 1; null when no plays are known. */
+  requestsCovered: number | null;
+  /** When the rest should be done at the pace measured on this computer; null when nothing is left or there's no pace yet. */
+  finish: { at: string } | { hours: number } | null;
+  /** Songs no source knows, the most requested first, at most `NO_FACTS_SHOWN`. */
+  noFactsSongs: Array<{ title: string; artist: string }>;
+}
+
+/** The songs listed as having no facts at all, at most. */
+export const NO_FACTS_SHOWN = 200;
+/** A finish date needs this many songs' times, and preparing on this many earlier days; until then, hours. */
+const PACE_SONGS = 3;
+const PACE_DAYS = 2;
+
+/** Coverage from the songs, the store and the pace measured on this computer. */
+export function coverage(targets: PrepTarget[], store: PreparedStore, now = Date.now()): Coverage {
+  let ready = 0;
+  let noFacts = 0;
+  let requests = 0;
+  let covered = 0;
+  const none: PrepTarget[] = [];
+  const seen = new Set<string>();
+  for (const t of targets) {
+    if (seen.has(t.key)) continue;
+    seen.add(t.key);
+    requests += t.requests;
+    const entry = store.get(t.key, now);
+    if (!entry) continue;
+    if (entry.outcome === "none") {
+      noFacts++;
+      none.push(t);
+    } else {
+      ready++;
+      covered += t.requests;
+    }
+  }
+  const total = seen.size;
+  const left = total - ready - noFacts;
+  const pace = store.getPace();
+  const perSong = pace.recentMs.length >= PACE_SONGS ? pace.recentMs.reduce((a, b) => a + b, 0) / pace.recentMs.length : 0;
+  const today = dayOf(now);
+  // Time spent preparing on recent days other than today, which is still going.
+  const days = Object.entries(pace.activeByDay).filter(([d]) => d !== today).sort(([a], [b]) => a.localeCompare(b)).slice(-7).map(([, ms]) => ms);
+  const perDay = days.length >= PACE_DAYS ? days.reduce((a, b) => a + b, 0) / days.length : 0;
+  const work = left * perSong;
+  const finish = !left || !perSong ? null : perDay > 0 ? { at: new Date(now + (work / perDay) * 24 * 60 * 60 * 1000).toISOString() } : { hours: Math.max(1, Math.round(work / 3_600_000)) };
+  return {
+    total,
+    ready,
+    noFacts,
+    left,
+    requestsCovered: requests > 0 ? covered / requests : null,
+    finish,
+    noFactsSongs: none.sort((a, b) => b.requests - a.requests).slice(0, NO_FACTS_SHOWN).map((t) => ({ title: t.song.title, artist: t.song.artist ?? "" })),
+  };
+}
+
 export class Preparer {
   private stopper: AbortController | null = null;
   private loop: Promise<void> | null = null;

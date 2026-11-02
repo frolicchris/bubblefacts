@@ -21,7 +21,7 @@ import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
 import { SongFactSharer } from "./share-song-facts";
-import { Preparer, PrepTarget } from "./preparer";
+import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
 import { playHistory } from "./play-history";
 import { isNotMusic } from "./not-music";
@@ -622,9 +622,9 @@ control.post("/prepare", (req, res) => {
   res.json({ ...preparer.status(), ...(refused ? { refused } : {}) });
 });
 
-// Where preparing stands, for the app's window.
+// Where preparing stands, and how many songs are ready (issue #294), for the app's window. Information only.
 control.post("/prepare/status", (_req, res) => {
-  res.json(preparer.status());
+  res.json({ ...preparer.status(), coverage: coverage(prepTargets(), preparedStore) });
 });
 
 // "Add facts for another song": find it on the song list as the musician types.

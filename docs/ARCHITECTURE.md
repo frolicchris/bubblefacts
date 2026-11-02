@@ -87,7 +87,7 @@ sign-ins and the built-in AI. Its design decisions are in
 |---|---|
 | `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and every request from the window (`ipcMain.handle`). |
 | `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
-| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, settings and About. Plain JavaScript, no build step. |
+| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
@@ -1518,6 +1518,20 @@ written:
   Standard model's ones again with the model on stream (`upgrade`, last in
   line), the most requested first.
 
+**Coverage** (issue #294). `POST /control/prepare/status` answers with where
+preparing stands and `coverage` (`preparer.ts`): how many songs there are,
+how many are ready (facts, nothing to prepare, or looked up as it plays), how
+many no source knows (the 200 most requested, by name), how many are left,
+the share of all requests (`timesPlayed` and plays on stream) that went to
+ready songs, and a finish. The finish uses the pace measured on this computer
+and saved with the store: the mean time of the latest 50 songs, times the
+songs left, spread over the mean time spent preparing per day on up to seven
+earlier days (today is still going). With fewer than three songs or two
+earlier days measured, it's hours of preparing instead, or nothing. The app's
+**Your songs** screen words it (`desktop/renderer/songs-report.js`). It's
+information only: no list of risky songs, nothing to review or approve
+(issue #258).
+
 **Songs from play history** (issue #297). StreamElements, Streamling,
 Nightbot and other now playing files have no list, but the same requests come
 back. `onSongChange` records each song (not a commercial or ident) in
@@ -1573,6 +1587,7 @@ drops a caption with a link, a chat command or an `@mention`.
 | `/control/facts-off` | **No facts for this song** and **No facts for this artist**, in the editor and one click each under **Earlier songs**. Saves the switch, forgets the song's cached facts and, for the song on now, takes the found bubbles off (the streamer's own stay). |
 | `/control/songs/search` | **Add facts for another song**: songs on the StreamerSongList list whose title or artist contains every word typed (case and accents ignored), titles starting with it first, at most 8 by default. Searches the copy read at start (`learnListFormat` keeps id, title and artist), so a song added to the list later shows after a restart; a read that failed is retried on a search, at most once a minute. Picking one saves the facts with its song ID. `available: false` with StreamElements, which has no list. |
 | `/control/prepare` | **Prepare my songs** (see [Prepared songs](#prepared-songs)): `run: true` starts or carries on, `run: false` stops at once. Refused (`refused`) while an overlay is connected or there's no AI. Answers with where it stands. |
+| `/control/prepare/status` | Where preparing stands and how many songs are ready, for **Your songs** (`coverage`). |
 | `/control/selftest` | `scripts/smoke-packaged.mjs` writes and screens real captions for two songs at once, through the turn-taking queue. |
 
 `GET /health` and `GET /recent` (the song and facts last sent) need no header.

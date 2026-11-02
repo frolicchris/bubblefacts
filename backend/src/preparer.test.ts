@@ -4,7 +4,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { PreparedStore, PREPARED_RULES_VERSION } from "./prepared-facts";
-import { CHECK_EVERY_MS, Preparer, PreparerDeps, PrepTarget } from "./preparer";
+import { CHECK_EVERY_MS, coverage, Preparer, PreparerDeps, PrepTarget } from "./preparer";
 import type { PreparedSong } from "./fact-generator";
 import { SSLSong } from "./types";
 
@@ -155,6 +155,17 @@ describe("Preparer (issue #293)", () => {
     expect(new Set(answers).size).toBe(1);
   });
 
+  it("does nothing more once every song is prepared, even after the store was read again", async () => {
+    const { p } = preparer();
+    p.start();
+    await p.stopped();
+    store = new PreparedStore(() => file);
+    const again = preparer();
+    again.p.start();
+    await again.p.stopped();
+    expect(again.prepared).toEqual([]);
+  });
+
   it("does nothing more once every song is prepared", async () => {
     const { p, prepared } = preparer();
     p.start();
@@ -163,5 +174,40 @@ describe("Preparer (issue #293)", () => {
     await p.stopped();
     expect(prepared).toHaveLength(3);
     expect(p.status().finished).toBe(true);
+  });
+});
+
+describe("coverage (issue #294)", () => {
+  const now = Date.parse("2026-11-02T20:00:00");
+  const at = new Date(now - 3600_000).toISOString();
+  const put = (id: number, outcome: "facts" | "none" | "own" | "live") =>
+    store.put(`ssl:${id}`, { title: "x", artist: "y", outcome, facts: [], article: "", revision: 0, rules: PREPARED_RULES_VERSION, model: "", preparedAt: at, checkedAt: at });
+  const songs = [target("Harbor Lights", 30, 1), target("Tin Roof", 10, 2), target("Low Tide", 5, 3), target("Paper Kites", 5, 4), target("Glass Orchard", 50, 5)];
+
+  it("counts the songs ready, the songs no source knows, the songs left, and the share of requests covered", () => {
+    put(1, "facts");
+    put(2, "own");
+    put(3, "none");
+    const c = coverage(songs, store, now);
+    expect(c).toMatchObject({ total: 5, ready: 2, noFacts: 1, left: 2, noFactsSongs: [{ title: "Low Tide", artist: "Marlo Venn" }] });
+    expect(c.requestsCovered).toBeCloseTo(40 / 100);
+  });
+
+  it("gives no finish date before it knows the pace, then hours, then a date from the time spent preparing each day", () => {
+    expect(coverage(songs, store, now).finish).toBeNull();
+    for (let i = 0; i < 3; i++) store.addPace(60_000, 0, "2026-11-02");
+    // Five songs left at a minute each, with no days measured yet: hours, at least one.
+    expect(coverage(songs, store, now).finish).toEqual({ hours: 1 });
+    // Five minutes of work a day on earlier days: five songs take a day.
+    store.addPace(0, 5 * 60_000, "2026-10-31");
+    store.addPace(0, 5 * 60_000, "2026-11-01");
+    const finish = coverage(songs, store, now).finish as { at: string };
+    expect(Date.parse(finish.at) - now).toBeCloseTo(24 * 3600_000, -3);
+  });
+
+  it("has no finish date when every song is done", () => {
+    for (const id of [1, 2, 3, 4, 5]) put(id, id === 4 ? "live" : "facts");
+    for (let i = 0; i < 3; i++) store.addPace(60_000, 0, "2026-11-02");
+    expect(coverage(songs, store, now)).toMatchObject({ left: 0, ready: 5, finish: null, requestsCovered: 1 });
   });
 });
