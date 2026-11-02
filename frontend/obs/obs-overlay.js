@@ -14,7 +14,8 @@
  * Setup
  * -----
  *
- *  Add a Browser Source in OBS with "Local File" checked, pointing at this
+ *  Add a Browser Source in OBS with the URL http://127.0.0.1:3000/obs-overlay
+ *  while the server runs, or with "Local file" checked, pointing at this
  *  folder's obs-overlay.html, 1920x1080. See docs/MANUAL-SETUP.md.
  *
  *  For a vertical (9:16) stream, use obs-overlay-vertical.html instead, at
@@ -23,8 +24,8 @@
  *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
  *  without the server. A red dot bottom-right means the server isn't
- *  reachable. Styling lives in obs-overlay.css; positions, and which Style
- *  to use, come from the server.
+ *  reachable. Styling lives in obs-overlay.css; positions, the bubble size,
+ *  and which Style to use, come from the server.
  */
 (function () {
   "use strict";

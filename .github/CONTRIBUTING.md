@@ -72,11 +72,11 @@ the approach before you spend time on it.
 The commands, one by one:
 
 ```bash
-npm run check       # typecheck, lint, tests and script tests (not the build); also runs on every push and pull request
+npm run check       # typecheck, lint, tests and script tests (not the build); also runs on every pull request and push to main
 npm run typecheck   # TypeScript in strict mode, the server and the desktop app, tests included
 npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts
 npm test            # jest, a few seconds: the server and the desktop app
-npm run test:scripts # the release scripts' own tests
+npm run test:scripts # the version and Lite build scripts' own tests
 npm run build       # compile the server to dist/
 ```
 
@@ -92,7 +92,7 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
 2. `npm run check` type-checks, lints and tests everything, including the
    app's tests in `desktop/src/*.test.ts`.
 3. `npm run app` builds the app and runs it in development. On Linux, the
-   packaged app runs its fact server under a bundled Node.js because the
+   packaged full app runs its fact server under a bundled Node.js because the
    built-in AI crashes under Electron's own runtime there; from source it
    uses Electron's, so choose an online AI or Ollama in Settings while
    developing on Linux.
@@ -100,6 +100,13 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
    `npm run dist:lite` builds BubbleFacts Lite (no AI engine) into
    `release-lite/`. To see Lite's screens without building it, run
    `BUBBLEFACTS_EDITION=lite npm run app`.
+5. Put a new feature in its own file in `desktop/src/`, with its tests beside
+   it; `main.ts` only wires the app together. If the window needs to talk to
+   the feature, export a `registerSomething({ handle, … })` that registers its
+   messages through the `handle()` main.ts passes in, as `preparing.ts` does,
+   and add the file to `SELF_REGISTERING` in `desktop/src/ipc-order.test.ts`.
+   Never use `ipcMain` there: `handle()` checks that each message comes from
+   the app's own window.
 
 On a Mac whose Desktop or Documents folder is synced by iCloud, build into a
 folder outside it, or code signing fails on the metadata Finder adds:
@@ -109,7 +116,7 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 ```
 
 **Test builds for every system:** on GitHub, go to **Actions → Release → Run
-workflow**. The installers appear as downloadable artifacts on the run. This
+workflow**. The installers appear as downloadable artifacts on the run, two for each system: the full app, and Lite (`-lite` in the name). This
 works in forks too. A test build says so at the bottom of its window, with
 the commit it was built from, for example `2.0.0-rc.1 test build (c4ee826)`;
 a build from your own computer says `(dev)`.
