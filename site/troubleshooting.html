@@ -90,9 +90,9 @@
                 <td>BubbleFacts needs to run on the same computer as OBS. Try dragging the tile again, or <a href="guide.html#obs-by-hand">add it by hand</a>.</td>
               </tr>
               <tr>
-                <th scope="row">The app says StreamerSongList rejected your sign-in or token</th>
+                <th scope="row">"Your StreamerSongList sign-in ended" or "StreamerSongList didn't accept your sign-in"</th>
                 <td>Your sign-in ran out, or the token is wrong or expired</td>
-                <td>Sign in again from the app's <span class="ui">Settings</span>, or open <span class="ui">Use a token instead</span> and paste a new token (see <a href="guide.html#song-list-token">Having trouble signing in?</a>).</td>
+                <td>Click <span class="ui">Sign in</span> in the app's message. Using a token? Click <span class="ui">Open Settings</span>, open <span class="ui">Use a token instead</span> and paste a new token (see <a href="guide.html#song-list-token">Having trouble signing in?</a>).</td>
               </tr>
               <tr>
                 <th scope="row">"StreamerSongList isn't answering right now. Your sign-in is fine"</th>
@@ -146,8 +146,23 @@
               </tr>
               <tr>
                 <th scope="row">Fewer bubbles than expected</th>
-                <td>Some captions failed the fact check</td>
-                <td>That's normal for songs with short articles. It means the check is working.</td>
+                <td>Some captions failed the fact check, your computer was busy, or your custom facts are waiting their turn</td>
+                <td>Usually nothing. Short articles give fewer captions, which means the check is working. If the dashboard says <span class="ui">Your computer is busy, so fewer facts</span>, BubbleFacts goes back to normal on its own once songs get their facts on time (see <a href="guide.html#check">Check that it works</a>). A custom fact that showed in the last hour waits; five or more keep the bubbles full.</td>
+              </tr>
+              <tr>
+                <th scope="row">Bubbles come late, and the dashboard says "Facts took" a long time</th>
+                <td>The built-in AI is sharing your computer with the stream</td>
+                <td>Turn on <a href="guide.html#prepare">Prepare my songs</a> in <span class="ui">Settings</span>, so facts are written while you're not streaming and show as soon as a song starts. Or choose <span class="ui">Online, with Groq (free key)</span> under <span class="ui">Advanced</span>.</td>
+              </tr>
+              <tr>
+                <th scope="row"><span class="ui">Your songs</span> says "Waiting"</th>
+                <td>Prepare my songs works only while OBS is closed, your computer is plugged in, and the AI on this computer is chosen and ready</td>
+                <td>Do what the line says: close OBS, or plug your computer in. "BubbleFacts is on your stream in OBS" with OBS closed means a browser tab from <span class="ui">Test in your browser</span> is still open: close it. With an online AI chosen, songs aren't prepared.</td>
+              </tr>
+              <tr>
+                <th scope="row">BubbleFacts Lite gives few songs facts</th>
+                <td>Lite has no AI, so only songs the music databases know get facts</td>
+                <td>That's expected. To get more, choose an online AI or your own Ollama in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, or install the full BubbleFacts (see <a href="requirements.html#lite">BubbleFacts Lite</a>).</td>
               </tr>
               <tr>
                 <th scope="row">Bubbles cover your camera, or jump around the screen</th>
@@ -187,7 +202,7 @@
               <tr>
                 <th scope="row">Your stream stutters when a song starts</th>
                 <td>The built-in AI is sharing your computer with OBS</td>
-                <td>Choose <span class="ui">Online, with Groq (free key)</span> in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span> (see <a href="guide.html#ai">Optional: use an online AI instead</a>). It's free and does the work online.</td>
+                <td>BubbleFacts already slows its AI down while a game or OBS keeps the processor nearly full. If it still stutters, turn on <a href="guide.html#prepare">Prepare my songs</a>, or choose <span class="ui">Online, with Groq (free key)</span> in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span> (see <a href="guide.html#ai">Optional: use an online AI instead</a>). It's free and does the work online.</td>
               </tr>
               <tr>
                 <th scope="row">The app says the built-in AI can't run on this computer</th>
@@ -202,7 +217,7 @@
               <tr>
                 <th scope="row">You're moving to a new computer</th>
                 <td>Your settings and facts are on the old one</td>
-                <td>On the old computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, and click <span class="ui">Back up…</span>. Install BubbleFacts on the new one, sign in, then use <span class="ui">Restore…</span> in the same place and pick that file. Your sign-in and keys aren't in the backup, so you sign in again. If you used an online AI, choose it again in <span class="ui">Settings</span>.</td>
+                <td>On the old computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, and click <span class="ui">Back up…</span>. Install BubbleFacts on the new one, sign in, then use <span class="ui">Restore…</span> in the same place and pick that file. Your sign-in and keys aren't in the backup, so you sign in again. If you used an online AI, choose it again in <span class="ui">Settings</span>. If you used <span class="ui">Prepare my songs</span>, turn it on again there: it prepares your songs again on the new computer.</td>
               </tr>
             </tbody>
           </table>

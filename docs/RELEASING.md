@@ -223,8 +223,8 @@ change; anything else found goes to the 2.0.1 milestone. Before tagging it, go o
 **The website on release day:** it switches to stable wording by itself as
 soon as 2.0.0 is published (the download page then says "Newest version"
 instead of "2.0 beta"). The one edit is for visitors without JavaScript:
-flip the site default in `site/assets/site.css`, as `site/README.md`
-("When version 2.0.0 ships") describes, and upload it.
+flip the site default in `site/assets/site.css` and upload it (done in
+2.0.0; see `site/README.md`, "Since version 2.0.0").
 
 **If 2.0.0 has a serious problem:** releases are immutable and version tags
 are locked, so the way back is forward: fix it on `main` and release 2.0.1

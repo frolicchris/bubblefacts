@@ -53,7 +53,7 @@
         <p class="eyebrow">Privacy</p>
         <h1>Your data, in plain words</h1>
         <div class="rpg has-cursor" style="margin-bottom:2.5rem">
-          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to the song list service you connect (StreamerSongList or StreamElements), to a file your music app writes, if you use one, to Wikipedia, Wikidata and MusicBrainz to look songs up, to Hugging Face once to download the built-in AI, to GitHub to check for updates, to Twitch or YouTube only in the cases below, to an online AI only if you choose one, and to another app only if you turn on sharing and enter its address. Nothing is sent to this project.</p>
+          <p><strong>The short version:</strong> BubbleFacts runs on your computer. It talks to the song list service you connect (StreamerSongList or StreamElements), to a file your music app writes, if you use one, to Wikipedia, Wikidata and MusicBrainz to look songs up, to Hugging Face once to download the built-in AI (not in BubbleFacts Lite), to GitHub to check for updates, to Twitch or YouTube only in the cases below, to an online AI only if you choose one, and to another app only if you turn on sharing and enter its address. Nothing is sent to this project.</p>
         </div>
 
         <ul class="privacy-list">
@@ -67,7 +67,7 @@
           </li>
           <li>
             <h2>StreamerSongList</h2>
-            <p>The app reads your request queue from StreamerSongList, using your sign-in (or your token, if you use one), so it knows which song you're playing. You sign in on StreamerSongList's own website, in your web browser, so BubbleFacts never sees your Twitch password.</p>
+            <p>The app reads your request queue and your song list from StreamerSongList, using your sign-in (or your token, if you use one), so it knows which song you're playing, how your list writes songs and, with <span class="ui">Prepare my songs</span>, which songs to prepare. Now and then it also asks StreamerSongList whether your sign-in still works, so it can tell you when it doesn't. You sign in on StreamerSongList's own website, in your web browser, so BubbleFacts never sees your Twitch password.</p>
           </li>
           <li>
             <h2>StreamElements</h2>
@@ -79,7 +79,7 @@
           </li>
           <li>
             <h2>Wikipedia, Wikidata and MusicBrainz</h2>
-            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song, and to Wikidata and MusicBrainz, two public music databases, for plain facts such as the year and the album. For a classical piece, the composer, catalog number or nickname from the title also go to Wikidata, to find the piece. Like any website, they see your computer's internet address. Nothing else about you or your stream is sent. A note in a song's title or artist naming who commissioned or requested it is left out of every lookup: that viewer's name is never searched, sent to an AI or written to the log.</p>
+            <p>Song titles, and the artist or game name, are sent to Wikipedia to look up articles about the song, and to Wikidata and MusicBrainz, two public music databases, for plain facts such as the year and the album. For a classical piece, the composer, catalog number or nickname from the title also go to Wikidata, to find the piece. Like any website, they see your computer's internet address. Nothing else about you or your stream is sent. With <span class="ui">Prepare my songs</span> on, this includes songs on your list you haven't played yet. A note in a song's title or artist naming who commissioned or requested it is left out of every lookup: that viewer's name is never searched, sent to an AI or written to the log.</p>
           </li>
           <li>
             <h2>Twitch (only if you connect it)</h2>
@@ -91,8 +91,8 @@
           </li>
           <li>
             <h2>The AI</h2>
-            <p>With the built-in AI, the default, captions are written on your computer. The AI model is downloaded once, from Hugging Face, a site that hosts AI models. After that, nothing is sent anywhere to write captions.</p>
-            <p>If you choose an online AI (Groq or Anthropic), only the song title, artist and the Wikipedia article text are sent to that service to write the captions. Nothing about you or your channel is. Their own privacy policies apply. If you choose your own Ollama, they go to the Ollama address you set.</p>
+            <p>With the built-in AI, the default, captions are written on your computer. The AI model is downloaded once, from Hugging Face, a site that hosts AI models. After that, nothing is sent anywhere to write captions. BubbleFacts Lite has no built-in AI and downloads nothing from Hugging Face.</p>
+            <p>If you choose an online AI (Groq or Anthropic), only the song title, artist and the Wikipedia article text (sometimes with a few lines from a related article, like its album's) are sent to that service to write the captions. Nothing about you or your channel is. Their own privacy policies apply. If you choose your own Ollama, they go to the Ollama address you set. <span class="ui">Prepare my songs</span> never uses an online AI.</p>
           </li>
           <li>
             <h2>Sharing song facts (only if you turn it on)</h2>
