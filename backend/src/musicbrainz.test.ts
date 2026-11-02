@@ -3,6 +3,7 @@ jest.mock("./config", () => ({
 }));
 
 import { config } from "./config";
+import { PrepContext, prepContext, watchLookupTrouble } from "./prep-context";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
 import { artistByTitle, artistPageFit, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, closeName, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
@@ -550,5 +551,33 @@ describe("closeName: another middle initial is another person", () => {
     expect(closeName("Rafa F. Moreno", "Rafa J. Moreno")).toBe(false);
     expect(closeName("Rafa F. Morreno", "Rafa F. Moreno")).toBe(true);
     expect(closeName("Girls Got Rythm", "Girls Got Rhythm")).toBe(true);
+  });
+});
+
+describe("a busy MusicBrainz while songs are prepared", () => {
+  // Seen on a Mac on 2026-11-02: a 503 the retry got past still put the next song off for a minute or two.
+  const answers: number[] = [];
+  const fetchMock = jest.fn(async () => {
+    const status = answers.shift() ?? 200;
+    return { ok: status === 200, status, json: async () => ({ recordings: [], count: 0 }) } as Response;
+  });
+  // Each case asks about its own song: an answer is kept, so a second ask wouldn't reach MusicBrainz.
+  const prepared = async (title: string, statuses: number[]) => {
+    answers.splice(0, answers.length, ...statuses);
+    const ctx: PrepContext = { recent: [], trouble: 0, signal: new AbortController().signal, answers: new Map() };
+    await prepContext.run(ctx, () => musicbrainzFacts({ title, artist: "Pale Comet" }).catch(() => []));
+    return ctx.trouble;
+  };
+  beforeAll(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    watchLookupTrouble();
+  });
+
+  it("doesn't count a busy answer the retry got past", async () => {
+    expect(await prepared("Harbor Lights Waltz", [503, 200])).toBe(0);
+  });
+
+  it("still counts one the retry didn't", async () => {
+    expect(await prepared("Tidewater Reel", [503, 503])).toBeGreaterThan(0);
   });
 });

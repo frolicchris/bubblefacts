@@ -64,10 +64,17 @@ export function watchLookupTrouble(): void {
     const lookup = LOOKUP_HOSTS.test(host);
     try {
       const res = await original(input, init);
-      if (lookup && (res.status === 429 || res.status >= 500)) ctx.trouble++;
+      if (lookup && (res.status === 429 || res.status >= 500)) {
+        ctx.trouble++;
+        // Which source said no, so a pause in the log can be traced to it.
+        console.log(`[Prepare] ${host} answered ${res.status}`);
+      }
       return res;
     } catch (err) {
-      if (lookup) ctx.trouble++;
+      if (lookup) {
+        ctx.trouble++;
+        console.log(`[Prepare] ${host} didn't answer: ${err instanceof Error ? err.name : "error"}`);
+      }
       throw err;
     }
   }) as typeof fetch;
