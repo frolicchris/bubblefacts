@@ -107,12 +107,20 @@ jobs:
           path: model.gguf
           key: model-${{ env.MODEL_SHA256 }}
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # After a Release run the owner started (a tag, or Run workflow), that build's own scripts;
+      # otherwise the default branch's. Code scanning takes who started the run as the proof the
+      # commit can be trusted here, where the job has the default branch's cache.
+      - name: Check out that build's test scripts
+        if: github.event_name == 'workflow_run' && github.actor == github.repository_owner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: scripts
-          # After a Release run, that build's scripts, not the default branch's. Release only runs
-          # on this repository's tags and dispatches, and the commit is taken from no other repository.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Check out the test scripts
+        if: github.event_name != 'workflow_run' || github.actor != github.repository_owner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
