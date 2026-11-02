@@ -36,7 +36,7 @@ const BUILD = buildInfo(PACKAGE);
 /** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
 const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
 import { pruneLogs, Status, Supervisor } from "./supervisor";
-import { prepareEnv } from "./preparing";
+import { prepareEnv, registerPreparing } from "./preparing";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
 
@@ -657,6 +657,20 @@ handle("unwrong-fact", async (_e, article: string, song: unknown) => {
 });
 handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
+/** Prepare my songs (preparing.ts): its window messages, and when the computer is free for it. */
+const preparing = registerPreparing({
+  handle,
+  control,
+  conditions: () => ({
+    enabled: settings.prepareSongs,
+    setupDone: settings.setupComplete,
+    ai: settings.ai === "groq" || settings.ai === "anthropic" ? "online" : settings.ai === "builtin" && (builtinFailed || !activeModel()) ? "none" : "local",
+    serverUp: supervisor.status.state === "running",
+    onBattery: powerMonitor.isOnBatteryPower(),
+    overlays: supervisor.status.health?.obsClients ?? 0,
+  }),
+});
+
 handle("get-state", () => state());
 
 /** A connection test's technical side goes in the log; the window gets the plain reason. */
@@ -1132,6 +1146,7 @@ async function startApp(): Promise<void> {
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);
+  preparing.start();
   backUpNow();
   await checkForUpdate();
 }

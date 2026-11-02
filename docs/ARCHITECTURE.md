@@ -101,6 +101,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
 | `desktop/src/plain-errors.ts` | Turns errors into plain words: what happened and what to do. |
+| `desktop/src/preparing.ts` | **Prepare my songs** in the app: when the computer is free (OBS closed, no overlay, plugged in), starting and stopping it, and its window messages. |
 | `desktop/src/whats-new.ts` | The "What's new" highlights shown once after an update, from `desktop/renderer/whats-new.json`. |
 | `desktop/src/build.ts`, `autostart.ts`, `atomic-write.ts` | Which build this is (release or test build), starting at login on Linux, and crash-safe file writes. |
 
@@ -1479,6 +1480,22 @@ going on; a song with facts saved after three such tries is kept as it is.
 
 The server refuses to start while an overlay is connected or there's no AI
 (`cantPrepare`), and stops the moment an overlay connects.
+
+**Only when not streaming** (issue #295). The app decides when
+(`PrepareDriver` in `desktop/src/preparing.ts`), about once a second: the
+setting is on, setup is done, the AI runs on this computer, the server is up,
+the computer is plugged in (`powerMonitor.isOnBatteryPower()`), no overlay is
+connected (`obsClients` from `/health`) and OBS isn't running. The cheap
+checks come first; the process list (`tasklist /FO CSV /NH` on Windows,
+`ps -A -o comm=` elsewhere, matched by `isObsProcess`: `obs64`, `obs32`,
+`OBS`, `obs`, never a helper like `obs-browser-page`) is read only when
+everything else says go, or while it runs, so a stream starting stops it
+within a second. A song on stream also takes the model from a preparing turn
+at once (`setCurrentSong`), and the preparing model, when there is one, gives
+its memory back when a run ends. An online AI (Groq, Anthropic) is never used
+for preparing: every song would count against the streamer's own key and
+limits. The process's own priority isn't lowered: on Linux and macOS it can't
+be raised again without administrator rights, which would slow the stream.
 
 **Faster for big lists** (issue #296). A list of 5,000 songs at a minute each
 is days of preparing, so three things cut the time without changing what is

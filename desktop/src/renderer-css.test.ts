@@ -94,7 +94,7 @@ describe("Settings", () => {
       "seChannel", "seJwt", "displayName", "originals", "s-myoriginals", "liveLearns", "twitch-connect", "twitch-disconnect",
       "s-myfacts", "bubbleSize", "bubbleArea", "nowPlaying", "creditBubble", "liveLearnBanner", "factsPerSong",
       "intervalSeconds", "durationSeconds", "wrongKey", "startAtLogin", "updateChannel", "ai", "aiQuality", "groqKey",
-      "anthropicKey", "ollamaUrl", "ollamaModel", "port", "backup-save", "backup-show", "backup-restore", "remove-data",
+      "anthropicKey", "ollamaUrl", "ollamaModel", "port", "backup-save", "backup-show", "backup-restore", "remove-data", "prepareSongs",
     ]) expect(controls).toContain(c);
   });
 

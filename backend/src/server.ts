@@ -622,6 +622,11 @@ control.post("/prepare", (req, res) => {
   res.json({ ...preparer.status(), ...(refused ? { refused } : {}) });
 });
 
+// Where preparing stands, for the app's window.
+control.post("/prepare/status", (_req, res) => {
+  res.json(preparer.status());
+});
+
 // "Add facts for another song": find it on the song list as the musician types.
 control.post("/songs/search", songSearchRoute(songList));
 
