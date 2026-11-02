@@ -1240,7 +1240,7 @@
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
     // Someone already using an online AI, High quality or the example packs finds them open.
-    $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
+    $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
     renderQuality();
@@ -1251,10 +1251,19 @@
     renderDraftNote();
   }
 
+  /**
+   * BubbleFacts Lite has no built-in AI. Elements marked data-edition="full" or "lite" show only in that
+   * edition; Lite's own choice under "Who writes the facts" reads "No AI" (the same "builtin" setting).
+   */
+  const isLite = () => state.edition === "lite";
+  function showEdition() {
+    for (const el of $$("[data-edition]")) el.hidden = el.dataset.edition !== (isLite() ? "lite" : "full");
+  }
+
   /** High quality is a choice under "On this computer", with a warning (never a block) where it may struggle. */
   const GB = 1024 ** 3;
   function renderQuality() {
-    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin";
+    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin" || isLite();
     const reasons = [];
     // A computer sold with 16 GB reports a little less, as some is set aside for the system.
     if (state.totalMemory && state.totalMemory < 15 * GB) {
@@ -1524,6 +1533,7 @@
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
+    showEdition();
     // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;

@@ -34,6 +34,10 @@ describe("problem reports", () => {
     expect(fields.template).toBe("bug_report.yml");
     expect(fields.ai).toBe("Built into the app");
     expect(fields.version).toBe("2.0.0 test build (c4ee826)");
+    // BubbleFacts Lite's own choice is no AI, one of the bug form's options.
+    expect(decode(problemReportUrl({ version: "2.2.0 Lite (c4ee826)", ai: "none", logLines: [], secrets: [] })).ai).toBe("No AI (BubbleFacts Lite)");
+    const form = fs.readFileSync(path.join(__dirname, "../../.github/ISSUE_TEMPLATE/bug_report.yml"), "utf8");
+    expect(form).toContain("No AI (BubbleFacts Lite)");
     expect(fields.log).not.toContain("secret-token-xyz");
     expect(fields.log).toContain("line 799");
   });
