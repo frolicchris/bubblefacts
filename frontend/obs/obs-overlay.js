@@ -23,7 +23,8 @@
  *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
  *  without the server. A red dot bottom-right means the server isn't
- *  reachable. Styling lives in obs-overlay.css; positions come from the server.
+ *  reachable. Styling lives in obs-overlay.css; positions, and which Style
+ *  to use, come from the server.
  */
 (function () {
   "use strict";
@@ -217,10 +218,63 @@
     );
   }
 
+  // --- Style (issue #177) ---
+
+  /** The built-in Styles in obs-overlay.css. Anything else shows the classic look, never no bubbles. */
+  const STYLES = ["classic", "light", "minimal", "retro"];
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const COLOR_KEYS = ["background", "accent", "text", "label", "liveLearn"];
+  /** How opaque a custom background is. The server checks text contrast at this (CUSTOM_ALPHA in bubble-style.ts). */
+  const CUSTOM_ALPHA = 1;
+  let colorSheet = null;
+
+  const rgbaOf = (hex, alpha) =>
+    "rgba(" + [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ") + ", " + alpha + ")";
+
+  /**
+   * The streamer's own colors, as properties with no specificity: after the Style's in the page,
+   * so they win over it, and OBS's Custom CSS still wins over them. The server picked the text
+   * colors to read well on the background.
+   */
+  function customColorsCss(c) {
+    const lightText = parseInt(c.text.slice(1, 3), 16) > 128;
+    const shadow = lightText ? "0 2px 4px rgba(0, 0, 0, 0.9)" : "none";
+    const props = {
+      "--bf-bg-1": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-bg-2": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-toast-bg-1": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-toast-bg-2": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-accent": c.accent,
+      "--bf-outline": rgbaOf(c.accent, 0.3),
+      "--bf-text": c.text,
+      "--bf-text-shadow": shadow,
+      "--bf-toast-text": c.text,
+      "--bf-toast-glow": shadow,
+      "--bf-toast-label": c.label,
+      "--bf-live-learn": c.liveLearn,
+    };
+    return ":where(html) {\n" + Object.keys(props).map((k) => "  " + k + ": " + props[k] + ";").join("\n") + "\n}";
+  }
+
+  /** The look the streamer chose: switched at once, bubbles on screen included. Only colors and fonts change. */
+  function applyStyle(msg) {
+    document.documentElement.dataset.style = STYLES.includes(msg.style) ? msg.style : "classic";
+    const c = msg.colors;
+    const custom = !!c && COLOR_KEYS.every((k) => HEX.test(c[k]));
+    if (!custom && !colorSheet) return;
+    if (!colorSheet) {
+      colorSheet = document.createElement("style");
+      document.head.appendChild(colorSheet);
+    }
+    colorSheet.textContent = custom ? customColorsCss(c) : "";
+  }
+
   // --- Connection ---
 
   function handle(msg) {
-    if (msg.type === "new_song") {
+    if (msg.type === "style") {
+      applyStyle(msg);
+    } else if (msg.type === "new_song") {
       clearBubbles();
       removed = new Set();
       currentSongKey = songKey(msg.song);

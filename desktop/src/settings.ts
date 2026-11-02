@@ -72,6 +72,12 @@ export interface Settings {
   /** The vertical overlay (BubbleFacts Vertical.html), for phone-shaped streams: its own size and spots. */
   verticalBubbleSize: "standard" | "large" | "larger";
   verticalArea: "top" | "above-chat";
+  /** The bubbles' look (issue #177), for both overlays. See BUBBLE_STYLES. */
+  bubbleStyle: BubbleStyle;
+  /** Your own colors on top of the Style: an accent and a background, each #rrggbb. Text color is picked for contrast. */
+  customColors: boolean;
+  accentColor: string;
+  backgroundColor: string;
   factsPerSong: number;
   intervalSeconds: number;
   durationSeconds: number;
@@ -99,6 +105,10 @@ export const WRONG_KEYS = {
   f13: "F13",
 } as const;
 export type WrongKey = keyof typeof WRONG_KEYS;
+
+/** The built-in Styles, as the overlay's CSS names them (BUBBLE_STYLES in the server's bubble-style.ts). Classic is the dark blue. */
+export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro"] as const;
+export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
@@ -142,6 +152,11 @@ export const DEFAULTS: Settings = {
   bubbleArea: "anywhere",
   verticalBubbleSize: "standard",
   verticalArea: "top",
+  bubbleStyle: "classic",
+  customColors: false,
+  // Classic's own: turning custom colors on starts from the look already on stream.
+  accentColor: "#5b6ee1",
+  backgroundColor: "#0a0a3c",
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
@@ -279,6 +294,8 @@ export function unlockSecrets(settings: Settings): Settings {
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.includes(value) ? value : fallback);
+/** A color exactly as #rrggbb (what a color picker gives), lowercased; anything else is the fallback. */
+const hexColor = (value: string, fallback: string) => (/^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback);
 
 /** Keep every value in a range the server accepts, so no setting can stop it from starting. */
 export function sanitize(s: Settings): Settings {
@@ -296,6 +313,9 @@ export function sanitize(s: Settings): Settings {
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
     verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
+    bubbleStyle: oneOf(s.bubbleStyle, BUBBLE_STYLES, "classic"),
+    accentColor: hexColor(s.accentColor, DEFAULTS.accentColor),
+    backgroundColor: hexColor(s.backgroundColor, DEFAULTS.backgroundColor),
     myFacts: lines(s.myFacts),
     myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
@@ -354,7 +374,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -380,7 +400,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 /** The settings that sanitize holds to a list of values. */
-const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "wrongKey", "updateChannel"] as const;
+const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "wrongKey", "updateChannel"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
@@ -441,6 +461,7 @@ export function toServerEnv(
     LIVE_LEARN_BANNER: s.liveLearnBanner ? "on" : "off",
     BUBBLE_AREA: s.bubbleArea,
     VERTICAL_AREA: s.verticalArea,
+    ...styleEnv(s),
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),
@@ -504,12 +525,25 @@ export function topicList(s: Settings): string[] {
 }
 
 /**
+ * The bubbles' look as the server reads it. Blank colors when custom colors are off, so a running
+ * server told this (and any restart after it) goes back to the Style's own.
+ */
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string } {
+  return {
+    BUBBLE_STYLE: s.bubbleStyle,
+    BUBBLE_ACCENT: s.customColors ? s.accentColor : "",
+    BUBBLE_BACKGROUND: s.customColors ? s.backgroundColor : "",
+  };
+}
+
+/**
  * Everything the server reads at start, as one string: its environment and
  * the streamer's own facts (written to a pack it loads once). The sign-in
  * token is left out: a refreshed token is handed to the running server.
  */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
-  const { SSL_ACCESS_TOKEN: _token, ...rest } = env;
+  // The look goes to the running server too (POST /control/style), so a new one never restarts it.
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

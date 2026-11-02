@@ -1218,6 +1218,7 @@
     renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
     $("#s-share-box").hidden = !form.elements.shareFacts.checked;
+    $("#s-colors-box").hidden = !form.elements.customColors.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
@@ -1416,6 +1417,7 @@
 
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
   form.elements.shareFacts.addEventListener("change", (e) => ($("#s-share-box").hidden = !e.target.checked));
+  form.elements.customColors.addEventListener("change", (e) => ($("#s-colors-box").hidden = !e.target.checked));
   $("#s-share-test").addEventListener("click", async () => {
     const result = $("#s-share-result");
     setResult(result, "Checking...");

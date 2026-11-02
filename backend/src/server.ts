@@ -21,6 +21,7 @@ import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
 import { SongFactSharer } from "./share-song-facts";
+import { styleFrom, StylePayload } from "./bubble-style";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -68,12 +69,18 @@ let clientSeq = 0;
 /** Bumped on every song change; a generation that finishes late checks it and drops its result. */
 let generation = 0;
 
-function send(ws: WebSocket, payload: FactsPayload): void {
+function send(ws: WebSocket, payload: FactsPayload | StylePayload): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
 }
 
 /** The last song and facts sent, for the desktop app's dashboard. */
 let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"]; ready?: boolean } = { song: null, facts: [] };
+
+/**
+ * The bubbles' look (issue #177). Every overlay gets it as it connects, and again when the
+ * streamer saves a new one, so it changes on stream without refreshing the source in OBS.
+ */
+let bubbleStyle: StylePayload = config.bubbleStyle;
 
 /** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
 let paused = process.env.BUBBLEFACTS_PAUSED === "1";
@@ -163,6 +170,8 @@ wss.on("connection", (ws, req) => {
     console.error(`[WS] Client #${client.id} error: ${err.message}`);
     drop();
   });
+  // First, before any bubble: even while paused, so Resume shows the right look.
+  send(ws, bubbleStyle);
 
   // Catch a reconnecting overlay up on the current song.
   const current = songList.getCurrentSong();
@@ -343,6 +352,16 @@ control.post("/pause", (req, res) => {
     shareNow();
   }
   res.json({ paused });
+});
+
+// A new look from the app's Settings (issue #177): every overlay changes now, bubbles on screen
+// included, with no restart (which would announce the song again) and no Refresh in OBS.
+// Anything it doesn't know falls back to the classic look rather than being refused.
+control.post("/style", (req, res) => {
+  bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`));
+  console.log(`[Server] Bubble style: ${bubbleStyle.style}${bubbleStyle.colors ? ", with custom colors" : ""}`);
+  for (const ws of clients.keys()) send(ws, bubbleStyle);
+  res.json({ style: bubbleStyle.style, colors: bubbleStyle.colors ?? null, overlays: clients.size });
 });
 
 /**

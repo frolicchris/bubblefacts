@@ -18,7 +18,7 @@ import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -715,6 +715,12 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   void ensureOllamaModel();
   // A new sign-in always starts the server over; anything else only if the server would notice.
   startServer(newSignIn);
+  // A new look goes to the running server, which changes every overlay at once: no restart, no Refresh in OBS.
+  const style = styleEnv(settings);
+  if (JSON.stringify(style) !== JSON.stringify(styleEnv(previous))) {
+    supervisor.setEnv(style);
+    void control("style", { style: style.BUBBLE_STYLE, accent: style.BUBBLE_ACCENT, background: style.BUBBLE_BACKGROUND });
+  }
   backUpNow();
   if (channelChanged) void checkForUpdate();
 }

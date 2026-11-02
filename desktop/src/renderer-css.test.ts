@@ -92,7 +92,7 @@ describe("Settings", () => {
     for (const c of [
       "songSource", "channel", "token", "s-sign-in", "nowPlayingPreset", "nowPlayingFile", "s-np-choose", "nowPlayingFormat",
       "seChannel", "seJwt", "displayName", "originals", "s-myoriginals", "liveLearns", "twitch-connect", "twitch-disconnect",
-      "s-myfacts", "bubbleSize", "bubbleArea", "nowPlaying", "creditBubble", "liveLearnBanner", "factsPerSong",
+      "s-myfacts", "bubbleSize", "bubbleStyle", "customColors", "accentColor", "backgroundColor", "bubbleArea", "nowPlaying", "creditBubble", "liveLearnBanner", "factsPerSong",
       "intervalSeconds", "durationSeconds", "wrongKey", "startAtLogin", "updateChannel", "ai", "aiQuality", "groqKey",
       "anthropicKey", "ollamaUrl", "ollamaModel", "port", "backup-save", "backup-show", "backup-restore", "remove-data",
     ]) expect(controls).toContain(c);
