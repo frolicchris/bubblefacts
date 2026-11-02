@@ -96,8 +96,11 @@ jobs:
               core.info(`Discussion created: ${url}`);
             }
 
-            // Discord shows a short summary and sends people to the full post.
-            const summary = body.length > 1200 ? body.slice(0, 1200).replace(/\s+\S*$/, "") + "…" : body;
+            // Discord shows what's new and sends people to the full post. A release's notes
+            // open on download links, so start at its first section of changes.
+            const changes = release ? /^## (?:New|Improved|Fixed)\b[\s\S]*?(?=^## (?!New\b|Improved\b|Fixed\b|Security\b)|^### |(?![\s\S]))/m.exec(body)?.[0].trim() : "";
+            const text = changes || body;
+            const summary = text.length > 3500 ? text.slice(0, 3500).replace(/\s+\S*$/, "") + "…" : text;
             const payload = {
               allowed_mentions: { parse: [] },
               embeds: [
