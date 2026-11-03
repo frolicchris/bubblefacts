@@ -560,9 +560,12 @@ model is asked.
    (a release year, the album it is on, genres, a birth or founding, the
    single before or after, a record label, a game's developer, publisher or
    platform: `dryData`) and any bubble scoring -1 or less leave the list. A song left with nothing keeps one, the best
-   of those dropped. A dry fact still counts toward the floor of three, so
-   the screen never brings a risky caption back in its place: a song shows
-   fewer bubbles instead. The log says why ("[Fun] DROP (dry: release
+   of those dropped. It runs last, on the bubbles that made the cut: a dry
+   fact still counts toward the floor of three and the four shown, so the
+   screen never brings a risky caption back or lets in one that ranked
+   below it. A song shows fewer bubbles instead (on the test lists, letting
+   lower captions fill the gaps made bubbles wrong more often, since
+   captions are wrong about twice as often as data facts). The log says why ("[Fun] DROP (dry: release
    date)"), never the fact's words.
 5. **About the music first** (`aboutTheMusic`): a caption about the game,
    film or show around the song (its voice cast, ports, series, plot,

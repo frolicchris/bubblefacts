@@ -257,7 +257,7 @@ describe("the fun screen: fewer, better bubbles", () => {
         caption("The single peaked at number 12 on the Owl Chart."),
         caption("The cowbell was borrowed from a farm next door."),
       ],
-      { dataFirst: true, log }
+      { dataFirst: true, max: 5, log }
     );
     expect(shown.map((c) => c.text)).toEqual(["Lantern Hill was written by Mara Quill.", "The cowbell was borrowed from a farm next door."]);
     expect(log).toHaveBeenCalledWith("[Fun] DROP (dry: release date)");
@@ -284,6 +284,22 @@ describe("the fun screen: fewer, better bubbles", () => {
     ]);
     // Before the fun screen: two data facts and the safe caption made three, so the long body sentence stayed out.
     expect(shown.map((c) => c.text)).toEqual(["The song was recorded in a barn."]);
+  });
+
+  it("leaves a gap for a dry fact rather than letting in a caption that ranked below it", () => {
+    const shown = rankFacts(
+      [
+        data("Lantern Hill came out in 2004."),
+        caption("The cowbell was borrowed from a farm next door."),
+        caption("The drums were played in a stairwell."),
+        caption("Quill sang it at age 16."),
+        caption("The band toured with it."),
+      ],
+      { dataFirst: true }
+    );
+    expect(shown.map((c) => c.text)).not.toContain("Lantern Hill came out in 2004.");
+    expect(shown.map((c) => c.text)).not.toContain("The band toured with it.");
+    expect(shown).toHaveLength(3);
   });
 
   it("drops a data fact about charts or awards like a caption", () => {
