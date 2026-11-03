@@ -16,6 +16,8 @@
  * it. Data facts and lead captions go first among equals, no two bubbles in a
  * row tell the same kind of fact when that can be helped, and a song shows at
  * most four.
+ * The fun screen (`funScreen`) then leaves out dry data facts and captions
+ * scoring DRY_INTEREST or lower, keeping one when nothing else is left.
  * A caption about the game, film or show around the song rather than its music (voice casting,
  * ports, the series, the plot: `aboutTheMusic`) goes below the music captions, and at most
  * MAX_OFF_MUSIC are shown: enough to say what the song is from, and fewer bubbles rather than
@@ -225,7 +227,7 @@ export function namesOtherSong(caption: string, title: string): boolean {
  */
 export function rankFacts(
   candidates: Candidate[],
-  opts: { max?: number; floor?: number; unsure?: boolean; dataFirst?: boolean; artistArticle?: boolean; title?: string; log?: (line: string) => void } = {}
+  opts: { max?: number; floor?: number; unsure?: boolean; dataFirst?: boolean; artistArticle?: boolean; title?: string; fun?: boolean; log?: (line: string) => void } = {}
 ): Ranked[] {
   const max = Math.max(0, opts.max ?? MAX_BUBBLES);
   const floor = Math.min(opts.floor ?? FLOOR, max);
@@ -269,11 +271,113 @@ export function rankFacts(
   // Most interesting first; among equals, data facts and lead captions, then the writer's order.
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
-  const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
+  const ranked = funScreen([...safe, ...back], opts.fun !== false, log).sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
   const kept = ranked.slice(0, max);
   // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.
   return [0, 1, 2].flatMap((g) => rotate(kept.filter((c) => group(c) === g)));
+}
+
+// --- Fun screen: fewer, better bubbles ------------------------------------
+
+/** Data facts chat finds dry, by why (judged on test lists: these were dry nine times in ten or more). */
+const DRY_DATA: Array<[string, RegExp]> = [
+  ["release date", /\bcame out in\b/i],
+  ["album", /\b(?:is on the album|appears on)\b/i],
+  ["genres", /\bgenres\b.*?\binclude\b/i],
+  ["birth", /\b(?:was born|formed) in\b/i],
+  ["came after", /\b(?:came after|was followed by) the single\b/i],
+  ["record label", /\b(?:was released on|record labels include)\b/i],
+];
+
+/** Why a data fact is dry ("release date", "album"), or null when it isn't one of the dry kinds. */
+export function dryData(text: string): string | null {
+  return DRY_DATA.find(([, re]) => re.test(text))?.[0] ?? null;
+}
+
+/** Captions whose interest is this or lower (charts, awards, release details) are dry. */
+export const DRY_INTEREST = -1;
+
+/**
+ * The fun screen: dry data facts and captions scoring DRY_INTEREST or lower leave the list.
+ * A song left with nothing keeps one, the best of those dropped. It runs after the floor of
+ * three is met, and a dry fact still counts toward that floor, so the screen never brings a
+ * risky caption back: a song shows fewer bubbles instead. Logs say why, never the fact's words.
+ */
+function funScreen<T extends Ranked & { order: number }>(list: T[], on: boolean, log: (line: string) => void): T[] {
+  if (!on) return list;
+  const why = (c: T) => (c.kind === "data" ? dryData(c.text) : c.score <= DRY_INTEREST ? `interest ${c.score}` : null);
+  const kept = list.filter((c) => !why(c));
+  const dropped = list.filter((c) => why(c));
+  if (!kept.length && dropped.length) {
+    // The best of the dropped: the highest score, a safe one before one brought back, a data fact before a caption.
+    const best = dropped.slice().sort((a, b) => b.score - a.score || Number(a.refill) - Number(b.refill) || Number(b.kind === "data") - Number(a.kind === "data") || a.order - b.order)[0];
+    for (const c of dropped) if (c !== best) log(`[Fun] DROP (dry: ${why(c)})`);
+    log(`[Fun] KEEP one dry fact (nothing else left: ${why(best)})`);
+    return [best];
+  }
+  for (const c of dropped) log(`[Fun] DROP (dry: ${why(c)})`);
+  return kept;
+}
+
+// --- Gather: the article's most fun sentences ---------------------------
+
+/** A link to other music or famous people: what it is based on, who it was meant for, where it went later. */
+const CONNECTION =
+  /\b(?:influenced by|inspired by|based on|after (?:hearing|listening to|seeing|watching|reading)|originally (?:intended|planned|meant|written|recorded|composed)|intended for|meant for|later (?:used|reused|re-used|worked on|appeared|became)|interpolat\w+|sampl(?:ed|es)|covered by|cover version|duet with|named after|theme song|reference to|tribute to|parody|borrowed|modeled on|modelled on)\b/i;
+/** What the makers wanted or did, as an action rather than a quote. */
+const INTENT = /\b(?:wanted|aimed|hoped|decided|chose|conceived|came up with|pitched|remembered|imagined|visuali[sz]ed|joked|insisted|refused|taught (?:himself|herself|themselves))\b/i;
+/** A twist: what was planned and wasn't, what is unlike the rest. */
+const TWIST = /\b(?:unlike|in contrast|instead of|never|unable|did not|didn't|was not|despite|scrapped|abandoned|cancell?ed|rejected|almost|nearly became|by accident|accidentally)\b/i;
+/** A bare count big enough to picture: "220,000 submissions", "74 artists". */
+const BIG_COUNT = /\b\d{1,3}(?:,\d{3})+\b|\b\d{2,}\s+(?!(?:BPM|bpm)\b)[a-z]+s\b/;
+/** The lead's definition: "X is a 1985 song by ...", "X (born 1949) is an American composer". */
+const DEFINITION = /^(?:["“][^"”]+["”]|[^.,;]{1,80}?)(?: \([^)]*\))? (?:is|was) (?:a|an|the) (?:[\p{L}\d-]+ ){0,6}(?:song|single|track|album|EP|video game|game|composer|singer|band|rapper|musician|duo|group|soundtrack|film)\b/iu;
+/** Music theory read out: a key, a time signature, a tempo. */
+const THEORY = /\b(?:key of|time signature|beats per minute|BPM|tempo of|vocal range|common time)\b/i;
+/** The size of a release or a sale: "48 tracks", "two discs", "38,000 units". */
+const RELEASE_SIZE = /\b(?:\d[\d,]*|two|three|four|five|six|ten) (?:tracks|discs|CDs|units|copies)\b/i;
+/** Who wrote and produced it: most viewers find a plain credit list dry. */
+const CREDIT_LIST = /^(?:["“][^"”]+["”]|It|The song|The track) (?:was )?(?:written|composed|produced|co-written)(?: and (?:produced|composed|written))? by\b/i;
+
+/**
+ * How fun a sentence of the article is to retell, from its words alone: `interest`, plus a link to
+ * other music or famous people, what the makers wanted or did, a twist, a big count to picture;
+ * less for the lead's definition, music theory read out, the size of a release and a bare credit list. Calibrated on judged
+ * test lists (evidence sentences against the judge's interest score), never on the lists it is checked on.
+ */
+export function sentenceFun(sentence: string): number {
+  const s = sentence.replace(SECTION_LABEL, "").trim();
+  let score = interest(s, s).score;
+  if (CONNECTION.test(s)) score += 2;
+  if (INTENT.test(s)) score += 1;
+  if (TWIST.test(s)) score += 1;
+  if (BIG_COUNT.test(s) && !AWARD.test(s)) score += 1;
+  if (RELEASE_SIZE.test(s)) score -= 2;
+  if (DEFINITION.test(s)) score -= 2;
+  if (THEORY.test(s)) score -= 2;
+  if (CREDIT_LIST.test(s)) score -= 1;
+  return score;
+}
+
+/** A sentence must score this much to be named as one of the most fun. */
+export const FUN_SENTENCE_MIN = 2;
+
+/**
+ * The `n` most fun sentences of a reference's sentences (`sentenceFun`), best first, the article's
+ * order among equals. Only sentences that are safe to retell whole: none the safety screen would
+ * hold back (`sourceRisk` on the sentence itself), none under 8 words or over the long-body limit.
+ */
+export function funSentences(sentences: string[], n = 3): string[] {
+  return sentences
+    .map((s, i) => ({ s, i, score: sentenceFun(s) }))
+    .filter(({ s, score }) => {
+      const len = s.split(/\s+/).filter(Boolean).length;
+      return score >= FUN_SENTENCE_MIN && len >= 8 && !sourceRisk(s, s, false).filter((f) => f !== "compressed under half").length;
+    })
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .slice(0, Math.max(0, n))
+    .map(({ s }) => s);
 }
 
 /** The same order, except that a fact of the kind just shown waits for one of another kind when there is one. */

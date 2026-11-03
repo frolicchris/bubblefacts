@@ -3,8 +3,8 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
-import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
+import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, referenceSentences, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { Candidate, MAX_BUBBLES, funSentences, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -443,7 +443,7 @@ ROLE
 Act as a music trivia writer for live streams, who retells what a text says plainly and exactly.
 
 OBJECTIVE
-Write ${want} captions about ${game} or its music that chat would enjoy learning. In order of preference: what the people who made it said or did, who or what influenced it, how the music is built, and how it was received (charts, awards, sales). Do not add praise or opinions of your own.`;
+Write ${want} captions about ${game} or its music that chat would enjoy learning. In order of preference: a number, an age or a place chat can picture; how it was made (a limit the makers worked under, an accident, a borrowed object, an odd place, a short time); what the people who made it said or did; connections to other music or famous people; and last, charts, awards, sales and release details. Do not add praise or opinions of your own.`;
 }
 
 /** The CROSS prompt's rules for retelling the text and for the captions, the same with or without citations. */
@@ -506,6 +506,27 @@ export function copiesExample(caption: string, context: string): boolean {
 export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough hit was 'TITLE'." with the real title from the text. Never write it as if it were about the song playing now.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
 
+/** How many of the article's most fun sentences the prompt names (`funSentences`). */
+const FUN_PICKS = 3;
+
+/**
+ * The article's most fun sentences (`funSentences`), named after the SOURCE so the writer
+ * retells them first (research on kids' nonfiction, 2026-10: a picturable number, how it was
+ * made, a connection to other music). Verbatim from the text, so every SOURCE rule still holds.
+ * Empty when no sentence scores high enough.
+ */
+export function funBlock(context: string, cited: boolean): string {
+  const sentences = referenceSentences(context);
+  const picks = funSentences(sentences, FUN_PICKS);
+  if (!picks.length) return "";
+  const line = (s: string) => (cited ? `[${sentences.indexOf(s) + 1}] ${s}` : s);
+  return `
+
+MOST FUN
+Of the statements in the text, chat would most enjoy these. Retell them first, one caption each, following every rule above; then retell others:
+${picks.map((s) => `- ${line(s)}`).join("\n")}`;
+}
+
 function plainCrossPrompt(game: string, work: string, context: string, want: number): string {
   return `${crossOpening(game, work, want)}
 
@@ -515,7 +536,7 @@ SOURCE
 Use only the text between the triple quotes. ${RETELL_RULES} Each line retells ONE statement from the text: ${STATEMENT_RULES}
 """
 ${context}
-"""
+"""${funBlock(context, false)}
 
 SCOPE
 Exactly ${want} lines. One calm sentence per line, about 10 to 18 words and under 120 characters, in plain words anyone can follow. No exclamation marks, numbering, bullets, headings or wrapping quotes. ${CAPTION_RULES}`;
@@ -530,7 +551,7 @@ SOURCE
 Use only the text between the triple quotes. Its sentences are numbered in square brackets. ${RETELL_RULES} Each line retells ONE numbered sentence: ${STATEMENT_RULES}
 """
 ${numberedReference(context)}
-"""
+"""${funBlock(context, true)}
 
 SCOPE
 Exactly ${want} lines. Start each line with the number of the sentence it retells, then " | ", then the caption, like this:
@@ -1065,7 +1086,7 @@ function rankedData(data: string[], want: number): string[] {
   const songs = data.filter((f) => !artistSentences.has(f));
   if (!config.sourceRisk) return [...songs, ...data.filter((f) => artistSentences.has(f))].slice(0, want);
   const free = songs.length < max ? data : songs;
-  return rankFacts(free.map((text) => ({ text, kind: "data" as const })), { max }).map((c) => c.text);
+  return rankFacts(free.map((text) => ({ text, kind: "data" as const })), { max, fun: config.funScreen, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 /** For the saved session: the recent facts, and putting them back after a restart. */
@@ -1803,7 +1824,7 @@ function rankedFromArticle(
   // Data facts here are about the song, and the article is its artist's or game's: they lead.
   // On an artist's article, a caption about another of their songs ranks low, one at most (namesOtherSong).
   const artistArticle = isPerformerArticle(context.split("\n")[0], full || context);
-  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, fun: config.funScreen, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 /**

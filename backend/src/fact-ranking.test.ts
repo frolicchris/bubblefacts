@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
+import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, dryData, funSentences, interest, isLeadSentence, namesOtherSong, rankFacts, sentenceFun, sourceRisk } from "./fact-ranking";
 
 // Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls).
 const LONG_BODY =
@@ -95,13 +95,13 @@ describe("rankFacts: safety first, then fun", () => {
 
   it(`brings held-back captions back to reach ${FLOOR}, fewest flags first, after the safe ones`, () => {
     const shown = rankFacts([
-      data("Lantern Hill came out in 2004."),
+      data("Lantern Hill was written by Mara Quill."),
       caption("Quill hired a quartet.", "Recording: Quill hired a quartet for two days to add strings in Lisbon, according to the liner notes.", false),
       caption("The song was recorded in a barn.", "The song was mostly recorded in a barn.", true),
       caption("The chorus was rewritten.", LONG_BODY, false),
     ]);
     // A reporting verb, a hedge lost and heavy compression (3 flags) stay out; one long body sentence (2) comes back.
-    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill came out in 2004.", "The song was recorded in a barn.", "The chorus was rewritten."]);
+    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill was written by Mara Quill.", "The song was recorded in a barn.", "The chorus was rewritten."]);
     expect(shown.slice(1).every((c) => c.refill)).toBe(true);
   });
 
@@ -129,8 +129,8 @@ describe("rankFacts: safety first, then fun", () => {
   });
 
   it("puts the song's data facts first on its artist's or game's article", () => {
-    const shown = rankFacts([data("Lantern Hill came out in 2004."), caption("The cowbell was borrowed from a farm next door.")], { dataFirst: true });
-    expect(shown[0].text).toBe("Lantern Hill came out in 2004.");
+    const shown = rankFacts([data("Lantern Hill was produced by Ana Ferro."), caption("The cowbell was borrowed from a farm next door.")], { dataFirst: true });
+    expect(shown[0].text).toBe("Lantern Hill was produced by Ana Ferro.");
   });
 
   it("never shows the same kind of fact twice in a row when another kind is left", () => {
@@ -227,5 +227,91 @@ describe("captions about the music before the game around it (#189)", () => {
     expect(shown.filter((c) => c.offMusic)).toHaveLength(MAX_OFF_MUSIC);
     expect(shown).toHaveLength(1 + MAX_OFF_MUSIC);
     expect(lines.filter((l) => l.includes("not about the music"))).toHaveLength(trivia.length - MAX_OFF_MUSIC);
+  });
+});
+
+describe("the fun screen: fewer, better bubbles", () => {
+  it("names why a data fact is dry", () => {
+    expect(dryData("Lantern Hill came out in 2004.")).toBe("release date");
+    expect(dryData('"Lantern Hill" is on the album Paper Boats.')).toBe("album");
+    expect(dryData("Lantern Hill appears on Paper Boats.")).toBe("album");
+    expect(dryData("The genres of Lantern Hill include dream pop.")).toBe("genres");
+    expect(dryData("Mara Quill was born in Port Vell in 1980.")).toBe("birth");
+    expect(dryData("The Owl Lanterns formed in Port Vell in 1999.")).toBe("birth");
+    expect(dryData('Lantern Hill came after the single "Paper Kites".')).toBe("came after");
+    expect(dryData('Lantern Hill was followed by the single "Paper Kites".')).toBe("came after");
+    expect(dryData("Lantern Hill was released on Owl Records.")).toBe("record label");
+    expect(dryData("Lantern Hill was written by Mara Quill.")).toBeNull();
+    expect(dryData("Lantern Hill was produced by Ana Ferro.")).toBeNull();
+  });
+
+  it("drops dry data facts and captions scoring -1 or less, and logs only why", () => {
+    const log = jest.fn();
+    const shown = rankFacts(
+      [
+        data("Lantern Hill came out in 2004."),
+        data("The genres of Lantern Hill include dream pop."),
+        data("Lantern Hill was written by Mara Quill."),
+        caption("The single peaked at number 12 on the Owl Chart."),
+        caption("The cowbell was borrowed from a farm next door."),
+      ],
+      { dataFirst: true, log }
+    );
+    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill was written by Mara Quill.", "The cowbell was borrowed from a farm next door."]);
+    expect(log).toHaveBeenCalledWith("[Fun] DROP (dry: release date)");
+    expect(log).toHaveBeenCalledWith("[Fun] DROP (dry: genres)");
+    expect(log).toHaveBeenCalledWith("[Fun] DROP (dry: interest -1)");
+    // The reason only, never the fact's words (issue #262).
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/Lantern|Owl Chart|2004/);
+  });
+
+  it("keeps one fallback, the best of the dropped, when nothing else is left", () => {
+    const log = jest.fn();
+    const shown = rankFacts([data("Lantern Hill came out in 2004."), data("Lantern Hill appears on Paper Boats."), data('Lantern Hill came after the single "Paper Kites".')], { log });
+    expect(shown).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[Fun\] KEEP one dry fact/));
+    expect(JSON.stringify(log.mock.calls)).not.toContain("Lantern");
+  });
+
+  it("never brings a risky caption back in a dry fact's place: the dry fact still counts toward the floor", () => {
+    const shown = rankFacts([
+      data("Lantern Hill came out in 2004."),
+      data("Lantern Hill appears on Paper Boats."),
+      caption("The song was recorded in a barn."),
+      caption("The chorus was rewritten.", LONG_BODY, false),
+    ]);
+    // Before the fun screen: two data facts and the safe caption made three, so the long body sentence stayed out.
+    expect(shown.map((c) => c.text)).toEqual(["The song was recorded in a barn."]);
+  });
+
+  it("can be turned off", () => {
+    const shown = rankFacts([data("Lantern Hill came out in 2004."), caption("The cowbell was borrowed from a farm next door.")], { fun: false });
+    expect(shown.map((c) => c.text)).toContain("Lantern Hill came out in 2004.");
+  });
+});
+
+describe("sentenceFun and funSentences: the article's most fun sentences", () => {
+  it("scores a link to other music, a twist or a made-of detail above a definition, a credit list or music theory", () => {
+    const fun = sentenceFun("Mara Quill wrote the melody after hearing a music box her grandmother borrowed from a church.");
+    expect(fun).toBeGreaterThan(sentenceFun('"Lantern Hill" is a 2004 song by the Owl Lanterns.'));
+    expect(fun).toBeGreaterThan(sentenceFun('"Lantern Hill" was written and produced by Mara Quill.'));
+    expect(fun).toBeGreaterThan(sentenceFun("The song is written in the key of B major with a tempo of 88 beats per minute."));
+    expect(sentenceFun("The soundtrack contained 2 discs and a total of 48 tracks.")).toBeLessThan(2);
+  });
+
+  it("picks the best few that are safe to retell whole, best first", () => {
+    const picks = funSentences([
+      '"Lantern Hill" is a 2004 song by the Owl Lanterns.',
+      "The drums were recorded in a stairwell because the studio was flooded that week.",
+      "Quill said the song was inspired by a lighthouse she saw as a child.",
+      "The melody was originally written for a film that was cancelled.",
+      "It peaked at number 12 on the Owl Chart.",
+    ]);
+    expect(picks).toContain("The drums were recorded in a stairwell because the studio was flooded that week.");
+    expect(picks).toContain("The melody was originally written for a film that was cancelled.");
+    // A reporting verb: the safety screen would hold its caption back.
+    expect(picks).not.toContain("Quill said the song was inspired by a lighthouse she saw as a child.");
+    expect(picks).not.toContain("It peaked at number 12 on the Owl Chart.");
+    expect(funSentences(['"Lantern Hill" is a 2004 song by the Owl Lanterns.'])).toEqual([]);
   });
 });

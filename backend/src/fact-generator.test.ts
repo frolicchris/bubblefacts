@@ -18,6 +18,8 @@ jest.mock("./config", () => ({
     temperature: 0,
     factVerification: false,
     sourceRisk: true,
+    // Off here so the tests of how data facts are gathered can see dry ones; on in "the fun screen".
+    funScreen: false,
     factsPerSong: 5,
     factIntervalSeconds: 15,
     factDurationSeconds: 8,
@@ -102,7 +104,34 @@ beforeEach(() => {
   mockCreate.mockReset().mockResolvedValue(reply(MODEL_LINES));
   (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
   (config as { factVerification: boolean }).factVerification = false;
+  (config as { funScreen: boolean }).funScreen = false;
   delete process.env.CITE_SENTENCES;
+});
+
+describe("the fun screen (FUN_SCREEN)", () => {
+  it("leaves out a dry data fact when the article gives better, and logs only why", async () => {
+    (config as { funScreen: boolean }).funScreen = true;
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Velvet Lark\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.', '"Whatever Happens" was written by Ada Penn.']);
+    // console.log is already muted for all tests (test-setup.ts): read that mock, don't replace it.
+    const log = console.log as unknown as jest.Mock;
+    log.mockClear();
+    const facts = (await generateFacts({ title: "Whatever Happens", artist: "Velvet Lark" })).map((f) => f.text);
+    const lines = log.mock.calls.map((c) => c.map(String).join(" "));
+    expect(facts.length).toBeGreaterThan(1);
+    expect(facts).not.toContain('"Whatever Happens" came out in 2001.');
+    expect(lines).toContain("[Fun] DROP (dry: release date)");
+    expect(lines.filter((l) => l.startsWith("[Fun]")).join("\n")).not.toContain("Whatever Happens");
+  });
+
+  it("keeps one data fact when a song has nothing but dry ones", async () => {
+    (config as { funScreen: boolean }).funScreen = true;
+    (config as { factVerification: boolean }).factVerification = true;
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Paper Owls" came out in 1999.', '"Paper Owls" appears on Lantern Hill.']);
+    const facts = await generateFacts({ title: "Paper Owls", artist: "Velvet Lark" });
+    expect(facts.filter((f) => f.source === SOURCE.wikidata)).toHaveLength(1);
+  });
 });
 
 describe("generateFacts", () => {
@@ -548,6 +577,29 @@ describe("generateFacts", () => {
     expect(prompt).not.toContain(" | ");
     expect(MODEL_LINES.split("\n")).toEqual(expect.arrayContaining(facts.map((f) => f.text)));
     expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it("names the article's most fun sentences after the reference, to retell first", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Fun Song (song)\n${MODEL_LINES}`);
+    await generateFacts({ title: "Fun Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).toMatch(/MOST FUN\n.*Retell them first/);
+    expect(prompt).toContain("- The soundtrack was recorded with a small string section in one weekend.");
+    expect(prompt.indexOf("MOST FUN")).toBeGreaterThan(prompt.lastIndexOf('"""'));
+    expect(prompt.indexOf("MOST FUN")).toBeLessThan(prompt.indexOf("SCOPE"));
+    // Picturable details and how it was made come first; charts, awards and sales last.
+    expect(prompt).toMatch(/In order of preference: a number, an age or a place .*; and last, charts, awards, sales and release details\./);
+  });
+
+  it("names the most fun sentences by number when the AI cites them", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    process.env.CITE_SENTENCES = "on";
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Fun Song (song)\n${MODEL_LINES}`);
+    mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
+    await generateFacts({ title: "Fun Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain("- [1] The soundtrack was recorded with a small string section in one weekend.");
   });
 
   it("shows the AI worked examples of keeping who said it and naming the subject, before the reference", async () => {
