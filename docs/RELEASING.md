@@ -278,6 +278,11 @@ anything else together, about monthly, only when something changed. A
 maintenance release reaches Stable at once; only a new feature release (x.y.0)
 waits three days for Beta to have it first.
 
+**Announcing one:** publishing a release runs the Announce workflow as it is
+at the tagged commit, so a release branch cut before that workflow existed
+(`release/2.1`, for 2.1.1) announces nothing by itself. Run Actions > Announce
+> Run workflow with the release's title and notes (dry run first).
+
 **Support:** only the newest release gets fixes. When 2.1.0 ships, 2.0.x
 stops. After 3.0.0, the last 2.x gets security fixes for three months.
 
