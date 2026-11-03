@@ -534,7 +534,7 @@ describe("bubble Styles and your own colors (issue #177)", () => {
   });
 
   it("keeps each built-in Style, and an unknown one falls back to classic", () => {
-    for (const style of ["classic", "light", "minimal", "retro"] as const) expect(sanitize({ ...DEFAULTS, bubbleStyle: style }).bubbleStyle).toBe(style);
+    for (const style of ["classic", "light", "minimal", "retro", "high-contrast"] as const) expect(sanitize({ ...DEFAULTS, bubbleStyle: style }).bubbleStyle).toBe(style);
     expect(sanitize({ ...DEFAULTS, bubbleStyle: "neon" as "retro" }).bubbleStyle).toBe("classic");
   });
 

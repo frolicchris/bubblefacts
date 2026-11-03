@@ -6,7 +6,7 @@
  */
 
 /** The built-in Styles. "classic" is the dark blue the overlay always had. */
-export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro"] as const;
+export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-contrast"] as const;
 export type BubbleStyleName = (typeof BUBBLE_STYLES)[number];
 
 /**

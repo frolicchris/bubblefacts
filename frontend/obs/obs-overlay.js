@@ -222,7 +222,7 @@
   // --- Style (issue #177) ---
 
   /** The built-in Styles in obs-overlay.css. Anything else shows the classic look, never no bubbles. */
-  const STYLES = ["classic", "light", "minimal", "retro"];
+  const STYLES = ["classic", "light", "minimal", "retro", "high-contrast"];
   const HEX = /^#[0-9a-f]{6}$/i;
   const COLOR_KEYS = ["background", "accent", "text", "label", "liveLearn"];
   /** How opaque a custom background is. The server checks text contrast at this (CUSTOM_ALPHA in bubble-style.ts). */

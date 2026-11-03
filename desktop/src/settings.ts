@@ -111,7 +111,7 @@ export const WRONG_KEYS = {
 export type WrongKey = keyof typeof WRONG_KEYS;
 
 /** The built-in Styles, as the overlay's CSS names them (BUBBLE_STYLES in the server's bubble-style.ts). Classic is the dark blue. */
-export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro"] as const;
+export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-contrast"] as const;
 export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
 
 export const DEFAULTS: Settings = {

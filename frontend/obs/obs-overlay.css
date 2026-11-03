@@ -137,6 +137,36 @@
   --bf-live-learn: #f8d878;
 }
 
+/* High contrast: white on solid black in a thick yellow frame, for viewers with low vision or on
+   small screens. Every text is at least 7:1 (WCAG AAA), and nothing is see-through, so busy video
+   behind a bubble can't wash it out. No shadows, glows or sparkles to blur the letters. */
+:where(html[data-style="high-contrast"]) {
+  --bf-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --bf-weight: 700;
+  --bf-letter-spacing: 0.02em;
+  --bf-toast-letter-spacing: 0.04em;
+  --bf-radius: 4px;
+  --bf-bg-1: #000000;
+  --bf-bg-2: #000000;
+  --bf-text: #ffffff;
+  --bf-text-shadow: none;
+  --bf-accent: #ffe600;
+  --bf-border-width: 4px;
+  --bf-outline: #000000;
+  --bf-outline-width: 2px;
+  --bf-cursor: #ffe600;
+  --bf-sparkle: transparent;
+  --bf-toast-radius: 4px;
+  --bf-toast-bg-1: #000000;
+  --bf-toast-bg-2: #000000;
+  --bf-toast-text: #ffffff;
+  --bf-toast-glow: none;
+  --bf-toast-label: #ffe600;
+  --bf-toast-border-width: 4px;
+  --bf-toast-highlight: transparent;
+  --bf-live-learn: #ffe600;
+}
+
 /* === Reset & Base — Transparent for OBS Browser Source === */
 * {
   margin: 0;

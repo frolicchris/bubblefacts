@@ -323,7 +323,7 @@ bubbles keep clear of those apps' buttons and chat. Choose where they go with
 Pick a style for both overlays, and if you like, your own colors:
 
 ```env
-BUBBLE_STYLE=classic         # or light, minimal, retro
+BUBBLE_STYLE=classic         # or light, minimal, retro, high-contrast
 BUBBLE_ACCENT=#ff8800        # optional: the border and the Now Playing label
 BUBBLE_BACKGROUND=#ffffff    # optional: set both colors, or neither
 BUBBLE_SCALE=1               # optional: bubble size, 0.5 to 3

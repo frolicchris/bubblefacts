@@ -60,6 +60,15 @@ describe("every built-in Style", () => {
     }
   });
 
+  it("high contrast keeps every text at WCAG AAA (7:1) on a solid background", () => {
+    const p = palette("high-contrast");
+    for (const bg of ["--bf-bg-1", "--bf-bg-2", "--bf-toast-bg-1", "--bf-toast-bg-2"]) expect(p[bg]).toMatch(/^#[0-9a-f]{6}$/i);
+    for (const [text, bg] of [["--bf-text", "--bf-bg-1"], ["--bf-toast-text", "--bf-toast-bg-1"], ["--bf-toast-label", "--bf-toast-bg-1"], ["--bf-live-learn", "--bf-toast-bg-1"]]) {
+      expect([text, worstContrast(p[text], p[bg]) >= 7]).toEqual([text, true]);
+    }
+    expect(p["--bf-text-shadow"]).toBe("none");
+  });
+
   it.each(BUBBLE_STYLES)("%s changes only the look: no sizes, animations or text", (style) => {
     for (const [name, value] of Object.entries(block(selectorOf(style)))) {
       // Only the look's own custom properties: so text stays at the readable sizes set apart from
