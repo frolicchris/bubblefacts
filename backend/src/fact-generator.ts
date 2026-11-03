@@ -513,9 +513,12 @@ const FUN_PICKS = 3;
  * The article's most fun sentences (`funSentences`), named after the SOURCE so the writer
  * retells them first (research on kids' nonfiction, 2026-10: a picturable number, how it was
  * made, a connection to other music). Verbatim from the text, so every SOURCE rule still holds.
- * Empty when no sentence scores high enough.
+ * Empty when no sentence scores high enough, and unless FUN_SENTENCES=on: on the test lists
+ * (2026-11) captions retelling a named sentence were wrong about three times as often as the
+ * rest (13 of 91 against 1 in 20) and hardly more fun, so it stays off until that is fixed.
  */
 export function funBlock(context: string, cited: boolean): string {
+  if (!config.funSentences) return "";
   const sentences = referenceSentences(context);
   const picks = funSentences(sentences, FUN_PICKS);
   if (!picks.length) return "";

@@ -20,6 +20,7 @@ jest.mock("./config", () => ({
     sourceRisk: true,
     // Off here so the tests of how data facts are gathered can see dry ones; on in "the fun screen".
     funScreen: false,
+    funSentences: false,
     factsPerSong: 5,
     factIntervalSeconds: 15,
     factDurationSeconds: 8,
@@ -105,6 +106,7 @@ beforeEach(() => {
   (fetchGrounding as jest.Mock).mockReset().mockResolvedValue("");
   (config as { factVerification: boolean }).factVerification = false;
   (config as { funScreen: boolean }).funScreen = false;
+  (config as { funSentences: boolean }).funSentences = false;
   delete process.env.CITE_SENTENCES;
 });
 
@@ -579,8 +581,18 @@ describe("generateFacts", () => {
     expect(facts.length).toBeGreaterThan(0);
   });
 
-  it("names the article's most fun sentences after the reference, to retell first", async () => {
+  it("asks for picturable details and how it was made first, charts and awards last, and names no sentences by default", async () => {
     (config as { factVerification: boolean }).factVerification = true;
+    (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Fun Song (song)\n${MODEL_LINES}`);
+    await generateFacts({ title: "Fun Song", artist: "Someone" });
+    const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(prompt).toMatch(/In order of preference: a number, an age or a place .*; and last, charts, awards, sales and release details\./);
+    expect(prompt).not.toContain("MOST FUN");
+  });
+
+  it("with FUN_SENTENCES=on, names the article's most fun sentences after the reference, to retell first", async () => {
+    (config as { factVerification: boolean }).factVerification = true;
+    (config as { funSentences: boolean }).funSentences = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Fun Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "Fun Song", artist: "Someone" });
     const prompt: string = mockCreate.mock.calls[0][0].messages[0].content;
@@ -588,12 +600,11 @@ describe("generateFacts", () => {
     expect(prompt).toContain("- The soundtrack was recorded with a small string section in one weekend.");
     expect(prompt.indexOf("MOST FUN")).toBeGreaterThan(prompt.lastIndexOf('"""'));
     expect(prompt.indexOf("MOST FUN")).toBeLessThan(prompt.indexOf("SCOPE"));
-    // Picturable details and how it was made come first; charts, awards and sales last.
-    expect(prompt).toMatch(/In order of preference: a number, an age or a place .*; and last, charts, awards, sales and release details\./);
   });
 
   it("names the most fun sentences by number when the AI cites them", async () => {
     (config as { factVerification: boolean }).factVerification = true;
+    (config as { funSentences: boolean }).funSentences = true;
     process.env.CITE_SENTENCES = "on";
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Fun Song (song)\n${MODEL_LINES}`);
     mockCreate.mockResolvedValue(reply(citing(MODEL_LINES)));
