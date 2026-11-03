@@ -181,13 +181,13 @@ jobs:
             Windows) powershell -Command "Get-AuthenticodeSignature (Get-ChildItem release/BubbleFacts-*.exe, release-lite/BubbleFacts-*.exe) | Format-List Path,Status,SignerCertificate" ;;
           esac
       # The smoke test's scripts, from the same commit as the installers it checks (one copy is enough).
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.name == 'linux-x64'
         with:
           name: smoke-scripts
           if-no-files-found: error
           path: scripts/smoke-*.mjs
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.name }}
           if-no-files-found: error
@@ -197,7 +197,7 @@ jobs:
             release/BubbleFacts-*.AppImage
             release/bubblefacts_*.deb
       # A separate artifact, so the smoke test can pick the full or the Lite installer by name.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.name }}-lite
           if-no-files-found: error
