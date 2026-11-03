@@ -117,6 +117,16 @@
     if (t.dataset.view) show(t.dataset.view);
     // A link to one part of a long page lands there, not at the top.
     if (t.dataset.scrollTo) document.getElementById(t.dataset.scrollTo)?.scrollIntoView({ block: "start" });
+    if (t.dataset.tip) showTip(t, document.getElementById(t.dataset.tip).hidden);
+  });
+
+  function showTip(button, open) {
+    document.getElementById(button.dataset.tip).hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  }
+  // Turning Prepare on explains what it will do, without a trip to the "?".
+  document.querySelector('input[name="prepareSongs"]').addEventListener("change", (e) => {
+    if (e.target.checked) showTip(document.querySelector('[data-tip="s-prepare-hint"]'), true);
   });
 
   function flash(button, text) {

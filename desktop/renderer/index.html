@@ -473,8 +473,11 @@
         <!-- Preparing needs the AI on this computer, which Lite doesn't have: hidden there, and the app never runs it. -->
         <fieldset id="s-prepare" data-edition="full">
           <legend>Prepare my songs</legend>
+          <div class="with-tip">
           <label class="inline"><input name="prepareSongs" type="checkbox" aria-describedby="s-prepare-hint"> Prepare facts for my songs while I'm not streaming</label>
-          <p class="hint indent" id="s-prepare-hint">Facts are written ahead of time, so they show as soon as a song starts. It runs only while OBS is closed and this computer is plugged in, and stops the moment you open OBS. It uses the AI on this computer, never an online one, and everything stays on this computer.</p>
+          <button type="button" class="tip" data-tip="s-prepare-hint" aria-expanded="false" aria-controls="s-prepare-hint" aria-label="What Prepare my songs does">?</button>
+          </div>
+          <p class="hint bubble" id="s-prepare-hint" hidden>Facts are written ahead of time, so they show as soon as a song starts. It runs only while OBS is closed and this computer is plugged in, and stops the moment you open OBS. It uses the AI on this computer, never an online one, and everything stays on this computer.</p>
           <button class="link" type="button" data-view="songs">See how many songs are ready</button>
         </fieldset>
 

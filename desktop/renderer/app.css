@@ -72,6 +72,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .primary.big { font-size: 17px; padding: 14px 28px; }
 .danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); padding: 9px 14px; }
 .danger:hover { background: #2a1020; }
+.with-tip { display: flex; align-items: center; gap: 10px; }
+.tip { flex: none; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1px solid #3a4290; background: #0e1233; color: #9fb0ff; font-weight: 700; line-height: 1; vertical-align: middle; }
+.bubble { margin: 8px 0 8px 24px; padding: 10px 14px; background: #0e1233; border: 1px solid #3a4290; border-radius: 8px; }
 .link { background: none; border: 0; padding: 0; color: #9fb0ff; text-decoration: underline; }
 
 .actions { display: flex; gap: 14px; align-items: center; margin-top: 18px; }
