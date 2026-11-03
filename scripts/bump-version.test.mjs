@@ -30,10 +30,10 @@ test("adds the version at the top of the beta form's list, once", () => {
   assert.match(once, /options:\n {8}- 9\.9\.9-beta\.1\n {8}- \d/);
   assert.equal(once.split("- 9.9.9-beta.1").length, 2);
   assert.equal(bumpBetaForm(once, "9.9.9-beta.1"), once);
-  // The Build field's example is the new version.
-  assert.match(once, /id: build\n(?: +.*\n)*? +placeholder: 9\.9\.9-beta\.1\n/);
-  // Otherwise only the version list changes: the other dropdowns keep their options.
-  assert.equal(once.replace("        - 9.9.9-beta.1\n", "").replace(/(placeholder: )9\.9\.9-beta\.1/, "$1" + /id: build\n(?: +.*\n)*? +placeholder: (.*)\n/.exec(form)[1]), form);
+  // The Build field's example is the new version; otherwise only the version list changes.
+  const example = (t) => t.split("\n").slice(t.split("\n").findIndex((l) => l.trim() === "id: build")).find((l) => l.trim().startsWith("placeholder: "));
+  assert.equal(example(once).trim(), "placeholder: 9.9.9-beta.1");
+  assert.equal(once.replace("        - 9.9.9-beta.1\n", "").replace(example(once), example(form)), form);
   const crlf = form.replace(/\n/g, "\r\n");
   assert.equal(bumpBetaForm(crlf, "9.9.9-beta.1"), once.replace(/\n/g, "\r\n"));
 });
