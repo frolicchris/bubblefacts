@@ -43,6 +43,7 @@
     "no-ai": "Waiting for the AI on this computer to be ready.",
     server: "Waiting for BubbleFacts to start.",
     battery: "Waiting: plug your computer in.",
+    "power-unknown": "Waiting: BubbleFacts can't tell right now whether this computer is plugged in, so it holds off and checks again.",
     overlay: "Waiting: BubbleFacts is on your stream in OBS.",
     obs: "Waiting: OBS is open. Preparing carries on when you close it.",
     "obs-unknown": "Waiting: BubbleFacts can't tell right now whether OBS is open, so it holds off and checks again.",

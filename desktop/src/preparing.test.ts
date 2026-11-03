@@ -1,6 +1,6 @@
 import path from "path";
 import { MODEL, MODEL_HIGH } from "./model";
-import { Conditions, isObsProcess, obsInProcessList, PrepareDriver, prepareEnv, registerPreparing, waitReason } from "./preparing";
+import { batteryFromPmset, Conditions, isObsProcess, obsInProcessList, PrepareDriver, prepareEnv, registerPreparing, waitReason } from "./preparing";
 
 describe("prepareEnv (issue #296)", () => {
   const all = () => true;
@@ -73,6 +73,42 @@ describe("PrepareDriver (issue #295)", () => {
     await d.tick();
     expect(calls).toEqual([{ run: true }, { run: false }]);
     expect(d.reason).toBe("obs");
+  });
+
+  it("reads macOS's own answer on battery, from pmset -g batt", () => {
+    expect(batteryFromPmset("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1)\t62%; discharging; (no estimate) present: true\n")).toBe(true);
+    expect(batteryFromPmset("Now drawing from 'AC Power'\n -InternalBattery-0 (id=1)\t60%; charging; 1:29 remaining present: true\n")).toBe(false);
+    // A desktop Mac has no battery line at all.
+    expect(batteryFromPmset("Now drawing from 'AC Power'\n")).toBe(false);
+    expect(batteryFromPmset("Now drawing from 'UPS Power'\n")).toBe(false);
+    expect(batteryFromPmset("")).toBeNull();
+  });
+
+  it("stops on battery when the system says so, though the app's own check says plugged in", async () => {
+    let battery = false;
+    const calls: unknown[] = [];
+    const d = new PrepareDriver({
+      conditions: () => free,
+      obsRunning: async () => false,
+      onBattery: async () => battery,
+      control: async (_p, body) => (calls.push(body), { running: (body as { run: boolean }).run }),
+    });
+    await d.tick();
+    expect(calls).toEqual([{ run: true }]);
+    battery = true;
+    await d.tick();
+    expect(d.reason).toBe("battery");
+    expect(calls).toEqual([{ run: true }, { run: false }]);
+    // Said before an overlay, as the app's own check does.
+    const withOverlay = new PrepareDriver({ conditions: () => ({ ...free, overlays: 1 }), obsRunning: async () => false, onBattery: async () => true, control: async () => ({ running: false }) });
+    await withOverlay.tick();
+    expect(withOverlay.reason).toBe("battery");
+  });
+
+  it("waits when the system can't say whether it's on battery", async () => {
+    const d = new PrepareDriver({ conditions: () => free, obsRunning: async () => false, onBattery: async () => Promise.reject(new Error("pmset failed")), control: async () => ({ running: false }) });
+    await d.tick();
+    expect(d.reason).toBe("power-unknown");
   });
 
   it("waits when the process list fails, instead of taking that for OBS being closed", async () => {

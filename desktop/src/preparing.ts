@@ -43,8 +43,31 @@ export function listProcesses(platform: NodeJS.Platform = process.platform): Pro
   });
 }
 
+/**
+ * Whether a Mac runs on its battery, from `pmset -g batt`'s first line ("Now drawing from 'Battery Power'");
+ * null when the text says neither. Electron's powerMonitor said "plugged in" on battery (Electron 44, macOS,
+ * checked 2026-11-02), so on a Mac this asks macOS too.
+ */
+export function batteryFromPmset(text: string): boolean | null {
+  const first = text.split(/\r?\n/)[0] ?? "";
+  if (/'Battery Power'/.test(first)) return true;
+  if (/'(AC|UPS) Power'/.test(first)) return false;
+  return null;
+}
+
+/** macOS's own answer on battery or not; rejects when it can't tell. */
+export function macOnBattery(): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    execFile("pmset", ["-g", "batt"], { timeout: 2000 }, (err, stdout) => {
+      const onBattery = err ? null : batteryFromPmset(stdout);
+      if (onBattery === null) reject(err ?? new Error("pmset said neither battery nor AC"));
+      else resolve(onBattery);
+    });
+  });
+}
+
 /** Why preparing waits, in the order checked; "" when the computer is free and it may run. */
-export type WaitReason = "" | "off" | "setup" | "online-ai" | "no-ai" | "server" | "battery" | "overlay" | "obs" | "obs-unknown";
+export type WaitReason = "" | "off" | "setup" | "online-ai" | "no-ai" | "server" | "battery" | "power-unknown" | "overlay" | "obs" | "obs-unknown";
 
 export interface Conditions {
   /** Prepare my songs is on, and setup is done. */
@@ -73,6 +96,8 @@ export function waitReason(c: Conditions): WaitReason {
 export interface DriverDeps {
   conditions: () => Conditions;
   obsRunning: () => Promise<boolean>;
+  /** The operating system's own answer on battery, where the app's (`conditions().onBattery`) can be wrong: a Mac. */
+  onBattery?: () => Promise<boolean>;
   /** Asks the server (`/control/<path>`); null when it didn't answer. */
   control: (pathname: string, body?: unknown) => Promise<Record<string, unknown> | null>;
   now?: () => number;
@@ -116,6 +141,11 @@ export class PrepareDriver {
     this.busy = true;
     try {
       let reason = waitReason(this.deps.conditions());
+      // On battery comes before an overlay, so the window says the same either way. Not knowing waits too.
+      if ((!reason || reason === "overlay") && this.deps.onBattery) {
+        const battery = await this.deps.onBattery().then((on) => (on ? "battery" : null), () => "power-unknown" as const);
+        if (battery) reason = battery;
+      }
       // A process list that fails says nothing about OBS, so it waits: OBS can be open before its overlay connects.
       if (!reason) reason = await this.deps.obsRunning().then((open) => (open ? "obs" : ""), () => "obs-unknown" as const);
       this.reason = reason;
@@ -163,7 +193,12 @@ export interface PreparingDeps {
  * it. Call `start` once the app is ready.
  */
 export function registerPreparing(deps: PreparingDeps): PrepareDriver {
-  const driver = new PrepareDriver({ conditions: deps.conditions, obsRunning: async () => obsInProcessList(await listProcesses()), control: deps.control });
+  const driver = new PrepareDriver({
+    conditions: deps.conditions,
+    obsRunning: async () => obsInProcessList(await listProcesses()),
+    onBattery: process.platform === "darwin" ? macOnBattery : undefined,
+    control: deps.control,
+  });
   // Where preparing stands, for the window.
   deps.handle("prepare-status", async () => ({ waiting: driver.reason, server: await deps.control("prepare/status") }));
   return driver;
