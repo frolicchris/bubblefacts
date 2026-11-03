@@ -1,4 +1,9 @@
 {
+  "2.2.0-beta.3": [
+    "Prepare my songs: facts ready the moment a song starts. Turn it on in Settings.",
+    "Styles for the bubbles, High contrast included: Settings, under Bubbles.",
+    "A new Style or Bubble size shows on stream as soon as you click Save."
+  ],
   "2.2.0-beta.2": [
     "A vertical overlay for phone-shaped streams.",
     "Original songs by Twitch artists can get facts from the artist's Twitch About page."
