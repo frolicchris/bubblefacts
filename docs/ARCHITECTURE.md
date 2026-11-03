@@ -1612,7 +1612,7 @@ asks the system itself as well as Electron (`systemOnBattery`), because
 battery (Electron 44.10, 2026-11-02): `pmset -g batt` on a Mac, the files in
 `/sys/class/power_supply` on Linux, and Win32_Battery's BatteryStatus through
 PowerShell on Windows, kept for 10 s there because PowerShell is slow to
-start. Either saying battery is battery; a system check that can't answer
+start (each check may take up to 20 s before it counts as no answer). Either saying battery is battery; a system check that can't answer
 waits (`power-unknown`), like the process list below. The cheap
 checks come first; the process list (`tasklist /FO CSV /NH` on Windows,
 `ps -A -o comm=` elsewhere, matched by `isObsProcess`: `obs64`, `obs32`,
