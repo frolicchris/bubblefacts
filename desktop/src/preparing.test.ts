@@ -75,6 +75,21 @@ describe("PrepareDriver (issue #295)", () => {
     expect(d.reason).toBe("obs");
   });
 
+  it("waits when the process list fails, instead of taking that for OBS being closed", async () => {
+    const state = { conditions: free, obs: false };
+    const { d, calls, obsChecks } = driver(state);
+    await d.tick();
+    expect(calls).toEqual([{ run: true }]);
+    obsChecks.mockRejectedValueOnce(new Error("ps timed out"));
+    await d.tick();
+    expect(calls).toEqual([{ run: true }, { run: false }]);
+    expect(d.reason).toBe("obs-unknown");
+    // The next good check frees it again.
+    await d.tick();
+    expect(d.reason).toBe("");
+    expect(calls).toEqual([{ run: true }, { run: false }, { run: true }]);
+  });
+
   it("stops when the computer goes on battery or an overlay connects, and never reads the process list then", async () => {
     const state = { conditions: free, obs: false };
     const { d, calls, obsChecks } = driver(state);

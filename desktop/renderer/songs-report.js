@@ -45,6 +45,7 @@
     battery: "Waiting: plug your computer in.",
     overlay: "Waiting: BubbleFacts is on your stream in OBS.",
     obs: "Waiting: OBS is open. Preparing carries on when you close it.",
+    "obs-unknown": "Waiting: BubbleFacts can't tell right now whether OBS is open, so it holds off and checks again.",
   };
 
   /** What preparing is doing now. `waiting`: why the app holds it back ("" when free); `server`: what the server said. */

@@ -44,7 +44,7 @@ export function listProcesses(platform: NodeJS.Platform = process.platform): Pro
 }
 
 /** Why preparing waits, in the order checked; "" when the computer is free and it may run. */
-export type WaitReason = "" | "off" | "setup" | "online-ai" | "no-ai" | "server" | "battery" | "overlay" | "obs";
+export type WaitReason = "" | "off" | "setup" | "online-ai" | "no-ai" | "server" | "battery" | "overlay" | "obs" | "obs-unknown";
 
 export interface Conditions {
   /** Prepare my songs is on, and setup is done. */
@@ -116,7 +116,8 @@ export class PrepareDriver {
     this.busy = true;
     try {
       let reason = waitReason(this.deps.conditions());
-      if (!reason) reason = (await this.deps.obsRunning().catch(() => false)) ? "obs" : "";
+      // A process list that fails says nothing about OBS, so it waits: OBS can be open before its overlay connects.
+      if (!reason) reason = await this.deps.obsRunning().then((open) => (open ? "obs" : ""), () => "obs-unknown" as const);
       this.reason = reason;
       if (reason) {
         // Stop whenever it may be running: asked to run, or the server last said it was.
