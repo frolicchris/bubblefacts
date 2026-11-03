@@ -1606,7 +1606,10 @@ checks come first; the process list (`tasklist /FO CSV /NH` on Windows,
 `ps -A -o comm=` elsewhere, matched by `isObsProcess`: `obs64`, `obs32`,
 `OBS`, `obs`, never a helper like `obs-browser-page`) is read only when
 everything else says go, or while it runs, so a stream starting stops it
-within a second. A song on stream also takes the model from a preparing turn
+within a second. A process list that can't be read says nothing about OBS,
+which can be open before its overlay connects, so preparing waits
+(`obs-unknown`: "can't tell right now whether OBS is open") and asks again on
+the next tick. A song on stream also takes the model from a preparing turn
 at once (`setCurrentSong`), and the preparing model, when there is one, gives
 its memory back when a run ends. An online AI (Groq, Anthropic) is never used
 for preparing: every song would count against the streamer's own key and
