@@ -1,6 +1,8 @@
+import fs from "fs";
+import os from "os";
 import path from "path";
 import { MODEL, MODEL_HIGH } from "./model";
-import { batteryFromPmset, Conditions, isObsProcess, obsInProcessList, PrepareDriver, prepareEnv, registerPreparing, waitReason } from "./preparing";
+import { batteryFromPmset, batteryFromSysfs, batteryFromWin32, Conditions, linuxOnBattery, reusedFor, systemOnBattery, isObsProcess, obsInProcessList, PrepareDriver, prepareEnv, registerPreparing, waitReason } from "./preparing";
 
 describe("prepareEnv (issue #296)", () => {
   const all = () => true;
@@ -82,6 +84,66 @@ describe("PrepareDriver (issue #295)", () => {
     expect(batteryFromPmset("Now drawing from 'AC Power'\n")).toBe(false);
     expect(batteryFromPmset("Now drawing from 'UPS Power'\n")).toBe(false);
     expect(batteryFromPmset("")).toBeNull();
+  });
+
+  it("reads Windows' own answer on battery, from Win32_Battery's BatteryStatus", () => {
+    expect(batteryFromWin32("1\r\n")).toBe(true);
+    expect(batteryFromWin32("2\r\n")).toBe(false);
+    expect(batteryFromWin32("6")).toBe(false);
+    expect(batteryFromWin32("2,1")).toBe(true);
+    // A desktop has no battery.
+    expect(batteryFromWin32("\r\n")).toBe(false);
+    expect(batteryFromWin32("Get-CimInstance : Access denied")).toBeNull();
+  });
+
+  it("reads Linux's own answer on battery, from /sys/class/power_supply", async () => {
+    const plugged = [{ type: "Mains", online: "1" }, { type: "Battery", status: "Charging" }];
+    const unplugged = [{ type: "Mains", online: "0" }, { type: "Battery", status: "Discharging" }];
+    expect(batteryFromSysfs(plugged)).toBe(false);
+    expect(batteryFromSysfs(unplugged)).toBe(true);
+    // A charger that's out and a battery whose status says nothing useful: on battery.
+    expect(batteryFromSysfs([{ type: "Mains", online: "0" }, { type: "Battery", status: "Unknown" }])).toBe(true);
+    // USB-C charging.
+    expect(batteryFromSysfs([{ type: "USB", online: "1" }, { type: "Battery", status: "Not charging" }])).toBe(false);
+    // A desktop, or a virtual machine.
+    expect(batteryFromSysfs([])).toBe(false);
+    expect(batteryFromSysfs([{ type: "Mains", online: "1" }])).toBe(false);
+
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-power-"));
+    for (const [name, files] of Object.entries({ AC: { type: "Mains", online: "0" }, BAT0: { type: "Battery", status: "Discharging" } })) {
+      fs.mkdirSync(path.join(root, name));
+      for (const [file, value] of Object.entries(files)) fs.writeFileSync(path.join(root, name, file), `${value}\n`);
+    }
+    await expect(linuxOnBattery(root)).resolves.toBe(true);
+    await expect(linuxOnBattery(path.join(root, "missing"))).resolves.toBe(false);
+  });
+
+  it("reuses a slow check's answer for a while, and asks again after a failure", async () => {
+    let clock = 0;
+    let asked = 0;
+    let fail = false;
+    const check = reusedFor(10_000, async () => {
+      asked++;
+      if (fail) throw new Error("no answer");
+      return true;
+    }, () => clock);
+    await check();
+    clock = 9_000;
+    await check();
+    expect(asked).toBe(1);
+    clock = 10_000;
+    fail = true;
+    await expect(check()).rejects.toThrow();
+    fail = false;
+    await expect(check()).resolves.toBe(true);
+    expect(asked).toBe(3);
+  });
+
+  // Runs this system's real check: CI does this on macOS, Windows and Linux.
+  it("gets an answer from this computer's own system", async () => {
+    const own = systemOnBattery();
+    if (!own) return;
+    await expect(own()).resolves.toEqual(expect.any(Boolean));
   });
 
   it("stops on battery when the system says so, though the app's own check says plugged in", async () => {

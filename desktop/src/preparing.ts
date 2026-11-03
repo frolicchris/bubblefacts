@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import fs from "fs";
 import path from "path";
 import { MODEL, ModelFile, modelPath } from "./model";
 import type { Settings } from "./settings";
@@ -43,11 +44,10 @@ export function listProcesses(platform: NodeJS.Platform = process.platform): Pro
   });
 }
 
-/**
- * Whether a Mac runs on its battery, from `pmset -g batt`'s first line ("Now drawing from 'Battery Power'");
- * null when the text says neither. Electron's powerMonitor said "plugged in" on battery (Electron 44, macOS,
- * checked 2026-11-02), so on a Mac this asks macOS too.
- */
+// Electron's powerMonitor said "plugged in" on battery (Electron 44, macOS, checked 2026-11-02), so each
+// system is asked in its own way too. Each answer below rejects when the system can't say.
+
+/** Whether a Mac runs on its battery, from `pmset -g batt`'s first line ("Now drawing from 'Battery Power'"); null when it says neither. */
 export function batteryFromPmset(text: string): boolean | null {
   const first = text.split(/\r?\n/)[0] ?? "";
   if (/'Battery Power'/.test(first)) return true;
@@ -55,15 +55,90 @@ export function batteryFromPmset(text: string): boolean | null {
   return null;
 }
 
-/** macOS's own answer on battery or not; rejects when it can't tell. */
-export function macOnBattery(): Promise<boolean> {
+/**
+ * Whether Windows runs on battery, from Win32_Battery's BatteryStatus values, one per battery (none on a
+ * desktop). 1 is discharging, and 4 and 5 (low, critical) are said only on battery; the rest are on AC.
+ */
+export function batteryFromWin32(text: string): boolean | null {
+  const values = text.split(/[\s,]+/).filter(Boolean);
+  if (values.some((v) => !/^\d+$/.test(v))) return null;
+  return values.some((v) => ["1", "4", "5"].includes(v));
+}
+
+/** One of Linux's /sys/class/power_supply entries: its `type`, and `online` or `status` where it has them. */
+export interface PowerSupply {
+  type: string;
+  online?: string;
+  status?: string;
+}
+
+/**
+ * Whether Linux runs on battery: no charger (Mains or USB) is online, and a battery is discharging or a
+ * charger is there but offline. A desktop or a virtual machine has no battery: not on battery.
+ */
+export function batteryFromSysfs(supplies: PowerSupply[]): boolean {
+  const chargers = supplies.filter((s) => /^(Mains|USB.*)$/.test(s.type));
+  if (chargers.some((s) => s.online === "1")) return false;
+  const batteries = supplies.filter((s) => s.type === "Battery");
+  if (batteries.some((b) => b.status === "Discharging")) return true;
+  return chargers.length > 0 && batteries.length > 0;
+}
+
+function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("pmset", ["-g", "batt"], { timeout: 2000 }, (err, stdout) => {
-      const onBattery = err ? null : batteryFromPmset(stdout);
-      if (onBattery === null) reject(err ?? new Error("pmset said neither battery nor AC"));
-      else resolve(onBattery);
-    });
+    execFile(cmd, args, { timeout: 5000, windowsHide: true }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
   });
+}
+
+const sure = (answer: boolean | null, what: string): boolean => {
+  if (answer === null) throw new Error(`${what} said neither battery nor plugged in`);
+  return answer;
+};
+
+export async function macOnBattery(): Promise<boolean> {
+  return sure(batteryFromPmset(await run("pmset", ["-g", "batt"])), "pmset");
+}
+
+export async function windowsOnBattery(): Promise<boolean> {
+  const script = "(Get-CimInstance -ClassName Win32_Battery | ForEach-Object { $_.BatteryStatus }) -join ','";
+  return sure(batteryFromWin32(await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script])), "Win32_Battery");
+}
+
+export async function linuxOnBattery(root = "/sys/class/power_supply"): Promise<boolean> {
+  const read = (file: string) => fs.promises.readFile(file, "utf8").then((t) => t.trim(), () => undefined);
+  const names = await fs.promises.readdir(root).catch((err: NodeJS.ErrnoException) => {
+    // No power supplies at all: a desktop or a virtual machine.
+    if (err.code === "ENOENT") return [] as string[];
+    throw err;
+  });
+  const supplies = await Promise.all(names.map(async (name) => ({
+    type: (await read(path.join(root, name, "type"))) ?? "",
+    online: await read(path.join(root, name, "online")),
+    status: await read(path.join(root, name, "status")),
+  })));
+  return batteryFromSysfs(supplies);
+}
+
+/** The same answer for `ms`, for a check too slow to run every second (PowerShell starts in about half a second). */
+export function reusedFor<T>(ms: number, ask: () => Promise<T>, now: () => number = Date.now): () => Promise<T> {
+  let last: { at: number; answer: Promise<T> } | null = null;
+  return () => {
+    if (!last || now() - last.at >= ms) {
+      const answer = ask();
+      last = { at: now(), answer };
+      // A failed answer is asked again next time rather than kept.
+      answer.catch(() => (last = null));
+    }
+    return last.answer;
+  };
+}
+
+/** This system's own answer on battery, for the driver: every second, or every 10 s on Windows. */
+export function systemOnBattery(platform: NodeJS.Platform = process.platform): (() => Promise<boolean>) | undefined {
+  if (platform === "darwin") return macOnBattery;
+  if (platform === "win32") return reusedFor(10_000, windowsOnBattery);
+  if (platform === "linux") return () => linuxOnBattery();
+  return undefined;
 }
 
 /** Why preparing waits, in the order checked; "" when the computer is free and it may run. */
@@ -96,7 +171,7 @@ export function waitReason(c: Conditions): WaitReason {
 export interface DriverDeps {
   conditions: () => Conditions;
   obsRunning: () => Promise<boolean>;
-  /** The operating system's own answer on battery, where the app's (`conditions().onBattery`) can be wrong: a Mac. */
+  /** The system's own answer on battery (systemOnBattery), where the app's (`conditions().onBattery`) can be wrong. */
   onBattery?: () => Promise<boolean>;
   /** Asks the server (`/control/<path>`); null when it didn't answer. */
   control: (pathname: string, body?: unknown) => Promise<Record<string, unknown> | null>;
@@ -196,7 +271,7 @@ export function registerPreparing(deps: PreparingDeps): PrepareDriver {
   const driver = new PrepareDriver({
     conditions: deps.conditions,
     obsRunning: async () => obsInProcessList(await listProcesses()),
-    onBattery: process.platform === "darwin" ? macOnBattery : undefined,
+    onBattery: systemOnBattery(),
     control: deps.control,
   });
   // Where preparing stands, for the window.

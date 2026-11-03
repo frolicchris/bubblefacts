@@ -1600,8 +1600,15 @@ lookups are off (`cantPrepare`), and stops the moment an overlay connects.
 asks a server that started over (a settings change, a crash) at once rather
 than after its usual ten minutes (`serverRestarted`): the
 setting is on, setup is done, the AI runs on this computer, the server is up,
-the computer is plugged in (`powerMonitor.isOnBatteryPower()`), no overlay is
-connected (`obsClients` from `/health`) and OBS isn't running. The cheap
+the computer is plugged in, no overlay is
+connected (`obsClients` from `/health`) and OBS isn't running. Plugged in
+asks the system itself as well as Electron (`systemOnBattery`), because
+`powerMonitor.isOnBatteryPower()` answered false on a MacBook running on its
+battery (Electron 44.10, 2026-11-02): `pmset -g batt` on a Mac, the files in
+`/sys/class/power_supply` on Linux, and Win32_Battery's BatteryStatus through
+PowerShell on Windows, kept for 10 s there because PowerShell is slow to
+start. Either saying battery is battery; a system check that can't answer
+waits (`power-unknown`), like the process list below. The cheap
 checks come first; the process list (`tasklist /FO CSV /NH` on Windows,
 `ps -A -o comm=` elsewhere, matched by `isObsProcess`: `obs64`, `obs32`,
 `OBS`, `obs`, never a helper like `obs-browser-page`) is read only when
