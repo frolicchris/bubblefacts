@@ -28,6 +28,9 @@ export const PREPARED_RULES_VERSION = 1;
 
 /** A prepared song is prepared again after this long, whatever else changed. */
 export const PREPARED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/** The pace keeps the latest songs' times and this many days of preparing time; the finish date uses the newest of them (preparer.ts). */
+export const PACE_KEEP_SONGS = 50;
+export const PACE_KEEP_DAYS = 14;
 
 /** One prepared fact: what the dashboard needs to label it and what Wrong needs to block its source. */
 export interface PreparedFact {
@@ -155,18 +158,18 @@ export class PreparedStore {
   }
 
   /** One song took `ms`; the time preparing today grows by `activeMs`. */
-  addPace(ms: number, activeMs: number, day: string, keep = 50): void {
+  addPace(ms: number, activeMs: number, day: string, keep = PACE_KEEP_SONGS): void {
     this.load();
     this.notePace(ms, activeMs, day, keep);
     this.save();
   }
 
-  private notePace(ms: number, activeMs: number, day: string, keep = 50): void {
+  private notePace(ms: number, activeMs: number, day: string, keep = PACE_KEEP_SONGS): void {
     if (ms > 0) this.pace.recentMs = [...this.pace.recentMs, ms].slice(-keep);
     if (activeMs > 0) {
       this.pace.activeByDay[day] = (this.pace.activeByDay[day] ?? 0) + activeMs;
       const days = Object.keys(this.pace.activeByDay).sort();
-      for (const d of days.slice(0, Math.max(0, days.length - 14))) delete this.pace.activeByDay[d];
+      for (const d of days.slice(0, Math.max(0, days.length - PACE_KEEP_DAYS))) delete this.pace.activeByDay[d];
     }
   }
 

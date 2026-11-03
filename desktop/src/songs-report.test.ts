@@ -29,7 +29,7 @@ describe("Your songs (issue #294)", () => {
     expect(report.readyLine({ ...base, finish: { at: thursday } }, now)).toBe("1,240 of 5,000 songs ready. The rest by about Thursday.");
     expect(report.readyLine({ ...base, finish: { at: new Date(2026, 10, 2, 23, 0).toISOString() } }, now)).toMatch(/ The rest later today\.$/);
     expect(report.readyLine({ ...base, finish: { at: new Date(2026, 10, 3, 8, 0).toISOString() } }, now)).toMatch(/by about tomorrow\.$/);
-    expect(report.readyLine({ ...base, finish: { at: new Date(2026, 10, 20, 8, 0).toISOString() } }, now)).toMatch(/by about 20 November\.$/);
+    expect(report.readyLine({ ...base, finish: { at: new Date(2026, 10, 20, 8, 0).toISOString() } }, now)).toMatch(/by about November 20\.$/);
     expect(report.readyLine({ ...base, finish: { hours: 1 } }, now)).toMatch(/about an hour of preparing\.$/);
     expect(report.readyLine({ ...base, finish: { hours: 30 } }, now)).toMatch(/about 30 hours of preparing\.$/);
     expect(report.readyLine(base, now)).toMatch(/Once a few songs are done/);

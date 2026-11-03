@@ -73,10 +73,10 @@ export function connectAboutAsker(sender: Send | null): void {
   send = sender;
 }
 
-/** The app turned this off or disconnected Twitch: nothing kept, and questions still open don't count. */
 /** Whether the app is there to ask. */
 export const canAskAbout = (): boolean => send !== null;
 
+/** The app turned this off or disconnected Twitch: nothing kept, and questions still open don't count. */
 export function forgetAbouts(): void {
   known.clear();
   for (const a of asking.values()) a.done(null);

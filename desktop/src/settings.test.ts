@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { customFactsProblem, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -63,6 +63,13 @@ describe("loadSettings", () => {
     const disk = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(disk).toMatchObject({ channel: "jane", displayName: "Jane Composer", fromAFutureVersion: "kept", settingsVersion: 2 });
     expect(disk).not.toHaveProperty("topics");
+  });
+
+  it("lists every setting held to a list of values, so going back a version keeps a newer choice for each", () => {
+    const source = fs.readFileSync(path.join(__dirname, "settings.ts"), "utf8");
+    const held = [...source.matchAll(/^\s+(\w+): oneOf\(s\.\1,/gm)].map((m) => m[1]);
+    expect(held.length).toBeGreaterThan(5);
+    expect([...ENUM_KEYS].sort()).toEqual([...new Set(held)].sort());
   });
 
   it("keeps a choice only a newer version knows, using a safe default meanwhile", () => {

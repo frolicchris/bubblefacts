@@ -272,7 +272,7 @@
     colorSheet.textContent = custom ? customColorsCss(c) : "";
   }
 
-  /** A size the server sent, or null: never one that would make bubbles unreadable or cover the stream. */
+  /** A size the server sent, or null: never one that would make bubbles unreadable or cover the stream. The limits are MIN_SCALE and MAX_SCALE in bubble-style.ts. */
   const sizeOf = (n) => (typeof n === "number" && n >= 0.5 && n <= 3 ? n : null);
 
   /**

@@ -41,8 +41,8 @@ export interface StylePayload {
 }
 
 /** The sizes a Bubble size may be: smaller would be unreadable, bigger covers the stream. */
-const MIN_SCALE = 0.5;
-const MAX_SCALE = 3;
+export const MIN_SCALE = 0.5;
+export const MAX_SCALE = 3;
 
 /** A bubble size as a number between MIN_SCALE and MAX_SCALE, or null for anything else. */
 export function scaleFrom(value: unknown): number | null {

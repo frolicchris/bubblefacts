@@ -299,7 +299,7 @@ export function unlockSecrets(settings: Settings): Settings {
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.includes(value) ? value : fallback);
-/** A color exactly as #rrggbb (what a color picker gives), lowercased; anything else is the fallback. */
+/** A color exactly as #rrggbb (what a color picker gives), lowercased; anything else is the fallback. The same rule as hexColor in backend/src/bubble-style.ts: keep them alike. */
 const hexColor = (value: string, fallback: string) => (/^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback);
 
 /** Keep every value in a range the server accepts, so no setting can stop it from starting. */
@@ -405,7 +405,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 /** The settings that sanitize holds to a list of values. */
-const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "wrongKey", "updateChannel"] as const;
+export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;

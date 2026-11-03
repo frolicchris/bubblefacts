@@ -5,7 +5,7 @@
   const number = (n) => Number(n).toLocaleString("en-US");
   const DAY = 24 * 60 * 60 * 1000;
 
-  /** When the rest will be ready, as a person says it: later today, tomorrow, Thursday, or 14 November. */
+  /** When the rest will be ready, as a person says it: later today, tomorrow, Thursday, or November 14. */
   function whenSaid(atIso, now) {
     const at = new Date(atIso);
     const start = new Date(now);
@@ -14,7 +14,7 @@
     if (days <= 0) return "later today";
     if (days === 1) return "tomorrow";
     if (days < 7) return at.toLocaleDateString("en-US", { weekday: "long" });
-    return at.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+    return at.toLocaleDateString("en-US", { month: "long", day: "numeric" });
   }
 
   /** "1,240 of 5,000 songs ready. The rest by about Thursday." */

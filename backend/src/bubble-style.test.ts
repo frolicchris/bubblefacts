@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { autoTextColor, BUBBLE_STYLES, contrast, contrastOver, CUSTOM_ALPHA, customColors, MIN_CONTRAST, styleFrom } from "./bubble-style";
+import { autoTextColor, BUBBLE_STYLES, contrast, contrastOver, CUSTOM_ALPHA, customColors, MAX_SCALE, MIN_CONTRAST, MIN_SCALE, styleFrom } from "./bubble-style";
 
 /** Bubble Styles (issue #177), checked against the overlay's real CSS. */
 const OBS = path.resolve(__dirname, "../../frontend/obs");
@@ -48,6 +48,19 @@ describe("every built-in Style", () => {
       expect(SCRIPT).toContain(`"${style}"`);
     }
     expect(SCRIPT).toMatch(new RegExp(`const STYLES = \\[${BUBBLE_STYLES.map((s) => `"${s}"`).join(", ")}\\];`));
+  });
+
+  it("is in the app's settings and its Style menu, so the app never turns a new Style back into classic", () => {
+    const desktop = path.join(__dirname, "..", "..", "desktop");
+    const settings = fs.readFileSync(path.join(desktop, "src", "settings.ts"), "utf8");
+    expect(settings).toContain(`export const BUBBLE_STYLES = [${BUBBLE_STYLES.map((s) => `"${s}"`).join(", ")}] as const;`);
+    const html = fs.readFileSync(path.join(desktop, "renderer", "index.html"), "utf8");
+    const menu = /<select id="s-style"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
+    expect([...menu.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1])).toEqual([...BUBBLE_STYLES]);
+  });
+
+  it("has the overlay keep a bubble size within the server's limits", () => {
+    expect(SCRIPT).toContain(`n >= ${MIN_SCALE} && n <= ${MAX_SCALE}`);
   });
 
   it.each(BUBBLE_STYLES)("%s keeps every text at WCAG AA contrast (4.5:1), over dark or light video", (style) => {
