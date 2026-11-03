@@ -169,26 +169,29 @@ jobs:
           echo "APP_RESOURCES=$HOME/Applications/BubbleFacts.app/Contents/Resources" >> "$GITHUB_ENV"
 
       - name: Start the app as shipped
-        # Before anything below changes it: the app a streamer gets must open. A fresh data
-        # folder starts it at setup; its log's first line says it started.
+        # Before anything below changes it: the app a streamer gets must open and start its fact
+        # server. Setup is marked done (a now playing file, Ollama) so the server starts; on Linux
+        # it runs under the bundled Node.js, which RunAsNode being off once stopped (2.0.0 to 2.2.0-beta.2).
         shell: bash
         run: |
           ud="$RUNNER_TEMP/bf-launch"; flag="$ud"
           [ "$RUNNER_OS" = Windows ] && { ud=$(cygpath -u "$RUNNER_TEMP")/bf-launch; flag=$(cygpath -w "$ud"); }
           mkdir -p "$ud"
+          echo "Tidewater Reel - The Example Band" > "$ud/now-playing.txt"
+          node -e 'const [dir, file] = process.argv.slice(1); require("fs").writeFileSync(require("path").join(dir, "settings.json"), JSON.stringify({ setupComplete: true, songSource: "nowplaying", nowPlayingPreset: "none", nowPlayingFile: file, ai: "ollama" }))' "$ud" "$flag/now-playing.txt"
           [ "$RUNNER_OS" = macOS ] && codesign --verify --deep --strict "$HOME/Applications/BubbleFacts.app"
           app="${APP_LAUNCH:-$APP_EXE}"
           if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a "$app" --no-sandbox "--user-data-dir=$flag" > launch.txt 2>&1 &
           else "$app" "--user-data-dir=$flag" > launch.txt 2>&1 &
           fi
-          for _ in $(seq 1 60); do grep -qs "starting on" "$ud"/logs/*.log && break; sleep 1; done
+          for _ in $(seq 1 90); do grep -qs "\[Server\] Listening" "$ud"/logs/*.log && break; sleep 1; done
           cat "$ud"/logs/*.log 2>/dev/null; tail -20 launch.txt
-          ok=0; grep -qs "starting on" "$ud"/logs/*.log && ok=1
+          ok=0; grep -qs "\[Server\] Listening" "$ud"/logs/*.log && ok=1
           case "$RUNNER_OS" in
             Windows) taskkill //IM BubbleFacts.exe //F //T >/dev/null 2>&1 || true ;;
             *) pkill -f "bf-launch" || true ;;
           esac
-          [ "$ok" = 1 ] || { echo "The app as shipped didn't start"; exit 1; }
+          [ "$ok" = 1 ] || { echo "The app as shipped didn't start its fact server"; exit 1; }
       - name: Let the test run the app as Node.js
         # The app as shipped refuses to (electronFuses in package.json), so another
         # program can't borrow it to read the streamer's saved keys. This copy is only for the test.
