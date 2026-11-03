@@ -2,7 +2,12 @@ jest.mock("./config", () => ({
   config: { groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, dataDir: process.env.BUBBLEFACTS_DATA_DIR, topic: "general" },
 }));
 
-import { workMatchConfidence } from "./fact-verifier";
+import { workMatchConfidence as rules, articleText } from "./fact-verifier";
+import { referenceDecision, scoredLevel } from "./work-resolver";
+
+// MATCH=scored (the "scored match" test project): the score may hold an article back, never add one.
+const scored = process.env.MATCH === "scored";
+const workMatchConfidence = (...a: Parameters<typeof rules>) => (scored ? scoredLevel(rules(...a), referenceDecision(a[2] ?? a[0], a[1], a[0], articleText(a[1].split("\n")[0]))) : rules(...a));
 
 /** A reference as fetchGrounding returns it: the page title, then the text. */
 const ref = (page: string, ...text: string[]) => `${page}\n${text.join(" ")}`;

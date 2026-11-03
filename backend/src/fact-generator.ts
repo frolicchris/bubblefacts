@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
+import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
@@ -24,6 +24,7 @@ import { logWrong } from "./wrong-log";
 import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
+import { MatchResult, candidateProfile, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
 
 /**
@@ -1372,6 +1373,26 @@ function originalFacts(song: SSLSong, entry: SSLQueueItem | null, want: number, 
   return { facts, ttlMs: 0 };
 }
 
+/** Search results each request's lookup saw, for the scored match when the article comes from the cache. */
+const searchesFor = new Map<string, string[][]>();
+
+/**
+ * The scored match for a request's article (work-resolver.ts), from what the lookup already
+ * read: the article, Wikipedia's summary of it, MusicBrainz's credit (both cached) and the
+ * search results. Never throws: what can't be read counts as unknown.
+ */
+async function scoreMatch(song: SSLSong, read: SSLSong, context: string): Promise<MatchResult> {
+  const page = context.split("\n")[0];
+  const summary = await pageSummary(page).catch(() => null);
+  const mb = await musicbrainzFacts(read);
+  const credited = statedYear(mb) || statesAlbum(mb) ? true : null;
+  const searches = searchesFor.get(songKey(song)) ?? [];
+  const rank = searches.some((s) => s[0] === page) ? 0 : -1;
+  const pick = candidateProfile(page, articleText(page) || context.slice(page.length + 1), summary?.description ?? "", rank);
+  const others = [...new Set(searches.flat())].filter((t) => t !== page).map((t) => candidateProfile(t));
+  return resolveWork(requestProfile(song, read, credited), pick, others);
+}
+
 /**
  * Facts from a reference: the article for a reading of the request, written up by the model and
  * screened, or Wikidata and MusicBrainz when there is no article or it may not be this song's;
@@ -1393,7 +1414,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const placeholder = isPlaceholderRequest(song);
   if (placeholder) console.log(`[FactGen] "${song.title}" is a request placeholder, not a song: not looked up`);
   if (config.aiProvider !== "none" && config.factVerification && !handle && !placeholder) {
-    ({ context, read } = await findReference(song));
+    const { found, searches } = await withSearches(() => findReference(song));
+    ({ context, read } = found);
+    if (searches.length) setCapped(searchesFor, songKey(song), searches, MAX_KEPT);
     if (read !== song) console.log(`[FactGen] "${song.title}" read as "${read.title}" from ${read.artist}`);
   }
   // No AI available (the desktop app's fallback when its model can't run), or no article:
@@ -1432,9 +1455,26 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const why = await summaryGate(read, context, song);
     if (why) match = { level: "unsure", reason: why };
   }
-  if (match?.level === "unsure") {
-    console.log(`[Grounding] unsure: ${match.reason} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
-    const fresh = (list: string[]) => list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song));
+  // The scored match (issue #172): shadow logs it; scored lets it hold facts back, never add them.
+  const scored = context && config.match !== "rules" ? await scoreMatch(song, read, context) : null;
+  if (scored) {
+    console.log(matchLine(scored, song.title));
+    const rules = match?.level === "unsure" ? "unsure" : "sure";
+    if (config.match === "shadow" && (rules === "sure") !== (scored.decision === "sure")) console.log(`[Grounding] match differs: rules ${rules}, scored ${scored.decision} for "${song.title}"`);
+  }
+  if (config.match === "scored" && scored?.decision === "abstain") {
+    console.log(`[Grounding] abstain: "${context.split("\n")[0]}" may be another work than "${song.title}", no facts from the lookup`);
+    if (sourcedOnly) return none;
+    const lines = entryFacts(entry, want);
+    record(asked, "noReference", lines.length);
+    return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+  }
+  // Data only: no captions, and only what holds for every version of the work (who wrote it).
+  const dataOnly = config.match === "scored" && scored?.decision === "data-only";
+  if (match?.level === "unsure" || dataOnly) {
+    const why = match?.level === "unsure" ? match.reason : "the scored match is not sure";
+    console.log(`[Grounding] unsure: ${why} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
+    const fresh = (list: string[]) => list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song) && (!dataOnly || holdsForEveryVersion(f)));
     const data = fresh(await structuredFacts(song, read));
     // Too few to fill the song: up to two about its artist or game, from Wikidata too.
     const { game } = resolveGameAndTrack(read);
@@ -1442,8 +1482,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // A series in the artist field and one of its games in the title: the game's facts, never the series' first game's.
     const about = isPerformerArticle(page, articleText(page) || context) ? page : titleGame(read.title, game) || game;
     // Facts about "the artist" would be the other act's when MusicBrainz said the article is someone else's.
-    const sameName = /^MusicBrainz credits /.test(match.reason);
-    const extra = !sameName && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
+    const sameName = /^MusicBrainz credits /.test(match?.reason ?? "");
+    const extra = !sameName && !dataOnly && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
     if (shown.length) {

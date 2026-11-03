@@ -1038,6 +1038,18 @@ under the name as typed, the fallback it has always been. Measured once on 80
 songs no fix had seen: 12 unsure (15%), five of the nine songs with captions
 about the wrong work among them, and about 8% fewer bubbles per song.
 
+**The scored match (`MATCH`, issue #172).** `work-resolver.ts` is a first
+step toward replacing these rules with one score. It profiles the request
+(the piece, the work it's from, a year, whether the artist field is a
+performer or a work) and the article (its title, what kind of thing it is,
+its year, its lead), adds points per feature, and compares the article with
+same-name titles from the searches. It decides `sure`, `data-only` (no AI
+captions, and only data facts true of every version: who wrote or composed
+it) or `abstain` (the streamer's own facts only). `rules`, the default,
+doesn't run it; `shadow` logs its decision (`[Grounding] match: ...`) and
+where it differs from the rules; `scored` lets it hold facts back. It never
+picks another article and never adds facts.
+
 ### Why is the game read from the artist field?
 
 Game-music song lists usually put the track in the title and the game in the
