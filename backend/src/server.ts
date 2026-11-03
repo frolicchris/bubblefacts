@@ -161,6 +161,9 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
 const TARGETS_FRESH_MS = 30_000;
 let targetsBuilt: { at: number; targets: PrepTarget[] } | null = null;
 
+/** Whether the song list has been read, so the songs to prepare are all known. A source with no list has none to wait for. */
+const songListRead = (): boolean => !songList.listedSongs || songList.listedSongs() !== null;
+
 function prepTargets(): PrepTarget[] {
   if (targetsBuilt && Date.now() - targetsBuilt.at < TARGETS_FRESH_MS) return targetsBuilt.targets;
   const targets = new Map<string, PrepTarget>();
@@ -172,14 +175,17 @@ function prepTargets(): PrepTarget[] {
     const listed = targets.get(key);
     targets.set(key, listed ? { ...listed, requests: listed.requests + played.plays } : { key, song: played.song, requests: played.plays });
   }
-  targetsBuilt = { at: Date.now(), targets: [...targets.values()] };
-  return targetsBuilt.targets;
+  const built = [...targets.values()];
+  // Built before the list was read: only the history. Not kept, so the list's songs join as soon as it's read.
+  targetsBuilt = songListRead() ? { at: Date.now(), targets: built } : null;
+  return built;
 }
 
 /** "Prepare my songs": the app starts it while the computer is free, and stops it when it isn't (issue #295). */
 const preparer = new Preparer({
   store: preparedStore,
   targets: prepTargets,
+  listRead: songListRead,
   prepare: prepareSong,
   revisionOf: settledRevision,
   prepModel: prepModelName,

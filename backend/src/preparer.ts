@@ -37,7 +37,12 @@ export interface PreparerDeps {
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   /** Between songs: each takes several Wikipedia requests. */
   gapMs?: number;
+  /** Whether the song list has been read. Until it is, running out of songs means waiting for it, not being done. */
+  listRead?: () => boolean;
 }
+
+/** How often a run that has done every song it knows asks again whether the song list has been read. */
+const LIST_WAIT_MS = 5000;
 
 /** An article is checked for a newer version this often. */
 export const CHECK_EVERY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -258,8 +263,16 @@ export class Preparer {
   private async run(signal: AbortSignal): Promise<void> {
     const answers = new Map<string, { answer: string; track: string }>();
     let backoff = FIRST_BACKOFF_MS;
+    let waitedForList = false;
     while (!signal.aborted) {
       const next = this.next();
+      // The app can start preparing a moment before the song list has been read (it's read once, at start).
+      if (!next && this.deps.listRead && !this.deps.listRead()) {
+        if (!waitedForList) console.log("[Prepare] Waiting for the song list to be read");
+        waitedForList = true;
+        await this.sleep(LIST_WAIT_MS, signal);
+        continue;
+      }
       if (!next) {
         // Songs skipped this run (lookups failing, a model that won't load) aren't done: the next run tries them.
         this.finished = this.skipped.size === 0;

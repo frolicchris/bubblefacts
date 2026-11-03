@@ -63,6 +63,21 @@ describe("Preparer (issue #293)", () => {
     expect(store.getPace().recentMs).toHaveLength(3);
   });
 
+  it("waits for the song list when it starts before the list is read, instead of calling every song done", async () => {
+    let read = false;
+    const history = [target("Low Tide", 12, 3)];
+    const { p, prepared } = preparer({
+      targets: () => (read ? list : history),
+      listRead: () => read,
+      // The list arrives while it waits.
+      sleep: async () => void (read = true),
+    });
+    p.start();
+    await p.stopped();
+    expect(prepared).toEqual(["Low Tide", "Tin Roof", "Harbor Lights"]);
+    expect(p.status()).toMatchObject({ finished: true, doneThisRun: 3 });
+  });
+
   it("stops at once, keeps what's done, and carries on from there next time", async () => {
     let release!: () => void;
     const { p, prepared, deps } = preparer({
