@@ -329,6 +329,13 @@ describe("basic facts in one bubble (#256)", () => {
     expect(factsFromEntity(item({ ...year, P361: [{ id: "Q2" }] }), L, "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004 and appears on Paper Boats.']);
   });
 
+  it("leaves out a part-of that is a disambiguation page or has no name", () => {
+    const L = { Q2: { id: "Q2", labels: { en: { value: "-" } }, descriptions: { en: { value: "Wikimedia disambiguation page" } } }, Q3: { id: "Q3", labels: { en: { value: "Paper Boats" } }, descriptions: { en: { value: "Wikimedia list article" } } } };
+    expect(factsFromEntity(item({ ...year, P361: [{ id: "Q2" }] }), L, "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004.']);
+    expect(factsFromEntity(item({ ...year, P361: [{ id: "Q3" }] }), L, "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004.']);
+    expect(factsFromEntity(item({ ...year, P361: [{ id: "Q4" }] }), named(["Q4", "–"]), "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004.']);
+  });
+
   it("keeps a single fact when only one value is known", () => {
     expect(factsFromEntity(item(year), {}, "Harbor Lights")).toEqual(['"Harbor Lights" came out in 2004.']);
     expect(factsFromEntity(item({ P361: [{ id: "Q2" }] }), named(["Q2", "Paper Boats"]), "Harbor Lights")).toEqual(['"Harbor Lights" appears on Paper Boats.']);
