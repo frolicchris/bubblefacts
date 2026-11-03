@@ -271,11 +271,9 @@ export function rankFacts(
   // Most interesting first; among equals, data facts and lead captions, then the writer's order.
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
-  const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
+  const ranked = funScreen([...safe, ...back], opts.fun !== false, log).sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
-  // The fun screen runs on the bubbles that made the cut, so a dry one leaves a gap rather than
-  // letting in a caption that ranked below it: captions are wrong more often than data facts.
-  const kept = funScreen(ranked.slice(0, max), opts.fun !== false, log);
+  const kept = ranked.slice(0, max);
   // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.
   return [0, 1, 2].flatMap((g) => rotate(kept.filter((c) => group(c) === g)));
 }
@@ -304,10 +302,9 @@ export const DRY_INTEREST = -1;
 
 /**
  * The fun screen: dry data facts and any bubble scoring DRY_INTEREST or lower leave the list.
- * A song left with nothing keeps one, the best of those dropped. It runs last, on the bubbles
- * that made the cut: a dry fact still counts toward the floor of three and toward the most
- * shown, so the screen never brings a risky caption back or lets in one that ranked below it.
- * A song shows fewer bubbles instead. Logs say why, never the fact's words.
+ * A song left with nothing keeps one, the best of those dropped. It runs after the floor of
+ * three is met, and a dry fact still counts toward that floor, so the screen never brings a
+ * risky caption back: a song shows fewer bubbles instead. Logs say why, never the fact's words.
  */
 function funScreen<T extends Ranked & { order: number }>(list: T[], on: boolean, log: (line: string) => void): T[] {
   if (!on) return list;
