@@ -122,11 +122,13 @@ reads.
    it.) To test again, use `gh workflow run smoke.yml -f run=RUN_ID`. It runs
    from the default branch's copy of `smoke.yml`, so a change to that file
    counts only after it is merged. Every smoke system passes (Windows, Linux
-   `.deb` and Apple-silicon Mac), including writing and keeping captions, and
-   both Lite systems (Windows and Linux `.deb`), which check that Lite's server
-   starts, it says it's Lite and no AI engine file is in it.
-   Check the Intel Mac and AppImage builds by hand, and open one Mac Lite
-   build (step 5).
+   `.deb` and AppImage, Apple-silicon and Intel Mac), including writing and
+   keeping captions, and both Lite systems (Windows and Linux `.deb`), which
+   check that Lite's server starts, it says it's Lite and no AI engine file is
+   in it. Each starts the app as shipped first, past setup, and requires its
+   fact server to be listening: the check that would have caught the Linux
+   server not starting from 2.0.0 to 2.1.0 (fixed in 2.1.1). Open one Mac Lite
+   build by hand (step 5).
 4. Download one installer from the draft. Its checksum matches the draft's
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
