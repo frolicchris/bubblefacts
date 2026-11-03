@@ -1590,7 +1590,12 @@ song isn't saved, and the run waits a minute, doubling up to ten, before going
 on; a song with facts saved after three such lookup failures is kept as it
 is. A run that only has such skipped songs left stops without calling itself
 finished (`finished`), so **Your songs** doesn't say every song is prepared
-while some are left; the next run tries them again.
+while some are left; the next run tries them again. Nor does a run that
+started a moment before the StreamerSongList list was read (the app can start
+preparing before the server's one read of the list at start): it waits for
+the list (`listRead`, asked every 5 seconds), and songs built before the list
+arrived aren't kept by `prepTargets`, so the list's songs join as soon as
+it's read.
 
 The server refuses to start while an overlay is connected, there's no AI or
 lookups are off (`cantPrepare`), and stops the moment an overlay connects.
