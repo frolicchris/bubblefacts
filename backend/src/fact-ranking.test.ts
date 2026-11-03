@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, dryData, funSentences, interest, isLeadSentence, namesOtherSong, rankFacts, sentenceFun, sourceRisk } from "./fact-ranking";
+import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, dryData, funSentences, interest, isLeadSentence, namesOtherSong, plainToRetell, rankFacts, sentenceFun, sourceRisk } from "./fact-ranking";
 
 // Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls).
 const LONG_BODY =
@@ -241,6 +241,8 @@ describe("the fun screen: fewer, better bubbles", () => {
     expect(dryData('Lantern Hill came after the single "Paper Kites".')).toBe("came after");
     expect(dryData('Lantern Hill was followed by the single "Paper Kites".')).toBe("came after");
     expect(dryData("Lantern Hill was released on Owl Records.")).toBe("record label");
+    expect(dryData("Owl Quest was developed by Lantern Soft.")).toBe("developer");
+    expect(dryData("Owl Quest came out on the Lantern 64.")).toBe("platform");
     expect(dryData("Lantern Hill was written by Mara Quill.")).toBeNull();
     expect(dryData("Lantern Hill was produced by Ana Ferro.")).toBeNull();
   });
@@ -284,6 +286,11 @@ describe("the fun screen: fewer, better bubbles", () => {
     expect(shown.map((c) => c.text)).toEqual(["The song was recorded in a barn."]);
   });
 
+  it("drops a data fact about charts or awards like a caption", () => {
+    const shown = rankFacts([data("Lantern Hill received the Owl Award."), data("Lantern Hill was written by Mara Quill.")]);
+    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill was written by Mara Quill."]);
+  });
+
   it("can be turned off", () => {
     const shown = rankFacts([data("Lantern Hill came out in 2004."), caption("The cowbell was borrowed from a farm next door.")], { fun: false });
     expect(shown.map((c) => c.text)).toContain("Lantern Hill came out in 2004.");
@@ -313,5 +320,15 @@ describe("sentenceFun and funSentences: the article's most fun sentences", () =>
     expect(picks).not.toContain("Quill said the song was inspired by a lighthouse she saw as a child.");
     expect(picks).not.toContain("It peaked at number 12 on the Owl Chart.");
     expect(funSentences(['"Lantern Hill" is a 2004 song by the Owl Lanterns.'])).toEqual([]);
+  });
+
+  it("names only plain sentences, which a small model retells without slips", () => {
+    expect(plainToRetell("The drums were recorded in a stairwell because the studio was flooded that week.")).toBe(true);
+    // No named subject, a clause before the subject, a guess, too long, the game rather than its music.
+    expect(plainToRetell("They recorded the drums in a stairwell because the studio was flooded that week.")).toBe(false);
+    expect(plainToRetell("After two years, Quill recorded the drums in a stairwell of the old mill.")).toBe(false);
+    expect(plainToRetell("Quill may have recorded the drums in a stairwell because the studio flooded.")).toBe(false);
+    expect(plainToRetell(`The drums were recorded in a stairwell because ${"the studio was flooded ".repeat(5)}that week.`)).toBe(false);
+    expect(plainToRetell("The game's villain was originally planned as a giant owl with three heads.")).toBe(false);
   });
 });

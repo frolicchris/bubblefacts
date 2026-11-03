@@ -288,7 +288,10 @@ sign-ins and the built-in AI. Its design decisions are in
    what the makers wanted, a twist and a big count, and takes off for the
    lead's "is a song by" definition, a key or tempo, the size of a release
    and a bare credit list. Only sentences the safety screen would let
-   through whole are named (`funSentences`). It asks for three more captions
+   through whole are named (`funSentences`), and only plain ones
+   (`plainToRetell`): 8 to 24 words, a named subject first (no "They ..."
+   and no clause before it), no guess or condition, about the music. On test
+   lists, captions from long or fronted sentences were wrong twice as often. It asks for three more captions
    than a song shows, so the fun screen below has some to choose from.
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
@@ -554,8 +557,8 @@ model is asked.
    game's article the song's own data facts still lead.
    **Fun screen** (`funScreen`, `FUN_SCREEN=off` skips it): dry data facts
    (a release year, the album it is on, genres, a birth or founding, the
-   single before or after, a record label: `dryData`) and captions scoring
-   -1 or less leave the list. A song left with nothing keeps one, the best
+   single before or after, a record label, a game's developer, publisher or
+   platform: `dryData`) and any bubble scoring -1 or less leave the list. A song left with nothing keeps one, the best
    of those dropped. A dry fact still counts toward the floor of three, so
    the screen never brings a risky caption back in its place: a song shows
    fewer bubbles instead. The log says why ("[Fun] DROP (dry: release

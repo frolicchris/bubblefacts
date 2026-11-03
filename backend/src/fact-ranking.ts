@@ -288,6 +288,8 @@ const DRY_DATA: Array<[string, RegExp]> = [
   ["birth", /\b(?:was born|formed) in\b/i],
   ["came after", /\b(?:came after|was followed by) the single\b/i],
   ["record label", /\b(?:was released on|record labels include)\b/i],
+  ["developer", /\bwas (?:developed|published) by\b/i],
+  ["platform", /\bcame out on\b/i],
 ];
 
 /** Why a data fact is dry ("release date", "album"), or null when it isn't one of the dry kinds. */
@@ -295,18 +297,19 @@ export function dryData(text: string): string | null {
   return DRY_DATA.find(([, re]) => re.test(text))?.[0] ?? null;
 }
 
-/** Captions whose interest is this or lower (charts, awards, release details) are dry. */
+/** Bubbles whose interest is this or lower (charts, awards, release details) are dry. */
 export const DRY_INTEREST = -1;
 
 /**
- * The fun screen: dry data facts and captions scoring DRY_INTEREST or lower leave the list.
+ * The fun screen: dry data facts and any bubble scoring DRY_INTEREST or lower leave the list.
  * A song left with nothing keeps one, the best of those dropped. It runs after the floor of
  * three is met, and a dry fact still counts toward that floor, so the screen never brings a
  * risky caption back: a song shows fewer bubbles instead. Logs say why, never the fact's words.
  */
 function funScreen<T extends Ranked & { order: number }>(list: T[], on: boolean, log: (line: string) => void): T[] {
   if (!on) return list;
-  const why = (c: T) => (c.kind === "data" ? dryData(c.text) : c.score <= DRY_INTEREST ? `interest ${c.score}` : null);
+  // A data fact about charts or awards ("made the Owl Chart") scores low like a caption does.
+  const why = (c: T) => (c.kind === "data" ? dryData(c.text) : null) ?? (c.score <= DRY_INTEREST ? `interest ${c.score}` : null);
   const kept = list.filter((c) => !why(c));
   const dropped = list.filter((c) => why(c));
   if (!kept.length && dropped.length) {
@@ -363,18 +366,37 @@ export function sentenceFun(sentence: string): number {
 /** A sentence must score this much to be named as one of the most fun. */
 export const FUN_SENTENCE_MIN = 2;
 
+/** Words of a sentence a small model retells whole: more and it compresses, merges or drops a part. */
+const PLAIN_WORDS = { min: 8, max: 24 };
+/** A subject the sentence doesn't name ("They developed ...", "It was ..."), left behind in its paragraph. */
+const PRONOUN_START = /^(?:it|its|they|their|them|he|his|she|her|this|these|those|that|such|both|the two|the pair)\b/i;
+/** Guesses and conditions, which a retelling turns into fact. */
+const GUESS = /\b(?:speculat\w+|unlikely|likely|rumou?r\w*|allegedly|supposedly|apparently|if|whether|unclear|unknown|possibly|perhaps|may|might|could|would)\b/i;
+
+/**
+ * Whether a sentence is plain enough for the writer to retell first (judged on test lists, the
+ * captions from long or fronted sentences were wrong twice as often): 8 to 24 words, a named
+ * subject up front (no "They ..." and no clause before the subject, "After about 18 months, ..."),
+ * no guess or condition, and about the music rather than the game or show around it.
+ */
+export function plainToRetell(sentence: string): boolean {
+  const s = sentence.replace(SECTION_LABEL, "").trim();
+  const n = s.split(/\s+/).filter(Boolean).length;
+  const firstComma = s.indexOf(",");
+  const fronted = firstComma >= 0 && s.slice(0, firstComma).split(/\s+/).length <= 6 && !/^["“]/.test(s);
+  return n >= PLAIN_WORDS.min && n <= PLAIN_WORDS.max && !PRONOUN_START.test(s) && !fronted && !GUESS.test(s) && aboutTheMusic(s);
+}
+
 /**
  * The `n` most fun sentences of a reference's sentences (`sentenceFun`), best first, the article's
  * order among equals. Only sentences that are safe to retell whole: none the safety screen would
- * hold back (`sourceRisk` on the sentence itself), none under 8 words or over the long-body limit.
+ * hold back (`sourceRisk` on the sentence itself), and only plain ones a small model retells
+ * without slips (`plainToRetell`).
  */
 export function funSentences(sentences: string[], n = 3): string[] {
   return sentences
     .map((s, i) => ({ s, i, score: sentenceFun(s) }))
-    .filter(({ s, score }) => {
-      const len = s.split(/\s+/).filter(Boolean).length;
-      return score >= FUN_SENTENCE_MIN && len >= 8 && !sourceRisk(s, s, false).filter((f) => f !== "compressed under half").length;
-    })
+    .filter(({ s, score }) => score >= FUN_SENTENCE_MIN && plainToRetell(s) && !sourceRisk(s, s, false).filter((f) => f !== "compressed under half").length)
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .slice(0, Math.max(0, n))
     .map(({ s }) => s);
