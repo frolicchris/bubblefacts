@@ -91,9 +91,12 @@ function overlay(layout = "") {
     constructor() { socket = this as typeof socket; }
     close() {}
   }
+  /** The page's <html>, where the Style goes, and the style sheets the overlay adds to <head>. */
+  const root = { dataset: { layout } as Record<string, string> };
+  const sheets: Array<{ textContent?: string }> = [];
   vm.runInNewContext(SCRIPT, {
     location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
-    document: { getElementById: element, createElement: element, body: element(), documentElement: { dataset: { layout } }, querySelector: () => null },
+    document: { getElementById: element, createElement: element, body: element(), head: { appendChild: (el: { textContent?: string }) => sheets.push(el) }, documentElement: root, querySelector: () => null },
     window: layout === "vertical" ? { innerWidth: 1080, innerHeight: 1920, addEventListener() {} } : { innerWidth: 1920, innerHeight: 1080, addEventListener() {} },
     WebSocket: FakeSocket,
     setTimeout: (fn: () => void) => {
@@ -117,8 +120,73 @@ function overlay(layout = "") {
   send({ type: "new_song", song });
   // The Now Playing banner's timers: out of the way, so `step` reaches the bubbles.
   run();
-  return { shown, hidden, gone, spots, send, run, step, song, fact };
+  return { shown, hidden, gone, spots, send, run, step, song, fact, root, sheets };
 }
+
+describe("bubble Styles (issue #177)", () => {
+  const colors = { background: "#ffffff", accent: "#ff8800", text: "#111111", label: "#111111", liveLearn: "#7a5200" };
+
+  it("switches the Style live, without touching the bubbles", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Still here.")] });
+    o.step(1);
+    o.send({ type: "style", style: "retro" });
+    expect(o.root.dataset.style).toBe("retro");
+    expect(o.gone).toEqual([]);
+    expect(o.shown).toEqual(["Still here."]);
+  });
+
+  it("shows the classic look for a Style it doesn't know, and bubbles still show", () => {
+    const o = overlay();
+    for (const style of ["neon", "", 42, null, "light\"] .popup-bubble { display: none } [x=\""]) {
+      o.send({ type: "style", style });
+      expect(o.root.dataset.style).toBe("classic");
+    }
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Shown.")] });
+    o.run();
+    expect(o.shown).toEqual(["Shown."]);
+  });
+
+  it("applies the streamer's own colors on top of the Style, and drops them again", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "minimal", colors });
+    expect(o.root.dataset.style).toBe("minimal");
+    expect(o.sheets).toHaveLength(1);
+    const css = o.sheets[0].textContent ?? "";
+    // No specificity: OBS's Custom CSS box still wins.
+    expect(css.startsWith(":where(html) {")).toBe(true);
+    expect(css).toContain("--bf-bg-1: rgba(255, 255, 255, 1);");
+    expect(css).toContain("--bf-accent: #ff8800;");
+    expect(css).toContain("--bf-text: #111111;");
+    // Dark text gets no dark shadow under it.
+    expect(css).toContain("--bf-text-shadow: none;");
+    o.send({ type: "style", style: "minimal" });
+    expect(o.sheets).toHaveLength(1);
+    expect(o.sheets[0].textContent).toBe("");
+  });
+
+  it("ignores colors that aren't exactly #rrggbb, so nothing can be slipped into the page", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "light", colors: { ...colors, accent: "red; } .popup-bubble { display: none } :root {" } });
+    o.send({ type: "style", style: "light", colors: { ...colors, text: undefined } });
+    expect(o.root.dataset.style).toBe("light");
+    expect(o.sheets).toEqual([]);
+  });
+
+  it("changes the bubble size live, and ignores a size that would be unreadable or cover the stream", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "classic", scale: 1.25, verticalScale: 1.5 });
+    expect(o.sheets).toHaveLength(1);
+    expect(o.sheets[0].textContent).toContain("--bf-scale: 1.25;");
+    expect(o.sheets[0].textContent).toContain("--bf-vertical-scale: 1.5;");
+    // No specificity, so OBS's Custom CSS still wins.
+    expect(o.sheets[0].textContent).toMatch(/^:where\(html\) \{/);
+    for (const scale of [0.1, 9, "2; } .popup-bubble { display: none } :root {", null]) {
+      o.send({ type: "style", style: "classic", scale });
+      expect(o.sheets[0].textContent).toBe("");
+    }
+  });
+});
 
 describe("the vertical overlay (issue #175)", () => {
   const landscape = { top: "8%", left: "33%" };

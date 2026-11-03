@@ -54,14 +54,19 @@ released:
 3. **Real-world testing.** Releases are tested in a real copy of OBS and on
    live streams, following the release checklist in
    [RELEASING.md](RELEASING.md#release-checklist). Installers are smoke-tested on Windows,
-   Linux (`.deb`) and Apple-silicon Mac.
+   Linux (`.deb`) and Apple-silicon Mac, and the Lite installers on Windows
+   and Linux (`.deb`).
 4. **Release.** The maintainer reviews each draft release before publishing
    it. Release files carry SHA-256 checksums and build-provenance attestations.
 
 ## The captions on stream
 
-The fact captions are written while you stream by a small AI model: by
-default, Meta's Llama 3.2, running on your own computer. The model only
+The fact captions are written by a small AI model: by default, Meta's
+Llama 3.2, running on your own computer, while you stream or, with **Prepare
+my songs**, ahead of time while you're not streaming, through the same
+screening. BubbleFacts Lite has no AI engine: by default no AI writes
+anything, and only facts from data and your own facts are shown (Groq,
+Anthropic or Ollama can still be chosen in its Settings). The model only
 rewrites details from the song's Wikipedia article, and every caption is
 screened against the article before it's shown: names, who did what, years,
 consoles, and award or chart claims must appear there. That screening is

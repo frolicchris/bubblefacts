@@ -14,14 +14,15 @@ import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-
 import { presetFoldersShown } from "./now-playing-folder";
 import { AiredFact, airedFrom, betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
 import { errorDetail, plainError, PlainOptions } from "./plain-errors";
-import { buildInfo, versionLabel } from "./build";
+import { buildInfo, Edition, editionOf, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
+import { SignInCheck, validateToken } from "./sign-in-check";
 
 /**
  * A YouTube Data API key restricted to that API, added to package.json at
@@ -29,13 +30,21 @@ import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
  * the exact artist and track of auto-generated uploads (issue #26).
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string } } };
+const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string }; edition?: string } };
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || PACKAGE.bubblefacts?.youtubeApiKey || "";
 /** The commit this was built from, and release, test build or dev (build.ts). */
 const BUILD = buildInfo(PACKAGE);
+/**
+ * BubbleFacts Lite has no AI engine and never downloads a model (build.ts). From source,
+ * BUBBLEFACTS_EDITION=lite npm run app shows Lite's screens; a packaged app goes by its build only.
+ */
+const EDITION: Edition = !app.isPackaged && process.env.BUBBLEFACTS_EDITION === "lite" ? "lite" : editionOf(PACKAGE);
 /** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
-const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
-import { pruneLogs, Status, Supervisor } from "./supervisor";
+const versionWithBuild = () => versionLabel(app.getVersion(), BUILD, EDITION);
+/** Who writes the facts, for problem reports: Lite's own choice is no AI, not the built-in one. */
+const reportedAi = () => (EDITION === "lite" && settings.ai === "builtin" ? "none" : settings.ai);
+import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
+import { prepareEnv, registerPreparing } from "./preparing";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
 
@@ -124,10 +133,16 @@ function activeModel(): ModelFile | null {
 }
 
 function serverEnv(): Record<string, string> {
-  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents") });
-  const active = activeModel();
-  if (settings.ai === "builtin" && (builtinFailed || !active)) env.AI_PROVIDER = "none";
-  else if (settings.ai === "builtin" && active) env.MODEL_PATH = modelPath(DIRS.models, active);
+  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents"), edition: EDITION });
+  // In Lite, toServerEnv already chose no AI for "builtin": there is no model to look for.
+  const builtinAi = settings.ai === "builtin" && EDITION === "full";
+  const active = builtinAi ? activeModel() : null;
+  if (builtinAi && (builtinFailed || !active)) env.AI_PROVIDER = "none";
+  else if (builtinAi && active) {
+    env.MODEL_PATH = modelPath(DIRS.models, active);
+    // Preparing's faster first-pass model (issue #296): only with a built-in model, so never in Lite.
+    Object.assign(env, prepareEnv(settings, DIRS.models, (m) => modelReady(DIRS.models, m)));
+  }
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
   env.BUBBLEFACTS_DATA_DIR = DATA;
   env.BUBBLEFACTS_VERSION = app.getVersion();
@@ -174,15 +189,18 @@ function state() {
     paused,
     ollama,
     signInExpired,
+    songListDown,
     unlocking: secretsWaiting(),
     modelDownload,
     status: supervisor.status,
     overlayPath: overlayFile(),
     verticalOverlayPath: overlayFile(true),
-    // Ready when some model can write facts, including the old one during a switch of quality.
-    modelReady: activeModel() !== null,
+    // Lite or full: the window says what Lite does and hides what it doesn't have.
+    edition: EDITION,
+    // Ready when some model can write facts, including the old one during a switch of quality. Lite has none to wait for.
+    modelReady: EDITION === "lite" || activeModel() !== null,
     // Downloading the newly chosen quality while the other model keeps writing facts.
-    modelSwitching: activeModel() === otherModel(),
+    modelSwitching: EDITION === "full" && activeModel() === otherModel(),
     modelLicense: chosenModel().license,
     // High quality needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
     totalMemory: os.totalmem(),
@@ -223,9 +241,18 @@ function markWhatsNewSeen(): void {
 
 // --- Supervisor events -------------------------------------------------
 
+let serverWasRunning = false;
 supervisor.on("status", (status: Status) => {
+  // A server that just came up is a new one: Prepare my songs asks it again rather than waiting its usual while.
+  const running = status.state === "running";
+  if (running && !serverWasRunning) preparing.serverRestarted();
+  serverWasRunning = running;
   // The streamer's Pause is the truth: a server that came back without it is told again.
   if (typeof status.health?.paused === "boolean" && status.health.paused !== paused) void control("pause", { paused });
+  // The queue turned the sign-in down, or StreamerSongList stopped answering: is the sign-in still good? (issue #182)
+  const h = status.health;
+  if (usesSignIn() && h && (h.status === "unauthorized" || h.degradedReason === OUTAGE_REASON)) void signInCheck.check("queue", settings.token);
+  else if (h?.status === "ok") setSongListDown(false);
   send("status", status);
   updateTray(status);
 });
@@ -266,7 +293,8 @@ supervisor.on("builtin-failed", () => {
 
 /** Download the AI in the background whenever it's chosen and missing, retrying on its own. */
 async function ensureModel(): Promise<void> {
-  if (settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
+  // Lite never downloads a model: it has no engine to run one.
+  if (EDITION === "lite" || settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
   if (downloadRetry) clearTimeout(downloadRetry);
   downloadRetry = null;
   download = new AbortController();
@@ -346,6 +374,22 @@ async function ensureOllamaModel(): Promise<void> {
 
 // --- StreamerSongList sign-in ---------------------------------------------
 
+/** StreamerSongList stopped answering while the sign-in still holds: the dashboard says there's nothing to do. */
+let songListDown = false;
+function setSongListDown(down: boolean): void {
+  if (down === songListDown) return;
+  songListDown = down;
+  send("state", state());
+}
+/** The app's own StreamerSongList sign-in is in use (a pasted token isn't checked: issue #182). */
+const usesSignIn = () => settings.songSource === "streamersonglist" && settings.tokenKind === "oauth" && !!settings.token;
+const signInCheck = new SignInCheck({
+  validate: (token) => validateToken(token),
+  refresh: () => refreshSignIn(),
+  log: (line) => supervisor.note(line),
+  songListDown: setSongListDown,
+});
+
 /** Refresh five minutes before the hour-long access token runs out. */
 function scheduleRefresh(delayMs?: number): void {
   if (refreshTimer) clearTimeout(refreshTimer);
@@ -376,6 +420,8 @@ async function doRefresh(): Promise<void> {
       send("state", state());
     }
     scheduleRefresh();
+    // Does the new token hold? Told apart from StreamerSongList being down (issue #182).
+    if (usesSignIn()) void signInCheck.check("refresh", t.accessToken);
   } catch (err) {
     if (settings.refreshToken !== used) return;
     if (err instanceof SignInExpired) {
@@ -653,6 +699,21 @@ handle("unwrong-fact", async (_e, article: string, song: unknown) => {
 });
 handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
+/** Prepare my songs (preparing.ts): its window messages, and when the computer is free for it. */
+const preparing = registerPreparing({
+  handle,
+  control,
+  conditions: () => ({
+    // Lite has no built-in AI, and its window hides the setting: preparing never runs there.
+    enabled: settings.prepareSongs && EDITION === "full",
+    setupDone: settings.setupComplete,
+    ai: settings.ai === "groq" || settings.ai === "anthropic" ? "online" : settings.ai === "builtin" && (builtinFailed || !activeModel()) ? "none" : "local",
+    serverUp: supervisor.status.state === "running",
+    onBattery: powerMonitor.isOnBatteryPower(),
+    overlays: supervisor.status.health?.obsClients ?? 0,
+  }),
+});
+
 handle("get-state", () => state());
 
 /** A connection test's technical side goes in the log; the window gets the plain reason. */
@@ -715,6 +776,18 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   void ensureOllamaModel();
   // A new sign-in always starts the server over; anything else only if the server would notice.
   startServer(newSignIn);
+  // A new look or bubble size goes to the running server, which changes every overlay at once: no restart, no Refresh in OBS.
+  const style = styleEnv(settings);
+  if (JSON.stringify(style) !== JSON.stringify(styleEnv(previous))) {
+    supervisor.setEnv(style);
+    void control("style", {
+      style: style.BUBBLE_STYLE,
+      accent: style.BUBBLE_ACCENT,
+      background: style.BUBBLE_BACKGROUND,
+      scale: Number(style.BUBBLE_SCALE),
+      verticalScale: Number(style.BUBBLE_VERTICAL_SCALE),
+    });
+  }
   backUpNow();
   if (channelChanged) void checkForUpdate();
 }
@@ -901,7 +974,7 @@ handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for High quality), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for High quality), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the facts prepared for your songs and the songs played on stream, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
@@ -957,10 +1030,12 @@ let updateChecks = 0;
 /** At start, and again when the musician picks Stable or Beta, so the dashboard notice matches right away. */
 async function checkForUpdate(): Promise<void> {
   const mine = ++updateChecks;
-  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v) : () => null);
+  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE), EDITION) : () => null);
   // Only the newest check counts, and a download under way finishes.
   if (mine !== updateChecks || updating.stage === "downloading") return;
   if (found?.version !== update?.version) updating = { stage: "idle", progress: 0, file: "", error: "" };
+  // "Get it" takes Lite to Lite's downloads on the download page.
+  if (found && EDITION === "lite") found.url = `${found.url}#lite`;
   update = found;
   send("state", state());
 }
@@ -1013,7 +1088,7 @@ async function airedFacts(): Promise<AiredFact[]> {
 }
 
 handle("report-problem", async () =>
-  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: reportedAi(), logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 handle("report-beta", () =>
   openExternal(
@@ -1035,7 +1110,7 @@ handle("copy-report", async (_e, kind: unknown) => {
   clipboard.writeText(
     kind === "beta"
       ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource, nowPlayingPreset: settings.nowPlayingPreset })
-      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai, aired })
+      : problemReportText({ ...common, version: versionWithBuild(), ai: reportedAi(), aired })
   );
 });
 handle("report-fact", async (_e, song: string, fact: string) =>
@@ -1101,6 +1176,8 @@ async function refreshSignInIfDue(): Promise<void> {
     await refreshSignIn();
   } else {
     scheduleRefresh();
+    // Before any queue request: a sign-in that ended while the app was closed is refreshed, or the notice shows, at once (issue #182).
+    if (usesSignIn()) void signInCheck.check("start", settings.token);
   }
 }
 
@@ -1128,6 +1205,7 @@ async function startApp(): Promise<void> {
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);
+  preparing.start();
   backUpNow();
   await checkForUpdate();
 }

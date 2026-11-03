@@ -6,10 +6,21 @@ For the maintainer. Contributors don't need any of this; see
 **Releases** are made by the maintainer pushing a version tag, such as
 `v2.0.0`. Version tags are protected, so a published release's tag can't be
 moved or deleted. The Release workflow builds every installer on its own
-system and puts them in a *draft* release with a `SHA256SUMS.txt` file, a
+system, for the full app and for BubbleFacts Lite (below), and puts them in a
+*draft* release with a `SHA256SUMS.txt` file, a
 software bill of materials (`bubblefacts-sbom.spdx.json`) and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
+
+**BubbleFacts Lite.** Each system also gets a Lite installer: the same app
+without the AI engine (node-llama-cpp and its native builds), for streamers who
+want no AI or not the 2 GB download. Its files have `-lite` after the version
+(`BubbleFacts-2.2.0-lite-mac-arm64.dmg`, `bubblefacts-lite_2.2.0_amd64.deb`),
+and the in-app update keeps a Lite install on Lite. To build it on your own
+computer, run `npm run dist:lite` (it takes the same arguments as
+`npm run dist`, and writes into `release-lite/`). It changes `package.json`
+while it builds and puts it back when it's done; if a build is killed hard
+enough that it can't, `git checkout package.json`.
 
 **Update channels.** Every beta and release candidate is published as a GitHub
 pre-release; full releases (`v2.0.0`, `v2.0.1`) are not. That's what the app's
@@ -103,20 +114,27 @@ reads.
    tagging. The app shows them once on the dashboard after the update; a
    version without an entry shows nothing.
 2. The Release workflow passed for every system, and the draft has every
-   installer, `SHA256SUMS.txt` and `bubblefacts.zip`.
+   installer, full and Lite (`-lite` in the name), `SHA256SUMS.txt`,
+   `bubblefacts.zip` and `bubblefacts-sbom.spdx.json`.
 3. The **Smoke test** workflow starts by itself when the Release run finishes
    successfully, and tests that run's artifacts. (A draft release can't be
    downloaded by the workflow's read-only token, so it tests the run that built
    it.) To test again, use `gh workflow run smoke.yml -f run=RUN_ID`. It runs
    from the default branch's copy of `smoke.yml`, so a change to that file
    counts only after it is merged. Every smoke system passes (Windows, Linux
-   `.deb` and Apple-silicon Mac), including writing and keeping captions.
-   Check the Intel Mac and AppImage builds by hand.
+   `.deb` and Apple-silicon Mac), including writing and keeping captions, and
+   both Lite systems (Windows and Linux `.deb`), which check that Lite's server
+   starts, it says it's Lite and no AI engine file is in it.
+   Check the Intel Mac and AppImage builds by hand, and open one Mac Lite
+   build (step 5).
 4. Download one installer from the draft. Its checksum matches the draft's
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
 5. Install it and open it. The setup screen appears and shows the new version
-   at the bottom, with the tagged commit and no "test build".
+   at the bottom, with the tagged commit and no "test build". Open one Lite
+   installer too: its version says "Lite", setup says what Lite does, nothing
+   downloads, and under Settings, Advanced, **Who writes the facts** offers
+   **No AI** with no **On this computer**.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.
@@ -205,8 +223,8 @@ change; anything else found goes to the 2.0.1 milestone. Before tagging it, go o
 **The website on release day:** it switches to stable wording by itself as
 soon as 2.0.0 is published (the download page then says "Newest version"
 instead of "2.0 beta"). The one edit is for visitors without JavaScript:
-flip the site default in `site/assets/site.css`, as `site/README.md`
-("When version 2.0.0 ships") describes, and upload it.
+flip the site default in `site/assets/site.css` and upload it (done in
+2.0.0; see `site/README.md`, "Since version 2.0.0").
 
 **If 2.0.0 has a serious problem:** releases are immutable and version tags
 are locked, so the way back is forward: fix it on `main` and release 2.0.1
@@ -259,6 +277,11 @@ within a week; release blockers and regressions as soon as they're fixed;
 anything else together, about monthly, only when something changed. A
 maintenance release reaches Stable at once; only a new feature release (x.y.0)
 waits three days for Beta to have it first.
+
+**Announcing one:** publishing a release runs the Announce workflow as it is
+at the tagged commit, so a release branch cut before that workflow existed
+(`release/2.1`, for 2.1.1) announces nothing by itself. Run Actions > Announce
+> Run workflow with the release's title and notes (dry run first).
 
 **Support:** only the newest release gets fixes. When 2.1.0 ships, 2.0.x
 stops. After 3.0.0, the last 2.x gets security fixes for three months.

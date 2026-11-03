@@ -1,5 +1,7 @@
 Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 
+Files with `-lite` in the name are **BubbleFacts Lite**, with no AI and no 2 GB AI download, so fewer songs get facts. The in-app update keeps Lite on Lite.
+
 **Already on 2.0.0-beta.5 or newer?** Open BubbleFacts, click **Update now**, then **Install now** between songs. Your settings are kept. On a Mac, click **Always Allow** when it asks to use your saved sign-in afterward.
 
 <!-- Fill in each section in plain words for musicians and DJs, one line per change,

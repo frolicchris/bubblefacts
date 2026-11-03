@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, topicList, toServerEnv, writeMyPack, serverSettingsSignature } from "./settings";
+import { customFactsProblem, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -63,6 +63,13 @@ describe("loadSettings", () => {
     const disk = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(disk).toMatchObject({ channel: "jane", displayName: "Jane Composer", fromAFutureVersion: "kept", settingsVersion: 2 });
     expect(disk).not.toHaveProperty("topics");
+  });
+
+  it("lists every setting held to a list of values, so going back a version keeps a newer choice for each", () => {
+    const source = fs.readFileSync(path.join(__dirname, "settings.ts"), "utf8");
+    const held = [...source.matchAll(/^\s+(\w+): oneOf\(s\.\1,/gm)].map((m) => m[1]);
+    expect(held.length).toBeGreaterThan(5);
+    expect([...ENUM_KEYS].sort()).toEqual([...new Set(held)].sort());
   });
 
   it("keeps a choice only a newer version knows, using a safe default meanwhile", () => {
@@ -347,6 +354,19 @@ describe("toServerEnv", () => {
     expect(env).toMatchObject({ AI_PROVIDER: "builtin", MODEL_PATH: path.join("/models", "Llama-3.2-3B-Instruct-Q4_K_M.gguf"), LLAMA_GPU: "off" });
   });
 
+  it("runs Lite's own choice with no AI, and keeps the online AIs and Ollama", () => {
+    const lite = { ...paths, edition: "lite" as const };
+    const own = toServerEnv({ ...DEFAULTS, ai: "builtin", aiQuality: "high" }, lite);
+    expect(own.AI_PROVIDER).toBe("none");
+    expect(own).not.toHaveProperty("MODEL_PATH");
+    expect(own).not.toHaveProperty("LLAMA_GPU");
+    expect(toServerEnv({ ...DEFAULTS, ai: "groq", groqKey: "k" }, lite)).toMatchObject({ AI_PROVIDER: "openai", OPENAI_API_KEY: "k" });
+    expect(toServerEnv({ ...DEFAULTS, ai: "ollama" }, lite).AI_PROVIDER).toBe("ollama");
+    expect(toServerEnv({ ...DEFAULTS, ai: "anthropic", anthropicKey: "k" }, lite).AI_PROVIDER).toBe("anthropic");
+    // The same saved choice is the built-in AI again after installing the full app.
+    expect(toServerEnv({ ...DEFAULTS, ai: "builtin" }, { ...paths, edition: "full" }).AI_PROVIDER).toBe("builtin");
+  });
+
   it("points the built-in AI at the model for the chosen quality", () => {
     expect(DEFAULTS.aiQuality).toBe("standard");
     expect(toServerEnv({ ...DEFAULTS, aiQuality: "high" }, paths).MODEL_PATH).toBe(path.join("/models", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"));
@@ -507,6 +527,53 @@ describe("the musician's own facts", () => {
   });
 });
 
+describe("bubble Styles and your own colors (issue #177)", () => {
+  it("starts on the classic dark blue, with its own colors ready for the pickers", () => {
+    expect(DEFAULTS).toMatchObject({ bubbleStyle: "classic", customColors: false, accentColor: "#5b6ee1", backgroundColor: "#0a0a3c" });
+    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "", BUBBLE_SCALE: "1", BUBBLE_VERTICAL_SCALE: "1" });
+  });
+
+  it("sends a new bubble size to the running server, never restarting it", () => {
+    const larger = { ...DEFAULTS, bubbleSize: "larger" as const, verticalBubbleSize: "large" as const };
+    expect(styleEnv(larger)).toMatchObject({ BUBBLE_SCALE: "1.5", BUBBLE_VERTICAL_SCALE: String(VERTICAL_BUBBLE_SCALE.large) });
+    const env = (s: typeof DEFAULTS) => ({ AI_PROVIDER: "none", ...styleEnv(s) });
+    expect(serverSettingsSignature(env(larger), larger)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
+  });
+
+  it("keeps each built-in Style, and an unknown one falls back to classic", () => {
+    for (const style of ["classic", "light", "minimal", "retro", "high-contrast"] as const) expect(sanitize({ ...DEFAULTS, bubbleStyle: style }).bubbleStyle).toBe(style);
+    expect(sanitize({ ...DEFAULTS, bubbleStyle: "neon" as "retro" }).bubbleStyle).toBe("classic");
+  });
+
+  it("takes colors only as #rrggbb", () => {
+    expect(sanitize({ ...DEFAULTS, accentColor: "#FF8800", backgroundColor: " #ffffff " })).toMatchObject({ accentColor: "#ff8800", backgroundColor: "#ffffff" });
+    for (const bad of ["red", "#f80", "#ff880", "#ff88000", "ff8800", "#gg8800", "rgb(1, 2, 3)", "#ff8800; color: red", ""]) {
+      expect(sanitize({ ...DEFAULTS, accentColor: bad }).accentColor).toBe(DEFAULTS.accentColor);
+      expect(sanitize({ ...DEFAULTS, backgroundColor: bad }).backgroundColor).toBe(DEFAULTS.backgroundColor);
+    }
+  });
+
+  it("tells the server the Style always, and the colors only while they're turned on", () => {
+    const mine = { ...DEFAULTS, bubbleStyle: "minimal" as const, accentColor: "#ff8800", backgroundColor: "#ffffff" };
+    expect(toServerEnv(mine, paths)).toMatchObject({ BUBBLE_STYLE: "minimal", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "" });
+    expect(toServerEnv({ ...mine, customColors: true }, paths)).toMatchObject({ BUBBLE_STYLE: "minimal", BUBBLE_ACCENT: "#ff8800", BUBBLE_BACKGROUND: "#ffffff" });
+  });
+
+  it("can be changed from the window", () => {
+    const changes = { bubbleStyle: "light", customColors: true, accentColor: "#ff8800", backgroundColor: "#ffffff" };
+    expect(fromWindow(changes)).toEqual(changes);
+    expect(fromWindow({ customColors: "yes", accentColor: 7 })).toEqual({});
+  });
+
+  it("keeps a Style only a newer version knows in the file, as for other choices", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", bubbleStyle: "neon", settingsVersion: 1 }));
+    const loaded = loadSettings();
+    expect(loaded.bubbleStyle).toBe("classic");
+    saveSettings({ ...loaded, displayName: "Jane Composer" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).bubbleStyle).toBe("neon");
+  });
+});
+
 describe("serverSettingsSignature (issue #55)", () => {
   const paths = { modelsDir: "/m", logDir: "/l", topicsDir: "/facts", clientId: "c" };
   const base = { ...DEFAULTS, channel: "jane", token: "t1", tokenKind: "oauth" as const, streamerId: 1 };
@@ -517,6 +584,9 @@ describe("serverSettingsSignature (issue #55)", () => {
     expect(sig({ ...base, startAtLogin: true })).toBe(sig(base));
     expect(sig({ ...base, bubbleSize: "large" })).toBe(sig(base));
     expect(sig({ ...base, token: "t2-refreshed" })).toBe(sig(base));
+    // A new look reaches the running server without a restart (issue #177).
+    expect(sig({ ...base, bubbleStyle: "retro" })).toBe(sig(base));
+    expect(sig({ ...base, customColors: true, accentColor: "#ff8800", backgroundColor: "#ffffff" })).toBe(sig(base));
   });
 
   it("changes when the server would behave differently", () => {

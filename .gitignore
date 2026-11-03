@@ -5,5 +5,7 @@ coverage/
 .DS_Store
 logs/
 release/
+release-lite/
+build-lite/
 desktop/runtime/
 data/

@@ -215,7 +215,7 @@ Nothing showing? See [If something goes wrong](#if-something-goes-wrong).
 | A song starts | A gold **NOW PLAYING** bubble for five seconds (`NOW_PLAYING=off` hides it), then up to five fact bubbles, one every 15 seconds (both can be changed). |
 | A song with no Wikipedia article | Plain facts from Wikidata or MusicBrainz, such as the year and the album. If they don't know it either: bubbles from the song's own details (how often you've played it, who requested it, your note on it) plus your custom facts. |
 | One of **your own compositions** | Bubbles about the piece from your song list: that it's an original, play count, requester, your note. |
-| The first song with facts after BubbleFacts starts, then about every 5th | One extra bubble first: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know." (`CREDIT_BUBBLE=off` hides it.) The song's facts follow it. |
+| The first song with facts after BubbleFacts starts, then about every 5th | One extra bubble first: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts" (`CREDIT_BUBBLE=off` hides it.) The song's facts follow it. |
 | A **live learn** (a request that isn't on your list) | A **LIVE LEARN** banner with the title and who requested it, up until the next song. Fact bubbles show only when a source knows the song. |
 | The overlay can't reach its server | A small red dot in the bottom-right corner. It disappears once reconnected. |
 
@@ -316,13 +316,34 @@ second Browser source, **Local file**, pointing at
 `frontend/obs/obs-overlay-vertical.html`, at **1080** by **1920**. Its
 bubbles keep clear of those apps' buttons and chat. Choose where they go with
 `VERTICAL_AREA=top` (or `above-chat`), and their size with
-`--bf-vertical-scale` at the top of `obs-overlay.css`.
+`BUBBLE_VERTICAL_SCALE=1` (from 0.5 to 3; see [The look](#the-look)).
 
 ### The look
 
-Colors, fonts and animation are in `frontend/obs/obs-overlay.css`. To make the
-text bigger or smaller, change `--fact-font-size` near the top. Save the file,
-then right-click the source in OBS and choose **Refresh**.
+Pick a style for both overlays, and if you like, your own colors:
+
+```env
+BUBBLE_STYLE=classic         # or light, minimal, retro, high-contrast
+BUBBLE_ACCENT=#ff8800        # optional: the border and the Now Playing label
+BUBBLE_BACKGROUND=#ffffff    # optional: set both colors, or neither
+BUBBLE_SCALE=1               # optional: bubble size, 0.5 to 3
+BUBBLE_VERTICAL_SCALE=1      # optional: the same for the vertical overlay
+```
+
+The text turns light or dark by itself, whichever is easier to read on your
+background. Restart BubbleFacts after changing these; there's no need to
+refresh the source in OBS. A style name or color it doesn't recognize shows
+the classic look instead, with a line in the log saying why.
+
+OBS's **Custom CSS** box in the source's properties still works on top of any
+style. The style's colors, font and corners are the `--bf-` settings near the
+top of `frontend/obs/obs-overlay.css`, so a line like
+`:root { --bf-radius: 20px; }` in that box changes just the corners.
+
+Everything else (sizes and animation) is in `frontend/obs/obs-overlay.css`. To make the
+bubbles bigger or smaller, set `BUBBLE_SCALE` (above) and restart BubbleFacts;
+no Refresh in OBS is needed. A size set there wins over one written in
+`obs-overlay.css`.
 
 To keep bubbles to one part of the screen, set `BUBBLE_AREA` (above). To
 put every bubble in the same spot, use `top-left`, `top-center`, `top-right`,
@@ -387,9 +408,11 @@ your token removed.
 - **Generated facts aren't saved between streams.** They're made fresh when a
   song starts and kept in memory until you stop the overlay, so a repeated
   song shows instantly. What you add is saved, in the `data` folder: your
-  facts for particular songs, the sources you marked **Wrong**, and what the
-  current stream has shown (for six hours), so a restart doesn't repeat
-  bubbles. The topic packs are only ever read, never written. The log
+  facts for particular songs, the sources you marked **Wrong** and a log of
+  those presses, what the current stream has shown (for six hours, so a
+  restart doesn't repeat bubbles), the last 500 facts that went out, and the
+  songs played on stream (never who asked for them). All of it stays on your
+  computer. The topic packs are only ever read, never written. The log
   file `logs/songs.log` records which way each song was handled, not the facts.
 - **Facts are only as good as Wikipedia.** The check makes sure captions match
   the article; it can't tell whether the article is right.

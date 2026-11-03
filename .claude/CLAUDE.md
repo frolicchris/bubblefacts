@@ -1,7 +1,8 @@
 # BubbleFacts
 
 OBS overlay and desktop app that show verified trivia about the song a
-StreamerSongList queue or StreamElements request player says is playing.
+StreamerSongList queue, a StreamElements request player or a now playing file
+says is playing.
 Node 20+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
 `docs/ARCHITECTURE.md` before changing the fact pipeline. It records the
 constraints that were learned on live streams.
@@ -19,6 +20,8 @@ npm run build       # compile to dist/
 npm run bump -- X.Y.Z  # set a new version everywhere a release needs it
 npm run app         # build and run the desktop app in development
 npm run dist        # build installers into release/ (on iCloud-synced folders, see .github/CONTRIBUTING.md)
+npm run dist:lite   # build BubbleFacts Lite (no AI engine) into release-lite/; same arguments as dist
+npm run test:scripts  # the version and Lite build scripts' own tests (part of check)
 bash scripts/start-overlay.sh
 ```
 Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.
@@ -47,8 +50,10 @@ Change the source first. Everything else copies from it.
 - OBS animations: `transform` and `opacity` only.
 - There is deliberately **no LLM verification pass**. Accuracy comes from
   grounding + deterministic screening. Sharpen the prompt before adding layers.
-- Never ask the model for facts without a reference. No article → topic packs,
-  or nothing when the streamer has none (the app's default).
+- Never ask the model for facts without a reference. No article → fixed
+  sentences from Wikidata or MusicBrainz (no AI), a line from the artist's
+  Twitch About, then the streamer's custom facts (the topic packs on the
+  command line), or nothing when the streamer has none (the app's default).
 - Partial results are never padded from the topic packs.
 - The packs in `topics/` are examples, not maintained content. Don't add to,
   expand, or "improve" them, and don't accept pull requests that do. Streamers

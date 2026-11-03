@@ -1,5 +1,5 @@
 import { utilityProcess } from "electron";
-import { fork } from "child_process";
+import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
@@ -53,7 +53,7 @@ const MISSES_BEFORE_RESTART = 4; // 20 seconds without an answer
 const MODEL_LOAD_GRACE_MS = 3 * 60_000;
 const DEGRADED_BEFORE_RESTART_MS = 120_000;
 /** The server's degradedReason (server.ts) when fetches fail: no internet, or the song service is down. */
-const OUTAGE_REASON = "no successful queue fetch recently";
+export const OUTAGE_REASON = "no successful queue fetch recently";
 const MAX_BACKOFF_MS = 60_000;
 const FAILING_AFTER = 5; // restarts within the window below
 const RESTART_WINDOW_MS = 10 * 60_000;
@@ -165,8 +165,9 @@ export class Supervisor extends EventEmitter {
     let child: ServerProcess;
     if (this.runtime) {
       // Linux: the fact server runs under a standard Node.js shipped with the app, because the
-      // built-in AI crashes (illegal instruction) under Electron's own runtime there.
-      const proc = fork(this.serverScript, [], { execPath: this.runtime, env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
+      // built-in AI crashes (illegal instruction) under Electron's own runtime there. Spawned, not
+      // forked: Electron refuses fork() once the app's RunAsNode fuse is off, as it is when shipped.
+      const proc = spawn(this.runtime, [this.serverScript], { env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
       proc.stdout?.on("data", output);
       proc.stderr?.on("data", output);
       proc.on("error", (err) => this.log(`[App] Couldn't start the fact server: ${err.message}`));

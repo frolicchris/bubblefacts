@@ -356,6 +356,16 @@ describe("SongListClient", () => {
       expect(client.searchSongs("lanterns", 8)).toEqual([{ id: 12, title: "Harbor Lights", artist: "The Paper Lanterns" }]);
     });
 
+    it("hands every song on the list to preparing, with how often each was played (issue #293)", async () => {
+      expect(client.listedSongs()).toBeNull();
+      mockFetch.mockResolvedValueOnce(page([{ id: 11, title: "Evening Rain", artist: "Jane Composer", timesPlayed: 7 }, { id: 12, title: "Harbor Lights", artist: "The Paper Lanterns" }]));
+      await client.learnListFormat();
+      expect(client.listedSongs()).toEqual([
+        { id: 11, title: "Evening Rain", artist: "Jane Composer", plays: 7 },
+        { id: 12, title: "Harbor Lights", artist: "The Paper Lanterns", plays: 0 },
+      ]);
+    });
+
     it("reads a list of 20,000 songs whole, and searches it quickly", async () => {
       const total = 20_000;
       for (let p = 0; p < total / 100; p++) {

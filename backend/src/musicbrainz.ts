@@ -24,6 +24,7 @@ import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
 import { fitOrSplit } from "./data-facts";
 import { otherOrder } from "./youtube-title";
+import { preparing } from "./prep-context";
 
 /**
  * Plain facts from MusicBrainz, after Wikipedia and Wikidata come up empty
@@ -89,6 +90,9 @@ async function mbFetch(url: string): Promise<Response> {
   if (res.status === 503) {
     await new Promise((r) => setTimeout(r, BUSY_RETRY_MS));
     res = await once();
+    // Answered the second time: the first "busy" cost nothing, so a song being prepared isn't put off for it.
+    const ctx = preparing();
+    if (res.ok && ctx && ctx.trouble > 0) ctx.trouble--;
   }
   return res;
 }

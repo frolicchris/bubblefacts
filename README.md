@@ -44,14 +44,19 @@ shows exactly what to click.
    **It's on your stream!**
 
 No coding. No Terminal. No AI setup. BubbleFacts finishes getting ready in the
-background, so you don't wait for it. Want to make it yours? Tell it you play
-your own compositions or do live learns, or add custom facts, any time in
-Settings. The [setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
+background, so you don't wait for it. Want to make it yours? Pick a bubble
+**Style** or your own colors, tell it you play your own compositions or do live
+learns, or add custom facts, any time in Settings. Streaming vertically too?
+There's a vertical overlay. With the AI on your computer, **Prepare my songs**
+writes facts for your songs ahead of time, while OBS is closed, so they show
+the moment a song starts. The [setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
 
 ## How the facts are checked
 
 When a song starts, BubbleFacts finds its Wikipedia article (or the game's or
-film's), and the AI writes captions **only from that article**. Every caption
+film's), and the AI writes captions **only from that article**, plus a few
+lines that name the song from its album's or soundtrack's article when the
+song's own says little about how it was made. Every caption
 is screened: names, who did what, years, consoles, and award or chart claims
 must appear in the article, or it's dropped. Captions that only repeat the
 title and artist are dropped too. So is anything that isn't family-friendly or
@@ -59,13 +64,16 @@ about the music: scandals, crime, threats, and anything that labels who a
 person is. That catches most mistakes, not every one
 (a caption can still mix up details the article does mention), so
 **Wrong** next to a fact in the app takes it off your stream, along with the
-song's other bubbles from the same source. Playing when you spot it? Mark it
+song's other bubbles from that article, and from the album or soundtrack
+article it led to. Playing when you spot it? Mark it
 after the song, under **Earlier songs**, where **No facts for this song** and
 **No facts for this artist** are one click too.
 Basic facts from Wikidata and MusicBrainz, such as a song's year and album,
 can show first, the moment the song starts, and the AI's captions follow.
 With no article, or none BubbleFacts is sure about, no AI is used: those
-databases fill in plain facts, or your own facts show, or nothing.
+databases fill in plain facts, or, for an artist named like a Twitch channel
+(with Twitch connected), a line from their Twitch About, or your own facts
+show, or nothing.
 
 ## AI disclosure
 
@@ -135,7 +143,7 @@ High quality chosen in Settings, Meta's Llama 3.1 8B, used under the
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,
-DarkN8V, Epic Realms, izzyparadox, MacYoda and SaxDragon, and to everyone who tried BubbleFacts,
+DarkN8V, Epic Realms, izzyparadox, MacYoda and SaxDragon, to charliesbeats, the best mod ever, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
 Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI

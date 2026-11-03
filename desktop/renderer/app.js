@@ -15,7 +15,7 @@
 
   // --- Views -------------------------------------------------------------
 
-  const VIEW_HEADINGS = { dashboard: "#status-title", settings: "#view-settings h1", about: "#view-about h1" };
+  const VIEW_HEADINGS = { dashboard: "#status-title", songs: "#view-songs h1", settings: "#view-settings h1", about: "#view-about h1" };
   function show(view, { focus = true } = {}) {
     for (const v of $$(".view")) v.hidden = v.id !== "view-" + view;
     for (const b of $$(".navlink")) b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
@@ -25,9 +25,49 @@
       refreshRecent();
       recentTimer = setInterval(refreshRecent, 4000);
     }
+    if (view === "songs") {
+      refreshSongs();
+      recentTimer = setInterval(refreshSongs, 5000);
+    }
     if (view === "settings") fillSettings();
     // A screen reader user lands on the new view's heading, not on a button that just disappeared.
     if (focus && VIEW_HEADINGS[view]) $(VIEW_HEADINGS[view])?.focus();
+  }
+
+  // --- Your songs (issue #294): how many are prepared. Information only. ----
+
+  /** What the Your songs screen last showed, so a list nobody changed isn't redrawn under the reader. */
+  let lastSongs = "";
+  async function refreshSongs() {
+    let r;
+    try {
+      r = await api.prepareStatus();
+    } catch {
+      r = null;
+    }
+    const report = window.SongsReport;
+    const c = r && r.server && r.server.coverage;
+    $("#songs-ready").textContent = c ? report.readyLine(c) : "BubbleFacts can't count your songs while it isn't running.";
+    const requests = report.requestsLine(c);
+    $("#songs-requests").textContent = requests;
+    $("#songs-requests").hidden = !requests;
+    const said = report.stateLine(r ? r.waiting : "server", r && r.server);
+    if ($("#songs-state").textContent !== said) $("#songs-state").textContent = said;
+    const none = (c && c.noFactsSongs) || [];
+    const key = JSON.stringify([c && c.noFacts, none]);
+    if (key === lastSongs) return;
+    lastSongs = key;
+    $("#songs-none").hidden = !none.length;
+    $("#songs-none-count").textContent = c ? Number(c.noFacts).toLocaleString("en-US") : "0";
+    const list = $("#songs-none-list");
+    const items = none.map((s) => (s.artist ? `${s.title} — ${s.artist}` : s.title));
+    // The most requested come first; a long list is cut short.
+    if (c && c.noFacts > none.length) items.push(`and ${Number(c.noFacts - none.length).toLocaleString("en-US")} more`);
+    list.replaceChildren(...items.map((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      return li;
+    }));
   }
 
   function goStep(n) {
@@ -75,6 +115,18 @@
     }
     if (t.dataset.gotoStep) goStep(Number(t.dataset.gotoStep));
     if (t.dataset.view) show(t.dataset.view);
+    // A link to one part of a long page lands there, not at the top.
+    if (t.dataset.scrollTo) document.getElementById(t.dataset.scrollTo)?.scrollIntoView({ block: "start" });
+    if (t.dataset.tip) showTip(t, document.getElementById(t.dataset.tip).hidden);
+  });
+
+  function showTip(button, open) {
+    document.getElementById(button.dataset.tip).hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  }
+  // Turning Prepare on explains what it will do, without a trip to the "?".
+  document.querySelector('input[name="prepareSongs"]').addEventListener("change", (e) => {
+    if (e.target.checked) showTip(document.querySelector('[data-tip="s-prepare-hint"]'), true);
   });
 
   function flash(button, text) {
@@ -430,6 +482,10 @@
     const took = $("#facts-took");
     took.textContent = h && h.factsTook ? h.factsTook : "";
     took.hidden = !took.textContent;
+    // Asking the AI for less while the computer is busy with the stream (it recovers by itself).
+    const pace = $("#facts-pace");
+    pace.textContent = h && h.pace ? h.pace : "";
+    pace.hidden = !pace.textContent;
 
     // Stream
     if (state.paused) setStatusLight("light-obs", "warn", "Bubbles paused");
@@ -457,7 +513,13 @@
     else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
     else if (status.state === "running" && !obs && obsGrace) { title = "Connecting to OBS"; detail = "If BubbleFacts is already in OBS, this takes a few seconds."; }
     else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
-    else if (status.state === "running" && status.message) { title = "Reconnecting"; detail = status.message + "."; }
+    else if (status.state === "running" && status.message) {
+      title = "Reconnecting";
+      // The sign-in was checked and still holds: StreamerSongList itself is down or slow.
+      detail = state.songListDown && !onStreamElements() && !onFile()
+        ? "StreamerSongList isn't answering right now. Your sign-in is fine, so there's nothing to do: BubbleFacts keeps trying."
+        : status.message + ".";
+    }
     else if (status.state === "running") {
       kind = "ok";
       title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
@@ -1218,6 +1280,7 @@
     renderMyOriginals();
     $("#s-originals-box").hidden = !form.elements.originals.checked;
     $("#s-share-box").hidden = !form.elements.shareFacts.checked;
+    $("#s-colors-box").hidden = !form.elements.customColors.checked;
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
@@ -1229,7 +1292,7 @@
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
     // Someone already using an online AI, High quality or the example packs finds them open.
-    $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
+    $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
     renderQuality();
@@ -1240,10 +1303,19 @@
     renderDraftNote();
   }
 
+  /**
+   * BubbleFacts Lite has no built-in AI. Elements marked data-edition="full" or "lite" show only in that
+   * edition; Lite's own choice under "Who writes the facts" reads "No AI" (the same "builtin" setting).
+   */
+  const isLite = () => state.edition === "lite";
+  function showEdition() {
+    for (const el of $$("[data-edition]")) el.hidden = el.dataset.edition !== (isLite() ? "lite" : "full");
+  }
+
   /** High quality is a choice under "On this computer", with a warning (never a block) where it may struggle. */
   const GB = 1024 ** 3;
   function renderQuality() {
-    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin";
+    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin" || isLite();
     const reasons = [];
     // A computer sold with 16 GB reports a little less, as some is set aside for the system.
     if (state.totalMemory && state.totalMemory < 15 * GB) {
@@ -1363,7 +1435,8 @@
     const newQuality = state.settings.aiQuality !== qualityBefore && switchingQuality();
     setResult($("#settings-result"), newQuality
       ? `✓ Saved. The ${qualityName()} AI is downloading; the one you have keeps writing facts until it's ready.`
-      : "✓ Saved. BubbleFacts restarted with your changes.", "ok");
+      // A new look changes on stream without a restart, so this doesn't claim one.
+      : "✓ Saved. Your changes are in use now.", "ok");
   }
 
   form.addEventListener("submit", async (e) => {
@@ -1416,6 +1489,7 @@
 
   form.elements.originals.addEventListener("change", (e) => ($("#s-originals-box").hidden = !e.target.checked));
   form.elements.shareFacts.addEventListener("change", (e) => ($("#s-share-box").hidden = !e.target.checked));
+  form.elements.customColors.addEventListener("change", (e) => ($("#s-colors-box").hidden = !e.target.checked));
   $("#s-share-test").addEventListener("click", async () => {
     const result = $("#s-share-result");
     setResult(result, "Checking...");
@@ -1512,6 +1586,7 @@
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
+    showEdition();
     // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;

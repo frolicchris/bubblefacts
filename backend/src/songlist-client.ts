@@ -5,7 +5,7 @@ import { SongSource } from "./song-source";
 import { SSLQueueItem, SSLQueueResponse, SSLSong, SSLStreamerInfo } from "./types";
 import { cleanRequestText } from "./text";
 import { displayTitle, toSong } from "./song-mapping";
-import { ListSong, searchSongs } from "./song-search";
+import { ListedSong, ListSong, searchSongs } from "./song-search";
 import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
@@ -36,7 +36,7 @@ export const MAX_LIST_PAGES = 300;
 const LIST_RETRY_MS = 60_000;
 
 /** `GET /songs` items, only the fields used here. */
-type ListItem = { id?: number; title?: string | null; artist?: string | null };
+type ListItem = { id?: number; title?: string | null; artist?: string | null; timesPlayed?: number | null };
 
 export class SongListClient implements SongSource {
   readonly name = "StreamerSongList";
@@ -60,6 +60,8 @@ export class SongListClient implements SongSource {
   private backoffUntil = 0;
   /** The song list as read at start, for the song facts editor's search. Null until it has been read. */
   private listSongs: ListSong[] | null = null;
+  /** How often each song on the list has been played, by song ID: "most requested first" when preparing (issue #293). */
+  private listPlays = new Map<number, number>();
   private listFailedAt = 0;
   private listReading = false;
 
@@ -209,6 +211,7 @@ export class SongListClient implements SongSource {
         const title = cleanRequestText(s.title ?? "");
         return typeof s.id === "number" && s.id > 0 && title ? [{ id: s.id, title, artist: cleanRequestText(s.artist ?? "") }] : [];
       });
+      this.listPlays = new Map(titles.flatMap((s) => (typeof s.id === "number" && typeof s.timesPlayed === "number" && s.timesPlayed > 0 ? [[s.id, s.timesPlayed] as const] : [])));
       this.listFailedAt = 0;
       const profile = buildProfile(titles);
       setListProfile(profile);
@@ -227,6 +230,11 @@ export class SongListClient implements SongSource {
     // The read at start failed (network not up yet, say): searching is a good moment to try again.
     if (this.listFailedAt && Date.now() - this.listFailedAt > LIST_RETRY_MS && !this.backingOff()) void this.learnListFormat();
     return this.listSongs && searchSongs(this.listSongs, query, limit);
+  }
+
+  /** Every song on the list with how often it was played, for preparing (issue #293); null until the list has been read. */
+  listedSongs(): ListedSong[] | null {
+    return this.listSongs && this.listSongs.map((s) => ({ ...s, plays: this.listPlays.get(s.id) ?? 0 }));
   }
 
   /** Fetch the queue and apply it, one request at a time (see singleFlight). */

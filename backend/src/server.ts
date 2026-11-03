@@ -9,7 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
 import { factsTookLine, listeningLine } from "./listening";
-import { aiTimeFor, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
+import { prepareSong, prepModelName, releasePrepModel, streamModelName, aiTimeFor, paceReport, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
 import { connectAboutAsker, onAboutAnswer } from "./twitch-about";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
@@ -21,6 +21,13 @@ import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { CreditCounter, planCredit } from "./credit";
 import { SongFactSharer } from "./share-song-facts";
+import { coverage, Preparer, PrepTarget } from "./preparer";
+import { preparedStore } from "./prepared-facts";
+import { playHistory } from "./play-history";
+import { isNotMusic } from "./not-music";
+import { settledRevision } from "./fact-verifier";
+import { songKey } from "./wrong-facts";
+import { styleFrom, StylePayload } from "./bubble-style";
 
 /**
  * HTTP + WebSocket server. Watches the song queue, generates facts on each
@@ -68,12 +75,18 @@ let clientSeq = 0;
 /** Bumped on every song change; a generation that finishes late checks it and drops its result. */
 let generation = 0;
 
-function send(ws: WebSocket, payload: FactsPayload): void {
+function send(ws: WebSocket, payload: FactsPayload | StylePayload): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
 }
 
 /** The last song and facts sent, for the desktop app's dashboard. */
 let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"]; ready?: boolean } = { song: null, facts: [] };
+
+/**
+ * The bubbles' look (issue #177). Every overlay gets it as it connects, and again when the
+ * streamer saves a new one, so it changes on stream without refreshing the source in OBS.
+ */
+let bubbleStyle: StylePayload = config.bubbleStyle;
 
 /** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
 let paused = process.env.BUBBLEFACTS_PAUSED === "1";
@@ -140,6 +153,54 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
+/**
+ * Every song to prepare: the song list's, with how often each was played (issue #293), and every
+ * song seen on stream (issue #297), which covers requests no list has and moves a played one up.
+ */
+/** The songs to prepare are built from the whole list and history: at most this often, as the window asks every 5 s. */
+const TARGETS_FRESH_MS = 30_000;
+let targetsBuilt: { at: number; targets: PrepTarget[] } | null = null;
+
+/** Whether the song list has been read, so the songs to prepare are all known. A source with no list has none to wait for. */
+const songListRead = (): boolean => !songList.listedSongs || songList.listedSongs() !== null;
+
+function prepTargets(): PrepTarget[] {
+  if (targetsBuilt && Date.now() - targetsBuilt.at < TARGETS_FRESH_MS) return targetsBuilt.targets;
+  const targets = new Map<string, PrepTarget>();
+  for (const s of songList.listedSongs?.() ?? []) {
+    const song: SSLSong = { title: s.title, artist: s.artist, songId: s.id };
+    targets.set(songKey(song), { key: songKey(song), song, requests: s.plays });
+  }
+  for (const [key, played] of Object.entries(playHistory.all())) {
+    const listed = targets.get(key);
+    targets.set(key, listed ? { ...listed, requests: listed.requests + played.plays } : { key, song: played.song, requests: played.plays });
+  }
+  const built = [...targets.values()];
+  // Built before the list was read: only the history. Not kept, so the list's songs join as soon as it's read.
+  targetsBuilt = songListRead() ? { at: Date.now(), targets: built } : null;
+  return built;
+}
+
+/** "Prepare my songs": the app starts it while the computer is free, and stops it when it isn't (issue #295). */
+const preparer = new Preparer({
+  store: preparedStore,
+  targets: prepTargets,
+  listRead: songListRead,
+  prepare: prepareSong,
+  revisionOf: settledRevision,
+  prepModel: prepModelName,
+  streamModel: streamModelName,
+  release: releasePrepModel,
+});
+
+/** Why preparing can't run now, or "": an overlay is connected (a stream may be on), there's no AI, or lookups are off. */
+function cantPrepare(): string {
+  if (clients.size) return "overlay";
+  if (config.aiProvider === "none") return "no-ai";
+  if (!config.factVerification) return "lookups-off";
+  return "";
+}
+
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
   saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(config.creditBubble && creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
 }
@@ -154,6 +215,11 @@ wss.on("connection", (ws, req) => {
   };
   clients.set(ws, client);
   console.log(`[WS] Client #${client.id} connected from ${client.addr} (${client.ua}), total ${clients.size}`);
+  // OBS is up: the stream comes first. Preparing stops at once, and the app starts it again once OBS is closed.
+  if (preparer.running) {
+    console.log("[Prepare] An overlay connected: stopping");
+    preparer.stop();
+  }
 
   const drop = () => {
     if (clients.delete(ws)) console.log(`[WS] Client #${client.id} disconnected, total ${clients.size}`);
@@ -163,6 +229,8 @@ wss.on("connection", (ws, req) => {
     console.error(`[WS] Client #${client.id} error: ${err.message}`);
     drop();
   });
+  // First, before any bubble: even while paused, so Resume shows the right look.
+  send(ws, bubbleStyle);
 
   // Catch a reconnecting overlay up on the current song.
   const current = songList.getCurrentSong();
@@ -222,6 +290,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const song = songList.toSong(current);
   // Work for any other song is no longer wanted (see setCurrentSong).
   setCurrentSong(song);
+  // Kept on this computer to be prepared after the stream (issue #297): next time it plays, its facts are ready.
+  if (!isNotMusic(song)) playHistory.record(song);
 
   // The first song after a restart, and it's the one that was showing: carry on where it left off.
   const before = restored;
@@ -343,6 +413,19 @@ control.post("/pause", (req, res) => {
     shareNow();
   }
   res.json({ paused });
+});
+
+// A new look from the app's Settings (issue #177): every overlay changes now, bubbles on screen
+// included, with no restart (which would announce the song again) and no Refresh in OBS.
+// Anything it doesn't know falls back to the classic look rather than being refused.
+control.post("/style", (req, res) => {
+  bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`), {
+    scale: req.body?.scale,
+    verticalScale: req.body?.verticalScale,
+  });
+  console.log(`[Server] Bubble style: ${bubbleStyle.style}${bubbleStyle.colors ? ", with custom colors" : ""}`);
+  for (const ws of clients.keys()) send(ws, bubbleStyle);
+  res.json({ style: bubbleStyle.style, colors: bubbleStyle.colors ?? null, overlays: clients.size });
 });
 
 /**
@@ -564,6 +647,20 @@ control.post("/aired", (_req, res) => {
   res.json({ facts: aired.list() });
 });
 
+// "Prepare my songs" (issue #293): {run: true} starts or carries on, {run: false} stops at once, keeping what's done.
+// The app decides when (issue #295); the server refuses while an overlay is connected, and stops when one connects.
+control.post("/prepare", (req, res) => {
+  const refused = req.body?.run === true ? cantPrepare() : "";
+  if (req.body?.run === true && !refused) preparer.start();
+  else preparer.stop();
+  res.json({ ...preparer.status(), ...(refused ? { refused } : {}) });
+});
+
+// Where preparing stands, and how many songs are ready (issue #294), for the app's window. Information only.
+control.post("/prepare/status", (_req, res) => {
+  res.json({ ...preparer.status(), coverage: coverage(prepTargets(), preparedStore) });
+});
+
 // "Add facts for another song": find it on the song list as the musician types.
 control.post("/songs/search", songSearchRoute(songList));
 
@@ -590,6 +687,7 @@ app.get("/health", (_req, res) => {
   const rejected = songList.authRejected();
   const notFollowing = songList.followingProblem?.() ?? null;
   const { lastOutcome, lastDurationMs, lastEndpoint, ...counts } = factStats;
+  const pace = paceReport();
 
   res.json({
     paused,
@@ -608,6 +706,10 @@ app.get("/health", (_req, res) => {
     listening: listeningLine(songList),
     // How long the AI took for the song on now ("Facts took 45 s"); empty when it wrote nothing for it.
     factsTook: factsTookLine(current ? aiTimeFor(songList.toSong(current)) : null),
+    // Whether the built-in AI is asking for less to keep up with a busy computer, in words for
+    // the dashboard ("Your computer is busy, so quick facts only"), and the measures behind it (issue #314).
+    pace: pace.line,
+    computer: pace,
     obsClients: clients.size,
     clients: [...clients.values()].map((c) => ({
       addr: c.addr,
@@ -662,6 +764,9 @@ type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => voi
 const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
 parentPort?.on("message", ({ data }) => onAppMessage(data));
 if (process.send) process.on("message", onAppMessage);
+// A promise someone forgot to catch must not end the server mid-stream: the bubbles would stop
+// until the app restarts it. Log it so it can be fixed where it started.
+process.on("unhandledRejection", (err) => console.error("[Server] Unhandled error, still running:", err));
 // The app holds the Twitch sign-in, so it reads a channel's About for the server (twitch-about.ts).
 if (parentPort) connectAboutAsker((m) => parentPort.postMessage(m));
 else if (process.send) connectAboutAsker((m) => process.send?.(m));

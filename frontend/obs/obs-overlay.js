@@ -14,7 +14,8 @@
  * Setup
  * -----
  *
- *  Add a Browser Source in OBS with "Local File" checked, pointing at this
+ *  Add a Browser Source in OBS with the URL http://127.0.0.1:3000/obs-overlay
+ *  while the server runs, or with "Local file" checked, pointing at this
  *  folder's obs-overlay.html, 1920x1080. See docs/MANUAL-SETUP.md.
  *
  *  For a vertical (9:16) stream, use obs-overlay-vertical.html instead, at
@@ -23,7 +24,8 @@
  *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
  *  without the server. A red dot bottom-right means the server isn't
- *  reachable. Styling lives in obs-overlay.css; positions come from the server.
+ *  reachable. Styling lives in obs-overlay.css; positions, the bubble size,
+ *  and which Style to use, come from the server.
  */
 (function () {
   "use strict";
@@ -217,10 +219,85 @@
     );
   }
 
+  // --- Style (issue #177) ---
+
+  /** The built-in Styles in obs-overlay.css. Anything else shows the classic look, never no bubbles. */
+  const STYLES = ["classic", "light", "minimal", "retro", "high-contrast"];
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const COLOR_KEYS = ["background", "accent", "text", "label", "liveLearn"];
+  /** How opaque a custom background is. The server checks text contrast at this (CUSTOM_ALPHA in bubble-style.ts). */
+  const CUSTOM_ALPHA = 1;
+  let colorSheet = null;
+  let sizeSheet = null;
+
+  const rgbaOf = (hex, alpha) =>
+    "rgba(" + [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ") + ", " + alpha + ")";
+
+  /**
+   * The streamer's own colors, as properties with no specificity: after the Style's in the page,
+   * so they win over it, and OBS's Custom CSS still wins over them. The server picked the text
+   * colors to read well on the background.
+   */
+  function customColorsCss(c) {
+    const lightText = parseInt(c.text.slice(1, 3), 16) > 128;
+    const shadow = lightText ? "0 2px 4px rgba(0, 0, 0, 0.9)" : "none";
+    const props = {
+      "--bf-bg-1": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-bg-2": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-toast-bg-1": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-toast-bg-2": rgbaOf(c.background, CUSTOM_ALPHA),
+      "--bf-accent": c.accent,
+      "--bf-outline": rgbaOf(c.accent, 0.3),
+      "--bf-text": c.text,
+      "--bf-text-shadow": shadow,
+      "--bf-toast-text": c.text,
+      "--bf-toast-glow": shadow,
+      "--bf-toast-label": c.label,
+      "--bf-live-learn": c.liveLearn,
+    };
+    return ":where(html) {\n" + Object.keys(props).map((k) => "  " + k + ": " + props[k] + ";").join("\n") + "\n}";
+  }
+
+  /** The look the streamer chose: switched at once, bubbles on screen included. Only colors and fonts change. */
+  function applyStyle(msg) {
+    document.documentElement.dataset.style = STYLES.includes(msg.style) ? msg.style : "classic";
+    applySizes(msg);
+    const c = msg.colors;
+    const custom = !!c && COLOR_KEYS.every((k) => HEX.test(c[k]));
+    if (!custom && !colorSheet) return;
+    if (!colorSheet) {
+      colorSheet = document.createElement("style");
+      document.head.appendChild(colorSheet);
+    }
+    colorSheet.textContent = custom ? customColorsCss(c) : "";
+  }
+
+  /** A size the server sent, or null: never one that would make bubbles unreadable or cover the stream. The limits are MIN_SCALE and MAX_SCALE in bubble-style.ts. */
+  const sizeOf = (n) => (typeof n === "number" && n >= 0.5 && n <= 3 ? n : null);
+
+  /**
+   * Bubble size, live: after the size written into the copied CSS in the page, so it wins over
+   * it, and with no specificity, so OBS's Custom CSS still wins over both. Bubbles already on
+   * screen change size at once; only transform and opacity animate.
+   */
+  function applySizes(msg) {
+    const scale = sizeOf(msg.scale);
+    const vertical = sizeOf(msg.verticalScale);
+    if (scale === null && vertical === null && !sizeSheet) return;
+    if (!sizeSheet) {
+      sizeSheet = document.createElement("style");
+      document.head.appendChild(sizeSheet);
+    }
+    const props = (scale !== null ? "  --bf-scale: " + scale + ";\n" : "") + (vertical !== null ? "  --bf-vertical-scale: " + vertical + ";\n" : "");
+    sizeSheet.textContent = props ? ":where(html) {\n" + props + "}" : "";
+  }
+
   // --- Connection ---
 
   function handle(msg) {
-    if (msg.type === "new_song") {
+    if (msg.type === "style") {
+      applyStyle(msg);
+    } else if (msg.type === "new_song") {
       clearBubbles();
       removed = new Set();
       currentSongKey = songKey(msg.song);

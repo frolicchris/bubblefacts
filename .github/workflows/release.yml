@@ -1,7 +1,8 @@
 name: Release
 
 # Pushing a version tag (v2.0.0, v2.0.0-beta.1) builds every installer on its
-# own system and puts them in a *draft* release with checksums, for a person to
+# own system, the full app and BubbleFacts Lite (no AI engine, "-lite" in its
+# names), and puts them in a *draft* release with checksums, for a person to
 # read over and publish. Each file gets a build-provenance attestation, so
 # anyone can check it came from this workflow:
 #   gh attestation verify FILE --repo frolicchris/bubblefacts \
@@ -32,10 +33,10 @@ jobs:
           - { name: windows-x64, os: windows-latest, args: --win --x64 }
           # The oldest supported Ubuntu, so the Linux build runs on everything newer.
           - { name: linux-x64, os: ubuntu-22.04, args: --linux --x64 }
+    # Read only: this job runs every installed package's code, so it can't sign anything.
+    # The attest job below signs the provenance of what it uploads.
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     steps:
       # A release is built only from reviewed code: the tag's commit must already be on main,
       # which takes a pull request. A tag pushed on any other commit fails here.
@@ -147,21 +148,45 @@ jobs:
           else
             npm run dist -- $ARGS
           fi
+      # BubbleFacts Lite (issue #34): the same app without the AI engine, for the same systems,
+      # signed the same way. scripts/dist-lite.mjs swaps package.json for Lite's while it builds,
+      # then puts it back. Its installers have "-lite" in their names and land in release-lite/.
+      - name: Build Lite
+        shell: bash
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+          EXTRA: ${{ steps.signing.outputs.extra }}
+          ARGS: ${{ matrix.args }}
+        run: |
+          # $ARGS and $EXTRA are split into words on purpose.
+          if [ -n "$EXTRA" ]; then
+            npm run dist:lite -- $ARGS $EXTRA "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
+          else
+            npm run dist:lite -- $ARGS
+          fi
+          # Lite must not carry the AI engine: stop here if any of it got in.
+          if find release-lite -path '*node_modules*' -iname '*llama*' | grep .; then echo "Lite has AI engine files"; exit 1; fi
       # Says in the log whether each installer came out signed.
       - name: Report signing
         shell: bash
         run: |
           case "$RUNNER_OS" in
-            macOS) for a in release/mac*/BubbleFacts.app; do codesign -dv "$a" 2>&1 | grep -E "Authority|Signature=adhoc" || true; done ;;
-            Windows) powershell -Command "Get-AuthenticodeSignature (Get-ChildItem release/BubbleFacts-*.exe) | Format-List Status,SignerCertificate" ;;
+            macOS) for a in release/mac*/BubbleFacts.app release-lite/mac*/BubbleFacts.app; do codesign -dv "$a" 2>&1 | grep -E "Authority|Signature=adhoc" || true; done ;;
+            Windows) powershell -Command "Get-AuthenticodeSignature (Get-ChildItem release/BubbleFacts-*.exe, release-lite/BubbleFacts-*.exe) | Format-List Path,Status,SignerCertificate" ;;
           esac
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # The smoke test's scripts, from the same commit as the installers it checks (one copy is enough).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: matrix.name == 'linux-x64'
         with:
-          subject-path: |
-            release/BubbleFacts-*.dmg
-            release/BubbleFacts-*.exe
-            release/BubbleFacts-*.AppImage
-            release/bubblefacts_*.deb
+          name: smoke-scripts
+          if-no-files-found: error
+          path: scripts/smoke-*.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.name }}
@@ -171,10 +196,46 @@ jobs:
             release/BubbleFacts-*.exe
             release/BubbleFacts-*.AppImage
             release/bubblefacts_*.deb
+      # A separate artifact, so the smoke test can pick the full or the Lite installer by name.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.name }}-lite
+          if-no-files-found: error
+          path: |
+            release-lite/BubbleFacts-*.dmg
+            release-lite/BubbleFacts-*.exe
+            release-lite/BubbleFacts-*.AppImage
+            release-lite/bubblefacts-lite_*.deb
+
+  # Provenance for every installer, in a job with no checkout, no npm ci and no other code:
+  # the only job besides the release that can sign. The signer is still release.yml.
+  attest:
+    name: Attest the installers
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      # Only the installers (every one of their artifacts is named for a 64-bit system), not the smoke test's scripts.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: files
+          pattern: "*64*"
+          merge-multiple: true
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            files/BubbleFacts-*.dmg
+            files/BubbleFacts-*.exe
+            files/BubbleFacts-*.AppImage
+            files/bubblefacts_*.deb
+            files/bubblefacts-lite_*.deb
 
   release:
     name: Draft the release
-    needs: build
+    needs: attest
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -183,9 +244,11 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Only the installers (every one of their artifacts is named for a 64-bit system), not the smoke test's scripts.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: files
+          pattern: "*64*"
           merge-multiple: true
       # The manual (command-line) setup: docs/MANUAL-SETUP.md links to this name on the latest release.
       - name: Source zip

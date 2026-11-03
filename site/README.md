@@ -10,10 +10,10 @@ download script asking GitHub's public API for the newest release.
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | Signing note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, and a collapsed "Check your download (optional)" with the in-browser checker and a "For developers" part |
+| `download.html` | Signing note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, the beta box, the BubbleFacts Lite box, updating, and a collapsed "For security-conscious users and developers" with the in-browser checker and the file names and commands |
 | `guide.html` | Step-by-step setup, then "Make it yours" (your facts and display settings) |
 | `troubleshooting.html` | What you see, why, and what to do, as one table |
-| `requirements.html` | System requirements, speed, fallback when the built-in AI can't run |
+| `requirements.html` | System requirements, High quality, speed, BubbleFacts Lite, fallback when the built-in AI can't run |
 | `changelog.html` | What's new in each version |
 | `uninstall.html` | Removing the app, its settings and the AI model |
 | `support.html` | Where to get help and report problems |
@@ -61,18 +61,22 @@ Release files have the version in their names, for example for `2.0.0-beta.1`:
 | `BubbleFacts-VERSION-windows-x64.exe` | Windows |
 | `BubbleFacts-VERSION-linux-x86_64.AppImage` | Other Linux |
 | `bubblefacts_VERSION_amd64.deb` | Ubuntu, Debian and similar |
+| `BubbleFacts-VERSION-lite-mac-arm64.dmg` and the rest with `-lite` | BubbleFacts Lite, with no AI (from 2.2.0) |
+| `bubblefacts-lite_VERSION_amd64.deb` | BubbleFacts Lite for Ubuntu, Debian and similar |
 | `SHA256SUMS.txt` | Checksums for all of the above |
 
 Betas are published as GitHub prereleases, which GitHub's `/releases/latest`
 link ignores. So the pages don't use fixed links. Instead:
 
 - Every download link has a `data-asset` attribute (`mac-arm64`, `mac-x64`,
-  `windows-x64`, `linux-appimage`, `linux-deb`, `sha256sums`) and a plain
-  `href` to the GitHub Releases page.
+  `windows-x64`, `linux-appimage`, `linux-deb`, `sha256sums`, and for Lite the
+  same with `lite-` in front, such as `lite-mac-arm64`) and a plain
+  `href` to the GitHub Releases page. The full app's patterns skip Lite's
+  files. The Lite box (`data-lite-shown`, and `data-beta-lite` in the beta box)
+  shows only when that release has Lite installers.
 - `assets/site.js` asks
-  `https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=10`,
-  takes the newest full release with installers (until 2.0.0 is out, the
-  newest beta or release candidate), and matches its files by the end of
+  `https://api.github.com/repos/frolicchris/bubblefacts/releases?per_page=30`,
+  takes the newest full release with installers, and matches its files by the end of
   their names (`PATTERNS` at the top of the script).
   It then points each link at the matching file.
 - Elements with `data-release-version` show the version number, and links with
@@ -103,9 +107,9 @@ signing note under "Check your download" in `download.html`.
 ## Beta or stable wording
 
 Words that are only true before 2.0.0 (the download page's "BubbleFacts
-2.0 test version" and its signing note, the home page's "Not signed yet:"
-line, the guide's signing note, the support page's "While 2.0 is being
-tested", the changelog's "Coming soon" tag for 2.0.0) sit next to their stable wording, each marked:
+test version" and its signing note, the home page's "Not signed yet:"
+line, the guide's signing note, the support page's "While a new version is
+being tested", the changelog's "Coming soon" tag for 2.0.0) sit next to their stable wording, each marked:
 
 - `data-beta-only` for beta wording, `data-stable-only` for stable wording.
 - `assets/site.js` adds the class `site-stable` to `<html>` when GitHub lists
@@ -114,21 +118,12 @@ tested", the changelog's "Coming soon" tag for 2.0.0) sit next to their stable w
 - So the site switches to stable wording **by itself** the moment 2.0.0 is
   published, with no upload.
 - Without JavaScript, or if GitHub can't be reached, the **site default** in
-  `assets/site.css` decides. Until 2.0.0 it's beta.
+  `assets/site.css` decides. It's stable.
 
 New beta-only wording gets `data-beta-only` and a `data-stable-only` twin
 (or none, if nothing should show after 2.0).
 
-## When version 2.0.0 ships
+## Since version 2.0.0
 
-1. In `assets/site.css`, under "SITE DEFAULT", change the rule to
-   `html:not(.site-stable):not(.site-beta) [data-beta-only]` and the comment
-   to "SITE DEFAULT: stable." That's the one change: visitors without
-   JavaScript now see stable wording too.
-2. Change the 2.0.0 entry in `changelog.html` to the release date, as for
-   any version.
-3. Upload the changed files, then open the download page in a private window
-   and check it says "Newest version (2.0.0)".
-
-Later, the beta wording and its markers can be deleted at leisure; nothing
-depends on them.
+Done in 2.0.0: the site default is stable. The beta wording and its markers
+can be deleted at leisure; nothing depends on them.

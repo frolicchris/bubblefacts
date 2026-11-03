@@ -10,7 +10,7 @@ class FakeProc extends EventEmitter {
   send = jest.fn();
 }
 jest.mock("child_process", () => ({
-  fork: jest.fn(() => {
+  spawn: jest.fn(() => {
     const p = new FakeProc();
     forks.push(p);
     return p;
@@ -54,6 +54,14 @@ const crashAfterGoodCheck = async () => {
   await run(5_000);
   forks[forks.length - 1].emit("exit", 1);
 };
+
+describe("starting the server", () => {
+  it("spawns the bundled Node.js rather than forking, which Electron refuses with RunAsNode off", () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { spawn } = require("child_process") as { spawn: jest.Mock };
+    expect(spawn).toHaveBeenLastCalledWith("node", ["server.js"], expect.objectContaining({ stdio: ["ignore", "pipe", "pipe", "ipc"] }));
+  });
+});
 
 describe("messages with the server", () => {
   it("passes on what the server says, and tells it what the app says", () => {

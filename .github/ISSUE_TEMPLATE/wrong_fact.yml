@@ -12,7 +12,7 @@ body:
     id: song
     attributes:
       label: Song
-      description: The title and artist as they appear in your StreamerSongList queue, or the YouTube title of the StreamElements request.
+      description: The title and artist as they appear in your StreamerSongList queue, the YouTube title of the StreamElements request, or the line in your now playing file.
       placeholder: "Sunshine Coastline (Ys VIII: Lacrimosa of Dana)"
     validations:
       required: true

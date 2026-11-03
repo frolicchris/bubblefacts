@@ -15,6 +15,11 @@ export interface ListSong {
   artist: string;
 }
 
+/** A song on the list with how often it was played, for preparing the most requested first. */
+export interface ListedSong extends ListSong {
+  plays: number;
+}
+
 const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 20;
 const MAX_QUERY = 100;

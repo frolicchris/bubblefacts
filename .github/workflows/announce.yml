@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       body:
-        description: Markdown, written for musicians, DJs and other streamers
+        description: Markdown, written for musicians, DJs and other music content creators
         required: true
         type: string
       dry_run:
