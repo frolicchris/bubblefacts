@@ -23,8 +23,14 @@ export function bumpOverlay(text, version) {
   return text.replace(re, `$1v${version}`);
 }
 
-/** Adds the version at the top of the beta form's version list, once. */
+/**
+ * Adds the version at the top of the beta form's version list, once, and makes it the Build
+ * field's example (the app fills that field in; an old example there looked like a wrong answer).
+ */
 export function bumpBetaForm(text, version) {
+  const build = /^(\s+id: build\r?\n(?:\s+.*\r?\n)*?\s+placeholder: ).*$/m;
+  if (!build.test(text)) throw new Error("beta_test.yml has no Build example");
+  text = text.replace(build, `$1${version}`);
   const nl = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text.split(/\r?\n/);
   const field = lines.findIndex((l) => /^\s+id: version\s*$/.test(l));
