@@ -86,8 +86,9 @@ export function batteryFromSysfs(supplies: PowerSupply[]): boolean {
 
 function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    // PowerShell's first Get-CimInstance on a cold machine can take several seconds; the answer is reused for 10 s.
-    execFile(cmd, args, { timeout: 10_000, windowsHide: true }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
+    // PowerShell's first Get-CimInstance on a cold or busy machine can take well over ten seconds (seen on CI);
+    // the answer is reused for 10 s, and until there is one the app only waits, so a long limit costs little.
+    execFile(cmd, args, { timeout: 20_000, windowsHide: true }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
   });
 }
 

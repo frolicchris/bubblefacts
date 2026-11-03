@@ -144,7 +144,7 @@ describe("PrepareDriver (issue #295)", () => {
     const own = systemOnBattery();
     if (!own) return;
     await expect(own()).resolves.toEqual(expect.any(Boolean));
-  }, 15_000); // Windows' PowerShell can take a while to start on a busy runner.
+  }, 30_000); // Windows' PowerShell can take well over ten seconds on a busy runner, beside the other test workers.
 
   it("stops on battery when the system says so, though the app's own check says plugged in", async () => {
     let battery = false;
