@@ -227,7 +227,7 @@ export const config = {
   abstain: oneOf("ABSTAIN", ["on", "off"] as const, "on") === "on",
   // The scored match (issue #172, work-resolver.ts): "rules" alone as today; "shadow" also scores
   // each song and logs where it disagrees; "scored" lets the score hold facts back, never add them.
-  match: oneOf("MATCH", ["rules", "shadow", "scored"] as const, "rules"),
+  match: oneOf("MATCH", ["rules", "shadow", "scored"] as const, "scored"),
   // Hold back AI captions whose source sentence is risky to retell, and rank the rest by interest (fact-ranking.ts).
   sourceRisk: oneOf("SOURCE_RISK", ["on", "off"] as const, "on") === "on",
   // Classical pieces: find the work through Wikidata by its composer, catalog number or nickname (issue #260).

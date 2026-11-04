@@ -5,8 +5,8 @@ jest.mock("./config", () => ({
 import { workMatchConfidence as rules, articleText } from "./fact-verifier";
 import { referenceDecision, scoredLevel } from "./work-resolver";
 
-// MATCH=scored (the "scored match" test project): the score may hold an article back, never add one.
-const scored = process.env.MATCH === "scored";
+// MATCH=scored is the default; the "rules match" test project runs these again with MATCH=rules. The score may hold an article back, never add one.
+const scored = process.env.MATCH !== "rules";
 const workMatchConfidence = (...a: Parameters<typeof rules>) => (scored ? scoredLevel(rules(...a), referenceDecision(a[2] ?? a[0], a[1], a[0], articleText(a[1].split("\n")[0]))) : rules(...a));
 
 /** A reference as fetchGrounding returns it: the page title, then the text. */

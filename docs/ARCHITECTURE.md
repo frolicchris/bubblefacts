@@ -1048,9 +1048,11 @@ same-name titles from the searches. It decides `sure`, `data-only` (no AI
 captions, and only data facts true of every version: who wrote or composed
 it) or `abstain` (nothing from the article; only who wrote it, from the
 request's own Wikidata and MusicBrainz lookups, then the streamer's own
-facts). `rules`, the default, doesn't run it; `shadow` logs its decision
-(`[Grounding] match: ...`) and where it differs from the rules; `scored`
-lets it hold facts back. When it is sure, `scored` still checks each fact
+facts). `scored`, the default since 2.2, lets it hold facts back; `rules`
+doesn't run it (the fallback, as in 2.2.0-beta.3 and earlier); `shadow` uses
+the rules and logs its decision (`[Grounding] match: ...`) and where it
+differs from them. On the frozen check lists the scored match took wrong or
+misleading bubbles from 8.4% to 7.3%, with no rise in other errors. When it is sure, `scored` still checks each fact
 against the target: a caption that opens on a sister work of the article's
 ("Some Game II sold", "Remake won") is dropped (`aboutAnotherWork`), and so
 is a data fact dated more than a year from the request's year tag

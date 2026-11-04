@@ -10,7 +10,7 @@ const project = {
   },
 };
 
-/** The article-match tests, run again with MATCH=scored (issue #172): the score may only hold facts back. */
+/** The article-match tests, run again with MATCH=rules, the fallback to the scored match (issue #172). */
 const MATCH_TESTS = ["wrong-work", "work-match", "summary-gate", "work-scope", "performer-article", "same-name-artist"];
 
 const config: Config = {
@@ -19,10 +19,10 @@ const config: Config = {
     { ...project, displayName: "all", roots: ["<rootDir>/backend/src", "<rootDir>/desktop/src"], testMatch: ["**/*.test.ts"] },
     {
       ...project,
-      displayName: "scored match",
+      displayName: "rules match",
       roots: ["<rootDir>/backend/src"],
       testMatch: MATCH_TESTS.map((name) => `**/${name}.test.ts`),
-      setupFiles: [...project.setupFiles, "<rootDir>/backend/src/scored-match-setup.ts"],
+      setupFiles: [...project.setupFiles, "<rootDir>/backend/src/rules-match-setup.ts"],
     },
   ],
 };
