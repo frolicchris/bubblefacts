@@ -90,6 +90,7 @@
       "desktop/build/*.png",
       "frontend/obs/**/*",
       "topics/*.json",
+      "facts-data/*.json",
       "!node_modules/node-llama-cpp/llama/gitRelease.bundle",
       "!node_modules/node-llama-cpp/bins/**/*",
       "node_modules/node-llama-cpp/bins/${os}-${arch}*/**/*",

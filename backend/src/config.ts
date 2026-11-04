@@ -232,6 +232,8 @@ export const config = {
   funScreen: oneOf("FUN_SCREEN", ["on", "off"] as const, "on") === "on",
   // Name the article's most fun sentences in the prompt for the AI to retell first (fact-generator.ts funBlock). Off: it cost accuracy on test lists.
   funSentences: oneOf("FUN_SENTENCES", ["on", "off"] as const, "off") === "on",
+  // Put Wikipedia's Did you know hooks about the song's own article in the reference (dyk-hooks.ts).
+  funHooks: oneOf("FUN_HOOKS", ["on", "off"] as const, "on") === "on",
   // Classical pieces: find the work through Wikidata by its composer, catalog number or nickname (issue #260).
   classicalLookup: oneOf("CLASSICAL_LOOKUP", ["on", "off"] as const, "on") === "on",
 
