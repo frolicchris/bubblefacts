@@ -294,6 +294,26 @@ sign-ins and the built-in AI. Its design decisions are in
    (`funSentences`, `plainToRetell`). It is off because on the test lists
    the 3B model's captions of the named sentences were wrong about three
    times as often as its other captions, and hardly more fun.
+   **Second source for fun** (`fun-source.ts`, `FUN_SOURCE=off` skips it):
+   one article rarely holds a fact chat would repeat. When the reference has
+   fewer than two sentences that `sentenceFun` scores 2 or more
+   (`thinOnFun`), a second article is read once per song and remembered: for
+   the song's own article, its album's (the infobox's `album` link), its
+   performer's and its "Music of" article; for a game's article, its "Music
+   of" article and the game's own. Only sentences that name the song in
+   quotation marks, or, in the album's own article, name the album by title,
+   quote no song and compare it with no other record (the prompt then adds
+   `ALBUM_SENTENCE_RULE`: make the album the subject, never the song), in
+   sections about how the music was made (Background, Recording,
+   Composition, Writing, Production, Inspiration; any section of a
+   performer's career), with no release, edition, single or chart news
+   (on test lists that was most of what second articles said about a song),
+   that stand alone, pass the safety screen whole and score 2 or more
+   (`funSourceSentences`). The best three at most (600
+   characters) go after the title line as `From the article "Title": `
+   lines, the companion format, so a caption from them is credited and
+   linked to that article and **Wrong** blocks it. The writer is not asked
+   to retell them first: naming sentences raised wrong captions (above).
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
