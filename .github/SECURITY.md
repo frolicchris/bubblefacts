@@ -85,14 +85,4 @@ command-line overlay. In particular:
 
 ## What 2.x promises
 
-- **Fixes go into the newest 2.x release.** There are no separate long-term
-  versions.
-- **Security problems** get a first reply within 14 days, and a fix in a new
-  release normally within 60 days of becoming public; serious ones as fast as
-  possible.
-- **Your settings, facts and backups keep working in every 2.x release,** and
-  so does the BubbleFacts source in OBS, without changing your scene.
-  Anything that would break that waits for 3.0, and is announced in the
-  release notes of at least one earlier 2.x release first.
-- **When 3.0 comes out,** the last 2.x release gets security fixes for three
-  more months.
+Your settings, facts, backups and OBS source keep working in every 2.x release, fixes go into the newest one, and security problems get a reply within 14 days; [the full list](../docs/ARCHITECTURE.md#what-every-2x-release-keeps-working) is in ARCHITECTURE.md.

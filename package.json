@@ -7,7 +7,7 @@
     "build": "tsc -p backend/tsconfig.json",
     "start": "node dist/backend/server.js",
     "test": "jest --config jest.config.ts",
-    "lint": "eslint frontend desktop/renderer && shellcheck scripts/*.sh",
+    "lint": "eslint frontend desktop/renderer scripts && shellcheck scripts/*.sh",
     "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p backend/tsconfig.test.json && tsc -p desktop/tsconfig.json --noEmit && tsc -p desktop/tsconfig.test.json",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:scripts",
     "build:desktop": "tsc -p desktop/tsconfig.json",
@@ -15,7 +15,7 @@
     "dist": "npm run build && npm run build:desktop && electron-builder --publish never",
     "dist:lite": "npm run build && npm run build:desktop && node scripts/dist-lite.mjs",
     "bump": "node scripts/bump-version.mjs",
-    "test:scripts": "node --test scripts/bump-version.test.mjs scripts/dist-lite.test.mjs"
+    "test:scripts": "npm run build && node --test scripts/bump-version.test.mjs scripts/dist-lite.test.mjs scripts/dist-exports.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",

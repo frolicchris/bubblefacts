@@ -104,6 +104,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/now-playing-folder.ts` | The app's copy of the preset folder rule (`presetFolder`), kept alike with the server's. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
+| `desktop/src/release-signature.ts` | Checking a release's minisign signature on `SHA256SUMS.txt` against a key built into the app. Staged: nothing calls it yet, until the real keys are in place. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
@@ -1833,6 +1834,17 @@ interface: a change that breaks one waits for 3.0 (SemVer).
   server's address and port, so a scene set up once keeps working.
 - **The update path:** any 2.x, beta or release candidate updates straight to
   the newest 2.x in the app.
+
+Such a change is announced in the release notes of at least one earlier 2.x
+release first. For releases:
+
+- **Fixes go into the newest 2.x release.** There are no separate long-term
+  versions.
+- **Security problems** get a first reply within 14 days, and a fix in a new
+  release normally within 60 days of becoming public; serious ones as fast as
+  possible. How to report one is in [SECURITY.md](../.github/SECURITY.md).
+- **When 3.0 comes out,** the last 2.x release gets security fixes for three
+  more months.
 
 ### Files in the data folder
 

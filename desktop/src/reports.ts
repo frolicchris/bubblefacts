@@ -132,8 +132,8 @@ const REQUEST_CREDIT = /(?:^|[\s,;:|/([–—-])(?:commission(?:ed)?|requested|r
 const FOR_CREDIT = /\s*[,;|–—]\s*for\s+(?=\S)|\s+-\s+for\s+(?=\S)/i;
 const LEFT_OVER = /[\s,;:|/([–—-]/;
 
-/** The artist without a note naming who asked or paid for the song: "Some Band, Commissioned by Name". */
-function withoutRequestCredit(artist: string): string {
+/** The artist without a note naming who asked or paid for the song: "Some Band, Commissioned by Name". The same rule as `withoutRequestCredit(artist, true)` in backend/src/text.ts; keep them alike. */
+export function withoutRequestCredit(artist: string): string {
   const credit = REQUEST_CREDIT.exec(artist);
   const forName = FOR_CREDIT.exec(artist);
   const at = Math.min(credit ? credit.index : Infinity, forName ? forName.index : Infinity);

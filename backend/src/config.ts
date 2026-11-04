@@ -5,7 +5,7 @@ import { presetFolder } from "./now-playing-folder";
 import { shareAddress } from "./share-song-facts";
 import { styleFrom } from "./bubble-style";
 
-/** All settings come from .env; .env.example and docs/CONFIG.md document each one. */
+/** All settings come from .env or the environment. docs/CONFIG.md documents each one (config.test.ts checks); .env.example lists the common ones. */
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 function requireEnv(name: string, hint = ""): string {
@@ -118,7 +118,6 @@ export const config = {
   // Performer and content. The name keeps its StreamerSongList field name, but also holds the StreamElements channel (see streamerName).
   sslStreamerName: streamerName,
   streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || streamerName || "the streamer",
-  instrument: (process.env.INSTRUMENT || "").trim(),
   // Empty means no custom facts: a song with no source gets none (the desktop app's default).
   topic: process.env.TOPIC ?? "video-game,classical,film,pop,general",
   // Songs tagged "Originals" or credited to the streamer get facts from the song entry, not a lookup.

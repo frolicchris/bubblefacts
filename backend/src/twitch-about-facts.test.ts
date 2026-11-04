@@ -25,7 +25,7 @@ jest.mock("./wikidata", () => ({
   articleItem: jest.fn().mockResolvedValue(null),
   songItemFacts: actual("./wikidata", "songItemFacts"),
 }));
-jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]) }));
+jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]), clearArtistGoodCache: jest.fn() }));
 jest.mock("./musicbrainz", () => ({
   musicbrainzFacts: jest.fn().mockResolvedValue([]),
   artistByTitle: jest.fn().mockResolvedValue(""),

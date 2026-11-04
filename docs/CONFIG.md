@@ -274,3 +274,26 @@ need them with a `.env` file.
 | `BUBBLEFACTS_DOCUMENTS_DIR` | Where the system keeps Documents, tried first for the Streamling and Nightbot presets. |
 | `BUBBLEFACTS_VERSION` | The app's version, written into the Wrong log. |
 | `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |
+
+---
+
+## Developer switches
+
+For trying the fact pipeline with a part turned off, to compare results. You
+don't need any of these: leave them unset. The app never sets them. The first
+eight are read by the fact checker and are `on` unless set to `off`.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `SECTION_SELECT` | `on` | `off` stops choosing which article sections the AI writes from. `on` prefers the lead and sections that report checkable things (composition, release, charts, awards) over narrative ones (background, development, history), where captions go wrong far more often. |
+| `RECEPTION_FILTER` | `on` | `off` keeps reception, legacy and accolades sentences in the sections chosen, as section choice first did. |
+| `SERIES_SCOPE` | `on` | `off` reads an article about a whole series' music in full, instead of only the parts about the game playing. |
+| `TIERED_SELECTION` | `on` | `off` orders the article's sentences for the AI by section only. |
+| `WORK_SCOPE` | `on` | `off` reads every sentence of a game's or other work's article, including ones about another work named in italics. |
+| `COVER_SCOPE` | `on` | `off` reads a covered song's article in full, instead of leaving out the original recording's release, charts and sales, which aren't the cover's. |
+| `SCOPE_REPAIR` | `on` | `off` shows captions as written, without putting back a scope the AI dropped from its sentence, like "in Japan" or "the arcade version". |
+| `QUALIFIER_REPAIR` | `on` | `off` shows captions without putting back a qualifier the AI dropped, like "about", "usually" or a release's region. |
+| `NODE_ENV` | *unset* | `test` (set by the test runner) skips writing `songs.log` and shortens the waits between MusicBrainz lookups. |
+
+`PROMPT_STYLE`, `CITE_SENTENCES` and `WIKIPEDIA_CONTACT` are also read
+straight from the environment; they are under [Fact checking](#fact-checking).

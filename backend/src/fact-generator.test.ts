@@ -10,7 +10,6 @@ jest.mock("./config", () => ({
     dataDir: process.env.BUBBLEFACTS_DATA_DIR,
     streamerDisplayName: "Test Streamer",
     originals: true,
-    instrument: "",
     topic: "video-game,classical,film,pop,piano,general",
     aiProvider: "anthropic",
     anthropicApiKey: "test-key",
@@ -33,7 +32,7 @@ jest.mock("./wikidata", () => ({
   articleItem: jest.fn().mockResolvedValue(null),
   songItemFacts: actual("./wikidata", "songItemFacts"),
 }));
-jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]) }));
+jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]), clearArtistGoodCache: jest.fn() }));
 jest.mock("./musicbrainz", () => ({
   musicbrainzFacts: jest.fn().mockResolvedValue([]),
   artistByTitle: jest.fn().mockResolvedValue(""),

@@ -14,9 +14,9 @@ import { topic } from "./topic";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import { standardBreach } from "./content-standard";
 import { articleItem, artistFacts, songItemFacts, wikidataFacts } from "./wikidata";
-import { artistGoodFacts } from "./artist-good";
+import { artistGoodFacts, clearArtistGoodCache } from "./artist-good";
 import { loadedCaption, NEUTRAL_PROMPT } from "./neutral-wording";
-import { alreadySaid, BoxFact, boxMisfit, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
+import { alreadySaid, BoxFact, boxMisfit, clearInfoboxCache, infoboxFacts, PLATFORM_TAG, valuesIn } from "./infobox";
 import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } from "./song-facts";
 import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
@@ -1813,11 +1813,6 @@ export async function prepareSong(
   }
 }
 
-/** Forget a song's prepared facts: it's looked up when it plays, and prepared again later. */
-export function forgetPrepared(song: SSLSong): void {
-  preparedStore.remove(songKey(song));
-}
-
 /**
  * The bubbles from an article (`rankFacts`): captions whose source sentence is risky to
  * retell are held back unless the song would show fewer than three, and the rest are
@@ -2020,6 +2015,8 @@ export function clearFactCache(): void {
   structuredShown.clear();
   screenedOut.clear();
   resetCuratedTurns();
+  clearInfoboxCache();
+  clearArtistGoodCache();
 }
 
 /** The songs a block is saved under: the request, and for a live learn or a title alone also the song it was looked up as. */

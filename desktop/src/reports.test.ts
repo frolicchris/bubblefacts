@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { AiredFact, airedFrom, betaReportText, betaReportUrl, problemReportText, problemReportUrl, redact, withoutArtistNote, wrongFactUrl } from "./reports";
+import { AiredFact, airedFrom, betaReportText, betaReportUrl, problemReportText, problemReportUrl, redact, withoutArtistNote, withoutRequestCredit, wrongFactUrl } from "./reports";
 
 const decode = (url: string) => Object.fromEntries(new URL(url).searchParams);
 
@@ -71,6 +71,34 @@ describe("problem reports", () => {
     const server = jest.requireActual("../../backend/src/text") as { withoutArtistNote: (a: string) => string };
     for (const artist of ["Wren Halloway (note words)", "Wren Halloway [a] (b", "Jane (@janeplayskeys)", "(Untitled)", "Drone Choir O)))", "Wren (and the Hollows) Band", "Wren Halloway, Commissioned by Moss Tinker", "Wren Halloway - for Moss Tinker (note)", "Lanterns for Hollows"]) {
       expect(withoutArtistNote(artist)).toBe(server.withoutArtistNote(artist));
+    }
+  });
+
+  it("leaves request credits out the way the server does", () => {
+    const server = jest.requireActual("../../backend/src/text") as { withoutRequestCredit: (a: string, artist?: boolean) => string };
+    for (const artist of [
+      "Wren Halloway",
+      "Wren Halloway, Commissioned by Moss Tinker",
+      "Wren Halloway (requested by Moss Tinker)",
+      "Wren Halloway - req. by Moss",
+      "Wren Halloway | suggested by Moss",
+      "Wren Halloway; sponsored by Moss",
+      "Wren Halloway / donated by Moss",
+      "Wren Halloway, gifted from Moss",
+      "Wren Halloway - paid by Moss",
+      "Wren Halloway, for Moss Tinker",
+      "Wren Halloway  -  for Moss",
+      "Wren Halloway – for Moss",
+      "Wren Halloway — for Moss",
+      "Tears for Lanterns",
+      "Requested by Moss",
+      "Commissioned by",
+      "Wren Halloway, for",
+      "Wren Halloway-for Moss",
+      "  Wren Halloway  ",
+      "Wren Requested Byrd",
+    ]) {
+      expect(withoutRequestCredit(artist)).toBe(server.withoutRequestCredit(artist, true));
     }
   });
 });

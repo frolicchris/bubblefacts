@@ -4,7 +4,6 @@ jest.mock("./config", () => ({
     dataDir: process.env.BUBBLEFACTS_DATA_DIR,
     streamerDisplayName: "Test Streamer",
     originals: true,
-    instrument: "",
     topic: "",
     aiProvider: "builtin",
     temperature: 0,
@@ -22,7 +21,7 @@ jest.mock("./wikidata", () => ({
   articleItem: jest.fn().mockResolvedValue(null),
   songItemFacts: jest.fn().mockReturnValue({ facts: [], dropYear: false }),
 }));
-jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]) }));
+jest.mock("./artist-good", () => ({ artistGoodFacts: jest.fn().mockResolvedValue([]), clearArtistGoodCache: jest.fn() }));
 jest.mock("./infobox", () => ({ ...jest.requireActual("./infobox"), infoboxFacts: jest.fn().mockResolvedValue([]) }));
 jest.mock("./musicbrainz", () => ({
   musicbrainzFacts: jest.fn().mockResolvedValue([]),

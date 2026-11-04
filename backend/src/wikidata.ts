@@ -132,7 +132,7 @@ export function plainDate(value: unknown): { text: string; sort: number } | null
 function cleanLabel(l: string): string {
   // Wikidata labels sometimes carry the disambiguation Wikipedia needs: "Always (Erasure song)".
   const t = l.replace(/\s*\([^()]*\b(?:song|single|composition|piece|album|instrumental|recording)\)\s*$/i, "").trim();
-  return t && t.length <= 100 && !/^[QP]\d+$/.test(t) && !/https?:|[\n\r<>]/.test(t) ? t : "";
+  return t && t.length <= 100 && /[\p{L}\p{N}]/u.test(t) && !/^[QP]\d+$/.test(t) && !/https?:|[\n\r<>]/.test(t) ? t : "";
 }
 
 /** Values of "language of work" that say nothing about the words sung. */
@@ -210,7 +210,11 @@ export function factsFromEntity(song: Entity, labels: Record<string, Entity>, ti
   // A later year than the song's album is a single's: the song came out with the album (`album`).
   const dated = told ? told === first : box === undefined || !yearOnly(song);
   const y = first && (!described.length || described.includes(first)) && dated && !(album && album < first) ? first : null;
-  const partOf = named("P361");
+  // Not a disambiguation page or list ("Wikimedia ..."), whose label may be "-".
+  const partOf = itemIds(song, "P361")
+    .filter((id) => !/^Wikimedia\b/i.test(labels[id]?.descriptions?.en?.value ?? ""))
+    .map((id) => cleanLabel(label(labels[id])))
+    .filter(Boolean);
   if (y && partOf.length) facts.push(...fitOrSplit(`${q} came out in ${y} and appears on ${partOf[0]}.`, [`${q} came out in ${y}.`, `${q} appears on ${partOf[0]}.`]));
   else if (y) facts.push(`${q} came out in ${y}.`);
   else if (partOf.length) facts.push(`${q} appears on ${partOf[0]}.`);

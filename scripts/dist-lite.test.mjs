@@ -20,7 +20,7 @@ test("Lite leaves the AI engine out of the app", () => {
   assert.ok(lite.build.files.includes("!node_modules/@node-llama-cpp{,/**/*}"));
   assert.ok((lite.build.asarUnpack ?? []).every((f) => !engine(f)));
   // The app's own files are all still copied, the notices as Lite's own under the same name.
-  for (const f of full.build.files.filter((f) => !engine(f) && f !== "THIRD-PARTY-NOTICES.md")) assert.ok(lite.build.files.includes(f), f);
+  for (const f of full.build.files.filter((file) => !engine(file) && file !== "THIRD-PARTY-NOTICES.md")) assert.ok(lite.build.files.includes(f), f);
   assert.ok(!lite.build.files.includes("THIRD-PARTY-NOTICES.md"));
   assert.deepEqual(lite.build.files.find((f) => typeof f === "object"), { from: "build-lite", to: ".", filter: ["THIRD-PARTY-NOTICES.md"] });
 });

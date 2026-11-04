@@ -7,7 +7,6 @@ jest.mock("./config", () => ({
     openaiTimeoutMs: 1000,
     temperature: 0,
     originals: false,
-    instrument: "",
     topic: "general",
     streamerDisplayName: "Test Streamer",
     sslStreamerName: "teststreamer",
