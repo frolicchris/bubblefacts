@@ -38,3 +38,26 @@ describe("the folder the picker names", () => {
     expect(folderShownInstead(["Nightbot"], {}, home, existing(there), system)).toBe("");
   });
 });
+
+describe("the server's copy", () => {
+  const server = jest.requireActual("../../backend/src/now-playing-folder") as {
+    presetFolder: (folder: readonly string[], env: NodeJS.ProcessEnv, home: string, isDir: (p: string) => boolean) => string;
+  };
+  const system = path.join(path.sep, "Redirected", "Jane", "Documents");
+  const consumer = path.join(path.sep, "OneDriveConsumer");
+  const drives = { OneDrive: oneDrive, OneDriveConsumer: consumer, OneDriveCommercial: " " };
+
+  it("finds the same folder, given the Documents folder the app passes the server", () => {
+    for (const folder of [["Nightbot"], ["streamling", "livetext"]]) {
+      const places = [system, path.join(home, "Documents"), path.join(oneDrive, "Documents"), path.join(consumer, "Documents")].map((d) => path.join(d, ...folder));
+      // Every mix of these folders existing, from none to all of them.
+      for (let mask = 0; mask < 1 << places.length; mask++) {
+        const isDir = existing(...places.filter((_, i) => mask & (1 << i)));
+        for (const env of [{}, drives]) {
+          expect(presetFolder(folder, env, home, isDir, system)).toBe(server.presetFolder(folder, { ...env, BUBBLEFACTS_DOCUMENTS_DIR: system }, home, isDir));
+          expect(presetFolder(folder, env, home, isDir, path.join(home, "Documents"))).toBe(server.presetFolder(folder, env, home, isDir));
+        }
+      }
+    }
+  });
+});

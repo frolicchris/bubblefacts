@@ -9,3 +9,4 @@ release-lite/
 build-lite/
 desktop/runtime/
 data/
+.claude/worktrees/

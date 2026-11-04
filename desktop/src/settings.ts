@@ -38,6 +38,7 @@ export interface Settings {
   /** How its line reads: "Artist - Title", or the title alone. */
   nowPlayingFormat: "artist-title" | "title";
   displayName: string;
+  /** No longer used or sent to the server. Kept so settings files that have it still load. */
   instrument: string;
   /** "I play my own compositions" and "I do live learns", from setup. */
   originals: boolean;
@@ -502,7 +503,6 @@ export function toServerEnv(
   }
   if (s.shareFacts && s.shareUrl && s.shareChannel && s.shareKey) Object.assign(env, { SHARE_FACTS_URL: s.shareUrl, SHARE_FACTS_CHANNEL: s.shareChannel, SHARE_FACTS_KEY: s.shareKey });
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
-  if (s.instrument) env.INSTRUMENT = s.instrument;
   // Lite has no AI engine: its own choice is no AI, so nothing goes to an AI and no model is loaded.
   if (s.ai === "builtin" && paths.edition === "lite") env.AI_PROVIDER = "none";
   else if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
