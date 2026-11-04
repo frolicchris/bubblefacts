@@ -479,7 +479,7 @@ export function selfDescribes(text: string): boolean {
  * words about themselves. It must say they described themselves ("has described herself as"),
  * break no list but this one, and every identity word in it must come from a sentence of the
  * reference where someone describes themselves. Whether it keeps the artist's name is checked
- * where the artist is known (`captionReason` in fact-verifier.ts).
+ * where the artist is known (`captionReason` in screening/screen.ts).
  */
 export function selfDescribedIdentity(caption: string, reference: string, names: string[] = []): boolean {
   const labels = breaches(caption, names);

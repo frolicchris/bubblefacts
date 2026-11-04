@@ -169,7 +169,7 @@ describe("TwitchSession", () => {
   });
 
   it("keeps the bubble length the same as the fact checker's", () => {
-    const verifier = fs.readFileSync(path.join(__dirname, "../../backend/src/fact-verifier.ts"), "utf8");
+    const verifier = fs.readFileSync(path.join(__dirname, "../../backend/src/fact-limits.ts"), "utf8");
     expect(Number(/const MAX_FACT_CHARS = (\d+)/.exec(verifier)?.[1])).toBe(BUBBLE_CHARS);
   });
 });
