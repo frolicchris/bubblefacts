@@ -119,6 +119,15 @@ describe("loadSettings", () => {
     expect(s).toMatchObject({ setupComplete: true, channel: "jane", tokenKind: "streamer", myFacts: [], liveLearns: true });
   });
 
+  it("loads a file with or without the retired instrument setting, and never sends it to the server", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", displayName: "Jane Composer" }));
+    expect(loadSettings()).toMatchObject({ setupComplete: true, channel: "jane", displayName: "Jane Composer", instrument: "" });
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", instrument: "kazoo" }));
+    const s = loadSettings();
+    expect(s).toMatchObject({ setupComplete: true, channel: "jane" });
+    expect(toServerEnv(s, paths)).not.toHaveProperty("INSTRUMENT");
+  });
+
   it("ignores example packs an older version saved, and keeps the musician's own facts", () => {
     fs.writeFileSync(file, JSON.stringify({ songSource: "streamersonglist", topics: ["video-game", "piano"], myFacts: ["I've played since I was six."] }));
     const s = loadSettings();

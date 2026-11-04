@@ -1,4 +1,5 @@
 /** Which settings are required depends on where song requests come from. */
+import fs from "fs";
 import os from "os";
 import path from "path";
 
@@ -138,5 +139,28 @@ describe("config Anthropic model", () => {
   it("defaults to claude-haiku-5-5 and takes ANTHROPIC_MODEL when set", () => {
     expect(load(base).anthropicModel).toBe("claude-haiku-5-5");
     expect(load({ ...base, ANTHROPIC_MODEL: "claude-test-model" }).anthropicModel).toBe("claude-test-model");
+  });
+});
+
+describe("config docs", () => {
+  const root = path.join(__dirname, "../..");
+  const docs = fs.readFileSync(path.join(root, "docs/CONFIG.md"), "utf8");
+  /** The switches read straight from the environment outside config.ts, listed under Developer switches. */
+  const SWITCHES = ["SECTION_SELECT", "RECEPTION_FILTER", "SERIES_SCOPE", "TIERED_SELECTION", "WORK_SCOPE", "COVER_SCOPE", "SCOPE_REPAIR", "QUALIFIER_REPAIR", "NODE_ENV", "PROMPT_STYLE", "CITE_SENTENCES", "WIKIPEDIA_CONTACT"];
+
+  it("documents every setting config.ts reads", () => {
+    const source = fs.readFileSync(path.join(__dirname, "config.ts"), "utf8");
+    const read = new Set([
+      ...[...source.matchAll(/process\.env\.([A-Za-z_]+)/g)].map((m) => m[1]),
+      ...[...source.matchAll(/(?:requireEnv|intEnv|numberEnv|oneOf)\(\s*"([A-Za-z_]+)"/g)].map((m) => m[1]),
+    ]);
+    expect(read.size).toBeGreaterThan(50);
+    expect([...read].filter((key) => !docs.includes("`" + key))).toEqual([]);
+  });
+
+  it("documents the developer switches", () => {
+    const section = docs.split("## Developer switches")[1] ?? "";
+    expect(SWITCHES.filter((key) => !docs.includes("`" + key + "`"))).toEqual([]);
+    for (const key of SWITCHES.slice(0, 9)) expect(section).toContain("| `" + key + "` |");
   });
 });

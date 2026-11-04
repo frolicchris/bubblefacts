@@ -8,7 +8,6 @@ jest.mock("./config", () => ({
     factIntervalSeconds: 15,
     factDurationSeconds: 8,
     originals: true,
-    instrument: "",
   },
 }));
 jest.mock("./wikidata", () => ({ wikidataFacts: jest.fn().mockResolvedValue([]) }));
