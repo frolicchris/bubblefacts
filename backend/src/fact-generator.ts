@@ -6,6 +6,7 @@ import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, referenceSentences, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, funSentences, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
+import { ALBUM_SENTENCE_RULE, hasAlbumSentence, withFunSource } from "./fun-source";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
@@ -431,7 +432,9 @@ function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
   const page = context.split("\n")[0];
   const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE + NEUTRAL_PROMPT : "";
-  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule;
+  // A second article's sentence about the whole album (fun-source.ts): about the album, never the song.
+  const album = hasAlbumSentence(context) ? ALBUM_SENTENCE_RULE : "";
+  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule + album;
 }
 
 /** The CROSS prompt's opening, the same with or without citations. */
@@ -1498,6 +1501,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const lines = entryFacts(entry, want);
     record(asked, "noReference", lines.length);
     return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+  }
+
+  // An article with little fun to tell: a few sentences about the song from a second article (fun-source.ts).
+  if (context) {
+    const blocked = blockedArticles(song);
+    context = await withFunSource(context, read, (t) => !blocked.has(t));
   }
 
   // Facts from data about the song, looked up alongside the AI: when the article is about its
