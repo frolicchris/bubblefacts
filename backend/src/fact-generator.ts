@@ -6,6 +6,7 @@ import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, referenceSentences, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, funSentences, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
+import { HOOK_SUBJECT_RULE, hasSubjectHook, withHooks } from "./dyk-hooks";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
 import { parseVideoTitle } from "./youtube-title";
@@ -431,7 +432,9 @@ function crossPrompt(song: SSLSong, context: string, want: number): string {
   const { game, work } = promptWork(song);
   const page = context.split("\n")[0];
   const rule = isPerformerArticle(page, articleText(page) || context) ? ARTIST_SONG_RULE + NEUTRAL_PROMPT : "";
-  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule;
+  // A Did you know hook about the album or game music the song was matched to (dyk-hooks.ts): about that work, never the song.
+  const subject = hasSubjectHook(context) ? HOOK_SUBJECT_RULE : "";
+  return (citesSentences() ? citingCrossPrompt(game, work, context, want) : plainCrossPrompt(game, work, context, want)) + rule + subject;
 }
 
 /** The CROSS prompt's opening, the same with or without citations. */
@@ -1498,6 +1501,12 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const lines = entryFacts(entry, want);
     record(asked, "noReference", lines.length);
     return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
+  }
+
+  // Wikipedia's Did you know hooks about this very article, ahead of its text (dyk-hooks.ts).
+  if (context) {
+    const blocked = blockedArticles(song);
+    context = withHooks(context, song, (t) => !blocked.has(t));
   }
 
   // Facts from data about the song, looked up alongside the AI: when the article is about its

@@ -11,6 +11,7 @@ It is built on the open source software below. Each keeps its own copyright and 
 - **Llama 3.2 3B Instruct**, the built-in AI model, downloaded on first run and not bundled: Llama 3.2 Community License. Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved. Built with Llama. https://www.llama.com/llama3_2/license/
 - **Llama 3.1 8B Instruct**, the built-in AI's High quality model, downloaded only when chosen in Settings and not bundled: Llama 3.1 Community License. Llama 3.1 is licensed under the Llama 3.1 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved. Built with Llama. https://www.llama.com/llama3_1/license/
 - **Facts** are rewritten from Wikipedia (text under CC BY-SA 4.0), with data from Wikidata and MusicBrainz (CC0).
+- **Did you know hooks** in `facts-data/dyk-hooks.json` are English Wikipedia text (CC BY-SA 4.0; the file is shared under the same license), taken from the Hugging Face dataset derenrich/enwiki-did-you-know (CC BY 3.0). https://en.wikipedia.org/wiki/Wikipedia:Did_you_know
 - Some rules for reading a song out of a YouTube title follow **Web Scrobbler metadata-filter** (MIT). https://github.com/web-scrobbler/metadata-filter
 
 ## npm packages (193)

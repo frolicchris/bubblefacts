@@ -294,6 +294,22 @@ sign-ins and the built-in AI. Its design decisions are in
    (`funSentences`, `plainToRetell`). It is off because on the test lists
    the 3B model's captions of the named sentences were wrong about three
    times as often as its other captions, and hardly more fun.
+   **Did you know hooks** (`dyk-hooks.ts`, `FUN_HOOKS=off` skips them):
+   Wikipedia's editors pick short, surprising facts for the Main Page's
+   "Did you know" section. `facts-data/dyk-hooks.json`, built by
+   `scripts/build-dyk-hooks.mjs` from the Hugging Face dataset
+   derenrich/enwiki-did-you-know (hooks to March 2024), keeps the hooks
+   whose bolded article is a song, single, album, soundtrack or composition,
+   keyed by the article's current title (old titles followed through
+   redirects). A reference gets only the hooks of the exact article it was
+   written from, never a near title. Each hook loses its "... that" and
+   question mark, must pass `notForStream`, `dryData` and `sourceRisk` (no
+   quotes of four or more words, no reporting verbs, no hedges), and at most
+   two go after the title line as a `From the article "Title": ` line, the
+   companion format, so the credit and link stay the article's and **Wrong**
+   blocks it. When the article is an album's or a game's music the song was
+   matched to, the prompt adds `HOOK_SUBJECT_RULE`: make that work the
+   subject, never the song. On the test lists about 3% of songs have a hook.
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
