@@ -1046,10 +1046,15 @@ performer or a work) and the article (its title, what kind of thing it is,
 its year, its lead), adds points per feature, and compares the article with
 same-name titles from the searches. It decides `sure`, `data-only` (no AI
 captions, and only data facts true of every version: who wrote or composed
-it) or `abstain` (the streamer's own facts only). `rules`, the default,
-doesn't run it; `shadow` logs its decision (`[Grounding] match: ...`) and
-where it differs from the rules; `scored` lets it hold facts back. It never
-picks another article and never adds facts.
+it) or `abstain` (nothing from the article; only who wrote it, from the
+request's own Wikidata and MusicBrainz lookups, then the streamer's own
+facts). `rules`, the default, doesn't run it; `shadow` logs its decision
+(`[Grounding] match: ...`) and where it differs from the rules; `scored`
+lets it hold facts back. When it is sure, `scored` still checks each fact
+against the target: a caption that opens on a sister work of the article's
+("Some Game II sold", "Remake won") is dropped (`aboutAnotherWork`), and so
+is a data fact dated more than a year from the request's year tag
+(`dataFitsTarget`). It never picks another article and never adds facts.
 
 ### Why is the game read from the artist field?
 

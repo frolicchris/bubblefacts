@@ -2,7 +2,7 @@ jest.mock("./config", () => ({
   config: { groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, dataDir: process.env.BUBBLEFACTS_DATA_DIR, topic: "general" },
 }));
 
-import { candidateProfile, holdsForEveryVersion, matchLine, referenceDecision, requestProfile, resolveWork, scoredLevel } from "./work-resolver";
+import { aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, referenceDecision, requestProfile, resolveWork, scoredLevel } from "./work-resolver";
 
 // Made-up bands, songs, games and shows: one case per kind of wrong match the scored match is for (issue #172).
 const song = (title: string, artist: string) => ({ title, artist });
@@ -95,6 +95,38 @@ describe("the scored match", () => {
     expect(resolveWork(plain("Late Bus", "Kim Arden / Sam Doyle"), leader).decision).toBe("sure");
     const band = candidateProfile("Our Paper Kites", `Our Paper Kites is a Canadian rock band.${LONG}`);
     expect(resolveWork(plain("4am", "OPK"), band).decision).toBe("sure");
+  });
+});
+
+describe("facts against the target", () => {
+  const game = { page: "Lantern Quest (video game)", kind: "game" as const };
+  const req = plain("Harbor Town", "Lantern Quest");
+
+  it("drops a caption that opens on a sister work of the article's", () => {
+    expect(aboutAnotherWork("Super Lantern Quest won an award in 2009.", req, game)).toBe(true);
+    expect(aboutAnotherWork("Lantern Quest II sold two million copies.", req, game)).toBe(true);
+    expect(aboutAnotherWork("Remake won the award for best score.", req, game)).toBe(true);
+  });
+
+  it("keeps captions about the work itself, its editions and its soundtrack", () => {
+    expect(aboutAnotherWork("Lantern Quest was followed by Lantern Quest II in 1993.", req, game)).toBe(false);
+    expect(aboutAnotherWork("Lantern Quest and Lantern Quest II came out in Europe as Lamp Quest.", req, game)).toBe(false);
+    expect(aboutAnotherWork("Sales of Lantern Quest were modest.", req, game)).toBe(false);
+    expect(aboutAnotherWork("Many Lantern Quest games had a soundtrack album.", req, game)).toBe(false);
+    expect(aboutAnotherWork("Lantern Quest Original Sound Version sold 90,000 copies.", req, { page: "Music of Lantern Quest", kind: "music" })).toBe(false);
+    expect(aboutAnotherWork("Lantern Quest Deluxe added two levels.", req, game)).toBe(false);
+  });
+
+  it("never reads a performer's article for sister works", () => {
+    expect(aboutAnotherWork("Dana Reyes Band toured Japan in 1990.", plain("Paper Lanterns", "Dana Reyes"), { page: "Dana Reyes", kind: "person" })).toBe(false);
+  });
+
+  it("drops a data fact dated another year than the request's", () => {
+    const tagged = plain("Paper Lanterns (1974)", "Dana Reyes");
+    expect(dataFitsTarget('"Paper Lanterns" came out in 2010.', tagged)).toBe(false);
+    expect(dataFitsTarget('"Paper Lanterns" came out in 1975.', tagged)).toBe(true);
+    expect(dataFitsTarget('"Paper Lanterns" came out in 2010.', plain("Paper Lanterns", "Dana Reyes"))).toBe(true);
+    expect(dataFitsTarget('"Paper Lanterns" was written by Dana Reyes.', tagged)).toBe(true);
   });
 });
 

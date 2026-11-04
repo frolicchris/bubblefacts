@@ -96,6 +96,8 @@ export interface MatchResult {
   runnerUp: Scored | null;
   /** The work the facts would be about. */
   target: { page: string; kind: WorkKind; year: number | null };
+  /** The request as scored, for the checks on each fact. */
+  request: RequestProfile;
 }
 
 /** The points, set by hand (issue #172). */
@@ -439,7 +441,7 @@ export function resolveWork(req: RequestProfile, pick: CandidateProfile, others:
   // An article the words can't place (a kind no word tells, a title spelled its own way) stays as the rules found it.
   const against = top.parts.some(([, p]) => p < 0) || ahead < MARGIN;
   const decision: Decision = (top.points >= SURE || !against) && ahead >= MARGIN ? "sure" : top.points >= DATA_ONLY ? "data-only" : "abstain";
-  return { decision, top, runnerUp, target: { page: pick.page, kind: pick.kind, year: pick.year } };
+  return { decision, top, runnerUp, target: { page: pick.page, kind: pick.kind, year: pick.year }, request: req };
 }
 
 /** One log line: the decision, each feature's points and the closest rival. Never a fact's words. */
@@ -452,6 +454,53 @@ export function matchLine(m: MatchResult, title: string): string {
 /** A data fact that holds for every version and recording of a work: who wrote or composed it, and nothing dated. */
 export function holdsForEveryVersion(fact: string): boolean {
   return /\bwas (?:co-)?(?:written|composed) by\b/.test(fact) && !YEAR.test(fact) && !/\bcame out\b|\breleased\b|\bon the album\b/.test(fact);
+}
+
+// --- Facts against the target (MATCH=scored) ---------------------------------
+
+/**
+ * A data fact's year against the version the request names: "Some Song came out in 2010" for
+ * "Some Song (1987)" is a reissue or another recording. The year is the request's, never the
+ * article's, which may date the first recording of a song a later artist made famous.
+ */
+export function dataFitsTarget(fact: string, req: RequestProfile): boolean {
+  const m = /\b(?:came out|was released) in (1[89]\d\d|20\d\d)\b/.exec(fact);
+  return !m || !req.year || Math.abs(Number(m[1]) - req.year) <= 1;
+}
+
+/** Words a work's own name can carry that make it no other work: its series, its soundtrack albums, its editions. */
+const SAME_WORK = new Set([
+  ...["series", "franchise", "soundtrack", "original", "music", "video", "game", "games", "ost", "score", "s", "sound", "version", "tracks", "plus", "collection", "collections", "album", "box", "vol", "volume", "arrange"],
+  ...[...EDITION.source.matchAll(/\w+/g)].map((m) => m[0]),
+]);
+/** Kinds of work that have sequels, remakes and sister works of a shared name. */
+const SERIAL: WorkKind[] = ["game", "film", "tv", "series", "music", "album", "book", "stage"];
+/** The name a caption opens with, in capitals: "Super Some Game II won", "Some Game: Other Part was". */
+const OPENING_NAME = /^(?:[\p{Lu}\d][\p{L}\d'’.!-]*:?)(?:\s+(?:(?:of|the|no|de)\s+)*[\p{Lu}\d][\p{L}\d'’.!-]*:?)*/u;
+/** Opening words that count or point, not name: "Many Some Games", "Its Some Game port". */
+const DETERMINER = new Set(["many", "most", "all", "some", "several", "both", "each", "every", "other", "its", "his", "her", "their", "this", "these", "those", "early", "later", "later", "sales", "fans", "critics"]);
+
+/**
+ * A caption about another work than the target: one that opens on a sister work, whose name has
+ * the target's whole name and more ("Super Some Game won", "Some Game II sold"), or on a remake
+ * it leaves unnamed ("Remake won"). It holds true of the article, not of the song. A caption that
+ * only mentions a sequel ("Some Game was followed by Some Game II") is about the target and stays.
+ */
+export function aboutAnotherWork(caption: string, req: RequestProfile, target: { page: string; kind: WorkKind }): boolean {
+  const asked = new Set(tokens(`${req.piece} ${req.field} ${req.hint}`));
+  if (/^(?:the )?remake\b/i.test(caption) && !/remake/i.test(`${req.piece} ${req.field} ${target.page}`)) return true;
+  if (!SERIAL.includes(target.kind)) return false;
+  const base = withoutQualifier(target.page);
+  const work = tokens(target.kind === "music" ? musicOf(base) : base);
+  const opening = OPENING_NAME.exec(caption)?.[0] ?? "";
+  const name = tokens(opening).filter((t) => t !== "s");
+  const at = name.findIndex((_, i) => work.every((t, j) => name[i + j] === t));
+  if (!work.length || at < 0) return false;
+  // "Sales of Some Game", "The music of Some Game": the work itself, after a word about it.
+  if (at > 0 && new RegExp(`\\b(?:of|the|no|de)\\s+${work[0]}`, "i").test(normalizeTitle(opening).replace(/^the /, "").replace(/\b(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)\b/g, (r) => ROMAN[r] ?? r))) return false;
+  const more = name.filter((t, i) => (i < at || i >= at + work.length) && !SAME_WORK.has(t) && !asked.has(t) && !DETERMINER.has(t));
+  // One-word names ("Some") take a number or numeral only: "Some 2", not "Some Records".
+  return more.length > 0 && (work.length > 1 || more.every((t) => /^\d+$/.test(t)));
 }
 
 /**

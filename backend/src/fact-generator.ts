@@ -24,7 +24,7 @@ import { logWrong } from "./wrong-log";
 import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
-import { MatchResult, candidateProfile, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
+import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
 
 /**
@@ -1462,19 +1462,15 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const rules = match?.level === "unsure" ? "unsure" : "sure";
     if (config.match === "shadow" && (rules === "sure") !== (scored.decision === "sure")) console.log(`[Grounding] match differs: rules ${rules}, scored ${scored.decision} for "${song.title}"`);
   }
-  if (config.match === "scored" && scored?.decision === "abstain") {
-    console.log(`[Grounding] abstain: "${context.split("\n")[0]}" may be another work than "${song.title}", no facts from the lookup`);
-    if (sourcedOnly) return none;
-    const lines = entryFacts(entry, want);
-    record(asked, "noReference", lines.length);
-    return { facts: toFacts(song, lines, entrySource), ttlMs: RETRY_MS };
-  }
-  // Data only: no captions, and only what holds for every version of the work (who wrote it).
-  const dataOnly = config.match === "scored" && scored?.decision === "data-only";
+  // Not sure, or too low to show anything from the article: no captions, and only what the
+  // request's own data says holds for every version of the work (who wrote it), never the article's.
+  const dataOnly = config.match === "scored" && Boolean(scored) && scored?.decision !== "sure";
+  // Each data fact against the version the request names (a year tag), when the score is in use.
+  const fitsTarget = (f: string) => config.match !== "scored" || !scored || dataFitsTarget(f, scored.request);
   if (match?.level === "unsure" || dataOnly) {
-    const why = match?.level === "unsure" ? match.reason : "the scored match is not sure";
+    const why = match?.level === "unsure" ? match.reason : scored?.decision === "abstain" ? `the article may be another work (${scored.top.points})` : "the scored match is not sure";
     console.log(`[Grounding] unsure: ${why} ("${context.split("\n")[0]}" for "${song.title}"), showing facts from data only`);
-    const fresh = (list: string[]) => list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song) && (!dataOnly || holdsForEveryVersion(f)));
+    const fresh = (list: string[]) => list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song) && (!dataOnly || holdsForEveryVersion(f)) && fitsTarget(f));
     const data = fresh(await structuredFacts(song, read));
     // Too few to fill the song: up to two about its artist or game, from Wikidata too.
     const { game } = resolveGameAndTrack(read);
@@ -1502,7 +1498,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // play gets the AI's facts once the computer keeps up again.
   if (paced() && !pacer.aiThisSong()) {
     const sureNow = match?.level === "sure" ? { page: context.split("\n")[0], names: [...new Set([...artistNames(song.artist ?? ""), ...artistNames(read.artist ?? "")])] } : null;
-    const data = (await structuredFacts(song, read, Promise.resolve(sureNow))).filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song));
+    const data = (await structuredFacts(song, read, Promise.resolve(sureNow))).filter((f) => !recentFacts.includes(f) && !restatesRequest(f, song) && fitsTarget(f));
     const shown = rankedData(data, want);
     console.log(`[Pace] "${song.title}": the computer is busy, ${shown.length} quick facts and no AI`);
     if (shown.length) {
@@ -1527,7 +1523,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   let aiDone = false;
   let early: Fact[] = [];
   const dataFacts = (context && (!aboutTheSong(read, context) || sure) ? structuredFacts(song, read, Promise.resolve(sure)) : Promise.resolve([] as string[])).then((list) => {
-    const data = list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song));
+    const data = list.filter((f) => !recentList().includes(f) && !restatesRequest(f, song) && fitsTarget(f));
     if (!aiDone && onEarly && data.length) {
       early = toFacts(song, rankedData(data, dataRoom), (t) => structuredLabel.get(t));
       if (early.length) {
@@ -1614,9 +1610,16 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       console.log("[Screen] DROP (drops who said it)");
       return false;
     }
-    if (!loadedCaption(f, [read.title, read.artist ?? ""], isPerformerArticle(page, articleText(page) || context))) return true;
-    console.log("[Screen] DROP (loaded wording)");
-    return false;
+    if (loadedCaption(f, [read.title, read.artist ?? ""], isPerformerArticle(page, articleText(page) || context))) {
+      console.log("[Screen] DROP (loaded wording)");
+      return false;
+    }
+    // A caption that opens on a sister work of the article's ("Some Game II sold"), when the score is in use.
+    if (config.match === "scored" && scored && aboutAnotherWork(f, scored.request, scored.target)) {
+      console.log("[Screen] DROP (about another work)");
+      return false;
+    }
+    return true;
   });
   const unseen = attributed.filter((f) => !recentList().some((r) => tooSimilar(r, f)));
   if (unseen.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - unseen.length} already shown for an earlier song`);
@@ -1643,7 +1646,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const structured: string[] = early.map((f) => f.text);
   for (const c of candidates) {
     if (structured.length >= dataRoom) break;
-    if (recentList().includes(c.text) || restatesRequest(c.text, song)) continue;
+    if (recentList().includes(c.text) || restatesRequest(c.text, song) || !fitsTarget(c.text)) continue;
     if (alreadySaid(c.values, [...fresh, ...structured])) continue;
     structured.push(c.text);
     if (c.evidence) {
