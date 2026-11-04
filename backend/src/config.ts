@@ -227,6 +227,10 @@ export const config = {
   abstain: oneOf("ABSTAIN", ["on", "off"] as const, "on") === "on",
   // Hold back AI captions whose source sentence is risky to retell, and rank the rest by interest (fact-ranking.ts).
   sourceRisk: oneOf("SOURCE_RISK", ["on", "off"] as const, "on") === "on",
+  // Leave out dry facts (a release date, an album, genres, a birth, charts and awards), keeping one when nothing else is left (fact-ranking.ts).
+  funScreen: oneOf("FUN_SCREEN", ["on", "off"] as const, "on") === "on",
+  // Name the article's most fun sentences in the prompt for the AI to retell first (fact-generator.ts funBlock). Off: it cost accuracy on test lists.
+  funSentences: oneOf("FUN_SENTENCES", ["on", "off"] as const, "off") === "on",
   // Classical pieces: find the work through Wikidata by its composer, catalog number or nickname (issue #260).
   classicalLookup: oneOf("CLASSICAL_LOOKUP", ["on", "off"] as const, "on") === "on",
 

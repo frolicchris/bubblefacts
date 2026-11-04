@@ -279,6 +279,22 @@ sign-ins and the built-in AI. Its design decisions are in
    itself, even onto a real name from the reference, so a line with three
    words in a row from the examples that the reference doesn't have is
    dropped before screening (`copiesExample`).
+   The Objective asks first for a number, an age or a place chat can picture,
+   then how the music was made (a limit, an accident, a borrowed object, an
+   odd place, a short time), what its makers said or did and links to other
+   music or famous people, with charts, awards, sales and release details
+   last. It asks for three more captions than a song shows, so the fun
+   screen below has some to choose from.
+   With `FUN_SENTENCES=on` (off by default), a MOST FUN list after the
+   reference names up to three of its sentences, word for word, for the AI
+   to retell first (`funBlock`): the highest by `sentenceFun`, which adds to
+   `interest` a link to other music, what the makers wanted, a twist and a
+   big count, and takes off for the lead's "is a song by" definition, a key
+   or tempo, the size of a release and a bare credit list. Only plain
+   sentences the safety screen would let through whole are named
+   (`funSentences`, `plainToRetell`). It is off because on the test lists
+   the 3B model's captions of the named sentences were wrong about three
+   times as often as its other captions, and hardly more fun.
 7. **Screen.** `screenClaims` drops captions the reference doesn't support:
    names, roles ("composed by"), years, consoles, award, chart and sales
    claims, opinions, talk about the video, commentary about the source, length
@@ -541,6 +557,14 @@ model is asked.
    charts, sales and release details -1. Highest first; among equals, data
    facts and lead captions, then the writer's order. On an artist's or a
    game's article the song's own data facts still lead.
+   **Fun screen** (`funScreen`, `FUN_SCREEN=off` skips it): dry data facts
+   (a release year, the album it is on, genres, a birth or founding, the
+   single before or after, a record label, a game's developer, publisher or
+   platform: `dryData`) and any bubble scoring -1 or less leave the list. A song left with nothing keeps one, the best
+   of those dropped. A dry fact still counts toward the floor of three, so
+   the screen never brings a risky caption back in its place: a song shows
+   fewer bubbles instead. The log says why ("[Fun] DROP (dry: release
+   date)"), never the fact's words.
 5. **About the music first** (`aboutTheMusic`): a caption about the game,
    film or show around the song (its voice cast, ports, series, plot,
    developers) that says nothing about music goes after the music captions,
