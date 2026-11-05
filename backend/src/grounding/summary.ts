@@ -107,6 +107,8 @@ export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grou
   const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? normalizeTitle(track) : "";
   const described = `Wikipedia describes "${page}" as "${summary.description}"`;
   if (piece && base === piece && kind !== "song" && kind !== "other" && kind !== "series") return `${described}, not the song`;
+  const actWhy = piece && base !== piece ? wrongActPage(summary, page, kind, [game, song.artist ?? "", asked.artist ?? ""], piece, grounding) : "";
+  if (actWhy) return actWhy;
   if (!SCREEN_KINDS.has(kind)) return "";
   // The request's own work: its game or artist field, in whole words ("Pokemon Red" in "Pokémon Red and Blue").
   const words = significantTokens(base);
@@ -121,6 +123,32 @@ export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grou
 }
 
 const bareName = (name: string) => name.replace(/^the /, "");
+
+/** A name's words, in any order, without a leading "the": "System-Pi" and "Pi-system" have the same. */
+const nameWords = (name: string) => [...new Set(bareName(normalizeTitle(name)).split(" ").filter(Boolean))].sort();
+
+/**
+ * An article found under the artist's name that is about something else, for a
+ * song it never names (DJ check, 2026-10-31):
+ * - a page named like the artist that isn't about a performer: "Ed209" found
+ *   "ED-209" (a fictional robot), "SANdBLASTING" found "Sandblasting";
+ * - a performer whose name only contains the artist's: "Jäger" found
+ *   "Marike Jager". A short name is too easy to match inside a longer one.
+ * "" when neither holds, or the article names the song.
+ */
+export function wrongActPage(summary: PageSummary, page: string, kind: DescribedKind, artists: string[], piece: string, grounding: string): string {
+  const base = nameWords(withoutQualifier(page));
+  if (!base.length) return "";
+  const wanted = artists.flatMap((a) => artistNames(a)).map(nameWords).filter((w) => w.length);
+  if (!wanted.length) return "";
+  const same = wanted.some((w) => w.join(" ") === base.join(" "));
+  const inside = !same && wanted.some((w) => w.length < base.length && w.every((t) => base.includes(t)));
+  if (!(same && kind !== "person") && !(inside && kind === "person")) return "";
+  const full = articleText(page) || grounding.slice(page.length + 1);
+  if (namesPiece(full, piece)) return "";
+  const described = `Wikipedia describes "${page}" as "${summary.description}"`;
+  return same ? `${described}, not a performer of that name` : `"${page}" only shares part of the artist's name`;
+}
 
 /**
  * The work match after Wikipedia's page summary (`summaryMismatch`): the reason the

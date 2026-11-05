@@ -296,6 +296,12 @@ sign-ins and the built-in AI. Its design decisions are in
    and neither does an act that shares the name when MusicBrainz credits the
    song to someone else (`anotherArtist`, comparing the recording's artist
    with the article's Wikidata item; unknown on either side keeps the article).
+   Short artist names, common in DJ sets, match too easily (`wrongActPage`):
+   a page named like the artist that Wikipedia doesn't describe as a
+   performer ("a fictional robot", "a method of cleaning a surface"), or a
+   performer whose name only contains the artist's ("Falke" in "Liesje
+   Falke"), is dropped unless it names the song. Word order and punctuation
+   don't count, so "System-Tau" is the same name as "Tau-system".
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
