@@ -3,7 +3,16 @@ jest.mock("./config", () => ({
 }));
 
 import { clearArticleItemCache } from "./wikidata";
-import { clearGroundingCache, fetchGrounding, gameInsteadOfScreen, gameTrackText, namesPiece, oneOfSeveral, resolveGameAndTrack, workMatchConfidence } from "./fact-verifier";
+import { clearGroundingCache, fetchGrounding as lookup, gameInsteadOfScreen, gameTrackText, namesPiece, oneOfSeveral, resolveGameAndTrack, workMatchConfidence as rules, articleText } from "./fact-verifier";
+import { referenceDecision, scoredLevel } from "./work-resolver";
+
+// MATCH=scored is the default; the "rules match" test project runs these again with MATCH=rules. The score may hold an article back, never add one.
+const scored = process.env.MATCH !== "rules";
+const fetchGrounding = async (...a: Parameters<typeof lookup>) => {
+  const text = await lookup(...a);
+  return scored && text && referenceDecision(a[0], text, a[0], articleText(text.split("\n")[0])).decision === "abstain" ? "" : text;
+};
+const workMatchConfidence = (...a: Parameters<typeof rules>) => (scored ? scoredLevel(rules(...a), referenceDecision(a[2] ?? a[0], a[1], a[0], articleText(a[1].split("\n")[0]))) : rules(...a));
 
 // Made-up bands, songs and games. Each case is a wrong work the lookup once took: an artist's name
 // read as a game's, a name the article only uses for something else, one of several same-name games.

@@ -2,7 +2,15 @@ jest.mock("./config", () => ({
   config: { factsPerSong: 5, dataDir: process.env.BUBBLEFACTS_DATA_DIR, groundingTimeoutMs: 5000, groundingExtractTimeoutMs: 15000, topic: "general" },
 }));
 
-import { clearGroundingCache, fetchGrounding, isNonMusicWork, leadNamesPerformer, listedTracks, themeOf } from "./fact-verifier";
+import { clearGroundingCache, fetchGrounding as lookup, isNonMusicWork, leadNamesPerformer, listedTracks, themeOf, articleText } from "./fact-verifier";
+import { referenceDecision } from "./work-resolver";
+
+// MATCH=scored is the default; the "rules match" test project runs these again with MATCH=rules. The score may hold an article back, never add one.
+const scored = process.env.MATCH !== "rules";
+const fetchGrounding = async (...a: Parameters<typeof lookup>) => {
+  const text = await lookup(...a);
+  return scored && text && referenceDecision(a[0], text, a[0], articleText(text.split("\n")[0])).decision === "abstain" ? "" : text;
+};
 
 // Made-up bands, songs, films and games.
 describe("a performer's name shared with a film or a book", () => {

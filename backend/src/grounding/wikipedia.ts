@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { config } from "../config";
 import { withinStandard } from "../content-standard";
 import { htmlToText } from "../wiki-html";
@@ -40,13 +41,25 @@ export async function wikiGet<T>(params: string, timeoutMs: number, what: string
   return (await res.json()) as T;
 }
 
+/** The search results a lookup saw, in order, for the scored match (work-resolver.ts). */
+const searchLog = new AsyncLocalStorage<string[][]>();
+
+/** Runs a lookup and returns what it found with every search result list it saw on the way. */
+export async function withSearches<T>(lookup: () => Promise<T>): Promise<{ found: T; searches: string[][] }> {
+  const searches: string[][] = [];
+  const found = await searchLog.run(searches, lookup);
+  return { found, searches };
+}
+
 export async function wikiSearch(term: string): Promise<string[]> {
   const data = await wikiGet<{ query?: { search?: Array<{ title: string }> } }>(
     `action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(term)}`,
     config.groundingTimeoutMs,
     "search"
   );
-  return (data.query?.search ?? []).map((h) => h.title);
+  const titles = (data.query?.search ?? []).map((h) => h.title);
+  searchLog.getStore()?.push(titles);
+  return titles;
 }
 
 /** A search's hits and, when Wikipedia thinks the term is misspelled, its suggested spelling. */
@@ -56,7 +69,9 @@ export async function wikiSearchSuggestion(term: string): Promise<{ titles: stri
     config.groundingTimeoutMs,
     "search"
   );
-  return { titles: (data.query?.search ?? []).map((h) => h.title), suggestion: data.query?.searchinfo?.suggestion ?? "" };
+  const titles = (data.query?.search ?? []).map((h) => h.title);
+  searchLog.getStore()?.push(titles);
+  return { titles, suggestion: data.query?.searchinfo?.suggestion ?? "" };
 }
 
 /**

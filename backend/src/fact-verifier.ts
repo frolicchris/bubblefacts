@@ -15,7 +15,7 @@ export { MAX_CONTEXT_CHARS, MAX_FACT_CHARS, MIN_CONTEXT_CHARS } from "./fact-lim
 export { artistNames, dropVersionTags, foldSymbols, mentionsName, normalizeKeys, normalizeTitle, parseClassicalTitle, resolveGameAndTrack, splitGameAndTrack } from "./grounding/titles";
 export type { ClassicalTitle } from "./grounding/titles";
 export { editionNotInTitle, initialsDiffer, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, qualifierNamesAnotherArtist } from "./grounding/relevance";
-export { creatorSentences, isDisambiguation, orderExtract, receptionSentences, rememberArticle, settledRevision, STABLE_AGE_MS, theorySentences, USER_AGENT, wikiExtract, withoutVideoSections } from "./grounding/wikipedia";
+export { creatorSentences, isDisambiguation, orderExtract, receptionSentences, rememberArticle, settledRevision, STABLE_AGE_MS, theorySentences, USER_AGENT, wikiExtract, withoutVideoSections, withSearches } from "./grounding/wikipedia";
 export { notForStream, platformSupported, unsupportedCredit, unsupportedName, unsupportedWinner } from "./screening/names";
 export { alteredQuote, explainMusicTerms, restatesRequest, supportingSentence, tooSimilar } from "./screening/similarity";
 export { lostQualifier, numberedReference, referenceSentences, retoldSentences, support, unsupportedConnective, unsupportedRelation } from "./screening/sentences";
