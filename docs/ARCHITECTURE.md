@@ -45,7 +45,8 @@ Now playing file ─┘ reads the file   │
 | `backend/src/youtube-title.ts` | Reads a song and artist out of a YouTube video title. |
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
 | `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
-| `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. |
+| `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. It only re-exports: the code is in `grounding/` and `screening/` (module map below), so callers import from one place. |
+| `backend/src/fact-limits.ts`, `curated-facts.ts` | The bubble and reference size limits; the streamer's untagged custom facts taking turns (issue #190). |
 | `backend/src/content-standard.ts` | The content standard's word lists: what no article sentence, caption or data fact may say. |
 | `backend/src/wiki-html.ts` | An older article version's HTML as plain text, for the 72-hour rule. |
 | `backend/src/list-profile.ts` | How one streamer writes their song list (a dash or brackets for the game), worked out from the list itself. |
@@ -80,8 +81,39 @@ Now playing file ─┘ reads the file   │
 | `backend/src/bubble-style.ts` | Which built-in Style the overlay shows, and the text colors for the streamer's own colors (issue #177). |
 | `frontend/obs/` | The overlay page itself: plain HTML, CSS and JavaScript with no build step. |
 
-New to the fact checking? Start with `screenClaims` in `fact-verifier.ts`
-(what makes a caption pass) and `fetchGrounding` (how the article is chosen),
+#### Fact checking module map
+
+Each file stays under about 30 KB, so a change to one check reads one file.
+Imports only point up this list: a file uses the ones above it, never one below
+(`grounding/` reaches into `screening/` for its name and sentence helpers).
+
+| File | Job |
+|---|---|
+| `grounding/titles.ts` | Reading a request's title: game and track, version tags, classical titles (catalog numbers, keys, movements). |
+| `grounding/relevance.ts` | Whether an article is about the requested song: title and artist matching. |
+| `grounding/wikipedia.ts` | Wikipedia itself: search, extracts, wikitext, the settled older version (the 72-hour rule). |
+| `screening/names.ts` | A caption's people, roles, winners and platforms must be in the source. |
+| `screening/similarity.ts` | Shared content words, quotes, restating the request, plain-word music terms. |
+| `screening/sentences.ts` | The source's sentences and which one a caption retells (`support`); numbers, connectives, relations, lost qualifiers. |
+| `screening/attribution.ts` | Who said or did it; dropped days and years. |
+| `screening/frames.ts` | Unnamed references, left-behind referents, a sentence's frame or limit, chart details. |
+| `screening/wording.ts` | Merged clauses, dropped hedges, misplaced years, wrong owners, reversed roles. |
+| `screening/repair.ts` | Scope words and qualifiers a 3B model drops, put back from the source. |
+| `screening/screen.ts` | `screenClaims`: the screening entry point. |
+| `grounding/sections.ts` | Which part of an article is used: section-aware and tiered selection. |
+| `grounding/work-scope.ts` | Sentences about another work (italic titles) kept out. |
+| `grounding/covers.ts` | Covers, and whether the article fits the request at all. |
+| `grounding/summary.ts` | Wikipedia's own summary of an article and `summaryGate`. |
+| `grounding/readings.ts` | Other readings of a request, and the grounding cache. |
+| `grounding/work-match.ts` | `workMatchConfidence`: is the article about the requested work (issue #255). |
+| `grounding/classical-works.ts` | Classical works through Wikidata (issue #260). |
+| `grounding/companion.ts` | The companion article (issue #48). |
+| `grounding/performer-name.ts` | A performer's name shared with a film or a book. |
+| `grounding/theme.ts` | "Some Name Theme": the article of what the theme is named for. |
+| `grounding/lookup.ts` | `fetchGrounding`: the grounding entry point. |
+
+New to the fact checking? Start with `screenClaims` in `screening/screen.ts`
+(what makes a caption pass) and `fetchGrounding` in `grounding/lookup.ts` (how the article is chosen),
 then `generateRest` in `fact-generator.ts`, which ties them together.
 
 ### The desktop app
