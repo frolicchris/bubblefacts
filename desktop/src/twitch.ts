@@ -242,7 +242,7 @@ export function twitchLoginFrom(artist: string, link: string): string {
   return LOGIN.test(fromArtist) ? fromArtist.toLowerCase() : "";
 }
 
-/** About 160 characters fit in a bubble: the fact checker's MAX_FACT_CHARS in backend/src/fact-verifier.ts. */
+/** About 160 characters fit in a bubble: the fact checker's MAX_FACT_CHARS in backend/src/fact-limits.ts. */
 export const BUBBLE_CHARS = 160;
 
 /**
