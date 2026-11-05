@@ -76,6 +76,45 @@ describe("summaryMismatch: what Wikipedia's summary says about the found article
   });
 });
 
+describe("summaryMismatch: a short artist name that found something else (made-up acts)", () => {
+  it("is unsure of a page named like the artist that isn't about a performer", () => {
+    // "Vx409" the DJ, "VX-409" a fictional robot.
+    const robot = ref("VX-409", "VX-409 is a fictional robot in a film series.");
+    expect(summaryMismatch(summary("Fictional robot in a film franchise"), { title: "The Man Inside", artist: "Vx409" }, robot)).toMatch(
+      /not a performer of that name/
+    );
+    // Words in another order, and a process that shares the name.
+    const set = ref("Tau-system", "A tau-system is a family of sets.");
+    expect(summaryMismatch(summary("Family of sets closed under intersection"), { title: "Oldtown", artist: "System-Tau" }, set)).toMatch(/not a performer/);
+    const process = ref("Gritblasting", "Gritblasting is a way of cleaning a surface.");
+    expect(summaryMismatch(summary("Method of cleaning a surface"), { title: "RAGE (club mix)", artist: "GRiTBLASTING" }, process)).toMatch(/not a performer/);
+  });
+
+  it("is unsure of a performer whose name only contains the artist's", () => {
+    const text = ref("Liesje Falke", "Liesje Falke is a Dutch singer-songwriter.");
+    expect(summaryMismatch(summary("Dutch musician (born 1979)"), { title: "Paper Moth (dub)", artist: "Fälke feat. Ana Ferro" }, text)).toMatch(
+      /only shares part of the artist's name/
+    );
+  });
+
+  it("keeps a performer of exactly that name, a short one too", () => {
+    const text = ref("Vexa (DJ)", "Vexa is a Belgian DJ and producer.");
+    expect(summaryMismatch(summary("Belgian DJ and producer"), { title: "Glass Floor", artist: "Vexa" }, text)).toBe("");
+    const accent = ref("Dana Reyes", "Dana Reyes is an American singer.");
+    expect(summaryMismatch(summary("American singer"), { title: "Low Lights", artist: "Dana Réyes" }, accent)).toBe("");
+  });
+
+  it("keeps any of these when the article names the song", () => {
+    const text = ref("Liesje Falke", "Liesje Falke is a Dutch singer. Her 2009 single \"Paper Moth\" was a club hit.");
+    expect(summaryMismatch(summary("Dutch musician (born 1979)"), { title: "Paper Moth", artist: "Falke" }, text)).toBe("");
+  });
+
+  it("leaves the song's own article alone", () => {
+    const text = ref("Glass Floor (Vexa song)", "\"Glass Floor\" is a 2021 song by Vexa.");
+    expect(summaryMismatch(summary("2021 single by Vexa"), { title: "Glass Floor", artist: "Vexa" }, text)).toBe("");
+  });
+});
+
 describe("summaryGate", () => {
   it("asks Wikipedia's summary endpoint with the project's User-Agent, and caches the answer", async () => {
     const fetch = serveSummaries({ "Lantern Hill": { description: "1975 song by the Marmalade Owls" } });
