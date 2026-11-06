@@ -29,6 +29,13 @@ jobs:
       # shellcheck comes preinstalled on GitHub's Ubuntu runners.
       - run: npm run check
       - run: npm run build
+      # Shipped dependencies only. Reported in the log but not blocking yet: today's
+      # findings come through node-llama-cpp's simple-git, which waits on an upstream
+      # release. Remove continue-on-error once `npm audit` is clean.
+      - name: Audit shipped dependencies
+        if: matrix.node == 22
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
 
   # The desktop app ships on macOS and Windows too: run the tests there, where
   # paths, line endings and file locking differ.
