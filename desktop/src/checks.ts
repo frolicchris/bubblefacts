@@ -189,7 +189,9 @@ export async function newerRelease(
     const fromGitHub = (u: string) => u.startsWith("https://github.com/frolicchris/bubblefacts/releases/download/");
     const installer = assets.find((a) => a.name === installerFor(newest));
     const sums = assets.find((a) => a.name === "SHA256SUMS.txt");
-    if (installer && sums && fromGitHub(installer.browser_download_url) && fromGitHub(sums.browser_download_url)) {
+    // The signature is required: a release without one is installed by hand from the download page.
+    const signature = assets.find((a) => a.name === "SHA256SUMS.txt.sig");
+    if (installer && sums && signature && fromGitHub(installer.browser_download_url) && fromGitHub(sums.browser_download_url)) {
       found.download = { name: installer.name, url: installer.browser_download_url, size: installer.size, sumsUrl: sums.browser_download_url };
     }
     return found;

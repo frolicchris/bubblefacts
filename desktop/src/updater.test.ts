@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { newerRelease } from "./checks";
-import { assetName, downloadUpdate, expectedSum, macBundle, MAC_SWAP_SCRIPT } from "./updater";
+import { assetName, downloadUpdate, expectedSum, macBundle, MAC_SWAP_SCRIPT, verifySums } from "./updater";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -17,7 +17,7 @@ const body = (bytes: Buffer) => ({
     yield bytes.subarray(3);
   })(),
 });
-const text = (t: string) => ({ ok: true, status: 200, text: async () => t });
+const text = (t: string) => ({ ok: true, status: 200, text: async () => t, arrayBuffer: async () => new Uint8Array(Buffer.from(t)).buffer });
 
 describe("assetName", () => {
   it("names the installer each kind of install updates from", () => {
@@ -50,29 +50,49 @@ describe("expectedSum", () => {
   });
 });
 
+describe("verifySums", () => {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const pub = publicKey.export({ format: "der", type: "spki" }).toString("base64");
+  const sums = Buffer.from(`${"a".repeat(64)}  x.dmg\n`);
+  const sign = (b: Buffer) => crypto.sign(null, b, privateKey).toString("base64");
+  it("accepts the right signature and rejects anything else", () => {
+    expect(verifySums(sums, sign(sums), pub)).toBe(true);
+    expect(verifySums(sums, `${sign(sums)}\n`, pub)).toBe(true);
+    expect(verifySums(Buffer.from(`${"b".repeat(64)}  x.dmg\n`), sign(sums), pub)).toBe(false);
+    expect(verifySums(sums, "", pub)).toBe(false);
+    expect(verifySums(sums, "not base64 at all!", pub)).toBe(false);
+    expect(verifySums(sums, sign(sums))).toBe(false); // not signed with the project's key
+  });
+});
+
 describe("downloadUpdate", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-update-"));
   afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
   const bytes = Buffer.from("the new installer");
   const sum = crypto.createHash("sha256").update(bytes).digest("hex");
   const d = { name: "BubbleFacts-9.9.9-mac-arm64.dmg", url: "https://x/installer", size: bytes.length, sumsUrl: "https://x/sums" };
+  const keys = crypto.generateKeyPairSync("ed25519");
+  const pub = keys.publicKey.export({ format: "der", type: "spki" }).toString("base64");
+  const signed = (t: string) => text(crypto.sign(null, Buffer.from(t), keys.privateKey).toString("base64"));
+  const run = () => downloadUpdate(d, dir, () => undefined, undefined, pub);
 
   it("keeps a download whose checksum the release lists", async () => {
-    mockFetch.mockResolvedValueOnce(text(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(body(bytes));
+    mockFetch.mockResolvedValueOnce(text(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(signed(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(body(bytes));
     const progress: number[] = [];
-    const file = await downloadUpdate(d, dir, (f) => progress.push(f));
+    const file = await downloadUpdate(d, dir, (f) => progress.push(f), undefined, pub);
     expect(fs.readFileSync(file).equals(bytes)).toBe(true);
     expect(progress[progress.length - 1]).toBe(1);
   });
 
   it("deletes a download that doesn't match, and says so", async () => {
-    mockFetch.mockResolvedValueOnce(text(`${"0".repeat(64)}  ${d.name}\n`)).mockResolvedValueOnce(body(bytes));
-    await expect(downloadUpdate(d, dir, () => undefined)).rejects.toThrow(/didn't match/);
+    const t = `${"0".repeat(64)}  ${d.name}\n`;
+    mockFetch.mockResolvedValueOnce(text(t)).mockResolvedValueOnce(signed(t)).mockResolvedValueOnce(body(bytes));
+    await expect(run()).rejects.toThrow(/didn't match/);
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 
   it("reports a disk that can't be written to, and leaves nothing behind", async () => {
-    mockFetch.mockResolvedValueOnce(text(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(body(bytes));
+    mockFetch.mockResolvedValueOnce(text(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(signed(`${sum}  ${d.name}\n`)).mockResolvedValueOnce(body(bytes));
     const full = Object.assign(new Error("ENOSPC: no space left on device, write"), { code: "ENOSPC" });
     const open = fs.promises.open;
     const spy = jest.spyOn(fs.promises, "open").mockImplementation(async (...args: Parameters<typeof open>) => {
@@ -80,15 +100,26 @@ describe("downloadUpdate", () => {
       handle.writeFile = () => Promise.reject(full);
       return handle;
     });
-    await expect(downloadUpdate(d, dir, () => undefined)).rejects.toThrow(/free disk space/);
+    await expect(run()).rejects.toThrow(/free disk space/);
     spy.mockRestore();
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 
   it("refuses when the release lists no checksum for the file", async () => {
-    mockFetch.mockResolvedValueOnce(text(`${sum}  something-else.dmg\n`));
-    await expect(downloadUpdate(d, dir, () => undefined)).rejects.toThrow(/no checksum/);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const t = `${sum}  something-else.dmg\n`;
+    mockFetch.mockResolvedValueOnce(text(t)).mockResolvedValueOnce(signed(t));
+    await expect(run()).rejects.toThrow(/no checksum/);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses checksums with a bad or missing signature, before downloading anything", async () => {
+    const t = `${sum}  ${d.name}\n`;
+    mockFetch.mockResolvedValueOnce(text(t)).mockResolvedValueOnce(signed(`${"0".repeat(64)}  ${d.name}\n`));
+    await expect(run()).rejects.toThrow(/came from its release process/);
+    mockFetch.mockResolvedValueOnce(text(t)).mockResolvedValueOnce({ ok: false, status: 404, text: async () => "" } as unknown as Response);
+    await expect(run()).rejects.toThrow(/came from its release process/);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(fs.readdirSync(dir)).toEqual([]);
   });
 });
 
@@ -191,7 +222,7 @@ describe("newerRelease with an installer", () => {
   const pick = (v: string) => assetName(v, "darwin", "arm64");
 
   it("offers the installer for this computer, with the checksum list", async () => {
-    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}a.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`]]));
+    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}a.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`]]));
     const r = await newerRelease("2.0.0-beta.4", "beta", pick);
     expect(r?.download).toEqual({ name: "BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", url: `${base}a.dmg`, size: 10, sumsUrl: `${base}SHA256SUMS.txt` });
   });
@@ -201,7 +232,7 @@ describe("newerRelease with an installer", () => {
       release([
         ["BubbleFacts-2.0.0-beta.5-lite-mac-arm64.dmg", `${base}lite.dmg`],
         ["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`],
-        ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`],
+        ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`],
       ]);
     mockFetch.mockResolvedValueOnce(both());
     expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "lite")))?.download?.url).toBe(`${base}lite.dmg`);
@@ -210,16 +241,18 @@ describe("newerRelease with an installer", () => {
   });
 
   it("sends Lite to the download page when a release has no Lite installer", async () => {
-    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`]]));
+    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`]]));
     const r = await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "lite"));
     expect(r).toMatchObject({ version: "2.0.0-beta.5" });
     expect(r?.download).toBeUndefined();
   });
 
-  it("falls back to the download page without a checksum list, or for a file from anywhere else", async () => {
+  it("falls back to the download page without a checksum list or its signature, or for a file from anywhere else", async () => {
     mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}a.dmg`]]));
     expect((await newerRelease("2.0.0-beta.4", "beta", pick))?.download).toBeUndefined();
-    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", "https://evil.example/a.dmg"], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`]]));
+    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}a.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`]]));
+    expect((await newerRelease("2.0.0-beta.4", "beta", pick))?.download).toBeUndefined();
+    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", "https://evil.example/a.dmg"], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`]]));
     const r = await newerRelease("2.0.0-beta.4", "beta", pick);
     expect(r).toMatchObject({ version: "2.0.0-beta.5" });
     expect(r?.download).toBeUndefined();

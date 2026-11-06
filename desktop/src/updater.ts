@@ -9,9 +9,26 @@ import { plainWithDetail } from "./plain-errors";
  * The app's own updater. The standard one for Electron needs a Mac app
  * signed with an Apple Developer ID, which BubbleFacts doesn't have yet, so
  * this does the same job by hand: download the release's installer, check it
- * against the release's SHA256SUMS.txt, then swap the app and reopen it.
+ * against the release's SHA256SUMS.txt (whose signature is checked first), then swap the app and reopen it.
  * Nothing is installed until the musician clicks: never mid-stream.
  */
+
+/**
+ * The public half of the key that signs each release's SHA256SUMS.txt (the release workflow
+ * signs it with the UPDATE_SIGNING_KEY secret, as SHA256SUMS.txt.sig). A matching checksum alone
+ * only proves the file wasn't damaged; this proves the checksums came from this project's release workflow.
+ */
+export const UPDATE_PUBLIC_KEY = "MCowBQYDK2VwAyEAVDVtpQIHiCwZheXDIL9kyVzYNuW6d5EwUaXena2EAfI=";
+
+/** True when `sigBase64` is a valid Ed25519 signature of `sums` under the given public key (base64 SPKI DER). */
+export function verifySums(sums: Buffer, sigBase64: string, publicKey = UPDATE_PUBLIC_KEY): boolean {
+  try {
+    const key = crypto.createPublicKey({ key: Buffer.from(publicKey, "base64"), format: "der", type: "spki" });
+    return crypto.verify(null, sums, key, Buffer.from(sigBase64.trim(), "base64"));
+  } catch {
+    return false;
+  }
+}
 
 export interface Download {
   name: string;
@@ -54,13 +71,18 @@ export function sha256(file: string): Promise<string> {
  * path only when its SHA-256 is the one the release lists; otherwise the
  * file is deleted and this throws.
  */
-export async function downloadUpdate(d: Download, dir: string, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<string> {
+export async function downloadUpdate(d: Download, dir: string, onProgress: (fraction: number) => void, signal?: AbortSignal, publicKey = UPDATE_PUBLIC_KEY): Promise<string> {
   fs.mkdirSync(dir, { recursive: true });
   // Earlier downloads are never reused: a half-written file would fail its check anyway.
   for (const old of fs.readdirSync(dir)) fs.rmSync(path.join(dir, old), { force: true, recursive: true });
   const sums = await fetch(d.sumsUrl, { signal });
   if (!sums.ok) throw plainWithDetail("BubbleFacts couldn't check the download.", `checksums: HTTP ${sums.status}`);
-  const want = expectedSum(await sums.text(), d.name);
+  const sumsBytes = Buffer.from(await sums.arrayBuffer());
+  const sig = await fetch(`${d.sumsUrl}.sig`, { signal });
+  if (!sig.ok || !verifySums(sumsBytes, await sig.text(), publicKey)) {
+    throw plainWithDetail("BubbleFacts couldn't confirm the update came from its release process, so it wasn't installed.", `checksum signature: ${sig.ok ? "invalid" : `HTTP ${sig.status}`}`);
+  }
+  const want = expectedSum(sumsBytes.toString("utf8"), d.name);
   if (!want) throw new Error("BubbleFacts couldn't check the download: the release has no checksum for this file.");
 
   const file = path.join(dir, d.name);
