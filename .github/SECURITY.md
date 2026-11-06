@@ -58,11 +58,16 @@ command-line overlay. In particular:
   Test builds are attested too, but from a branch, so `--source-ref` tells
   them apart.
 - **Updating from inside the app.** The app downloads the new installer only
-  from this repository's releases, over HTTPS, and installs it only if its
-  SHA-256 matches the release's `SHA256SUMS.txt`. That catches a damaged or
-  swapped file. It is not a signature: someone able to publish a release here
-  could publish matching checksums. Releases are immutable once published,
-  and the attestation above remains the stronger check.
+  from this repository's releases, over HTTPS. It installs it only if the
+  release's `SHA256SUMS.txt` carries a valid signature (`SHA256SUMS.txt.sig`,
+  Ed25519) from the key built into the app, and the installer's SHA-256
+  matches that signed list. So someone who can only upload files to a
+  release can't swap the installer; the signing key lives in a repository
+  secret that only the release workflow reads. A release without a valid
+  signature is never installed by the app; the download page still works.
+  Releases are also immutable once published, and the attestation above
+  remains the strongest check for a manual download. This is not Apple or
+  Microsoft code signing, which is separate.
 - **The built-in YouTube key.** Official builds include a Google API key
   restricted to the YouTube Data API, used only to read song details for
   auto-generated "- Topic" uploads. Anyone can extract a key shipped in an

@@ -259,12 +259,30 @@ jobs:
       - name: Checksums
         working-directory: files
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      # The in-app updater installs only if this signature checks out against the public key built into
+      # the app (UPDATE_PUBLIC_KEY in desktop/src/updater.ts). See "Update signing key" in docs/RELEASING.md.
+      - name: Sign the checksums
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        working-directory: files
+        run: |
+          test -n "$UPDATE_SIGNING_KEY" || { echo "::error::The UPDATE_SIGNING_KEY secret is missing, so the in-app update couldn't verify this release."; exit 1; }
+          key="$RUNNER_TEMP/update-signing-key.pem"
+          (umask 077; printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key")
+          openssl pkeyutl -sign -rawin -inkey "$key" -in SHA256SUMS.txt | base64 -w0 > SHA256SUMS.txt.sig
+          rm -f "$key"
+          # Check with the public key shipped in the app, so a wrong secret fails here, not for testers.
+          pub=$(grep -oP 'UPDATE_PUBLIC_KEY = "\K[^"]+' ../desktop/src/updater.ts)
+          { echo '-----BEGIN PUBLIC KEY-----'; echo "$pub"; echo '-----END PUBLIC KEY-----'; } > "$RUNNER_TEMP/pub.pem"
+          base64 -d SHA256SUMS.txt.sig > "$RUNNER_TEMP/sig.bin"
+          openssl pkeyutl -verify -rawin -pubin -inkey "$RUNNER_TEMP/pub.pem" -in SHA256SUMS.txt -sigfile "$RUNNER_TEMP/sig.bin"
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             files/bubblefacts.zip
             files/bubblefacts-sbom.spdx.json
             files/SHA256SUMS.txt
+            files/SHA256SUMS.txt.sig
       - name: Create a draft release
         env:
           GH_TOKEN: ${{ github.token }}

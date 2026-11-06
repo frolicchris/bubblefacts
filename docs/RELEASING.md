@@ -65,6 +65,26 @@ steps, and macOS stops asking for the keychain again after each update.
 Once both are signed, remove the first-launch steps from `site/guide.html`
 and `site/download.html` (see `site/README.md`).
 
+## Update signing key
+
+The in-app update installs only a release whose `SHA256SUMS.txt` has a valid
+`SHA256SUMS.txt.sig`. The release workflow signs it (Ed25519) with the
+`UPDATE_SIGNING_KEY` repository secret and fails the release if the secret is
+missing or doesn't match the public key in `desktop/src/updater.ts`
+(`UPDATE_PUBLIC_KEY`). This is free and separate from the Apple and Windows
+signing above.
+
+- The private key (PEM) is also kept at `~/.bubblefacts-signing/updater-ed25519.pem` on
+  the maintainer's Mac. Back it up somewhere private; without it, the next
+  release can't be signed and a new key means shipping an app that trusts it.
+- Rotating: make a new key (`openssl genpkey -algorithm ED25519`), set the
+  secret (`gh secret set UPDATE_SIGNING_KEY < key.pem`), put the new public key
+  (`openssl pkey -in key.pem -pubout -outform DER | base64`) in `UPDATE_PUBLIC_KEY`,
+  and release. People on older versions can't update in-app to a release signed
+  with the new key until they install one that trusts it from the download page,
+  so keep the old key in place unless it leaked.
+- Test builds (Run workflow) aren't signed and aren't offered by the updater.
+
 ## Setting the version
 
 One command sets a new version everywhere it's written, through a pull
