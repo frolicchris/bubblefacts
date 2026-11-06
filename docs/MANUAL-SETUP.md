@@ -379,6 +379,7 @@ If you used git instead: `git pull`, then `npm install`.
 
 | What you see | Likely cause | What to do |
 |---|---|---|
+| Bubbles **stopped showing after a new look** | The Custom CSS in OBS is hiding them | In OBS, open the BubbleFacts source's properties, empty the **Custom CSS** box and click **OK**. The look from **Style** comes back. |
 | A **red dot** in the corner, no bubbles | The overlay isn't running | Run `bash scripts/start-overlay.sh` and leave the window open. |
 | A **red dot** that stays, though the overlay is running | Version 1.0.0 added as a **Local file**, which never connects | Change the source to the URL `http://127.0.0.1:3000/obs-overlay` ([step 6](#6-add-it-to-obs)), or update to the newest release. |
 | Nothing at all, not even a red dot | OBS isn't loading the page | Start the overlay, then right-click the source and choose **Refresh**. Check the source's URL is `http://127.0.0.1:3000/obs-overlay` and the source is visible. Then run `bash scripts/check-overlay.sh`, which tells you whether OBS is connected. |
