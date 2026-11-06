@@ -218,6 +218,9 @@ exactly `#rrggbb`, or only one of the two colors, is ignored with a line in
 the log, and the style's own colors show. OBS's Custom CSS box still wins
 over any style.
 
+Making your own look? [docs/DESIGN.md](DESIGN.md) lists the settings and selectors that
+stay stable, and `frontend/obs/design-preview.html` shows a look without the app.
+
 ---
 
 ## Sharing song facts with other apps

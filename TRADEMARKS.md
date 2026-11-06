@@ -19,6 +19,8 @@ You don't need to ask to:
 - Say your tool works with BubbleFacts, connects to it, or is made for it,
   as long as it's clear the tool is yours and not part of the official
   BubbleFacts project.
+  Making a custom look? [docs/DESIGN.md](docs/DESIGN.md) lists what stays
+  stable.
 - Share or package the official releases from the
   [releases page](https://github.com/frolicchris/bubblefacts/releases) under
   the BubbleFacts name, for example in a Linux package manager or an app
