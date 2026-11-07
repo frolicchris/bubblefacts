@@ -41,6 +41,21 @@ describe("--bf-icon", () => {
   });
 });
 
+describe("the Icon setting", () => {
+  it("has a CSS rule and an overlay name for every choice but the Style's own", () => {
+    const script = read("frontend/obs/obs-overlay.js");
+    for (const icon of ["notes", "heart", "star", "moon", "diamond"]) {
+      expect(css).toContain(`:where(html[data-icon="${icon}"])`);
+      expect(script).toContain(`"${icon}"`);
+      expect(preview).toContain(`value="${icon}"`);
+    }
+  });
+
+  it("comes after the Styles in the stylesheet, so it wins over a Style's own icon", () => {
+    expect(css.indexOf('html[data-icon="heart"]')).toBeGreaterThan(css.indexOf('html[data-style="high-contrast"]'));
+  });
+});
+
 describe("frontend/obs/design-preview.html", () => {
   it("loads the overlay's own stylesheet and offers every built-in Style", () => {
     expect(preview).toContain('href="obs-overlay.css"');

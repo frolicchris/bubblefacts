@@ -26,7 +26,7 @@ sets these, usually on `:root`:
 | `--bf-border-width` | Border width. |
 | `--bf-outline`, `--bf-outline-width` | The ring just outside the border. |
 | `--bf-cursor` | Color of the little blinking arrow. `transparent` hides it. |
-| `--bf-icon` | The icon at the left of each fact bubble: a character like `"\266B"`, or `url(...)`. Unset, the overlay rotates through its own set (Classic does this). Light, Minimal, Retro game and High contrast each set one plain character in the Style's text color. It sits in the icon gutter and never changes the bubble's size. |
+| `--bf-icon` | The icon at the left of each fact bubble: a character like `"\266B"`, or `url(...)`. Unset, the overlay rotates through its own set (Classic does this). Light, Minimal, Retro game and High contrast each set one plain character in the Style's text color. The app's **Icon** setting (`BUBBLE_ICON`) picks heart, star, moon or diamond under any Style, which are good starting points for your own. It sits in the icon gutter and never changes the bubble's size. |
 | `--bf-sparkle` | Color of the three blinking sparkles. `transparent` hides them. |
 | `--bf-toast-letter-spacing`, `--bf-toast-radius` | Letter spacing and corners of the Now Playing card and Live Learn banner. |
 | `--bf-toast-bg-1`, `--bf-toast-bg-2` | Their background gradient. |

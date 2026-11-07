@@ -186,3 +186,33 @@ describe("styleFrom", () => {
     });
   });
 });
+
+describe("the bubble icon choice", () => {
+  const { styleFrom: from, BUBBLE_ICONS: ICONS } = jest.requireActual("./bubble-style") as typeof import("./bubble-style");
+  it("is left out when it's the Style's own, and sent when chosen", () => {
+    expect(from("classic", "", "", () => {}, {})).not.toHaveProperty("icon");
+    expect(from("classic", "", "", () => {}, { icon: "style" })).not.toHaveProperty("icon");
+    for (const icon of ICONS.filter((i) => i !== "style")) expect(from("light", "", "", () => {}, { icon })).toMatchObject({ icon });
+    expect(from("light", "", "", () => {}, { icon: " Heart " })).toMatchObject({ icon: "heart" });
+  });
+
+  it("never refuses: an unknown icon is the Style's own, with a line in the log", () => {
+    const lines: string[] = [];
+    const out = from("minimal", "", "", (l) => lines.push(l), { icon: "skull" });
+    expect(out).not.toHaveProperty("icon");
+    expect(lines.join(" ")).toMatch(/Unknown bubble icon/);
+  });
+
+  it("reports a value of the wrong type, and stays quiet when nothing was given", () => {
+    for (const icon of [123, {}, [], true]) {
+      const lines: string[] = [];
+      expect(from("minimal", "", "", (l) => lines.push(l), { icon })).not.toHaveProperty("icon");
+      expect(lines.join(" ")).toMatch(/Unknown bubble icon/);
+    }
+    for (const icon of [undefined, null, "", "  "]) {
+      const lines: string[] = [];
+      from("minimal", "", "", (l) => lines.push(l), { icon });
+      expect(lines).toEqual([]);
+    }
+  });
+});

@@ -422,6 +422,7 @@ control.post("/style", (req, res) => {
   bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`), {
     scale: req.body?.scale,
     verticalScale: req.body?.verticalScale,
+    icon: req.body?.icon,
   });
   console.log(`[Server] Bubble style: ${bubbleStyle.style}${bubbleStyle.colors ? ", with custom colors" : ""}`);
   for (const ws of clients.keys()) send(ws, bubbleStyle);

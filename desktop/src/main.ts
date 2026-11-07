@@ -782,6 +782,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
     supervisor.setEnv(style);
     void control("style", {
       style: style.BUBBLE_STYLE,
+      icon: style.BUBBLE_ICON,
       accent: style.BUBBLE_ACCENT,
       background: style.BUBBLE_BACKGROUND,
       scale: Number(style.BUBBLE_SCALE),

@@ -223,6 +223,7 @@
 
   /** The built-in Styles in obs-overlay.css. Anything else shows the classic look, never no bubbles. */
   const STYLES = ["classic", "light", "minimal", "retro", "high-contrast"];
+  const ICON_CHOICES = ["notes", "heart", "star", "moon", "diamond"];
   const HEX = /^#[0-9a-f]{6}$/i;
   const COLOR_KEYS = ["background", "accent", "text", "label", "liveLearn"];
   /** How opaque a custom background is. The server checks text contrast at this (CUSTOM_ALPHA in bubble-style.ts). */
@@ -261,6 +262,8 @@
   /** The look the streamer chose: switched at once, bubbles on screen included. Only colors and fonts change. */
   function applyStyle(msg) {
     document.documentElement.dataset.style = STYLES.includes(msg.style) ? msg.style : "classic";
+    if (ICON_CHOICES.includes(msg.icon)) document.documentElement.dataset.icon = msg.icon;
+    else delete document.documentElement.dataset.icon;
     applySizes(msg);
     const c = msg.colors;
     const custom = !!c && COLOR_KEYS.every((k) => HEX.test(c[k]));
