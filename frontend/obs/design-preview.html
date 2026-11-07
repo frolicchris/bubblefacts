@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BubbleFacts look preview</title>
+  <!-- For designers of custom looks (docs/DESIGN.md). Open this file in a browser: no app, no network.
+       It loads the overlay's own obs-overlay.css next to it, so a look here is a look in OBS. -->
+  <style>
+    body { margin: 0; padding: 16px; background: #1c1c24; color: #eee; font: 15px/1.4 system-ui, sans-serif; }
+    h1 { font-size: 1.2rem; margin: 0 0 4px; }
+    p.note { margin: 0 0 12px; color: #b8b8c8; max-width: 70ch; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
+    label { display: grid; gap: 4px; font-size: 0.85rem; color: #b8b8c8; }
+    select, textarea, button { font: inherit; }
+    textarea { width: min(100%, 60ch); min-height: 8em; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; }
+    .frames { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+    figure { margin: 0; }
+    figcaption { margin-bottom: 4px; font-size: 0.85rem; color: #b8b8c8; }
+    /* A checkerboard shows the transparency OBS keeps. */
+    .stage { position: relative; overflow: hidden; background: repeating-conic-gradient(#555 0 25%, #666 0 50%) 0 0 / 24px 24px; }
+    .stage iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: transparent; }
+  </style>
+</head>
+<body>
+  <h1>BubbleFacts look preview</h1>
+  <p class="note">Sample bubbles, the Now Playing card and the Live Learn banner, as OBS draws them at 1920x1080 (landscape) and 1080x1920 (vertical). Paste your CSS as you would into OBS's Custom CSS box.</p>
+  <div class="controls">
+    <label>Style
+      <select id="style">
+        <option value="classic">Classic</option>
+        <option value="light">Light</option>
+        <option value="minimal">Minimal</option>
+        <option value="retro">Retro game</option>
+        <option value="high-contrast">High contrast</option>
+      </select>
+    </label>
+    <label>Banner
+      <select id="banner">
+        <option value="now">Now Playing</option>
+        <option value="live">Live Learn</option>
+      </select>
+    </label>
+    <label>Custom CSS
+      <textarea id="css" spellcheck="false" placeholder=":root { --bf-accent: #ff6600; }"></textarea>
+    </label>
+  </div>
+  <div class="frames">
+    <figure><figcaption>Landscape, 1920x1080</figcaption><div class="stage" id="stage-landscape"><iframe id="landscape" title="Landscape preview" width="1920" height="1080"></iframe></div></figure>
+    <figure><figcaption>Vertical, 1080x1920</figcaption><div class="stage" id="stage-vertical"><iframe id="vertical" title="Vertical preview" width="1080" height="1920"></iframe></div></figure>
+  </div>
+  <script>
+    // Sample text only. The bubbles are the same elements and classes the overlay's script creates.
+    var FACTS = [
+      { text: "The song's bass line was recorded in a single take.", style: "top: 8%; left: 5%;" },
+      { text: "Its synth lead was played on a keyboard borrowed from the studio next door, which is why the pitch drifts a little in the last chorus.", style: "top: 38%; right: 5%;" }
+    ];
+    var VERTICAL_FACTS = [
+      { text: "The song's bass line was recorded in a single take.", style: "top: 18%;" },
+      { text: "Its synth lead was played on a keyboard borrowed from the studio next door, which is why the pitch drifts a little in the last chorus.", style: "top: 38%;" }
+    ];
+    function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+    function doc(vertical) {
+      var facts = (vertical ? VERTICAL_FACTS : FACTS).map(function (f, i) {
+        return '<div class="popup-bubble visible' + (vertical ? " centered" : "") + '" style="' + f.style + '">' + esc(f.text) +
+          '<span class="sparkle sparkle-1"></span><span class="sparkle sparkle-2"></span><span class="sparkle sparkle-3"></span></div>';
+      }).join("");
+      var live = document.getElementById("banner").value === "live";
+      var banner = '<div class="song-toast visible' + (live ? " live-learn" : "") + '"><span class="toast-label">' +
+        (live ? "▶ LIVE LEARN" : "▶ NOW PLAYING") + "</span>  Sample Song — Sample Artist" + (live ? " (requested by a viewer)" : "") + "</div>";
+      return "<!DOCTYPE html><html" + (vertical ? ' data-layout="vertical"' : "") + ' data-style="' + document.getElementById("style").value + '"><head>' +
+        '<link rel="stylesheet" href="obs-overlay.css"><style>' + document.getElementById("css").value.replace(/<\/style/gi, "") + "</style></head>" +
+        '<body><div id="bubble-container">' + facts + banner + "</div></body></html>";
+    }
+    function fit(id, w, h, stageId) {
+      var stage = document.getElementById(stageId);
+      var scale = Math.min(1, (stage.parentNode.clientWidth || 640) / w, 640 / w * (w > h ? 1 : 0.6));
+      stage.style.width = Math.round(w * scale) + "px";
+      stage.style.height = Math.round(h * scale) + "px";
+      document.getElementById(id).style.transform = "scale(" + scale + ")";
+    }
+    function render() {
+      document.getElementById("landscape").srcdoc = doc(false);
+      document.getElementById("vertical").srcdoc = doc(true);
+      fit("landscape", 1920, 1080, "stage-landscape");
+      fit("vertical", 1080, 1920, "stage-vertical");
+    }
+    ["style", "banner", "css"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });
+    window.addEventListener("resize", render);
+    render();
+  </script>
+</body>
+</html>
