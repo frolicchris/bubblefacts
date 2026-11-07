@@ -26,6 +26,7 @@ import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForAr
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
+import { templateThinks } from "./thinking";
 
 /**
  * Turns a song into timed fact bubbles.
@@ -691,7 +692,8 @@ async function askOllama(prompt: string): Promise<[string, string]> {
 const importModule = new Function("specifier", "return import(specifier)") as (s: string) => Promise<any>;
 
 /** A loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
-type Loaded = { session: any; dispose?: () => Promise<void> };
+/** `thinks`: a thinking model, answered with reasoning off (see `thinking.ts`). Unset in tests. */
+type Loaded = { session: any; thinks?: boolean; dispose?: () => Promise<void> };
 let builtin: Promise<Loaded> | undefined;
 /** The model that prepares songs ahead of time, when it isn't the one on stream (`config.prepareModelPath`). */
 let prepBuiltin: Promise<Loaded> | undefined;
@@ -704,7 +706,7 @@ let llamaRuntime: Promise<any> | undefined;
  * runtime's threads for both, and its speed says nothing about the stream's.
  */
 async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
-  const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
+  const { getLlama, LlamaChatSession, JinjaTemplateChatWrapper } = await importModule("node-llama-cpp");
   // Only the prebuilt binaries shipped with the app: never download and compile llama.cpp on a musician's computer.
   const runtime = (llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) }));
   // Only a runtime that failed to start is let go: a model that failed to load leaves the
@@ -715,14 +717,22 @@ async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded
   });
   const model = await llama.loadModel({ modelPath });
   const context = await model.createContext({ contextSize: 4096 });
-  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
-  console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+  const template = model.fileInfo?.metadata?.tokenizer?.chat_template;
+  const thinks = templateThinks(template);
+  const session = new LlamaChatSession({
+    contextSequence: context.getSequence(),
+    systemPrompt: SYSTEM_PROMPT,
+    // A thinking model answers through its own template with reasoning switched off (issue #198).
+    ...(thinks ? { chatWrapper: new JinjaTemplateChatWrapper({ template, reasoning: false }) } : {}),
+  });
+  console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"}${thinks ? ", thinking off" : ""})`);
   if (stream) {
     builtinInfo.gpu = llama.gpu || "cpu";
     watchCpu(llama, context.idealThreads as number);
   }
   return {
     session,
+    thinks,
     dispose: async () => {
       await context.dispose();
       await model.dispose();
@@ -893,7 +903,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
   const prep = preparing();
   const run = async () => {
     if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
-    const { session } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
+    const { session, thinks } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
     session.resetChatHistory();
     const stop = new AbortController();
     running = { key, stop, prep: Boolean(prep) };
@@ -902,6 +912,8 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
       const text = (await session.prompt(prompt, {
         temperature: config.temperature,
         maxTokens: MAX_TOKENS,
+        // No token goes to thinking: the 512 are for captions (issue #198). Only set for a thinking model.
+        ...(thinks ? { budgets: { thoughtTokens: 0 } } : {}),
         signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal, ...(prep ? [prep.signal] : [])]),
         stopOnAbortSignal: true,
       })) as string;
