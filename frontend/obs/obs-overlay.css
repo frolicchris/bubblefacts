@@ -63,6 +63,7 @@
 /* Light: a white card with dark text, for bright scenes. */
 :where(html[data-style="light"]) {
   --bf-radius: 14px;
+  --bf-icon: "\266A";
   --bf-bg-1: rgba(255, 255, 255, 0.96);
   --bf-bg-2: rgba(238, 241, 252, 0.96);
   --bf-text: #1b1d33;
@@ -88,6 +89,7 @@
   --bf-weight: 500;
   --bf-letter-spacing: 0;
   --bf-radius: 10px;
+  --bf-icon: "\266B";
   --bf-bg-1: rgba(0, 0, 0, 0.78);
   --bf-bg-2: rgba(0, 0, 0, 0.78);
   --bf-text: #ffffff;
@@ -113,6 +115,7 @@
    System fonts only: the overlay never loads a font from the internet. */
 :where(html[data-style="retro"]) {
   --bf-font: 'Lucida Console', Menlo, Monaco, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace;
+  --bf-icon: "\25BA";
   --bf-weight: 700;
   --bf-letter-spacing: -0.06em;
   --bf-toast-letter-spacing: -0.04em;
@@ -146,6 +149,7 @@
   --bf-letter-spacing: 0.02em;
   --bf-toast-letter-spacing: 0.04em;
   --bf-radius: 4px;
+  --bf-icon: "\2605";
   --bf-bg-1: #000000;
   --bf-bg-2: #000000;
   --bf-text: #ffffff;
@@ -239,9 +243,11 @@ html, body {
   margin: 0 auto;
 }
 
-/* Icon, left side. The overlay script rotates it per bubble. */
+/* Icon, left side. The overlay script rotates it per bubble, unless a look sets --bf-icon
+   (a character such as "\266B", or url(...)), which then replaces the rotation. Classic keeps
+   the rotation; the other Styles use one plain character that takes the Style's text color. */
 .popup-bubble::before {
-  content: var(--bubble-icon, '\266A');
+  content: var(--bf-icon, var(--bubble-icon, '\266A'));
   position: absolute;
   top: 0.8em;
   left: 0.7em;

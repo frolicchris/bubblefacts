@@ -23,6 +23,24 @@ describe("docs/DESIGN.md", () => {
   });
 });
 
+describe("--bf-icon", () => {
+  it("replaces the rotating icon when a look sets it", () => {
+    expect(css).toContain("content: var(--bf-icon, var(--bubble-icon,");
+  });
+
+  it("is set by every Style except Classic, to a plain character that isn't an emoji", () => {
+    expect(css).not.toMatch(/:where\(:root\) \{[^}]*--bf-icon/);
+    for (const style of ["light", "minimal", "retro", "high-contrast"]) {
+      const block = new RegExp(`:where\\(html\\[data-style="${style}"\\]\\) \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+      const icon = /--bf-icon:\s*"\\([0-9A-F]{4})"/.exec(block)?.[1];
+      expect(icon).toBeDefined();
+      // Plain symbols only: music notes, geometric shapes and dingbats, which take the text color.
+      expect(parseInt(icon ?? "0", 16)).toBeGreaterThanOrEqual(0x2190);
+      expect(parseInt(icon ?? "0", 16)).toBeLessThan(0x2800);
+    }
+  });
+});
+
 describe("frontend/obs/design-preview.html", () => {
   it("loads the overlay's own stylesheet and offers every built-in Style", () => {
     expect(preview).toContain('href="obs-overlay.css"');
