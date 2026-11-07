@@ -21,7 +21,7 @@
     "@anthropic-ai/sdk": "^0.137.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "node-llama-cpp": "^3.22.2",
+    "node-llama-cpp": "^3.22.3",
     "ws": "^8.22.0"
   },
   "devDependencies": {
