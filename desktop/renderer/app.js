@@ -394,7 +394,7 @@
   });
 
   /** The built-in AI's quality setting, in the words Settings uses. */
-  const qualityName = (q = state.settings.aiQuality) => (q === "high" ? "High quality" : "Standard");
+  const qualityName = (q = state.settings.aiQuality) => (q === "high" ? "Larger AI" : "Standard");
   /** Downloading the other quality while the model already here keeps writing facts. */
   const switchingQuality = () => state.settings.ai === "builtin" && state.modelSwitching;
 
@@ -1148,7 +1148,7 @@
       else add("info", `BubbleFacts ${v} is available.`, "Update now", () => api.downloadUpdate());
     }
     if (state.builtinFailed && state.settings.ai === "builtin" && state.settings.aiQuality === "high") {
-      add("warn", "The High quality AI can't run on this computer, most likely because it needs more memory. For now, songs get facts from music databases and your own facts. Standard needs about half the memory.", "Use Standard", async () => {
+      add("warn", "The Larger AI can't run on this computer, most likely because it needs more memory. For now, songs get facts from music databases and your own facts. Standard needs about half the memory.", "Use Standard", async () => {
         const saved = await api.saveSettings({ aiQuality: "standard" });
         if (saved.error) return;
         state = saved;
@@ -1291,7 +1291,7 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
-    // Someone already using an online AI, High quality or the example packs finds them open.
+    // Someone already using an online AI, Larger AI or the example packs finds them open.
     $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
@@ -1312,17 +1312,17 @@
     for (const el of $$("[data-edition]")) el.hidden = el.dataset.edition !== (isLite() ? "lite" : "full");
   }
 
-  /** High quality is a choice under "On this computer", with a warning (never a block) where it may struggle. */
+  /** Larger AI is a choice under "On this computer", with a warning (never a block) where it may struggle. */
   const GB = 1024 ** 3;
   function renderQuality() {
     $("#s-quality-box").hidden = form.elements.ai.value !== "builtin" || isLite();
     const reasons = [];
     // A computer sold with 16 GB reports a little less, as some is set aside for the system.
     if (state.totalMemory && state.totalMemory < 15 * GB) {
-      reasons.push(`This computer has ${Math.round(state.totalMemory / GB)} GB of memory, and High quality needs 16 GB. It may run slowly or not load.`);
+      reasons.push(`This computer has ${Math.round(state.totalMemory / GB)} GB of memory, and Larger AI needs 16 GB. It may run slowly or not load.`);
     }
     if (state.platform === "darwin" && state.arch !== "arm64") {
-      reasons.push("This Mac has an Intel processor, so High quality runs without the graphics chip: several times slower, with fewer bubbles per song.");
+      reasons.push("This Mac has an Intel processor, so Larger AI runs without the graphics chip: several times slower, with fewer bubbles per song.");
     }
     const warning = $("#s-quality-warning");
     const warn = form.elements.aiQuality.value === "high" && reasons.length > 0;

@@ -13,7 +13,7 @@ import type { Settings } from "./settings";
 /**
  * The server's settings for preparing: the Standard model writes the first pass when High
  * quality is chosen and Standard is downloaded too, being several times faster (issue #296).
- * Songs it wrote are written again by High quality once every song has its first pass.
+ * Songs it wrote are written again by Larger AI once every song has its first pass.
  */
 export function prepareEnv(s: Pick<Settings, "ai" | "aiQuality">, modelsDir: string, ready: (model: ModelFile) => boolean): Record<string, string> {
   if (s.ai !== "builtin" || s.aiQuality !== "high" || !ready(MODEL)) return {};

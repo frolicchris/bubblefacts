@@ -95,7 +95,7 @@ describe("the two built-in models", () => {
     });
   });
 
-  it("pins the high quality model to one commit, size and checksum", () => {
+  it("pins the larger AI model to one commit, size and checksum", () => {
     expect(real.high).toEqual({
       file: "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
       url: "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/bf5b95e96dac0462e2a09145ec66cae9a3f12067/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
@@ -111,7 +111,7 @@ describe("the two built-in models", () => {
     expect(diskNeeded(real.high)).toBe("about 5.5 GB");
   });
 
-  it("downloads the high quality model to its own file, leaving the standard one alone", async () => {
+  it("downloads the larger AI model to its own file, leaving the standard one alone", async () => {
     mockFetch.mockResolvedValueOnce(serve(data));
     await downloadModel(dir, () => {}, new AbortController().signal);
     mockFetch.mockResolvedValueOnce(serve(highData));
@@ -131,7 +131,7 @@ describe("the two built-in models", () => {
     expect(modelReady(dir, MODEL_HIGH)).toBe(false);
   });
 
-  it("resumes the high quality model from its own partial file", async () => {
+  it("resumes the larger AI model from its own partial file", async () => {
     fs.writeFileSync(modelPath(dir, MODEL_HIGH) + ".part", highData.subarray(0, 150_000));
     mockFetch.mockResolvedValueOnce(serve(highData.subarray(150_000), 206));
     await downloadModel(dir, () => {}, new AbortController().signal, MODEL_HIGH);
@@ -139,7 +139,7 @@ describe("the two built-in models", () => {
     expect(fs.readFileSync(modelPath(dir, MODEL_HIGH)).equals(highData)).toBe(true);
   });
 
-  it("deletes a high quality download that fails its checksum", async () => {
+  it("deletes a larger AI download that fails its checksum", async () => {
     const bad = Buffer.from(highData);
     bad[9] ^= 0xff;
     mockFetch.mockResolvedValueOnce(serve(bad));

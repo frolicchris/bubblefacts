@@ -6,7 +6,7 @@ import { batteryFromPmset, batteryFromSysfs, batteryFromWin32, Conditions, linux
 
 describe("prepareEnv (issue #296)", () => {
   const all = () => true;
-  it("has the Standard model prepare the first pass when High quality is chosen and Standard is downloaded", () => {
+  it("has the Standard model prepare the first pass when Larger AI is chosen and Standard is downloaded", () => {
     expect(prepareEnv({ ai: "builtin", aiQuality: "high" }, "/models", all)).toEqual({ PREPARE_MODEL_PATH: path.join("/models", MODEL.file) });
   });
 
