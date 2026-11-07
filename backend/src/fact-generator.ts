@@ -738,7 +738,7 @@ function loadBuiltin(): Promise<Loaded> {
   return builtin;
 }
 
-/** Whether preparing uses its own model: Standard while High quality is on stream (issue #296). */
+/** Whether preparing uses its own model: Standard while Larger AI is on stream (issue #296). */
 const usesPrepModel = () => Boolean(config.prepareModelPath) && config.prepareModelPath !== config.modelPath;
 
 function loadPrepBuiltin(): Promise<Loaded> {

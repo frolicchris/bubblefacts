@@ -13,7 +13,7 @@ download script asking GitHub's public API for the newest release.
 | `download.html` | Signing note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, the beta box, the BubbleFacts Lite box, updating, and a collapsed "For security-conscious users and developers" with the in-browser checker and the file names and commands |
 | `guide.html` | Step-by-step setup, then "Make it yours" (your facts and display settings) |
 | `troubleshooting.html` | What you see, why, and what to do, as one table |
-| `requirements.html` | System requirements, High quality, speed, BubbleFacts Lite, fallback when the built-in AI can't run |
+| `requirements.html` | System requirements, Larger AI, speed, BubbleFacts Lite, fallback when the built-in AI can't run |
 | `changelog.html` | What's new in each version |
 | `uninstall.html` | Removing the app, its settings and the AI model |
 | `support.html` | Where to get help and report problems |

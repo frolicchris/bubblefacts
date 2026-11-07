@@ -29,7 +29,7 @@ export const MODEL: ModelFile = {
 };
 
 /**
- * The "High quality" choice: Meta's Llama 3.1 8B Instruct, 4-bit. About half
+ * The "Larger AI" choice: Meta's Llama 3.1 8B Instruct, 4-bit. About half
  * the wrong facts of the 3B in a fact check, but a 5 GB download that needs
  * 16 GB of memory and writes 1.5 to 2 times slower, so it's opt-in.
  */

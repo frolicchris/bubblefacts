@@ -156,7 +156,7 @@ describe("Preparer (issue #293)", () => {
     const { p, deps, prepared } = preparer({ streamModel: () => "high.gguf" });
     p.start();
     await p.stopped();
-    // First pass: every song by the Standard model, then each again by High quality, most requested first.
+    // First pass: every song by the Standard model, then each again by Larger AI, most requested first.
     expect(prepared).toEqual(["Tin Roof", "Low Tide", "Harbor Lights", "Tin Roof", "Low Tide", "Harbor Lights"]);
     const calls = (deps.prepare as jest.Mock).mock.calls;
     expect(calls.slice(0, 3).every((c) => !c[2].streamModel)).toBe(true);

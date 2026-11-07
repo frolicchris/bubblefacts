@@ -202,7 +202,7 @@ function state() {
     // Downloading the newly chosen quality while the other model keeps writing facts.
     modelSwitching: EDITION === "full" && activeModel() === otherModel(),
     modelLicense: chosenModel().license,
-    // High quality needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
+    // Larger AI needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
     totalMemory: os.totalmem(),
     arch: process.arch,
     version: app.getVersion(),
@@ -974,7 +974,7 @@ handle("remove-data", async () => {
     cancelId: 1,
     message: "Remove all BubbleFacts data?",
     detail:
-      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for High quality), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the facts prepared for your songs and the songs played on stream, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
+      "This signs you out of your song list, disconnects Twitch, and deletes your settings, the downloaded AI (about 2 GB, or about 5 GB for Larger AI), your custom facts, the facts you added for particular songs, the sources you marked Wrong and the log of your Wrong presses, the facts prepared for your songs and the songs played on stream, the logs and the automatic backups. A backup you saved elsewhere with Back up… stays. Then BubbleFacts quits. The app itself stays until you remove it.",
   };
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
