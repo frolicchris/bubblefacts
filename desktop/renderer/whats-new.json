@@ -1,4 +1,9 @@
 {
+  "2.2.0-beta.4": [
+    "Pick an icon for your bubbles: Settings, under Bubbles, next to Style.",
+    "High quality is now called Larger AI. Standard is still the one we recommend.",
+    "Updates are now checked against a signature, so BubbleFacts can tell an update came from its own release."
+  ],
   "2.2.0-beta.3": [
     "Prepare my songs: facts ready the moment a song starts. Turn it on in Settings.",
     "Styles for the bubbles, High contrast included: Settings, under Bubbles.",

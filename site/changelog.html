@@ -26,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.2.0-beta.3">
-  <script src="assets/site.js?v=2.2.0-beta.3" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.2.0-beta.4">
+  <script src="assets/site.js?v=2.2.0-beta.4" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -53,6 +53,21 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-2-beta4">
+          <h2 id="v2-2-beta4">Version 2.2.0-beta.4 <span class="tag">Beta, November 7, 2026</span></h2>
+          <p>A choice of bubble icons, safer in-app updates, and a clearer name for the larger AI.</p>
+          <ul>
+            <li>New: an <span class="ui">Icon</span> choice under <span class="ui">Settings</span>, <span class="ui">Bubbles</span>, next to Style: the Style's own, music symbols, heart, star, moon or diamond. It shows on stream as soon as you click Save.</li>
+            <li>New: for designers of custom looks, a stable <code>--bf-icon</code> setting, a short design guide and a preview page that shows a look without the app, all on GitHub.</li>
+            <li>Improved: Light, Minimal, Retro game and High contrast each use one plain icon in the Style's own colors, so it never clashes. Classic keeps its rotating symbols.</li>
+            <li>Improved: <span class="ui">High quality</span> is now called <span class="ui">Larger AI</span>. In our latest fact check it was not more accurate than Standard, so Standard is still the one we recommend.</li>
+            <li>Improved: Troubleshooting starts with a fix for bubbles that vanish after a new Custom CSS: empty the Custom CSS box in OBS and click OK.</li>
+            <li>Fixed: a song whose album has no usable name no longer shows "appears on -".</li>
+            <li>Security: in-app updates now check a signature on each release's checksum list, not only the checksum. Earlier releases carry no signature, so updating from beta.3 or earlier opens the download page.</li>
+            <li>Security: the library that runs the built-in AI is updated, clearing known advisories.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-2-beta3">
           <h2 id="v2-2-beta3">Version 2.2.0-beta.3 <span class="tag">Beta, November 2, 2026</span></h2>
