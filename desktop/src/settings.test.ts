@@ -549,6 +549,21 @@ describe("bubble Styles and your own colors (issue #177)", () => {
     expect(serverSettingsSignature(env(larger), larger)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
   });
 
+  it("sends a new icon to the running server, never restarting it", () => {
+    const heart = { ...DEFAULTS, bubbleIcon: "heart" as const };
+    expect(styleEnv(heart)).toMatchObject({ BUBBLE_ICON: "heart" });
+    expect(JSON.stringify(styleEnv(heart))).not.toBe(JSON.stringify(styleEnv(DEFAULTS)));
+    const env = (s: typeof DEFAULTS) => ({ AI_PROVIDER: "none", ...styleEnv(s) });
+    expect(serverSettingsSignature(env(heart), heart)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
+  });
+
+  it("gives a settings file from before icons the Style's own, and never keeps an unknown icon", () => {
+    const { bubbleIcon: _gone, ...old } = DEFAULTS;
+    expect(sanitize(old as typeof DEFAULTS).bubbleIcon).toBe("style");
+    expect(sanitize({ ...DEFAULTS, bubbleIcon: "skull" as "heart" }).bubbleIcon).toBe("style");
+    for (const icon of ["style", "notes", "heart", "star", "moon", "diamond"] as const) expect(sanitize({ ...DEFAULTS, bubbleIcon: icon }).bubbleIcon).toBe(icon);
+  });
+
   it("keeps each built-in Style, and an unknown one falls back to classic", () => {
     for (const style of ["classic", "light", "minimal", "retro", "high-contrast"] as const) expect(sanitize({ ...DEFAULTS, bubbleStyle: style }).bubbleStyle).toBe(style);
     expect(sanitize({ ...DEFAULTS, bubbleStyle: "neon" as "retro" }).bubbleStyle).toBe("classic");

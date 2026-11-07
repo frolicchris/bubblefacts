@@ -202,4 +202,17 @@ describe("the bubble icon choice", () => {
     expect(out).not.toHaveProperty("icon");
     expect(lines.join(" ")).toMatch(/Unknown bubble icon/);
   });
+
+  it("reports a value of the wrong type, and stays quiet when nothing was given", () => {
+    for (const icon of [123, {}, [], true]) {
+      const lines: string[] = [];
+      expect(from("minimal", "", "", (l) => lines.push(l), { icon })).not.toHaveProperty("icon");
+      expect(lines.join(" ")).toMatch(/Unknown bubble icon/);
+    }
+    for (const icon of [undefined, null, "", "  "]) {
+      const lines: string[] = [];
+      from("minimal", "", "", (l) => lines.push(l), { icon });
+      expect(lines).toEqual([]);
+    }
+  });
 });

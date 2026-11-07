@@ -141,7 +141,10 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
   const verticalScale = scaleFrom(sizes.verticalScale);
   const rawIcon = typeof sizes.icon === "string" ? sizes.icon.trim().toLowerCase() : "";
   const icon = (BUBBLE_ICONS as readonly string[]).includes(rawIcon) ? (rawIcon as BubbleIconName) : "style";
-  if (rawIcon && rawIcon !== icon) warn(`Unknown bubble icon "${String(sizes.icon).slice(0, 40)}": using the Style's own. Choose ${BUBBLE_ICONS.join(", ")}.`);
+  // Anything supplied that isn't one of the choices is reported, whatever its type (a number or an object from a hand-written request too).
+  const iconGiven = sizes.icon !== undefined && sizes.icon !== null && rawIcon !== "";
+  const iconSupplied = iconGiven || (sizes.icon !== undefined && sizes.icon !== null && typeof sizes.icon !== "string");
+  if (iconSupplied && rawIcon !== icon) warn(`Unknown bubble icon "${String(sizes.icon).slice(0, 40)}": using the Style's own. Choose ${BUBBLE_ICONS.join(", ")}.`);
   return {
     type: "style",
     style: name,
