@@ -35,6 +35,16 @@
         <option value="high-contrast">High contrast</option>
       </select>
     </label>
+    <label>Icon
+      <select id="icon">
+        <option value="">The Style's own</option>
+        <option value="notes">Music symbols (rotating)</option>
+        <option value="heart">Heart</option>
+        <option value="star">Four-point star</option>
+        <option value="moon">Crescent moon</option>
+        <option value="diamond">Diamond</option>
+      </select>
+    </label>
     <label>Banner
       <select id="banner">
         <option value="now">Now Playing</option>
@@ -68,7 +78,8 @@
       var live = document.getElementById("banner").value === "live";
       var banner = '<div class="song-toast visible' + (live ? " live-learn" : "") + '"><span class="toast-label">' +
         (live ? "▶ LIVE LEARN" : "▶ NOW PLAYING") + "</span>  Sample Song — Sample Artist" + (live ? " (requested by a viewer)" : "") + "</div>";
-      return "<!DOCTYPE html><html" + (vertical ? ' data-layout="vertical"' : "") + ' data-style="' + document.getElementById("style").value + '"><head>' +
+      return "<!DOCTYPE html><html" + (vertical ? ' data-layout="vertical"' : "") + ' data-style="' + document.getElementById("style").value + '"' +
+        (document.getElementById("icon").value ? ' data-icon="' + document.getElementById("icon").value + '"' : "") + "><head>" +
         '<link rel="stylesheet" href="obs-overlay.css"><style>' + document.getElementById("css").value.replace(/<\/style/gi, "") + "</style></head>" +
         '<body><div id="bubble-container">' + facts + banner + "</div></body></html>";
     }
@@ -85,7 +96,7 @@
       fit("landscape", 1920, 1080, "stage-landscape");
       fit("vertical", 1080, 1920, "stage-vertical");
     }
-    ["style", "banner", "css"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });
+    ["style", "icon", "banner", "css"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });
     window.addEventListener("resize", render);
     render();
   </script>

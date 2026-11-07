@@ -207,6 +207,7 @@ bubble size is `BUBBLE_VERTICAL_SCALE` (see [The look](#the-look)), apart from
 | Setting | Default | What it does |
 |---|---|---|
 | `BUBBLE_STYLE` | `classic` | The look of the bubbles and the Now Playing bubble, on both overlays: `classic` (dark blue), `light`, `minimal`, `retro` or `high-contrast` (white on solid black, a yellow frame, the easiest to read). Anything else shows `classic`, with a `[Config]` line in the log. |
+| `BUBBLE_ICON` | `style` | The icon at the left of each bubble: `style` (each Style's own; Classic rotates through its set), `notes` (the rotating music symbols under any Style), `heart`, `star`, `moon` or `diamond`. Anything else shows the Style's own, with a `[Config]` line in the log. Designers can set any character or image with `--bf-icon` instead (see [DESIGN.md](DESIGN.md)). |
 | `BUBBLE_ACCENT` | (empty) | Your own accent color for the border and the Now Playing label, written `#rrggbb` (like `#ff8800`). Used only together with `BUBBLE_BACKGROUND`. |
 | `BUBBLE_SCALE` | (empty) | Bubble size on the landscape overlay, from `0.5` to `3` (the app's Standard, Large and Larger are `1`, `1.25` and `1.5`). Empty, or a size outside that range, keeps the size written in `obs-overlay.css`. The app sends a new size live, with no Refresh in OBS. |
 | `BUBBLE_VERTICAL_SCALE` | (empty) | The same for the vertical overlay (the app's sizes there are `1`, `1.15` and `1.3`). |

@@ -171,6 +171,14 @@
   --bf-live-learn: #ffe600;
 }
 
+/* The Icon setting: one plain character under any Style, or the rotation back. After the Styles
+   above, so it wins over a Style's own icon; still no specificity, so Custom CSS wins over both. */
+:where(html[data-icon="notes"]) { --bf-icon: initial; }
+:where(html[data-icon="heart"]) { --bf-icon: "\2665"; }
+:where(html[data-icon="star"]) { --bf-icon: "\2726"; }
+:where(html[data-icon="moon"]) { --bf-icon: "\263E"; }
+:where(html[data-icon="diamond"]) { --bf-icon: "\25C6"; }
+
 /* === Reset & Base — Transparent for OBS Browser Source === */
 * {
   margin: 0;

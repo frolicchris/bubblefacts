@@ -136,6 +136,7 @@ export const config = {
   // The bubbles' look (issue #177): a built-in Style, and optionally the streamer's own accent and background.
   // Never a startup error: an unknown Style or a mistyped color falls back to the classic look.
   bubbleStyle: styleFrom(process.env.BUBBLE_STYLE, process.env.BUBBLE_ACCENT, process.env.BUBBLE_BACKGROUND, (line) => console.warn(`[Config] ${line}`), {
+    icon: process.env.BUBBLE_ICON,
     scale: process.env.BUBBLE_SCALE,
     verticalScale: process.env.BUBBLE_VERTICAL_SCALE,
   }),

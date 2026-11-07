@@ -79,6 +79,8 @@ export interface Settings {
   verticalArea: "top" | "above-chat";
   /** The bubbles' look (issue #177), for both overlays. See BUBBLE_STYLES. */
   bubbleStyle: BubbleStyle;
+  /** The icon at the left of each bubble (see BUBBLE_ICONS): the Style's own unless chosen. */
+  bubbleIcon: BubbleIcon;
   /** Your own colors on top of the Style: an accent and a background, each #rrggbb. Text color is picked for contrast. */
   customColors: boolean;
   accentColor: string;
@@ -114,6 +116,10 @@ export type WrongKey = keyof typeof WRONG_KEYS;
 /** The built-in Styles, as the overlay's CSS names them (BUBBLE_STYLES in the server's bubble-style.ts). Classic is the dark blue. */
 export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-contrast"] as const;
 export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
+
+/** The bubble icon choices, as the server's BUBBLE_ICONS names them. "style" keeps each Style's own icon. */
+export const BUBBLE_ICONS = ["style", "notes", "heart", "star", "moon", "diamond"] as const;
+export type BubbleIcon = (typeof BUBBLE_ICONS)[number];
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
@@ -159,6 +165,7 @@ export const DEFAULTS: Settings = {
   verticalBubbleSize: "standard",
   verticalArea: "top",
   bubbleStyle: "classic",
+  bubbleIcon: "style",
   customColors: false,
   // Classic's own: turning custom colors on starts from the look already on stream.
   accentColor: "#5b6ee1",
@@ -320,6 +327,7 @@ export function sanitize(s: Settings): Settings {
     verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
     verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
     bubbleStyle: oneOf(s.bubbleStyle, BUBBLE_STYLES, "classic"),
+    bubbleIcon: oneOf(s.bubbleIcon, BUBBLE_ICONS, "style"),
     accentColor: hexColor(s.accentColor, DEFAULTS.accentColor),
     backgroundColor: hexColor(s.backgroundColor, DEFAULTS.backgroundColor),
     myFacts: lines(s.myFacts),
@@ -380,7 +388,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -406,7 +414,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 /** The settings that sanitize holds to a list of values. */
-export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
+export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
@@ -535,9 +543,10 @@ export function topicList(s: Settings): string[] {
  * The bubbles' look as the server reads it. Blank colors when custom colors are off, so a running
  * server told this (and any restart after it) goes back to the Style's own.
  */
-export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string } {
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string } {
   return {
     BUBBLE_STYLE: s.bubbleStyle,
+    BUBBLE_ICON: s.bubbleIcon,
     BUBBLE_ACCENT: s.customColors ? s.accentColor : "",
     BUBBLE_BACKGROUND: s.customColors ? s.backgroundColor : "",
     // Bubble size goes the same way, so a new size shows without a Refresh in OBS.
@@ -553,7 +562,7 @@ export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ACCENT: st
  */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
   // The look goes to the running server too (POST /control/style), so a new one never restarts it.
-  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, ...rest } = env;
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

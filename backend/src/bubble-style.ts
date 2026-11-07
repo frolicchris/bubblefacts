@@ -10,6 +10,13 @@ export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-cont
 export type BubbleStyleName = (typeof BUBBLE_STYLES)[number];
 
 /**
+ * The bubble icon choices. "style" is the default: each Style's own icon (Classic rotates through its own set).
+ * "notes" brings back that rotation under any Style; the rest are one plain character each.
+ */
+export const BUBBLE_ICONS = ["style", "notes", "heart", "star", "moon", "diamond"] as const;
+export type BubbleIconName = (typeof BUBBLE_ICONS)[number];
+
+/**
  * How opaque a custom background is: fully. A see-through mid-tone (a gray, a medium blue) over
  * the stream's video can't keep 4.5:1 with any text color, as light video lightens it and dark
  * video darkens it; opaque, black or white text always does. The overlay uses the same number.
@@ -38,6 +45,8 @@ export interface StylePayload {
   /** Bubble size for the landscape overlay and the vertical one (`--bf-scale`, `--bf-vertical-scale`), when set. */
   scale?: number;
   verticalScale?: number;
+  /** The streamer's icon choice, when it isn't the Style's own. */
+  icon?: BubbleIconName;
 }
 
 /** The sizes a Bubble size may be: smaller would be unreadable, bigger covers the stream. */
@@ -119,7 +128,7 @@ export function customColors(accent: string, background: string): StyleColors {
  * colors are used only when both are a real #rrggbb. A typo must never stop bubbles showing.
  * `warn` hears about anything ignored.
  */
-export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown } = {}): StylePayload {
+export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown; icon?: unknown } = {}): StylePayload {
   const raw = typeof style === "string" ? style.trim().toLowerCase() : "";
   const name = (BUBBLE_STYLES as readonly string[]).includes(raw) ? (raw as BubbleStyleName) : "classic";
   if (raw && raw !== name) warn(`Unknown bubble style "${String(style).slice(0, 40)}": using classic. Choose ${BUBBLE_STYLES.join(", ")}.`);
@@ -130,11 +139,15 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
   // Bubble size goes with the look, so it too changes on stream without a Refresh in OBS.
   const scale = scaleFrom(sizes.scale);
   const verticalScale = scaleFrom(sizes.verticalScale);
+  const rawIcon = typeof sizes.icon === "string" ? sizes.icon.trim().toLowerCase() : "";
+  const icon = (BUBBLE_ICONS as readonly string[]).includes(rawIcon) ? (rawIcon as BubbleIconName) : "style";
+  if (rawIcon && rawIcon !== icon) warn(`Unknown bubble icon "${String(sizes.icon).slice(0, 40)}": using the Style's own. Choose ${BUBBLE_ICONS.join(", ")}.`);
   return {
     type: "style",
     style: name,
     ...(a && b ? { colors: customColors(a, b) } : {}),
     ...(scale !== null ? { scale } : {}),
     ...(verticalScale !== null ? { verticalScale } : {}),
+    ...(icon !== "style" ? { icon } : {}),
   };
 }
