@@ -623,9 +623,16 @@ the safe side of "at least once".
 
 When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 `ollama`), the credit says so and that BubbleFacts doesn't stand behind them
-(`OTHER_AI_CREDIT_TEXT`: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and
-MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible
-for them. · BubbleFacts"). Their captions go through the same screening, but
+(`OTHER_AI_CREDIT_TEXT`: "Some facts are adapted from Wikipedia (CC BY-SA
+4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong.
+bubblefacts.frolic.org/credits.html"). It states facts a viewer can check
+rather than a bare "not responsible": a bubble is no contract with viewers, so
+what limits BubbleFacts' liability is the MIT license's "as is" terms with the
+streamer, and the full disclaimer on the credits page (`#other-ai`), which the
+bubble points to. "Adapted" and the license name are what CC BY-SA 4.0 asks
+of a modified work (section 3(a)(1)(B) and (C)); the page carries the rest, as
+section 3(a)(2) allows. This wording was weighed for legal soundness, not
+written by a lawyer. Their captions go through the same screening, but
 the fact check before each release is run on the built-in AI, so nothing
 measures how often another AI is wrong or strays from the content standard.
 The same once-each-stream rule applies, switch or no switch. The session file

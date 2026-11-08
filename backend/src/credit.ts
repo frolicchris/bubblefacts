@@ -8,18 +8,25 @@ import { Fact } from "./types";
  * song's facts of each stream, then with about every fifth song that has
  * facts, for viewers who joined later. `CREDIT_BUBBLE=off` stops the repeats
  * but not the first one: every stream that shows facts shows it at least once.
- * When an AI other than BubbleFacts' own writes the facts, the credit also says
- * BubbleFacts isn't responsible for them (`OTHER_AI_CREDIT_TEXT`).
+ * When an AI other than BubbleFacts' own writes the facts, the credit says so,
+ * that BubbleFacts doesn't verify them, and where the full disclaimer is
+ * (`OTHER_AI_CREDIT_TEXT`).
  */
 
 export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts";
 /**
  * The credit when the streamer chose another AI to write the facts: an online service (Groq and
  * other OpenAI-style services, Anthropic) or their own Ollama model. BubbleFacts' screening still
- * runs, but the fact check before each release is the built-in AI's, so BubbleFacts doesn't stand
- * behind what another AI writes. Within MAX_FACT_CHARS, like any bubble.
+ * runs, but it's word-level, not verification, and the fact check before each release is the
+ * built-in AI's, so BubbleFacts doesn't stand behind what another AI writes. Every word is a fact a
+ * viewer can check, not a conclusion: who adapted the facts (an AI the streamer chose), that
+ * BubbleFacts didn't verify them, that they may be wrong, and the page with the full disclaimer
+ * and the license notices (credits.html#other-ai). "Adapted" and the license name are what CC BY-SA
+ * 4.0 asks of a modified work (section 3(a)(1)(B) and (C)); the page covers the rest
+ * (section 3(a)(2)). Wikidata and MusicBrainz (CC0) need no credit, and the page names them. Within
+ * MAX_FACT_CHARS, like any bubble. Its wording was weighed for legal soundness, but not by a lawyer.
  */
-export const OTHER_AI_CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible for them. · BubbleFacts";
+export const OTHER_AI_CREDIT_TEXT = "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html";
 const OTHER_AIS: ReadonlySet<string> = new Set(["openai", "anthropic", "ollama"]);
 /** The credit for the AI that writes the facts (`AI_PROVIDER`). */
 export function creditText(provider: string | undefined = config.aiProvider): string {

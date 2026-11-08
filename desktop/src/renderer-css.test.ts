@@ -97,7 +97,7 @@ describe("Settings", () => {
     const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
     expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
     expect(choice).toContain('name="ai" value="groq"');
-    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying BubbleFacts isn't responsible for its facts. If you switch back and save, these choices go away.");
+    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.");
     const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));
     for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
     const js = read("app.js");

@@ -112,8 +112,8 @@ describe("the credit bubble's content", () => {
     expect(CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts");
   });
 
-  it("says BubbleFacts isn't responsible when another AI writes the facts, at a bubble's length", () => {
-    expect(OTHER_AI_CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible for them. · BubbleFacts");
+  it("says when another AI writes the facts that BubbleFacts doesn't verify them, at a bubble's length", () => {
+    expect(OTHER_AI_CREDIT_TEXT).toBe("Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html");
     for (const text of [CREDIT_TEXT, OTHER_AI_CREDIT_TEXT]) expect(text.length).toBeLessThanOrEqual(MAX_FACT_CHARS);
     // Groq and other OpenAI-style services, Anthropic, and the streamer's own Ollama.
     for (const ai of ["openai", "anthropic", "ollama"]) expect(creditText(ai)).toBe(OTHER_AI_CREDIT_TEXT);

@@ -101,7 +101,7 @@ Good to know:
 | `TOPIC` | `video-game,classical,film,pop,general` | Which topic packs (files of facts in `topics/`) to use when a song has no Wikipedia article, separated by commas. The default uses the example packs; list your own pack's name to use it, or set it to nothing (`TOPIC=`) for no custom facts, so a song without an article gets no bubbles. The desktop app never uses the example packs, only the facts you type in its Settings. Keep `general`, or your own pack with originals lines, if you play your own compositions. They take turns, and one shown in the last hour waits, so five or more keep the bubbles full. The overlay only reads these files. |
 | `ORIGINALS` | `on` | `on` if you play your own compositions: songs tagged "Originals" in StreamerSongList, or with you as the artist, get facts from your song list instead of a lookup. `off` looks them up like any other song. |
 | `NOW_PLAYING` | `on` | `off` hides the Now Playing bubble on a song change, for when your own overlay already shows the song. |
-| `CREDIT_BUBBLE` | `on` | The credit bubble: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts" With `on`, it shows once before the first song's facts of each stream, then with about every 5th song that has facts, for viewers who join later. With `off`, it still shows once each stream, before the first song's facts, but doesn't repeat: viewers always learn where the facts come from. When Ollama, Groq (or another OpenAI-style service) or Anthropic writes the facts, it reads instead: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible for them. · BubbleFacts" A new stream starts when BubbleFacts starts, or after 20 minutes with no facts on stream. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
+| `CREDIT_BUBBLE` | `on` | The credit bubble: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts" With `on`, it shows once before the first song's facts of each stream, then with about every 5th song that has facts, for viewers who join later. With `off`, it still shows once each stream, before the first song's facts, but doesn't repeat: viewers always learn where the facts come from. When Ollama, Groq (or another OpenAI-style service) or Anthropic writes the facts, it reads instead: "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html" That page has the full disclaimer. A new stream starts when BubbleFacts starts, or after 20 minutes with no facts on stream. It is never shown for a song with no facts, and your song's facts start right after it. A restart in the middle of a stream carries on with the count. |
 | `LIVE_LEARN_BANNER` | `on` | `off` hides the LIVE LEARN bubble that stays up during a live learn. |
 | `LIVE_LEARNS` | `on` | `on` shows a LIVE LEARN banner for off-list requests; facts show only when a source knows the song. `off` treats them like any other song. |
 
@@ -117,8 +117,8 @@ The overlay chooses automatically: Anthropic if you've set
 `ANTHROPIC_API_KEY`, the OpenAI-style option (Groq and others) if you've set
 `OPENAI_API_KEY`, otherwise Ollama on your own computer.
 
-With any of these, the credit bubble tells viewers the facts were retold by an
-AI you chose and that BubbleFacts isn't responsible for them, at least once each
+With any of these, the credit bubble tells viewers some facts are adapted by an
+AI you chose, aren't verified by BubbleFacts and may be wrong, at least once each
 stream (see `CREDIT_BUBBLE`).
 
 | Setting | Default | What it does |
