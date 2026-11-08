@@ -8,7 +8,7 @@ const read = (f: string) => fs.readFileSync(path.join(renderer, f), "utf8");
 
 describe("setup headings", () => {
   it("take focus for screen readers without drawing a focus ring", () => {
-    // The app focuses these h1s when a screen opens; Chromium would outline them.
+    // The app focuses these h1s when a screen opens; Chromium would outline them
     expect(read("index.html")).toMatch(/<h1 tabindex="-1">/);
     expect(read("app.css")).toMatch(/h1\[tabindex="-1"\]:focus\s*\{\s*outline:\s*none;\s*\}/);
   });
@@ -30,7 +30,7 @@ describe("dashboard", () => {
       "Looking up facts for this song. They appear in a few seconds.",
     ]) expect(js).toContain(line);
     expect(js).not.toContain("BubbleFacts is connected and waiting.");
-    // With facts off, a live learn or a failure there are no bubbles, but calling it "normal" would be wrong.
+    // Facts off, a live learn or a failure means no bubbles, but not "normal"
     expect(js).not.toContain("No reliable facts for this song, so no bubbles. That's normal.\"");
   });
 });
@@ -41,15 +41,15 @@ describe("setup's bubble spot question", () => {
     expect(html).toContain("Where should bubbles appear on your stream?");
     const picker = html.slice(html.indexOf('class="screen-pick"'), html.indexOf("</div>", html.indexOf('class="screen-pick"')));
     const values = [...picker.matchAll(/name="setup-area" value="([a-z-]+)"/g)].map((m) => m[1]);
-    // Each one is the one spot its place in the picture shows. "top" and "bottom" spread bubbles along
-    // the whole edge, corners included, so the middle of the picture can't stand for them.
+    // Each is the one spot its place in the picture shows; "top" and "bottom" spread along the whole edge,
+    // corners included, so the picture's middle can't stand for them
     expect(values.sort()).toEqual(["bottom-center", "bottom-left", "bottom-right", "top-center", "top-left", "top-right"]);
-    // Every one is a spot the app accepts, and none is chosen before the musician picks.
+    // Every one is accepted, and none is chosen before the musician picks
     for (const v of values) expect(sanitize({ ...DEFAULTS, bubbleArea: v as Settings["bubbleArea"] }).bubbleArea).toBe(v);
     expect(picker).not.toContain("checked");
-    // A new install still starts at Anywhere until then, and Settings keeps its hint.
+    // A new install starts at Anywhere until then
     expect(DEFAULTS.bubbleArea).toBe("anywhere");
-    // The picture shows where a camera, chat and the Now Playing bar usually sit.
+    // Where a camera, chat and the Now Playing bar usually sit
     for (const label of ["Camera", "Chat", "Now Playing"]) expect(html).toMatch(new RegExp(`class="mock [a-z-]+" aria-hidden="true">${label}<`));
     expect(html).not.toContain("Where's clear on your stream?");
     expect(html).toContain("keep them clear of your camera, keyboard or chat");
@@ -65,7 +65,7 @@ describe("setup's bubble spot question", () => {
 describe("Settings", () => {
   const html = read("index.html");
   const settings = html.slice(html.indexOf('<form id="settings-form"'), html.indexOf("</form>", html.indexOf('<form id="settings-form"')));
-  /** The text inside an element, tags dropped and spaces squeezed. */
+  /** An element's text, tags dropped and spaces squeezed */
   const text = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const cards = (src: string, name: string) =>
     [...src.matchAll(new RegExp(`<label class="choice">\\s*<input type="radio" name="${name}" value="([a-z]+)"[^>]*>\\s*<span class="choice-body">\\s*<strong>([^<]+)</strong>\\s*<span>([\\s\\S]*?)</span>\\s*</span>\\s*</label>`, "g"))]
@@ -76,40 +76,40 @@ describe("Settings", () => {
     const group = settings.slice(start, settings.indexOf("</div>", start));
     expect(group).toContain('aria-describedby="s-ai-paused s-ai-warning"');
     for (const ai of ["groq", "anthropic", "ollama"]) expect(group).toContain(`name="ai" value="${ai}"`);
-    // Right under the choice, read out as it changes, and empty until one of the other AIs is picked.
+    // Under the choice, read out as it changes, empty until another AI is picked
     expect(settings).toContain('<div role="status"><p id="s-ai-warning" class="result bad" hidden></p></div>');
     const js = read("app.js");
     const fn = js.slice(js.indexOf("function renderAiWarning"), js.indexOf("\n  }", js.indexOf("function renderAiWarning")));
     expect(js).toMatch(/const OTHER_AI = \{ groq: "Groq", anthropic: "Anthropic", ollama: "your Ollama model" \}/);
-    // BubbleFacts doesn't control or test another AI, so the warning vouches for nothing: no claim of checks.
+    // BubbleFacts doesn't control or test another AI: the warning claims no checks
     expect(fn).toContain("! BubbleFacts doesn't control or test ${who}, so it can't vouch for its facts, and they may be wrong more often. Press Wrong on any fact that's off, and switch back any time.");
     expect(fn).not.toMatch(/screen|check|verif/i);
     expect(fn).toContain("warning.hidden = !who");
-    // It renders when Settings opens and whenever the choice changes.
+    // Renders when Settings opens and whenever the choice changes
     expect(js).toContain("renderQuality();\n    renderAiWarning();");
     expect(js).toContain("form.querySelectorAll('input[name=\"ai\"]')) el.addEventListener(\"change\", renderAiWarning)");
   });
 
   it("doesn't offer other AIs, but keeps them for someone who already chose one", () => {
-    // The choice and the keys are hidden to start with; only a saved choice of another AI shows them.
+    // Choice and keys start hidden; only a saved choice of another AI shows them
     const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
     expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
     expect(choice).toContain('name="ai" value="groq"');
     expect(choice).toContain("Online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. You can keep the one you chose until then. BubbleFacts doesn't control or test them and can't vouch for their facts, and your viewers see a bubble saying so. If you switch back and save, these choices go away.");
-    // No claim that their facts are checked: BubbleFacts doesn't control that pipeline.
+    // No claim their facts are checked: BubbleFacts doesn't control that pipeline
     expect(choice).not.toMatch(/screen|checked|verified/i);
     const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));
     for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
     const js = read("app.js");
     expect(js).toContain('const otherAi = s.ai !== "builtin";\n    $("#s-other-ai").hidden = !otherAi;\n    $("#s-other-ai-keys").hidden = !otherAi;');
-    // Nothing points people to them: no Switch to Groq, and no fine print offers them, in either edition.
+    // Nothing points people to them, in either edition
     expect(js).not.toContain("Switch to Groq");
     expect(html).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
     expect(html).not.toMatch(/choose (one|another AI|Anthropic|Groq|Ollama|an online AI) under Advanced/i);
-    // Lite is retired: its last release says so and points to the full app.
+    // Lite is retired: its last release says so
     expect(js).toContain('if (isLite()) add("warn", "BubbleFacts Lite is retired, and this is its last update.');
     expect(settings).toContain("Larger AI is under Advanced.");
-    // Saving re-reads the saved settings into the form, which is what hides the choice after switching back.
+    // Saving refills the form from what's saved, which hides the choice after switching back
     const save = js.slice(js.indexOf("async function saveSettingsForm"), js.indexOf("\n  }", js.indexOf("async function saveSettingsForm")));
     expect(save).toContain("state = saved;");
     expect(save).toContain("fillSettings();");
@@ -126,7 +126,7 @@ describe("Settings", () => {
     const nowPlayingCard = settings.indexOf('name="songSource" value="nowplaying"');
     const box = settings.indexOf('<div id="s-np-box"');
     expect(box).toBeGreaterThan(nowPlayingCard);
-    // Nothing else (the sign-in, StreamElements) comes between the card and its choices.
+    // Nothing else (the sign-in, StreamElements) comes between the card and its choices
     expect(settings.slice(nowPlayingCard, box)).not.toMatch(/id="s-(ssl|se)-box"|id="s-signed-in"/);
   });
 
@@ -150,7 +150,7 @@ describe("Settings", () => {
     for (const marker of ["Other music content creators' originals", "<legend>Custom facts", 'id="s-wrongkey"']) {
       expect(after(marker).length).toBeLessThanOrEqual(110);
     }
-    // The bracket rules moved into the box's gray example, which never goes on stream.
+    // The bracket rules are in the box's gray example, which never goes on stream
     const placeholder = settings.match(/id="s-myfacts"[^>]*placeholder="([^"]*)"/)![1];
     expect(placeholder).toContain("[Song of Storms]");
     expect(placeholder).toContain("[Chopin]");
@@ -161,7 +161,7 @@ describe("Settings", () => {
     const label = settings.match(/<label class="inline"><input name="creditBubble"[^>]*>[^<]*<\/label>/);
     expect(label?.[0]).toContain('aria-describedby="s-credit-hint"');
     expect(settings).toMatch(/<\/label>\s*<p class="hint indent" id="s-credit-hint">One extra bubble/);
-    // Unchecked is rarer, not never: the server still credits each stream once (credit.ts).
+    // Unchecked is rarer, not never: the server still credits each stream once (credit.ts)
     expect(settings).toContain("Unchecked, it still shows when you go live in OBS, and again after 20 minutes without facts.");
   });
 
