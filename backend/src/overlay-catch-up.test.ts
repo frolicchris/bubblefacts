@@ -333,4 +333,47 @@ describe("the credit bubble with its switch off", () => {
     const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
     expect(loadSession(now)).toMatchObject({ creditSince: 0, creditText: CREDIT_TEXT });
   });
+
+  it("goes out at once, on top of the song, when OBS says the stream went live", async () => {
+    const { NO_AI_CREDIT_TEXT } = jest.requireActual<typeof import("./credit")>("./credit");
+    const credits = (o: { messages: FactsPayload[] }) => o.messages.filter((m) => (m.type as string) === "credit").map((m) => texts(m.facts ?? []));
+    const streaming = (o: { ws: WebSocket }, on: boolean) => o.ws.send(JSON.stringify({ type: "obs_streaming", streaming: on }));
+    const [main, vertical] = [await overlay(), await overlay()];
+    // A soundcheck: the song's facts go out with OBS open, before going live, and the credit isn't due.
+    now += 60_000;
+    await play([fact("Soundcheck.", 0)]);
+    await play([fact("Warm-up.", 0)]);
+    await until(() => main.messages.filter((m) => m.type === "facts_ready").length === 2);
+    streaming(main, false);
+    await settle();
+    expect(credits(main)).toEqual([]);
+    // Live: the credit goes to every overlay at once, on top of the song, whose facts aren't sent again.
+    const before = main.messages.length;
+    streaming(main, true);
+    await until(() => credits(main).length === 1 && credits(vertical).length === 1);
+    expect(credits(main)).toEqual([[NO_AI_CREDIT_TEXT]]);
+    expect(main.messages.slice(before).map((m) => m.type)).toEqual(["credit"]);
+    // The other overlay and a reload say the same: not another stream.
+    streaming(vertical, true);
+    streaming(main, true);
+    await settle();
+    expect(credits(main)).toHaveLength(1);
+    // Stopped, then live again: another stream, another credit.
+    streaming(main, false);
+    streaming(main, true);
+    await until(() => credits(main).length === 2);
+  });
+
+  it("goes with the next song's facts when the stream goes live between songs", async () => {
+    const { NO_AI_CREDIT_TEXT } = jest.requireActual<typeof import("./credit")>("./credit");
+    const screen = await overlay();
+    screen.ws.send(JSON.stringify({ type: "obs_streaming", streaming: false }));
+    await settle();
+    screen.ws.send(JSON.stringify({ type: "obs_streaming", streaming: true }));
+    await settle();
+    expect(screen.messages.some((m) => (m.type as string) === "credit")).toBe(false);
+    await play([fact("First live.", 0)]);
+    await until(() => screen.messages.some((m) => m.type === "facts_ready"));
+    expect(texts(screen.messages.find((m) => m.type === "facts_ready")!.facts!)).toEqual([NO_AI_CREDIT_TEXT, "First live."]);
+  });
 });

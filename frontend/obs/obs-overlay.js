@@ -308,8 +308,9 @@
       if (msg.song && !msg.quiet) msg.noBanner ? removeToast() : showToast(msg.song);
     } else if (msg.type === "facts_ready") {
       showFacts(msg.song, msg.facts, msg.keep === true);
-    } else if (msg.type === "test_bubble") {
-      // On top of the current song, whose bubbles and state are left alone.
+    } else if (msg.type === "test_bubble" || msg.type === "credit") {
+      // On top of the current song, whose bubbles and state are left alone. "credit": the stream
+      // just went live mid-song, so the bubble that says where the facts come from goes out now.
       if (msg.facts && msg.facts[0]) showBubble(msg.facts[0]);
     } else if (msg.type === "remove_fact") {
       if (songKey(msg.song) !== currentSongKey) return;
@@ -323,13 +324,45 @@
     }
   }
 
+  // --- OBS's streaming signal ---
+
+  /** The open connection, for the one message the overlay sends. */
+  let socket = null;
+
+  /**
+   * OBS tells a Browser source when the stream starts and stops (obs-browser's events), and can
+   * say whether it's streaming now (window.obsstudio.getStatus). The app hears it from here, so
+   * the bubble that says where the facts come from goes out as the stream goes live. Outside OBS,
+   * or if OBS doesn't allow it, nothing is sent and the app keeps to its own timing.
+   */
+  function sendStreaming(streaming) {
+    if (socket && socket.readyState === 1) socket.send(JSON.stringify({ type: "obs_streaming", streaming }));
+  }
+  window.addEventListener("obsStreamingStarted", () => sendStreaming(true));
+  window.addEventListener("obsStreamingStopped", () => sendStreaming(false));
+
+  /** On connecting: whether OBS is already streaming, so a stream that went live first still counts. */
+  function reportStreaming() {
+    const obs = window.obsstudio;
+    if (!obs || typeof obs.getStatus !== "function") return;
+    try {
+      obs.getStatus((status) => {
+        if (status && typeof status.streaming === "boolean") sendStreaming(status.streaming);
+      });
+    } catch {
+      // Not allowed by this source's page permissions: the events above may still come.
+    }
+  }
+
   function connect() {
     const ws = new WebSocket(wsUrl());
     let opened = false;
     ws.onopen = () => {
       opened = true;
+      socket = ws;
       statusDot.classList.add("connected");
       reconnectMs = 1000;
+      reportStreaming();
     };
     ws.onmessage = (event) => {
       let msg;
@@ -341,6 +374,7 @@
       handle(msg);
     };
     ws.onclose = () => {
+      if (socket === ws) socket = null;
       statusDot.classList.remove("connected");
       // The song may change while disconnected: drop its pending bubbles and banner.
       // A reconnect starts fresh with the current song.

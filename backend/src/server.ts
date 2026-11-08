@@ -20,6 +20,7 @@ import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { creditText, planCredit, restoredCredit } from "./credit";
+import { ObsStreaming, parseOverlayMessage } from "./obs-streaming";
 import { SongFactSharer } from "./share-song-facts";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
@@ -39,7 +40,7 @@ const server = http.createServer(app);
 // Only this computer: see local-only.ts.
 const fromHere = (host: string | undefined) => allowedHost(host, config.port, config.host);
 app.use((req, res, next) => (fromHere(req.get("host")) ? next() : res.status(403).end()));
-/** The overlay never sends anything, so anything big is not the overlay. */
+/** The overlay sends one small message (obs-streaming.ts), so anything big is not the overlay. */
 const MAX_WS_MESSAGE = 1024;
 /** OBS needs one per scene that shows the source; more than this is not OBS. */
 const MAX_CLIENTS = 16;
@@ -113,6 +114,8 @@ if (restored) {
 const creditCount = restoredCredit(restored);
 /** When the streamer last pressed Test: the credit bubble keeps clear of it. */
 let testAt = 0;
+/** Whether OBS is streaming, as overlays pass it on. */
+const obsStreaming = new ObsStreaming();
 
 /** The [Shown] lines: logged where facts go out to an overlay, once per play of a song, and kept in the aired facts record. */
 const aired = new AiredFacts();
@@ -201,6 +204,25 @@ function cantPrepare(): string {
   return "";
 }
 
+/**
+ * OBS says the stream just went live: a new stream for the credit bubble, with the switch on or off.
+ * It goes out at once, on top of the song on stream, whose bubbles carry on; with no song's facts
+ * out yet, or paused, or a test bubble up, it goes with the next song's facts instead.
+ */
+function onObsStreaming(streaming: boolean): void {
+  if (!obsStreaming.report(streaming)) return;
+  console.log("[Credit] OBS started streaming: the credit bubble is due");
+  creditCount.newStream();
+  const song = lastSent.song;
+  const facts = lastSent.facts ?? [];
+  if (!song || !lastSent.ready || !facts.length) return;
+  const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
+  if (!plan.credit) return;
+  for (const ws of clients.keys()) send(ws, { type: "credit", song, facts: [plan.credit] });
+  // The count, for a restart.
+  remember(song, facts);
+}
+
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
   saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}) });
 }
@@ -228,6 +250,11 @@ wss.on("connection", (ws, req) => {
   ws.on("error", (err) => {
     console.error(`[WS] Client #${client.id} error: ${err.message}`);
     drop();
+  });
+  // The one message an overlay sends: whether OBS is streaming. Anything else is ignored.
+  ws.on("message", (data, isBinary) => {
+    const msg = isBinary ? null : parseOverlayMessage(String(data));
+    if (msg) onObsStreaming(msg.streaming);
   });
   // First, before any bubble: even while paused, so Resume shows the right look.
   send(ws, bubbleStyle);

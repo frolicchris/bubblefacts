@@ -130,8 +130,11 @@ export type Spot = { top?: string; bottom?: string; left?: string; right?: strin
 
 /** Server-to-overlay WebSocket message. `remove_fact` takes one fact, by `text`, off the current song. */
 export interface FactsPayload {
-  /** `test_bubble`: one bubble shown on top of whatever's playing, which carries on untouched. */
-  type: "new_song" | "facts_ready" | "clear" | "remove_fact" | "test_bubble";
+  /**
+   * `test_bubble`: one bubble shown on top of whatever's playing, which carries on untouched.
+   * `credit`: the credit bubble the same way, when OBS says the stream went live mid-song (credit.ts).
+   */
+  type: "new_song" | "facts_ready" | "clear" | "remove_fact" | "test_bubble" | "credit";
   song?: SSLSong;
   facts?: Fact[];
   text?: string;

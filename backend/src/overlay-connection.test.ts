@@ -335,3 +335,101 @@ describe("more facts for the song on now (issue #256)", () => {
     expect(o.shown).toEqual(["Caption."]);
   });
 });
+
+/**
+ * The overlay in a stand-in OBS: what it sends the app, and what it shows. `obs`: the page's
+ * window.obsstudio, or undefined outside OBS.
+ */
+function inObs(obs?: { getStatus?: (cb: (s: unknown) => void) => void }) {
+  const sent: unknown[] = [];
+  const shown: string[] = [];
+  const listeners: Record<string, Array<() => void>> = {};
+  const timers: Array<() => void> = [];
+  let socket: { onopen?: () => void; onclose?: () => void; onmessage?: (e: { data: string }) => void; readyState: number } = { readyState: 0 };
+  const element = () => {
+    const el: Record<string, unknown> = {
+      classList: { add() {}, remove() {} },
+      dataset: {},
+      style: { setProperty() {} },
+      appendChild() {},
+      append(t: unknown) { if (typeof t === "string") shown.push(t); },
+      addEventListener() {},
+      remove() {},
+      offsetWidth: 0,
+    };
+    return el;
+  };
+  class FakeSocket {
+    readyState = 0;
+    constructor() { socket = this as unknown as typeof socket; }
+    send(data: string) { sent.push(JSON.parse(data)); }
+    close() {}
+  }
+  vm.runInNewContext(SCRIPT, {
+    location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
+    document: { getElementById: element, createElement: element, body: element(), head: { appendChild() {} }, documentElement: { dataset: {} }, querySelector: () => null },
+    window: { innerWidth: 1920, innerHeight: 1080, obsstudio: obs, addEventListener: (name: string, fn: () => void) => (listeners[name] ??= []).push(fn) },
+    WebSocket: FakeSocket,
+    setTimeout: (fn: () => void) => timers.push(fn),
+    clearTimeout: () => {},
+    requestAnimationFrame: (fn: () => void) => fn(),
+    console,
+  });
+  const open = () => { socket.readyState = 1; socket.onopen?.(); };
+  const fire = (name: string) => (listeners[name] ?? []).forEach((fn) => fn());
+  const receive = (msg: object) => socket.onmessage?.({ data: JSON.stringify(msg) });
+  const run = () => { while (timers.length) timers.shift()!(); };
+  return { sent, shown, open, fire, receive, run, close: () => { socket.readyState = 3; socket.onclose?.(); } };
+}
+
+describe("OBS's streaming signal", () => {
+  const status = (streaming: boolean) => ({ getStatus: (cb: (s: unknown) => void) => cb({ streaming, recording: false }) });
+
+  it("tells the app whether OBS is streaming when it connects", () => {
+    const live = inObs(status(true));
+    live.open();
+    expect(live.sent).toEqual([{ type: "obs_streaming", streaming: true }]);
+    const offAir = inObs(status(false));
+    offAir.open();
+    expect(offAir.sent).toEqual([{ type: "obs_streaming", streaming: false }]);
+  });
+
+  it("passes on OBS's events as the stream starts and stops", () => {
+    const page = inObs(status(false));
+    page.open();
+    page.fire("obsStreamingStarted");
+    page.fire("obsStreamingStopped");
+    expect(page.sent).toEqual([false, true, false].map((streaming) => ({ type: "obs_streaming", streaming })));
+  });
+
+  it("sends nothing outside OBS, while disconnected, or where OBS refuses the status", () => {
+    const browser = inObs();
+    browser.open();
+    expect(browser.sent).toEqual([]);
+    const refused = inObs({ getStatus: () => { throw new Error("not allowed"); } });
+    expect(() => refused.open()).not.toThrow();
+    expect(refused.sent).toEqual([]);
+    // The events still come through.
+    refused.fire("obsStreamingStarted");
+    expect(refused.sent).toEqual([{ type: "obs_streaming", streaming: true }]);
+    // Before connecting, and after a drop, there's nowhere to send it.
+    const early = inObs(status(false));
+    early.fire("obsStreamingStarted");
+    early.open();
+    early.close();
+    early.fire("obsStreamingStopped");
+    expect(early.sent).toEqual([{ type: "obs_streaming", streaming: false }]);
+  });
+
+  it("shows the credit on top of the song, whose bubbles carry on", () => {
+    const page = inObs(status(true));
+    page.open();
+    const song = { title: "Harbor Lights", artist: "Paper Comets" };
+    const at = { top: "8%", left: "33%" };
+    page.receive({ type: "new_song", song, quiet: true });
+    page.receive({ type: "facts_ready", song, facts: [{ text: "One.", delaySeconds: 0, durationSeconds: 8, position: at }, { text: "Two.", delaySeconds: 20, durationSeconds: 8, position: { top: "60%", left: "10%" } }] });
+    page.receive({ type: "credit", song, facts: [{ text: "Facts from Wikipedia.", delaySeconds: 0, durationSeconds: 8, position: at }] });
+    page.run();
+    expect(page.shown).toEqual(expect.arrayContaining(["Facts from Wikipedia.", "One.", "Two."]));
+  });
+});

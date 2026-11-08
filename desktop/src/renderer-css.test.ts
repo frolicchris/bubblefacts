@@ -160,7 +160,7 @@ describe("Settings", () => {
     expect(label?.[0]).toContain('aria-describedby="s-credit-hint"');
     expect(settings).toMatch(/<\/label>\s*<p class="hint indent" id="s-credit-hint">One extra bubble/);
     // Unchecked is rarer, not never: the server still credits each stream once (credit.ts).
-    expect(settings).toContain("Unchecked, it still shows once, before the first song's facts, and again after 20 minutes without facts.");
+    expect(settings).toContain("Unchecked, it still shows when you go live in OBS, and again after 20 minutes without facts.");
   });
 
   it("sets its help text at 14px and keeps the Save bar on screen", () => {

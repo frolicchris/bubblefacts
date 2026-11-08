@@ -55,6 +55,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/infobox.ts` | Facts from the article's own infobox, used only when it describes the requested work. |
 | `backend/src/fact-ranking.ts` | Which of the captions and data facts are shown, and in what order. |
 | `backend/src/credit.ts` | The credit bubble that says where the facts come from. |
+| `backend/src/obs-streaming.ts` | The overlay's one message: OBS saying the stream started or stopped. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
@@ -621,13 +622,23 @@ minutes, the same break that makes a restart start the song afresh), even
 with the app left running in between. That includes a restart whose session
 says the last facts went out that long ago, or to no overlay (`shownAt` 0), so
 the time is unknown. A long break mid-stream may show it once more, which is
-the safe side of "at least once". The limit: BubbleFacts can't tell whether
-OBS is live, only whether an overlay is connected. Songs played with OBS open
-before going live (a soundcheck) count as on stream, so with the switch off
-they can use up the one credit, and a stream that starts within 20 minutes of
-them shows none. The settings hint and the guide say so; keeping the switch on
-is the sure way. Telling live from not would need OBS's own streaming events
-in the overlay, untested so far in a real OBS.
+the safe side of "at least once".
+
+The break is the fallback. OBS tells a Browser source when the stream starts
+and stops (obs-browser's `obsStreamingStarted` and `obsStreamingStopped`
+events) and can say whether it's streaming now (`window.obsstudio.getStatus`,
+asked when the overlay connects). The overlay passes that on as
+`{ type: "obs_streaming", streaming }`, the one message an overlay sends
+(`parseOverlayMessage` in `obs-streaming.ts` lets nothing else through). A
+change to streaming (`ObsStreaming`, so the vertical overlay, a second scene
+and a reload don't count again) is a new stream (`newStream`): the credit goes
+out at once to every overlay as a `credit` message, on top of the song on
+stream like the test bubble, or with the next song's facts if none are out,
+bubbles are paused or a test bubble is up. So a soundcheck with OBS open before
+going live can't use up the stream's one credit. Outside OBS, or if OBS doesn't
+send the signal, nothing changes and the break rule above stands. After the
+app restarts mid-stream, the first report of a live stream counts as going
+live: one more credit.
 
 When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 `ollama`), the credit says so and that BubbleFacts doesn't stand behind them

@@ -50,8 +50,8 @@ export const TEST_QUIET_MS = 20_000;
  * No facts sent to an overlay for this long, and the next ones start a new stream: the credit goes
  * first again, even with the app left running in between. The same break that makes a restart
  * start the song afresh (`RESUME_WITHIN_MS`). A long break mid-stream may show it once more.
- * BubbleFacts can't tell whether OBS is live, so facts sent to OBS before going live (a
- * soundcheck) count as on stream: with the switch off, they can use up the stream's one credit.
+ * This is the fallback: when OBS says the stream went live (`newStream`), the credit is due then,
+ * so facts sent to OBS before going live (a soundcheck) can't use up the stream's one credit.
  */
 export const STREAM_BREAK_MS = RESUME_WITHIN_MS;
 
@@ -74,6 +74,14 @@ export class CreditCounter {
     this.first = !known || typeof restored !== "number" || !Number.isFinite(restored) || restored < 0;
     this.songs = this.first ? 0 : Math.min(Math.floor(restored as number), CREDIT_EVERY_SONGS - 1);
     this.lastOnAir = this.first ? undefined : lastOnAir;
+  }
+
+  /**
+   * OBS says the stream just went live (obs-streaming.ts): the credit is due again, as at a start,
+   * with the switch on or off, whatever went out before (a soundcheck with OBS open, say).
+   */
+  newStream(): void {
+    this.first = true;
   }
 
   /** Songs with facts since the credit last went out, for the session file; undefined until it first has. */

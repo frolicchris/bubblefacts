@@ -78,6 +78,24 @@ describe("the credit bubble's timing", () => {
   });
 });
 
+describe("OBS saying the stream went live", () => {
+  it("makes the credit due again, even switched off and used up on a soundcheck", () => {
+    const off = { ...air, enabled: false };
+    const counter = new CreditCounter();
+    // Songs with OBS open before going live: the one credit goes with the first.
+    expect(run(counter, [facts, facts], off)).toEqual([true, false]);
+    counter.newStream();
+    expect(run(counter, [facts, facts], off)).toEqual([true, false]);
+  });
+
+  it("restarts the count of 5 when switched on", () => {
+    const counter = new CreditCounter();
+    expect(run(counter, [facts, facts, facts])).toEqual([true, false, false]);
+    counter.newStream();
+    expect(run(counter, Array.from({ length: 6 }, () => facts))).toEqual([true, false, false, false, false, true]);
+  });
+});
+
 describe("a new stream with the app left running", () => {
   /** Songs with facts, each at its own time. */
   const at = (counter: CreditCounter, times: number[], enabled = true) => times.map((now) => !!planCredit(counter, facts, { ...air, enabled, now }).credit);
