@@ -625,12 +625,13 @@
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
           <p class="label" id="s-ai-label">Who writes the facts</p>
-          <div class="checks" role="radiogroup" aria-labelledby="s-ai-label">
+          <div class="checks" role="radiogroup" aria-labelledby="s-ai-label" aria-describedby="s-ai-warning">
             <label><input type="radio" name="ai" value="builtin"> <span data-edition="full">On this computer (free)</span><span data-edition="lite" hidden>No AI: music databases and your own facts</span></label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
             <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
             <label><input type="radio" name="ai" value="ollama"> My own Ollama</label>
           </div>
+          <div role="status"><p id="s-ai-warning" class="result bad" hidden></p></div>
           <div id="s-quality-box" class="indent">
             <p class="label" id="s-quality-label">On this computer</p>
             <div class="checks single" role="radiogroup" aria-labelledby="s-quality-label" aria-describedby="s-quality-hint s-quality-switch">

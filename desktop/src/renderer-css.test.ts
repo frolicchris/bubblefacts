@@ -71,6 +71,27 @@ describe("Settings", () => {
     [...src.matchAll(new RegExp(`<label class="choice">\\s*<input type="radio" name="${name}" value="([a-z]+)"[^>]*>\\s*<span class="choice-body">\\s*<strong>([^<]+)</strong>\\s*<span>([\\s\\S]*?)</span>\\s*</span>\\s*</label>`, "g"))]
       .map((m) => ({ value: m[1], title: m[2], body: text(m[3]) }));
 
+  it("warns, without blocking, the moment another AI is chosen to write the facts", () => {
+    const start = settings.indexOf('aria-labelledby="s-ai-label"');
+    const group = settings.slice(start, settings.indexOf("</div>", start));
+    expect(group).toContain('aria-describedby="s-ai-warning"');
+    for (const ai of ["groq", "anthropic", "ollama"]) expect(group).toContain(`name="ai" value="${ai}"`);
+    // Right under the choice, read out as it changes, and empty until one of the other AIs is picked.
+    expect(settings).toContain('<div role="status"><p id="s-ai-warning" class="result bad" hidden></p></div>');
+    const js = read("app.js");
+    const fn = js.slice(js.indexOf("function renderAiWarning"), js.indexOf("\n  }", js.indexOf("function renderAiWarning")));
+    expect(js).toMatch(/const OTHER_AI = \{ groq: "Groq", anthropic: "Anthropic", ollama: "your Ollama model" \}/);
+    expect(fn).toContain("haven't been fact-checked the way ${builtin}'s are");
+    expect(fn).toContain("go through the same screening against the song's article, but may be wrong more often");
+    expect(fn).toContain("Press Wrong on any fact that's off, and switch back any time.");
+    expect(fn).toContain("warning.hidden = !who");
+    // In Lite there is no built-in AI to compare with: the full app's is named instead.
+    expect(fn).toContain("isLite() ? \"the full BubbleFacts' built-in AI\" : \"the built-in AI\"");
+    // It renders when Settings opens and whenever the choice changes.
+    expect(js).toContain("renderQuality();\n    renderAiWarning();");
+    expect(js).toContain("form.querySelectorAll('input[name=\"ai\"]')) el.addEventListener(\"change\", renderAiWarning)");
+  });
+
   it("offers the song sources as the same three cards as setup", () => {
     const setup = cards(html, "setup-source");
     expect(setup.map((c) => c.value)).toEqual(["streamersonglist", "streamelements", "nowplaying"]);
