@@ -1,17 +1,17 @@
-/* Which Settings fields belong to the song source that's picked. Plain functions, so a test can run them. */
+/* Which Settings fields go with the picked song source; plain functions, so a test can run them */
 (function () {
   "use strict";
 
-  /** The fields each song source shows. Anything else under "Your song list" is hidden while it's picked. */
+  /** Each song source's fields; others under "Your song list" hide while it's picked */
   const SOURCE_FIELDS = {
     streamersonglist: ["channel", "token", "tokenKind"],
     streamelements: ["seChannel", "seJwt"],
     nowplaying: ["nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat"],
   };
-  /** Only "Another app's file" asks for a file and how its line reads; Streamling and Nightbot know both. */
+  /** Only "Another app's file" asks for a file and its line format; Streamling and Nightbot know both */
   const OWN_FILE_FIELDS = ["nowPlayingFile", "nowPlayingFormat"];
 
-  /** Whether a field is on screen with this source and file card picked. Fields outside the song list always are. */
+  /** A field is on screen with this source and file card picked; fields outside the song list always are */
   function fieldShown(name, source, preset) {
     for (const [owner, fields] of Object.entries(SOURCE_FIELDS)) {
       if (!fields.includes(name)) continue;
@@ -22,9 +22,8 @@
   }
 
   /**
-   * The changes to save with a song source picked: its own fields as shown, and none from the
-   * sources it replaced. A field that isn't sent keeps what's saved, so a path typed under
-   * "Another app's file" can't be saved after Streamling is picked.
+   * Changes to save: the picked source's fields as shown, none from the others. An unsent field keeps
+   * what's saved, so a path typed under "Another app's file" can't be saved once Streamling is picked
    */
   function sourceChanges(changes) {
     const kept = {};
