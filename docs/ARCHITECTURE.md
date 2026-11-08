@@ -621,6 +621,21 @@ says the last facts went out that long ago, or to no overlay (`shownAt` 0), so
 the time is unknown. A long break mid-stream may show it once more, which is
 the safe side of "at least once".
 
+When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
+`ollama`), the credit says so and that BubbleFacts doesn't stand behind them
+(`OTHER_AI_CREDIT_TEXT`: "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and
+MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible
+for them. · BubbleFacts"). Their captions go through the same screening, but
+the fact check before each release is run on the built-in AI, so nothing
+measures how often another AI is wrong or strays from the content standard.
+The same once-each-stream rule applies, switch or no switch. The session file
+keeps the wording of the credit it counted (`creditText`), and a restart with
+a different one (the streamer switched AI mid-stream) credits first
+(`restoredCredit`), so each stream shows the credit that fits the AI writing
+its facts. The desktop app doesn't offer these AIs for now (see
+[DESKTOP-APP.md](DESKTOP-APP.md)); the command line, which has no built-in AI,
+always shows this wording when an AI writes.
+
 ### The content standard
 
 "About the music. Safe for any stream." A bubble never says what a polite

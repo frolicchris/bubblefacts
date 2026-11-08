@@ -19,7 +19,7 @@ import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
-import { CreditCounter, planCredit } from "./credit";
+import { creditText, planCredit, restoredCredit } from "./credit";
 import { SongFactSharer } from "./share-song-facts";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
@@ -110,7 +110,7 @@ if (restored) {
 }
 
 /** When the credit bubble is next due (credit.ts). A restart in the middle of a stream carries on with the count. */
-const creditCount = new CreditCounter(restored?.creditSince, restored?.shownAt);
+const creditCount = restoredCredit(restored);
 /** When the streamer last pressed Test: the credit bubble keeps clear of it. */
 let testAt = 0;
 
@@ -202,7 +202,7 @@ function cantPrepare(): string {
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}) });
 }
 
 

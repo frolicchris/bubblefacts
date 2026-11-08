@@ -74,7 +74,7 @@ describe("Settings", () => {
   it("warns, without blocking, the moment another AI is chosen to write the facts", () => {
     const start = settings.indexOf('aria-labelledby="s-ai-label"');
     const group = settings.slice(start, settings.indexOf("</div>", start));
-    expect(group).toContain('aria-describedby="s-ai-warning"');
+    expect(group).toContain('aria-describedby="s-ai-paused s-ai-warning"');
     for (const ai of ["groq", "anthropic", "ollama"]) expect(group).toContain(`name="ai" value="${ai}"`);
     // Right under the choice, read out as it changes, and empty until one of the other AIs is picked.
     expect(settings).toContain('<div role="status"><p id="s-ai-warning" class="result bad" hidden></p></div>');
@@ -90,6 +90,22 @@ describe("Settings", () => {
     // It renders when Settings opens and whenever the choice changes.
     expect(js).toContain("renderQuality();\n    renderAiWarning();");
     expect(js).toContain("form.querySelectorAll('input[name=\"ai\"]')) el.addEventListener(\"change\", renderAiWarning)");
+  });
+
+  it("doesn't offer other AIs for now, but keeps them for someone who already chose one", () => {
+    // The choice and the keys are hidden to start with; only a saved choice of another AI shows them.
+    const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
+    expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
+    expect(choice).toContain('name="ai" value="groq"');
+    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying BubbleFacts isn't responsible for its facts. If you switch back and save, these choices go away.");
+    const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));
+    for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
+    const js = read("app.js");
+    expect(js).toContain('const otherAi = s.ai !== "builtin";\n    $("#s-other-ai").hidden = !otherAi;\n    $("#s-other-ai-keys").hidden = !otherAi;');
+    // Nothing else points people to them: no Switch to Groq, and Settings' fine print doesn't offer them.
+    expect(js).not.toContain("Switch to Groq");
+    expect(settings).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
+    expect(settings).toContain("Larger AI is under Advanced.");
   });
 
   it("offers the song sources as the same three cards as setup", () => {

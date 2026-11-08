@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { readingSeconds, RESUME_WITHIN_MS } from "./session";
+import { readingSeconds, RESUME_WITHIN_MS, type Session } from "./session";
 import { Fact } from "./types";
 
 /**
@@ -8,9 +8,23 @@ import { Fact } from "./types";
  * song's facts of each stream, then with about every fifth song that has
  * facts, for viewers who joined later. `CREDIT_BUBBLE=off` stops the repeats
  * but not the first one: every stream that shows facts shows it at least once.
+ * When an AI other than BubbleFacts' own writes the facts, the credit also says
+ * BubbleFacts isn't responsible for them (`OTHER_AI_CREDIT_TEXT`).
  */
 
 export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts";
+/**
+ * The credit when the streamer chose another AI to write the facts: an online service (Groq and
+ * other OpenAI-style services, Anthropic) or their own Ollama model. BubbleFacts' screening still
+ * runs, but the fact check before each release is the built-in AI's, so BubbleFacts doesn't stand
+ * behind what another AI writes. Within MAX_FACT_CHARS, like any bubble.
+ */
+export const OTHER_AI_CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible for them. · BubbleFacts";
+const OTHER_AIS: ReadonlySet<string> = new Set(["openai", "anthropic", "ollama"]);
+/** The credit for the AI that writes the facts (`AI_PROVIDER`). */
+export function creditText(provider: string | undefined = config.aiProvider): string {
+  return provider !== undefined && OTHER_AIS.has(provider) ? OTHER_AI_CREDIT_TEXT : CREDIT_TEXT;
+}
 /** The credit comes with a song's facts this often: after one, the next is this many songs with facts later. */
 export const CREDIT_EVERY_SONGS = 5;
 /** Left clear after the credit before the song's own facts start. */
@@ -70,6 +84,15 @@ export class CreditCounter {
   }
 }
 
+/**
+ * The counter after a restart, from the session file. A session whose credit said something else
+ * (the streamer switched AI) counts for nothing: the new credit goes first, so every stream shows
+ * the one that fits the AI writing its facts.
+ */
+export function restoredCredit(s: Pick<Session, "creditSince" | "creditText" | "shownAt"> | null | undefined, text = creditText()): CreditCounter {
+  return new CreditCounter(s?.creditText === text ? s.creditSince : undefined, s?.shownAt);
+}
+
 export interface CreditContext {
   /** The CREDIT_BUBBLE switch: off, the credit still goes out once each stream. */
   enabled: boolean;
@@ -103,7 +126,7 @@ export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditConte
  * the song's facts, so Wrong, the dashboard and the shown log never see it.
  */
 export function withCredit(facts: Fact[], position: Fact["position"], vertical?: Fact["vertical"]): { credit: Fact; facts: Fact[] } {
-  const credit: Fact = { text: CREDIT_TEXT, source: "BubbleFacts", delaySeconds: 0, durationSeconds: config.factDurationSeconds, position, ...(vertical ? { vertical } : {}) };
+  const credit: Fact = { text: creditText(), source: "BubbleFacts", delaySeconds: 0, durationSeconds: config.factDurationSeconds, position, ...(vertical ? { vertical } : {}) };
   const lead = Math.ceil(readingSeconds(credit)) + GAP_SECONDS;
   return { credit, facts: facts.map((f) => ({ ...f, delaySeconds: f.delaySeconds + lead })) };
 }

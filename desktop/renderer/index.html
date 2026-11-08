@@ -616,22 +616,26 @@
           <p class="hint">Switching to Stable never goes back a version: you get the next full release when it's out.</p>
         </fieldset>
 
-        <p class="fine" data-edition="full">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Online AI and Larger AI are under Advanced.</p>
+        <p class="fine" data-edition="full">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Larger AI is under Advanced.</p>
         <div data-edition="lite" hidden>
           <p class="fine">This is <strong>BubbleFacts Lite</strong>. It has no AI of its own, and unless you choose one under Advanced, nothing is sent to an AI service. Songs get facts from music databases (Wikidata and MusicBrainz), your song list and your own facts.</p>
-          <p class="fine">Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones. To get more, choose an online AI or your own Ollama under Advanced, or install the full BubbleFacts, which writes facts on this computer. <button class="link" type="button" data-open="https://bubblefacts.frolic.org/download.html">Get the full BubbleFacts</button></p>
+          <p class="fine">Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones. To get more, install the full BubbleFacts, which writes facts on this computer. <button class="link" type="button" data-open="https://bubblefacts.frolic.org/download.html">Get the full BubbleFacts</button></p>
         </div>
 
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
+          <!-- Online AIs and Ollama aren't offered for now: shown only to someone who already chose one, until they switch back. -->
+          <div id="s-other-ai" hidden>
           <p class="label" id="s-ai-label">Who writes the facts</p>
-          <div class="checks" role="radiogroup" aria-labelledby="s-ai-label" aria-describedby="s-ai-warning">
+          <p class="hint" id="s-ai-paused">Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying BubbleFacts isn't responsible for its facts. If you switch back and save, these choices go away.</p>
+          <div class="checks" role="radiogroup" aria-labelledby="s-ai-label" aria-describedby="s-ai-paused s-ai-warning">
             <label><input type="radio" name="ai" value="builtin"> <span data-edition="full">On this computer (free)</span><span data-edition="lite" hidden>No AI: music databases and your own facts</span></label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
             <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
             <label><input type="radio" name="ai" value="ollama"> My own Ollama</label>
           </div>
           <div role="status"><p id="s-ai-warning" class="result bad" hidden></p></div>
+          </div>
           <div id="s-quality-box" class="indent">
             <p class="label" id="s-quality-label">On this computer</p>
             <div class="checks single" role="radiogroup" aria-labelledby="s-quality-label" aria-describedby="s-quality-hint s-quality-switch">
@@ -642,6 +646,7 @@
             <p class="hint" id="s-quality-switch">Switching downloads the other one. The one you have keeps writing facts until it's ready, then it's deleted to save space, so switching back downloads it again.</p>
             <div role="status"><p id="s-quality-warning" class="result bad" hidden></p></div>
           </div>
+          <div id="s-other-ai-keys" hidden>
           <label for="s-groq">Groq key <span class="hint">free; <button class="link" type="button" data-open="https://console.groq.com/keys">get one at console.groq.com/keys</button>, then paste it here</span></label>
           <input id="s-groq" name="groqKey" type="password" autocomplete="off" placeholder="Saved keys stay hidden. Paste to replace.">
           <label for="s-anthropic">Anthropic key</label>
@@ -650,6 +655,7 @@
           <input id="s-ollama-url" name="ollamaUrl" type="text">
           <label for="s-ollama-model">Ollama model</label>
           <input id="s-ollama-model" name="ollamaModel" type="text">
+          </div>
           <label for="s-port">Port <span class="hint">changes automatically if another program is using it</span></label>
           <input id="s-port" name="port" type="number" min="1024" max="65535">
           <p class="fine">Your settings and logs are in <code id="s-datadir"></code>.</p>

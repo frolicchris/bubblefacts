@@ -5,7 +5,9 @@ import path from "path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-credit-"));
 jest.mock("./config", () => ({ config: { dataDir: dir, factDurationSeconds: 8 } }));
 
-import { CREDIT_EVERY_SONGS, CREDIT_TEXT, CreditCounter, planCredit, STREAM_BREAK_MS, TEST_QUIET_MS, withCredit } from "./credit";
+import { config } from "./config";
+import { CREDIT_EVERY_SONGS, CREDIT_TEXT, CreditCounter, creditText, OTHER_AI_CREDIT_TEXT, planCredit, restoredCredit, STREAM_BREAK_MS, TEST_QUIET_MS, withCredit } from "./credit";
+import { MAX_FACT_CHARS } from "./fact-limits";
 import { loadSession, saveSession } from "./session";
 import { Fact } from "./types";
 
@@ -110,6 +112,26 @@ describe("the credit bubble's content", () => {
     expect(CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts");
   });
 
+  it("says BubbleFacts isn't responsible when another AI writes the facts, at a bubble's length", () => {
+    expect(OTHER_AI_CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by an AI the streamer chose. BubbleFacts isn't responsible for them. · BubbleFacts");
+    for (const text of [CREDIT_TEXT, OTHER_AI_CREDIT_TEXT]) expect(text.length).toBeLessThanOrEqual(MAX_FACT_CHARS);
+    // Groq and other OpenAI-style services, Anthropic, and the streamer's own Ollama.
+    for (const ai of ["openai", "anthropic", "ollama"]) expect(creditText(ai)).toBe(OTHER_AI_CREDIT_TEXT);
+    // BubbleFacts' own AI, and Lite's no AI, keep the usual credit.
+    for (const ai of ["builtin", "none", undefined]) expect(creditText(ai)).toBe(CREDIT_TEXT);
+  });
+
+  it("goes out with the other AI's wording when one is writing, switched on or off", () => {
+    const cfg = config as { aiProvider?: string };
+    cfg.aiProvider = "anthropic";
+    try {
+      for (const enabled of [true, false]) expect(planCredit(new CreditCounter(), facts, { ...air, enabled }).credit?.text).toBe(OTHER_AI_CREDIT_TEXT);
+    } finally {
+      delete cfg.aiProvider;
+    }
+    expect(planCredit(new CreditCounter(), facts, air).credit?.text).toBe(CREDIT_TEXT);
+  });
+
   it("takes the song's first vertical spot on the vertical overlay (issue #175)", () => {
     const vertical = { top: "15%" };
     expect(planCredit(new CreditCounter(), facts, { ...air, vertical }).credit).toMatchObject({ position, vertical });
@@ -171,10 +193,25 @@ describe("the credit count across a restart", () => {
     }
   });
 
+  it("credits first after a switch to another AI mid-stream, or back, so each stream shows the credit that fits", () => {
+    const session = { creditSince: 2, creditText: CREDIT_TEXT, shownAt: SHOWN };
+    expect(run(restoredCredit(session, CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([false]);
+    expect(run(restoredCredit(session, OTHER_AI_CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([true]);
+    expect(run(restoredCredit({ ...session, creditText: OTHER_AI_CREDIT_TEXT }, CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([true]);
+    // A session from before the credit's wording was saved credits first, once.
+    expect(run(restoredCredit({ creditSince: 2, shownAt: SHOWN }, CREDIT_TEXT), [facts])).toEqual([true]);
+    expect(run(restoredCredit(null, CREDIT_TEXT), [facts])).toEqual([true]);
+    // The wording goes through the session file and back.
+    saveSession({ song: { title: "The Moon", artist: "DuckTales" }, facts, shownAt: SHOWN, recent: [], savedAt: SHOWN, creditSince: 2, creditText: OTHER_AI_CREDIT_TEXT });
+    expect(run(restoredCredit(loadSession(NOW), OTHER_AI_CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([false]);
+  });
+
   it("ignores a count in the file that can't be right", () => {
     expect(new CreditCounter(-1).since).toBeUndefined();
     expect(new CreditCounter(Number.NaN).since).toBeUndefined();
     fs.writeFileSync(path.join(dir, "session.json"), JSON.stringify({ song: { title: "A", artist: "B" }, facts: [], recent: [], savedAt: 1000, shownAt: 0, creditSince: "3" }));
+    expect(loadSession(2000)).toBeNull();
+    fs.writeFileSync(path.join(dir, "session.json"), JSON.stringify({ song: { title: "A", artist: "B" }, facts: [], recent: [], savedAt: 1000, shownAt: 0, creditSince: 3, creditText: 7 }));
     expect(loadSession(2000)).toBeNull();
     expect(new CreditCounter(99, NOW).since).toBe(CREDIT_EVERY_SONGS - 1);
     // A count with no time facts were last on stream can't say which stream it's from.
