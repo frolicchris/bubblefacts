@@ -26,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.2.0-beta.4">
-  <script src="assets/site.js?v=2.2.0-beta.4" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.2.0-rc.1">
+  <script src="assets/site.js?v=2.2.0-rc.1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -53,6 +53,21 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-2-rc1">
+          <h2 id="v2-2-rc1">Version 2.2.0-rc.1 <span class="tag">Release candidate, November 8, 2026</span></h2>
+          <p>Viewers always see where the facts come from, BubbleFacts stops vouching for other AIs, and Lite's last update. The 2.2.0 release candidate: 2.2.0 is this code unless testing finds a blocker.</p>
+          <ul>
+            <li>New: the bubble that says where the facts come from shows at least once each stream, even with its setting off, and goes out the moment you go live in OBS.</li>
+            <li>New: facts written by an online AI or your own Ollama carry a bubble saying they are adapted by an AI the streamer chose and not verified by BubbleFacts.</li>
+            <li>Changed: online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. Anyone who already chose one keeps it until then; a new install doesn't offer them.</li>
+            <li>Changed: BubbleFacts Lite is retired. This is its last update; installing the full BubbleFacts keeps your settings and facts.</li>
+            <li>Improved: the Settings warning, the guide and the credits page say plainly that BubbleFacts doesn't control or test another AI, instead of claiming the same screening.</li>
+            <li>Fixed: with no AI writing (Lite, or while the AI downloads), the credit no longer says the facts were retold by AI.</li>
+            <li>Fixed: messages and docs no longer point to a removed online option when the built-in AI can't run or a download fails.</li>
+            <li>Accuracy, measured: about 6% of facts wrong or misleading with the default Standard AI (range 4 to 8%) on 160 fresh songs, checked blind with a second independent checker. Details in <a href="https://github.com/frolicchris/bubblefacts/issues/172">#172</a>.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-2-beta4">
           <h2 id="v2-2-beta4">Version 2.2.0-beta.4 <span class="tag">Beta, November 7, 2026</span></h2>
