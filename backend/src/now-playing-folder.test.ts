@@ -1,7 +1,7 @@
 import path from "path";
 import { presetFolder } from "./now-playing-folder";
 
-/** Made-up Windows-style places, joined the way this computer joins them. */
+/** Made-up Windows-style places, joined the way this computer joins them */
 const home = path.join(path.sep, "Users", "jane");
 const usual = path.join(home, "Documents", "Nightbot");
 const oneDrive = path.join(path.sep, "OneDrive", "Jane");

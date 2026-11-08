@@ -44,27 +44,27 @@ import { wikidataFacts } from "./wikidata";
 import { LATE_MS, ON_TIME_MS, QUICK_PROBE_EVERY, RECOVER_SONGS } from "./pace";
 import { SSLSong } from "./types";
 
-/** Made-up songs: each play is a new song, so nothing comes from the cache. */
+/** Made-up songs: each play is a new song, so nothing comes from the cache */
 let played = 0;
 const nextSong = (): SSLSong => ({ title: `Lantern Tide ${++played}`, artist: "Wren Halloway" });
 
-/** The article's sentences for one play: numbered by the play, so no caption was already shown for an earlier song. */
+/** The article's sentences for one play, numbered by play so none was shown for an earlier song */
 const lines = (n: number) => [
   `Wren Halloway recorded the song with ${n} string players in one weekend.`,
   `Its main melody was first sketched on an upright piano at studio ${n}.`,
   `Wren Halloway later arranged the theme for an orchestra of ${n + 40} players.`,
   `An acoustic guitar carries the melody for ${n + 60} seconds in the quieter second half.`,
 ];
-/** Far past the shorter part's end: only the full article has it. */
+/** Far past the shorter part's end: only the full article has it */
 const LATE_LINE = "A choir joins the arrangement only in the closing minute.";
 const FILLER = "The song is in the key of C major. ".repeat(60);
 const article = (song: SSLSong) => `${song.title} (Wren Halloway song)\n"${song.title}" is a song by Wren Halloway. ${lines(played).join(" ")} ${FILLER}${LATE_LINE}`;
 
 let now = 1_000_000;
 const prompts: string[] = [];
-/** How long the model takes for the next prompt; null: until the song changes. */
+/** How long the model takes for the next prompt; null: until the song changes */
 let takes: number | null = 10_000;
-/** What the model writes; by default the article's lines for the play. */
+/** What the model writes; by default the article's lines for the play */
 let answer: string | null = null;
 
 beforeAll(() => {
@@ -95,17 +95,17 @@ afterEach(() => {
   (console.log as jest.Mock).mockRestore();
 });
 
-/** A song starts and its facts are written; the song stays on `onFor` before the next. */
+/** Plays a new song with the AI taking `ms`; returns its captions */
 async function play(ms: number, song = nextSong()) {
   takes = ms;
-  // Each song's captions are new to the stream: none is held back as shown for an earlier song.
+  // Each song's captions are new to the stream: none held back as already shown
   restoreRecent([]);
   setCurrentSong(song);
   const facts = await generateFacts(song);
   return facts.map((f) => f.text);
 }
 
-/** A song that ends after `onFor` while the AI is still writing for it; returns the song after it, now on. */
+/** A song that ends after `onFor` while the AI still writes for it; returns the next song, now on */
 async function missSong(onFor = 3 * 60_000): Promise<SSLSong> {
   const song = nextSong();
   takes = null;
@@ -120,7 +120,7 @@ async function missSong(onFor = 3 * 60_000): Promise<SSLSong> {
   return after;
 }
 
-/** Facts late on average: two songs whose AI facts took 90 s. */
+/** Facts late on average: two songs whose AI facts took 90 s */
 async function runLate() {
   await play(LATE_MS + 30_000);
   await play(LATE_MS + 30_000);
@@ -172,7 +172,7 @@ describe("a slow or busy computer (issue #314)", () => {
   });
 
   it("recovers on its own when the computer is fast again", async () => {
-    // The song after the late one gets quick facts, and so do the next few.
+    // The song after the late one gets quick facts, and so do the next few
     let song = await missSong();
     const tries: number[] = [];
     for (let i = 1; i < QUICK_PROBE_EVERY; i++) {
@@ -182,7 +182,7 @@ describe("a slow or busy computer (issue #314)", () => {
       song = nextSong();
     }
     expect(tries.every((n) => n === 0)).toBe(true);
-    // Every few songs the AI tries again, the short way; it was on time.
+    // Every few songs the AI tries again, the short way; it was on time
     await play(5_000, song);
     expect(prompts[prompts.length - 1]).toMatch(/Write 2 captions/);
     expect(paceReport().pace).toBe("short");
@@ -202,9 +202,9 @@ describe("a slow or busy computer (issue #314)", () => {
     expect(prompts[prompts.length - 1]).toMatch(/Write 8 captions/);
     expect(prompts[prompts.length - 1]).toContain(LATE_LINE);
     expect(ready.outcome).toBe("facts");
-    // A slow prepared turn neither counts as late nor sets the stream model's speed.
+    // A slow prepared turn neither counts as late nor sets the stream model's speed
     expect(paceReport()).toMatchObject(before);
-    // Even once the stream is down to quick facts, a prepared song still gets the AI.
+    // Even once the stream is down to quick facts, a prepared song still gets the AI
     await missSong();
     expect(paceReport().pace).toBe("quick");
     const asked = prompts.length;
@@ -227,7 +227,7 @@ describe("a slow or busy computer (issue #314)", () => {
 });
 
 describe("preparing with the faster model while another is on stream (issue #296)", () => {
-  /** The prep model's captions, none of which passes the screen: nobody is named. */
+  /** The prep model's captions, none of which passes the screen: nobody is named */
   const FAILING = ["He did it in one night.", "They liked it a lot more than before.", "I wrote it at home."].join("\n");
   const prepPrompts: string[] = [];
   let c: { modelPath: string; prepareModelPath: string };
@@ -253,7 +253,7 @@ describe("preparing with the faster model while another is on stream (issue #296
     expect(ready.outcome).toBe("none");
     expect(ready.model).toBe("standard.gguf");
     expect(prepPrompts).toHaveLength(1);
-    // Every caption failed, but from the faster model: the one on stream gets its own try (issue #203 is per model).
+    // Every caption failed, but from the faster model: the one on stream gets its own try (#203 is per model)
     const asked = prompts.length;
     setCurrentSong(song);
     expect((await generateFacts(song)).length).toBeGreaterThan(0);

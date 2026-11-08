@@ -34,7 +34,7 @@ describe("problem reports", () => {
     expect(fields.template).toBe("bug_report.yml");
     expect(fields.ai).toBe("Built into the app");
     expect(fields.version).toBe("2.0.0 test build (c4ee826)");
-    // BubbleFacts Lite's own choice is no AI, one of the bug form's options.
+    // BubbleFacts Lite's own choice is no AI, one of the bug form's options
     expect(decode(problemReportUrl({ version: "2.2.0 Lite (c4ee826)", ai: "none", logLines: [], secrets: [] })).ai).toBe("No AI (BubbleFacts Lite)");
     const form = fs.readFileSync(path.join(__dirname, "../../.github/ISSUE_TEMPLATE/bug_report.yml"), "utf8");
     expect(form).toContain("No AI (BubbleFacts Lite)");
@@ -107,7 +107,7 @@ describe("beta test reports", () => {
   const root = path.join(__dirname, "../..");
   const { version } = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version: string };
   const form = fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE/beta_test.yml"), "utf8").replace(/\r\n/g, "\n"); // Windows checkouts use CRLF
-  /** A dropdown's options: the "- " lines under its "options:", up to the next field. */
+  /** A dropdown's options: the "- " lines under its "options:", up to the next field */
   const options = (id: string) => {
     const field = form.split(/\n  - type: /).find((f) => f.includes(`id: ${id}\n`)) ?? "";
     const list = field.split(/\n\s+options:\n/)[1] ?? "";
@@ -202,11 +202,11 @@ describe("reports with the facts that went out to the overlay", () => {
   it("a Wrong report has the exact fact with its source and time, though its log lines are gone", () => {
     const fields = decode(wrongFactUrl({ song: "Lantern Bay — Velvet Ferns", fact: "It was recorded on a boat.", version: "2.2.0", logLines: [], secrets: ["my-secret-token"], aired: record }));
     expect(fields.shown).toBe(["It was recorded on a boat.", "", "Source: Wikipedia: Lantern Bay, https://en.wikipedia.org/wiki/Lantern_Bay", "On the overlay: 2026-10-26 20:10 UTC"].join("\n"));
-    // The other facts from that play of the song, and none from other songs or plays.
+    // The other facts from that play of the song, and none from other songs or plays
     expect(fields.log).toContain("Other facts on the overlay for this song:");
     expect(fields.log).toContain('2026-10-26 20:10 UTC "Lantern Bay" by Velvet Ferns (Wikidata): It has a key change.');
     expect(fields.log).not.toMatch(/older play|Before it|After it/);
-    // Secrets are removed from aired facts too.
+    // Secrets are removed from aired facts too
     expect(fields.log).toContain("Token [removed] was here.");
     expect(JSON.stringify(fields)).not.toContain("my-secret-token");
   });

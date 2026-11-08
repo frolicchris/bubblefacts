@@ -2,12 +2,12 @@ import fs from "fs";
 import path from "path";
 import { autoTextColor, BUBBLE_STYLES, contrast, contrastOver, CUSTOM_ALPHA, customColors, MAX_SCALE, MIN_CONTRAST, MIN_SCALE, styleFrom } from "./bubble-style";
 
-/** Bubble Styles (issue #177), checked against the overlay's real CSS. */
+/** Bubble Styles (#177), checked against the overlay's real CSS */
 const OBS = path.resolve(__dirname, "../../frontend/obs");
 const CSS = fs.readFileSync(path.join(OBS, "obs-overlay.css"), "utf8");
 const SCRIPT = fs.readFileSync(path.join(OBS, "obs-overlay.js"), "utf8");
 
-/** The declarations in one rule, by its exact selector. */
+/** The declarations in one rule, by its exact selector */
 function block(selector: string): Record<string, string> {
   const at = CSS.indexOf(selector + " {");
   if (at < 0) throw new Error(`No rule for ${selector} in obs-overlay.css`);
@@ -18,7 +18,7 @@ function block(selector: string): Record<string, string> {
 }
 
 const selectorOf = (style: string) => (style === "classic" ? ":where(:root)" : `:where(html[data-style="${style}"])`);
-/** A Style's properties: the classic ones, with the Style's own on top, as the browser sees them. */
+/** A Style's properties as the browser sees them: the classic ones, the Style's own on top */
 const palette = (style: string) => ({ ...block(":where(:root)"), ...block(selectorOf(style)) });
 
 type Rgba = { rgb: [number, number, number]; alpha: number };
@@ -33,7 +33,7 @@ function color(value: string): Rgba {
   throw new Error(`Not a color the test can read: ${value}`);
 }
 
-/** Text on a see-through background, at its worst over the stream's video (black or white under it). */
+/** Contrast of text on a see-through background at its worst over video (black or white under it) */
 function worstContrast(text: string, background: string): number {
   const fg = color(text);
   const bg = color(background);
@@ -84,23 +84,22 @@ describe("every built-in Style", () => {
 
   it.each(BUBBLE_STYLES)("%s changes only the look: no sizes, animations or text", (style) => {
     for (const [name, value] of Object.entries(block(selectorOf(style)))) {
-      // Only the look's own custom properties: so text stays at the readable sizes set apart from
-      // the Styles (24px on a 1080p canvas, 40px on a 1080-wide vertical one), animations stay
-      // transform and opacity, and nothing like content: can change what a bubble says.
+      // Only the look's own custom properties: text keeps its readable sizes (24px at 1080p, 40px on a 1080-wide
+      // vertical), animations stay transform and opacity, and nothing like content: changes a bubble's words
       expect(name).toMatch(/^--bf-/);
       expect(name).not.toMatch(/scale|size|width-max|min-width|max-width|animation|transition|content/);
-      // No fonts or images from the internet: OBS may be offline, and the overlay must never wait on one.
+      // No fonts or images from the internet: OBS may be offline, and the overlay never waits on one
       expect(value).not.toMatch(/url\(|@import/);
     }
   });
 
   it("uses the Style's properties in the bubble and the Now Playing bubble, so the classic look is unchanged", () => {
-    // Classic is the dark blue the overlay always had.
+    // Classic is the dark blue the overlay always had
     expect(palette("classic")).toMatchObject({ "--bf-bg-1": "rgba(10, 10, 60, 0.94)", "--bf-accent": "#5b6ee1", "--bf-text": "#f2f2f2", "--bf-toast-text": "#ffd700" });
     const bubble = block(".popup-bubble");
     expect(bubble).toMatchObject({ color: "var(--bf-text)", "font-family": "var(--bf-font)", "border-radius": "var(--bf-radius)" });
     expect(block(".song-toast")).toMatchObject({ color: "var(--bf-toast-text)", "border-radius": "var(--bf-toast-radius)" });
-    // Sizes still come from the bubble size settings alone.
+    // Sizes still come from the bubble size settings alone
     expect(bubble["font-size"]).toBe("var(--fact-font-size)");
   });
 
@@ -111,7 +110,7 @@ describe("every built-in Style", () => {
 });
 
 describe("your own colors", () => {
-  /** Every 17th value of each channel, the grays one by one, and some favorites. */
+  /** Every 17th value of each channel, the grays one by one, and some favorites */
   const backgrounds: string[] = [];
   const hex = (n: number) => n.toString(16).padStart(2, "0");
   for (let r = 0; r <= 255; r += 17) for (let g = 0; g <= 255; g += 17) for (let b = 0; b <= 255; b += 17) backgrounds.push(`#${hex(r)}${hex(g)}${hex(b)}`);
@@ -139,7 +138,7 @@ describe("your own colors", () => {
       }
     }
     expect(customColors("#ffd700", "#0a0a3c").label).toBe("#ffd700");
-    // Yellow on white can't be read: the label is the dark text instead. Its words still say NOW PLAYING.
+    // Yellow on white can't be read: the label turns dark (its words still say NOW PLAYING)
     expect(customColors("#ffd700", "#ffffff").label).toBe("#111111");
   });
 

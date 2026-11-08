@@ -23,8 +23,8 @@ jest.mock("./config", () => ({
   },
 }));
 
-// The real sentence builders, loaded when first called: loading them inside the factory would
-// copy fact-verifier's exports before it finished loading (the two import each other).
+// Real sentence builders, loaded on first call: loading them in the factory would copy
+// fact-verifier's exports before it finished loading (the two import each other)
 const actual = <T>(name: string, fn: string) => (...args: unknown[]): T => jest.requireActual(name)[fn](...args);
 jest.mock("./wikidata", () => ({
   wikidataFacts: jest.fn().mockResolvedValue([]),
@@ -46,7 +46,7 @@ jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
   fetchGrounding: jest.fn().mockResolvedValue(""),
   summaryGate: jest.fn().mockResolvedValue(""),
-  // No article text, and no real request to Wikipedia: the mocked config above has no timeout for it either.
+  // No article text and no real Wikipedia request (the mocked config has no timeout for one)
   loadWikitext: jest.fn().mockResolvedValue(""),
 }));
 
@@ -79,10 +79,10 @@ const MODEL_LINES = [
 ].join("\n");
 
 const reply = (text: string) => ({ content: [{ type: "text", text }] });
-/** The model's lines citing reference sentences, as the grounded prompt asks: sentence `from + i` for line i. */
+/** Model lines citing reference sentences, as the grounded prompt asks: line i cites sentence `from + i` */
 const citing = (lines: string, from = 1) => lines.split("\n").map((l, i) => `${from + i} | ${l}`).join("\n");
 const song: SSLSong = { title: "Test Song", artist: "Test Artist" };
-/** The AI writes only from a reference: turn the lookup on, and have it find an article with the model's lines. */
+/** The AI writes only from a reference: turn the lookup on and have it find an article with the model's lines */
 function withArticle(title: string): void {
   (config as { factVerification: boolean }).factVerification = true;
   (fetchGrounding as jest.Mock).mockResolvedValue(`${title} (song)\n${MODEL_LINES}`);
@@ -124,7 +124,7 @@ describe("generateFacts", () => {
   });
 
   it("doesn't repeat facts already shown for an earlier song (issue #19)", async () => {
-    // Two songs by the same artist, both written from the artist's article.
+    // Two songs by the same artist, both written from the artist's article
     withArticle("Same Artist");
     const first = (await generateFacts({ title: "Song One", artist: "Same Artist" })).map((f) => f.text);
     const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
@@ -140,7 +140,7 @@ describe("generateFacts", () => {
     }
     expect(fetchGrounding).not.toHaveBeenCalled();
     expect(wikidataFacts).not.toHaveBeenCalled();
-    // An email-like or mid-name "@" is not a handle.
+    // An email-like or mid-name "@" isn't a handle
     await generateFacts({ title: "Other Piece", artist: "P@ssion Pit" });
     expect(fetchGrounding).toHaveBeenCalled();
   });
@@ -154,10 +154,9 @@ describe("generateFacts", () => {
       }
     }
     expect(positionsFor("top").every((p) => p.top && pct(p.top) <= 20)).toBe(true);
-    // "Bottom" means the bottom edge: measured up from it, never down from the top (a tester's
-    // bubble set to the bottom showed just below the middle).
+    // "Bottom" is measured up from the bottom edge (a tester's bottom bubble showed just below the middle)
     expect(positionsFor("bottom").every((p) => !p.top && p.bottom && pct(p.bottom) <= 20)).toBe(true);
-    // The Now Playing bubble sits bottom-center as a song starts: the first two bubbles keep clear of it.
+    // Now Playing sits bottom-center as a song starts: the first two bubbles keep clear of it
     expect(positionsFor("bottom").slice(0, 2).every((p) => pct(p.left ?? "") < 20 || pct(p.left ?? "") > 60)).toBe(true);
     expect(positionsFor("left").every((p) => pct(p.left ?? "") <= 5)).toBe(true);
     expect(positionsFor("right").every((p) => pct(p.left ?? "") >= 66)).toBe(true);
@@ -173,22 +172,22 @@ describe("generateFacts", () => {
     const pct = (v: string) => Number(v.replace("%", ""));
     for (const area of ["top", "above-chat"]) {
       for (const p of verticalPositionsFor(area, false)) {
-        // Centered between the safe side margins by the overlay: no left or right of its own.
+        // The overlay centers it between the safe side margins: no left or right of its own
         expect(p.left ?? p.right).toBeUndefined();
         if (p.top) expect(pct(p.top)).toBeGreaterThanOrEqual(VERTICAL_SAFE.top);
-        // A bubble that grows upward from the chat line never starts inside the chat.
+        // A bubble that grows upward from the chat line never starts inside the chat
         if (p.bottom) expect(pct(p.bottom)).toBeGreaterThanOrEqual(VERTICAL_SAFE.bottom);
       }
     }
-    // One spot each: the clear area is too short for two long bubbles at once.
+    // One spot each: the clear area is too short for two long bubbles at once
     expect(verticalPositionsFor("top")).toEqual([{ top: "15%" }]);
     expect(verticalPositionsFor("above-chat", false)).toEqual([{ bottom: "39%" }]);
     expect(verticalPositionsFor("nonsense")).toEqual(verticalPositionsFor("top"));
-    // Above the vertical Now Playing bubble while it shows, which sits on the chat line.
+    // Above the vertical Now Playing bubble (on the chat line) while it shows
     const [above] = verticalPositionsFor("above-chat", true);
     expect(above.bottom).toMatch(/^calc\(39% \+ [\d.]+vw \* var\(--bf-vertical-scale, 1\)\)$/);
 
-    // Separate from the landscape setting, so both scenes can run at once.
+    // Separate from the landscape setting, so both scenes can run at once
     const c = config as { bubbleArea?: string; verticalArea?: string };
     c.bubbleArea = "left";
     c.verticalArea = "above-chat";
@@ -207,15 +206,15 @@ describe("generateFacts", () => {
     expect(positionsFor("top-right")).toEqual([{ top: "6%", right: "3%" }]);
     expect(positionsFor("bottom-left")).toEqual([{ bottom: "5%", left: "3%" }]);
     expect(positionsFor("bottom-right")).toEqual([{ bottom: "5%", right: "3%" }]);
-    // Centered: neither side is set, so the overlay centers a bubble of any length.
+    // Centered: neither side is set, so the overlay centers a bubble of any length
     expect(positionsFor("top-center")).toEqual([{ top: "6%" }]);
     const [low] = positionsFor("bottom-center", true);
     expect(low.left ?? low.right ?? low.top).toBeUndefined();
-    // Above the Now Playing bubble (60px from the bottom), and higher at a bigger bubble size.
+    // Above the Now Playing bubble (60px from the bottom), and higher at a bigger bubble size
     expect(low.bottom).toMatch(/^calc\(6\dpx \+ [\d.]+vh \* var\(--bf-scale, 1\)\)$/);
-    // With Now Playing off, the true bottom center, level with the other bottom spots (a tester's request).
+    // With Now Playing off, the true bottom center, level with the other bottom spots (a tester's request)
     expect(positionsFor("bottom-center", false)).toEqual([{ bottom: "5%" }]);
-    // A live learn still shows its banner there, so its bubbles wait above it.
+    // A live learn still shows its banner there, so its bubbles wait above it
     const c = config as { bubbleArea?: string; nowPlaying?: boolean; liveLearnBanner?: boolean };
     c.bubbleArea = "bottom-center";
     c.nowPlaying = false;
@@ -225,7 +224,7 @@ describe("generateFacts", () => {
       expect(positionsForSong({ title: "Any", artist: "Any", liveLearn: true })).toEqual([low]);
       c.nowPlaying = true;
       expect(positionsForSong({ title: "Any", artist: "Any" })).toEqual([low]);
-      // Its own setting turns the LIVE LEARN bubble off, and the spot moves down with it.
+      // Its own setting turns the LIVE LEARN bubble off, and the spot moves down with it
       c.liveLearnBanner = false;
       expect(showsBanner({ title: "Any", artist: "Any", liveLearn: true })).toBe(false);
       expect(positionsForSong({ title: "Any", artist: "Any", liveLearn: true })).toEqual([{ bottom: "5%" }]);
@@ -243,8 +242,7 @@ describe("generateFacts", () => {
   });
 
   it("never puts a bubble over the Now Playing bubble, in any area at any bubble size", () => {
-    // Sizes from obs-overlay.css on a 1920x1080 overlay. The Now Playing bubble can be 80% of the
-    // screen wide, so any bubble low enough would touch it: only heights keep them apart.
+    // Sizes from obs-overlay.css at 1920x1080; Now Playing can be 80% wide, so only heights keep bubbles clear of it
     const H = 1080;
     const px = (css: string, scale: number): number =>
       Function(`return ${css
@@ -254,28 +252,28 @@ describe("generateFacts", () => {
         .replace(/([\d.]+)px/g, "$1")
         .replace(/([\d.]+)(vh|%)/g, `($1 * ${H / 100})`)}`)();
     for (const scale of [1, 1.25, 1.5]) {
-      // `bottom: 60px`, two lines of 1.944vh text at line-height 1.35, 0.7em padding above and below, 2px borders.
+      // `bottom: 60px`, two lines of 1.944vh text at line-height 1.35, 0.7em padding each side, 2px borders
       const vh = (n: number) => (n * H) / 100;
       const bannerTop = 60 + 2 * 1.35 * vh(1.944 * scale) + 1.4 * vh(1.944 * scale) + 4;
-      // The longest fact (300 characters) wraps to about 8 lines in the widest bubble: 30% of the height at Standard.
+      // The longest fact (300 characters) wraps to about 8 lines in the widest bubble: 30% of the height at Standard
       const tallest = vh(30 * scale);
       for (const area of ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]) {
         for (const p of positionsFor(area, true)) {
           const lowest = p.bottom ? px(p.bottom, scale) : H - (px(p.top ?? "0", scale) + tallest);
           expect({ area, scale, clear: lowest >= bannerTop }).toEqual({ area, scale, clear: true });
-          // Growing up from there, still on screen.
+          // Growing up from there, still on screen
           if (p.bottom) expect(px(p.bottom, scale) + tallest).toBeLessThanOrEqual(H);
         }
       }
     }
-    // Without the Now Playing bubble, the spots stay where they were.
+    // Without the Now Playing bubble, the spots stay where they were
     expect(positionsFor("bottom-left", false)).toEqual([{ bottom: "5%", left: "3%" }]);
     expect(positionsFor("anywhere", false)[1]).toEqual({ top: "57%", left: "9%" });
   });
 
   it("doesn't log facts as shown when it writes them: the server logs them when they go out (shown-log.ts)", async () => {
     // From review: a skipped, paused or superseded song's facts were logged as [Shown] though never sent.
-    // console.log is already muted for all tests (test-setup.ts): read that mock, don't replace it.
+    // console.log is muted for all tests (test-setup.ts): read that mock, don't replace it
     const log = console.log as unknown as jest.Mock;
     log.mockClear();
     const facts = await generateFacts({ title: "Logged Song", artist: "Logged Artist" });
@@ -369,7 +367,7 @@ describe("generateFacts", () => {
   });
 
   describe("facts tagged for a game or artist (a pool many songs share)", () => {
-    // From a tester with nearly 200 songs from one game: every one of them opened with the same facts.
+    // From a tester with nearly 200 songs from one game: each opened with the same facts
     const pool = [
       { tag: "Moonfall Saga", text: "Pool fact A." },
       { tag: "Moonfall Saga", text: "Pool fact B." },
@@ -382,7 +380,7 @@ describe("generateFacts", () => {
     it("gives each song one, second, taking turns, beside the facts about the song", async () => {
       const picked: string[] = [];
       for (const title of ["Theme One", "Theme Two", "Theme Three", "Theme Four"]) {
-        // The mock writes the same lines for every song: let each count as new.
+        // The mock writes the same lines for every song: each counts as new
         restoreRecent([]);
         withArticle(title);
         const facts = await generateFacts({ title, artist: "Moonfall Saga" });
@@ -425,7 +423,7 @@ describe("generateFacts", () => {
   });
 
   it("keeps a custom fact tagged for one version off the song's other versions", () => {
-    // From review: the tag's brackets were dropped, so "[Night Drive (Acoustic)]" showed on the remix.
+    // From review: the tag's brackets were dropped, so "[Night Drive (Acoustic)]" showed on the remix
     const tagged = [
       { tag: "Night Drive (Acoustic)", text: "Recorded in one take." },
       { tag: "Tag Artist - Night Drive (Remix)", text: "The remix came first." },
@@ -435,12 +433,12 @@ describe("generateFacts", () => {
     try {
       expect(taggedFactsFor({ title: "Night Drive (Acoustic)", artist: "Tag Artist" })).toEqual(["Recorded in one take."]);
       expect(taggedFactsFor({ title: "night drive [acoustic]", artist: "Someone" })).toEqual(["Recorded in one take."]);
-      // The list's own performance tag after the version doesn't hide it.
+      // The list's own performance tag after the version doesn't hide it
       expect(taggedFactsFor({ title: "Night Drive (Acoustic) [Instrumental]", artist: "Someone" })).toEqual(["Recorded in one take."]);
       expect(taggedFactsFor({ title: "Night Drive (Remix)", artist: "Tag Artist" })).toEqual(["The remix came first."]);
       expect(taggedFactsFor({ title: "Night Drive (Remix)", artist: "Someone Else" })).toEqual([]);
       expect(taggedFactsFor({ title: "Night Drive", artist: "Tag Artist" })).toEqual([]);
-      // A tag with no version matches every version, and the list's tags.
+      // A tag with no version matches every version, and the list's tags
       expect(taggedFactsFor({ title: "Take On Me [Instrumental]", artist: "Someone" })).toEqual(["Any version of this one."]);
       expect(taggedFactsFor({ title: "Take On Me (Acoustic)", artist: "Someone" })).toEqual(["Any version of this one."]);
     } finally {
@@ -461,7 +459,7 @@ describe("generateFacts", () => {
     const shown = (await generateFacts({ title: "Glass Harbor", artist: "Dana Reyes" })).map((f) => f.text);
     expect(shown).toContain("Dana Reyes wrote the music for Harbor Lights the Musical in 2005.");
     expect(shown).not.toContain("The musical won four stage awards, including Best New Musical.");
-    // "The song" retelling a sentence about another of her songs reads as this one too.
+    // "The song" retelling a sentence about another of her songs reads as this one too
     expect(shown).not.toContain("The song reached number two in 1974.");
   });
 
@@ -477,7 +475,7 @@ describe("generateFacts", () => {
     const shown = (await generateFacts({ title: "Glass Harbor", artist: "Dana Reyes" })).map((f) => f.text);
     expect(shown).toContain("Dana Reyes wrote the music for Harbor Lights the Musical in 2005.");
     expect(shown).not.toContain("The musical won four stage awards, including Best New Musical.");
-    // "The song" retelling a sentence about another of her songs reads as this one too.
+    // "The song" retelling a sentence about another of her songs reads as this one too
     expect(shown).not.toContain("The song reached number two in 1974.");
   });
 
@@ -505,7 +503,7 @@ describe("generateFacts", () => {
     expect(fromCompanion?.source).toBe("Wikipedia: Music of the Lanternfall series");
     expect(fromCompanion?.url).toBe("https://en.wikipedia.org/wiki/Music_of_the_Lanternfall_series");
     expect(fromCompanion?.evidence).toBe(companion);
-    // Found through the song's own article: Wrong on that one takes it off too.
+    // Found through the song's own article: Wrong on that one takes it off too
     expect(fromCompanion?.via).toBe("Wikipedia: Ashen Choir");
     expect(fromOwn?.via).toBeUndefined();
     expect(pulledWithWrong(facts, fromOwn as Fact).map((f) => f.text)).toEqual(expect.arrayContaining([own, companion]));
@@ -533,7 +531,7 @@ describe("generateFacts", () => {
     mockCreate.mockResolvedValue(reply(["1 | The soundtrack was taped quickly with a small string section.", ...exact.map((l, i) => `${i + 2} | ${l}`)].join("\n")));
     const facts = (await generateFacts({ title: "Ranked Song", artist: "Someone" })).map((f) => f.text);
     expect(facts).toHaveLength(4);
-    // A first the source states, on a piano, beats a plain one.
+    // A first the source states, on a piano, beats a plain one
     expect(facts[0]).toBe("Its main melody was first sketched on an upright piano at the studio.");
     expect(facts).not.toContain("The soundtrack was taped quickly with a small string section.");
   });
@@ -620,7 +618,7 @@ describe("generateFacts", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`System Song (song)\n${MODEL_LINES}`);
     await generateFacts({ title: "System Song", artist: "System Artist" });
     expect(mockCreate.mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
-    // Anthropic SDK 1.x rejects temperature, so none is sent to it.
+    // Anthropic SDK 1.x rejects temperature
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("temperature");
   });
 
@@ -690,8 +688,7 @@ describe("generateFacts", () => {
     const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
     const facts = await generateFacts(request);
     expect(facts).toHaveLength(4);
-    // The work is filed under the request, not the reading: under the reading's name the
-    // built-in model saw a song that wasn't playing and refused (review).
+    // Filed under the request, not the reading: under the reading, the built-in model saw a song not playing and refused (review)
     expect(outcomeFor(request)).not.toBe("");
     expect((fetchGrounding as jest.Mock).mock.calls.at(-1)?.[0]).toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
   });
@@ -707,8 +704,7 @@ describe("generateFacts", () => {
     const request = { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", artist: "Unknown", liveLearn: true };
     const facts = await generateFacts(request);
     expect(facts).toHaveLength(4);
-    // The work is filed under the request, not the reading: under the reading's name the
-    // built-in model saw a song that wasn't playing and refused (review).
+    // Filed under the request, not the reading: under the reading, the built-in model saw a song not playing and refused (review)
     expect(outcomeFor(request)).not.toBe("");
     expect((fetchGrounding as jest.Mock).mock.calls.at(-1)?.[0]).toMatchObject({ title: "Never Gonna Give You Up", artist: "Rick Astley" });
   });
@@ -719,7 +715,7 @@ describe("generateFacts", () => {
       { title: "Laura's Wedding", artist: "Test Streamer" },
       entry({ title: "Laura's Wedding", artist: "Test Streamer" })
     );
-    // The streamer's notes about their compositions lead; nothing repeats the title and artist.
+    // The streamer's notes about their compositions lead; nothing repeats the title and artist
     expect(facts[0].source).toBe(SOURCE.custom);
     expect(facts.some((f) => /original composition/.test(f.text))).toBe(false);
     expect(fetchGrounding).not.toHaveBeenCalled();
@@ -944,7 +940,7 @@ describe("data facts from the matched article's own item, with no AI (issue #256
 
   it("adds only what MusicBrainz didn't say, and shows neither year when Wikidata's is earlier", async () => {
     (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
-    // MusicBrainz answers after the item is in.
+    // MusicBrainz answers after the item is in
     const mb = ['"Harbr Lights (2004)" came out in 2009 and is on the album Paper Boats.'];
     (musicbrainzFacts as jest.Mock).mockImplementation(() => new Promise((r) => setTimeout(() => r(mb), 20)));
     const facts = await generateFacts(request);
@@ -990,7 +986,7 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
   const songPage = 'Harbor Lights (Velvet Lark song)\n"Harbor Lights" is a song by American dream pop band Velvet Lark, released in 2004 as the lead single from their album Paper Boats. ' + MODEL_LINES;
   const item = { kind: "song" as const, title: "Harbor Lights", year: "2004", partOf: "Paper Boats", genres: ["dream pop"] };
   const dataFact = '"Harbor Lights" came out in 2004 and appears on Paper Boats. Its genres include dream pop.';
-  /** A fake AI that answers after `ms`, as a busy streaming PC does. */
+  /** A fake AI that answers after `ms`, like a busy streaming PC */
   const slowAI = (ms: number, text = MODEL_LINES) => mockCreate.mockImplementation(() => new Promise((r) => setTimeout(() => r(reply(text)), ms)));
   beforeEach(() => {
     (config as { factVerification: boolean }).factVerification = true;
@@ -1017,7 +1013,7 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
     expect(early.map((f) => [f.text, f.source])).toEqual([[dataFact, SOURCE.wikidata]]);
     expect(earlyAt).toBeLessThan(150);
     expect(total).toBeGreaterThanOrEqual(290);
-    // The full list starts with what went out early, unchanged; the AI's captions follow.
+    // The full list starts with what went out early, unchanged; the AI's captions follow
     expect(facts[0]).toEqual(early[0]);
     expect(facts.length).toBeGreaterThan(1);
     expect(facts.length).toBeLessThanOrEqual(4);
@@ -1072,7 +1068,7 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
       clearFactCache();
       return facts.some((f) => f.text === text);
     };
-    // The song's own infobox under another title, and a game named like the band.
+    // The song's own infobox under another title, and a game named like the band
     expect(await shown({ kind: "song", name: "Harbor Nights", artists: [] })).toBe(false);
     expect(await shown({ kind: "game", name: "Velvet Lark", artists: [] }, ['"Harbor Lights" came out in 2004 and is on the album Paper Boats.'])).toBe(false);
     expect(await shown({ kind: "song", name: "Harbor Lights", artists: [] })).toBe(true);
@@ -1085,7 +1081,7 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
     const first = generateFacts(request, null, (data) => (early = data));
     while (!early.length) await new Promise((r) => setImmediate(r));
     expect(early.map((f) => f.text)).toEqual([dataFact]);
-    // The streamer marks the early data fact Wrong before the AI is done.
+    // The streamer marks the early data fact Wrong before the AI is done
     expect(markWrong(request, dataFact, SOURCE.wikidata)).toBe(STRUCTURED);
     release(reply(MODEL_LINES));
     expect((await first).map((f) => f.text)).not.toContain(dataFact);
@@ -1506,7 +1502,7 @@ describe("a song that comes back while its stopped generation winds down", () =>
     const prompts: AbortSignal[] = [];
     useBuiltinSession({
       resetChatHistory: () => undefined,
-      // Like node-llama-cpp with stopOnAbortSignal: a stopped prompt ends a moment later with what it wrote.
+      // Like node-llama-cpp with stopOnAbortSignal: a stopped prompt ends a moment later with what it wrote
       prompt: (_text, { signal }) => {
         prompts.push(signal);
         if (prompts.length > 1) return Promise.resolve(MODEL_LINES);
@@ -1516,7 +1512,7 @@ describe("a song that comes back while its stopped generation winds down", () =>
     setCurrentSong(request);
     const first = generateFacts(request);
     while (!prompts.length) await new Promise((r) => setImmediate(r));
-    // Skipped to another song and straight back, before the stopped prompt has ended.
+    // Skipped to another song and straight back, before the stopped prompt has ended
     setCurrentSong({ title: "Tin Harbor", artist: "Marlo Venn" });
     setCurrentSong(request);
     const back = generateFacts(request);
@@ -1572,14 +1568,14 @@ describe("prepared facts (issues #292 and #293)", () => {
   it("never shows a prepared fact whose source was marked Wrong since, and looks the song up again", async () => {
     const ready = await prepare(listed);
     keep(ready.facts, ready.article);
-    // Marked elsewhere (a restored backup, an older version): the block alone must keep it off.
+    // Marked elsewhere (a restored backup, an older version): the block alone keeps it off
     blockArticleForTest(listed, ready.article);
     clearFactCache();
     (fetchGrounding as jest.Mock).mockResolvedValue("");
     const shown = await generateFacts(listed);
     expect(shown.some((f) => ready.facts.some((p) => p.text === f.text))).toBe(false);
     expect(preparedStore.saved(songKey(listed))).toBeUndefined();
-    // Wrong pressed now forgets the prepared facts at once.
+    // Wrong pressed now forgets the prepared facts at once
     unmarkWrong(listed, ready.article);
     keep(ready.facts, ready.article);
     markWrong(listed, ready.facts[0].text, ready.facts[0].source);
@@ -1673,7 +1669,7 @@ describe("prepared facts (issues #292 and #293)", () => {
     expect(first.facts.map((f) => f.text)).toContain(named);
     expect(second.facts.length).toBeGreaterThan(0);
     expect(second.facts.map((f) => f.text).join(" ")).not.toContain("Harbor Lights");
-    // Another article is asked for on its own.
+    // Another article is asked for on its own
     (fetchGrounding as jest.Mock).mockResolvedValue(`Quiet Pines\nQuiet Pines is a band. ${MODEL_LINES}`);
     await prepareSong({ title: "Low Tide", artist: "Quiet Pines" }, new AbortController().signal, { answers, revisionOf: noRevision });
     expect(mockCreate).toHaveBeenCalledTimes(2);
@@ -1690,12 +1686,12 @@ describe("a song whose captions all failed the screen (#203)", () => {
     mockCreate.mockResolvedValue(reply(failing));
     await generateFacts(song);
     expect(mockCreate).toHaveBeenCalledTimes(1);
-    // Past the retry time, the same article: the AI would write the same captions.
+    // Past the retry time, same article: the AI would write the same captions
     later(11 * 60 * 1000);
     await generateFacts(song);
     expect(mockCreate).toHaveBeenCalledTimes(1);
     jest.restoreAllMocks();
-    // Another article: worth asking.
+    // Another article: worth asking
     (fetchGrounding as jest.Mock).mockResolvedValue(`Test Song (other song)\n${MODEL_LINES}`);
     later(22 * 60 * 1000);
     await generateFacts(song);

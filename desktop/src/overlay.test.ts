@@ -16,7 +16,7 @@ describe("installOverlay", () => {
     const file = installOverlay(source, dir, 3005, { scale: 1.5 });
     expect(file).toBe(path.join(dir, OVERLAY_FILE));
     expect(fs.existsSync(file)).toBe(true);
-    // If either line in frontend/obs changes shape, the copy would keep the defaults without saying so.
+    // If either line in frontend/obs changes shape, the copy silently keeps the defaults
     expect(fs.readFileSync(path.join(dir, "obs-overlay.js"), "utf8")).toContain('const SERVER = "127.0.0.1:3005";');
     expect(fs.readFileSync(path.join(dir, "obs-overlay.css"), "utf8")).toContain("--bf-scale: 1.5;");
   });
@@ -24,10 +24,10 @@ describe("installOverlay", () => {
   it("writes the vertical overlay beside it, with its own bubble size (issue #175)", () => {
     installOverlay(source, dir, 3000, { scale: 1.25, verticalScale: 1.5 });
     const page = fs.readFileSync(path.join(dir, VERTICAL_OVERLAY_FILE), "utf8");
-    // Dragged into OBS, the file's name becomes the source's name.
+    // Dragged into OBS, the file's name becomes the source's name
     expect(VERTICAL_OVERLAY_FILE).toBe("BubbleFacts Vertical.html");
     expect(page).toContain('data-layout="vertical"');
-    // The same styles and script as the landscape page, so the port and sizes reach it too.
+    // The same styles and script as the landscape page, so the port and sizes reach it too
     expect(page).toContain('href="obs-overlay.css"');
     expect(page).toContain('src="obs-overlay.js"');
     const css = fs.readFileSync(path.join(dir, "obs-overlay.css"), "utf8");

@@ -69,7 +69,7 @@ describe("backups", () => {
 describe("automatic backups", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-backups-"));
   afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
-  // Local time, as the file names are.
+  // Local time, like the file names
   const at = (i: number) => new Date(2026, 9, 2, 12, 0, i);
 
   it("saves one when the facts change, and none when nothing did", () => {
@@ -88,7 +88,7 @@ describe("automatic backups", () => {
   });
 
   it("never stops the app when it can't write", () => {
-    // A folder inside a regular file can't be made on any system.
+    // A folder inside a regular file can't be made on any system
     const file = path.join(dir, "a-file");
     fs.writeFileSync(file, "");
     expect(autoBackup(path.join(file, "backups"), makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v"))).toBe("");

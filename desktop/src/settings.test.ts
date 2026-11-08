@@ -78,13 +78,13 @@ describe("loadSettings", () => {
     expect(loaded).toMatchObject({ ai: "builtin", bubbleSize: "standard" });
     saveSettings({ ...loaded, displayName: "Jane Composer" });
     expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "gemini-next", bubbleSize: "huge", displayName: "Jane Composer" });
-    // Choosing something else in Settings replaces it.
+    // Choosing something else in Settings replaces it
     saveSettings({ ...loaded, ai: "groq" });
     expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ai: "groq", bubbleSize: "huge" });
   });
 
   it("loads a settings file from an early 2.0 beta without losing anything it had", () => {
-    // Saved by 2.0.0-beta.3: no song source, no update channel, no newer settings.
+    // Saved by 2.0.0-beta.3: no song source, no update channel, no newer settings
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", displayName: "Jane Composer", myFacts: ["I play by ear."], factsPerSong: 4, port: 3000, topics: ["video-game"] }));
     const s = loadSettings();
     expect(s).toMatchObject({ setupComplete: true, channel: "jane", displayName: "Jane Composer", myFacts: ["I play by ear."], factsPerSong: 4, songSource: "streamersonglist" });
@@ -158,7 +158,7 @@ describe("loadSettings", () => {
 });
 
 describe("a settings file that can't be read right now (antivirus or OneDrive lock)", () => {
-  /** Makes reading settings.json fail with `code` for the first `times` reads (all of them by default). */
+  /** Reading settings.json fails with `code` for the first `times` reads (default all) */
   const lockFile = (code: string, times = Infinity) => {
     const real = fs.readFileSync;
     let left = times;
@@ -336,13 +336,13 @@ describe("toServerEnv", () => {
       expect(toServerEnv({ ...DEFAULTS, bubbleArea: spot }, paths).BUBBLE_AREA).toBe(spot);
     }
     expect(sanitize({ ...DEFAULTS, bubbleArea: "center" as "left" }).bubbleArea).toBe("anywhere");
-    // The vertical overlay's own choices (issue #175), apart from the landscape ones.
+    // The vertical overlay's own choices (#175), apart from the landscape ones
     expect(toServerEnv(DEFAULTS, paths).VERTICAL_AREA).toBe("top");
     expect(toServerEnv({ ...DEFAULTS, bubbleArea: "left", verticalArea: "above-chat" }, paths)).toMatchObject({ BUBBLE_AREA: "left", VERTICAL_AREA: "above-chat" });
     expect(sanitize({ ...DEFAULTS, verticalArea: "left" as "top" }).verticalArea).toBe("top");
     expect(sanitize({ ...DEFAULTS, verticalBubbleSize: "huge" as "large" }).verticalBubbleSize).toBe("standard");
     expect(fromWindow({ verticalArea: "above-chat", verticalBubbleSize: "larger" })).toEqual({ verticalArea: "above-chat", verticalBubbleSize: "larger" });
-    // Setup asks new installs where bubbles go; someone already set up keeps their spot, or Anywhere.
+    // Setup asks new installs where bubbles go; existing ones keep their spot, or Anywhere
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", bubbleArea: "right" }));
     expect(loadSettings().bubbleArea).toBe("right");
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane" }));
@@ -372,7 +372,7 @@ describe("toServerEnv", () => {
     expect(toServerEnv({ ...DEFAULTS, ai: "groq", groqKey: "k" }, lite)).toMatchObject({ AI_PROVIDER: "openai", OPENAI_API_KEY: "k" });
     expect(toServerEnv({ ...DEFAULTS, ai: "ollama" }, lite).AI_PROVIDER).toBe("ollama");
     expect(toServerEnv({ ...DEFAULTS, ai: "anthropic", anthropicKey: "k" }, lite).AI_PROVIDER).toBe("anthropic");
-    // The same saved choice is the built-in AI again after installing the full app.
+    // The same saved choice is the built-in AI again after installing the full app
     expect(toServerEnv({ ...DEFAULTS, ai: "builtin" }, { ...paths, edition: "full" }).AI_PROVIDER).toBe("builtin");
   });
 
@@ -437,7 +437,7 @@ describe("Now playing file", () => {
     expect(songSourceReady({ ...streamling, nowPlayingPreset: "nightbot" })).toBe(true);
     expect(songSourceReady({ ...other, nowPlayingFile: "" })).toBe(false);
     expect(songSourceReady(other)).toBe(true);
-    // A sign-in saved for another source doesn't matter, and doesn't make an unchosen file ready.
+    // A sign-in saved for another source doesn't matter, and doesn't make an unchosen file ready
     expect(songSourceReady({ ...other, nowPlayingFile: "", channel: "jane", token: "t" })).toBe(false);
   });
 
@@ -521,9 +521,9 @@ describe("the musician's own facts", () => {
     expect(customFactsProblem({ myFacts: ["Fine.", "x".repeat(300)] })).toBeNull();
     expect(customFactsProblem({ myFacts: ["Fine.", "", long] })).toBe("Your own facts: fact 2 is 301 characters. Shorten it to 300 or fewer to save.");
     expect(customFactsProblem({ myOriginals: [long] })).toMatch(/^About your own compositions: fact 1 is 301 characters/);
-    // The [song] tag never goes on stream, so it doesn't count.
+    // The [song] tag never goes on stream, so it doesn't count
     expect(customFactsProblem({ myFacts: ["[Song of Storms] " + "x".repeat(300)] })).toBeNull();
-    // Settings that don't touch the facts save even when an older long one is there.
+    // Settings that don't touch facts still save with an older long one there
     expect(customFactsProblem({})).toBeNull();
   });
 
@@ -608,7 +608,7 @@ describe("serverSettingsSignature (issue #55)", () => {
     expect(sig({ ...base, startAtLogin: true })).toBe(sig(base));
     expect(sig({ ...base, bubbleSize: "large" })).toBe(sig(base));
     expect(sig({ ...base, token: "t2-refreshed" })).toBe(sig(base));
-    // A new look reaches the running server without a restart (issue #177).
+    // A new look reaches the running server without a restart (#177)
     expect(sig({ ...base, bubbleStyle: "retro" })).toBe(sig(base));
     expect(sig({ ...base, customColors: true, accentColor: "#ff8800", backgroundColor: "#ffffff" })).toBe(sig(base));
   });
@@ -648,7 +648,7 @@ describe("reading the saved sign-in after the window is up (issue #62)", () => {
     const first = loadSettings(false);
     expect(first).toMatchObject({ channel: "jane", token: "" });
     expect(secretsWaiting()).toBe(true);
-    // A save now would store the sign-in blank.
+    // A save now would store the sign-in blank
     saveSettings({ ...first, channel: "changed" });
     const unlocked = unlockSecrets(first);
     expect(unlocked.token).toBe("streamer-token-123");

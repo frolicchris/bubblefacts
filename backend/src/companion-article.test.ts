@@ -24,10 +24,9 @@ import {
 } from "./fact-verifier";
 import { blockArticle, resetWrongFacts } from "./wrong-facts";
 
-// Made-up game, track, composers and albums, written the way Wikipedia's
-// plain-text extracts read (headings as "== ... ==").
+// Made-up game, track, composers and albums, as Wikipedia's plain-text extracts read ("== ... ==" headings)
 
-/** A track's own article with one sentence from its makers: under MIN_MAKING_SENTENCES. */
+/** A track's own article with one sentence from its makers: under MIN_MAKING_SENTENCES */
 const TRACK_ARTICLE = [
   `"Ashen Choir" is a piece of music from the 2003 role-playing video game Lanternfall, composed by Mira Okafor. It plays during the final battle against the Hollow King and is the longest track on the game's soundtrack. A choral version opened the Lanternfall Symphonic Night concerts in 2011.`,
   "== Composition ==",
@@ -38,7 +37,7 @@ const TRACK_ARTICLE = [
   `The Harbor City Philharmonic has closed every Lanternfall Symphonic Night concert with the piece since 2011. A rock arrangement was performed by Okafor's band the Ember Keys at their 2015 tour of Europe and North America.`,
 ].join("\n");
 
-/** The series' music article: four sentences about "Ashen Choir", the rest about the soundtracks in general. */
+/** The series' music article: four sentences about "Ashen Choir", the rest about the soundtracks in general */
 const MUSIC_ARTICLE = [
   `The music of the Lanternfall series was composed mainly by Mira Okafor, with later games scored by Teo Varga. The soundtracks have been released on numerous albums and performed in concert around the world.`,
   "== Lanternfall ==",
@@ -64,7 +63,7 @@ describe("companionSentences", () => {
     expect(kept).toHaveLength(3);
     expect(kept[0]).toMatch(/^Okafor said that she wrote "Ashen Choir" last/);
     expect(kept).toContain('The choir for "Ashen Choir" was recorded in a single afternoon with forty singers from a local church.');
-    // The soundtrack in general, an opinion, a sentence leaning on the one before, and the track listing never come along.
+    // Never along: the soundtrack in general, an opinion, a sentence leaning on the one before, the track listing
     expect(kept.join(" ")).not.toMatch(/four discs|four months|greatest|She explained|7:12/);
   });
 
@@ -96,7 +95,7 @@ describe("a companion article's line in the reference", () => {
   it("names the companion article a sentence comes from, and none for the reference's own", () => {
     expect(companionPages(context)).toEqual([MUSIC_PAGE]);
     const sentence = supportingSentence("Okafor played Varga a piano sketch of Ashen Choir over the phone in 2001.", context);
-    // The label isn't part of the sentence a caption rests on.
+    // The label isn't part of the sentence a caption rests on
     expect(sentence).toBe('Varga recalled that Okafor played him a piano sketch of "Ashen Choir" over the phone in 2001.');
     expect(companionOf(sentence, context)).toBe(MUSIC_PAGE);
     expect(companionOf("The track is written in E minor and runs for just over seven minutes.", context)).toBe("");
@@ -152,10 +151,10 @@ describe("fetchGrounding with a companion article (issue #48, step 2)", () => {
     expect(COMPANION_LABEL.exec(line!)?.[1]).toBe(MUSIC_PAGE);
     expect(line).toContain("forty singers from a local church");
     expect(line).not.toMatch(/four discs|greatest|second game/);
-    // The track's own article is still the reference.
+    // The track's own article is still the reference
     expect(text).toContain("written in E minor");
     expect(text.length).toBeLessThanOrEqual(MAX_CONTEXT_CHARS + TRACK.length + 1);
-    // Two requests more than the track's own article needs: the title lookup and the companion's text.
+    // Two requests more than the track's own article needs: the title lookup and the companion's text
     expect(requests((p) => !p.get("prop") && !p.get("srsearch") && !p.get("list"))).toBe(1);
     expect(requests((p) => (p.get("prop") ?? "").startsWith("extracts") && p.get("titles") === MUSIC_PAGE)).toBe(1);
   });

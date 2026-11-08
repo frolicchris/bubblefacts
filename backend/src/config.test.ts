@@ -1,4 +1,4 @@
-/** Which settings are required depends on where song requests come from. */
+/** Which settings are required depends on where song requests come from */
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -14,7 +14,7 @@ function load(env: Record<string, string>) {
   Object.assign(process.env, { AI_PROVIDER: "none" }, env);
   let config: typeof import("./config").config | undefined;
   jest.isolateModules(() => {
-    // dotenv never overrides what's already set, and the tests set everything they read.
+    // dotenv never overrides what's already set, and the tests set everything they read
     jest.doMock("dotenv", () => ({ config: () => ({}) }));
     config = require("./config").config;
   });
@@ -40,7 +40,7 @@ describe("config song source", () => {
       seJwt: "jwt",
       seChannel: "janeplays",
       sslAccessToken: "",
-      // The channel name stands in for the streamer's name, for originals.
+      // The channel name stands in for the streamer's name, for originals
       sslStreamerName: "janeplays",
       streamerDisplayName: "janeplays",
     });
@@ -68,7 +68,7 @@ describe("config song source", () => {
     const folder = path.join(os.homedir(), "Documents", "streamling", "livetext");
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling" }).nowPlayingFile).toBe(path.join(folder, "nowplaying-minimal.txt"));
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FILE: "song.txt" }).nowPlayingFile).toBe(path.join(folder, "song.txt"));
-    // A full path, or one from the home folder, is used as written.
+    // A full path, or one from the home folder, is used as written
     const elsewhere = path.join(os.tmpdir(), "song.txt");
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FILE: elsewhere }).nowPlayingFile).toBe(elsewhere);
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_FILE: "~/Music/song.txt" }).nowPlayingFile).toBe(path.join(os.homedir(), "Music", "song.txt"));
@@ -93,7 +93,7 @@ describe("config song source", () => {
       nowPlayingFile: "",
       nowPlayingFormat: "youtube-title",
     });
-    // A file named in the settings is followed instead, found in that folder; the format can still be set.
+    // A file named in the settings is followed instead, in that folder; the format can still be set
     const named = load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FILE: "song.txt", NOW_PLAYING_FORMAT: "artist-title" });
     expect(named).toMatchObject({ nowPlayingFolder: "", nowPlayingFile: path.join(folder, "song.txt"), nowPlayingFormat: "artist-title" });
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_FILE: path.join(os.tmpdir(), "song.txt") })).toMatchObject({ nowPlayingFolder: "", nowPlayingFormat: "artist-title" });
@@ -145,7 +145,7 @@ describe("config Anthropic model", () => {
 describe("config docs", () => {
   const root = path.join(__dirname, "../..");
   const docs = fs.readFileSync(path.join(root, "docs/CONFIG.md"), "utf8");
-  /** The switches read straight from the environment outside config.ts, listed under Developer switches. */
+  /** The switches read straight from the environment outside config.ts, listed under Developer switches */
   const SWITCHES = ["SECTION_SELECT", "RECEPTION_FILTER", "SERIES_SCOPE", "TIERED_SELECTION", "WORK_SCOPE", "COVER_SCOPE", "SCOPE_REPAIR", "QUALIFIER_REPAIR", "NODE_ENV", "PROMPT_STYLE", "CITE_SENTENCES", "WIKIPEDIA_CONTACT"];
 
   it("documents every setting config.ts reads", () => {

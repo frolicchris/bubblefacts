@@ -5,11 +5,11 @@ jest.mock("./config", () => ({
 import { workMatchConfidence as rules, articleText } from "./fact-verifier";
 import { referenceDecision, scoredLevel } from "./work-resolver";
 
-// MATCH=scored is the default; the "rules match" test project runs these again with MATCH=rules. The score may hold an article back, never add one.
+// MATCH=scored by default; the "rules match" test project reruns these with MATCH=rules (the score may hold an article back, never add one)
 const scored = process.env.MATCH !== "rules";
 const workMatchConfidence = (...a: Parameters<typeof rules>) => (scored ? scoredLevel(rules(...a), referenceDecision(a[2] ?? a[0], a[1], a[0], articleText(a[1].split("\n")[0]))) : rules(...a));
 
-/** A reference as fetchGrounding returns it: the page title, then the text. */
+/** A reference as fetchGrounding returns it: the page title, then the text */
 const ref = (page: string, ...text: string[]) => `${page}\n${text.join(" ")}`;
 const level = (title: string, artist: string, grounding: string) => workMatchConfidence({ title, artist }, grounding);
 
@@ -21,7 +21,7 @@ describe("workMatchConfidence (issue #255)", () => {
   it("is sure of a song's own article that names its artist up front", () => {
     const text = ref("Paper Lanterns", '"Paper Lanterns" is a song by English singer Dana Reyes, released in 1974.', "It reached number two in the UK.");
     expect(level("Paper Lanterns", "Dana Reyes", text).level).toBe("sure");
-    // Typed with a letter too many: still her song.
+    // Typed with a letter too many: still her song
     expect(level("Paper Lanterns", "Dana Reyess", text).level).toBe("sure");
   });
 
@@ -46,9 +46,9 @@ describe("workMatchConfidence (issue #255)", () => {
     const text = ref("Ollie Fenn", "Ollie Fenn is an American singer-songwriter from Ohio.", "Fenn released three albums on a small label.");
     expect(level("Glass Harbor", "Ollie Fenn (Tribute)", text)).toMatchObject({ level: "unsure", reason: expect.stringContaining("dropping a note") });
     expect(level("Glass Harbor (Dana Reyes cover)", "Ollie Fenn", text).level).toBe("unsure");
-    // As typed, with no note: the artist's article stays the fallback it has always been.
+    // As typed, no note: the artist's article stays the fallback
     expect(level("Glass Harbor", "Ollie Fenn", text).level).toBe("sure");
-    // An article that names the song is about it, note or not.
+    // An article that names the song is about it, note or not
     const naming = ref("Ollie Fenn", "Ollie Fenn is an American singer-songwriter from Ohio.", 'His 2019 single "Glass Harbor" was his first hit.');
     expect(level("Glass Harbor", "Ollie Fenn (Tribute)", naming).level).toBe("sure");
   });
@@ -75,7 +75,7 @@ describe("workMatchConfidence (issue #255)", () => {
     expect(level("Area 3", "Rocket Drift", series)).toMatchObject({ level: "unsure", reason: expect.stringContaining("a series' article") });
     const naming = ref("Rocket Drift", 'About this piece: "Area 3" is the series\' best-known track.', "", "Rocket Drift is a video game series developed by Pellmore.");
     expect(level("Area 3", "Rocket Drift", naming).level).toBe("sure");
-    // A request for the series itself takes its article.
+    // A request for the series itself takes its article
     expect(level("Area 3", "Rocket Drift Series", series).level).toBe("sure");
   });
 

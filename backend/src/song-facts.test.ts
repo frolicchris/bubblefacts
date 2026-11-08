@@ -79,7 +79,7 @@ describe("song facts", () => {
     expect(songFactsProblem({ facts: ["x".repeat(300)] })).toBeNull();
     expect(songFactsProblem({ facts: Array(22).fill("A fact.") })).toBe("A song can have up to 20 facts. Remove 2 to save.");
     expect(songFactsProblem({ facts: ["Short.", "x".repeat(301)] })).toBe("Fact 2 is 301 characters. Shorten it to 300 or fewer to save.");
-    // Counted as it's saved: line breaks and spaces at the ends don't count against it; blank boxes are skipped.
+    // Counted as saved: line breaks and end spaces don't count; blank boxes skipped
     expect(songFactsProblem({ facts: ["", "  " + "x".repeat(150) + "\n\n" + "x".repeat(149) + "  "] })).toBeNull();
     expect(songFactsProblem({ songwriters: ["A", "B", "C", "D", "E", "F"] })).toBe("Up to 5 songwriters can be credited.");
     expect(songFactsProblem({ link: "twitch.tv/" + "x".repeat(200) })).toBe("Their link can be up to 200 characters.");
@@ -115,7 +115,7 @@ describe("song facts", () => {
       expect(hasOwnFacts(glass)).toBe(false);
       expect(factsOff({ title: "Glass Orchard", artist: "Wren Halloway" })).toEqual({ song: true, artist: false });
       expect(factsOff({ title: "Any Song", artist: "Wren Halloway" })).toEqual({ song: false, artist: false });
-      // Every song by the artist: with a note after the name, a featured guest, or another case.
+      // Every song by the artist: with a note after the name, a featured guest, or another case
       for (const artist of ["Tobin Varr", "tobin varr (note words)", "Tobin Varr feat. Ada Penn"]) {
         expect(factsOff({ title: "Another Song", artist }).artist).toBe(true);
       }
@@ -151,12 +151,12 @@ describe("song facts", () => {
       const unswitched = fs.readFileSync(file(), "utf8");
       setFactsOff({ title: "Evening Rain", artist: "Jane Composer" }, "song", true);
       expect(fs.readFileSync(copy(), "utf8")).toBe(unswitched);
-      // Never copied again: the copy is the file as it was before any switch.
+      // Never copied again: the copy is the file as it was before any switch
       setFactsOff({ title: "Other Song", artist: "Jane Composer" }, "artist", true);
       setFactsOff({ title: "Evening Rain", artist: "Jane Composer" }, "song", false);
       setFactsOff({ title: "Evening Rain", artist: "Jane Composer" }, "song", true);
       expect(fs.readFileSync(copy(), "utf8")).toBe(unswitched);
-      // Still the list an older version reads: every entry has a title, an artist and facts.
+      // Still the list an older version reads: every entry has a title, an artist and facts
       const now = JSON.parse(fs.readFileSync(file(), "utf8")) as Array<Record<string, unknown>>;
       expect(now.every((e) => typeof e.title === "string" && typeof e.artist === "string" && Array.isArray(e.facts))).toBe(true);
     });

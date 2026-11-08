@@ -8,7 +8,7 @@ const song: SSLSong = { title: "Paper Lanterns", artist: "The Made Up Band", req
 const fact = (text: string, source = "Wikipedia: Paper Lanterns"): Fact => ({ text, source, delaySeconds: 0, durationSeconds: 8, position: {} });
 const facts = [fact("It was recorded in one take."), fact("It came out in 1999.", "Wikidata")];
 
-/** A stand-in for the events API: records what it's sent and answers with `status`. */
+/** Stand-in events API: records what it's sent, answers with `status` */
 function standIn() {
   const server = { status: 200, delayMs: 0, location: "", requests: [] as Array<{ auth?: string; body: { eventType: string; data: Record<string, unknown> } }>, url: "" };
   const http_ = http.createServer((req, res) => {
@@ -159,7 +159,7 @@ describe("SongFactSharer", () => {
     s.update({ title: "Second Song", artist: "Band" }, facts);
     await until(() => stand.server.requests.length === 2);
     expect(stand.server.requests[1].body.data.content).toContain("Second Song");
-    await new Promise((r) => setTimeout(r, stand.server.delayMs + 30)); // Lets the last answer land before the stand-in closes.
+    await new Promise((r) => setTimeout(r, stand.server.delayMs + 30)); // last answer lands before the stand-in closes
   });
 
   it("logs a failure once, by reason, without the key or the song", async () => {

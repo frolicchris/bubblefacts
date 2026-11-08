@@ -50,7 +50,7 @@ describe("the server's copy", () => {
   it("finds the same folder, given the Documents folder the app passes the server", () => {
     for (const folder of [["Nightbot"], ["streamling", "livetext"]]) {
       const places = [system, path.join(home, "Documents"), path.join(oneDrive, "Documents"), path.join(consumer, "Documents")].map((d) => path.join(d, ...folder));
-      // Every mix of these folders existing, from none to all of them.
+      // Every mix of these folders existing, from none to all of them
       for (let mask = 0; mask < 1 << places.length; mask++) {
         const isDir = existing(...places.filter((_, i) => mask & (1 << i)));
         for (const env of [{}, drives]) {

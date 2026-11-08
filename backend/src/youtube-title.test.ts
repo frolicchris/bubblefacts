@@ -86,7 +86,7 @@ describe("parseVideoTitle", () => {
   });
 
   it("keeps parts of a title that look like labels but aren't only labels", () => {
-    // A live bracket is dropped: the song, not the concert, is what to look up (issue #25).
+    // A live bracket is dropped: the song, not the concert, is what to look up (#25)
     expect(parseVideoTitle("Queen - Bohemian Rhapsody (Live Aid 1985)", "Queen").title).toBe("Bohemian Rhapsody");
     expect(parseVideoTitle("Avicii - Levels (Skrillex Remix)", "Avicii").title).toBe("Levels (Skrillex Remix)");
   });
@@ -226,7 +226,7 @@ describe("the title corpus (issue #25)", () => {
     cases: Array<{ title: string; channel: string; artist: string; song: string; kind: string; order?: string }>;
   };
   const results = cases.map((c) => {
-    // "order": "musicbrainz": only MusicBrainz tells which side is the artist; the title is read as unsure and turned round.
+    // "order": "musicbrainz": only MusicBrainz knows which side is the artist; read as unsure, then turned round
     const read = parseVideoTitle(c.title, c.channel);
     const got = c.order === "musicbrainz" && read.orderUnsure ? otherOrder(read) : read;
     return { ...c, got, ok: got.artist === c.artist && got.title === c.song };

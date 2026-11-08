@@ -17,8 +17,7 @@ function entry(partial: Partial<SSLQueueItem["song"]>, rest: Partial<SSLQueueIte
 
 describe("isOriginal", () => {
   it("detects an original from the song attribute", () => {
-    // Attribute-driven rather than a hardcoded title list, so adding a new
-    // original to the song list needs no code change.
+    // Read from the list's attributes, not a title list: a new original needs no code change
     expect(
       isOriginal(entry({ attributes: [{ name: "Jane's Originals" }] }), ["janestreams", "Jane"])
     ).toBe(true);
@@ -81,7 +80,7 @@ describe("buildStatFacts", () => {
   });
 
   it("never shows the song's length, which isn't a fact about the song", () => {
-    // A tester: "Runs about 4:29" read as noise on stream.
+    // A tester: "Runs about 4:29" read as noise on stream
     expect(buildStatFacts(entry({ durationSeconds: 184 }), opts).some((x) => /3:04|runs/i.test(x))).toBe(false);
   });
 
@@ -146,7 +145,7 @@ describe("buildStatFacts", () => {
   });
 
   it("never claims another streamer's original was written by the one playing it", () => {
-    // From review: Robin plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals".
+    // From review: Robin plays "Evening Rain", credited to Jane Composer and tagged "Jane's Originals"
     const song = entry({ title: "Evening Rain", artist: "Jane Composer", attributes: [{ name: "Jane's Originals" }] });
     expect(isOriginal(song, ["robinplays", "Robin"])).toBe(false);
     const f = buildStatFacts(song, { streamerName: "robinplays", isOriginalSong: true, names: ["robinplays", "Robin"] });

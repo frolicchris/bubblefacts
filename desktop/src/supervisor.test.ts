@@ -49,7 +49,7 @@ afterEach(() => {
 });
 
 const run = (ms: number) => jest.advanceTimersByTimeAsync(ms);
-/** The server answers one health check, then dies. */
+/** The server answers one health check, then dies */
 const crashAfterGoodCheck = async () => {
   await run(5_000);
   forks[forks.length - 1].emit("exit", 1);
@@ -109,7 +109,7 @@ describe("crash restarts (restart history)", () => {
     await run(6 * 60_000); // steady
     forks[forks.length - 1].emit("exit", 1);
     const before = forks.length;
-    await run(1_000); // back to the first, 1 second wait
+    await run(1_000); // back to the first, 1 s wait
     expect(forks).toHaveLength(before + 1);
   });
 });

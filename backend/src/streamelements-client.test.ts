@@ -12,7 +12,7 @@ jest.mock("./config", () => ({
   },
 }));
 
-// The realtime stream opens a real socket; stub it out entirely.
+// The realtime stream opens a real socket: stub it out
 const startMock = jest.fn();
 const stopMock = jest.fn();
 let streamConnected = true;
@@ -57,7 +57,7 @@ function ok(body: unknown) {
 function status(code: number, statusText: string, headers: Record<string, string> = {}) {
   return { ok: false, status: code, statusText, headers: new Headers(headers), text: async () => "", json: async () => ({}) };
 }
-/** One refresh: the player's state, then the song at the head of the player. */
+/** One refresh: the player's state, then the song at the head of the player */
 function player(state: string, song: SESong | null) {
   mockFetch.mockResolvedValueOnce(ok({ state })).mockResolvedValueOnce(song ? ok(song) : status(404, "Not Found"));
 }
@@ -78,7 +78,7 @@ describe("StreamElementsClient", () => {
   });
 
   afterEach(() => client.disconnect());
-  // Failed fetches are logged as errors; the tests check the outcome instead.
+  // Failed fetches log errors; the tests check the outcome instead
   const quiet = jest.spyOn(console, "error").mockImplementation(() => undefined);
   afterAll(() => quiet.mockRestore());
 
@@ -192,7 +192,7 @@ describe("StreamElementsClient", () => {
     expect(changes).toHaveBeenCalledTimes(2);
     expect(client.getCurrentSong()?.song.artist).toBe("The Legend of Zelda: Ocarina of Time");
 
-    // The same video requested again is a new request, so a new song.
+    // The same video requested again is a new request, so a new song
     player("playing", { ...STORMS, _id: "req-3" });
     await refresh(client);
     expect(changes).toHaveBeenCalledTimes(3);
@@ -204,7 +204,7 @@ describe("StreamElementsClient", () => {
   });
 
   it("reads a fan's \"Song - Artist\" the way MusicBrainz says", async () => {
-    // As if MusicBrainz had "Harbor Lights" by Marlow Finch only.
+    // As if MusicBrainz had "Harbor Lights" by Marlow Finch only
     const settle = jest.spyOn(musicbrainz, "settleTitleOrder").mockImplementation(async (r) => (r.orderUnsure ? otherOrder(r) : r));
     try {
       mockFetch.mockResolvedValueOnce(ok(CHANNEL));
@@ -296,8 +296,7 @@ describe("StreamElementsClient", () => {
   });
 
   it("keeps following songs after a pause even if the player still reports paused", async () => {
-    // A real failure (issue #16): after a pause, the REST player state stayed
-    // "paused", so no later song was followed until the player was restarted.
+    // Real failure (#16): after a pause REST stayed "paused", so no later song was followed until a player restart
     jest.useFakeTimers();
     try {
       mockFetch.mockResolvedValueOnce(ok(CHANNEL));
@@ -308,13 +307,13 @@ describe("StreamElementsClient", () => {
       const [, topic, , , onMessage] = (AstroStream as unknown as jest.Mock).mock.calls.at(-1);
       expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
 
-      // Paused, and /playing briefly answers nothing: keep the song and its facts.
+      // Paused, and /playing briefly answers nothing: keep the song and its facts
       player("paused", null);
       onMessage({ topic, event: "pause" });
       await jest.advanceTimersByTimeAsync(300);
       expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
 
-      // Resumed, then the next song starts, but REST still says "paused".
+      // Resumed, then the next song starts, but REST still says "paused"
       player("paused", STORMS);
       onMessage({ topic, event: "play" });
       onMessage({ topic, event: "song.next" });
@@ -327,8 +326,7 @@ describe("StreamElementsClient", () => {
   });
 
   it("doesn't call an empty queue at the end of the stream a problem", async () => {
-    // From review: the last "play" event stayed in force after the queue ran out,
-    // so health turned degraded and the app restarted every few minutes.
+    // From review: the last "play" event outlived the queue, so health went degraded and the app restarted every few minutes
     jest.useFakeTimers();
     streamConnected = true;
     try {
@@ -357,7 +355,7 @@ describe("StreamElementsClient", () => {
       const [, topic, , , onMessage] = (AstroStream as unknown as jest.Mock).mock.calls.at(-1);
       onMessage({ topic, event: "play" });
       await jest.advanceTimersByTimeAsync(300);
-      // The socket drops, and the streamer stops: REST is now the only word.
+      // The socket drops, and the streamer stops: REST is now the only word
       streamConnected = false;
       player("stopped", STORMS);
       await refresh(client);
@@ -369,8 +367,7 @@ describe("StreamElementsClient", () => {
   });
 
   it("calls a song change under a stale \"paused\" a problem while the live events are down", async () => {
-    // From review: with the socket down there's no live word, REST can sit on "paused" after a
-    // resume (issue #16), and every later song went unfollowed while health stayed ok.
+    // From review: socket down, REST stuck on "paused" after a resume (#16): later songs went unfollowed, health stayed ok
     jest.useFakeTimers();
     streamConnected = false;
     try {
@@ -381,7 +378,7 @@ describe("StreamElementsClient", () => {
       await refresh(client);
       expect(client.getCurrentSong()?.song.title).toBe("1, 2 Step");
 
-      // The streamer resumed and the next song started, but REST still says "paused".
+      // The streamer resumed and the next song started, but REST still says "paused"
       player("paused", STORMS);
       await refresh(client);
       expect(client.getCurrentSong()).toBeNull();
@@ -389,7 +386,7 @@ describe("StreamElementsClient", () => {
       await jest.advanceTimersByTimeAsync(31_000);
       expect(client.followingProblem()).toMatch(/paused, but its song changed/);
 
-      // Once the player says "playing" again, the song is followed and the problem is gone.
+      // Once the player says "playing" again, the song is followed and the problem clears
       player("playing", STORMS);
       await refresh(client);
       expect(client.getCurrentSong()?.song.artist).toBe("The Legend of Zelda: Ocarina of Time");
@@ -419,7 +416,7 @@ describe("StreamElementsClient", () => {
   });
 
   it("doesn't call a player that was already paused at start a problem, so a restart can't repeat", async () => {
-    // A restart for the problem above starts here: /playing names the song the player is paused on.
+    // A restart for the problem above starts here: /playing names the song the player is paused on
     jest.useFakeTimers();
     streamConnected = false;
     try {
