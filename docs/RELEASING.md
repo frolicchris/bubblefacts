@@ -155,9 +155,9 @@ reads.
 5. Install it and open it. The setup screen appears and shows the new version
    at the bottom, with the tagged commit and no "test build". Open one Lite
    installer too: its version says "Lite", setup says what Lite does, nothing
-   downloads, and Settings, Advanced, shows neither **Who writes the facts**
-   nor **On this computer** (other AIs aren't offered for now, and Lite has no
-   AI of its own).
+   downloads, and Settings, Advanced, shows **Who writes the facts** with **No
+   AI**, Groq, Anthropic and Ollama, and no **On this computer**. In the full
+   app, it doesn't show for a new install.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.

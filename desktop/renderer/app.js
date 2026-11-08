@@ -1292,8 +1292,8 @@
     $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
-    // Other AIs aren't offered for now: only someone whose saved choice is one still sees them.
-    const otherAi = s.ai !== "builtin";
+    // Other AIs are Lite's. In the full app they're legacy (leaving in 3.0): only someone whose saved choice is one sees them.
+    const otherAi = isLite() || s.ai !== "builtin";
     $("#s-other-ai").hidden = !otherAi;
     $("#s-other-ai-keys").hidden = !otherAi;
     $("#s-quality-box").classList.toggle("indent", otherAi);

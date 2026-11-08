@@ -666,9 +666,11 @@ the command line set to none), the credit leaves out "retold by AI"
 keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
 (`restoredCredit`), so each stream shows the credit that fits the AI writing
-its facts. The desktop app doesn't offer these AIs for now (see
-[DESKTOP-APP.md](DESKTOP-APP.md)); the command line, which has no built-in AI,
-always shows this wording when an AI writes.
+its facts. In the desktop app these AIs are BubbleFacts Lite's choice; in the
+full app they're a legacy choice for those who already made it, and leave it
+in 3.0, so every fact the full app shows then comes from the AI its fact
+check measures (see [DESKTOP-APP.md](DESKTOP-APP.md)). The command line, which
+has no built-in AI, always shows this wording when an AI writes.
 
 ### The content standard
 

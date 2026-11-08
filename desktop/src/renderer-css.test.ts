@@ -92,20 +92,24 @@ describe("Settings", () => {
     expect(js).toContain("form.querySelectorAll('input[name=\"ai\"]')) el.addEventListener(\"change\", renderAiWarning)");
   });
 
-  it("doesn't offer other AIs for now, but keeps them for someone who already chose one", () => {
-    // The choice and the keys are hidden to start with; only a saved choice of another AI shows them.
+  it("offers other AIs in Lite only, and keeps them in the full app for someone who already chose one", () => {
+    // The choice and the keys are hidden to start with; Lite, or a saved choice of another AI, shows them.
     const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
     expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
     expect(choice).toContain('name="ai" value="groq"');
-    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.");
+    expect(choice).toContain('<span data-edition="full">Online AIs and Ollama are a legacy choice in the full app: they leave it in BubbleFacts 3.0 and stay in BubbleFacts Lite. You can keep the one you chose until then. Your viewers see a bubble saying its facts aren\'t verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.</span>');
+    expect(choice).toContain('<span data-edition="lite" hidden>Another AI can write facts from Wikipedia articles, so more songs get them. BubbleFacts doesn\'t verify what it writes, and your viewers see a bubble saying so.</span>');
     const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));
     for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
     const js = read("app.js");
-    expect(js).toContain('const otherAi = s.ai !== "builtin";\n    $("#s-other-ai").hidden = !otherAi;\n    $("#s-other-ai-keys").hidden = !otherAi;');
-    // Nothing else points people to them: no Switch to Groq, and Settings' fine print doesn't offer them.
+    expect(js).toContain('const otherAi = isLite() || s.ai !== "builtin";\n    $("#s-other-ai").hidden = !otherAi;\n    $("#s-other-ai-keys").hidden = !otherAi;');
+    // Nothing in the full app points people to them: no Switch to Groq, and its fine print doesn't offer them.
     expect(js).not.toContain("Switch to Groq");
-    expect(settings).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
-    expect(html).not.toMatch(/choose (one|Anthropic|Groq|Ollama|an online AI) under Advanced/i);
+    const full = html.replace(/<(p|div|span)[^>]*data-edition="lite"[^>]*>[\s\S]*?<\/\1>/g, "");
+    expect(full).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
+    expect(full).not.toMatch(/choose (one|another AI|Anthropic|Groq|Ollama|an online AI) under Advanced/i);
+    // Lite's fine print does.
+    expect(settings).toContain("To get more, choose another AI under Advanced, or install the full BubbleFacts");
     expect(settings).toContain("Larger AI is under Advanced.");
     // Saving re-reads the saved settings into the form, which is what hides the choice after switching back.
     const save = js.slice(js.indexOf("async function saveSettingsForm"), js.indexOf("\n  }", js.indexOf("async function saveSettingsForm")));

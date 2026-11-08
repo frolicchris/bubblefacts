@@ -94,9 +94,10 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
 3. `npm run app` builds the app and runs it in development. On Linux, the
    packaged full app runs its fact server under a bundled Node.js because the
    built-in AI crashes under Electron's own runtime there; from source it
-   uses Electron's, so use Ollama while developing on Linux: quit the app, set
-   `"ai": "ollama"` in its `settings.json`, and open it again. Settings doesn't
-   offer online AIs or Ollama for now, but shows the choice once one is set.
+   uses Electron's, so use Ollama while developing on Linux: run
+   `BUBBLEFACTS_EDITION=lite npm run app` and choose it under Settings,
+   Advanced, or quit the full app, set `"ai": "ollama"` in its
+   `settings.json`, and open it again (the full app offers it only once set).
 4. `npm run dist` builds installers for your own system into `release/`, and
    `npm run dist:lite` builds BubbleFacts Lite (no AI engine) into
    `release-lite/`. To see Lite's screens without building it, run

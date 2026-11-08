@@ -66,8 +66,8 @@ Llama 3.2, running on your own computer, while you stream or, with **Prepare
 my songs**, ahead of time while you're not streaming, through the same
 screening. BubbleFacts Lite has no AI engine: by default no AI writes
 anything, and only facts from data and your own facts are shown (Groq,
-Anthropic or Ollama, which aren't offered for now, keep working for anyone who
-had already chosen one). The model only
+Anthropic or Ollama can be chosen in its Settings; in the full app they're a
+legacy choice, kept only for anyone who had already chosen one). The model only
 rewrites details from the song's Wikipedia article, and every caption is
 screened against the article before it's shown: names, who did what, years,
 consoles, and award or chart claims must appear there. That screening is
