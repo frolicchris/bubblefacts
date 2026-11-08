@@ -48,7 +48,7 @@ export function ownMusicParts(full: string): string {
 
 export const themeCache = new Map<string, { text: string; at: number }>();
 
-/** The theme's reference, or "": not a person's article, never when a performer has the artist's name (ARCHITECTURE.md: choosing the article) */
+/** The theme's reference, or ""; never a person's article, nor when a performer has the artist's name */
 export async function themeGrounding(song: SSLSong, usable: (title: string) => boolean): Promise<string> {
   const name = themeOf(song.title);
   if (!name || song.artistUncertain) return "";

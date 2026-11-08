@@ -1,18 +1,6 @@
-/**
- * One scored match between a request and the articles a lookup found (issue #172).
- *
- * The rules in fact-verifier.ts (`workMatchConfidence`, `summaryMismatch`, `articleMisfit`)
- * each check one way an article can be about another work. This module reads every signal at
- * once: what the request says (its title, the work it is from, a year, what the artist field
- * is) against what each article says (its title, kind, year, performer, "a remake of"). Each
- * signal adds or takes points; the total decides:
- * - `sure`: captions and data facts, as today;
- * - `data-only`: no captions, only data that holds for every version (who wrote it);
- * - `abstain`: no facts from the lookup.
- *
- * Pure: no I/O. The caller passes in what the pipeline already fetched.
- * MATCH=rules keeps today's rules alone; shadow scores and logs; scored lets the score hold facts back.
- */
+// One scored match between a request and the articles a lookup found (#172): every signal at once, where
+// the rules each check one; points decide sure, data-only or abstain (ARCHITECTURE.md: the scored match).
+// Pure, no I/O: the caller passes in what the pipeline fetched
 import { SSLSong } from "./types";
 import type { WorkMatch } from "./fact-verifier";
 import {
@@ -38,69 +26,69 @@ import {
 } from "./fact-verifier";
 import { PLATFORM_TAG } from "./infobox";
 
-/** What the artist field names: who sings it, who wrote it, the work it's from, or can't tell. */
+/** What the artist field names: who sings it, who wrote it, the work it's from, or unknown */
 export type ArtistKind = "performer" | "composer" | "work" | "unknown";
-/** What an article is about. `music`: a work's music article ("Music of X", "X Soundtrack"). */
+/** What an article is about; `music`: a work's music article ("Music of X", "X Soundtrack") */
 export type WorkKind = "song" | "album" | "music" | "person" | "game" | "film" | "tv" | "book" | "stage" | "series" | "other";
 export type Decision = "sure" | "data-only" | "abstain";
 
 export interface RequestProfile {
-  /** The piece asked for, or "" when the request is a whole work. */
+  /** The piece asked for; "" for a whole work */
   piece: string;
-  /** The artist field's work or name, or a longer one the title gives ("Some Game 2: Track" by "Some Game"). */
+  /** The artist field's work or name, or a longer one from the title ("Some Game 2: Track" by "Some Game") */
   field: string;
-  /** The work the title says the piece is from, "(from Some Show)", or what a theme is named for. */
+  /** The work the title says it's from, "(from Some Show)", or what a theme is named for */
   hint: string;
-  /** A year in the title's brackets, "(1987)". */
+  /** A year in the title's brackets, "(1987)" */
   year: number | null;
   artistKind: ArtistKind;
-  /** The artist field's names, normalized (`artistNames`). */
+  /** The artist field's names, normalized (`artistNames`) */
   names: string[];
-  /** Each name in a shared credit, "Some Singer / Other Singer": each may have the article. */
+  /** Each name of a shared credit, "Some Singer / Other Singer": any may have the article */
   credits: string[];
-  /** How the title says it is played: cover, live, cast, remix. */
+  /** How the title says it's played: cover, live, cast, remix */
   versions: string[];
-  /** What the request's own brackets say the work is: "Some Quest (SNES)" a game, "Some Show (TV)" a show or film. */
+  /** What the request's brackets call the work: "Some Quest (SNES)" a game, "Some Show (TV)" a show or film */
   medium: "game" | "screen" | "";
 }
 
 export interface CandidateProfile {
   page: string;
-  /** The title without its qualifier, normalized. */
+  /** Title without qualifier, normalized */
   base: string;
   qualifier: string;
   kind: WorkKind;
-  /** The year the qualifier or first sentence gives a work (never a person's). */
+  /** A work's year from its qualifier or first sentence (never a person's) */
   year: number | null;
-  /** The first two sentences, normalized. "" for a title known only from a search. */
+  /** First two sentences, normalized; "" for a search-only title */
   lead: string;
-  /** The text read for it, for `namesPiece`. */
+  /** The text read, for `namesPiece` */
   text: string;
-  /** "a remake of X", "a sequel to X": X, normalized. */
+  /** X in "a remake of X", "a sequel to X", normalized */
   remakeOf: string;
-  /** Its place in the search results, 0 first; -1 when not from a search. */
+  /** Search place, 0 first; -1 if not from a search */
   rank: number;
 }
 
 export interface Scored {
   page: string;
   points: number;
-  /** Each feature and its points, in order. */
+  /** Each feature and its points, in order */
   parts: Array<[string, number]>;
 }
 
 export interface MatchResult {
   decision: Decision;
   top: Scored;
-  /** The best article of the same name, when there is one. */
+  /** Best same-name article, if any */
   runnerUp: Scored | null;
-  /** The work the facts would be about. */
+  /** The work the facts would be about */
   target: { page: string; kind: WorkKind; year: number | null };
-  /** The request as scored, for the checks on each fact. */
+  /** The request as scored, for the per-fact checks */
   request: RequestProfile;
 }
 
-/** The points, set by hand (issue #172). */
+/** Points per feature, set by hand (#172) */
 export const POINTS = {
   titleExact: 4,
   respelling: 3,
@@ -120,14 +108,13 @@ export const POINTS = {
   topHit: 1,
 } as const;
 
-/** Sure needs this many points and this lead over an article of the same name; data only needs `DATA_ONLY`. */
-export const SURE = 6;
-export const MARGIN = 3;
-export const DATA_ONLY = 3;
+export const SURE = 6;      // points for sure
+export const MARGIN = 3;    // lead over a same-name article, also needed for sure
+export const DATA_ONLY = 3; // points for data facts only
 
 const YEAR = /\b(1[89]\d\d|20\d\d)\b/;
 const YEAR_TAG = /[([]\s*((?:19|20)\d\d)\s*[)\]]/;
-/** A show's or a film's own bracket: "Some Show (TV)", "Theme (Some Show TV series)". */
+// A show's or film's bracket: "Some Show (TV)", "Theme (Some Show TV series)"
 const SCREEN_TAG = /\((?:[^)]*\s)?(?:tv|tv series|television|anime|film|movie|sitcom)\)\s*$/i;
 const VERSION_WORDS: Array<[string, RegExp]> = [
   ["cover", /\bcover\b/i],
@@ -135,12 +122,12 @@ const VERSION_WORDS: Array<[string, RegExp]> = [
   ["cast", /\bcast\b|\bbroadway\b/i],
   ["remix", /\bremix\b|\bmix\)|\bedit\)/i],
 ];
-/** Words that name an edition of a work rather than another work. */
+// An edition of a work, not another work
 const EDITION = /^(?:complete|remastered|remaster|definitive|deluxe|hd|dx|anniversary|edition|special|ultimate|enhanced)$/;
 const STOP = new Set(["the", "and", "of", "a", "an", "in", "on", "for", "to"]);
 const ROMAN: Record<string, string> = { i: "1", ii: "2", iii: "3", iv: "4", v: "5", vi: "6", vii: "7", viii: "8", ix: "9", x: "10" };
 
-/** Content words, roman numerals as numbers: "Some Game V" and "Some Game 5" are one. */
+/** Content words, roman numerals as numbers: "Some Game V" is "Some Game 5" */
 export function tokens(s: string): string[] {
   return normalizeTitle(s)
     .replace(/ (?:series|franchise)$/, "")
@@ -151,7 +138,7 @@ export function tokens(s: string): string[] {
 
 const qualifierOf = (page: string) => /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
 const withoutQualifier = (page: string) => page.replace(/\s*\([^)]*\)\s*$/, "");
-/** "Music of Some Game", "Some Game Original Soundtrack", "Music of the Some series": the work the music is of. */
+// The work music is of: "Music of Some Game", "Some Game Original Soundtrack", "Music of the Some series"
 const musicOf = (base: string) =>
   base
     .replace(/^music (?:of|from) (?:the )?/i, "")
@@ -164,19 +151,16 @@ function firstSentences(full: string, n: number): string {
   return ends.length >= n ? lead.slice(0, ends[n - 1]) : lead;
 }
 
-// --- The request ------------------------------------------------------------
+// --- The request ---
 
-/**
- * What a request says about the work it wants. `asked` is the request as typed, `read` the
- * reading that found the article. `credited`: MusicBrainz has this title by an artist of the
- * artist field's name (null: not looked up).
- */
+// What a request says about its work: `asked` as typed, `read` the reading that found the article,
+// `credited` whether MusicBrainz has the title by the artist field's name (null: not looked up)
 export function requestProfile(asked: SSLSong, read: SSLSong, credited: boolean | null = null): RequestProfile {
   const { game, track } = resolveGameAndTrack(read);
   const piece = track && normalizeTitle(track) !== normalizeTitle(game) ? track : "";
   const year = Number(YEAR_TAG.exec(asked.title)?.[1] ?? NaN);
   const artist = (asked.artist ?? "").trim();
-  // The title's own "Some Game 2:" in front of the track, longer than the artist field: a work.
+  // The title's own "Some Game 2:", longer than the artist field: a work
   const longer = normalizeTitle(game) !== normalizeTitle(read.artist ?? "") && Boolean(read.artist);
   const kind: ArtistKind = PLATFORM_TAG.test(artist) || longer
     ? "work"
@@ -188,7 +172,7 @@ export function requestProfile(asked: SSLSong, read: SSLSong, credited: boolean 
   return {
     piece,
     field: game,
-    // The work it is from, or what a theme is named for: "Some Song (from Some Show)", "Some Name Theme".
+    // The work it's from, or a theme's namesake: "Some Song (from Some Show)", "Some Name Theme"
     hint: workFromTitle(asked.title)?.work || themeOf(read.title),
     year: Number.isFinite(year) ? year : null,
     artistKind: kind,
@@ -199,7 +183,7 @@ export function requestProfile(asked: SSLSong, read: SSLSong, credited: boolean 
   };
 }
 
-// --- An article -------------------------------------------------------------
+// --- An article ---
 
 function kindOf(qualifier: string, description: string, full: string, page: string): WorkKind {
   const q = qualifier.toLowerCase();
@@ -224,7 +208,7 @@ function kindOf(qualifier: string, description: string, full: string, page: stri
   const described = description ? describedKind(description) : "other";
   if (described !== "other") return described === "person" ? "person" : described;
   if (!full) return "other";
-  // What the first sentence calls it, by the kind word nearest "by" or "of": "the debut single of singer X" is a song.
+  // First sentence's kind word nearest "by" or "of": "the debut single of singer X" is a song
   const opening = describedKind(openingSays(full));
   if (opening !== "other") return opening;
   if (isPerformerArticle(page, full)) return "person";
@@ -232,10 +216,7 @@ function kindOf(qualifier: string, description: string, full: string, page: stri
   return fromWords(openingSays(full).toLowerCase()) ?? "other";
 }
 
-/**
- * What an article says it is. `full`: its text as read ("" for a title only a search gave);
- * `description`: Wikipedia's short description, when read; `rank`: its search place.
- */
+/** What an article says it is; `full` "" for a search-only title, `description` Wikipedia's short one if read */
 export function candidateProfile(page: string, full = "", description = "", rank = -1): CandidateProfile {
   const qualifier = qualifierOf(page);
   const kind = kindOf(qualifier, description, full, page);
@@ -256,16 +237,12 @@ export function candidateProfile(page: string, full = "", description = "", rank
   };
 }
 
-// --- Scoring ----------------------------------------------------------------
+// --- Scoring ---
 
 type Role = "piece" | "field" | "hint";
 
-/**
- * How a title compares with a name the request gives. Shorter: the series, or the game an
- * edition is of. Longer by a part at the end: a sequel, a remake, another work named after it
- * ("Some Band of Darkness" for Some Band); a person's full name is no other work. Longer in the
- * middle: an article on several works at once ("Some Game Red, Blue and Yellow").
- */
+// Title vs a request's name. Shorter: the series, or an edition's game. Longer at the end: a sequel or a
+// namesake ("Some Band of Darkness"), not for a person's full name. Longer inside: several works at once
 function titleFit(base: string, name: string, person: boolean): { what: string; points: number } {
   const have = tokens(base);
   const want = tokens(name);
@@ -273,7 +250,7 @@ function titleFit(base: string, name: string, person: boolean): { what: string; 
   const same = have.length === want.length && want.every((t) => have.includes(t));
   if (same && !numeralStyleDiffers(name, base)) return { what: "exact", points: POINTS.titleExact };
   if (same || isRespelling(name, base)) return { what: "respelling", points: POINTS.respelling };
-  // A person's name in another order or form: "Chen Yupeng" for "Yu-peng Chen", "Our Lady Peace" for "OLP", "Johann Sebastian Bach" for "Bach, J.S.".
+  // A person's name reordered or in initials: "Chen Yupeng" for "Yu-peng Chen", "Johann Sebastian Bach" for "Bach, J.S."
   if (person) {
     const letters = (list: string[]) => list.join("").split("").sort().join("");
     const initials = want.filter((t) => t.length === 1);
@@ -284,22 +261,22 @@ function titleFit(base: string, name: string, person: boolean): { what: string; 
   if (have.every((t) => want.includes(t))) return person ? { what: "close", points: POINTS.titleClose } : { what: "parent", points: POINTS.parentWork };
   if (want.every((t) => have.includes(t))) {
     if (person) return { what: "close", points: POINTS.titleClose };
-    // The same game under its fuller edition's name: "Some Quest Complete" for "Some Quest".
+    // The same game under its fuller edition's name: "Some Quest Complete" for "Some Quest"
     const extra = have.filter((t) => !want.includes(t));
     if (extra.every((t) => EDITION.test(t))) return { what: "edition", points: POINTS.respelling };
     return want.every((t, i) => have[i] === t) ? { what: "sibling", points: POINTS.siblingWork } : { what: "combined", points: 0 };
   }
-  // A typo or a list's cut-off title: "en You're in Love" for "When You're in Love".
+  // A typo or a list's cut-off title: "en You're in Love" for "When You're in Love"
   const a = want.join("");
   const b = have.join("");
   if (a.length >= 8 && editDistance(a, b) <= Math.floor(a.length * 0.2)) return { what: "close", points: POINTS.titleClose };
   return { what: "absent", points: POINTS.titleAbsent };
 }
 
-/** How an article's kind fits what the request's name is. */
+/** Points for an article's kind against what the request's name is */
 function kindFit(kind: WorkKind, role: Role, artistKind: ArtistKind, medium: RequestProfile["medium"] = ""): number {
   if (kind === "other") return 0;
-  // The request says what its work is: a show's theme is not a same-named game's music, nor the other way round.
+  // The request says what its work is: a show's theme isn't a same-named game's music, nor the reverse
   if (role !== "piece" && medium === "screen" && kind === "game") return POINTS.kindConflicts;
   if (role !== "piece" && medium === "game" && (kind === "film" || kind === "tv")) return POINTS.kindConflicts;
   const work: WorkKind[] = ["game", "film", "tv", "series", "music", "album", "book", "stage"];
@@ -309,7 +286,7 @@ function kindFit(kind: WorkKind, role: Role, artistKind: ArtistKind, medium: Req
     return POINTS.kindConflicts;
   }
   if (role === "hint") return work.includes(kind) ? POINTS.kindFits : kind === "song" ? POINTS.kindCompatible : POINTS.kindConflicts;
-  // The artist field.
+  // The artist field
   if (artistKind === "performer" || artistKind === "composer") {
     if (kind === "person") return POINTS.kindFits;
     if (kind === "album" || kind === "song" || kind === "music") return POINTS.kindCompatible;
@@ -319,10 +296,7 @@ function kindFit(kind: WorkKind, role: Role, artistKind: ArtistKind, medium: Req
   return POINTS.kindFits;
 }
 
-/**
- * The article's points for the request, with each feature's share. A title known only from a
- * search (no text) is taken at its best: its kind fits unless its qualifier says otherwise.
- */
+/** The article's points, per feature; a search-only title is taken at its best (kind fits unless its qualifier says no) */
 export function scoreCandidate(req: RequestProfile, c: CandidateProfile): Scored {
   const parts: Array<[string, number]> = [];
   const add = (name: string, points: number) => {
@@ -334,67 +308,66 @@ export function scoreCandidate(req: RequestProfile, c: CandidateProfile): Scored
   if (req.field) names.push(["field", req.field]);
   for (const credit of req.credits) names.push(["field", credit]);
   if (req.hint) names.push(["hint", req.hint]);
-  // The name the title fits best; at a tie the piece's own article, then the artist field's.
+  // The name the title fits best; at a tie the piece's own article, then the artist field's
   let best: { role: Role; name: string; what: string; points: number } | null = null;
   for (const [role, name] of names) {
-    // A person, or a thing no kind word places (a character, a place): a longer title is a fuller name, not another work.
+    // A person, or a thing no kind word places (a character, a place): a longer title is a fuller name, not another work
     const fit = titleFit(base, name, c.kind === "person" || (c.kind === "other" && Boolean(c.text)));
-    // Named by nothing: the work it would be from decides its kind, not the piece.
+    // Named by nothing: the work it would be from decides its kind, not the piece
     if (!best || fit.points > best.points || (fit.points === best.points && best.what === "absent")) best = { role, name, ...fit };
   }
   if (!best) return { page: c.page, points: 0, parts };
-  // A classical title ("Sonata No. 1 in F minor, Op. 2") is found by its catalog number, not its words:
-  // the piece's article under its own name, naming the composer, is the piece.
+  // A classical title is found by catalog number, not words: a song article naming the composer is the piece
   const classical = parseClassicalTitle(req.piece || req.field).classical;
   if (classical && (best.what === "absent" || best.what === "parent") && c.kind === "song" && req.names.length && namesLoosely(normalizeTitle(`${c.qualifier} ${c.lead}`), req.names)) {
     best = { ...best, role: "piece", what: "classical piece", points: POINTS.titleExact };
   }
-  // Shorter than the work asked for, but its opening names all of it: the edition's own article.
+  // Shorter than the work asked for, but its opening names all of it: the edition's own article
   const fullName = tokens(best.name);
   const lead = tokens(c.lead);
   const leadHas = lead.length > 0 && fullName.every((t) => lead.includes(t));
   if (best.what === "parent" && leadHas) add("title parent, lead names it", POINTS.respelling);
   else add(`title ${best.what}`, best.points);
-  // The work the title says it is from, or that its theme is named for, is this article.
+  // The work the title says it's from, or a theme's namesake, is this article
   if (best.role === "hint" && (best.what === "exact" || best.what === "respelling")) add("is the hinted work", POINTS.namesHintedWork);
 
   const piece = req.piece ? normalizeTitle(req.piece) : "";
   const namesIt = Boolean(piece) && best.role !== "piece" && Boolean(c.text) && (mentionsName(c.lead, [piece]) || namesPiece(c.text, req.piece));
   if (namesIt) add("names the piece", POINTS.namedInLead);
 
-  // A title only a search gave is never read: its qualifier counts, but never as a full fit.
+  // A search-only title is never read: its qualifier counts, never as a full fit
   const work = req.hint || (req.artistKind === "work" || req.artistKind === "unknown" ? req.field : "");
   const q = tokens(c.qualifier);
   const ownQualifier = Boolean(work) && q.length > 0 && q.every((t) => tokens(work).includes(t));
   let fit = kindFit(c.kind, best.role, req.artistKind, req.medium);
-  // "Some Name (Some Game)" for a track of Some Game: the game's own character or place.
+  // "Some Name (Some Game)" for a track of Some Game: the game's own character or place
   if (best.role === "piece" && ownQualifier && fit < 0) fit = 0;
-  // A game's article that names the track is the track's game, whatever MusicBrainz calls the artist field.
+  // A game's article naming the track is its game, whatever MusicBrainz calls the artist field
   if (best.role === "field" && namesIt && fit < 0 && (c.kind === "game" || c.kind === "music")) fit = 0;
-  // Read, but of no kind the words tell (a character, a puppet): its own name is the request's.
+  // Read, but of no kind the words tell (a character, a puppet): its own name is the request's
   if (best.role !== "piece" && c.kind === "other" && c.text && best.what === "exact") fit = POINTS.kindCompatible;
   add(`kind ${c.kind}`, c.text ? fit : Math.min(fit, POINTS.kindCompatible));
 
-  // A title only a search gave: its title and kind alone. Its qualifier can say it is a performer
-  // ("Some Name (band)"), but a song or album it calls the artist's is that artist's other work, no rival.
+  // Search-only: title and kind alone. A qualifier may say performer ("Some Name (band)"),
+  // but a song or album it credits to the artist is their other work, no rival
   if (!c.text) {
     if (best.role === "field" && c.kind === "person" && req.artistKind !== "work") add("is a performer", POINTS.performerRequested);
     if (best.role === "piece" && req.names.length && (c.kind === "song" || c.kind === "album") && qualifierNamesAnotherArtist(c.page, req.field, req.piece)) add("another performer", POINTS.performerOther);
     return { page: c.page, points: parts.reduce((a, [, p]) => a + p, 0), parts };
   }
-  // Who performs it. Not for a composer's piece or a game's track: the article may name the band that recorded it.
+  // Who performs it; not for a composer's piece or a game's track, whose article may name the recording band
   if (req.artistKind === "performer" || req.artistKind === "unknown") {
     if (best.role === "field" && c.kind === "person") add("is the performer", POINTS.performerRequested);
     else if (best.role === "piece" && (c.kind === "song" || c.kind === "album")) {
       const opening = normalizeTitle(`${c.qualifier} ${firstSentences(c.text, 3)}`);
       if (req.names.length && namesLoosely(opening, req.names)) add("performer named", POINTS.performerRequested);
       else if (req.names.length && qualifierNamesAnotherArtist(c.page, req.field, req.piece)) add("another performer", POINTS.performerOther);
-      // MusicBrainz has this song by the artist, but its article never names them: another song of that name, or a cover's original.
+      // MusicBrainz has it by the artist, the article never names them: another song of the name, or a cover's original
       else if (req.artistKind === "performer") add("performer not named", POINTS.performerOther);
     }
   }
 
-  // The work it is from: the piece's article naming it, or a sibling's "remake of" it.
+  // The work it's from: the piece's article naming it, or a sibling's "remake of" it
   if (work && best.role === "piece") {
     const w = normalizeTitle(work);
     if (mentionsName(normalizeTitle(`${c.qualifier} ${c.lead}`), [w])) add("names the work", POINTS.namesHintedWork);
@@ -413,7 +386,7 @@ export function scoreCandidate(req: RequestProfile, c: CandidateProfile): Scored
   return { page: c.page, points: parts.reduce((a, [, p]) => a + p, 0), parts };
 }
 
-/** Two titles one name could mean: the same title, or one the other plus more ("Some Game" and "Some Game: Reforged"). */
+/** Whether one name could mean both: same title, or one plus more ("Some Game" and "Some Game: Reforged") */
 export function sameName(a: CandidateProfile, b: CandidateProfile): boolean {
   const x = tokens(a.base);
   const y = tokens(b.base);
@@ -422,13 +395,10 @@ export function sameName(a: CandidateProfile, b: CandidateProfile): boolean {
   return short.every((t, i) => long[i] === t);
 }
 
-/**
- * The decision for the picked article (`pick`), against the other titles the lookup saw.
- * Only articles of the same name compete: the artist's own article and their song's are not rivals.
- */
+/** The decision on `pick`; only same-name articles compete (the artist's and their song's aren't rivals) */
 export function resolveWork(req: RequestProfile, pick: CandidateProfile, others: CandidateProfile[] = []): MatchResult {
   const top = scoreCandidate(req, pick);
-  // A work's music article and the work's own article are one work, not rivals.
+  // A work's music article and its own article are one work, not rivals
   const work = (c: CandidateProfile) => normalizeTitle(c.kind === "music" ? musicOf(c.base) : c.base);
   const oneWork = (o: CandidateProfile) => (o.kind === "music" || pick.kind === "music") && work(o) === work(pick);
   const rivals = others
@@ -437,55 +407,48 @@ export function resolveWork(req: RequestProfile, pick: CandidateProfile, others:
     .sort((a, b) => b.points - a.points);
   const runnerUp = rivals[0] ?? null;
   const ahead = runnerUp ? top.points - runnerUp.points : Infinity;
-  // Facts are held back on evidence only: a feature against the article, or a rival of its name too close behind.
-  // An article the words can't place (a kind no word tells, a title spelled its own way) stays as the rules found it.
+  // Facts held back on evidence only: a feature against the article, or a same-name rival too close behind.
+  // An article words can't place (no kind word, its own spelling) stays as the rules found it
   const against = top.parts.some(([, p]) => p < 0) || ahead < MARGIN;
   const decision: Decision = (top.points >= SURE || !against) && ahead >= MARGIN ? "sure" : top.points >= DATA_ONLY ? "data-only" : "abstain";
   return { decision, top, runnerUp, target: { page: pick.page, kind: pick.kind, year: pick.year }, request: req };
 }
 
-/** One log line: the decision, each feature's points and the closest rival. Never a fact's words. */
+/** One log line: decision, each feature's points, closest rival; never a fact's words */
 export function matchLine(m: MatchResult, title: string): string {
   const parts = m.top.parts.map(([n, p]) => `${n} ${p > 0 ? "+" : ""}${p}`).join(", ");
   const rival = m.runnerUp ? `; same name "${m.runnerUp.page}" ${m.runnerUp.points}` : "";
   return `[Grounding] match: ${m.decision} ${m.top.points} for "${title}" on "${m.top.page}" (${parts || "no features"}${rival})`;
 }
 
-/** A data fact that holds for every version and recording of a work: who wrote or composed it, and nothing dated. */
+/** Whether a data fact holds for every version: who wrote or composed it, nothing dated */
 export function holdsForEveryVersion(fact: string): boolean {
   return /\bwas (?:co-)?(?:written|composed) by\b/.test(fact) && !YEAR.test(fact) && !/\bcame out\b|\breleased\b|\bon the album\b/.test(fact);
 }
 
-// --- Facts against the target (MATCH=scored) ---------------------------------
+// --- Facts against the target (MATCH=scored) ---
 
-/**
- * A data fact's year against the version the request names: "Some Song came out in 2010" for
- * "Some Song (1987)" is a reissue or another recording. The year is the request's, never the
- * article's, which may date the first recording of a song a later artist made famous.
- */
+// Whether a data fact's year fits the version asked for: "came out in 2010" for "Some Song (1987)" is a reissue.
+// The request's year, never the article's: it may date a first recording a later artist made famous
 export function dataFitsTarget(fact: string, req: RequestProfile): boolean {
   const m = /\b(?:came out|was released) in (1[89]\d\d|20\d\d)\b/.exec(fact);
   return !m || !req.year || Math.abs(Number(m[1]) - req.year) <= 1;
 }
 
-/** Words a work's own name can carry that make it no other work: its series, its soundtrack albums, its editions. */
+// Words in a work's name that keep it the same work: series, soundtrack albums, editions
 const SAME_WORK = new Set([
   ...["series", "franchise", "soundtrack", "original", "music", "video", "game", "games", "ost", "score", "s", "sound", "version", "tracks", "plus", "collection", "collections", "album", "box", "vol", "volume", "arrange"],
   ...[...EDITION.source.matchAll(/\w+/g)].map((m) => m[0]),
 ]);
-/** Kinds of work that have sequels, remakes and sister works of a shared name. */
+// Kinds with sequels, remakes and same-name sister works
 const SERIAL: WorkKind[] = ["game", "film", "tv", "series", "music", "album", "book", "stage"];
-/** The name a caption opens with, in capitals: "Super Some Game II won", "Some Game: Other Part was". */
+// The capitalized name a caption opens with: "Super Some Game II won", "Some Game: Other Part was"
 const OPENING_NAME = /^(?:[\p{Lu}\d][\p{L}\d'’.!-]*:?)(?:\s+(?:(?:of|the|no|de)\s+)*[\p{Lu}\d][\p{L}\d'’.!-]*:?)*/u;
-/** Opening words that count or point, not name: "Many Some Games", "Its Some Game port". */
+// Opening words that count or point, not name: "Many Some Games", "Its Some Game port"
 const DETERMINER = new Set(["many", "most", "all", "some", "several", "both", "each", "every", "other", "its", "his", "her", "their", "this", "these", "those", "early", "later", "later", "sales", "fans", "critics"]);
 
-/**
- * A caption about another work than the target: one that opens on a sister work, whose name has
- * the target's whole name and more ("Super Some Game won", "Some Game II sold"), or on a remake
- * it leaves unnamed ("Remake won"). It holds true of the article, not of the song. A caption that
- * only mentions a sequel ("Some Game was followed by Some Game II") is about the target and stays.
- */
+// Whether a caption opens on a sister work, the target's name and more ("Some Game II sold"), or an unnamed
+// remake ("Remake won"): true of the article, not the song. "Some Game was followed by Some Game II" stays
 export function aboutAnotherWork(caption: string, req: RequestProfile, target: { page: string; kind: WorkKind }): boolean {
   const asked = new Set(tokens(`${req.piece} ${req.field} ${req.hint}`));
   if (/^(?:the )?remake\b/i.test(caption) && !/remake/i.test(`${req.piece} ${req.field} ${target.page}`)) return true;
@@ -496,24 +459,20 @@ export function aboutAnotherWork(caption: string, req: RequestProfile, target: {
   const name = tokens(opening).filter((t) => t !== "s");
   const at = name.findIndex((_, i) => work.every((t, j) => name[i + j] === t));
   if (!work.length || at < 0) return false;
-  // "Sales of Some Game", "The music of Some Game": the work itself, after a word about it.
+  // "Sales of Some Game", "The music of Some Game": the work itself, after a word about it
   if (at > 0 && new RegExp(`\\b(?:of|the|no|de)\\s+${work[0]}`, "i").test(normalizeTitle(opening).replace(/^the /, "").replace(/\b(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)\b/g, (r) => ROMAN[r] ?? r))) return false;
   const more = name.filter((t, i) => (i < at || i >= at + work.length) && !SAME_WORK.has(t) && !asked.has(t) && !DETERMINER.has(t));
-  // One-word names ("Some") take a number or numeral only: "Some 2", not "Some Records".
+  // One-word names ("Some") take a number only: "Some 2", not "Some Records"
   return more.length > 0 && (work.length > 1 || more.every((t) => /^\d+$/.test(t)));
 }
 
-/**
- * The scored decision from a reference alone, as the lookup returns it (its page, then its text),
- * and the whole article when it was read (`full`): no summary, credit or search results. For
- * checks that have nothing more, such as tests.
- */
+/** The scored decision from a reference alone (page line, then text) and `full` if read; for checks with nothing more, like tests */
 export function referenceDecision(asked: SSLSong, grounding: string, read: SSLSong = asked, full = ""): MatchResult {
   const page = grounding.split("\n")[0];
   return resolveWork(requestProfile(asked, read), candidateProfile(page, full || grounding.slice(page.length + 1)));
 }
 
-/** The rules' match once the score has its say (MATCH=scored): never surer than the rules. */
+/** The rules' match after the score (MATCH=scored): never surer than the rules */
 export function scoredLevel(rules: WorkMatch, m: MatchResult): WorkMatch {
   if (rules.level !== "sure" || m.decision === "sure") return rules;
   return { level: "unsure", reason: `the scored match is ${m.decision === "abstain" ? "too low to show anything" : "not sure"} (${m.top.points})` };

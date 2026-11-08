@@ -1,7 +1,7 @@
 import { escapeRe } from "./text";
 
 // The content standard (#242): "About the music. Safe for any stream."
-// Word lists only, whole words or phrases, any case: no AI decides, nothing asks the streamer
+// Word lists only, whole words or phrases, any case: no AI decides, nothing asks the streamer to check
 // (ARCHITECTURE.md: The content standard)
 
 // One topic: its label, and its words and phrases
@@ -85,7 +85,7 @@ const LISTS: TopicList[] = [
     ],
   },
   {
-    // Twitch Self-Destructive Behavior, YouTube self-harm and medical content, chat etiquette
+    // Twitch Self-Destructive Behavior, YouTube self-harm and medical content, chat etiquette: health is private
     label: "health",
     words: [
       "cancer", "tumor", "tumour", "leukemia", "leukaemia", "lymphoma", "diagnosed", "diagnosis",

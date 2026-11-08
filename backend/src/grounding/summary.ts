@@ -77,7 +77,7 @@ export function describedKind(description: string): DescribedKind {
 
 const SCREEN_KINDS = new Set<DescribedKind>(["film", "tv", "book", "game"]);
 
-/** Why the summary says it isn't the requested work, or "" (ARCHITECTURE.md: Why is choosing the article so careful?) */
+/** Why the summary says it isn't the requested work, or "" (ARCHITECTURE.md: choosing the article) */
 export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grounding: string, asked: SSLSong = song): string {
   if (!summary) return "";
   if (summary.type === "disambiguation") return "Wikipedia's summary calls it a disambiguation page";

@@ -313,7 +313,7 @@ export function boxNeighbor(box: Infobox, side: "prev" | "next"): string | null 
   return items(box.fields[`${side} title`] ?? "")[0]?.replace(/^["“]|["”]$/g, "") ?? null;
 }
 
-/** Year of the album a song's infobox links to, from its own infobox, or null; a later year is the single's. Never throws */
+/** Year of the album a song's infobox links to, from its own infobox; a later year is the single's. Never throws */
 export async function albumYear(box: Infobox): Promise<string | null> {
   const link = /\[\[([^|\]#]+)/.exec(withoutRefsAndComments(box.fields.album ?? ""))?.[1]?.trim();
   if (!link) return null;
