@@ -8,26 +8,18 @@ import { settleTitleOrder } from "./musicbrainz";
 import { songFromYouTube, YouTubeSong } from "./youtube-metadata";
 import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling";
 
-/**
- * StreamElements song requests ("Media Request"): REST for data, Astro for
- * change notifications, polling as a safety net. Like the StreamerSongList
- * client, every event means the same thing, "fetch again", so nothing is
- * rebuilt from event payloads.
- *
- * `/songrequest/{id}/playing` returns the playing song or, when none is
- * playing, the next one ready to play. So `/player` decides: a song counts as
- * playing only while the player's state is "playing". A pause keeps the song
- * that was already on; anything else clears it.
- */
+// StreamElements song requests (Media Request): REST for data, Astro events mean "fetch again", polling as backstop
+// /playing may be the next song up, so a song counts only while the player says "playing"
+// (ARCHITECTURE.md: Song sources and YouTube titles)
 
-/** A song request as StreamElements returns it; only the fields used here. */
+/** A StreamElements song request, only the fields used here */
 export interface SESong {
   _id?: string;
   videoId?: string;
   title?: string;
-  /** The YouTube channel that uploaded the video. */
+  /** YouTube channel that uploaded the video */
   channel?: string;
-  /** Seconds. */
+  /** Seconds */
   duration?: number;
   user?: { username?: string; providerId?: string } | null;
 }
@@ -37,14 +29,11 @@ interface SEChannel {
   username?: string;
 }
 
-const REFETCH_DEBOUNCE_MS = 250;
-/** How long a song may be playing, per the live events, without being followed before health says so. */
-const FOLLOW_GRACE_MS = 30_000;
-/** While realtime events arrive, polling is only a backstop. */
-const POLL_WITH_EVENTS_MS = 30_000;
+const REFETCH_DEBOUNCE_MS = 250; // ms an event burst waits to become one re-read
+const FOLLOW_GRACE_MS = 30_000; // ms a named song may go unfollowed before health says so
+const POLL_WITH_EVENTS_MS = 30_000; // ms between polls while live events arrive (only a backstop)
 const SONG_TOPIC = "channel.songrequest";
-/** StreamElements channel IDs are 24 hex characters. */
-const CHANNEL_ID = /^[0-9a-f]{24}$/i;
+const CHANNEL_ID = /^[0-9a-f]{24}$/i; // StreamElements channel IDs: 24 hex characters
 
 export class StreamElementsClient implements SongSource {
   readonly name = "StreamElements";
@@ -59,32 +48,23 @@ export class StreamElementsClient implements SongSource {
     backoffUntil: () => this.backoffUntil,
     tick: () => this.pollOnce(),
   });
-  /** Every event (play, pause, skip, queue changes) and every reconnect means "fetch again": a burst becomes one. */
+  /** Every event and reconnect means "fetch again"; a burst becomes one */
   private readonly refetch = debounce(REFETCH_DEBOUNCE_MS, () => void this.refresh());
   private readonly fetchOneAtATime = singleFlight(() => this.fetchPlayer(), () => this.stopped);
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
   private rejected = false;
   private warnedNoState = false;
-  /**
-   * What the live events last said: "playing" after play or a song change,
-   * "paused" after pause. The REST player state can stay "paused" after the
-   * streamer resumes, which left every later song unfollowed until the player
-   * was restarted, so a live event wins over it.
-   */
+  /** Last live event's state; wins over REST, which can stay "paused" after a resume (#16) */
   private eventState: "playing" | "paused" | null = null;
-  /** Since when /playing has named a song that isn't being followed (0 = it hasn't). */
+  /** Since when /playing has named an unfollowed song (0: it hasn't) */
   private unfollowedSince = 0;
-  /**
-   * The song /playing named when the current pause was first seen (null: not
-   * paused, or nothing named yet). A paused player stays on its song, so a
-   * different one while the state still says "paused" means the state is stale.
-   */
+  /** Song /playing named when this pause was first seen; another one under "paused" means a stale state */
   private pausedOn: string | null = null;
-  /** /playing moved on to another song while the only word, REST, still said "paused". */
+  /** /playing moved on while REST, the only word, still said "paused" */
   private movedWhilePaused = false;
   private lastRestState: string | undefined = "";
-  /** Set from Retry-After when StreamElements says to slow down (429) or is down (503). */
+  /** Set from Retry-After on a 429 (slow down) or 503 (down) */
   private backoffUntil = 0;
 
   onCurrentSongChange(callback: (current: SSLQueueItem | null) => void): void {
@@ -107,25 +87,19 @@ export class StreamElementsClient implements SongSource {
     return this.rejected;
   }
 
-  /** StreamElements asked us to wait (Retry-After): not hearing from it is expected, not stale. */
+  /** StreamElements asked us to wait (Retry-After): silence is expected, not stale */
   backingOff(): boolean {
     return Date.now() < this.backoffUntil;
   }
 
-  /** The live events' word, only while they're connected: a stale event must not outlive its socket. */
+  /** The live events' word, only while connected: a stale event must not outlive its socket */
   private liveState(): "playing" | "paused" | null {
     return this.isEventStreamConnected() ? this.eventState : null;
   }
 
-  /**
-   * StreamElements said a song started, but for half a minute no song has
-   * been followed (issue #16: the dashboard stayed green while nothing was).
-   * With the live events down, their word is missing too: then a song change
-   * under a REST state that still says "paused" is the sign. A player paused
-   * on its song, however long, is never a problem.
-   */
+  /** Why a song StreamElements names went unfollowed for 30 s (#16), or null; a long pause never counts */
   followingProblem(): string | null {
-    // Only while StreamElements still names a song: an empty queue at the end isn't a problem.
+    // Only while a song is named: an empty queue at the end isn't a problem
     const unfollowed = this.unfollowedSince > 0 && Date.now() - this.unfollowedSince > FOLLOW_GRACE_MS;
     if (unfollowed && this.liveState() === "playing") return "StreamElements says a song is playing, but BubbleFacts can't see which one";
     if (unfollowed && this.movedWhilePaused && !this.isEventStreamConnected()) {
@@ -143,7 +117,7 @@ export class StreamElementsClient implements SongSource {
   }
 
   toSong(item: SSLQueueItem): SSLSong {
-    // No live learns on StreamElements: an entry never has the off-list fields.
+    // No live learns on StreamElements: never the off-list fields
     const song = toSong(item);
     return {
       ...song,
@@ -157,7 +131,7 @@ export class StreamElementsClient implements SongSource {
     return displayTitle(item);
   }
 
-  /** Polling starts before anything that can fail, so a failed startup recovers on the next poll. */
+  /** Polling starts first, so a failed startup recovers on the next poll */
   async connect(): Promise<void> {
     this.stopped = false;
     this.schedulePoll();
@@ -176,14 +150,9 @@ export class StreamElementsClient implements SongSource {
 
   // --- Song mapping ------------------------------------------------------
 
-  /**
-   * A song request as the queue entry the fact pipeline reads. The title and
-   * artist come from the YouTube title; the requester and length carry over.
-   * There's no play count or note on StreamElements, so no facts use them.
-   * `read`: the title already read (and its order settled, see `settleTitleOrder`).
-   */
+  /** A request as a queue entry (title, artist, requester, length); `read`: the title already read, order settled */
   static toEntry(song: SESong, exact: YouTubeSong | null = null, read: ParsedTitle | null = null): SSLQueueItem {
-    // An auto-generated upload's own metadata beats reading its title.
+    // An auto-generated upload's own metadata beats reading its title
     const parsed = exact ? { ...exact, confident: true, performer: true } : (read ?? parseVideoTitle(song.title ?? "", song.channel));
     const requester = song.user?.username?.trim();
     return {
@@ -205,7 +174,7 @@ export class StreamElementsClient implements SongSource {
     };
   }
 
-  /** The request itself, so the same video requested twice in a row still counts as a change. */
+  /** Per request, so the same video twice in a row still counts as a change */
   private static key(song: SESong): string {
     return [song._id ?? "", song.videoId ?? "", song.title ?? ""].join("\0");
   }
@@ -226,7 +195,7 @@ export class StreamElementsClient implements SongSource {
     }
     const wait = retryAfterMs(res);
     if (wait) this.backoffUntil = Date.now() + wait;
-    // No song requests yet.
+    // No song requests yet
     if (res.status === 404) return null;
     if (!res.ok) {
       const problem = (await Promise.resolve().then(() => res.json()).catch(() => null)) as { message?: string } | null;
@@ -250,7 +219,7 @@ export class StreamElementsClient implements SongSource {
     console.log(`[SE] Resolved channel "${info.username ?? wanted}" -> ID ${info._id}`);
   }
 
-  /** One request pair at a time; a refresh asked for meanwhile fetches again afterward (see singleFlight). */
+  /** One request pair at a time; a refresh asked for meanwhile runs afterward (singleFlight) */
   private refresh(): Promise<void> {
     if (this.backingOff() || this.channelId === null) return Promise.resolve();
     return this.fetchOneAtATime();
@@ -259,7 +228,7 @@ export class StreamElementsClient implements SongSource {
   private async fetchPlayer(): Promise<void> {
     try {
       const id = encodeURIComponent(this.channelId as string);
-      // One after the other, so a refused token on either one is what authRejected() reports.
+      // In turn, so a refused token on either is what authRejected() reports
       const player = await this.getJSON<{ state?: string }>(`/songrequest/${id}/player`, "player");
       const playing = await this.getJSON<SESong>(`/songrequest/${id}/playing`, "playing song");
       this.lastSuccessfulFetchAt = Date.now();
@@ -274,24 +243,24 @@ export class StreamElementsClient implements SongSource {
       console.log(`[SE] Player state: ${restState ?? "(none)"}${this.eventState ? ` (last event: ${this.eventState})` : ""}`);
       this.lastRestState = restState;
     }
-    // A live event is fresher than the REST state; see eventState.
+    // A live event beats the REST state (see eventState)
     const state = this.liveState() ?? restState;
     const song = playing?.title ? playing : null;
     const key = song && StreamElementsClient.key(song);
-    // The song the pause began on: the first one named, or the one followed when /playing named none.
+    // Pause began on the first song named, or the followed one if /playing named none
     this.pausedOn = state === "paused" ? (this.pausedOn ?? key ?? this.currentKey) : null;
     this.movedWhilePaused = state === "paused" && this.liveState() === null && key !== null && key !== this.pausedOn && key !== this.currentKey;
     let next: SESong | null;
     if (state === undefined) {
-      // A player answer with no state: trust /playing rather than never showing anything.
+      // No state in the answer: trust /playing rather than never show anything
       if (!this.warnedNoState) console.warn("[SE] The player didn't say whether it's playing; following the current song");
       this.warnedNoState = true;
       next = song;
     } else if (state === "playing") {
       next = song;
     } else {
-      // Paused keeps the song that was on, even if /playing briefly answers nothing;
-      // any other state means /playing is only the next song up.
+      // Paused keeps the song on, even if /playing briefly answers nothing;
+      // any other state: /playing is only the next song up
       if (state === "paused" && (key === null || key === this.currentKey)) {
         this.unfollowedSince = 0;
         return;
@@ -299,13 +268,13 @@ export class StreamElementsClient implements SongSource {
       next = key !== null && key === this.currentKey ? song : null;
     }
     const nextKey = next && StreamElementsClient.key(next);
-    // StreamElements names a song that isn't followed: see followingProblem().
+    // A named song isn't followed: see followingProblem()
     if (song && !next) this.unfollowedSince ||= Date.now();
     else this.unfollowedSince = 0;
     if (nextKey === this.currentKey) return;
-    // Only auto-generated uploads carry exact metadata; asking for any other video costs quota and time.
+    // Only auto-generated uploads carry exact metadata; asking about others costs quota and time
     const exact = next && isTopicChannel(next.channel) ? await songFromYouTube(next.videoId) : null;
-    // "X - Y" from a fan's or a label's channel: MusicBrainz may say which side is the artist.
+    // "X - Y" from a fan's or label's channel: MusicBrainz may say which side is the artist
     const read = next && !exact ? await settleTitleOrder(parseVideoTitle(next.title ?? "", next.channel)) : null;
     const entry = next && StreamElementsClient.toEntry(next, exact, read);
     console.log(
@@ -328,7 +297,7 @@ export class StreamElementsClient implements SongSource {
       this.channelId,
       () => config.seJwt,
       (e) => this.handleEvent(e.event),
-      // Events may have been missed while disconnected: let the REST state decide again.
+      // Events may have been missed while disconnected: let REST decide again
       () => {
         this.eventState = null;
         this.handleEvent();
@@ -337,7 +306,7 @@ export class StreamElementsClient implements SongSource {
     this.stream.start();
   }
 
-  /** Every event (play, pause, skip, queue changes) and every reconnect means "fetch again". */
+  /** Notes the live state from an event, then fetches again */
   private handleEvent(event = ""): void {
     if (event) {
       const name = event.replace(/^songrequest\./, "");
@@ -360,7 +329,7 @@ export class StreamElementsClient implements SongSource {
         await this.resolveChannel();
         this.connectEvents();
       } catch {
-        // Still unreachable; try again next poll.
+        // Still unreachable; try again next poll
       }
     }
     await this.refresh();

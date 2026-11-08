@@ -10,32 +10,22 @@ import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
-/**
- * StreamerSongList client: REST for data, Centrifugo for change
- * notifications, polling as a safety net. Every event triggers the same
- * action, a queue refetch, so no state is ever rebuilt from event payloads.
- */
+// StreamerSongList: REST for data, Centrifugo events mean "fetch the queue again", polling as backstop
+// (ARCHITECTURE.md: Song sources and YouTube titles)
 
-/** Collapse a burst of events into one refetch. */
-const REFETCH_DEBOUNCE_MS = 250;
+const REFETCH_DEBOUNCE_MS = 250; // ms an event burst waits to become one re-read
 const AUTH_SCHEME = { streamer: "Streamer", user: "User", bearer: "Bearer" } as const;
 
-/** Replaced while running when the desktop app refreshes its sign-in; OAuth tokens last an hour. */
+/** Replaced when the desktop app refreshes its sign-in; OAuth tokens last an hour */
 let accessToken = config.sslAccessToken;
 export function setAccessToken(token: string): void {
   accessToken = token;
 }
 
-/**
- * Up to 30,000 songs, 100 at a time: musicians with long careers have lists of
- * 20,000 and more, and the song search needs all of them. Read once, in the
- * background, at start.
- */
-export const MAX_LIST_PAGES = 300;
-/** A song list read that failed is tried again when the musician searches, at most this often. */
-const LIST_RETRY_MS = 60_000;
+export const MAX_LIST_PAGES = 300; // pages of 100 songs read once at start; long careers mean lists of 20,000 and more
+const LIST_RETRY_MS = 60_000; // ms between retries of a failed list read, made when the musician searches
 
-/** `GET /songs` items, only the fields used here. */
+/** `GET /songs` items, only the fields used here */
 type ListItem = { id?: number; title?: string | null; artist?: string | null; timesPlayed?: number | null };
 
 export class SongListClient implements SongSource {
@@ -50,17 +40,17 @@ export class SongListClient implements SongSource {
     backoffUntil: () => this.backoffUntil,
     tick: () => this.pollOnce(),
   });
-  /** Every event, and every reconnect, means "refetch": a burst becomes one. */
+  /** Every event and reconnect means "fetch again"; a burst becomes one */
   private readonly refetch = debounce(REFETCH_DEBOUNCE_MS, () => void this.refresh());
   private readonly fetchOneAtATime = singleFlight(() => this.fetchQueue(), () => this.stopped);
   private lastSuccessfulFetchAt: number | null = null;
   private stopped = false;
   private rejected = false;
-  /** Set from Retry-After when StreamerSongList says to slow down (429) or is down for maintenance (503). */
+  /** Set from Retry-After on a 429 (slow down) or 503 (down for maintenance) */
   private backoffUntil = 0;
-  /** The song list as read at start, for the song facts editor's search. Null until it has been read. */
+  /** The song list read at start, for the song facts editor's search; null until read */
   private listSongs: ListSong[] | null = null;
-  /** How often each song on the list has been played, by song ID: "most requested first" when preparing (issue #293). */
+  /** Plays by song ID: "most requested first" when preparing (#293) */
   private listPlays = new Map<number, number>();
   private listFailedAt = 0;
   private listReading = false;
@@ -81,7 +71,7 @@ export class SongListClient implements SongSource {
     return this.lastSuccessfulFetchAt === null ? null : Date.now() - this.lastSuccessfulFetchAt;
   }
 
-  /** StreamerSongList turned the token down on the last request: waiting won't fix it. */
+  /** The token was turned down on the last request: waiting won't fix it */
   authRejected(): boolean {
     return this.rejected;
   }
@@ -90,11 +80,7 @@ export class SongListClient implements SongSource {
     return Date.now() < this.backoffUntil;
   }
 
-  /**
-   * How often the queue is polled; health allows three misses. The same with
-   * events connected: they make a change show at once, and polling caps the
-   * wait when one is lost (in 2.0 none came, and changes waited a minute).
-   */
+  /** Same with events connected: polling caps the wait when one is lost (in 2.0 none came) */
   pollIntervalMs(): number {
     return config.sslPollIntervalMs;
   }
@@ -103,11 +89,7 @@ export class SongListClient implements SongSource {
     return this.stream?.isConnected() ?? false;
   }
 
-  /**
-   * Polling starts before anything that can fail, so a failed startup (API
-   * down, network not up yet) recovers on the next poll. Still rethrows so
-   * the caller doesn't report success.
-   */
+  /** Polling starts first, so a failed startup recovers on the next poll; still rethrows so it isn't reported as success */
   async connect(): Promise<void> {
     this.stopped = false;
     this.schedulePoll();
@@ -134,7 +116,7 @@ export class SongListClient implements SongSource {
 
   // --- Change detection --------------------------------------------------
 
-  /** Content, not just id: editing an entry's artist mid-song should regenerate. */
+  /** Content, not just id: editing an entry's artist mid-song should regenerate */
   private static identity(item: SSLQueueItem | null): string | null {
     return item && [item.id, item.nonlistSong ?? "", item.nonlistTitle ?? "", item.nonlistArtist ?? "", item.song?.title ?? "", item.song?.artist ?? ""].join("\0");
   }
@@ -152,7 +134,7 @@ export class SongListClient implements SongSource {
       Authorization: `${AUTH_SCHEME[config.sslTokenKind]} ${accessToken}`,
       Accept: "application/json",
     };
-    // Only with the app's own sign-in: a Client-Id that doesn't match the token is rejected.
+    // Only with the app's own sign-in: a Client-Id that doesn't match the token is rejected
     if (config.sslClientId && config.sslTokenKind === "bearer") headers["Client-Id"] = config.sslClientId;
     const res = await fetch(`${config.sslApiBase}${path}?${query}`, {
       headers,
@@ -168,7 +150,7 @@ export class SongListClient implements SongSource {
     const wait = retryAfterMs(res);
     if (wait) this.backoffUntil = Date.now() + wait;
     if (!res.ok) {
-      // Errors come as application/problem+json; its "detail" says what went wrong in plain words.
+      // Errors come as application/problem+json; "detail" says what went wrong in plain words
       const problem = (await Promise.resolve().then(() => res.json()).catch(() => null)) as { detail?: string } | null;
       const detail = typeof problem?.detail === "string" ? ` (${problem.detail})` : "";
       throw new Error(`Failed to fetch ${what}: ${res.status} ${res.statusText}${detail}`);
@@ -183,15 +165,11 @@ export class SongListClient implements SongSource {
     if (info.promoteQueueToPlaying === false) {
       console.log("[SSL] promoteQueueToPlaying is off: facts follow the top of the queue when nothing is playing");
     }
-    // Tests drive this themselves: here it would take their mocked replies.
+    // Tests drive this themselves: here it would take their mocked replies
     if (process.env.NODE_ENV !== "test") void this.learnListFormat();
   }
 
-  /**
-   * Read the whole song list once, to learn how this streamer writes titles
-   * and the artist field (see list-profile.ts). In the background, and never
-   * fatal: without it, songs are read the usual way.
-   */
+  /** Reads the whole list once to learn how titles and artists are written (list-profile.ts); never fatal */
   async learnListFormat(): Promise<void> {
     if (this.listReading) return;
     this.listReading = true;
@@ -206,7 +184,7 @@ export class SongListClient implements SongSource {
         if (!body.token || !(body.items ?? []).length) break;
         after = body.token;
       }
-      // Cleaned like a queue entry's song, so a picked song reads as the dashboard shows it.
+      // Cleaned like a queue entry, so a picked song reads as the dashboard shows it
       this.listSongs = titles.flatMap((s) => {
         const title = cleanRequestText(s.title ?? "");
         return typeof s.id === "number" && s.id > 0 && title ? [{ id: s.id, title, artist: cleanRequestText(s.artist ?? "") }] : [];
@@ -225,19 +203,19 @@ export class SongListClient implements SongSource {
     }
   }
 
-  /** Songs on the list matching what was typed; null until the list has been read. */
+  /** Songs on the list matching what was typed; null until the list is read */
   searchSongs(query: string, limit: number): ListSong[] | null {
-    // The read at start failed (network not up yet, say): searching is a good moment to try again.
+    // The read at start failed (network not up yet, say): a search is a good moment to retry
     if (this.listFailedAt && Date.now() - this.listFailedAt > LIST_RETRY_MS && !this.backingOff()) void this.learnListFormat();
     return this.listSongs && searchSongs(this.listSongs, query, limit);
   }
 
-  /** Every song on the list with how often it was played, for preparing (issue #293); null until the list has been read. */
+  /** Every song on the list with its plays, for preparing (#293); null until the list is read */
   listedSongs(): ListedSong[] | null {
     return this.listSongs && this.listSongs.map((s) => ({ ...s, plays: this.listPlays.get(s.id) ?? 0 }));
   }
 
-  /** Fetch the queue and apply it, one request at a time (see singleFlight). */
+  /** Fetches the queue and applies it, one request at a time (singleFlight) */
   private refresh(): Promise<void> {
     if (this.backingOff()) return Promise.resolve();
     return this.fetchOneAtATime();
@@ -247,7 +225,7 @@ export class SongListClient implements SongSource {
     try {
       const queue = await this.getJSON<SSLQueueResponse>("/queue", "queue");
       this.lastSuccessfulFetchAt = Date.now();
-      // Streamers without the now-playing feature work down the queue instead.
+      // Streamers without the now-playing feature work down the queue instead
       this.applyNowPlaying(queue.playing ?? queue.items?.[0] ?? null);
     } catch (err) {
       console.error(`[SSL] Error fetching queue: ${err instanceof Error ? err.message : err}`);
@@ -266,8 +244,7 @@ export class SongListClient implements SongSource {
 
   private connectEvents(): void {
     if (this.streamerId === null || this.stream) return;
-    // Both the bare and the "-queue" channel, so a category rename upstream
-    // cannot silently stop notifications. The debounce absorbs duplicates.
+    // Both channels, so an upstream rename can't silently stop events; the debounce absorbs duplicates
     const channels = [`streamer:${this.streamerId}`, `streamer:${this.streamerId}-queue`];
     this.stream = new CentrifugoStream(
       config.sslEventsUrl,
@@ -278,7 +255,7 @@ export class SongListClient implements SongSource {
     this.stream.start();
   }
 
-  /** Every event, and every reconnect, means "refetch": the docs send some with no data at all. */
+  /** Every event and reconnect means "fetch again": some come with no data at all */
   private handleEvent(): void {
     this.refetch.run();
   }
@@ -293,7 +270,7 @@ export class SongListClient implements SongSource {
         await this.resolveStreamer();
         this.connectEvents();
       } catch {
-        // Still unreachable; try again next poll.
+        // Still unreachable; try again next poll
       }
     }
     await this.refresh();

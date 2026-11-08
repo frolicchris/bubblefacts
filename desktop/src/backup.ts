@@ -3,24 +3,12 @@ import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { EDITABLE, fromWindow, Settings } from "./settings";
 
-/**
- * A backup of what the streamer made: their settings, their facts, their
- * facts for particular songs, the sources they marked Wrong and the log of
- * their Wrong presses (`wrong-log.jsonl`, private test cases). Never the
- * sign-in or keys, and nothing that says which song list it came from, so a
- * backup restores onto another computer or a new sign-in.
- */
+// Backups of what the streamer made: settings, facts, song facts, Wrong marks and the Wrong log
+// Never sign-ins, keys or the song source, so a backup restores onto another computer or sign-in
 export const BACKUP_FORMAT = "bubblefacts-backup";
 
-/**
- * Left out: secrets, the sign-in a backup must not carry to another account,
- * and which AI writes the facts, so a backup someone shares can't send every
- * song to their own server. Sharing song facts with other apps is left out for
- * the same reason, and stays this computer's own choice. The built-in AI's quality belongs to the computer
- * too: restored onto a smaller one, it would start a 5 GB download. So does Prepare my songs, which
- * works this computer while it's free. The song source and the now playing file are this computer's,
- * like the sign-in.
- */
+// Left out: secrets and sign-ins; the AI and sharing, so a shared backup can't send songs to someone's server;
+// AI quality (a 5 GB download on a smaller computer), Prepare my songs, the song source and file: this computer's
 const NOT_BACKED_UP = new Set<keyof Settings>([
   "token", "seJwt", "groqKey", "anthropicKey", "shareKey", "shareFacts", "shareUrl", "shareChannel", "songSource", "channel", "seChannel", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel", "prepareSongs",
 ]);
@@ -34,14 +22,14 @@ export interface Backup {
   settings: Partial<Settings>;
   songFacts: unknown[] | null;
   wrongFacts: Record<string, unknown> | null;
-  /** The lines of `wrong-log.jsonl`. Absent from backups made before 2.1. */
+  /** The lines of `wrong-log.jsonl`; absent before 2.1 */
   wrongLog?: unknown[] | null;
 }
 
-/** Everything in the data folder that "Remove my data" deletes. */
+/** Everything in the data folder that "Remove my data" deletes */
 export const REMOVED_WITH_DATA = ["models", "overlay", "logs", "facts", "settings.json", "settings.json.unreadable", "wrong-facts.json", "wrong-log.jsonl", "aired-facts.json", "prepared-facts.json", "play-history.json", "song-facts.json", "song-facts.before-switches.json", "session.json", "backups", "updates", "THIRD-PARTY-NOTICES.md"];
 
-/** The lines of a wrong-log file's text that are whole records, newest 500 at most. */
+/** The whole records in a wrong-log file's text, newest 500 at most */
 export function wrongLogLines(text: string): unknown[] {
   const lines: unknown[] = [];
   for (const l of text.split("\n")) {
@@ -49,7 +37,7 @@ export function wrongLogLines(text: string): unknown[] {
       const v: unknown = JSON.parse(l);
       if (v && typeof v === "object" && !Array.isArray(v)) lines.push(v);
     } catch {
-      // A blank or cut-short line.
+      // A blank or cut-short line
     }
   }
   return lines.slice(-500);
@@ -70,7 +58,7 @@ export function makeBackup(settings: Settings, files: { songFacts: unknown; wron
   };
 }
 
-/** A backup file read back. Throws a message for the streamer when it isn't one. */
+/** A backup file read back; throws a message for the streamer when it isn't one */
 export function readBackup(text: string): Backup {
   let raw: Partial<Backup>;
   try {
@@ -80,7 +68,7 @@ export function readBackup(text: string): Backup {
   }
   if (!raw || raw.format !== BACKUP_FORMAT) throw new Error("That file isn't a BubbleFacts backup.");
   if (raw.formatVersion !== 1) throw new Error("That backup is from a newer BubbleFacts. Update BubbleFacts, then try again.");
-  // Each value must have the right type for its setting; secrets and the sign-in never come in from a file.
+  // Each value typed as its setting; secrets and the sign-in never come in from a file
   const settings = fromWindow((raw.settings ?? {}) as Record<string, unknown>);
   for (const key of NOT_BACKED_UP) delete settings[key];
   return {
@@ -98,17 +86,13 @@ export function readBackup(text: string): Backup {
 /** "BubbleFacts backup 2026-10-02.json" */
 export const backupFileName = (now = new Date()) => `BubbleFacts backup ${now.toISOString().slice(0, 10)}.json`;
 
-/** Automatic backups kept: about the last few weeks of changes for most streamers. */
+/** Automatic backups kept: a few weeks of changes for most streamers */
 export const AUTO_KEEP = 20;
 const AUTO_NAME = /^auto \d{4}-\d\d-\d\d \d\d-\d\d-\d\d\.json$/;
-/** What a backup holds, without when and by which version: two backups of the same facts compare equal. */
+// What a backup holds, minus when and which version, so backups of the same facts compare equal
 const contents = (b: Backup) => JSON.stringify([b.settings, b.songFacts, b.wrongFacts, b.wrongLog ?? null]);
 
-/**
- * Save `backup` in `dir` when it differs from the newest automatic one, and
- * keep only the last `keep`. Never throws: a backup that can't be written
- * mustn't stop the app. Returns the file written, or "" when nothing changed.
- */
+/** Save `backup` in `dir` if it differs from the newest automatic one, keeping `keep`; the file, or "". Never throws */
 export function autoBackup(dir: string, backup: Backup, keep = AUTO_KEEP): string {
   try {
     fs.mkdirSync(dir, { recursive: true });
@@ -118,10 +102,10 @@ export function autoBackup(dir: string, backup: Backup, keep = AUTO_KEEP): strin
       try {
         if (contents(readBackup(fs.readFileSync(path.join(dir, newest), "utf8"))) === contents(backup)) return "";
       } catch {
-        // An unreadable newest backup: write a fresh one.
+        // An unreadable newest backup: write a fresh one
       }
     }
-    // Named in the streamer's own time, so "the one from last night" is easy to find.
+    // Local time, so "the one from last night" is easy to find
     const d = new Date(backup.createdAt);
     const two = (n: number) => String(n).padStart(2, "0");
     const stamp = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}-${two(d.getMinutes())}-${two(d.getSeconds())}`;

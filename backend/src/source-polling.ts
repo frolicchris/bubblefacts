@@ -1,31 +1,18 @@
-/**
- * What the StreamerSongList and StreamElements clients have in common:
- * waiting when the service says so, fetching one request at a time, merging a
- * burst of events into one fetch, and polling as a backstop. Small functions
- * the clients call, not a base class: each client still decides what to fetch.
- */
+// What the StreamerSongList and StreamElements clients share: backoff, one fetch at a time, debounce, polling
+// Small functions, not a base class: each client still decides what to fetch
 
 type Timer = ReturnType<typeof setTimeout>;
 
-/** The longest wait honored, whatever the service asks for. */
-const MAX_RETRY_AFTER_S = 600;
+const MAX_RETRY_AFTER_S = 600; // seconds, longest Retry-After honored
 
-/**
- * How long to stay quiet after a 429 (slow down) or 503 (down for
- * maintenance), from the Retry-After header or a default; 0 for any other
- * response. The caller keeps `Date.now() + this` as its backoff deadline.
- */
+/** ms to stay quiet after a 429 (slow down) or 503 (maintenance), from Retry-After or a default; else 0 */
 export function retryAfterMs(res: { status: number; headers?: { get(name: string): string | null } }): number {
   if (res.status !== 429 && res.status !== 503) return 0;
   const wait = Number(res.headers?.get("retry-after")) || (res.status === 429 ? 60 : 120);
   return Math.min(wait, MAX_RETRY_AFTER_S) * 1000;
 }
 
-/**
- * One fetch at a time. A call made while one is running fetches again
- * afterward, because the running request may have started before the change
- * it was asked about. `fetchOnce` handles its own errors.
- */
+/** One fetch at a time; a call meanwhile fetches again after, as the running one may predate the change */
 export function singleFlight(fetchOnce: () => Promise<void>, isStopped: () => boolean): () => Promise<void> {
   let inFlight: Promise<void> | null = null;
   let again = false;
@@ -45,7 +32,7 @@ export function singleFlight(fetchOnce: () => Promise<void>, isStopped: () => bo
   };
 }
 
-/** Collapse a burst of calls into one: the first starts the wait, later ones during it add nothing. */
+/** Collapses a burst of calls into one: the first starts the wait, later ones add nothing */
 export function debounce(ms: number, fn: () => void): { run(): void; cancel(): void } {
   let timer: Timer | null = null;
   return {
@@ -64,11 +51,8 @@ export function debounce(ms: number, fn: () => void): { run(): void; cancel(): v
 }
 
 /**
- * Self-rescheduling, so a slow response never stacks polls behind it. The
- * next poll waits for the polling interval or the service's backoff,
- * whichever is longer. `lastAttemptAgeMs` is how long ago a poll last started
- * (or, before the first, the loop was set going): a failing fetch keeps it
- * small, a loop that has stopped turning lets it grow.
+ * Self-rescheduling poll, so a slow response never stacks polls; waits the interval or the backoff, whichever is longer
+ * `lastAttemptAgeMs`: since a poll last started; failing fetches keep it small, a stopped loop lets it grow
  */
 export function pollLoop(o: {
   isStopped: () => boolean;
@@ -80,11 +64,11 @@ export function pollLoop(o: {
   let lastAttemptAt: number | null = null;
   const loop = {
     schedule(): void {
-      // A poll that finishes after disconnect() mustn't start another.
+      // A poll that finishes after disconnect() mustn't start another
       if (o.isStopped()) return;
       lastAttemptAt ??= Date.now();
       const delay = Math.max(o.intervalMs(), o.backoffUntil() - Date.now());
-      // One poll loop at a time: connecting again replaces the old timer rather than leaving it running.
+      // One loop at a time: connecting again replaces the old timer
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
         if (o.isStopped()) return;
