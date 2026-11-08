@@ -1,15 +1,9 @@
-// Checks a whole song list the way BubbleFacts would see it, to find wrong
-// articles and wrong facts before musicians do.
-//
+// Checks a whole song list as BubbleFacts would see it, to find wrong articles and facts before musicians do
 //   npm run build
 //   node scripts/check-song-list.mjs LIST.json OUT_DIR [--facts N] [--seed S] [--pace MS]
-//
-// LIST.json is an array of {title, artist} (other fields are kept). Every
-// song gets the Wikipedia article BubbleFacts would use (no AI). With
-// --facts N, a random sample of N songs also gets facts written by the AI
-// set in the environment (AI_PROVIDER, as for the server), for a person to
-// review. Writes OUT_DIR/articles.csv, OUT_DIR/facts.md and OUT_DIR/summary.md.
-// Song lists are the streamer's own: keep them and the results out of the repository.
+// LIST.json: an array of {title, artist}. Each song gets its article (no AI); --facts N also has the AI_PROVIDER
+// AI write facts for N random songs, for a person to review. Writes articles.csv, facts.md and summary.md
+// Song lists are the streamer's own: keep them and the results out of the repository
 
 import fs from "fs";
 import path from "path";
@@ -24,10 +18,10 @@ const opt = (name, fallback) => {
   return i >= 0 ? Number(rest[i + 1]) : fallback;
 };
 const sampleSize = opt("--facts", 0);
-/** Time between songs: each takes several Wikipedia requests, and one list is thousands. */
+// ms between songs: each takes several Wikipedia requests, and a list is thousands
 const PACE_MS = opt("--pace", 2000);
 let seed = opt("--seed", 1);
-// The fact server reads these at import; nothing here connects to a song list.
+// The fact server reads these at import; nothing here connects to a song list
 process.env.SSL_ACCESS_TOKEN ??= "unused";
 process.env.SSL_STREAMER_NAME ??= "unused";
 process.env.AI_PROVIDER ??= "none";
@@ -40,13 +34,13 @@ const generator = await import(path.join(dist, "fact-generator.js"));
 const songs = JSON.parse(fs.readFileSync(listFile, "utf8")).filter((s) => s && typeof s.title === "string" && s.title.trim());
 fs.mkdirSync(outDir, { recursive: true });
 
-// The server's own log lines, kept per song for the report instead of on screen.
+// The server's log lines, kept per song for the report instead of on screen
 let captured = [];
 const quiet = (...a) => captured.push(a.map(String).join(" "));
 const real = { log: console.log, warn: console.warn };
 
 const words = (s) => verifier.normalizeTitle(s ?? "").split(" ").filter((w) => w.length > 2);
-/** Why an article looks wrong for a song, or "" when nothing stands out. */
+// Why an article looks wrong for a song, or ""
 function suspicion(song, article) {
   if (!article) return "";
   const a = new Set(words(article));
@@ -64,8 +58,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const throttled = () => captured.some((l) => /rate-limited/.test(l));
 for (const [i, song] of songs.entries()) {
   let text = "";
-  // Wikipedia asks heavy readers to slow down (HTTP 429). A throttled miss isn't a real
-  // answer, so wait and ask again, longer each time.
+  // Wikipedia slows heavy readers (HTTP 429): a throttled miss isn't an answer, so wait longer each time and retry
   for (let wait = 60_000; ; wait = Math.min(wait * 2, 600_000)) {
     captured = [];
     console.log = console.warn = quiet;
@@ -87,12 +80,12 @@ for (const [i, song] of songs.entries()) {
   const pick = captured.filter((l) => /\[Grounding\]/.test(l)).slice(-1)[0] ?? "";
   csv.push([song.title, song.artist, game, track, article, text.length, why, pick].map(cell).join(","));
   if ((i + 1) % 25 === 0) real.log(`${i + 1}/${songs.length} songs, ${found} with an article, ${suspect} suspect`);
-  // Be gentle with Wikipedia: the server looks up one song at a time, minutes apart.
+  // Gentle with Wikipedia, as the server is: one song at a time, minutes apart
   await sleep(PACE_MS);
 }
 fs.writeFileSync(path.join(outDir, "articles.csv"), csv.join("\n") + "\n");
 
-// A reproducible random sample (seeded), for facts a person reads one by one.
+// A seeded, reproducible sample, for facts a person reads one by one
 const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
 const sample = songs.map((s) => [rand(), s]).sort((a, b) => a[0] - b[0]).slice(0, sampleSize).map(([, s]) => s);
 const md = [`# Facts for ${sample.length} sampled songs`, "", `AI: ${process.env.AI_PROVIDER}. Each fact is what would show on stream; check it against its source.`, ""];

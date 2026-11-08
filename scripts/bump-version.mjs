@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-// Sets a new version everywhere a release needs it: `npm run bump -- 2.0.0-beta.12`.
-// package.json and package-lock.json (through npm version), the overlay's header,
-// the beta test form's version list and the bug form's example, the website's
-// stylesheet and script links, and a dated changelog entry to fill in. Safe to run again: what's already done is left alone.
+// Sets a new version everywhere a release needs it: `npm run bump -- 2.0.0-beta.12`
+// package files, overlay header, issue forms, site asset links, a changelog stub; safe to run again
 import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -16,14 +14,14 @@ export function checkVersion(version) {
   return version;
 }
 
-/** The overlay's header names its version on a line like " * v2.0.0-beta.11". */
+/** The overlay header's version line: " * v2.0.0-beta.11" */
 export function bumpOverlay(text, version) {
   const re = new RegExp(String.raw`^( \* )v${VERSION_IN_TEXT}[ \t]*$`, "m");
   if (!re.test(text)) throw new Error("obs-overlay.js has no version line in its header");
   return text.replace(re, `$1v${version}`);
 }
 
-/** The Build field's example ("placeholder:" under "id: build"), line by line. */
+// The Build field's example ("placeholder:" under "id: build"), line by line
 function setBuildExample(text, version) {
   const nl = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text.split(/\r?\n/);
@@ -35,10 +33,7 @@ function setBuildExample(text, version) {
   return lines.join(nl);
 }
 
-/**
- * Adds the version at the top of the beta form's version list, once, and makes it the Build
- * field's example (the app fills that field in; an old example there looked like a wrong answer).
- */
+/** Adds the version atop the beta form's list, once, and as the Build example (an old one looked like a wrong answer) */
 export function bumpBetaForm(text, version) {
   text = setBuildExample(text, version);
   const nl = text.includes("\r\n") ? "\r\n" : "\n";
@@ -63,16 +58,12 @@ export function bumpBugForm(text, version) {
   return text.replace(re, `$1${version}`);
 }
 
-/**
- * The website's links to its stylesheet and script carry the version
- * ("assets/site.css?v=2.0.0-beta.13"), so a browser that kept an older copy
- * fetches the new one after a release instead of showing new pages with old styles.
- */
+/** Versions the site's CSS and JS links ("assets/site.css?v=2.0.0-beta.13"), so browsers drop old cached copies */
 export function bumpSiteAssets(html, version) {
   return html.replace(/(["'])(assets\/site\.(?:css|js))(?:\?v=[^"']*)?\1/g, `$1$2?v=${version}$1`);
 }
 
-/** The changelog's anchor for a version: v2 (2.0.0), v2-1 (2.1.0), v2-0-1, v2-beta12, v2-rc1. */
+/** The changelog's anchor for a version: v2 (2.0.0), v2-1 (2.1.0), v2-0-1, v2-beta12, v2-rc1 */
 export function changelogId(version) {
   const [core, pre] = version.split(/-(.*)/s);
   const [major, minor, patch] = core.split(".");
@@ -84,7 +75,7 @@ export function changelogDate(date) {
   return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-/** A dated entry at the top of the changelog, with its lines marked FILL IN, unless the version has one. */
+/** A dated changelog entry on top, its lines marked FILL IN, unless the version has one */
 export function addChangelogStub(html, version, date) {
   const id = changelogId(version);
   if (html.includes(`id="${id}"`) || html.includes(`>Version ${version} <`)) return html;
@@ -119,7 +110,7 @@ function main() {
     if (after !== before) fs.writeFileSync(full, after);
     console.log(`${after !== before ? "updated" : "already done"}  ${file}`);
   };
-  // npm version also updates package-lock.json. --allow-same-version keeps a second run from failing.
+  // Also updates package-lock.json; --allow-same-version lets a second run pass
   execFileSync("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: root, stdio: "ignore", shell: process.platform === "win32" });
   console.log(`set ${version}  package.json, package-lock.json`);
   edit("frontend/obs/obs-overlay.js", (t) => bumpOverlay(t, version));

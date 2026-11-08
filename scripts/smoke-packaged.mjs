@@ -1,11 +1,7 @@
 // Smoke test for an INSTALLED BubbleFacts, run with the app's own runtime:
 //   ELECTRON_RUN_AS_NODE=1 <path to BubbleFacts executable> scripts/smoke-packaged.mjs <resources dir> [model.gguf | --lite]
-// Starts the packaged fact server the way the app does, checks it answers and
-// serves the overlay, then (given a model) checks the built-in AI loads on
-// the processor. This is the path the unit tests can't reach: the installed
-// files, the native AI binaries and the operating system's own libraries.
-// With --lite, for BubbleFacts Lite: checks instead that it says it's Lite and
-// that the AI engine isn't in it at all.
+// Starts the packaged server as the app does, then (given a model) loads the built-in AI; --lite checks for no AI engine
+// Covers what unit tests can't: installed files, native AI binaries, the system's own libraries
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,10 +9,10 @@ import path from "node:path";
 const [resources, second] = process.argv.slice(2);
 const lite = second === "--lite";
 const modelPath = lite ? undefined : second;
-// Packed into app.asar on Windows and macOS; a plain folder on Linux, whose server runs under Node.js.
+// app.asar on Windows and macOS; a plain folder on Linux, whose server runs under Node.js
 const appDir = fs.existsSync(path.join(resources, "app.asar")) ? "app.asar" : "app";
 const server = path.join(resources, appDir, "dist", "backend", "server.js");
-// Run the server the way the app does: with its bundled Node.js if it ships one, else its own runtime.
+// As the app does: its bundled Node.js if it ships one, else its own runtime
 const bundled = path.join(resources, "runtime", "node");
 const runtime = fs.existsSync(bundled) ? bundled : process.execPath;
 const PORT = "3999";
@@ -52,7 +48,7 @@ function start(env) {
   return {
     log: () => log,
     exited: () => exited,
-    // Wait until it's really gone, so the next server can have the port.
+    // Wait until it's really gone, so the next server can have the port
     stop: () => (child.kill(), done),
   };
 }
@@ -69,7 +65,7 @@ async function waitFor(check, ms, what, s) {
 
 const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.timeout(3000) });
 
-// 1. The server starts from the installed files and serves the overlay.
+// 1. The server starts from the installed files and serves the overlay
 {
   const s = start({ AI_PROVIDER: "none" });
   await waitFor(async () => (await get("/health")).ok, 60_000, "the server to answer /health", s);
@@ -81,8 +77,7 @@ const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.t
   await s.stop();
 }
 
-// 1b. The edition is the one being tested: Lite says it's Lite and has no AI engine anywhere in it,
-// and the full app isn't a Lite build that got its name.
+// 1b. The right edition: Lite says so and has no AI engine anywhere; the full app isn't a renamed Lite
 {
   const pkg = JSON.parse(fs.readFileSync(path.join(resources, appDir, "package.json"), "utf8"));
   const edition = pkg.bubblefacts?.edition === "lite" ? "lite" : "full";
@@ -100,7 +95,7 @@ const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.t
       for (const e of entries) {
         const p = path.join(dir, e.name);
         if (/llama|ggml/i.test(e.name)) found.push(p);
-        // app.asar is a file to the system, and a folder to Electron's runtime: both are searched.
+        // app.asar: a file to the system, a folder to Electron's runtime; both searched
         else if (e.isDirectory() || e.name.endsWith(".asar")) walk(p);
       }
     };
@@ -110,11 +105,8 @@ const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.t
   }
 }
 
-// 2. The built-in AI's native files load on this system. The app first starts
-// it with "auto" (GPU if there is one). If that crashes or fails, the app
-// retries processor-only, so on Windows and Linux "auto" failing is only a
-// warning and processor-only must work. Macs ship Metal builds only, with no
-// processor-only build, so there "auto" must work.
+// 2. The built-in AI loads. "auto" (GPU if any) failing only warns on Windows and Linux, where the app
+// retries processor-only, which must work; Macs ship Metal builds only, so there "auto" must work
 async function loads(gpu) {
   const s = start({ AI_PROVIDER: "builtin", MODEL_PATH: modelPath, LLAMA_GPU: gpu });
   const until = Date.now() + 10 * 60_000;
@@ -124,8 +116,7 @@ async function loads(gpu) {
     else if (/Built-in model failed to load/.test(s.log()) || s.exited()) result = { ok: false, log: s.log() };
     else await new Promise((r) => setTimeout(r, 1000));
   }
-  // 3. Loading isn't enough: write and screen captions for two songs at once,
-  // as a quick song change would, through the turn-taking queue.
+  // 3. Write and screen captions for two songs at once (a quick song change), through the turn-taking queue
   if (result?.ok) {
     const ask = (variant) =>
       fetch(`http://127.0.0.1:${PORT}/control/selftest`, {

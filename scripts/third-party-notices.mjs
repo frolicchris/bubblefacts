@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// Writes THIRD-PARTY-NOTICES.md: every package the app ships, with its license
-// text, plus the runtime pieces that don't come from npm. Run after changing
-// dependencies: `node scripts/third-party-notices.mjs`.
+// Writes THIRD-PARTY-NOTICES.md: each shipped package's license, plus runtime pieces not from npm
+// Run after changing dependencies: `node scripts/third-party-notices.mjs`
 import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -27,7 +26,6 @@ for (const dir of paths) {
 }
 
 const list = [...packages.values()].sort((a, b) => a.name.localeCompare(b.name));
-// Packages built for one system (the AI engine's binaries, for one) differ between the Mac, Windows and Linux apps.
 const lines = [
   "# Third-party notices",
   "",
