@@ -1,10 +1,6 @@
-/**
- * The server answers only to this computer. A web page can make a browser
- * resolve its own domain name to 127.0.0.1 (DNS rebinding); the Host header
- * still names that domain, so anything but a loopback name on our port is
- * turned away. Someone who set HOST to listen beyond this computer chose that,
- * so the check only applies while listening on loopback.
- */
+// The server answers only to this computer. A web page can point its own domain at 127.0.0.1 (DNS rebinding),
+// but the Host header still names that domain: anything but a loopback name on our port is turned away
+// Only while listening on loopback: setting HOST wider is the user's choice
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 export function allowedHost(hostHeader: string | undefined, port: number, bindHost: string): boolean {
@@ -14,13 +10,9 @@ export function allowedHost(hostHeader: string | undefined, port: number, bindHo
   return !!m && LOOPBACK.has(m[1]) && Number(m[2] ?? 80) === port;
 }
 
-/**
- * The live feed is for OBS. A web page open in the musician's browser can't
- * fake the Host header, but it can open a WebSocket to this computer, and the
- * browser then sends that page's own address as Origin. Allowed: OBS's Local
- * File address, a page this server served itself (the Browser source URL in
- * the manual setup), and programs other than browsers, which send no Origin.
- */
+// The live feed is for OBS. A page in the musician's browser can't fake Host but can open a WebSocket here,
+// and then sends its own address as Origin. Allowed: OBS's Local File address, a page this server
+// served (the manual setup's Browser source), and non-browsers, which send no Origin
 const OBS_LOCAL_FILE = "http://absolute";
 
 export function allowedOrigin(origin: string | undefined, hostHeader: string | undefined): boolean {

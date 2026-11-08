@@ -1,10 +1,9 @@
-/** Escape a string for use inside a RegExp. */
+// Small text helpers shared across the backend
+
+/** Escapes a string for use inside a RegExp */
 export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/**
- * `text` with every match of `pattern` (a global RegExp) removed, again and again until
- * none is left: removing "<!---->" from "<!<!---->--" leaves a new "<!--", which goes too.
- */
+/** `text` with every match of a global `pattern` removed until none is left ("<!<!---->--" leaves a new "<!--") */
 export function removeAll(text: string, pattern: RegExp): string {
   let previous: string;
   do {
@@ -14,11 +13,11 @@ export function removeAll(text: string, pattern: RegExp): string {
   return text;
 }
 
-/** A wikitext comment; one left open runs to the end, as MediaWiki reads it. */
+// A wikitext comment; one left open runs to the end, as MediaWiki reads it
 export const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 const REF = /<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/gi;
 
-/** Wikitext without its comments, then its references, nested or not, until none of either is left. */
+/** Wikitext without comments and references, nested or not, until none is left */
 export function withoutRefsAndComments(wikitext: string): string {
   let previous: string;
   do {
@@ -28,38 +27,27 @@ export function withoutRefsAndComments(wikitext: string): string {
   return wikitext;
 }
 
-/** Artist fields that mean no artist (whole field, any case, optional period): "Traditional", "Trad.", "Anon.", "Anonymous", "Unknown", "Folk". */
+// Artist fields that mean no artist: the whole field, any case, optional period
 const NO_ARTIST = /^(?:traditional|trad|anonymous|anon|unknown|folk)\.?$/i;
 export const hasNoArtist = (artist?: string | null): boolean => NO_ARTIST.test((artist ?? "").trim());
 
-/** Longest title, artist or name kept from a request. Real ones are far shorter. */
-export const MAX_REQUEST_TEXT = 200;
+export const MAX_REQUEST_TEXT = 200; // characters kept of a request's title, artist or name; real ones are far shorter
 
-/**
- * Text a viewer typed, made safe to log and to quote: line breaks and other
- * control characters become spaces, runs of spaces collapse, and it's cut to
- * a length no real title needs.
- */
+/** Text a viewer typed, safe to log and quote: control characters become spaces, spaces collapse, length capped */
 export function cleanRequestText(s: string): string {
   // eslint-disable-next-line no-control-regex
   return s.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_REQUEST_TEXT).trim();
 }
 
-/** Where a note saying who asked or paid for a song starts: "Commissioned by", "requested by", "req. by", "suggested by". */
+// Where a note saying who asked or paid for a song starts: "Commissioned by", "req. by", "suggested by"
 const REQUEST_CREDIT = /(?:^|[\s,;:|/([–—-])(?:commission(?:ed)?|requested|request|req\.?|suggested|sponsored|donated|gifted|paid)\s+(?:by|from)(?=\s|$)/i;
-/** In an artist field, also ", for Name" after a separator. "Tears for Fears" has none, so it stays. */
-// No leading \s* or \s+: an unanchored run of spaces backtracks (CodeQL js/polynomial-redos),
-// and the spaces before the note are trimmed with the separators below anyway.
+// In an artist field, also ", for Name" after a separator ("Tears for Fears" has none, so stays)
+// No leading \s* or \s+: an unanchored run of spaces backtracks (CodeQL js/polynomial-redos); LEFT_OVER trims them
 const FOR_CREDIT = /[,;|–—]\s*for\s+(?=\S)|\s-\s+for\s+(?=\S)/i;
-/** Separators, spaces and an opening bracket left at the end once a credit is cut. */
+// Separators, spaces and an opening bracket left at the end once a credit is cut
 const LEFT_OVER = /[\s,;:|/([–—-]/;
 
-/**
- * Text without a note naming who asked or paid for the song: "Some Band,
- * Commissioned by Name", "Some Song (requested by Name)", and in an artist field
- * (`artist`) "Some Band, for Name". The note runs to the end and goes whole, so a
- * viewer's name is never searched, sent to the AI, put in a fact, logged or shown.
- */
+/** Text without who asked or paid ("Some Song (requested by Name)"; with `artist`, also "Some Band, for Name"), to the end */
 export function withoutRequestCredit(text: string, artist = false): string {
   const credit = REQUEST_CREDIT.exec(text);
   const forName = artist ? FOR_CREDIT.exec(text) : null;
@@ -71,21 +59,15 @@ export function withoutRequestCredit(text: string, artist = false): string {
 }
 
 /**
- * The artist field without the notes a song list adds after the name in brackets
- * (issue #262): "Some Band (note)", "Some Band [note]", several, or one left open
- * ("Some Band (note"). A note is the streamer's, kept only to show the song as listed and
- * to match their own facts' aliases: it is never searched, sent to the AI, put in a
- * fact or logged. A streamer's handle ("Jane (@janeplayskeys)") stays, since it says
- * whose piece it is, and so does a name that is all brackets or ends in one it never
- * opened ("Sunn O)))"). No regular expression, so nothing to backtrack. A note naming
- * who asked or paid for the song goes too, bracketed or not (`withoutRequestCredit`).
+ * The artist without bracketed notes after the name (#262), even one left open, and without a request credit
+ * Kept: a handle ("Jane (@janeplayskeys)"), a name all brackets or with one never opened ("Sunn O)))"); no regex, no backtracking
  */
 export function withoutArtistNote(artist: string): string {
   let a = withoutRequestCredit(artist, true);
   for (;;) {
     const closer = a.endsWith(")") ? "(" : a.endsWith("]") ? "[" : "";
     const at = closer ? a.lastIndexOf(closer) : Math.max(a.lastIndexOf("("), a.lastIndexOf("["));
-    // Without a closing bracket at the end, only one left open counts: "A (b) c" has no note.
+    // Without a closing bracket at the end, only one left open counts: "A (b) c" has no note
     if (at < 0 || (!closer && (a.includes(")", at) || a.includes("]", at)))) return a;
     const note = a.slice(at + 1).trimStart();
     const rest = a.slice(0, at).trim();
@@ -94,13 +76,8 @@ export function withoutArtistNote(artist: string): string {
   }
 }
 
-/** Lowercase, accents removed: the first step of every comparison key (`songIdentity` and the two search and title keys built on it). */
+/** Lowercase, accents removed: the first step of every comparison key */
 export const foldCase = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-/**
- * Identity for the streamer's own records: case, accents and punctuation
- * don't count, but the words do, including a version in brackets. "Night
- * Drive (Acoustic)" isn't "Night Drive (Remix)"; Wikipedia's lookup
- * normalization, which drops brackets, is deliberately not used here.
- */
+/** Identity for the streamer's records: words count, bracketed versions too, unlike Wikipedia's normalization; not case, accents or punctuation */
 export const songIdentity = (s: string): string => foldCase(s).replace(/[^\p{L}\p{N}]+/gu, " ").trim();

@@ -3,10 +3,8 @@ import * as path from "path";
 import { config } from "./config";
 
 /**
- * Topic packs (topics/<id>.json): hand-verified fallback facts for songs with
- * no article, plus lines about the streamer's own compositions. TOPIC names
- * one pack or a comma-separated list, which are merged. A pack in the
- * streamer's own folder (BUBBLEFACTS_TOPICS_DIR) wins over a built-in one.
+ * Topic packs (topics/<id>.json): custom facts for songs with no source, plus lines about the streamer's compositions
+ * TOPIC names one or a comma-separated list, merged; the streamer's folder (BUBBLEFACTS_TOPICS_DIR) wins over built-in
  */
 export interface TopicPack {
   id: string;
@@ -17,8 +15,7 @@ export interface TopicPack {
 }
 
 const TOPICS_DIR = path.resolve(__dirname, "../../topics");
-/** Fewer than this and every unknown song shows the same bubbles. */
-const MIN_CURATED = 5;
+const MIN_CURATED = 5; // facts below which every unknown song shows the same bubbles (a warning)
 
 function readPack(id: string): TopicPack {
   const name = `${id.replace(/[^a-z0-9-]/gi, "")}.json`;
@@ -40,10 +37,10 @@ export interface TaggedFact {
 const TAGGED = /^\s*\[([^\]]+)\]\s*(.+)$/;
 
 export interface Topics {
-  /** Facts that fit any song. */
+  /** Facts that fit any song */
   curatedFacts: string[];
   originalsFacts: string[];
-  /** Facts that only go with the song, artist or game they name. Never shown for anything else. */
+  /** Facts only for the song, artist or game they name */
   taggedFacts: TaggedFact[];
 }
 
@@ -56,7 +53,7 @@ export function loadTopics(list: string): Topics {
   });
   const curatedFacts = all.filter((line) => !TAGGED.test(line));
   const originalsFacts = [...new Set(packs.flatMap((p) => p.originalsFacts ?? []))];
-  // None is fine: a song with no source then shows no custom facts (issue #18).
+  // None is fine: a song with no source then shows no custom facts (#18)
   if (curatedFacts.length && curatedFacts.length < MIN_CURATED) {
     console.warn(`[Topic] "${list}" has only ${curatedFacts.length} custom facts, so they'll repeat often`);
   }

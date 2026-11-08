@@ -5,29 +5,20 @@ import { config } from "./config";
 import { SSLSong } from "./types";
 import { songKey } from "./wrong-facts";
 
-/**
- * Songs seen on stream (issue #297), in `play-history.json` in the data
- * folder: Streamling, Nightbot and YouTube requests aren't on a song list, but
- * the same ones come back, so each one is kept here to be prepared after the
- * stream (preparer.ts), and a song on the list that played moves up. Only the
- * song as its source named it and how often and when it played: never who
- * asked for it. Private: it stays on this computer, is written whole and
- * readable only by the streamer's account, and goes with "Remove my data".
- */
+// Songs seen on stream, to prepare after it (#297; ARCHITECTURE.md: Prepared songs): the song, plays and when,
+// never who asked. Private: this computer only, owner-readable, goes with "Remove my data"
 export const PLAY_HISTORY_FILE = "play-history.json";
-/** The songs kept, the most recently played: a few years of streams for most. */
-export const PLAY_HISTORY_KEPT = 5000;
-/** A song seen again this soon is still the same play. */
-const SAME_PLAY_MS = 10 * 60_000;
+export const PLAY_HISTORY_KEPT = 5000; // songs kept, the latest played: a few years of streams for most
+const SAME_PLAY_MS = 10 * 60_000; // ms within which a song seen again is the same play
 
 export interface PlayedSong {
   song: SSLSong;
   plays: number;
-  /** When it last played, as an ISO date. */
+  /** When it last played, as an ISO date */
   lastAt: string;
 }
 
-/** What identifies the song and how to look it up; who asked for it is left out. */
+/** What identifies the song and how to look it up, never who asked */
 function kept(song: SSLSong): SSLSong {
   const out: SSLSong = { title: song.title, artist: song.artist ?? "" };
   if (song.songId) out.songId = song.songId;
@@ -49,12 +40,12 @@ export class PlayHistory {
     private readonly max = PLAY_HISTORY_KEPT
   ) {}
 
-  /** A song started on stream. Never throws: a history that can't be written mustn't stop the bubbles. */
+  /** A song started on stream; never throws, as a failed write mustn't stop the bubbles */
   record(song: SSLSong, now = new Date()): void {
     if (!song.title?.trim()) return;
     const s = this.load();
     const key = songKey(song);
-    // The same song again within minutes is the same play: resumed after a pause, or a restart mid-song.
+    // Again within minutes is the same play: resumed after a pause, or a restart mid-song
     if (s[key] && now.getTime() - Date.parse(s[key].lastAt) < SAME_PLAY_MS) return;
     s[key] = { song: kept(song), plays: (s[key]?.plays ?? 0) + 1, lastAt: now.toISOString() };
     const keys = Object.keys(s);
@@ -69,7 +60,7 @@ export class PlayHistory {
     }
   }
 
-  /** Every song seen on stream, by its song key. */
+  /** Every song seen on stream, by its song key */
   all(): Readonly<Record<string, PlayedSong>> {
     return this.load();
   }
@@ -83,7 +74,7 @@ export class PlayHistory {
         for (const [k, e] of Object.entries(raw.songs)) if (isPlayed(e)) this.songs[k] = { song: kept(e.song), plays: e.plays, lastAt: e.lastAt };
       }
     } catch {
-      // None yet, or unreadable: start a new one.
+      // None yet, or unreadable: start a new one
     }
     return this.songs;
   }

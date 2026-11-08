@@ -6,105 +6,105 @@ import { shareAddress } from "./checks";
 import type { Edition } from "./build";
 import { AiQuality, modelFor, modelPath } from "./model";
 
-/** Everything the musician can change. Secrets are encrypted on disk with the system keychain. */
+/** Everything the musician can change; secrets encrypted on disk with the system keychain */
 export interface Settings {
   setupComplete: boolean;
-  /** Where song requests come from. StreamerSongList is the default. */
+  /** Where song requests come from */
   songSource: "streamersonglist" | "streamelements" | "nowplaying";
-  /** StreamerSongList channel name. */
+  /** StreamerSongList channel name */
   channel: string;
   token: string;
-  /** "oauth" is the app's own sign-in; the others are tokens pasted by hand. */
+  /** "oauth": the app's own sign-in; the rest: tokens pasted by hand */
   tokenKind: "oauth" | "streamer" | "user" | "bearer";
   refreshToken: string;
-  /** When the signed-in access token runs out, in milliseconds since 1970. */
+  /** When the signed-in token runs out, ms since 1970 */
   tokenExpiresAt: number;
   streamerId: number;
-  /** Connect Twitch (optional, issue #47): reads other music content creators' public About text. */
+  /** Connect Twitch (optional, #47): reads music content creators' public About text */
   twitchToken: string;
   twitchRefreshToken: string;
   twitchTokenExpiresAt: number;
   twitchLogin: string;
-  /** With Twitch connected: a song no source knows, by an artist named exactly like a channel, gets a fact from its About. */
+  /** Unknown song by an artist named exactly like a channel: a fact from its About */
   twitchAbout: boolean;
-  /** StreamElements channel name, filled in from the token when it's tested. */
+  /** StreamElements channel, filled in from the token when tested */
   seChannel: string;
-  /** StreamElements JWT token, from the dashboard's Account, Channels, Show secrets. */
+  /** StreamElements JWT: dashboard, Account, Channels, Show secrets */
   seJwt: string;
-  /** Now playing file: "streamling" or "nightbot" read that app's own file or folder; "none" reads the file in `nowPlayingFile`. */
+  /** "streamling" or "nightbot": that app's own file or folder; "none": `nowPlayingFile` */
   nowPlayingPreset: "streamling" | "nightbot" | "none";
-  /** The text file another app writes the song to, chosen with the file picker. */
+  /** Text file another app writes the song to, from the file picker */
   nowPlayingFile: string;
-  /** How its line reads: "Artist - Title", or the title alone. */
+  /** Its line: "Artist - Title", or the title alone */
   nowPlayingFormat: "artist-title" | "title";
   displayName: string;
-  /** No longer used or sent to the server. Kept so settings files that have it still load. */
+  /** Unused, never sent; kept so files that have it still load */
   instrument: string;
-  /** "I play my own compositions" and "I do live learns", from setup. */
+  /** From setup: "I play my own compositions", "I do live learns" */
   originals: boolean;
   liveLearns: boolean;
-  /** Prepare my songs (issues #293 and #295): write facts for every song ahead of time, while OBS is closed and the computer is plugged in. Off until the streamer turns it on. */
+  /** Prepare my songs (#293, #295): facts written ahead, while OBS is closed and plugged in; off by default */
   prepareSongs: boolean;
-  /** The NOW PLAYING bubble on a song change. */
+  /** NOW PLAYING bubble on a song change */
   nowPlaying: boolean;
-  /** One credit bubble before the first song's facts of each stream and about every 5 songs: where facts come from, and to report a mistake. Off, it still shows once each stream. */
+  /** Credit bubble (where facts come from, how to report one): first, then about every 5 songs; off = once a stream */
   creditBubble: boolean;
   liveLearnBanner: boolean;
-  /** Share song facts with other apps: off by default. Sends the song and its facts to `shareUrl` (share-song-facts.ts in the server). */
+  /** Share song facts with other apps (off by default): song and facts go to `shareUrl` (server's share-song-facts.ts) */
   shareFacts: boolean;
-  /** Where they go: https, or http on this computer. */
+  /** https, or http on this computer */
   shareUrl: string;
-  /** The channel the key belongs to. */
+  /** Channel the key belongs to */
   shareChannel: string;
   shareKey: string;
-  /** The musician's own custom facts, one per line in Settings. */
+  /** Custom facts, one per line in Settings */
   myFacts: string[];
   myOriginals: string[];
-  /** "builtin" is the app's own: the built-in AI, or in Lite (which has none) no AI at all. */
+  /** "builtin": the built-in AI, or no AI in Lite */
   ai: "builtin" | "groq" | "anthropic" | "ollama";
-  /** Which built-in model: the small default, or the bigger one (model.ts). */
+  /** Built-in model: the small default, or the bigger one (model.ts) */
   aiQuality: AiQuality;
   groqKey: string;
   anthropicKey: string;
   ollamaUrl: string;
   ollamaModel: string;
-  /** How big the bubbles are on stream. */
+  /** Bubble size on stream (BUBBLE_SCALE) */
   bubbleSize: "standard" | "large" | "larger";
-  /** The part of the screen bubbles keep to. */
+  /** Part of the screen bubbles keep to */
   bubbleArea:
     | "anywhere" | "top" | "bottom" | "left" | "right"
     | "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
-  /** The vertical overlay (BubbleFacts Vertical.html), for phone-shaped streams: its own size and spots. */
+  /** Vertical overlay (phone-shaped streams): its own size and spots */
   verticalBubbleSize: "standard" | "large" | "larger";
   verticalArea: "top" | "above-chat";
-  /** The bubbles' look (issue #177), for both overlays. See BUBBLE_STYLES. */
+  /** The look (#177), both overlays */
   bubbleStyle: BubbleStyle;
-  /** The icon at the left of each bubble (see BUBBLE_ICONS): the Style's own unless chosen. */
+  /** Icon at each bubble's left; "style" = the Style's own */
   bubbleIcon: BubbleIcon;
-  /** Your own colors on top of the Style: an accent and a background, each #rrggbb. Text color is picked for contrast. */
+  /** Own accent and background over the Style, each #rrggbb; text color picked for contrast */
   customColors: boolean;
   accentColor: string;
   backgroundColor: string;
+  /** Bubbles per song, 1 to 12 */
   factsPerSong: number;
+  /** Seconds between bubbles, 3 to 300 */
   intervalSeconds: number;
+  /** Minimum seconds on screen, 2 to 120 */
   durationSeconds: number;
-  /** Hands-free Wrong: a key a foot pedal or Stream Deck sends, or "off". See WRONG_KEYS. */
+  /** Hands-free Wrong: a key from a foot pedal or Stream Deck, or "off" */
   wrongKey: WrongKey;
+  /** The server's port on this computer, 1024 to 65535 */
   port: number;
   startAtLogin: boolean;
-  /** Which updates the app offers: full releases only, or betas and release candidates too. */
+  /** Updates offered: full releases only, or betas and release candidates too */
   updateChannel: "stable" | "beta";
-  /** Set automatically when the GPU build of the built-in AI fails on this computer. */
+  /** Set by the app when the built-in AI's GPU build fails here */
   forceCpu: boolean;
-  /** The version whose "What's new" was seen (or skipped on a new install). Kept by the app, not the window. */
+  /** Version whose "What's new" was seen (or skipped on a new install); the app's, not the window's */
   lastVersionSeen: string;
 }
 
-/**
- * The keys hands-free Wrong can listen for, as Electron accelerators. A short
- * list of combinations few apps use, rather than any key: a global shortcut
- * takes the key from every other app while BubbleFacts runs.
- */
+/** Hands-free Wrong keys (Electron accelerators): rare combinations only, as a global shortcut takes the key from every app */
 export const WRONG_KEYS = {
   off: null,
   "ctrl-alt-w": "Control+Alt+W",
@@ -113,11 +113,11 @@ export const WRONG_KEYS = {
 } as const;
 export type WrongKey = keyof typeof WRONG_KEYS;
 
-/** The built-in Styles, as the overlay's CSS names them (BUBBLE_STYLES in the server's bubble-style.ts). Classic is the dark blue. */
+/** Built-in Styles, as the overlay's CSS names them (server's bubble-style.ts); Classic is the dark blue */
 export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-contrast"] as const;
 export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
 
-/** The bubble icon choices, as the server's BUBBLE_ICONS names them. "style" keeps each Style's own icon. */
+/** Bubble icons, as the server's BUBBLE_ICONS; "style" = each Style's own */
 export const BUBBLE_ICONS = ["style", "notes", "heart", "star", "moon", "diamond"] as const;
 export type BubbleIcon = (typeof BUBBLE_ICONS)[number];
 
@@ -167,7 +167,7 @@ export const DEFAULTS: Settings = {
   bubbleStyle: "classic",
   bubbleIcon: "style",
   customColors: false,
-  // Classic's own: turning custom colors on starts from the look already on stream.
+  // Classic's own, so custom colors start from the look already on stream
   accentColor: "#5b6ee1",
   backgroundColor: "#0a0a3c",
   factsPerSong: 5,
@@ -192,7 +192,7 @@ function encrypt(value: string): string {
     : "plain:" + value;
 }
 
-/** A secret that can't be read (the keychain changed, say) comes back blank; the rest of the settings survive. */
+/** Blank for a secret that can't be read (keychain changed, say); the other settings survive */
 function decrypt(stored: string): string {
   if (!stored) return "";
   try {
@@ -203,30 +203,24 @@ function decrypt(stored: string): string {
   return stored.startsWith("plain:") ? stored.slice(6) : "";
 }
 
-/** Beta for a copy that is itself a beta or release candidate (whoever downloaded one is testing), otherwise Stable. */
+/** Beta for a beta or release candidate copy (whoever runs one is testing), else Stable */
 const firstChannel = (): Settings["updateChannel"] => (app.getVersion().includes("-") ? "beta" : "stable");
 
-/** Saved secrets not read yet (see `loadSettings(false)`). Nothing is saved meanwhile: it would store them blank. */
+/** Saved secrets not read yet (`loadSettings(false)`); nothing is saved meanwhile, or they'd be stored blank */
 let secretsPending = false;
 export const secretsWaiting = () => secretsPending;
 
-/**
- * `readSecrets` false leaves the sign-in and keys unread, for `unlockSecrets`
- * to read later. Reading them is what makes macOS show its keychain prompt,
- * and the app waits on it: the window has to be up first to say what to click.
- */
-/** Whether a saved value has its default's type: a list of strings, or the same primitive type. */
+/** A saved value has its default's type: a list of strings, or the same primitive */
 const sameType = (value: unknown, fallback: unknown): boolean =>
   Array.isArray(fallback) ? Array.isArray(value) && value.every((v) => typeof v === "string") : typeof value === typeof fallback;
 
-/** Reads that fail for a reason other than a missing file (an antivirus or OneDrive lock) are tried again this many times. */
-const READ_RETRIES = 3;
-const READ_RETRY_MS = 150;
+const READ_RETRIES = 3;    // retries when the file is locked (antivirus, OneDrive), not missing
+const READ_RETRY_MS = 150; // ms between them
 
-/** The file couldn't be read at all (locked), so the defaults in memory stand in and nothing is saved over it. */
+/** File couldn't be read (locked): defaults stand in and nothing is saved over it */
 let readFailed = false;
 
-/** The saved settings text, retrying a few times when something has the file locked. Null if there is no file. */
+/** Saved settings text, retried while locked; null with no file */
 function readSettingsFile(): string | null {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -239,14 +233,14 @@ function readSettingsFile(): string | null {
   }
 }
 
+/** Saved settings; `readSecrets` false leaves secrets for `unlockSecrets`, as reading them brings macOS's prompt */
 export function loadSettings(readSecrets = true): Settings {
   let raw: Record<string, unknown>;
   let text: string | null;
   try {
     text = readSettingsFile();
   } catch (err) {
-    // Locked, not broken: the file is probably fine and the sign-in in it is still wanted. Starting from the
-    // defaults without saving leaves it for the next start (or the next load) instead of renaming it away.
+    // Locked, not broken: defaults for now, file and sign-in left for the next load, not renamed away
     readFailed = true;
     console.error(`[App] Couldn't read settings.json (${(err as NodeJS.ErrnoException).code ?? err}); using defaults for now and not saving.`);
     return { ...DEFAULTS, updateChannel: firstChannel() };
@@ -257,30 +251,30 @@ export function loadSettings(readSecrets = true): Settings {
     raw = JSON.parse(text);
     if (!raw || typeof raw !== "object") throw new Error("not an object");
   } catch {
-    // It read but isn't settings: keep it for a problem report instead of overwriting it.
+    // Read but isn't settings: kept for a problem report, not overwritten
     try {
       fs.renameSync(file(), file() + ".unreadable");
     } catch {
-      // Nothing more to do: start from the defaults.
+      // Start from the defaults
     }
     return { ...DEFAULTS, updateChannel: firstChannel() };
   }
   const settings: Settings = { ...DEFAULTS };
   const target = settings as unknown as Record<string, unknown>;
-  // Each value must have the type its default has; anything else falls back to the default.
+  // A value of the wrong type keeps the default
   for (const [key, fallback] of Object.entries(DEFAULTS)) {
     const value = raw[key];
     const ok = sameType(value, fallback);
     if (ok) target[key] = value;
   }
   if (!("updateChannel" in raw)) {
-    // Saved before update channels existed: someone running a beta is a tester and stays on betas.
+    // Saved before update channels: someone running a beta is a tester and stays on Beta
     settings.updateChannel = firstChannel();
-    // Written now, so it stays when they update to a full release before saving anything.
+    // Written now, so it survives updating to a full release before any save
     try {
       writeFileAtomic(file(), JSON.stringify({ ...raw, updateChannel: settings.updateChannel }, null, 2), { mode: 0o600 });
     } catch {
-      // Worked out again next time.
+      // Worked out again next time
     }
   }
   const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
@@ -289,7 +283,7 @@ export function loadSettings(readSecrets = true): Settings {
   return sanitize(settings);
 }
 
-/** Read the secrets `loadSettings(false)` left. Waits on the keychain prompt, when macOS shows one. */
+/** Reads the secrets `loadSettings(false)` left; waits on macOS's keychain prompt */
 export function unlockSecrets(settings: Settings): Settings {
   if (!secretsPending) return settings;
   secretsPending = false;
@@ -297,7 +291,7 @@ export function unlockSecrets(settings: Settings): Settings {
   try {
     raw = JSON.parse(fs.readFileSync(file(), "utf8"));
   } catch {
-    // The file went away since it was read: the secrets stay blank.
+    // File gone since: secrets stay blank
   }
   const out = { ...settings };
   for (const key of SECRET_KEYS) out[key] = decrypt(typeof raw[key] === "string" ? (raw[key] as string) : "");
@@ -307,10 +301,10 @@ export function unlockSecrets(settings: Settings): Settings {
 const clamp = (n: number, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.includes(value) ? value : fallback);
-/** A color exactly as #rrggbb (what a color picker gives), lowercased; anything else is the fallback. The same rule as hexColor in backend/src/bubble-style.ts: keep them alike. */
+/** #rrggbb (as a color picker gives it), lowercased, else fallback; same rule as hexColor in bubble-style.ts: keep alike */
 const hexColor = (value: string, fallback: string) => (/^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback);
 
-/** Keep every value in a range the server accepts, so no setting can stop it from starting. */
+/** Every value within what the server accepts, so no setting can stop it starting */
 export function sanitize(s: Settings): Settings {
   const lines = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
   return {
@@ -348,16 +342,11 @@ export function sanitize(s: Settings): Settings {
   };
 }
 
-/** The longest custom fact, as for a song's own facts (SONG_FACT_LIMITS in the server's song-facts.ts). */
-export const CUSTOM_FACT_LENGTH = 300;
-/** "[Song of Storms] It plays in a windmill." shows only the part after the brackets, so that's what counts. */
+export const CUSTOM_FACT_LENGTH = 300; // characters, as for song facts (SONG_FACT_LIMITS in song-facts.ts)
+/** Only the text after a [tag] shows, so only it counts: "[Song of Storms] It plays in a windmill." */
 const bubbleText = (line: string) => line.trim().replace(/^\[[^\]]+\]\s*/, "");
 
-/**
- * Why custom facts can't be saved as typed, or null. Refused with the reason,
- * never trimmed, so what goes on stream is what was written. Only the lists
- * in `changes` are checked: an older save's long line doesn't block other settings.
- */
+/** Why custom facts can't be saved as typed (refused, never trimmed), or null; only lists in `changes`, so an old long line blocks nothing else */
 export function customFactsProblem(changes: Partial<Pick<Settings, "myFacts" | "myOriginals">>): string | null {
   const lists = [["Your own facts", changes.myFacts], ["About your own compositions", changes.myOriginals]] as const;
   for (const [name, list] of lists) {
@@ -368,13 +357,13 @@ export function customFactsProblem(changes: Partial<Pick<Settings, "myFacts" | "
   return null;
 }
 
-/** Why the sharing address can't be saved as typed, or null. Refused with the reason: `sanitize` would blank it. */
+/** Why the sharing address can't be saved as typed, or null; refused, as `sanitize` would blank it */
 export function shareUrlProblem(changes: Partial<Pick<Settings, "shareUrl">>): string | null {
   if (!changes.shareUrl || shareAddress(changes.shareUrl)) return null;
   return "The sharing address must start with https:// (http:// is fine only on this computer).";
 }
 
-/** An http or https address, or null: Ollama is only ever reached over the web's own protocols. */
+/** An http or https address, or null: Ollama is only reached over those */
 function webAddress(s: string): string | null {
   try {
     const url = new URL(s.trim());
@@ -384,7 +373,7 @@ function webAddress(s: string): string | null {
   }
 }
 
-/** What the window may change. Sign-in details and automatic fallbacks belong to the app. */
+/** What the window may change; sign-in details and automatic fallbacks are the app's */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
@@ -392,7 +381,7 @@ export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "updateChannel",
 ];
 
-/** The window's changes, keeping only editable keys whose values have the right type. */
+/** The window's changes: editable keys with the right type only */
 export function fromWindow(changes: Record<string, unknown>): Partial<Settings> {
   const out: Record<string, unknown> = {};
   for (const key of EDITABLE) {
@@ -405,26 +394,22 @@ export function fromWindow(changes: Record<string, unknown>): Partial<Settings> 
   return out as Partial<Settings>;
 }
 
-/** The settings file's format. Raise it when a later version must convert older files. */
+/** settings.json format; raise when a later version must convert older files */
 export const SETTINGS_VERSION = 1;
-/**
- * Keys older versions saved that are no longer used, so they aren't carried forward:
- * "topics" held example packs; the musician's own custom facts are the only ones now.
- */
+/** Old keys not carried forward: "topics" held example packs, now custom facts only */
 const RETIRED_KEYS = new Set(["topics"]);
 
-/** The settings that sanitize holds to a list of values. */
+/** Settings `sanitize` holds to a list of values */
 export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
-  // Settings a newer version saved are kept, so going back a version and forward again loses nothing.
+  // Keys a newer version saved are kept: back a version and forward again loses nothing
   let kept: Record<string, unknown> = {};
   try {
     const raw = JSON.parse(fs.readFileSync(file(), "utf8")) as Record<string, unknown>;
     kept = Object.fromEntries(Object.entries(raw).filter(([k]) => !(k in DEFAULTS) && !RETIRED_KEYS.has(k)));
-    // A choice only a newer version knows ("ai": "gemini") was swapped for a safe default in memory. While it is
-    // still that default, the saved choice stays; picking anything else replaces it.
+    // A newer version's choice ("ai": "gemini") is a safe default in memory; while it still is, the saved one stays
     for (const key of ENUM_KEYS) {
       const saved = raw[key];
       if (typeof saved !== "string") continue;
@@ -432,9 +417,9 @@ export function saveSettings(settings: Settings): void {
       if (safe !== saved && settings[key] === safe) kept[key] = saved;
     }
   } catch {
-    // No file yet, or unreadable: nothing to keep.
+    // No file yet, or unreadable: nothing to keep
   }
-  // A file a newer version wrote keeps its higher number: it may hold what only that version understands.
+  // A newer version's higher number stays: the file may hold what only it understands
   const version = Math.max(SETTINGS_VERSION, typeof kept.settingsVersion === "number" ? kept.settingsVersion : 0);
   const stored: Record<string, unknown> = { ...settings, ...kept, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
@@ -443,29 +428,24 @@ export function saveSettings(settings: Settings): void {
 }
 
 /**
- * Whether saved secrets lack real protection. On Linux, Electron can "encrypt"
- * with a fixed built-in password when no keyring (GNOME Keyring, KWallet) is
- * running: the basic_text backend. isEncryptionAvailable() is still true
- * then, so the backend has to be checked too (review).
- * https://www.electronjs.org/docs/latest/api/safe-storage
+ * Saved secrets lack real protection: on Linux with no keyring, Electron "encrypts" with a fixed password
+ * (basic_text) while isEncryptionAvailable() stays true (electronjs.org/docs/latest/api/safe-storage)
  */
 export function secretsUnprotected(): boolean {
-  // Only Linux can be without a keyring. Asking on a Mac reads the keychain, and after
-  // an update that brings up macOS's prompt before the window can say what to click (#62).
+  // Only Linux lacks keyrings; asking on a Mac reads the keychain, prompting before the window can explain (#62)
   if (process.platform !== "linux") return false;
   if (!safeStorage.isEncryptionAvailable()) return true;
   const backend = (safeStorage as { getSelectedStorageBackend?: () => string }).getSelectedStorageBackend?.();
   return !backend || backend === "basic_text" || backend === "unknown";
 }
 
-/** The settings as the server's environment variables. */
+/** The settings as the server's environment variables */
 export function toServerEnv(
   s: Settings,
   paths: { modelsDir: string; logDir: string; topicsDir: string; clientId: string; documentsDir?: string; edition?: Edition }
 ): Record<string, string> {
   const env: Record<string, string> = {
-    // Only the musician's own pack, never the examples in topics/. "none", not an empty value:
-    // an empty variable can get lost on the way, and a missing one means the example packs.
+    // Own pack only, never topics/; "none", as an empty variable can get lost and a missing one means the examples
     TOPIC: topicList(s).join(",") || "none",
     BUBBLEFACTS_TOPICS_DIR: paths.topicsDir,
     ORIGINALS: s.originals ? "on" : "off",
@@ -484,7 +464,7 @@ export function toServerEnv(
     BUBBLEFACTS_LOG_DIR: paths.logDir,
     NODE_ENV: "production",
   };
-  // Where the system keeps Documents, for the Streamling and Nightbot presets: tried before the home folder's.
+  // The system's Documents, for the Streamling and Nightbot presets: tried before the home folder's
   if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
@@ -492,17 +472,17 @@ export function toServerEnv(
   } else if (s.songSource === "nowplaying") {
     env.SONG_SOURCE = "nowplaying";
     if (s.nowPlayingPreset === "streamling") {
-      // Streamling's file is in a known folder and reads "Artist - Song" or a YouTube title, so there's nothing to choose.
+      // Known folder, "Artist - Song" or a YouTube title: nothing to choose
       Object.assign(env, { NOW_PLAYING_PRESET: "streamling", NOW_PLAYING_FORMAT: "youtube-title" });
     } else if (s.nowPlayingPreset === "nightbot") {
-      // Nightbot's folder is known, but its file name and line are the streamer's to customize: the newest .txt is read as a YouTube title.
+      // Known folder, but file name and line are the streamer's: the newest .txt, read as a YouTube title
       Object.assign(env, { NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
     } else {
       Object.assign(env, { NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: s.nowPlayingFile, NOW_PLAYING_FORMAT: s.nowPlayingFormat });
     }
   } else {
     Object.assign(env, {
-      // The server needs a name to talk about the streamer; the ID, when signed in, is what it follows.
+      // A name to talk about the streamer; signed in, the ID is what it follows
       SSL_STREAMER_NAME: s.channel || s.displayName || "The streamer",
       SSL_ACCESS_TOKEN: s.token,
       SSL_TOKEN_KIND: s.tokenKind === "oauth" ? "bearer" : s.tokenKind,
@@ -511,7 +491,7 @@ export function toServerEnv(
   }
   if (s.shareFacts && s.shareUrl && s.shareChannel && s.shareKey) Object.assign(env, { SHARE_FACTS_URL: s.shareUrl, SHARE_FACTS_CHANNEL: s.shareChannel, SHARE_FACTS_KEY: s.shareKey });
   if (s.displayName) env.STREAMER_DISPLAY_NAME = s.displayName;
-  // Lite has no AI engine: its own choice is no AI, so nothing goes to an AI and no model is loaded.
+  // Lite has no AI engine: no AI, no model loaded
   if (s.ai === "builtin" && paths.edition === "lite") env.AI_PROVIDER = "none";
   else if (s.ai === "builtin") Object.assign(env, { AI_PROVIDER: "builtin", MODEL_PATH: modelPath(paths.modelsDir, modelFor(s.aiQuality)), LLAMA_GPU: s.forceCpu ? "off" : "auto" });
   if (s.ai === "groq") Object.assign(env, { AI_PROVIDER: "openai", OPENAI_API_KEY: s.groqKey });
@@ -520,48 +500,41 @@ export function toServerEnv(
   return env;
 }
 
-/** The chosen song source has what it needs to start. */
+/** The chosen song source has what it needs to start */
 export function songSourceReady(s: Settings): boolean {
   if (s.songSource === "streamelements") return !!s.seJwt;
-  // Streamling's and Nightbot's files are where the server already looks; any other app's needs a file chosen.
+  // The server knows where Streamling's and Nightbot's files are; another app's needs one chosen
   if (s.songSource === "nowplaying") return s.nowPlayingPreset !== "none" || !!s.nowPlayingFile;
-  // The app's own sign-in follows the channel by its ID, so a missing name doesn't hold it up.
+  // The app's own sign-in follows the channel by ID, so no name is needed
   return !!s.token && (!!s.channel || (s.tokenKind === "oauth" && s.streamerId > 0));
 }
 
-/** Values that must never appear in a report. */
+/** Values never to appear in a report */
 export const secretsOf = (s: Settings) => SECRET_KEYS.map((k) => s[k]).filter((v) => v.length >= 6);
 
-/** The musician's own pack, saved as a topic file the server reads first. */
+/** The musician's own pack: a topic file the server reads first */
 export const MY_PACK = "my-facts";
 
 export function topicList(s: Settings): string[] {
   return s.myFacts.length || s.myOriginals.length ? [MY_PACK] : [];
 }
 
-/**
- * The bubbles' look as the server reads it. Blank colors when custom colors are off, so a running
- * server told this (and any restart after it) goes back to the Style's own.
- */
+/** The look as the server reads it; colors blank when custom colors are off, so the server reverts to the Style's */
 export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string } {
   return {
     BUBBLE_STYLE: s.bubbleStyle,
     BUBBLE_ICON: s.bubbleIcon,
     BUBBLE_ACCENT: s.customColors ? s.accentColor : "",
     BUBBLE_BACKGROUND: s.customColors ? s.backgroundColor : "",
-    // Bubble size goes the same way, so a new size shows without a Refresh in OBS.
+    // Size goes live too: no Refresh in OBS
     BUBBLE_SCALE: String(BUBBLE_SCALE[s.bubbleSize]),
     BUBBLE_VERTICAL_SCALE: String(VERTICAL_BUBBLE_SCALE[s.verticalBubbleSize]),
   };
 }
 
-/**
- * Everything the server reads at start, as one string: its environment and
- * the streamer's own facts (written to a pack it loads once). The sign-in
- * token is left out: a refreshed token is handed to the running server.
- */
+/** All the server reads at start (environment, own facts pack) as one string; not the token, handed over live */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
-  // The look goes to the running server too (POST /control/style), so a new one never restarts it.
+  // The look goes live (POST /control/style), so a new one never restarts the server
   const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
@@ -578,9 +551,7 @@ export function writeMyPack(s: Settings, dir: string): void {
   fs.writeFileSync(path.join(dir, `${MY_PACK}.json`), JSON.stringify(pack, null, 2));
 }
 
+/** Bubble size, as a multiple of Standard */
 export const BUBBLE_SCALE: Record<Settings["bubbleSize"], number> = { standard: 1, large: 1.25, larger: 1.5 };
-/**
- * The vertical overlay's sizes. Its Standard is already phone-sized (40px text on a 1080-wide
- * canvas, about 17px on a phone), and the area clear of the apps' chat is short, so the steps are smaller.
- */
+/** Same, vertical: smaller steps, as Standard is already phone-sized and the clear area short */
 export const VERTICAL_BUBBLE_SCALE: Record<Settings["verticalBubbleSize"], number> = { standard: 1, large: 1.15, larger: 1.3 };

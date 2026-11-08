@@ -1,19 +1,10 @@
 import { Fact, SSLSong } from "./types";
 
-/**
- * The same song play: title and artist as `sameRequest` (session.ts) compares
- * them, plus the song ID and the video ID when there is one. Two StreamElements
- * requests with one title but different videos are different songs here.
- */
+/** The same song play: title and artist (as `sameRequest`), song ID and video ID; one title, two videos are two songs */
 export const sameSong = (a: SSLSong | null | undefined, b: SSLSong | null | undefined) =>
   !!a && !!b && a.title === b.title && a.artist === b.artist && (a.songId ?? null) === (b.songId ?? null) && (a.videoId ?? null) === (b.videoId ?? null);
 
-/**
- * Which fact a click on Wrong in the app means. Only a click in the On stream
- * now list (`live`) can take a bubble off the stream; a click under Earlier
- * songs always marks that earlier play, even when the same song is on again
- * (A, B, A), where the song alone can't tell the two lists apart.
- */
+/** Which fact a Wrong click means: only an On stream now click (`live`) touches the stream (ARCHITECTURE.md: Wrong and Undo) */
 export function wrongTarget(
   click: { text: string; song: SSLSong | null; live: boolean },
   now: { song: SSLSong | null; facts: Fact[] },
@@ -23,7 +14,7 @@ export function wrongTarget(
     const fact = now.facts.find((f) => f.text === click.text);
     if (fact) return { song: now.song, fact, playing: true };
   }
-  // The song moved on since the list was drawn: its facts are under Earlier songs now.
+  // The song moved on since the list was drawn: its facts are under Earlier songs now
   if (!click.song) return null;
   const play = earlier.find((e) => sameSong(e.song, click.song));
   const fact = play?.facts.find((f) => f.text === click.text);
