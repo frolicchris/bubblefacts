@@ -663,9 +663,13 @@ to (the page, not its `#other-ai` section: the address takes the last
 characters of the 160 a bubble allows). "Adapted" and the license name are what CC BY-SA 4.0 asks
 of a modified work (section 3(a)(1)(B) and (C)); the page carries the rest, as
 section 3(a)(2) allows. This wording was weighed for legal soundness, not
-written by a lawyer. Their captions go through the same screening, but
-the fact check before each release is run on the built-in AI, so nothing
-measures how often another AI is wrong or strays from the content standard.
+written by a lawyer. Their captions still go through the same screening, but
+BubbleFacts doesn't control that pipeline and the fact check before each
+release covers only the built-in AI, so nothing measures how often another AI
+is wrong or strays from the content standard. So nothing a streamer or viewer
+reads vouches for those facts: the app, the site and the credit say only that
+BubbleFacts doesn't control or test that AI and can't vouch for what it
+writes, never that its facts were screened or checked.
 The same at-least-once rule applies, switch or no switch. When no AI writes
 (`AI_PROVIDER=none`: Lite, the full app while its AI downloads or can't run,
 the command line set to none), the credit leaves out "retold by AI"
@@ -673,10 +677,9 @@ the command line set to none), the credit leaves out "retold by AI"
 keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
 (`restoredCredit`), so each stream shows the credit that fits the AI writing
-its facts. In the desktop app these AIs are BubbleFacts Lite's choice; in the
-full app they're a legacy choice for those who already made it, and leave it
-in 3.0, so every fact the full app shows then comes from the AI its fact
-check measures (see [DESKTOP-APP.md](DESKTOP-APP.md)). The command line, which
+its facts. In the desktop app these AIs are a legacy choice for those who
+already made it, leaving in 3.0, so every fact BubbleFacts shows then comes
+from the AI its fact check measures (see [DESKTOP-APP.md](DESKTOP-APP.md)). The command line, which
 has no built-in AI, always shows this wording when an AI writes.
 
 ### The content standard

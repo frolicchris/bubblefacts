@@ -184,7 +184,6 @@
             <div class="note">
               <p class="note-title">BubbleFacts gets ready in the background</p>
               <p>While you set up, BubbleFacts downloads its built-in AI, once (about 2 GB). You don't wait for it: until it's ready, songs get facts from music databases and your own facts. The dashboard shows how far along it is.</p>
-              <p>Using BubbleFacts Lite? It has no AI, so there's nothing to download: songs get facts from music databases, your song list and your own facts.</p>
             </div>
           </div>
         </div>
@@ -402,7 +401,7 @@
             <p>It starts with the songs your viewers request most. It works only while OBS is closed and your computer is plugged in, and stops the moment you open OBS, keeping everything it has done. Next time your computer is free, it carries on where it stopped.</p>
             <p>It prepares every song on your StreamerSongList list, and every song that has played on your stream, so requests from StreamElements, Streamling or Nightbot get ready too after you've played them once.</p>
             <p>To see how far it has come, click <span class="ui">Your songs</span> at the top of the BubbleFacts window. It says how many songs are ready and about when the rest will be, for example "1,240 of 5,000 songs ready. The rest by about Thursday.", worked out from how fast your computer has been going. It also shows how much of what your viewers request is ready, and the songs no source knows anything about. It's just information: there's nothing to check or approve.</p>
-            <p>It uses the AI on this computer, never an online AI, so BubbleFacts Lite doesn't have it. The facts, and the list of songs played on your stream, stay on this computer. A fact you mark <span class="ui">Wrong</span> never shows again, prepared or not.</p>
+            <p>It uses the AI on this computer, never an online AI. The facts, and the list of songs played on your stream, stay on this computer. A fact you mark <span class="ui">Wrong</span> never shows again, prepared or not.</p>
 
             <h3 id="share-facts">Share song facts with other apps</h3>
             <p>An app that takes song context can use the song's facts to answer chat's questions.</p>
@@ -425,13 +424,12 @@
       <div class="wrap narrow">
         <h2 id="ai">Who writes the facts</h2>
         <p>The facts are written by the built-in AI on your own computer. There's nothing to choose: BubbleFacts gets it ready on its own (a one-time download of about 2 GB), with no account or key.</p>
-        <p>BubbleFacts Lite has no AI of its own: its facts come from music databases and your own facts. To get facts for more songs, you can have another AI write them: an online AI (Groq or Anthropic) or your own Ollama. Choose it in <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span>.</p>
-        <p>In the full app, other AIs are a legacy choice, kept only for anyone who already chose one. They leave the full app in BubbleFacts 3.0 and stay in BubbleFacts Lite. Two things to know about any other AI:</p>
+        <p>Online AIs (Groq and Anthropic) and your own Ollama are a legacy choice, kept only for anyone who already chose one, and leaving BubbleFacts in 3.0. If you use one, you'll find it in <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span>. Two things to know:</p>
         <ul>
           <li>Your viewers see a bubble saying some facts are adapted from Wikipedia by an AI you chose, aren't verified by BubbleFacts, and may be wrong, at least once a stream. It points to <a href="credits.html#other-ai">the full disclaimer</a>. It shows even with <span class="ui">Now and then, show where the facts come from</span> unchecked.</li>
-          <li>BubbleFacts checks its accuracy before each release with the built-in AI only. Facts from another AI go through the same screening against the song's Wikipedia article, but they may be wrong more often. Press <span class="ui">Wrong</span> on any fact that's off.</li>
+          <li>BubbleFacts tests its accuracy before each release with its own built-in AI only. It doesn't control or test any other AI, so it can't vouch for those facts, and they may be wrong more often. Press <span class="ui">Wrong</span> on any fact that's off.</li>
         </ul>
-        <p>In the full app, if you switch back to the built-in AI and save, the other choices go away.</p>
+        <p>If you switch back to the built-in AI and save, the other choices go away.</p>
         <h3 id="high-quality">Larger AI: a bigger AI, on a strong computer</h3>
         <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">Larger AI</span>. Stay on Standard for now: in our latest fact check, Larger AI made more mistakes, and it's a bigger download that needs a stronger computer. See <a href="requirements.html#high-quality">the requirements</a>.</p>
         <div class="note">

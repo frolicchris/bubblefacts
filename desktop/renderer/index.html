@@ -619,15 +619,15 @@
         <p class="fine" data-edition="full">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Larger AI is under Advanced.</p>
         <div data-edition="lite" hidden>
           <p class="fine">This is <strong>BubbleFacts Lite</strong>. It has no AI of its own. Songs get facts from music databases (Wikidata and MusicBrainz), your song list and your own facts.</p>
-          <p class="fine">Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones. To get more, choose another AI under Advanced, or install the full BubbleFacts, which writes facts on this computer. <button class="link" type="button" data-open="https://bubblefacts.frolic.org/download.html">Get the full BubbleFacts</button></p>
+          <p class="fine">Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones. To get more, install the full BubbleFacts, which writes facts on this computer. <button class="link" type="button" data-open="https://bubblefacts.frolic.org/download.html">Get the full BubbleFacts</button></p>
         </div>
 
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
-          <!-- Other AIs are BubbleFacts Lite's. In the full app they're legacy, leaving in 3.0: shown only to someone who already chose one, until they switch back. -->
+          <!-- Other AIs are a legacy choice, leaving in 3.0: shown only to someone who already chose one, until they switch back. -->
           <div id="s-other-ai" hidden>
           <p class="label" id="s-ai-label">Who writes the facts</p>
-          <p class="hint" id="s-ai-paused"><span data-edition="full">Online AIs and Ollama are a legacy choice in the full app: they leave it in BubbleFacts 3.0 and stay in BubbleFacts Lite. You can keep the one you chose until then. Your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.</span><span data-edition="lite" hidden>Another AI can write facts from Wikipedia articles, so more songs get them. BubbleFacts doesn't verify what it writes, and your viewers see a bubble saying so.</span></p>
+          <p class="hint" id="s-ai-paused">Online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. You can keep the one you chose until then. BubbleFacts doesn't control or test them and can't vouch for their facts, and your viewers see a bubble saying so. If you switch back and save, these choices go away.</p>
           <div class="checks" role="radiogroup" aria-labelledby="s-ai-label" aria-describedby="s-ai-paused s-ai-warning">
             <label><input type="radio" name="ai" value="builtin"> <span data-edition="full">On this computer (free)</span><span data-edition="lite" hidden>No AI: music databases and your own facts</span></label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
