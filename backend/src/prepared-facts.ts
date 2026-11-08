@@ -3,78 +3,57 @@ import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
 
-/**
- * Prepared facts (issue #292): each song's facts, written ahead of time by the
- * same pipeline as on stream and kept in `prepared-facts.json` in the data
- * folder, so a prepared song shows its facts at once and a restart keeps them.
- * Private like the rest of the data folder: it stays on this computer, is
- * written whole and atomically, readable only by the streamer's account, and
- * goes with "Remove my data".
- *
- * An entry is redone when the rules change (`PREPARED_RULES_VERSION`), when
- * its article has a newer settled version (the preparer checks), or after
- * `PREPARED_MAX_AGE_MS`. It only ever holds facts from a source; the
- * streamer's own facts, song-list facts and custom facts are built when the
- * song plays, as before.
- */
+// Prepared facts (#292): songs' facts written ahead by the stream's pipeline, kept private in the data folder.
+// Facts from a source only; own, song-list and custom facts are built on play (ARCHITECTURE.md: Prepared songs)
 export const PREPARED_FILE = "prepared-facts.json";
 
-/**
- * Raise whenever a change to the pipeline (the prompt, screening, ranking, the
- * content standard, which sources are read) would write different facts:
- * every saved entry is then prepared again, and none is shown meanwhile.
- */
+/** Raise when the pipeline would write different facts (prompt, screening, ranking, content standard, sources) */
 export const PREPARED_RULES_VERSION = 1;
 
-/** A prepared song is prepared again after this long, whatever else changed. */
-export const PREPARED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-/** The pace keeps the latest songs' times and this many days of preparing time; the finish date uses the newest of them (preparer.ts). */
-export const PACE_KEEP_SONGS = 50;
-export const PACE_KEEP_DAYS = 14;
+export const PREPARED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // ms (30 days) until a song is prepared again regardless
+// Pace kept for the finish date (preparer.ts)
+export const PACE_KEEP_SONGS = 50; // latest songs' times
+export const PACE_KEEP_DAYS = 14;  // days of preparing time
 
-/** One prepared fact: what the dashboard needs to label it and what Wrong needs to block its source. */
+/** One prepared fact: what the dashboard labels and what Wrong blocks */
 export interface PreparedFact {
   text: string;
   source?: string;
   url?: string;
   evidence?: string;
-  /** A companion article's fact: the article it was found through (issue #48). */
+  /** Companion article fact: the article it came through (#48) */
   via?: string;
 }
 
 /**
- * How preparing a song turned out:
- * - "facts": facts from a source, in `facts`;
- * - "none": no source knows the song (it shows the streamer's custom facts, or nothing);
- * - "own": nothing to prepare (the streamer's own facts for it, their original, facts off,
- *   not music); counted as ready;
- * - "live": only found while it plays (a Twitch About), so it's looked up then.
+ * How preparing went: "facts" from a source; "none", no source knows it (custom facts or nothing); "own", nothing to
+ * prepare (own facts, an original, facts off, not music), counts as ready; "live", looked up as it plays (Twitch About)
  */
 export type PreparedOutcome = "facts" | "none" | "own" | "live";
 
 export interface PreparedEntry {
-  /** The song as it was prepared, by its songKey. */
+  /** The song as prepared, by its songKey */
   title: string;
   artist: string;
   outcome: PreparedOutcome;
   facts: PreparedFact[];
-  /** The Wikipedia article the facts came from, or "" when none. */
+  /** Wikipedia article the facts came from, or "" */
   article: string;
-  /** That article's settled revision (the version read), or 0 when unknown. */
+  /** That article's settled revision read, or 0 when unknown */
   revision: number;
   rules: number;
-  /** Which model wrote the captions, "" when no AI was asked. */
+  /** Model that wrote the captions; "" when no AI was asked */
   model: string;
-  /** When it was prepared, and when its article was last checked for a newer version (ISO dates). */
+  /** When prepared, and when its article was last checked for a newer version (ISO dates) */
   preparedAt: string;
   checkedAt: string;
 }
 
-/** The preparer's measurements on this computer, for the coverage report's finish date (issue #294). */
+/** The pace measured on this computer, for the finish date (#294) */
 export interface PreparedPace {
-  /** How long each of the most recent songs took, in ms. */
+  /** Each recent song's time, ms */
   recentMs: number[];
-  /** Time spent preparing per local day ("2026-11-02"), in ms, the last two weeks. */
+  /** Ms spent preparing per local day ("2026-11-02"), the last two weeks */
   activeByDay: Record<string, number>;
 }
 
@@ -99,7 +78,7 @@ const isEntry = (e: unknown): e is PreparedEntry => {
     && typeof x.preparedAt === "string" && typeof x.checkedAt === "string";
 };
 
-/** Whether an entry may still be used as it is: written under today's rules and not too old. */
+/** Usable as is: today's rules, and not too old */
 export function isCurrent(entry: PreparedEntry, now = Date.now()): boolean {
   const at = Date.parse(entry.preparedAt);
   return entry.rules === PREPARED_RULES_VERSION && Number.isFinite(at) && now - at < PREPARED_MAX_AGE_MS && now >= at - 60_000;
@@ -112,30 +91,30 @@ export class PreparedStore {
 
   constructor(private readonly file = () => path.join(config.dataDir, PREPARED_FILE)) {}
 
-  /** The usable entry for a song key: current, with facts or not. Undefined when none. */
+  /** The current entry for a song key, facts or not; undefined when none */
   get(key: string, now = Date.now()): PreparedEntry | undefined {
     const e = this.load()[key];
     return e && isCurrent(e, now) ? e : undefined;
   }
 
-  /** Any saved entry for the key, current or not. */
+  /** Any saved entry, current or not */
   saved(key: string): PreparedEntry | undefined {
     return this.load()[key];
   }
 
-  /** Every saved entry, by song key. */
+  /** Every saved entry, by song key */
   all(): Readonly<Record<string, PreparedEntry>> {
     return this.load();
   }
 
-  /** Save a song, and with `pace` how long it took, in one write: the file is rewritten whole each time. */
+  /** Save a song, and its `pace` when given, in one write (the file is rewritten whole) */
   put(key: string, entry: PreparedEntry, pace?: { ms: number; activeMs: number; day: string }): void {
     this.load()[key] = entry;
     if (pace) this.notePace(pace.ms, pace.activeMs, pace.day);
     this.save();
   }
 
-  /** Forget a song's prepared facts (Wrong on one of them): it's prepared again later. */
+  /** Forget a song's prepared facts (Wrong on one): prepared again later */
   remove(key: string): boolean {
     const s = this.load();
     if (!(key in s)) return false;
@@ -144,7 +123,7 @@ export class PreparedStore {
     return true;
   }
 
-  /** Its article was checked and is unchanged. */
+  /** Its article was checked and is unchanged */
   checked(key: string, at: string): void {
     const e = this.load()[key];
     if (!e) return;
@@ -157,7 +136,7 @@ export class PreparedStore {
     return this.pace;
   }
 
-  /** One song took `ms`; the time preparing today grows by `activeMs`. */
+  /** One song took `ms`; today's preparing time grows by `activeMs` */
   addPace(ms: number, activeMs: number, day: string, keep = PACE_KEEP_SONGS): void {
     this.load();
     this.notePace(ms, activeMs, day, keep);
@@ -173,7 +152,7 @@ export class PreparedStore {
     }
   }
 
-  /** For tests: read the file again. */
+  /** For tests: read the file again */
   reload(): void {
     this.loaded = false;
   }
@@ -186,7 +165,7 @@ export class PreparedStore {
     try {
       const raw = JSON.parse(fs.readFileSync(this.file(), "utf8")) as StoreFile;
       if (raw?.version === 1 && raw.songs && typeof raw.songs === "object") {
-        // Entries written under other rules are dropped: they'd never be shown, and are prepared again.
+        // Other rules' entries are dropped: never shown, and prepared again
         for (const [k, e] of Object.entries(raw.songs)) if (isEntry(e) && e.rules === PREPARED_RULES_VERSION) this.songs[k] = e;
       }
       const p = raw?.pace;
@@ -194,7 +173,7 @@ export class PreparedStore {
         this.pace = { recentMs: p.recentMs, activeByDay: Object.fromEntries(Object.entries(p.activeByDay).filter(([, v]) => typeof v === "number")) };
       }
     } catch {
-      // None yet, or unreadable: start a new one.
+      // None yet, or unreadable: start anew
     }
     return this.songs;
   }
@@ -205,11 +184,11 @@ export class PreparedStore {
       const data: StoreFile = { version: 1, rules: PREPARED_RULES_VERSION, songs: this.songs, pace: this.pace };
       writeFileAtomic(this.file(), JSON.stringify(data), { mode: 0o600 });
     } catch (err) {
-      // Still used this session; only what a restart remembers is lost.
+      // Still used this session; only a restart forgets it
       console.warn(`[Prepared] Could not save ${PREPARED_FILE}: ${err instanceof Error ? err.message : err}`);
     }
   }
 }
 
-/** The one store the server and the fact generator share. */
+/** The store the server and the fact generator share */
 export const preparedStore = new PreparedStore();
