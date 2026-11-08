@@ -213,8 +213,8 @@ export class Supervisor extends EventEmitter {
 
   /**
    * The built-in AI couldn't start. Retry on the processor only, which avoids
-   * GPU driver problems; if that fails too, tell the app so it can offer an
-   * online option. Facts keep appearing from the song list meanwhile.
+   * GPU driver problems; if that fails too, tell the app, which says so. Facts
+   * keep coming from music databases and the streamer's own meanwhile.
    */
   private modelFailed(how: string): void {
     // Macs ship Metal builds of the AI only, so there's no processor-only build to retry with.

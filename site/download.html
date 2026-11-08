@@ -63,14 +63,6 @@
             <a class="btn btn-secondary btn-small" data-beta-asset="linux-deb" href="https://github.com/frolicchris/bubblefacts/releases">Linux (.deb)</a>
             <a class="btn btn-secondary btn-small" data-beta-asset="linux-appimage" href="https://github.com/frolicchris/bubblefacts/releases">Linux (AppImage)</a>
           </p>
-          <p class="beta-buttons" data-beta-lite hidden>
-            <strong>BubbleFacts Lite</strong>, with no AI and no 2 GB AI download, so fewer songs get facts:
-            <a class="btn btn-secondary btn-small" data-beta-asset="lite-mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Mac (Apple silicon)</a>
-            <a class="btn btn-secondary btn-small" data-beta-asset="lite-mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Mac (Intel)</a>
-            <a class="btn btn-secondary btn-small" data-beta-asset="lite-windows-x64" href="https://github.com/frolicchris/bubblefacts/releases">Windows</a>
-            <a class="btn btn-secondary btn-small" data-beta-asset="lite-linux-deb" href="https://github.com/frolicchris/bubblefacts/releases">Linux (.deb)</a>
-            <a class="btn btn-secondary btn-small" data-beta-asset="lite-linux-appimage" href="https://github.com/frolicchris/bubblefacts/releases">Linux (AppImage)</a>
-          </p>
           <p class="dl-note">Installs like the regular version and keeps your settings. <a href="#first-launch">What to click the first time you open it</a>. Already using BubbleFacts? Choose <span class="ui">Beta</span> under <span class="ui">Settings</span>, <span class="ui">General</span>, <span class="ui">Updates</span>, and it updates itself.</p>
         </div>
 
@@ -120,18 +112,6 @@
           </li>
         </ul>
 
-        <div class="note" id="lite" data-lite-shown>
-          <p class="note-title">BubbleFacts Lite: no AI</p>
-          <p>BubbleFacts Lite has no AI and skips the 2 GB AI download, but without an AI, Wikipedia articles aren't turned into facts, so fewer songs get facts: mostly well-known songs, from Wikidata and MusicBrainz, plus your own facts.</p>
-          <p class="beta-buttons">
-            <a class="btn btn-secondary btn-small" data-asset="lite-mac-arm64" href="https://github.com/frolicchris/bubblefacts/releases">Mac (Apple silicon)</a>
-            <a class="btn btn-secondary btn-small" data-asset="lite-mac-x64" href="https://github.com/frolicchris/bubblefacts/releases">Mac (Intel)</a>
-            <a class="btn btn-secondary btn-small" data-asset="lite-windows-x64" href="https://github.com/frolicchris/bubblefacts/releases">Windows</a>
-            <a class="btn btn-secondary btn-small" data-asset="lite-linux-deb" href="https://github.com/frolicchris/bubblefacts/releases">Linux (.deb)</a>
-            <a class="btn btn-secondary btn-small" data-asset="lite-linux-appimage" href="https://github.com/frolicchris/bubblefacts/releases">Linux (AppImage)</a>
-          </p>
-          <p class="dl-note">It installs and opens like the full app. Installing the full app over Lite, or Lite over the full app, keeps your settings and facts, and the in-app update keeps Lite on Lite. Moving from the full app to Lite leaves its AI model on your computer. To free the space, quit BubbleFacts and delete the <span class="ui">models</span> folder inside BubbleFacts' folder (<a href="uninstall.html#manual-cleanup">where that is</a>).</p>
-        </div>
 
         <p>Needs macOS 13 or newer, Windows 10 or 11, or 64-bit Linux, plus OBS Studio 28 or newer on the same computer. <a href="requirements.html">Full system requirements</a>.</p>
         <p>Facts are shown as-is, without any guarantee. Press Wrong on any fact that's off. It comes off your stream right away and helps make BubbleFacts more accurate.</p>
@@ -218,7 +198,6 @@
               <li><code>BubbleFacts-VERSION-windows-x64.exe</code></li>
               <li><code>bubblefacts_VERSION_amd64.deb</code></li>
               <li><code>BubbleFacts-VERSION-linux-x86_64.AppImage</code></li>
-              <li>BubbleFacts Lite: the same names with <code>-lite</code> after the version, such as <code>BubbleFacts-VERSION-lite-mac-arm64.dmg</code>, and <code>bubblefacts-lite_VERSION_amd64.deb</code></li>
             </ul>
             <p>Each release also includes <a data-asset="sha256sums" href="https://github.com/frolicchris/bubblefacts/releases"><code>SHA256SUMS.txt</code></a>, the list of fingerprints. To check a file by hand, compare its line there with the output of one of these:</p>
             <div class="copy-row cmd-row"><code class="cmd">shasum -a 256 FILE</code>

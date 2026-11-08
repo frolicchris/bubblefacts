@@ -27,9 +27,17 @@ export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and Mu
  * MAX_FACT_CHARS, like any bubble. Its wording was weighed for legal soundness, but not by a lawyer.
  */
 export const OTHER_AI_CREDIT_TEXT = "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html";
+/**
+ * The credit when no AI writes (`AI_PROVIDER=none`): BubbleFacts Lite, the full app while its AI
+ * downloads or can't run, and the command line set to no AI. Some facts can still be sentences
+ * taken from a Wikipedia article (`artistGoodFacts`), so Wikipedia keeps its credit, but nothing
+ * is "retold by AI".
+ */
+export const NO_AI_CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz. Spot a mistake? Let the streamer know. · BubbleFacts";
 const OTHER_AIS: ReadonlySet<string> = new Set(["openai", "anthropic", "ollama"]);
-/** The credit for the AI that writes the facts (`AI_PROVIDER`). */
+/** The credit for the AI that writes the facts (`AI_PROVIDER`), or for no AI. */
 export function creditText(provider: string | undefined = config.aiProvider): string {
+  if (provider === "none") return NO_AI_CREDIT_TEXT;
   return provider !== undefined && OTHER_AIS.has(provider) ? OTHER_AI_CREDIT_TEXT : CREDIT_TEXT;
 }
 /** The credit comes with a song's facts this often: after one, the next is this many songs with facts later. */
@@ -39,9 +47,11 @@ const GAP_SECONDS = 1;
 /** A test bubble this recent is still up or just was: the credit waits for the next song. */
 export const TEST_QUIET_MS = 20_000;
 /**
- * No facts on stream for this long, and the next ones start a new stream: the credit goes first
- * again, even with the app left running in between. The same break that makes a restart start
- * the song afresh (`RESUME_WITHIN_MS`). A long break mid-stream may show it once more.
+ * No facts sent to an overlay for this long, and the next ones start a new stream: the credit goes
+ * first again, even with the app left running in between. The same break that makes a restart
+ * start the song afresh (`RESUME_WITHIN_MS`). A long break mid-stream may show it once more.
+ * This is the fallback: when OBS says the stream went live (`newStream`), the credit is due then,
+ * so facts sent to OBS before going live (a soundcheck) can't use up the stream's one credit.
  */
 export const STREAM_BREAK_MS = RESUME_WITHIN_MS;
 
@@ -64,6 +74,14 @@ export class CreditCounter {
     this.first = !known || typeof restored !== "number" || !Number.isFinite(restored) || restored < 0;
     this.songs = this.first ? 0 : Math.min(Math.floor(restored as number), CREDIT_EVERY_SONGS - 1);
     this.lastOnAir = this.first ? undefined : lastOnAir;
+  }
+
+  /**
+   * OBS says the stream just went live (obs-streaming.ts): the credit is due again, as at a start,
+   * with the switch on or off, whatever went out before (a soundcheck with OBS open, say).
+   */
+  newStream(): void {
+    this.first = true;
   }
 
   /** Songs with facts since the credit last went out, for the session file; undefined until it first has. */
@@ -91,13 +109,18 @@ export class CreditCounter {
   }
 }
 
+/** BubbleFacts' own credits (its AI, or none while it downloads) count as one; another AI's is different. */
+const creditKind = (text: string) => (text === OTHER_AI_CREDIT_TEXT ? "other" : "own");
+
 /**
- * The counter after a restart, from the session file. A session whose credit said something else
- * (the streamer switched AI) counts for nothing: the new credit goes first, so every stream shows
- * the one that fits the AI writing its facts.
+ * The counter after a restart, from the session file. A session whose credit was of another kind
+ * (the streamer switched to or from another AI) counts for nothing: the new credit goes first, so
+ * every stream shows the one that fits the AI writing its facts. The built-in AI finishing its
+ * download, which restarts the server, doesn't credit again.
  */
 export function restoredCredit(s: Pick<Session, "creditSince" | "creditText" | "shownAt"> | null | undefined, text = creditText()): CreditCounter {
-  return new CreditCounter(s?.creditText === text ? s.creditSince : undefined, s?.shownAt);
+  const same = typeof s?.creditText === "string" && creditKind(s.creditText) === creditKind(text);
+  return new CreditCounter(same ? s!.creditSince : undefined, s?.shownAt);
 }
 
 export interface CreditContext {
@@ -127,6 +150,11 @@ export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditConte
   return withCredit(facts, c.position, c.vertical);
 }
 
+/** How much later the song's bubbles go so the credit has its time: as long as it's up, and a gap. */
+export function creditLead(credit: Fact): number {
+  return Math.ceil(readingSeconds(credit)) + GAP_SECONDS;
+}
+
 /**
  * The credit as a bubble, and the song's facts moved later by the time it
  * takes. The credit is only sent to the overlay: it is never in the record of
@@ -134,6 +162,6 @@ export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditConte
  */
 export function withCredit(facts: Fact[], position: Fact["position"], vertical?: Fact["vertical"]): { credit: Fact; facts: Fact[] } {
   const credit: Fact = { text: creditText(), source: "BubbleFacts", delaySeconds: 0, durationSeconds: config.factDurationSeconds, position, ...(vertical ? { vertical } : {}) };
-  const lead = Math.ceil(readingSeconds(credit)) + GAP_SECONDS;
+  const lead = creditLead(credit);
   return { credit, facts: facts.map((f) => ({ ...f, delaySeconds: f.delaySeconds + lead })) };
 }

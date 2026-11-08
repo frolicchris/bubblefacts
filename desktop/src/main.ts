@@ -283,7 +283,7 @@ supervisor.on("model-loaded", (loaded: string) => {
 supervisor.on("builtin-failed", () => {
   if (!builtinFailed) {
     builtinFailed = true;
-    notify("The built-in AI can't run on this computer", "Facts will come from your song list for now. Open BubbleFacts to switch to the free online option.");
+    notify("The built-in AI can't run on this computer", "For now, songs get facts from music databases and your own facts.");
   }
   send("state", state());
   supervisor.restart(serverEnv());

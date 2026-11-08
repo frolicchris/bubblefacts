@@ -55,6 +55,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/infobox.ts` | Facts from the article's own infobox, used only when it describes the requested work. |
 | `backend/src/fact-ranking.ts` | Which of the captions and data facts are shown, and in what order. |
 | `backend/src/credit.ts` | The credit bubble that says where the facts come from. |
+| `backend/src/obs-streaming.ts` | The overlay's one message: OBS saying the stream started or stopped. |
 | `backend/src/song-facts.ts` | The streamer's song facts, in `song-facts.json`. |
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
@@ -602,15 +603,17 @@ It goes out before the first song's facts of each stream, then with about
 every 5th song that has facts (`CreditCounter`), and the song's facts start
 after it. A song with no facts, bubbles paused, no overlay connected, or a test
 bubble in the last 20 seconds doesn't use up a turn, so the credit goes with
-the first facts viewers actually see. The credit is only sent to the overlay,
+the first facts sent while an overlay is connected. Facts an overlay only
+catches up on when it connects later (`/ws` sends it the record) don't count,
+so the credit then comes with the next song. The credit is only sent to the overlay,
 never put in the song's record, so **Wrong**, the dashboard and the shown log
 never see it, and an overlay that reloads mid-song isn't given it again. The
 count is kept in `session.json`, so a restart in the middle of a stream
 carries on.
 
 `CREDIT_BUBBLE=off` (the app's **Now and then, show where the facts come
-from**, unchecked) stops the repeats, not the first one: every stream that
-shows facts shows the credit at least once. The facts are retold from
+from**, unchecked) stops the repeats, not the first one: the credit shows at least once each
+time facts start going to OBS after a break. The facts are retold from
 licensed sources and can be wrong, whichever AI writes them, and a viewer
 should be able to learn that on every stream; the streamer can make it rarer,
 not remove it. A stream is told from the next by time: a start with no
@@ -621,6 +624,33 @@ says the last facts went out that long ago, or to no overlay (`shownAt` 0), so
 the time is unknown. A long break mid-stream may show it once more, which is
 the safe side of "at least once".
 
+The break is the fallback. OBS tells a Browser source when the stream starts
+and stops (obs-browser's `obsStreamingStarted` and `obsStreamingStopped`
+events) and can say whether it's streaming now (`window.obsstudio.getStatus`,
+asked when the overlay connects). The overlay passes that on as
+`{ type: "obs_streaming", streaming }`, the one message an overlay sends
+(`parseOverlayMessage` in `obs-streaming.ts` lets nothing else through). A
+change to streaming (`ObsStreaming`, so the vertical overlay, a second scene
+and a reload don't count again) is a new stream (`newStream`): the credit goes
+out at once to every overlay, in the spot of the song's next bubble, and the
+bubbles still to come move later by its time (a `keep` batch, as for the AI's
+later facts), so in a one-spot area (a corner, which setup offers) the next
+bubble can't replace it within seconds. The song's record moves with them, so
+an overlay that connects later, **Wrong** and a restart keep to the same
+schedule. With no song's facts out, bubbles paused or a test bubble up, it goes
+with the next song's facts instead. So a soundcheck with OBS open before
+going live can't use up the stream's one credit. Outside OBS, or if OBS doesn't
+send the signal, nothing changes and the break rule above stands, and the log
+says so once per overlay (`watchForStatus`: no report within 10 seconds means
+outside OBS, or a Page permissions setting that doesn't allow it). Whether OBS
+is streaming is kept in `session.json` (`obsStreaming`), so a restart within a
+stream break isn't a stream going live. "Not streaming" from an overlay that
+never said it was live is ignored while another connected overlay says it is,
+so a second copy of OBS that only records can't reset it; a disconnected
+overlay no longer vouches for the stream (`forget`). The no-AI and built-in-AI
+credits count as one kind (`restoredCredit`), so the server restart when the
+built-in AI finishes downloading doesn't credit again.
+
 When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 `ollama`), the credit says so and that BubbleFacts doesn't stand behind them
 (`OTHER_AI_CREDIT_TEXT`: "Some facts are adapted from Wikipedia (CC BY-SA
@@ -628,20 +658,29 @@ When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 bubblefacts.frolic.org/credits.html"). It states facts a viewer can check
 rather than a bare "not responsible": a bubble is no contract with viewers, so
 what limits BubbleFacts' liability is the MIT license's "as is" terms with the
-streamer, and the full disclaimer on the credits page (`#other-ai`), which the
-bubble points to. "Adapted" and the license name are what CC BY-SA 4.0 asks
+streamer, and the full disclaimer on the credits page, which the bubble points
+to (the page, not its `#other-ai` section: the address takes the last
+characters of the 160 a bubble allows). "Adapted" and the license name are what CC BY-SA 4.0 asks
 of a modified work (section 3(a)(1)(B) and (C)); the page carries the rest, as
 section 3(a)(2) allows. This wording was weighed for legal soundness, not
-written by a lawyer. Their captions go through the same screening, but
-the fact check before each release is run on the built-in AI, so nothing
-measures how often another AI is wrong or strays from the content standard.
-The same once-each-stream rule applies, switch or no switch. The session file
+written by a lawyer. Their captions still go through the same screening, but
+BubbleFacts doesn't control that pipeline and the fact check before each
+release covers only the built-in AI, so nothing measures how often another AI
+is wrong or strays from the content standard. So nothing a streamer or viewer
+reads vouches for those facts: the app, the site and the credit say only that
+BubbleFacts doesn't control or test that AI and can't vouch for what it
+writes, never that its facts were screened or checked.
+The same at-least-once rule applies, switch or no switch. When no AI writes
+(`AI_PROVIDER=none`: Lite, the full app while its AI downloads or can't run,
+the command line set to none), the credit leaves out "retold by AI"
+(`NO_AI_CREDIT_TEXT`), since the rule means it shows even with the switch off. The session file
 keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
 (`restoredCredit`), so each stream shows the credit that fits the AI writing
-its facts. The desktop app doesn't offer these AIs for now (see
-[DESKTOP-APP.md](DESKTOP-APP.md)); the command line, which has no built-in AI,
-always shows this wording when an AI writes.
+its facts. In the desktop app these AIs are a legacy choice for those who
+already made it, leaving in 3.0, so every fact BubbleFacts shows then comes
+from the AI its fact check measures (see [DESKTOP-APP.md](DESKTOP-APP.md)). The command line, which
+has no built-in AI, always shows this wording when an AI writes.
 
 ### The content standard
 

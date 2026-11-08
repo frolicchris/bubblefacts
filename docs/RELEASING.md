@@ -12,6 +12,14 @@ software bill of materials (`bubblefacts-sbom.spdx.json`) and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
 
+**BubbleFacts Lite is retired.** The next release is its last: Lite's dashboard
+tells its users to install the full BubbleFacts, which keeps their settings and
+facts, and the website no longer offers it. Once that release is out, remove
+Lite: the Lite build and its artifact in `release.yml`, the Lite smoke tests,
+`scripts/dist-lite.mjs` and its test, the `dist:lite` script, the edition code
+and Lite's text in the app, the `-lite` line in `.github/release-template.md`,
+and this paragraph. Until then:
+
 **BubbleFacts Lite.** Each system also gets a Lite installer: the same app
 without the AI engine (node-llama-cpp and its native builds), for streamers who
 want no AI or not the 2 GB download. Its files have `-lite` after the version
@@ -155,8 +163,9 @@ reads.
 5. Install it and open it. The setup screen appears and shows the new version
    at the bottom, with the tagged commit and no "test build". Open one Lite
    installer too: its version says "Lite", setup says what Lite does, nothing
-   downloads, and under Settings, Advanced, **Who writes the facts** offers
-   **No AI** with no **On this computer**.
+   downloads, the dashboard says Lite is retired with a **Get BubbleFacts**
+   button, and Settings, Advanced, shows no **On this computer**. In either,
+   **Who writes the facts** doesn't show for a new install.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.

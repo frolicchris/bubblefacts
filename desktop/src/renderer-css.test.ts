@@ -81,31 +81,38 @@ describe("Settings", () => {
     const js = read("app.js");
     const fn = js.slice(js.indexOf("function renderAiWarning"), js.indexOf("\n  }", js.indexOf("function renderAiWarning")));
     expect(js).toMatch(/const OTHER_AI = \{ groq: "Groq", anthropic: "Anthropic", ollama: "your Ollama model" \}/);
-    expect(fn).toContain("haven't been fact-checked the way ${builtin}'s are");
-    expect(fn).toContain("go through the same screening against the song's article, but may be wrong more often");
-    expect(fn).toContain("Press Wrong on any fact that's off, and switch back any time.");
+    // BubbleFacts doesn't control or test another AI, so the warning vouches for nothing: no claim of checks.
+    expect(fn).toContain("! BubbleFacts doesn't control or test ${who}, so it can't vouch for its facts, and they may be wrong more often. Press Wrong on any fact that's off, and switch back any time.");
+    expect(fn).not.toMatch(/screen|check|verif/i);
     expect(fn).toContain("warning.hidden = !who");
-    // In Lite there is no built-in AI to compare with: the full app's is named instead.
-    expect(fn).toContain("isLite() ? \"the full BubbleFacts' built-in AI\" : \"the built-in AI\"");
     // It renders when Settings opens and whenever the choice changes.
     expect(js).toContain("renderQuality();\n    renderAiWarning();");
     expect(js).toContain("form.querySelectorAll('input[name=\"ai\"]')) el.addEventListener(\"change\", renderAiWarning)");
   });
 
-  it("doesn't offer other AIs for now, but keeps them for someone who already chose one", () => {
+  it("doesn't offer other AIs, but keeps them for someone who already chose one", () => {
     // The choice and the keys are hidden to start with; only a saved choice of another AI shows them.
     const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
     expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
     expect(choice).toContain('name="ai" value="groq"');
-    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.");
+    expect(choice).toContain("Online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. You can keep the one you chose until then. BubbleFacts doesn't control or test them and can't vouch for their facts, and your viewers see a bubble saying so. If you switch back and save, these choices go away.");
+    // No claim that their facts are checked: BubbleFacts doesn't control that pipeline.
+    expect(choice).not.toMatch(/screen|checked|verified/i);
     const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));
     for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
     const js = read("app.js");
     expect(js).toContain('const otherAi = s.ai !== "builtin";\n    $("#s-other-ai").hidden = !otherAi;\n    $("#s-other-ai-keys").hidden = !otherAi;');
-    // Nothing else points people to them: no Switch to Groq, and Settings' fine print doesn't offer them.
+    // Nothing points people to them: no Switch to Groq, and no fine print offers them, in either edition.
     expect(js).not.toContain("Switch to Groq");
-    expect(settings).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
+    expect(html).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
+    expect(html).not.toMatch(/choose (one|another AI|Anthropic|Groq|Ollama|an online AI) under Advanced/i);
+    // Lite is retired: its last release says so and points to the full app.
+    expect(js).toContain('if (isLite()) add("warn", "BubbleFacts Lite is retired, and this is its last update.');
     expect(settings).toContain("Larger AI is under Advanced.");
+    // Saving re-reads the saved settings into the form, which is what hides the choice after switching back.
+    const save = js.slice(js.indexOf("async function saveSettingsForm"), js.indexOf("\n  }", js.indexOf("async function saveSettingsForm")));
+    expect(save).toContain("state = saved;");
+    expect(save).toContain("fillSettings();");
   });
 
   it("offers the song sources as the same three cards as setup", () => {
@@ -155,7 +162,7 @@ describe("Settings", () => {
     expect(label?.[0]).toContain('aria-describedby="s-credit-hint"');
     expect(settings).toMatch(/<\/label>\s*<p class="hint indent" id="s-credit-hint">One extra bubble/);
     // Unchecked is rarer, not never: the server still credits each stream once (credit.ts).
-    expect(settings).toContain("Unchecked, it still shows once each stream, before the first song's facts");
+    expect(settings).toContain("Unchecked, it still shows when you go live in OBS, and again after 20 minutes without facts.");
   });
 
   it("sets its help text at 14px and keeps the Save bar on screen", () => {
