@@ -5,7 +5,7 @@ import { presetFolder } from "./now-playing-folder";
 import { shareAddress } from "./share-song-facts";
 import { styleFrom } from "./bubble-style";
 
-/** All settings come from .env or the environment. docs/CONFIG.md documents each one (config.test.ts checks); .env.example lists the common ones. */
+// Every setting, from .env or the environment. docs/CONFIG.md explains each one (config.test.ts checks)
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 function requireEnv(name: string, hint = ""): string {
@@ -14,7 +14,7 @@ function requireEnv(name: string, hint = ""): string {
   return value;
 }
 
-/** Whole number within bounds, or a startup error naming the bad value. */
+/** A whole number from min to max; anything else stops startup with the bad value named. */
 function intEnv(name: string, fallback: number, min: number, max: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) return fallback;
@@ -49,7 +49,7 @@ const aiProvider = oneOf(
   ["builtin", "ollama", "openai", "anthropic", "none"] as const,
   process.env.ANTHROPIC_API_KEY ? "anthropic" : process.env.OPENAI_API_KEY ? "openai" : "ollama"
 );
-// Where songs come from. Each source's settings are only required when it's the source.
+// Where songs come from. A source's settings are required only when it's the one chosen
 const songSource = oneOf("SONG_SOURCE", ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist");
 const onSSL = songSource === "streamersonglist";
 const onSE = songSource === "streamelements";
@@ -59,33 +59,24 @@ const sslHost = oneOf("SSL_ENV", ["production", "staging"] as const, "production
   : "streamersonglist.com";
 const trimSlash = (s: string) => s.replace(/\/+$/, "");
 
-/**
- * Apps that write the playing song to a text file, the folder they write it in
- * (inside Documents, which may be in OneDrive: see presetFolder),
- * the file's name (empty: the app's page doesn't name one, so the newest .txt
- * in the folder is followed) and how its line reads.
- */
+// Apps that write the playing song to a text file: their folder in Documents (maybe in OneDrive),
+// the file name ("" = follow the newest .txt there) and how the line reads
 export const NOW_PLAYING_PRESETS = {
-  // Streamling's author recommends nowplaying-minimal.txt: one "Artist - Song" line, UTF-8 (v1.5 release notes).
-  // The line can also be a YouTube title ("Song - Official Music Video"), so it is read the way Nightbot's is.
+  // nowplaying-minimal.txt: one "Artist - Song" line, UTF-8 (Streamling v1.5 release notes). It can be a YouTube title too
   streamling: { name: "Streamling", folder: ["streamling", "livetext"], file: "nowplaying-minimal.txt", format: "youtube-title" },
-  // Nightbot's desktop app (Windows and Mac) writes the current song, a YouTube video, into this folder;
-  // its docs name neither the file nor the line, which is customizable.
+  // Nightbot's desktop app: a YouTube title; its docs name neither the file nor the line
   nightbot: { name: "Nightbot", folder: ["Nightbot"], file: "", format: "youtube-title" },
 } as const;
 const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling", "nightbot"] as const, "none");
 
-/**
- * The file a now-playing app writes. A preset's folder is the starting point for a
- * name or relative path (otherwise the overlay folder, like .env); a full path, or one
- * starting with ~, is used as written.
- */
+// The now-playing file. A name or relative path starts from the preset's folder (else the
+// overlay folder, like .env); a full path or ~/... is used as written
 function nowPlayingFile(): string {
   const raw = process.env.NOW_PLAYING_FILE?.trim() || "";
   const preset = nowPlayingPreset === "none" ? null : NOW_PLAYING_PRESETS[nowPlayingPreset];
   if (!raw) {
     if (!onFile) return "";
-    // A preset with no file name follows its whole folder instead (see nowPlayingFolder).
+    // A preset with no file name follows its folder instead (nowPlayingFolder)
     if (preset) return preset.file ? path.join(presetFolder(preset.folder), preset.file) : "";
     throw new Error("Missing required setting NOW_PLAYING_FILE. Set it to the full path of the text file your now-playing app writes.");
   }
@@ -94,149 +85,145 @@ function nowPlayingFile(): string {
   return preset ? path.join(presetFolder(preset.folder), raw) : path.resolve(__dirname, "../..", raw);
 }
 
-/** The folder whose newest .txt is the song, for a preset that doesn't name its file and no file given. */
+// The folder whose newest .txt is the song: a preset with no file name, and no file given
 function nowPlayingFolder(): string {
   const preset = nowPlayingPreset === "none" ? null : NOW_PLAYING_PRESETS[nowPlayingPreset];
   if (!onFile || !preset || preset.file || process.env.NOW_PLAYING_FILE?.trim()) return "";
   return presetFolder(preset.folder);
 }
 
-/**
- * The streamer's name for stats and logs. With StreamerSongList it is the
- * StreamerSongList channel; with StreamElements, the StreamElements channel
- * stands in for it (SE_CHANNEL, unless SSL_STREAMER_NAME is also set).
- */
+// The streamer's name for stats and logs: the StreamerSongList channel, or with StreamElements
+// its channel (SE_CHANNEL), unless SSL_STREAMER_NAME is set too
 const streamerName = onSSL ? requireEnv("SSL_STREAMER_NAME") : process.env.SSL_STREAMER_NAME || process.env.SE_CHANNEL?.trim() || "";
 
 export const config = {
   port: intEnv("PORT", 3000, 1, 65535),
-  // Loopback only by default: the server has no authentication.
-  host: process.env.HOST || "127.0.0.1",
+  host: process.env.HOST || "127.0.0.1",                      // this computer only: the server has no sign-in
 
   songSource,
 
-  // Performer and content. The name keeps its StreamerSongList field name, but also holds the StreamElements channel (see streamerName).
+  // --- Performer and content ---
+  // Named for StreamerSongList, but holds the StreamElements channel too (streamerName)
   sslStreamerName: streamerName,
   streamerDisplayName: process.env.STREAMER_DISPLAY_NAME || streamerName || "the streamer",
-  // Empty means no custom facts: a song with no source gets none (the desktop app's default).
+  // Topic packs for songs no source knows. Empty = none (the desktop app's default)
   topic: process.env.TOPIC ?? "video-game,classical,film,pop,general",
-  // Songs tagged "Originals" or credited to the streamer get facts from the song entry, not a lookup.
+  // Songs tagged "Originals" or credited to the streamer: facts from the song entry, no lookup
   originals: oneOf("ORIGINALS", ["on", "off"] as const, "on") === "on",
-  // Off-list requests get a LIVE LEARN banner and no facts. Off treats them as ordinary songs.
+  // Off-list requests: a LIVE LEARN banner and no facts. Off = ordinary songs
   liveLearns: oneOf("LIVE_LEARNS", ["on", "off"] as const, "on") === "on",
-  // The part of the screen bubbles keep to, or one spot they always use.
+  // Where bubbles go: a part of the screen, or one fixed spot
   bubbleArea: oneOf("BUBBLE_AREA", ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
-  // Where bubbles go in the vertical overlay (BubbleFacts Vertical.html), for phone-shaped streams.
+  // Where bubbles go on the vertical overlay (phone-shaped streams)
   verticalArea: oneOf("VERTICAL_AREA", ["top", "above-chat"] as const, "top"),
-  // The NOW PLAYING bubble on a song change. Off for streamers whose own overlay already shows the song.
+  // NOW PLAYING bubble on a new song. Off if your own overlay shows the song
   nowPlaying: oneOf("NOW_PLAYING", ["on", "off"] as const, "on") === "on",
-  // One credit bubble before the first song's facts of each stream, and about every 5 songs with
-  // facts after it (issue #278). Off stops the repeats only: every stream still shows the first.
+  // Where-the-facts-come-from bubble: first, then every 5 songs. Off = once a stream (#278)
   creditBubble: oneOf("CREDIT_BUBBLE", ["on", "off"] as const, "on") === "on",
   liveLearnBanner: oneOf("LIVE_LEARN_BANNER", ["on", "off"] as const, "on") === "on",
-  // The bubbles' look (issue #177): a built-in Style, and optionally the streamer's own accent and background.
-  // Never a startup error: an unknown Style or a mistyped color falls back to the classic look.
+  // The bubbles' look (#177): a Style, maybe the streamer's own colors. Never a startup error:
+  // an unknown Style or a mistyped color falls back to Classic
   bubbleStyle: styleFrom(process.env.BUBBLE_STYLE, process.env.BUBBLE_ACCENT, process.env.BUBBLE_BACKGROUND, (line) => console.warn(`[Config] ${line}`), {
     icon: process.env.BUBBLE_ICON,
     scale: process.env.BUBBLE_SCALE,
     verticalScale: process.env.BUBBLE_VERTICAL_SCALE,
   }),
-  // A folder of the streamer's own packs, checked before the built-in examples. The desktop app sets it.
+  // The streamer's own packs, checked before the examples. The desktop app sets it
   topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",
 
-  // StreamerSongList
+  // --- StreamerSongList ---
   sslPlatform: (process.env.SSL_PLATFORM || "twitch").toLowerCase(),
   sslAccessToken: onSSL
     ? requireEnv("SSL_ACCESS_TOKEN", `Create a Streamer Access Token at https://${sslHost} under Settings > Access.`)
     : "",
   sslTokenKind: oneOf("SSL_TOKEN_KIND", ["streamer", "user", "bearer"] as const, "streamer"),
-  // The OAuth client a bearer token was issued to. StreamerSongList wants it as a Client-Id header.
+  // The OAuth client a bearer token came from, sent as Client-Id
   sslClientId: process.env.SSL_CLIENT_ID || "",
-  // Look the channel up by its StreamerSongList ID rather than its name, when known (0 = by name).
+  // Find the channel by ID instead of name (0 = by name)
   sslStreamerId: intEnv("SSL_STREAMER_ID", 0, 0, 2147483647),
   sslApiBase: trimSlash(process.env.SSL_API_BASE || `https://api.${sslHost}`),
   sslEventsUrl: process.env.SSL_EVENTS_URL || `wss://events.${sslHost}/connection/uni_websocket`,
   sslPollIntervalMs: intEnv("SSL_POLL_INTERVAL_MS", 15000, 2000, 300000),
   sslRequestTimeoutMs: intEnv("SSL_REQUEST_TIMEOUT_MS", 5000, 500, 60000),
 
-  // StreamElements (SONG_SOURCE=streamelements): its song request player, "Media Request".
-  // SE_CHANNEL is a channel name or its 24-character ID; blank means the JWT's own channel.
+  // --- StreamElements (its Media Request player) ---
+  // A channel name or 24-character ID; blank = the JWT's own channel
   seChannel: process.env.SE_CHANNEL?.trim() || "",
   seJwt: onSE
     ? requireEnv("SE_JWT", "Copy the JWT token from your StreamElements dashboard: Account, then Channels, then Show secrets.")
     : "",
   seApiBase: trimSlash(process.env.SE_API_BASE || "https://api.streamelements.com/kappa/v2"),
   seEventsUrl: process.env.SE_EVENTS_URL || "wss://astro.streamelements.com",
-  // YouTube Data API key, for the exact artist and track of auto-generated uploads. Optional.
+  // Optional: exact artist and track for YouTube's auto-generated uploads
   youtubeApiKey: (process.env.YOUTUBE_API_KEY || "").trim(),
   sePollIntervalMs: intEnv("SE_POLL_INTERVAL_MS", 15000, 5000, 300000),
   seRequestTimeoutMs: intEnv("SE_REQUEST_TIMEOUT_MS", 5000, 500, 60000),
 
-  // Now playing file (SONG_SOURCE=nowplaying): one line a now-playing app keeps up to date.
+  // --- Now playing file: one line a music app keeps up to date ---
   nowPlayingPreset,
   nowPlayingFile: nowPlayingFile(),
   nowPlayingFolder: nowPlayingFolder(),
-  // "artist-title" reads "Artist - Title"; "title" reads the whole line as the title;
-  // "youtube-title" reads a YouTube video's title ("Artist - Song (Official Video)"), as Nightbot writes it.
+  // "artist-title": Artist - Title; "title": the whole line; "youtube-title": a video title,
+  // "Artist - Song (Official Video)", as Nightbot writes it
   nowPlayingFormat: oneOf(
     "NOW_PLAYING_FORMAT",
     ["artist-title", "title", "youtube-title"] as const,
     nowPlayingPreset === "none" ? "artist-title" : NOW_PLAYING_PRESETS[nowPlayingPreset].format
   ),
 
-  // Share song facts with other apps (off unless all three are set): share-song-facts.ts.
+  // --- Share song facts with other apps: off unless all three are set ---
   shareFactsUrl: shareAddress(process.env.SHARE_FACTS_URL || "") ?? "",
   shareFactsKey: process.env.SHARE_FACTS_KEY || "",
   shareFactsChannel: process.env.SHARE_FACTS_CHANNEL || "",
 
-  // Model
+  // --- AI ---
   aiProvider,
-  // The desktop app's built-in model: a GGUF file it downloaded (AI_PROVIDER=builtin).
+  // The built-in AI's downloaded model file (AI_PROVIDER=builtin)
   modelPath: aiProvider === "builtin" ? requireEnv("MODEL_PATH") : "",
-  // Preparing songs ahead of time (issue #296): the Standard model writes the first pass even when High
-  // quality is chosen, being several times faster. The app sets it only when that model is downloaded.
+  // Prepare my songs (#296): Standard writes the first pass even with Larger AI, several times
+  // faster. Set only when Standard is downloaded
   prepareModelPath: aiProvider === "builtin" ? process.env.PREPARE_MODEL_PATH || "" : "",
-  // "off" runs the built-in model on the processor only, for computers where the GPU build fails.
+  // off = processor only, where the graphics build fails
   llamaGpu: oneOf("LLAMA_GPU", ["auto", "off"] as const, "auto"),
-  // Where songs.log goes. The desktop app points this at its data folder.
+  // songs.log goes here; the desktop app uses its data folder
   logDir: process.env.BUBBLEFACTS_LOG_DIR || path.resolve(__dirname, "../../logs"),
-  // Where facts marked wrong are remembered. The desktop app points this at its data folder.
+  // Wrong marks, the session and the like; the desktop app uses its data folder
   dataDir: process.env.BUBBLEFACTS_DATA_DIR || path.resolve(__dirname, "../../data"),
-  // 0: the model retells a reference, so its likeliest wording is the most faithful one (and runs repeat).
+  // 0 to 2. 0: retelling an article, the likeliest wording is the most faithful (and repeatable)
   temperature: numberEnv("TEMPERATURE", 0, 0, 2),
   ollamaBaseUrl: trimSlash(process.env.OLLAMA_BASE_URL || "http://localhost:11434"),
   ollamaFallbackUrl: trimSlash(process.env.OLLAMA_FALLBACK_URL || ""),
   ollamaModel: process.env.OLLAMA_MODEL || "llama3.2",
   ollamaTimeoutMs: intEnv("OLLAMA_TIMEOUT_MS", 90000, 1000, 600000),
-  // Ollama unloads idle models after 5 minutes, less than the gap between songs.
+  // Ollama's own 5 minutes is shorter than the gap between songs
   ollamaKeepAlive: process.env.OLLAMA_KEEP_ALIVE || "4h",
   openaiApiKey: aiProvider === "openai" ? requireEnv("OPENAI_API_KEY") : "",
   openaiBaseUrl: trimSlash(process.env.OPENAI_BASE_URL || "https://api.groq.com/openai/v1"),
   openaiModel: process.env.OPENAI_MODEL || "openai/gpt-oss-20b",
   openaiTimeoutMs: intEnv("OPENAI_TIMEOUT_MS", 30000, 1000, 600000),
   anthropicApiKey: aiProvider === "anthropic" ? requireEnv("ANTHROPIC_API_KEY") : "",
-  // Anthropic SDK 1.x (API 2026-10-21) rejects `temperature`, so none is sent to Anthropic.
+  // No temperature is sent: Anthropic's API (2026-10-21) rejects it
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
 
-  // Grounding
+  // --- Finding the song's article and checking facts against it ---
   factVerification: oneOf("FACT_VERIFICATION", ["on", "off"] as const, "on") === "on",
   groundingTimeoutMs: intEnv("GROUNDING_TIMEOUT_MS", 5000, 500, 60000),
-  // Larger: the extract call downloads the full article text.
+  // Longer: this one downloads the whole article
   groundingExtractTimeoutMs: intEnv("GROUNDING_EXTRACT_TIMEOUT_MS", 15000, 1000, 120000),
-  // When no article is found, follow MusicBrainz's own Wikidata link to the song's or artist's article (issue #245).
+  // No article found: follow MusicBrainz's Wikidata link to the song's or artist's (#245)
   mbLink: oneOf("MB_LINK", ["on", "off"] as const, "on") === "on",
-  // When the article may be about another work, show only facts from data, never AI captions (issue #255).
+  // Article may be about another work: facts from data only, no AI captions (#255)
   abstain: oneOf("ABSTAIN", ["on", "off"] as const, "on") === "on",
-  // The scored match (issue #172, work-resolver.ts): "rules" alone as today; "shadow" also scores
-  // each song and logs where it disagrees; "scored" lets the score hold facts back, never add them.
+  // Is the article this song's? "rules"; "shadow" also scores and logs disagreements;
+  // "scored" lets the score hold facts back, never add them (#172, work-resolver.ts)
   match: oneOf("MATCH", ["rules", "shadow", "scored"] as const, "scored"),
-  // Hold back AI captions whose source sentence is risky to retell, and rank the rest by interest (fact-ranking.ts).
+  // Hold back captions from risky sentences, rank the rest by interest (fact-ranking.ts)
   sourceRisk: oneOf("SOURCE_RISK", ["on", "off"] as const, "on") === "on",
-  // Classical pieces: find the work through Wikidata by its composer, catalog number or nickname (issue #260).
+  // Classical pieces: find the work in Wikidata by composer, catalog number or nickname (#260)
   classicalLookup: oneOf("CLASSICAL_LOOKUP", ["on", "off"] as const, "on") === "on",
 
-  // Display
-  factsPerSong: intEnv("FACTS_PER_SONG", 5, 1, 12),
-  factIntervalSeconds: intEnv("FACT_INTERVAL_SECONDS", 15, 3, 300),
-  factDurationSeconds: intEnv("FACT_DURATION_SECONDS", 8, 2, 120),
+  // --- Bubbles ---
+  factsPerSong: intEnv("FACTS_PER_SONG", 5, 1, 12),                    // bubbles per song
+  factIntervalSeconds: intEnv("FACT_INTERVAL_SECONDS", 15, 3, 300),    // seconds from one bubble to the next
+  factDurationSeconds: intEnv("FACT_DURATION_SECONDS", 8, 2, 120),     // seconds each bubble stays up, at least (long ones longer)
 } as const;
