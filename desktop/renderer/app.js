@@ -1156,10 +1156,7 @@
         fillSettings();
       });
     } else if (state.builtinFailed && state.settings.ai === "builtin") {
-      add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
-        show("settings");
-        $("#s-advanced").open = true;
-      });
+      add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts.", null);
     }
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
     return notices;
@@ -1295,7 +1292,13 @@
     $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
+    // Other AIs aren't offered for now: only someone whose saved choice is one still sees them.
+    const otherAi = s.ai !== "builtin";
+    $("#s-other-ai").hidden = !otherAi;
+    $("#s-other-ai-keys").hidden = !otherAi;
+    $("#s-quality-box").classList.toggle("indent", otherAi);
     renderQuality();
+    renderAiWarning();
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
@@ -1330,6 +1333,23 @@
     warning.hidden = !warn;
   }
   for (const el of form.querySelectorAll('input[name="ai"], input[name="aiQuality"]')) el.addEventListener("change", renderQuality);
+
+  /**
+   * Another AI is a choice, with a warning the moment it's picked (never a block): the fact check
+   * before each release is the built-in AI's, so facts from Groq, Anthropic or an Ollama model go
+   * through the same screening but haven't been checked the same way, and may be wrong more often.
+   */
+  const OTHER_AI = { groq: "Groq", anthropic: "Anthropic", ollama: "your Ollama model" };
+  function renderAiWarning() {
+    const who = OTHER_AI[form.elements.ai.value];
+    const warning = $("#s-ai-warning");
+    const builtin = isLite() ? "the full BubbleFacts' built-in AI" : "the built-in AI";
+    warning.textContent = who
+      ? `! Facts written by ${who} haven't been fact-checked the way ${builtin}'s are. They go through the same screening against the song's article, but may be wrong more often. Press Wrong on any fact that's off, and switch back any time.`
+      : "";
+    warning.hidden = !who;
+  }
+  for (const el of form.querySelectorAll('input[name="ai"]')) el.addEventListener("change", renderAiWarning);
 
   /** Hands-free Wrong: the keys as this computer names them, and a key another app already has. */
   function renderWrongKey() {

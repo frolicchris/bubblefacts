@@ -47,7 +47,7 @@ export interface Settings {
   prepareSongs: boolean;
   /** The NOW PLAYING bubble on a song change. */
   nowPlaying: boolean;
-  /** One credit bubble before the first song's facts and about every 5 songs: where facts come from, and to report a mistake. */
+  /** One credit bubble before the first song's facts of each stream and about every 5 songs: where facts come from, and to report a mistake. Off, it still shows once each stream. */
   creditBubble: boolean;
   liveLearnBanner: boolean;
   /** Share song facts with other apps: off by default. Sends the song and its facts to `shareUrl` (share-song-facts.ts in the server). */

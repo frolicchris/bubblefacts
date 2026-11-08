@@ -28,6 +28,13 @@ jest.mock("./config", () => {
   return { ...actual, config: { ...actual.config, port: 0, host: "127.0.0.1", songSource: "streamersonglist", creditBubble: false } };
 });
 jest.mock("./local-only", () => ({ allowedHost: () => true, allowedOrigin: () => true }));
+// The credit bubble goes out once each stream even switched off (credit.test.ts). It stays out of the
+// batches here until the last tests, which check it on the real server.
+const mockCredit = { real: false };
+jest.mock("./credit", () => {
+  const actual = jest.requireActual("./credit");
+  return { ...actual, planCredit: (...args: Parameters<typeof actual.planCredit>) => (mockCredit.real ? actual.planCredit(...args) : { facts: args[1] }) };
+});
 
 const mockSource: { current: SSLQueueItem | null; onChange: (c: SSLQueueItem | null) => void } = { current: null, onChange: () => {} };
 jest.mock("./songlist-client", () => ({
@@ -300,5 +307,26 @@ describe("the aired facts record, for the app's reports", () => {
   it("is only for the app", async () => {
     const res = await fetch(`http://127.0.0.1:${port}/control/aired`, { method: "POST" });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("the credit bubble with its switch off", () => {
+  beforeAll(() => { mockCredit.real = true; });
+  afterAll(() => { mockCredit.real = false; });
+
+  it("still goes out before the stream's first facts, then not again until another stream", async () => {
+    const { CREDIT_TEXT, STREAM_BREAK_MS } = jest.requireActual<typeof import("./credit")>("./credit");
+    const screen = await overlay();
+    const firstFacts = () => screen.messages.filter((m) => m.type === "facts_ready").map((m) => texts(m.facts ?? []));
+    await play([fact("One.", 0)]);
+    now += 3 * 60_000;
+    await play([fact("Two.", 0)]);
+    await until(() => firstFacts().length === 2);
+    expect(firstFacts()).toEqual([[CREDIT_TEXT, "One."], ["Two."]]);
+    // No facts on stream for a break: the next ones start another stream, and the credit goes first again.
+    now += STREAM_BREAK_MS;
+    await play([fact("Three.", 0)]);
+    await until(() => firstFacts().length === 3);
+    expect(firstFacts()[2]).toEqual([CREDIT_TEXT, "Three."]);
   });
 });
