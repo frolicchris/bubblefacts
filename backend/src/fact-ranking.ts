@@ -1,100 +1,64 @@
-/**
- * Which of a song's candidate bubbles to show, and in what order (`rankFacts`).
- *
- * Safety first (the selection policy "S3", measured offline on judged runs):
- *   1. When the work match is unsure, no AI captions at all (`unsure`).
- *   2. An AI caption is held back when its source sentence is risky to retell:
- *      a reporting verb, a quote of four or more words, a body sentence of 30
- *      or more words, a hedge the caption lost, or a body sentence the caption
- *      kept less than half of (`sourceRisk`).
- *   3. Fewer than three left: held-back captions come back, fewest flags first,
- *      until there are three. Never one dropped by step 1.
- * Then fun: what is left is ordered by a small interest score read from the
- * caption and its source (`interest`): a number, an age or a place you can
- * picture and how the music was made rank up; awards, charts and release
- * details rank down; a "first" or an "only" counts only when the source says
- * it. Data facts and lead captions go first among equals, no two bubbles in a
- * row tell the same kind of fact when that can be helped, and a song shows at
- * most four.
- * A caption about the game, film or show around the song rather than its music (voice casting,
- * ports, the series, the plot: `aboutTheMusic`) goes below the music captions, and at most
- * MAX_OFF_MUSIC are shown: enough to say what the song is from, and fewer bubbles rather than
- * trivia when the article says little about the music (issue #189).
- * When the article is the artist's, a caption about another song of theirs
- * ("Paper Kites" while "Velvet Harbor" plays) goes below the facts about the artist and
- * at most one is shown (`namesOtherSong`).
- *
- * Every signal is a plain text comparison against the source: no model.
- */
+// Which bubbles a song shows, in what order: risky sources held back, most interesting first, no model
+// (ARCHITECTURE.md: Which bubbles a song shows)
 
-/** Most bubbles a song shows from a source. */
-export const MAX_BUBBLES = 4;
-/** Held-back captions come back until a song has this many bubbles. */
-export const FLOOR = 3;
-/** Most captions a song shows about the game, film or show around it rather than its music. */
-export const MAX_OFF_MUSIC = 2;
+export const MAX_BUBBLES = 4;    // bubbles per song from a source
+export const FLOOR = 3;          // held-back captions come back up to this many
+export const MAX_OFF_MUSIC = 2;  // captions about the game, film or show, not the music (#189)
 
-/** One bubble a song could show. */
 export interface Candidate {
   text: string;
-  /** "data": a fixed sentence from Wikidata or MusicBrainz. "caption": the AI's retelling of the article. */
+  /** "data": fixed sentence from Wikidata or MusicBrainz; "caption": the AI's retelling */
   kind: "data" | "caption";
-  /** The article sentence the caption retells; "" when none holds half its words. */
+  /** Article sentence it retells; "" when none holds half its words */
   sentence?: string;
-  /** Whether that sentence is in the article's lead. */
-  lead?: boolean;
+    lead?: boolean;
 }
 
-/** The kind of fact a bubble tells, so a song mixes them. */
+/** Kind of fact, so a song mixes them */
 export type Hook = "picture" | "making" | "first" | "person" | "good" | "award" | "release" | "plain";
 
 export interface Ranked extends Candidate {
-  /** Why the source is risky to retell (empty for a data fact or a safe caption). */
+  /** Why the source is risky to retell; empty when safe */
   flags: string[];
-  /** Whether it is shown only to reach the floor of three. */
+  /** Shown only to reach FLOOR */
   refill: boolean;
   score: number;
-  /** Whether the caption is about another quoted song, on the artist's article. */
+  /** About another quoted song, on the artist's article */
   other?: boolean;
-  /** Whether the caption is about the game, film or show around the song, not its music. */
+  /** About the game, film or show, not the music */
   offMusic?: boolean;
   hook: Hook;
-  /** What the score is made of, for the log. */
+  /** Score breakdown, for the log */
   reasons: string[];
 }
 
-// --- Safety: how risky the source sentence is to retell -----------------
+// --- Safety: how risky the source sentence is ---
 
-/** Common words left out when comparing a caption with its source. */
 const STOP = new Set(
   "the a an of and or to in on at by for with from as is was were be been are it its this that these those his her their he she they which who whom also has had have not but into than then over after before during about".split(" ")
 );
 const words = (s: string) => new Set((s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => !STOP.has(w)));
 
-/** Someone said, wrote or judged it: the caption has to keep who, and often doesn't. */
+// Someone said or judged it: the caption must keep who, and often doesn't
 const REPORTING =
   /\b(said|says|stated|states|wrote|writes|according to|described|describes|called|calls|noted|notes|claimed|claims|recalled|recalls|explained|explains|commented|remarked|praised|criticized|criticised|felt|considered|believed|argued|told|added|opined|reported|reportedly|revealed|admitted|suggested|thought|cited|declared|referred)\b/i;
-/** Words that limit a statement: lost, they widen it. */
+// Words that limit a statement: lost, they widen it
 const HEDGES =
   /\b(usually|typically|mostly|largely|generally|often|reportedly|allegedly|estimated|approximately|about|around|nearly|almost|roughly|over|more than|under|up to|some|may|might|possibly|probably|likely|believed|considered|according)\b/gi;
 const QUOTED = /["“]([^"”]+)["”]/g;
-/** Small words a title in Title Case may keep in lower case. */
+// Lower-case words a Title Case title may keep
 const TITLE_SMALL = /^(a|an|the|of|in|on|and|or|to|for|at|by|with|from|de|la|le|no)$/;
-/** A section name the reference puts before a body sentence ("Development: ..."). */
+// Section name before a body sentence ("Development: ...")
 const SECTION_LABEL = /^[A-Z][^:.!?"]{1,60}: /;
-const LONG_BODY_WORDS = 30;
+const LONG_BODY_WORDS = 30;  // words: a body sentence this long is risky
 
-/** A quoted title ("Cutie Mew Mew Magic") rather than someone's words. */
+// A quoted title ("Cutie Mew Mew Magic") rather than someone's words
 const isTitle = (quote: string) => {
   const ws = quote.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w));
   return ws.length > 0 && /^\P{Ll}/u.test(ws[0]) && ws.every((w) => /^[^\p{L}]*\p{Lu}/u.test(w) || TITLE_SMALL.test(w.toLowerCase()));
 };
 
-/**
- * Why a caption's source sentence is risky to retell (S3, step 2), or [] when
- * it isn't. With no sentence that holds half the caption, the caption retells
- * nothing whole, which counts as heavy compression.
- */
+/** Why a caption's source is risky to retell, or []. No sentence holding half the caption = heavy compression */
 export function sourceRisk(caption: string, sentence: string, isLead: boolean): string[] {
   const source = sentence.replace(SECTION_LABEL, "").trim();
   const flags: string[] = [];
@@ -112,39 +76,34 @@ export function sourceRisk(caption: string, sentence: string, isLead: boolean): 
   return flags;
 }
 
-// --- Fun: what kind of fact it is ---------------------------------------
+// --- Fun: what kind of fact it is ---
 
 const COUNT = String.raw`(?:\d{1,3}(?:,\d{3})*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|a hundred|hundreds of|a dozen|dozens of|a thousand|thousands of)`;
 const UNIT = String.raw`(?:seconds?|minutes?|hours?|days?|nights?|weeks?|months?|years?|takes?|times|feet|foot|inches|metres?|meters?|miles?|kilometres?|kilometers?|musicians?|players?|people|singers?|voices?|instruments?|strings?|keys|notes|chords|bars|members?|verses|languages|countries|cities|studios|guitars?|pianos?|drums|microphones?|tapes?|tracks?|songs?|demos?|drafts?|versions?)`;
-/** A number, a duration, an age or a place you can picture: "in one afternoon", "at 16", "in a stairwell". */
+// Something to picture: "in one afternoon", "at 16", "in a stairwell"
 const PICTURE = [
   new RegExp(String.raw`\b${COUNT}\s+(?:[\p{L}-]+\s+)?${UNIT}\b`, "iu"),
   /\b(?:in|over|during|within) (?:one|a single|a|an) (?:afternoon|morning|evening|night|day|weekend|take|session|sitting|hour)\b|\bovernight\b/i,
   /\b(?:recorded|written|wrote|composed|performed|played|sung|sang|premiered|mixed|made|filmed|sketched|finished)\b[^.;]{0,40}?\b(?:in|at|inside) (?:a |an |the |his |her |their )?(?:\p{Lu}|(?:stairwell|kitchen|bathroom|bedroom|garage|basement|barn|farm|church|cathedral|castle|cave|hotel|car|van|bus|train|boat|attic|warehouse|tent)\b)/iu,
 ];
-/** How it was made: a recording, a sound, a borrowed object, an accident, what inspired it. */
+// How it was made: a recording, a sound, a borrowed object, an accident, an inspiration
 const MAKING =
   /\b(?:record(?:ed|ing)? (?:in|at|with|on|live|using)|demos?|one take|first take|sampl(?:e|ed|es|ing)|improvis\w+|hummed|whistl\w+|borrow\w+|accident\w*|by mistake|built (?:from|around|on)|reused|re-used|inspired by|inspiration|named after|based on|originally (?:written|composed|intended) for|written for|composed for|tribute|dedicated to|homage|instruments?|synthesi[sz]ers?|piano|guitar|organ|drum machine|choir|orchestra|strings|banjo|violin|cello|flute|saxophone|harmonica|ukulele|music box|theremin|kazoo|four-track|tape)\b/i;
-/** Firsts, onlys and records: counted only when the source says the same word. */
+// Firsts, onlys, records: count only when the source says the same word
 const FIRST =
   /\b(?:first|only|oldest|youngest|longest|shortest|largest|biggest|fastest|earliest|the most|never before|(?:world|all-time) record|record-breaking|set a record|broke (?:a|the) record)\b/gi;
-/** The person as relatable: an age, a hometown, a first job, teaching themselves. */
+// Relatable: an age, a hometown, a first job, self-taught
 const PERSON =
   /\b(?:grew up|hometown|born in|childhood|as a (?:child|kid|teenager|teen|boy|girl|student)|in high school|at school|self-taught|taught (?:himself|herself|themselves)|first (?:job|band|guitar|piano|song|instrument)|day job|worked as an?|\d{1,2}-year-old|at (?:the )?age (?:of )?\d{1,2}|aged \d{1,2}|when (?:he|she|they) (?:was|were) \d{1,2})\b/i;
-/** Awards, charts and sales: dull to most viewers and easy to get wrong. */
+// Awards, charts, sales: dull and easy to get wrong
 const AWARD =
   /\b(?:chart(?:ed|s)?|peaked|number (?:one|\d+)|no\. ?\d+|top (?:\d+|ten|forty)|billboard|hot 100|certified|platinum|gold|awards?|awarded|nominat\w+|grammys?|won|sold|sales|copies|ranked|ranking)\b|#\d+/i;
-/** What an artist gave: charity, teaching, a founding, a movement, a lifetime honor, a thing named for them. */
+// What an artist gave: charity, teaching, a founding, an honor, a thing named for them
 const GOOD =
   /\b(?:charit(?:y|ies|able)|philanthrop\w+|humanitarian|ambassador|benefit concerts?|telethon|raised (?:over|more than|\$)|donat(?:ed|ions?)|scholarships?|masterclass\w*|mentor(?:ed|s)?|(?:co-?)?founded (?:the|an?)|Hall of Fame|Medal of|movement|royalties|conservation|preserv\w+|Creative Commons|free downloads?|statue|named (?:after|for)|asteroid)\b/i;
-/** Release dates, labels and formats. */
 const RELEASE = /\b(?:released (?:on|in|as|by|through|via)|re-?released|reissued|record label|label|catalog(?:ue)? number|b-side|vinyl|cassette|digital download)\b/i;
 
-/**
- * How much a viewer is likely to enjoy a fact, from its words alone, and the
- * kind of fact it is. A first or an only the source doesn't state counts
- * against it: a caption never upgrades a claim.
- */
+/** How much a viewer may enjoy a fact, and its kind. A first the source doesn't state counts against it */
 export function interest(text: string, sentence = text): { score: number; hook: Hook; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
@@ -172,36 +131,26 @@ export function interest(text: string, sentence = text): { score: number; hook: 
   return { score, hook, reasons };
 }
 
-// --- About the music, or the work around it -----------------------------
+// --- About the music, or the work around it ---
 
-/** The music itself: who wrote or played it, how it sounds, how it was recorded. */
 const MUSIC_WORDS =
   /\b(?:music\w*|songs?|soundtracks?|score[sd]?|scoring|compos\w+|themes?|melod\w+|tunes?|tracks?|lyric\w*|sing\w*|sang|sung|singers?|vocal\w*|bands?|albums?|chords?|rhythm\w*|tempo|beats?|arrang\w+|orchestra\w*|instrument\w*|record(?:ed|ing|ings)?|sounds?|audio|chiptune|synth\w*|piano|guitar\w*|drums?|bass|strings|choir|concerts?|perform\w*|played|plays)\b/i;
-/** The game, film or show around a song: its cast, story, ports and series. */
+// The game, film or show's business: cast, story, ports, series
 const WORK_TRIVIA =
   /\b(?:voice(?:d| acting| actors?| actress(?:es)?| cast)|voiced by|dub(?:bed|bing|s)?|locali[sz](?:ation|ations|ed)|translat(?:ion|ions|ed)|ported|ports?|design documents?|gameplay|characters?|protagonists?|antagonists?|villains?|storyline|plot|sequels?|prequels?|spin-?offs?|remaster(?:s|ed)?|remakes?|franchise|series|developers?|developed|publishers?|published|directors?|directed|programmers?|levels?|bosses|playable|consoles?|cartridges?|games?|episodes?|seasons?|films?|movies?|screenplay|box office)\b/i;
 
-/**
- * Whether a caption is about the music rather than the work around it. False only for a caption
- * that names the game, film or show's own business (cast, ports, series, plot) and says nothing
- * about music: "The English voice cast was chosen in 1998" (issue #189).
- */
+/** False only for work trivia (cast, ports, plot) with nothing about music (#189) */
 export function aboutTheMusic(text: string): boolean {
   return MUSIC_WORDS.test(text) || MAKING.test(text) || !WORK_TRIVIA.test(text);
 }
 
-// --- Another song named in a caption ------------------------------------
+// --- Another song named in a caption ---
 
 const DOUBLE_QUOTED = /["“]([^"”]+)["”]/g;
 const SINGLE_QUOTED = /(?<![\p{L}\p{N}])['‘]([^'’]+)['’](?![\p{L}\p{N}])/gu;
 const squash = (s: string) => (s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).join(" ");
 
-/**
- * Whether a caption names a quoted title that isn't the song playing: the
- * subject may be another song ("Paper Kites" while "Velvet Harbor" plays). A title that
- * holds the playing title, or is held by it, counts as the song itself. With no
- * title to compare, or no quoted title, false.
- */
+/** Quotes a title not the playing one ("Paper Kites" during "Velvet Harbor"); one containing or contained by it counts as it */
 export function namesOtherSong(caption: string, title: string): boolean {
   const own = squash(title);
   if (!own) return false;
@@ -211,17 +160,11 @@ export function namesOtherSong(caption: string, title: string): boolean {
   return !titles.some((t) => t === own || ` ${t} `.includes(` ${own} `) || ` ${own} `.includes(` ${t} `));
 }
 
-// --- Choosing and ordering ----------------------------------------------
+// --- Choosing and ordering ---
 
 /**
- * The bubbles to show, in order. `candidates` come in their own order: data
- * facts, then captions as the writer wrote them. `unsure`: the article may be
- * about another work, so no caption is shown. `dataFirst`: the data facts are
- * about the song and the article is its artist's or game's, so they lead
- * whatever their interest ("describe the song, then tell about it"). `artistArticle`
- * with the playing `title`: the article is the artist's, so a caption about another
- * quoted song ranks below the rest and only the first is kept. `log` gets one line
- * per caption held back or left out.
+ * Bubbles to show, in order. `unsure`: maybe another work, no captions. `dataFirst`: artist's or game's
+ * article, song data facts lead. `artistArticle` + `title`: one caption at most about another song
  */
 export function rankFacts(
   candidates: Candidate[],
@@ -232,7 +175,7 @@ export function rankFacts(
   const log = opts.log ?? (() => undefined);
   const all = candidates.flatMap((c, order) => {
     if (c.kind === "caption" && opts.unsure) {
-      // Never the caption's words, only why (issue #262): logs go into problem reports.
+      // Reason only, never the caption: logs go into problem reports (#262)
       log("[Screen] DROP (work match unsure)");
       return [];
     }
@@ -241,9 +184,8 @@ export function rankFacts(
     const offMusic = c.kind === "caption" && !aboutTheMusic(c.text);
     return [{ ...c, flags, refill: false, order, other, offMusic, ...interest(c.text, c.sentence || c.text) }];
   });
-  // On an artist's article, at most one caption about another song: the first the writer wrote.
+  // The writer's first ones are kept
   const firstOther = all.find((c) => c.other)?.order;
-  // At most MAX_OFF_MUSIC about the work around the song: the first the writer wrote.
   let offMusic = 0;
   const pool = all.filter((c) => {
     if (c.other && c.order !== firstOther) {
@@ -258,7 +200,7 @@ export function rankFacts(
   });
   const safe = pool.filter((c) => !c.flags.length);
   const held = pool.filter((c) => c.flags.length);
-  // Too few safe ones: the least risky held-back captions come back, a body sentence counting half a flag more.
+  // Too few safe: least risky held-back come back; a body sentence counts half a flag more
   const risk = (c: (typeof all)[number]) => c.flags.length + (c.lead ? 0 : 0.5);
   const back = held
     .slice()
@@ -266,17 +208,17 @@ export function rankFacts(
     .slice(0, Math.max(0, floor - safe.length))
     .map((c) => ({ ...c, refill: true }));
   for (const c of held) if (!back.some((b) => b.order === c.order)) log(`[Screen] DROP (risky source: ${c.flags.join(", ")})`);
-  // Most interesting first; among equals, data facts and lead captions, then the writer's order.
+  // Among equals: data facts and lead captions, then the writer's order
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
   const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
   const kept = ranked.slice(0, max);
-  // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.
+  // Kinds take turns within each group: leading data, the rest, brought-back captions
   return [0, 1, 2].flatMap((g) => rotate(kept.filter((c) => group(c) === g)));
 }
 
-/** The same order, except that a fact of the kind just shown waits for one of another kind when there is one. */
+/** Same order, but no two of a kind in a row when another kind is left */
 function rotate<T extends { hook: Hook }>(list: T[]): T[] {
   const left = list.slice();
   const out: T[] = [];
@@ -288,11 +230,7 @@ function rotate<T extends { hook: Hook }>(list: T[]): T[] {
   return out;
 }
 
-/**
- * Whether a source sentence is in the article's lead. With the whole article,
- * the lead is the text before its first heading; without it, a paragraph of the
- * reference that has no section name in front ("Development: ...") is the lead.
- */
+/** In the lead: before the first heading, or (reference only) in a paragraph with no section name in front */
 export function isLeadSentence(sentence: string, context: string, full = ""): boolean {
   const flat = (s: string) => s.replace(/\s+/g, " ").trim();
   const want = flat(sentence.replace(SECTION_LABEL, ""));
