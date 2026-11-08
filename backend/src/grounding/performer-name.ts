@@ -13,36 +13,23 @@ import { ownArticleExtract, type Reading } from "./readings";
 import { isNonMusicWork, isPerformerArticle, NON_MUSIC_WORK, PERFORMER_WORDS } from "./work-match";
 import { companionLine } from "./companion";
 
-/**
- * A performer's name shared with a film or a book: finding the performer's
- * own article, and a track's own article from a listing.
- */
+// A performer named like a film or a book: the performer's own article, and a track's own article from a listing
 
-// --- A performer's name shared with a film or a book ------------------------
-
-/** An artist field's own bracket saying it is a performer: "Some Band (British)", "Some Name (singer)". */
+// Artist field bracket saying it's a performer: "Some Band (British)", "Some Name (singer)"
 const PERFORMER_BRACKET =
   /\((?:[^)]*\s)?(?:band|singer|rapper|musician|group|duo|trio|DJ|British|English|American|Canadian|Australian|Irish|Scottish|Welsh|Swedish|Norwegian|Finnish|Danish|German|French|Italian|Spanish|Dutch|UK|US)\)\s*$/i;
 
-/** A film or video of a performance or about performers: "a 2025 concert documentary film", "(live video)". */
+// Film or video of a performance or about performers: "a 2025 concert documentary film", "(live video)"
 const CONCERT_FILM =
   /\b(?:concert (?:films?|documentar(?:y|ies)|videos?|movies?|specials?)|documentar(?:y|ies)|rockumentar(?:y|ies)|live (?:films?|videos?|video albums?|DVDs?)|video albums?|tour films?|music films?)\b/i;
 
-/**
- * Whether an article is about a concert film, a documentary or a live
- * video, by its brackets or its first sentence. Its lead names the band
- * because it is about them; its facts are still the film's.
- */
+/** Whether a concert film, documentary or live video: its lead names the band, its facts are still the film's */
 export function isConcertFilm(page: string, full: string): boolean {
   const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
   return CONCERT_FILM.test(qualifier ?? "") || CONCERT_FILM.test(openingSays(full));
 }
 
-/**
- * Whether an article's lead names the performer as one, not just as its own
- * title: "a film about the British rock band Some Band" does, "Some Band is a
- * 1963 film" doesn't.
- */
+/** Whether the lead names the performer as one: "a film about the rock band Some Band", not "Some Band is a 1963 film" */
 export function leadNamesPerformer(page: string, full: string, artist: string): boolean {
   const lead = normalizeTitle(full.split(/\n==/)[0]);
   const own = normalizeTitle(page);
@@ -53,17 +40,14 @@ export function leadNamesPerformer(page: string, full: string, artist: string): 
 }
 
 interface PerformerPages {
-  /** The performer's own article: the plain name, or "(band)", "(singer)" and so on. */
+  /** Plain name, or "(band)", "(singer)" and so on */
   performer: string | null;
-  /** The song's own article, "<Title> (<Artist> song)", or "<Title> (song)" when its description names the artist. */
+  /** "<Title> (<Artist> song)", or "<Title> (song)" when its description names the artist */
   song: string | null;
 }
 export const performerPagesCache = new Map<string, PerformerPages>();
 
-/**
- * One title lookup with Wikipedia's short descriptions: the performer's own
- * article and the song's disambiguated one, when they exist.
- */
+/** The performer's and the song's own articles, if any: one title lookup with Wikipedia's short descriptions */
 export async function performerPages(artist: string, track: string): Promise<PerformerPages> {
   const key = `${normalizeTitle(artist)}\0${normalizeTitle(track)}`;
   const hit = performerPagesCache.get(key);
@@ -92,7 +76,7 @@ export async function performerPages(artist: string, track: string): Promise<Per
   const who = artistNames(artist);
   const performer =
     forms.map(resolve).find((r) => r && PERFORMER_WORDS.test(r.description) && !NON_MUSIC_WORK.test(r.description))?.page ?? null;
-  // Named for the track, not a redirect to the album or the artist: "Some Song (Some Band song)" -> "Some Album" isn't the song's.
+  // Named for the track: a redirect "Some Song (Some Band song)" -> "Some Album" isn't the song's
   const ofTrack = (r: { page: string; description: string } | null) =>
     r && normalizeTitle(r.page) === normalizeTitle(track) ? r : null;
   const [byArtist, plain] = songs.map(resolve).map(ofTrack);
@@ -104,27 +88,9 @@ export async function performerPages(artist: string, track: string): Promise<Per
   return out;
 }
 
-/**
- * For a performer's song, what to do with the subject's article a search
- * found: null to keep it; the song's own article when Wikipedia has one;
- * the performer's article, or "reject", for a film, a show or a book that
- * only shares the performer's name ("Some Band (1963 film)").
- *
- * The artist is a performer when the request says so (a music video, a
- * bracket like "(British)", a person's name) or Wikipedia has a performer's
- * article under the name. Games keep the usual lookup: game music lists put
- * the game in the artist field. A film that names the requested track (its
- * own score) is kept too.
- *
- * An article that never names the piece as music (`namesPiece`) may be
- * another work that only shares the name, even a game's or an album's:
- * "Heart of Darkness (video game)" for Heart's "Alone", Elton John's "The
- * Muse" for Muse's "Space Dementia". Then the song's own article wins
- * wherever it's found, and an album or a soundtrack gives way to a
- * performer's article under the name. A game's article stays (a band may
- * share a game's name) unless MusicBrainz credits the song to a performer
- * who has an article under that name.
- */
+// For a performer's song, the found subject article: null keeps it; else the song's own article, the
+// performer's, or "reject" for a work that only shares the name (ARCHITECTURE.md: choosing the article).
+// A game's article stays unless MusicBrainz credits the song to a performer with an article of the name
 export async function performerArticle(
   song: SSLSong,
   reading: Reading,
@@ -146,26 +112,26 @@ export async function performerArticle(
     const band = found.performer && found.performer !== page && usable(found.performer) ? found.performer : null;
     return band && (await creditsSong(track, artist)) ? { page: band, subject: true } : null;
   }
-  // Only to another page: a person's own article stays even when the opening doesn't call them a performer.
+  // Only to another page: a person's own article stays even when its opening doesn't say performer
   const otherMusic = !nonMusic && unnamed && !!found.performer && found.performer !== page && !isPerformerArticle(page, full);
   if (!otherMusic && (!nonMusic || !(told || found.performer))) return null;
   const name = normalizeTitle(track);
-  // A concert film or documentary names the band throughout: only its lead naming the track keeps it.
+  // A concert film names the band throughout: only its lead naming the track keeps it
   if (concert) {
     if (name.length >= 5 && mentionsName(normalizeTitle(full.split(/\n==/)[0]), [name])) return null;
   } else if (!otherMusic && (leadNamesPerformer(page, full, artist) || (name.length >= 5 && mentionsName(normalizeTitle(full), [name])))) return null;
   if (found.performer && found.performer !== page && usable(found.performer)) return { page: found.performer, subject: true };
-  // No performer of the name: a show's or a film's music article whose track listing has the track ("Music of Some Show").
+  // No performer of the name: a show's or film's music article listing the track ("Music of Some Show")
   const music = nonMusic && !concert && !song.performer && !reading.aPerformer ? await listingMusicArticle(artist, track, usable) : null;
   if (music && music !== page) return { page: music, subject: true, music: true };
   return "reject";
 }
 
-/** The titles in an article's {{Track listing}} templates, without links, refs or bold. */
+/** Titles in an article's {{Track listing}} templates, without links, refs or bold */
 export function listedTracks(wikitext: string): string[] {
   const out: string[] = [];
   for (const m of wikitext.matchAll(/\{\{\s*track ?listing\b/gi)) {
-    // To the template's own closing braces, past the ones nested in it.
+    // To the template's own closing braces, past nested ones
     let depth = 0;
     let end = m.index;
     while (end < wikitext.length) {
@@ -185,12 +151,7 @@ export function listedTracks(wikitext: string): string[] {
   return out;
 }
 
-/**
- * A show's or a film's own music article ("Music of Some Show", "Some Show
- * (soundtrack)") that names the track as music or lists it on one of its
- * albums, or null. Its prose may never name a short cue that its track
- * listings do ("Green Bird" | "Cowboy Bebop").
- */
+/** A show's or film's music article naming or listing the track, or null; prose may skip a short cue a listing has */
 async function listingMusicArticle(work: string, track: string, usable: (title: string) => boolean): Promise<string | null> {
   const name = normalizeTitle(track);
   if (!work || name.length < 3 || GENERIC_TRACK.test(name)) return null;
@@ -205,22 +166,19 @@ async function listingMusicArticle(work: string, track: string, usable: (title: 
   return null;
 }
 
-/**
- * A game's track with an article of its own ("Megalovania", "Baba Yetu"): the reference, or "" when
- * it has none, or null when Wikipedia couldn't be asked (throttled or unreachable).
- */
+/** A game track's own article ("Megalovania") as a reference, "" for none, null if Wikipedia couldn't be asked */
 export async function trackOwnArticle(song: SSLSong, game: string, track: string, usable: (title: string) => boolean): Promise<string | null> {
   try {
     const own = (await wikiSearch(`${track} ${game}`)).find(
       (t) => usable(t) && isRelevantArticle(track, t) && !qualifierNamesAnotherArtist(t, game, track, true)
     );
     const full = own ? await wikiExtract(own) : null;
-    // It has to be an article about a piece of music: "Dragonborn" from Skyrim is also an expansion pack.
+    // Must be about a piece of music: "Dragonborn" from Skyrim is also an expansion pack
     const aboutMusic = full && /\b(song|theme|piece|composition|instrumental|track|single|anthem|aria|soundtrack)\b/i.test(full.slice(0, 400));
     const extract = full && aboutMusic && mentionsName(normalizeTitle(full), artistNames(game)) ? ownArticleExtract(full, MAX_CONTEXT_CHARS - own!.length - 1, [track, game]) : "";
     if (own && full && extract && extract.length >= MIN_CONTEXT_CHARS) {
       console.log(`[Grounding] "${song.title}" -> ${own} (${extract.length} chars, the track's own article)`);
-      // Few words from its makers: a sentence or two more about it from the game's music article (issue #48).
+      // Few words from its makers: a sentence or two more from the game's music article (#48)
       const companion = await companionLine(own, full, game, track, usable, true);
       const budget = MAX_CONTEXT_CHARS - own.length - 1 - (companion ? companion.length + 2 : 0);
       const body = writingText(full, companion ? ownArticleExtract(full, budget, [track, game]) : extract, budget, [track, game]);

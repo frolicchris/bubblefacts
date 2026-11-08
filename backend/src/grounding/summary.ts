@@ -9,34 +9,27 @@ import { brokenBySplit, MAX_ARTICLE_TEXTS, MUSIC_HEADING, orderExtract, RateLimi
 import { sectionExtract, sectionSelection, sectionSentences, seriesFilter, SKIP_HEADING } from "./sections";
 import { articleText, type GameArticles, selectedText } from "./covers";
 
-/**
- * Wikipedia's own summary of an article, and the gate that keeps a summary
- * about the wrong work out (`summaryGate`).
- */
+// Wikipedia's own page summary, and `summaryGate`, which keeps an article about the wrong work out
 
-/** A kind of work a song is not from when its artist is a performer: "(1961 film)", "a concert documentary film". */
+// Not a performer's song: "(1961 film)", "a concert documentary film"
 export const SCREEN_OR_BOOK = /\b(film|movie|documentary|television|tv series|miniseries|sitcom|novel|manga|play)s?\b/i;
 
-// --- Wikipedia's own summary of the article ------------------------------
+// --- Wikipedia's own summary of the article ---
 
-/**
- * What Wikipedia's page summary says about an article (the REST endpoint
- * page previews use): the kind of page, and its short description ("2018
- * film directed by ...", "1975 song by Queen").
- */
+/** Wikipedia's page summary (the REST endpoint page previews use): page kind, short description ("1975 song by Queen") */
 export interface PageSummary {
   title: string;
-  /** "standard" for an article; "disambiguation", "no-extract" or "mainpage" otherwise. */
+  /** "standard" for an article; else "disambiguation", "no-extract" or "mainpage" */
   type: string;
   description: string;
   extract: string;
 }
 
 const SUMMARY_API = "https://en.wikipedia.org/api/rest_v1/page/summary/";
-/** Summaries read this session, by title, kept like the articles (null: no such page). */
+// Summaries read this session, by title (null: no such page)
 export const summaries = new Map<string, PageSummary | null>();
 
-/** Wikipedia's summary of a page, or null when there is no such page. Throws when it can't be read. */
+/** A page's summary, or null for no such page; throws when unreadable */
 export async function pageSummary(title: string): Promise<PageSummary | null> {
   if (summaries.has(title)) return summaries.get(title) ?? null;
   const res = await fetch(SUMMARY_API + encodeURIComponent(title.replace(/ /g, "_")), {
@@ -52,7 +45,7 @@ export async function pageSummary(title: string): Promise<PageSummary | null> {
   return summary;
 }
 
-/** What a short description calls its subject, by the kind word nearest its end before "by", "from", a comma... */
+/** What a short description calls its subject */
 export type DescribedKind = "song" | "album" | "person" | "tv" | "book" | "series" | "game" | "film" | "other";
 const DESCRIBED: Array<[DescribedKind, RegExp]> = [
   ["tv", /\b(?:(?:television|tv|anime|web|animated|streaming) (?:series|shows?|programmes?|programs?|films?|specials?)|sitcoms?|miniseries|television)\b/gi],
@@ -67,11 +60,8 @@ const DESCRIBED: Array<[DescribedKind, RegExp]> = [
 const DESCRIPTION_HEAD = /\s(?:by|from|of|for|in|on|at|about|featuring|directed|written|composed|created|developed|published|produced|released|recorded|performed|based|starring|with)\b|[,(;:]/i;
 
 /**
- * The kind of thing a short description names: "2018 film directed by Bryan
- * Singer" is a film, "Japanese video game composer" a person, "studio album
- * by Queen" an album. The kind word that ends last before "by", "from" or a
- * comma wins; a longer one at the same place ("television series") beats a
- * shorter one ("series").
+ * The kind a short description names ("Japanese video game composer": a person): the kind word ending last
+ * before "by", "from" or a comma; at the same place the longer wins ("television series" over "series")
  */
 export function describedKind(description: string): DescribedKind {
   const head = description.split(DESCRIPTION_HEAD)[0];
@@ -87,15 +77,7 @@ export function describedKind(description: string): DescribedKind {
 
 const SCREEN_KINDS = new Set<DescribedKind>(["film", "tv", "book", "game"]);
 
-/**
- * Why Wikipedia's summary says the article isn't the requested work, or "":
- * - a disambiguation page, or any page that isn't a standard article;
- * - a page named like the song that Wikipedia describes as a film, a show, a
- *   book, a game, an album or a person ("Bohemian Rhapsody (film)");
- * - a film's, a show's, a book's or a game's article that is not the request's
- *   own work (its game or artist field) and never names the song.
- * The artist's article when the song has one of its own is checked by `summaryGate`.
- */
+/** Why the summary says it isn't the requested work, or "" (ARCHITECTURE.md: Why is choosing the article so careful?) */
 export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grounding: string, asked: SSLSong = song): string {
   if (!summary) return "";
   if (summary.type === "disambiguation") return "Wikipedia's summary calls it a disambiguation page";
@@ -110,7 +92,7 @@ export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grou
   const actWhy = piece && base !== piece ? wrongActPage(summary, page, kind, [game, song.artist ?? "", asked.artist ?? ""], piece, grounding) : "";
   if (actWhy) return actWhy;
   if (!SCREEN_KINDS.has(kind)) return "";
-  // The request's own work: its game or artist field, in whole words ("Pokemon Red" in "Pokémon Red and Blue").
+  // The request's own work: its game or artist field, whole words ("Pokemon Red" in "Pokémon Red and Blue")
   const words = significantTokens(base);
   const own = [game, song.artist ?? "", asked.artist ?? ""].some((n) => {
     const want = significantTokens(normalizeTitle(n));
@@ -124,17 +106,12 @@ export function summaryMismatch(summary: PageSummary | null, song: SSLSong, grou
 
 const bareName = (name: string) => name.replace(/^the /, "");
 
-/** A name's words, in any order, without a leading "the": "System-Pi" and "Pi-system" have the same. */
+// Words in any order, no leading "the": "System-Pi" is "Pi-system"
 const nameWords = (name: string) => [...new Set(bareName(normalizeTitle(name)).split(" ").filter(Boolean))].sort();
 
 /**
- * An article found under the artist's name that is about something else, for a
- * song it never names (DJ check, 2026-10-31):
- * - a page named like the artist that isn't about a performer: "Ed209" found
- *   "ED-209" (a fictional robot), "SANdBLASTING" found "Sandblasting";
- * - a performer whose name only contains the artist's: "Jäger" found
- *   "Marike Jager". A short name is too easy to match inside a longer one.
- * "" when neither holds, or the article names the song.
+ * Why an article under the artist's name is about something else, or "" (DJ check, 2026-10-31): not a
+ * performer ("Ed209" found the robot "ED-209"), or a longer performer's name ("Jäger" found "Marike Jager")
  */
 export function wrongActPage(summary: PageSummary, page: string, kind: DescribedKind, artists: string[], piece: string, grounding: string): string {
   const base = nameWords(withoutQualifier(page));
@@ -151,12 +128,8 @@ export function wrongActPage(summary: PageSummary, page: string, kind: Described
 }
 
 /**
- * The work match after Wikipedia's page summary (`summaryMismatch`): the reason the
- * article may not be the requested work, or "" when the summary doesn't say so or
- * can't be read. On a person's or a band's article for a song, it also asks whether
- * the song has an article of its own ("Song (Some Band song)", "Song (song)", "Song")
- * that describes it as a song naming the artist: then the artist's article is not the song's.
- * An act that only shares the name, per MusicBrainz, is not the requested one either.
+ * Why the summary says it isn't the requested work, or "" (also when unreadable). A person's article loses to
+ * the song's own ("Song (Some Band song)"); a same-name act MusicBrainz doesn't credit isn't the one
  */
 export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSong = song): Promise<string> {
   const page = grounding.split("\n")[0];
@@ -174,7 +147,7 @@ export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSo
       if (!own || own.type !== "standard" || describedKind(own.description) !== "song" || blocked.has(own.title)) continue;
       if (mentionsName(normalizeTitle(`${own.description} ${own.extract}`), names)) return `the song has an article of its own ("${own.title}"), not "${page}"`;
     }
-    // A band that only shares the name: nothing in the article ties it to the song, and MusicBrainz credits someone else.
+    // A band only sharing the name: the article never ties it to the song, and MusicBrainz credits someone else
     const full = articleText(page);
     if (full && !namesPiece(full, track) && names.map(bareName).includes(bareName(normalizeTitle(withoutQualifier(page)))) && (await anotherArtist(page, track, game))) return `MusicBrainz credits "${track}" to another ${game} than "${page}"`;
     return "";
@@ -183,17 +156,16 @@ export async function summaryGate(song: SSLSong, grounding: string, asked: SSLSo
   }
 }
 
-/** Reference text for the song, or "" when no relevant article exists. */
-/** Game tracks already found to have no article of their own. */
+// Game tracks found to have no article of their own
 export const noOwnArticle = new Set<string>();
 export const MAX_GAME_ARTICLES = 40;
 
-/** Track names too common to search an article for: every game has a "Title Theme". */
+// Too common to search for: every game has a "Title Theme"
 export const GENERIC_TRACK = /^(opening|ending|theme|main theme|title|title theme|title screen|credits|intro|menu|boss|battle|overworld|prologue|epilogue|finale|stage \d+|level \d+|act \d+|\d+ ?[ap]m)$/i;
 const MAX_TRACK_SENTENCES = 4;
 const MAX_TRACK_CHARS = 800;
 
-/** The article's sentences that name this track: the only ones certainly about it. */
+/** The sentences naming this track: the only ones certainly about it */
 export function trackSentences(full: string, track: string): string[] {
   const name = normalizeTitle(track);
   if (name.length < 5 || GENERIC_TRACK.test(name)) return [];
@@ -210,26 +182,18 @@ export function trackSentences(full: string, track: string): string[] {
   return kept;
 }
 
-/** Words that make a sentence about music: a name in one is a piece's, not a weapon's, a level's or an everyday word's. */
+// A name in a sentence with one is a piece's, not a weapon's, a level's or an everyday word's
 const MUSIC_CONTEXT =
   /\b(music\w*|songs?|singles?|tracks?|themes?|soundtracks?|scor(?:e|es|ed|ing)|compos\w*|melod(?:y|ies|ic)|tunes?|pieces?|albums?|arrange\w*|remix\w*|instrumentals?|lyrics?|sung|sings?|ballads?|anthems?|BGM|chart\w*)\b/i;
 
-/**
- * Whether an article names the piece as music, in a sentence about music.
- * Its name alone isn't enough: "from working alone" doesn't name Heart's
- * "Alone", and the whip called the "Vampire Killer" isn't the track.
- */
+/** Whether a sentence about music names the piece: "from working alone" doesn't name Heart's "Alone" */
 export function namesPiece(full: string, piece: string): boolean {
   const name = normalizeTitle(piece);
   if (!name || GENERIC_TRACK.test(name)) return false;
   return full.split(/(?<=[.!?]["”]?)\s+(?=["“]?\p{Lu})|\n+/u).some((s) => MUSIC_CONTEXT.test(s) && mentionsName(normalizeTitle(s), [name]));
 }
 
-/**
- * "Punch-Out!! (1984 video game)" when the search also found "Punch-Out!!
- * (1987 video game)" or "Punch-Out!!": one of several works of that name,
- * told apart by a year the request doesn't give.
- */
+/** One of several same-name works told apart by a year the request lacks: "Punch-Out!! (1984 video game)" */
 export function oneOfSeveral(title: string, titles: string[], game: string): boolean {
   const year = /\b(?:19|20)\d\d\b/.exec(qualifierOf(title) ?? "")?.[0];
   if (!year || game.includes(year)) return false;
@@ -237,51 +201,42 @@ export function oneOfSeveral(title: string, titles: string[], game: string): boo
   return titles.some((t) => t !== title && normalizeTitle(t) === base);
 }
 
-/** An article's opening that says it's about a game: "a 1992 platform game". */
+// An opening about a game: "a 1992 platform game"
 export const GAME_LEAD = /\b(video|role-playing|platform|action|adventure|puzzle|rhythm|fighting|racing|strategy|simulation)[- ](?:[\w-]+ )?games?\b/i;
 
-/** A film's, a show's or a book's page by its brackets: "Some Game 2 (film)", "Some Game (2019 TV series)". */
+/** A film's, show's or book's page by its brackets: "Some Game 2 (film)" */
 export function isScreenPage(title: string): boolean {
   const q = qualifierOf(title);
   return !!q && SCREEN_OR_BOOK.test(q) && !/\bgames?\b/i.test(q);
 }
 
-/**
- * The game's own page among these matches, for a track when the best match is
- * a film's, a show's or a book's of the same name: "Some Game 2 (film)" can rank
- * above "Some Game 2". Bare or "(video game)" only: "Some Game 2 (8-bit video
- * game)" is another game.
- */
+/** The game's own page, bare or "(video game)", in place of a same-name film's, show's or book's (`page`) */
 export function gameInsteadOfScreen(page: string, matches: string[]): string | null {
   if (!isScreenPage(page)) return null;
   return matches.find((t) => t !== page && /^(?:(?:video )?game)?$/i.test(qualifierOf(t) ?? "")) ?? null;
 }
 
-/** Whether a title is the music article for this game or its series. */
+/** Whether a title is the music article for this game or its series */
 export function isMusicArticleFor(title: string, game: string): boolean {
   const g = normalizeTitle(game);
   const of = /^Music of (?:the )?(.+?)(?: series)?$/i.exec(title);
   if (of) {
     const subject = normalizeTitle(of[1]);
-    // The game itself, or the series it belongs to: "Sonic the Hedgehog" for "Sonic the Hedgehog 3".
+    // The game, or its series: "Sonic the Hedgehog" for "Sonic the Hedgehog 3"
     return subject.length >= 2 && (g === subject || g.startsWith(`${subject} `));
   }
   const album = /^(.+?)(?: Original)? Soundtrack$|^(.+?) \(soundtrack\)$/i.exec(title);
   return Boolean(album && normalizeTitle(album[1] ?? album[2]) === g);
 }
 
-/** Whether a music article is about this very game, not the series it belongs to. */
+// About this very game, not its series
 const isThisGames = (title: string, game: string) =>
   normalizeTitle(title.replace(/^Music of (?:the )?/i, "").replace(/ series$| (?:Original )?Soundtrack$| \(soundtrack\)$/i, "")) === normalizeTitle(game);
 
-/** After a game's name, a word that makes it another game or the series: "Some Quest 2", "Some Quest series". */
+// After a game's name, makes it another game or the series: "Some Quest 2", "Some Quest series"
 const ANOTHER_ENTRY = /^(?:\d+\w*|i{2,3}|iv|vi{0,3}|ix|x|series|franchise|games|video|media|universe|saga|collection|trilogy)$/;
 
-/**
- * Whether normalized text names this game itself, not a sequel or the series
- * named after it. `others`: other games' names (normalized) that begin with
- * this one's, such as the article's section headings ("Some Quest Zero").
- */
+/** Whether text names this game, not a sequel or series. `others`: normalized games starting with its name ("Some Quest Zero") */
 export function namesThisGame(normalizedText: string, game: string, others: string[] = []): boolean {
   const g = normalizeTitle(game);
   if (!g) return false;
@@ -294,15 +249,12 @@ export function namesThisGame(normalizedText: string, game: string, others: stri
   return false;
 }
 
-/** "The music for Some Studio's Some Quest video game series": the music of a series, named right after "music of/for". Not "composed by regular series composer". */
+// "The music for Some Studio's Some Quest video game series", not "composed by regular series composer"
 const SERIES_MUSIC = /\b(?:music|soundtracks?|scores?|songs) (?:of|for|from) (?:(?:\p{Lu}[\p{L}\p{N}'’:&.-]*|\d+|the|video|game|media|and|of) ){0,8}(?:series|franchise)\b/u;
 
 /**
- * Whether an article is about a whole series' music, not one game's: a
- * "Music of" or series page named for something other than the game, one
- * whose first sentence is about a series' or franchise's music, or one with
- * a section per game ("Some Quest 2 (1992)", "Some Quest 3 (1994)"). The
- * first game often shares the series' name, so the title alone can't tell.
+ * Whether it's a whole series' music: named for another, a first sentence on a series, or 3+ "Game (1992)"
+ * sections. The first game often shares the series' name, so the title can't tell
  */
 export function isSeriesWide(page: string, full: string, game: string): boolean {
   const g = normalizeTitle(game);
@@ -317,20 +269,15 @@ export function isSeriesWide(page: string, full: string, game: string): boolean 
 }
 
 /**
- * A series-wide music article cut to what is about this game: its own
- * section (and subsections) whole, and elsewhere only sentences that name
- * the game itself or the track. Kept sections are flattened to one level, so
- * a game's section under "History" isn't read as narrative. With fewer than
- * 2 such sentences, the lead alone: the series' introduction, nothing about
- * another game. Otherwise a 3B fills captions about the series' other games
- * (FRESH test: a later game's composers shown for the first game's track).
+ * A series-wide music article cut to this game (ARCHITECTURE.md: `seriesScope`). Kept sections are
+ * flattened to one level, so a game's section under "History" isn't read as narrative
  */
 export function seriesScope(full: string, game: string, track: string): string {
   const g = normalizeTitle(game);
   const t = normalizeTitle(track);
   const trackNamed = t.length >= 5 && !GENERIC_TRACK.test(t);
   const [leadText, ...rest] = full.split(/\n(?===)/);
-  // Other games whose names begin with this one's: "Some Quest Zero" for "Some Quest".
+  // Other games starting with this one's name: "Some Quest Zero" for "Some Quest"
   const others = [...full.matchAll(/^==+\s*([^=\n]+?)\s*==+\s*$/gm)].map((m) => normalizeTitle(m[1])).filter((h) => h.startsWith(`${g} `));
   const keeps = (s: string) => namesThisGame(normalizeTitle(s), game, others) || (trackNamed && mentionsName(normalizeTitle(s), [t]));
   const lead = sectionSentences(leadText).filter(keeps);
@@ -354,20 +301,16 @@ export function seriesScope(full: string, game: string, track: string): string {
   return [lead.join(" "), ...parts].filter(Boolean).join("\n\n");
 }
 
-/**
- * The game's music article, or null. One search. The game's own article is
- * taken as it is; a series-wide one ("Music of the Final Fantasy series")
- * only when it names this track, since most of it is about other games.
- */
+/** The game's music article, or null; one search. A series-wide one is used only for tracks it names (`gameTrackText`) */
 export async function findMusicArticle(game: string, usable: (title: string) => boolean): Promise<GameArticles["music"]> {
   const fits = (t: string) => usable(t) && isMusicArticleFor(t, game);
   let titles = (await wikiSearch(`Music of ${game}`)).filter(fits);
   if (!titles.length) titles = (await wikiSearch(`${game} soundtrack`)).filter(fits);
-  // The game's own article first, then its series'.
+  // The game's own first, then the series-wide one
   for (const page of [...titles.filter((t) => isThisGames(t, game)), ...titles.filter((t) => !isThisGames(t, game))].slice(0, 2)) {
     const full = await wikiExtract(page);
     if (!full || full.length < MIN_CONTEXT_CHARS) continue;
-    // "Sonic the Hedgehog (soundtrack)" is the 2020 film's album, not the game's music.
+    // "Sonic the Hedgehog (soundtrack)" is the 2020 film's album, not the game's
     const lead = full.slice(0, 500);
     if (/\b(film|movie|television series|TV series)\b/i.test(lead) && !/\bvideo games?\b/i.test(lead)) continue;
     return { page, full, series: !isThisGames(page, game) };
@@ -375,11 +318,11 @@ export async function findMusicArticle(game: string, usable: (title: string) => 
   return null;
 }
 
-/** Section headings that are a kind of section, not the name of a part of a soundtrack. */
+// Kinds of section, not names of a soundtrack's parts
 export const GENERIC_SECTION =
   /^(?:background|development|composition|production|recording|releases?|reception|critical|commercial|legacy|references|notes|external|see also|track listings?|personnel|credits|charts?|certifications?|awards?|accolades|overview|history|music|soundtracks?|albums?|singles|eps|other|musicology|instrumentation|motifs?|themes?|style|influences?|bibliography|further|sales|live|concerts?|creation|concept|writing|lyrics|cast|plot|synopsis|gameplay|setting|story|characters|marketing|reviews?|impact|cover|versions?|remix(?:es)?|formats?|editions?|arrangements?)\b/i;
 
-/** The sections of an article: heading, level, and the lines it runs over, subsections included. */
+/** An article's sections: heading, level, and its lines, subsections included */
 export function sectionsOf(lines: string[]): Array<{ heading: string; quoted: boolean; level: number; from: number; to: number }> {
   const heads = lines.flatMap((line, i) => {
     const h = /^(==+)\s*(.+?)\s*==+\s*$/.exec(line);
@@ -394,19 +337,8 @@ export function sectionsOf(lines: string[]): Array<{ heading: string; quoted: bo
 }
 
 /**
- * The part of a soundtrack article a track belongs to, when the track names
- * it: "Fontaine: Remuria" is from the Fontaine section of "Music of Genshin
- * Impact". Returns the article cut to its lead and that section, and the
- * article's other parts ("Mondstadt", "Liyue"), which a caption for this track
- * must not name. Null unless the track names one part and the article has at
- * least two others.
- *
- * A track named for something the article never mentions ("Ganyu: Radiant
- * Dreams", "Raiden Shogun: Awake From A Nightmare") belongs to a part no one
- * can tell: the article is cut to its lead and its general sections (how the
- * music is built, reception), the heading is empty, and every part is
- * another part. Otherwise Mondstadt, which comes first, filled a Liyue
- * character's captions (second fact check).
+ * The soundtrack part a track names ("Fontaine: Remuria"): the lead and that section, plus the other parts its
+ * captions mustn't name. Null unless 2+ others. Unknown parts: `unknownPart` (ARCHITECTURE.md: `soundtrackPart`)
  */
 export function soundtrackPart(full: string, track: string): { heading: string; text: string; others: string[] } | null {
   const lines = withoutVideoSections(full).split("\n");
@@ -416,8 +348,7 @@ export function soundtrackPart(full: string, track: string): { heading: string; 
     .filter((s) => normalizeTitle(s.heading).length >= 4 && name.includes(` ${normalizeTitle(s.heading)} `))
     .sort((a, b) => b.heading.length - a.heading.length)[0];
   if (!matched) return unknownPart(lines, parts, track);
-  // Its own subsections and the sections it sits in aren't other parts.
-  // A quoted heading is one track ("Main Theme"), which any part's caption may mention.
+  // Not other parts: its own subsections, the sections it sits in, a quoted heading (one track any caption may name)
   const others = parts.filter((s) => !s.quoted && !(s.from >= matched.from && s.to <= matched.to) && !(s.from <= matched.from && s.to >= matched.to));
   if (others.length < 2) return null;
   const lead = lines.slice(0, lines.findIndex((l) => /^==/.test(l))).join("\n").trim();
@@ -425,11 +356,11 @@ export function soundtrackPart(full: string, track: string): { heading: string; 
   return { heading: matched.heading, text: `${lead}\n\n${section}`, others: [...new Set(others.map((s) => s.heading))] };
 }
 
-/** The lead and general sections of a soundtrack article in parts, for a "Name: Title" track whose name it never mentions. */
+/** The lead and general sections, for a "Name: Title" track whose name the article never mentions: every part is another */
 function unknownPart(lines: string[], parts: ReturnType<typeof sectionsOf>, track: string): { heading: string; text: string; others: string[] } | null {
   const prefix = /^([^:]{3,}):\s*\S/.exec(track)?.[1];
   const named = parts.filter((s) => !s.quoted);
-  // Only an article about a soundtrack in parts: a composer's article has sections too ("Sonata in A Major, K. 331: i. Andante").
+  // Only a soundtrack in parts: a composer's article has sections too ("Sonata in A Major, K. 331: i. Andante")
   const lead = lines.slice(0, Math.max(0, lines.findIndex((l) => /^==/.test(l)))).join(" ");
   if (!prefix || !/\b(soundtracks?|score)\b/i.test(lead) || named.filter((s) => s.level === 2).length < 3) return null;
   if (mentionsName(normalizeTitle(lines.join(" ")), [normalizeTitle(prefix)])) return null;
@@ -437,36 +368,32 @@ function unknownPart(lines: string[], parts: ReturnType<typeof sectionsOf>, trac
   return { heading: "", text, others: [...new Set(named.map((s) => s.heading))] };
 }
 
-/** The other parts of the soundtrack a reference was cut from, which captions for this track mustn't name. */
+/** Other parts of the soundtrack a reference was cut from, which this track's captions mustn't name */
 export function otherParts(text: string, track: string): string[] {
   const full = articleText(text.split("\n")[0]);
   return full ? (soundtrackPart(full, track)?.others ?? []) : [];
 }
 
-/** Any section that isn't a list of tracks, credits or references. */
+// Any section but a list of tracks, credits or references
 export const NOT_A_LIST = /^(?!.*(track listing|personnel|credits|chart|certification|reference|external|see also|notes)).+$/i;
-/** In a music article, how the music was made comes before the lists of albums and releases. */
+// In a music article, how it was made goes before lists of albums and releases
 const MAKING_OF_MUSIC = /creation|development|concept|influence|composition|writing|recording|background|overview|production|style|themes/i;
 
-/**
- * The reference for one track of a game: what the article says about this
- * very track first, then the usual ordering. Built from the music article
- * when there is one, since the game's article is mostly about the game.
- */
+/** One game track's reference: what names the track first, then the usual order; from the music article if any */
 export function gameTrackText(a: GameArticles, track: string, usable: (title: string) => boolean = () => true, game = ""): string {
   const fits = a.music && usable(a.music.page) && (!a.music.series || trackSentences(a.music.full, track).length > 0);
   const fromMusic = Boolean(fits && a.music);
   let base = fits && a.music ? a.music : a;
-  // A series-wide music article: only what is about this game ("Music of Some Quest" for "Some Quest", the first of several).
+  // A series-wide music article: only this game's part ("Music of Some Quest" for the first "Some Quest")
   const name = game || a.page.replace(/\s*\([^)]*\)\s*$/, "");
   if (seriesFilter.on && base.full && ((fromMusic && a.music?.series) || isSeriesWide(base.page, base.full, name))) {
     base = { ...base, full: seriesScope(base.full, name, track) };
   }
-  // "Liyue: Relaxation in Liyue" from "Music of Genshin Impact": the lead and the Liyue section, nothing about Mondstadt.
+  // "Liyue: Relaxation in Liyue": the lead and the Liyue section, nothing about Mondstadt
   const part = soundtrackPart(base.full, track);
   const full = part ? part.text : withoutVideoSections(base.full);
-  // With section-aware selection, a narrative section's sentence about this piece counts only when it's about its music.
-  // And only a sentence about music is said to be about the piece: "Castlevania" names the MSX game and the whip "Vampire Killer" too.
+  // Section-aware selection keeps a narrative section's sentence only when about the music;
+  // only music sentences count: "Castlevania" names the MSX game and the whip "Vampire Killer" too
   const about = trackSentences(sectionSelection.on ? selectedText(full, [track]) : full, track).filter((s) => MUSIC_CONTEXT.test(s));
   const block = about.length ? `About this piece: ${about.join(" ")}\n\n` : "";
   const budget = MAX_CONTEXT_CHARS - base.page.length - 1 - block.length;
@@ -474,7 +401,7 @@ export function gameTrackText(a: GameArticles, track: string, usable: (title: st
   if (picked) return `${base.page}\n${block}${picked}`;
   if (part) return `${base.page}\n${block}${orderExtract(full, budget, [track], true, NOT_A_LIST)}`;
   let body = orderExtract(base.full, budget, [track], fromMusic, fromMusic ? MAKING_OF_MUSIC : MUSIC_HEADING);
-  // A music article with no section on how the music was made: take its other sections, bar the lists.
+  // A music article with no making-of section: its other sections, bar the lists
   if (fromMusic && body.length < MIN_CONTEXT_CHARS * 2) body = orderExtract(base.full, budget, [track], true, NOT_A_LIST);
   return `${base.page}\n${block}${body}`;
 }

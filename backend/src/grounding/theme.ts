@@ -11,31 +11,25 @@ import { NEGATIVE_TTL_MS, ownArticleExtract } from "./readings";
 import { isPerformerArticle } from "./work-match";
 import { performerPages } from "./performer-name";
 
-/**
- * "Some Name Theme" that every reading missed: the article of what the theme
- * is named for, cut to its lead and its own music sections.
- */
+// "Some Name Theme" every reading missed: the "Some Name" article, cut to its lead and own music sections
 
-/** "Some Name Theme", "Some Name Main Theme", "Theme from Some Name": the name the theme is named for, or "" (one word or none). */
+/** "Some Name" from "Some Name (Main) Theme" or "Theme from Some Name"; "" for one word or none */
 export function themeOf(title: string): string {
   const t = dropVersionTags(title.trim());
   const name = (/^(.+?)\s+(?:main\s+)?theme$/i.exec(t)?.[1] ?? /^theme\s+from\s+(.+)$/i.exec(t)?.[1] ?? "").replace(/\s*[-–—:]$/, "").trim();
-  // Two words or more: "Love Theme" and "Halloween Theme" name an everyday word's article, not a work's.
+  // Two words or more: "Love Theme" and "Halloween Theme" name an everyday word's article, not a work's
   const n = normalizeTitle(name);
   return significantTokens(n).length >= 2 && !GENERIC_TRACK.test(n) ? name : "";
 }
 
-/** A section about the subject's own music: "Song", "Music", "Theme song", "Soundtrack". */
+// Headings on the subject's own music: "Song", "Music", "Theme song", "Soundtrack"
 const OWN_MUSIC_HEADING = /^(?:the )?(?:songs?|music|theme(?: songs?| music| tune)?|soundtracks?|score|jingles?|music and sound)$/i;
-/** A word in the lead for music the subject has: "merged a Japanese denpa song with an animated cat". */
+// Music the subject has, in its lead: "merged a Japanese denpa song with an animated cat"
 const OWN_MUSIC_WORD = /\b(?:songs?|tunes?|themes?|melod(?:y|ies)|jingles?|music)\b/i;
-/** A person's lead: "(born 1967)", "(1900–1980)". */
+// A person's lead: "(born 1967)", "(1900–1980)"
 const LIFE_DATES = /\((?:[^()]*\b)?(?:born|died|née)\b|\(\s*(?:c\.\s*)?\d{3,4}\s*[–-]\s*\d{3,4}\s*\)/;
 
-/**
- * The lead and the sections about the subject's own music, subsections and all, or "" when the
- * article has no such section or its lead never says the subject has music (`themeGrounding`).
- */
+/** The lead and own music sections, subsections and all; "" without such a section or a music word in the lead */
 export function ownMusicParts(full: string): string {
   const [lead, ...rest] = full.split(/\n(?===)/);
   if (!OWN_MUSIC_WORD.test(lead)) return "";
@@ -54,12 +48,7 @@ export function ownMusicParts(full: string): string {
 
 export const themeCache = new Map<string, { text: string; at: number }>();
 
-/**
- * For "Some Name Theme" that every reading missed: the "Some Name" article, when it isn't a
- * person's and says the subject has music of its own (`ownMusicParts`), cut to its lead and those
- * sections. The artist may be an arranger the article never names ("Nyan Cat Theme" by a chiptune
- * artist is the Nyan Cat video's song). Never when a performer has the artist's name, or "".
- */
+/** The theme's reference, or "": not a person's article, never when a performer has the artist's name (ARCHITECTURE.md: choosing the article) */
 export async function themeGrounding(song: SSLSong, usable: (title: string) => boolean): Promise<string> {
   const name = themeOf(song.title);
   if (!name || song.artistUncertain) return "";
@@ -90,7 +79,7 @@ export async function themeGrounding(song: SSLSong, usable: (title: string) => b
     themeCache.set(key, { text, at: Date.now() });
     return text;
   } catch {
-    // Throttled or unreachable: nothing is remembered, and it's asked again next time.
+    // Throttled or unreachable: nothing remembered, asked again next time
     return "";
   }
 }
