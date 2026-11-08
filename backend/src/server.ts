@@ -30,20 +30,15 @@ import { settledRevision } from "./fact-verifier";
 import { songKey } from "./wrong-facts";
 import { styleFrom, StylePayload } from "./bubble-style";
 
-/**
- * HTTP + WebSocket server. Watches the song queue, generates facts on each
- * song change, and pushes them to every connected overlay.
- */
+// HTTP + WebSocket server: follows the song source, writes facts on each song change, sends them to every overlay
 
 const app = express();
 const server = http.createServer(app);
-// Only this computer: see local-only.ts.
+// Only this computer (local-only.ts)
 const fromHere = (host: string | undefined) => allowedHost(host, config.port, config.host);
 app.use((req, res, next) => (fromHere(req.get("host")) ? next() : res.status(403).end()));
-/** The overlay sends one small message (obs-streaming.ts), so anything big is not the overlay. */
-const MAX_WS_MESSAGE = 1024;
-/** OBS needs one per scene that shows the source; more than this is not OBS. */
-const MAX_CLIENTS = 16;
+const MAX_WS_MESSAGE = 1024; // bytes; the overlay sends one small message (obs-streaming.ts)
+const MAX_CLIENTS = 16; // overlays; OBS needs one per scene showing the source, more is not OBS
 const wss = new WebSocketServer({
   server,
   path: "/ws",
@@ -73,84 +68,75 @@ interface Client {
 const clients = new Map<WebSocket, Client>();
 let clientSeq = 0;
 
-/** Bumped on every song change; a generation that finishes late checks it and drops its result. */
+// Bumped on every song change; a generation that finishes late sees it and drops its result
 let generation = 0;
 
 function send(ws: WebSocket, payload: FactsPayload | StylePayload): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
 }
 
-/** The last song and facts sent, for the desktop app's dashboard. */
+// The last song and facts sent, for the dashboard
 let lastSent: { song: FactsPayload["song"] | null; facts: FactsPayload["facts"]; ready?: boolean } = { song: null, facts: [] };
 
-/**
- * The bubbles' look (issue #177). Every overlay gets it as it connects, and again when the
- * streamer saves a new one, so it changes on stream without refreshing the source in OBS.
- */
+// The bubbles' look (#177), sent on connect and on every save, so no Refresh in OBS
 let bubbleStyle: StylePayload = config.bubbleStyle;
 
-/** "Pause bubbles": the streamer's on-air escape hatch. Songs are still followed, just not shown. */
+// "Pause bubbles": the on-air escape hatch; songs are still followed, just not shown
 let paused = process.env.BUBBLEFACTS_PAUSED === "1";
 
-/** When the current song's facts went out to the overlay, and when bubbles were paused (0 = never). */
+// When the song's facts went out to the overlay, and when bubbles were paused (0 = never)
 let factsShownAt = 0;
 let pausedAt = 0;
 
-/**
- * Songs that already played this stream, with their facts, newest first. A
- * musician can't click Wrong mid-song, so the dashboard offers it afterward.
- */
-const EARLIER_KEPT = 12;
+// Songs played this stream, newest first: a musician can't click Wrong mid-song, so it's offered after
+const EARLIER_KEPT = 12; // songs
 let earlier: Array<{ song: SSLSong; facts: NonNullable<FactsPayload["facts"]> }> = [];
 
-/** What was showing before a restart, until the first song after it is known. */
+// What was showing before a restart, until the first song after it is known
 let restored: Session | null = loadSession();
 if (restored) {
   restoreRecent(restored.recent);
   earlier = (restored.earlier ?? []).slice(0, EARLIER_KEPT);
 }
 
-/** When the credit bubble is next due (credit.ts). A restart in the middle of a stream carries on with the count. */
+// When the credit bubble is next due (credit.ts); a restart mid-stream carries on the count
 const creditCount = restoredCredit(restored);
-/** When the streamer last pressed Test: the credit bubble keeps clear of it. */
+// When the streamer last pressed Test: the credit keeps clear of it
 let testAt = 0;
-/**
- * Whether OBS is streaming, as overlays pass it on. Kept across a restart within a stream break
- * (`RESUME_WITHIN_MS`), so the first overlay to reconnect doesn't count as the stream going live.
- */
+// Whether OBS is streaming; kept across a restart within a stream break, so a reconnect isn't going live
 const obsStreaming = new ObsStreaming(restored && Date.now() - restored.savedAt < RESUME_WITHIN_MS ? restored.obsStreaming : undefined);
 
-/** The [Shown] lines: logged where facts go out to an overlay, once per play of a song, and kept in the aired facts record. */
+// The [Shown] lines: once per play of a song, as facts go out to an overlay; also the aired facts record
 const aired = new AiredFacts();
 const shown = new ShownLog(aired);
 const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
 
-/** Share song facts with other apps: the streamer's choice, and off by default. */
+// Share song facts with other apps: the streamer's choice, off by default
 const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFactsChannel
   ? new SongFactSharer({ url: config.shareFactsUrl, apiKey: config.shareFactsKey, channel: config.shareFactsChannel })
   : null;
 
-/** Gives the sharer what's on stream now. Paused bubbles aren't shared, and a fact taken off stream goes from there too. */
+/** Gives the sharer what's on stream now: nothing while paused, and without facts taken off */
 function shareNow(): void {
   sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], songList.getCurrentSong()?.song?.durationSeconds);
 }
 
-/** `credit`: a bubble that goes to the overlay ahead of a facts_ready batch but is no part of the song's record. */
+/** `credit`: goes to the overlay ahead of a facts_ready batch, never into the song's record */
 function broadcast(payload: FactsPayload, credit?: Fact): void {
-  // A new song moves the one that was showing into the earlier list.
+  // A new song moves the one that was showing into the earlier list
   if (payload.type === "new_song" && !payload.quiet && lastSent.song && lastSent.facts?.length && !sameSong(lastSent.song, payload.song)) {
     earlier = [{ song: lastSent.song, facts: lastSent.facts }, ...earlier.filter((e) => !sameSong(e.song, lastSent.song))].slice(0, EARLIER_KEPT);
   }
   if (payload.type === "new_song" && !payload.quiet) factsShownAt = 0;
-  // With no overlay connected nobody saw them: the first one to connect gets them all.
+  // No overlay connected, nobody saw them: the first to connect gets them all
   if (payload.type === "facts_ready" && !paused) factsShownAt = clients.size ? Date.now() : 0;
   if (payload.type === "new_song") lastSent = { song: payload.song, facts: [] };
   else if (payload.type === "facts_ready") lastSent = { song: payload.song, facts: payload.facts, ready: true };
   else if (payload.type === "remove_fact") lastSent = { ...lastSent, facts: (lastSent.facts ?? []).filter((f) => f.text !== payload.text) };
   else lastSent = { song: null, facts: [] };
-  // What a restart resumes: a fact taken off with Wrong stays off.
+  // What a restart resumes: a fact taken off with Wrong stays off
   if ((payload.type === "facts_ready" || payload.type === "remove_fact") && lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
-  // A new play of a song starts a new record, even of the same song; a quiet one (resuming) carries on.
+  // A new play starts a new record, even of the same song; a quiet one (resuming) carries on
   if (payload.type === "new_song" && !payload.quiet) shown.newPlay();
   shareNow();
   if (paused && payload.type !== "clear") return;
@@ -159,17 +145,16 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
 }
 
-/**
- * Every song to prepare: the song list's, with how often each was played (issue #293), and every
- * song seen on stream (issue #297), which covers requests no list has and moves a played one up.
- */
-/** The songs to prepare are built from the whole list and history: at most this often, as the window asks every 5 s. */
-const TARGETS_FRESH_MS = 30_000;
+const TARGETS_FRESH_MS = 30_000; // ms between rebuilds of the songs to prepare (the window asks every 5 s)
 let targetsBuilt: { at: number; targets: PrepTarget[] } | null = null;
 
-/** Whether the song list has been read, so the songs to prepare are all known. A source with no list has none to wait for. */
+// Whether the song list has been read, so the songs to prepare are all known (true for a source with no list)
 const songListRead = (): boolean => !songList.listedSongs || songList.listedSongs() !== null;
 
+/**
+ * Every song to prepare: the list's, with play counts (#293), and every song seen on stream (#297),
+ * which covers requests no list has and moves a played one up
+ */
 function prepTargets(): PrepTarget[] {
   if (targetsBuilt && Date.now() - targetsBuilt.at < TARGETS_FRESH_MS) return targetsBuilt.targets;
   const targets = new Map<string, PrepTarget>();
@@ -182,12 +167,12 @@ function prepTargets(): PrepTarget[] {
     targets.set(key, listed ? { ...listed, requests: listed.requests + played.plays } : { key, song: played.song, requests: played.plays });
   }
   const built = [...targets.values()];
-  // Built before the list was read: only the history. Not kept, so the list's songs join as soon as it's read.
+  // Built before the list was read: history only, not kept, so the list's songs join once it's read
   targetsBuilt = songListRead() ? { at: Date.now(), targets: built } : null;
   return built;
 }
 
-/** "Prepare my songs": the app starts it while the computer is free, and stops it when it isn't (issue #295). */
+// "Prepare my songs": the app starts it while the computer is free and stops it when it isn't (#295)
 const preparer = new Preparer({
   store: preparedStore,
   targets: prepTargets,
@@ -199,7 +184,7 @@ const preparer = new Preparer({
   release: releasePrepModel,
 });
 
-/** Why preparing can't run now, or "": an overlay is connected (a stream may be on), there's no AI, or lookups are off. */
+/** Why preparing can't run now, or "": an overlay connected (a stream may be on), no AI, or lookups off */
 function cantPrepare(): string {
   if (clients.size) return "overlay";
   if (config.aiProvider === "none") return "no-ai";
@@ -208,16 +193,12 @@ function cantPrepare(): string {
 }
 
 /**
- * OBS says the stream just went live: a new stream for the credit bubble, with the switch on or off.
- * It goes out at once in the spot of the song's next bubble, and the bubbles still to come move
- * later by its time, as when it goes with a song's facts: in a one-spot area (a corner, which setup
- * offers) the next bubble would otherwise replace it within seconds. The record moves with them, so
- * an overlay that connects later, Wrong and a restart keep to the same schedule. With no song's
- * facts out yet, or paused, or a test bubble up, it goes with the next song's facts instead.
+ * OBS went live: the credit goes out now in the next bubble's spot, and the rest (and the record) move
+ * later by its time (ARCHITECTURE.md: The credit bubble)
  */
 function onObsStreaming(streaming: boolean, client: number): void {
   const wentLive = obsStreaming.report(streaming, client);
-  // Kept for a restart, with the song's record when there is one.
+  // Kept for a restart, with the song's record when there is one
   if (lastSent.song && lastSent.ready) remember(lastSent.song, lastSent.facts ?? []);
   if (!wentLive) return;
   console.log("[Credit] OBS started streaming: the credit bubble is due");
@@ -236,10 +217,8 @@ function onObsStreaming(streaming: boolean, client: number): void {
 }
 
 /**
- * A new schedule for the song on stream: the record, the sharer and what a restart resumes take it,
- * and every overlay gets the bubbles still to come with `keep` (the one on screen stays), after
- * `first` when there is one. Nothing goes to an overlay while paused. The bubbles still to come, or
- * null while paused.
+ * A new schedule for the song on stream, everywhere; overlays get the bubbles to come with `keep`, after
+ * `first`. Returns those bubbles, or null while paused (nothing sent)
  */
 function resendRemaining(song: SSLSong, record: Fact[], first?: Fact): Fact[] | null {
   lastSent = { song, facts: record, ready: true };
@@ -265,7 +244,7 @@ wss.on("connection", (ws, req) => {
   };
   clients.set(ws, client);
   console.log(`[WS] Client #${client.id} connected from ${client.addr} (${client.ua}), total ${clients.size}`);
-  // OBS is up: the stream comes first. Preparing stops at once, and the app starts it again once OBS is closed.
+  // OBS is up, the stream comes first: preparing stops, and the app restarts it once OBS is closed
   if (preparer.running) {
     console.log("[Prepare] An overlay connected: stopping");
     preparer.stop();
@@ -279,8 +258,7 @@ wss.on("connection", (ws, req) => {
     console.error(`[WS] Client #${client.id} error: ${err.message}`);
     drop();
   });
-  // The one message an overlay sends: whether OBS is streaming. Anything else is ignored. One that
-  // never says is outside OBS or not allowed to ask, so the credit keeps to its own timing.
+  // The one message an overlay sends: whether OBS is streaming. Silence means the credit keeps its own timing
   const status = watchForStatus(() =>
     console.log(`[WS] Client #${client.id} hasn't said whether OBS is streaming: it's outside OBS, or the Browser source's Page permissions don't allow it. The credit bubble keeps to its own timing.`)
   );
@@ -294,27 +272,25 @@ wss.on("connection", (ws, req) => {
     status.heard();
     onObsStreaming(msg.streaming, client.id);
   });
-  // First, before any bubble: even while paused, so Resume shows the right look.
+  // First, before any bubble, even while paused, so Resume shows the right look
   send(ws, bubbleStyle);
 
-  // Catch a reconnecting overlay up on the current song.
+  // Catch a reconnecting overlay up on the current song
   const current = songList.getCurrentSong();
   if (!current || paused) return;
   const song = songList.toSong(current);
   const token = generation;
-  // The song's facts are out: this overlay joins in from the song's record, the same for every
-  // overlay and without any taken off with Wrong. Once they've been on stream it gets the bubbles
-  // that haven't finished showing, on the other overlays' schedule, with no second banner, so one
-  // that reloads mid-song (a scene switch, say) neither misses them nor replays what viewers saw.
+  // Facts out: join from the song's record, on the others' schedule and with no second banner, so a
+  // reload mid-song (a scene switch) neither misses bubbles nor replays them
   if (lastSent.ready && sameRequest(lastSent.song, song)) {
-    // A LIVE LEARN banner stays up for the whole song, so a reloaded overlay needs it again.
+    // A LIVE LEARN banner stays up all song, so a reloaded overlay needs it again
     send(ws, factsShownAt && !song.liveLearn ? { type: "new_song", song, quiet: true } : newSong(song));
     const record = lastSent.facts ?? [];
     const facts = catchUpFacts(record, factsShownAt);
     send(ws, { type: "facts_ready", song, facts });
-    // Logged already unless no overlay was there when they went out (a restart, say).
+    // Logged already unless no overlay was there when they went out (a restart, say)
     logShown(song, facts);
-    // No overlay was there when they went out: their schedule starts now.
+    // No overlay was there when they went out: their schedule starts now
     if (!factsShownAt) {
       factsShownAt = Date.now();
       remember(song, record);
@@ -322,12 +298,12 @@ wss.on("connection", (ws, req) => {
     return;
   }
   send(ws, newSong(song));
-  // Still being written for every overlay: onSongChange's broadcast reaches this one too. Its
-  // own copy as well made the overlay start the same bubbles over a second time.
+  // Still being written: onSongChange's broadcast reaches this overlay too (its own copy as well
+  // made it start the same bubbles twice)
   if (!lastSent.ready && sameRequest(lastSent.song, song)) return;
   generateFacts(song, current)
     .then((facts) => {
-      // Paused while they were being written: Pause cleared the screen, and they wait for Resume.
+      // Paused meanwhile: Pause cleared the screen, and they wait for Resume
       if (token !== generation || paused) return;
       send(ws, { type: "facts_ready", song, facts });
       logShown(song, facts);
@@ -339,7 +315,7 @@ wss.on("connection", (ws, req) => {
     .catch((err) => console.error("[WS] Could not send facts to new client:", err));
 });
 
-/** A song starting, with or without its NOW PLAYING or LIVE LEARN bubble: the streamer's choice for each. */
+/** A song starting, with or without its NOW PLAYING or LIVE LEARN bubble (the streamer's choice) */
 function newSong(song: SSLSong): FactsPayload {
   return { type: "new_song", song, ...(showsBanner(song) ? {} : { noBanner: true }) };
 }
@@ -353,38 +329,38 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   }
 
   const song = songList.toSong(current);
-  // Work for any other song is no longer wanted (see setCurrentSong).
+  // Work for any other song is no longer wanted (setCurrentSong)
   setCurrentSong(song);
-  // Kept on this computer to be prepared after the stream (issue #297): next time it plays, its facts are ready.
+  // Kept to prepare after the stream (#297), so its facts are ready next time
   if (!isNotMusic(song)) playHistory.record(song);
 
-  // The first song after a restart, and it's the one that was showing: carry on where it left off.
+  // The first song after a restart is the one that was showing: carry on where it left off
   const before = restored;
   restored = null;
   if (before && sameRequest(before.song, song)) {
     if (Date.now() - (before.shownAt || before.savedAt) < RESUME_WITHIN_MS) {
-      // Spots from the current setting: the restart may be the streamer changing where bubbles go.
+      // Spots from the current setting: the restart may be the streamer moving the bubbles
       const spotFor = spotsForSong(song);
-      // Facts turned off for the song or its artist while the app was closed stay off (issue #262).
+      // Facts turned off for the song or artist while the app was closed stay off (#262)
       before.facts = allowedFacts(song, before.facts).map((f, i) => ({ ...f, ...spotFor(i) }));
       console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
       primeFacts(song, before.facts);
       broadcast(song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
       broadcast({ type: "facts_ready", song, facts: remainingFacts(before.facts, before.shownAt) });
-      // The record stays the full set and when it first went out: an overlay connecting later joins in from there.
+      // The record keeps the full set and first send time, for an overlay connecting later
       factsShownAt = before.shownAt;
       lastSent = { song, facts: before.facts, ready: true };
       shareNow();
       remember(song, before.facts);
       return;
     }
-    // An earlier stream's play of this song: its own facts may show again.
+    // An earlier stream's play of this song: its own facts may show again
     const own = new Set(before.facts.map((f) => f.text));
     restoreRecent(before.recent.filter((r) => !own.has(r)));
   }
   broadcast(newSong(song));
 
-  // Facts from data go out as soon as they're ready, while the AI writes (issue #256).
+  // Facts from data go out as soon as they're ready, while the AI writes (#256)
   let early: Fact[] | null = null;
   const facts = await generateFacts(song, current, (data) => {
     if (token !== generation) return;
@@ -406,22 +382,18 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
         "Add BubbleFacts to OBS, or open OBS if it is closed."
     );
   }
-  // The credit bubble goes with a song that has facts and is really going to a connected overlay
-  // (not paused), and not while a test bubble is up: once each stream at least, even switched off.
-  // Its facts then start after it.
+  // The credit goes ahead of a song's facts that really reach an overlay (credit.ts)
   const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
   broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
 }
 
 /**
- * The AI's captions for a song whose facts from data already went out: added after them in
- * its record, and sent with `keep`, so an overlay leaves the bubble on screen and the facts
- * still to come in place. One that doesn't know `keep` starts the batch over: the facts not
- * shown yet and the captions, as after a reconnect.
+ * The AI's captions after the data facts went out: added to the record and sent with `keep`
+ * (ARCHITECTURE.md: Where structured facts come from)
  */
 function sendLater(song: SSLSong, early: Fact[], facts: Fact[]): void {
   const record = lastSent.facts ?? [];
-  // Not yet seen by any overlay (none connected, or paused): it all goes out as one batch.
+  // Not yet seen by any overlay (none connected, or paused): it all goes out as one batch
   const elapsed = factsShownAt ? (Date.now() - factsShownAt) / 1000 : 0;
   const merged = withLaterFacts(record, early, facts, elapsed, config.factIntervalSeconds);
   if (merged.length === record.length) return;
@@ -435,11 +407,7 @@ function sendLater(song: SSLSong, early: Fact[], facts: Fact[]): void {
 
 // --- Routes --------------------------------------------------------------
 
-/**
- * Controls for the desktop app. The custom header makes a browser ask first
- * (a CORS preflight, which this server never approves), so a web page can't
- * press these buttons; only the app can.
- */
+// Controls for the desktop app; the header keeps web pages out (ARCHITECTURE.md: The app's control routes)
 const control = express.Router();
 control.use((req, res, next) => (req.get("X-BubbleFacts") === "1" ? next() : res.status(403).end()));
 control.use(express.json());
@@ -453,8 +421,7 @@ control.post("/test", (_req, res) => {
     position: positionsFor()[0],
     vertical: verticalPositionsFor()[0],
   }];
-  // Shown even while paused: the streamer asked for it. Not recorded as "on stream now", and
-  // on top of the song that's playing: its remaining bubbles, and Wrong on them, carry on.
+  // Shown even while paused; not "on stream now", so the song's bubbles and Wrong on them carry on
   testAt = Date.now();
   for (const ws of clients.keys()) send(ws, { type: "test_bubble", song, facts });
   res.json({ overlays: clients.size });
@@ -476,9 +443,8 @@ control.post("/pause", (req, res) => {
   res.json({ paused });
 });
 
-// A new look from the app's Settings (issue #177): every overlay changes now, bubbles on screen
-// included, with no restart (which would announce the song again) and no Refresh in OBS.
-// Anything it doesn't know falls back to the classic look rather than being refused.
+// A new look from Settings (#177), on every overlay now: no restart (it would announce the song
+// again), no Refresh in OBS. Anything unknown falls back to Classic, never refused
 control.post("/style", (req, res) => {
   bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`), {
     scale: req.body?.scale,
@@ -491,26 +457,23 @@ control.post("/style", (req, res) => {
 });
 
 /**
- * Resuming on the song that was showing: carry on where it left off, with
- * the facts not shown yet on their remaining delays and no second NOW
- * PLAYING banner. Returns false when the song changed or its facts arrived
- * during the pause, so it starts like any new song.
+ * Resume on the same song with its unshown facts and no second banner; false when the song changed
+ * or its facts arrived during the pause (it then starts like a new song)
  */
 function resumeSameSong(): boolean {
   const current = songList.getCurrentSong();
   const song = current && songList.toSong(current);
   if (!song || !lastSent.song || !factsShownAt || factsShownAt > pausedAt) return false;
   if (!sameRequest(song, lastSent.song)) return false;
-  // The facts left as of the pause, not as of now.
+  // The facts left as of the pause, not as of now
   const facts = remainingFacts(lastSent.facts ?? [], factsShownAt, pausedAt);
   broadcast({ type: "new_song", song: lastSent.song, quiet: true });
   broadcast({ type: "facts_ready", song: lastSent.song, facts });
   return true;
 }
 
-// "Wrong": from the On stream now list (`live`) it also comes off the stream; from Earlier songs
-// (hands are busy while playing) it's marked for next time, even when that song is on again.
-// Either way its source isn't used for that song again.
+// "Wrong": from On stream now (`live`) also off the stream; from Earlier songs marked for next time,
+// even when that song is on again. Either way its source is blocked for the song
 control.post("/wrong", (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text : "";
   const click = { text, song: songFrom(req.body?.song), live: req.body?.live === true };
@@ -519,14 +482,13 @@ control.post("/wrong", (req, res) => {
     res.status(404).json({ removed: false });
     return;
   }
-  // The live song as the server holds it, so the overlay's remove_fact matches what it was sent.
+  // The live song as the server holds it, so remove_fact matches what the overlay was sent
   res.json(takeWrong(target.playing ? lastSent.song! : target.song, target.fact, target.playing));
 });
 
 /**
- * Wrong on one fact: off the stream if its song is on, with the rest of this play's bubbles from
- * the same source (`pulledWithWrong`), so neither Resume nor a restart brings them back; marked
- * for an earlier one. Either way its source is blocked.
+ * Wrong on one fact: if its song is on, off the stream with this play's others from its source
+ * (`pulledWithWrong`), never back on Resume or restart; else marked. Its source is blocked
  */
 function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
   const text = fact.text;
@@ -541,16 +503,14 @@ function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
     if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   }
   const article = markWrong(song, text, fact.source);
-  // The streamer's own fact: nothing to block, and it shows again until they change it.
+  // The streamer's own fact: nothing to block, and it shows again until they change it
   return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source), pulled };
 }
 
-/** When a hands-free Wrong last marked a bubble: the next press only counts bubbles that appeared after it. */
+// When a hands-free Wrong last marked a bubble: the next press counts only later bubbles
 let handsfreeAt = 0;
 
-// Hands-free Wrong (a key from a foot pedal or Stream Deck): the bubble on stream now, or the
-// one shown last for this song. The server knows when each went out, so the app needn't guess.
-// The test bubble is never in lastSent, so it's never the one marked.
+// Hands-free Wrong (a foot pedal or Stream Deck key): the server knows what's up (ARCHITECTURE.md: Wrong and Undo)
 control.post("/wrong-current", (_req, res) => {
   const song = lastSent.song;
   const facts = lastSent.facts ?? [];
@@ -563,14 +523,14 @@ control.post("/wrong-current", (_req, res) => {
   }
   handsfreeAt = Date.now();
   console.log(`[Server] Hands-free Wrong: ${fact.text.slice(0, 90)}`);
-  // The fact and song go back, so the dashboard can offer Undo and Report for them.
+  // The fact and song go back, so the dashboard can offer Undo and Report
   res.json({ ...takeWrong(song, fact, true), text: fact.text, song });
 });
 
-// Undo "Wrong": the source may be used for the song again. The removed fact stays off this play.
+// Undo "Wrong": the source may be used for the song again; the fact stays off this play
 control.post("/unwrong", (req, res) => {
   const article = typeof req.body?.article === "string" ? req.body.article : "";
-  // The song Wrong was pressed on, in full: list songs and videos are blocked by their ID.
+  // The song Wrong was pressed on, in full: list songs and videos are blocked by their ID
   const song = songFrom(req.body?.song);
   if (!song || !article) {
     res.status(404).json({ restored: false });
@@ -580,7 +540,7 @@ control.post("/unwrong", (req, res) => {
   res.json({ restored: true });
 });
 
-// The smoke test's check that the AI writes and screening keeps real captions.
+// The smoke test's check that the AI writes and screening keeps real captions
 control.post("/selftest", async (req, res) => {
   try {
     res.json(await selfTest(Number(req.body?.variant) || 0));
@@ -589,7 +549,7 @@ control.post("/selftest", async (req, res) => {
   }
 });
 
-/** The song an edit is for, exactly as the editor received it when it opened. */
+/** The song an edit is for, exactly as the editor received it */
 function songFrom(v: unknown): SSLSong | null {
   const s = v as Partial<SSLSong> | null | undefined;
   if (!s || typeof s.title !== "string" || typeof s.artist !== "string") return null;
@@ -602,24 +562,23 @@ function songFrom(v: unknown): SSLSong | null {
   };
 }
 
-// The song on stream now, or the one named (a song picked from the list), matched as a save would match it.
-// `off`: its switches, the artist's from whichever of their songs it was turned on for.
+// The song named (picked from the list), else the one on now, matched as a save would.
+// `off`: its switches, the artist's from whichever of their songs it was turned on for
 control.post("/song-facts/get", (req, res) => {
   const target = songFrom(req.body?.song) ?? (lastSent.song && songFrom(lastSent.song));
   res.json(target ? { song: target, entry: findSongFacts(target), off: factsOff(target) } : { song: null, entry: null, off: null });
 });
 
 /**
- * After a song's facts or switches change: forget what was found for it, and when it's the
- * song on now, show what it has now in place of the bubbles still to come, with no second
- * NOW PLAYING banner. Whether it was on now.
+ * After a song's facts or switches change: forget its found facts and, if it's on now, show the
+ * new ones in place of those to come, with no second banner. Returns whether it's on now
  */
 function showAgainIfOn(song: SSLSong): boolean {
   forgetSong(song);
   const current = songList.getCurrentSong();
   const playing = current ? songFrom(songList.toSong(current)) : null;
   const shown = sameSong(playing, song) && sameSong(songFrom(lastSent.song), song);
-  // A switch turned on takes the found facts off at once: an empty batch wouldn't clear them.
+  // A switch turned on takes the found facts off at once: an empty batch wouldn't clear them
   if (shown) pullSwitchedOff();
   if (shown && current) {
     generateFacts(songList.toSong(current), current)
@@ -632,19 +591,19 @@ function showAgainIfOn(song: SSLSong): boolean {
 }
 
 control.post("/song-facts", (req, res) => {
-  // Saved against the song the editor opened on, even if another song is playing now.
+  // Saved against the song the editor opened on, even if another is playing now
   const song = songFrom(req.body?.song);
   if (!song) {
     res.status(400).json({ saved: false });
     return;
   }
-  // Too many facts or too long: refused with the reason, never trimmed, so what's saved is what was typed.
+  // Over a limit: refused with the reason, never trimmed, so what's saved is what was typed
   const problem = songFactsProblem(req.body ?? {});
   if (problem) {
     res.status(400).json({ saved: false, error: problem });
     return;
   }
-  // A save that fails (a full disk, say) is an answer for the window, not a crash mid-stream.
+  // A failed save (a full disk) is an answer for the window, not a crash mid-stream
   try {
     saveSongFacts({
       title: song.title,
@@ -654,7 +613,7 @@ control.post("/song-facts", (req, res) => {
       songwriters: (req.body?.songwriters as string[] | undefined) ?? [],
       link: (req.body?.link as string | undefined) ?? "",
       facts: (req.body?.facts as string[] | undefined) ?? [],
-      // The switches (issue #262): left out, as an older app sends it, they're off.
+      // The switches (#262): left out (an older app), they're off
       noFacts: req.body?.noFacts === true,
       ...(typeof req.body?.noArtistFacts === "boolean" ? { noArtistFacts: req.body.noArtistFacts as boolean } : {}),
     });
@@ -663,13 +622,11 @@ control.post("/song-facts", (req, res) => {
     res.status(500).json({ saved: false });
     return;
   }
-  // Answered now: the app gives up after 3 seconds, and a slow AI made a save look failed.
-  // Shown now, without a second NOW PLAYING banner, if that song is still on.
+  // Answered now: the app gives up after 3 seconds, and a slow AI made a save look failed
   res.json({ saved: true, shown: showAgainIfOn(song) });
 });
 
-// "No facts for this song" and "No facts for this artist" (issue #262), one click under Earlier songs:
-// the streamer's own facts still show. On the song that's on now, it applies at once.
+// "No facts for this song" / "for this artist" (#262): the streamer's own facts still show
 control.post("/facts-off", (req, res) => {
   const song = songFrom(req.body?.song);
   const kind = req.body?.kind;
@@ -685,15 +642,15 @@ control.post("/facts-off", (req, res) => {
     return;
   }
   forgetSong(song);
-  // On the song that's on now (or, for the artist, any of theirs that is), the found facts come off at once.
-  // The streamer's own keep their place; turned off again, the found ones are back the next time it plays.
+  // On now (or any of the artist's on now): found facts off at once, the streamer's own stay.
+  // Switched off again, the found ones are back the next time it plays
   const pulled = req.body.on ? pullSwitchedOff() : 0;
   res.json({ saved: true, off: factsOff(song), pulled });
 });
 
 /**
- * Takes off the stream the bubbles of the song on now that its switches no longer allow
- * (`allowedFacts`), like Wrong does, so neither a restart nor Resume brings them back. How many.
+ * Takes off the song on now's bubbles its switches no longer allow, like Wrong (never back on
+ * restart or Resume). Returns how many
  */
 function pullSwitchedOff(): number {
   const song = lastSent.song;
@@ -704,13 +661,13 @@ function pullSwitchedOff(): number {
   return gone.length;
 }
 
-// The facts that went out to the overlay, oldest first, for the app's reports (aired-facts.ts).
+// The facts that went out, oldest first, for the app's reports (aired-facts.ts)
 control.post("/aired", (_req, res) => {
   res.json({ facts: aired.list() });
 });
 
-// "Prepare my songs" (issue #293): {run: true} starts or carries on, {run: false} stops at once, keeping what's done.
-// The app decides when (issue #295); the server refuses while an overlay is connected, and stops when one connects.
+// "Prepare my songs" (#293): {run: true} starts or carries on, {run: false} stops, keeping what's done.
+// The app decides when (#295); refused while an overlay is connected
 control.post("/prepare", (req, res) => {
   const refused = req.body?.run === true ? cantPrepare() : "";
   if (req.body?.run === true && !refused) preparer.start();
@@ -718,12 +675,12 @@ control.post("/prepare", (req, res) => {
   res.json({ ...preparer.status(), ...(refused ? { refused } : {}) });
 });
 
-// Where preparing stands, and how many songs are ready (issue #294), for the app's window. Information only.
+// Where preparing stands and how many songs are ready (#294), for the app's window
 control.post("/prepare/status", (_req, res) => {
   res.json({ ...preparer.status(), coverage: coverage(prepTargets(), preparedStore) });
 });
 
-// "Add facts for another song": find it on the song list as the musician types.
+// "Add facts for another song": search the song list as the musician types
 control.post("/songs/search", songSearchRoute(songList));
 
 app.use("/control", control);
@@ -735,14 +692,13 @@ app.get("/obs-overlay", (req, res) => {
   res.redirect("/obs/obs-overlay.html" + req.url.replace(/^[^?]*/, ""));
 });
 
-/** How long after starting the server may go without reaching the song source before health says so. */
-const STARTUP_GRACE_MS = 30_000;
+const STARTUP_GRACE_MS = 30_000; // ms after start before not reaching the song source counts as degraded
 
 app.get("/health", (_req, res) => {
   const current = songList.getCurrentSong();
   const queueAgeMs = songList.lastSuccessfulFetchAgeMs();
-  // Never having reached the song source counts too, once startup has had its chance.
-  // A source told to wait (Retry-After) isn't stale; restarting would only undo the wait.
+  // Never reached counts too, after startup. A source told to wait (Retry-After) isn't stale:
+  // a restart would only undo the wait
   const stale = !songList.backingOff?.() && (queueAgeMs === null
     ? process.uptime() * 1000 > STARTUP_GRACE_MS
     : queueAgeMs > songList.pollIntervalMs() * 3);
@@ -760,16 +716,16 @@ app.get("/health", (_req, res) => {
     topic: config.topic,
     currentSong: current ? songList.displayTitle(current) : null,
     lastQueueFetchAgeMs: queueAgeMs,
-    // For the app's watchdog: failing fetches (an outage) keep these small; only a stuck polling loop grows them.
+    // For the app's watchdog: failing fetches (an outage) keep this small; only a stuck poll loop grows it
     lastPollAttemptAgeMs: songList.lastPollAttemptAgeMs?.() ?? null,
     pollIntervalMs: songList.pollIntervalMs(),
     eventsConnected: songList.isEventStreamConnected(),
-    // How songs reach BubbleFacts, in words for the dashboard ("Hearing your queue live").
+    // How songs arrive, in words for the dashboard ("Hearing your queue live")
     listening: listeningLine(songList),
-    // How long the AI took for the song on now ("Facts took 45 s"); empty when it wrote nothing for it.
+    // How long the AI took for the song on now ("Facts took 45 s"); empty when it wrote nothing
     factsTook: factsTookLine(current ? aiTimeFor(songList.toSong(current)) : null),
-    // Whether the built-in AI is asking for less to keep up with a busy computer, in words for
-    // the dashboard ("Your computer is busy, so quick facts only"), and the measures behind it (issue #314).
+    // Whether the built-in AI asks for less on a busy computer, in words ("Your computer is busy,
+    // so quick facts only"), and the measures behind it (#314)
     pace: pace.line,
     computer: pace,
     obsClients: clients.size,
@@ -787,12 +743,11 @@ app.get("/health", (_req, res) => {
   });
 });
 
-/** What the overlay is showing now. Read-only. */
+// What the overlay is showing now; read-only
 app.get("/recent", (_req, res) => {
-  // "ready" and "outcome" let the dashboard tell still-looking from nothing-reliable from failed.
+  // "ready" and "outcome" tell still looking from nothing reliable from failed
   const song = songFrom(lastSent.song);
-  // Each earlier song with its switches, for one click under Earlier songs.
-  // Which bubble is up, from the overlay's own schedule; none while paused.
+  // Which bubble is up, on the overlay's schedule (none while paused); earlier songs with their switches
   const onStream = paused ? { up: [], nextInSeconds: null } : bubbleNow(lastSent.facts ?? [], factsShownAt);
   res.json({ ...lastSent, onStream, ready: Boolean(lastSent.ready), outcome: song && lastSent.ready ? outcomeFor(song) : "", earlier: earlier.map((e) => ({ ...e, off: factsOff(e.song) })) });
 });
@@ -803,7 +758,7 @@ songList.onCurrentSongChange((current) => {
   onSongChange(current).catch((err) => console.error("[Server] Song change failed:", err));
 });
 
-// Listen before connecting upstream, so a slow API never delays the overlay's socket.
+// Listen before connecting upstream, so a slow API never delays the overlay's socket
 server.listen(config.port, config.host, () => {
   console.log(`[Server] Listening on http://${config.host}:${config.port} (AI: ${config.aiProvider}, topic: ${config.topic})`);
   console.log(`[Server] Tracking streamer "${config.sslStreamerName || config.seChannel || (config.songSource === "nowplaying" ? config.streamerDisplayName : "(from the token)")}" on ${songList.name}`);
@@ -811,8 +766,8 @@ server.listen(config.port, config.host, () => {
 
 void warmUpBuiltin();
 
-// Under the desktop app, the app refreshes the StreamerSongList sign-in and passes each new token here:
-// through Electron's parentPort, or Node's IPC channel when the app runs the server under Node.js (Linux).
+// Messages from the desktop app (new StreamerSongList tokens, Twitch About answers): Electron's
+// parentPort, or Node's IPC channel when it runs the server under Node.js (Linux)
 function onAppMessage(data: unknown): void {
   const msg = data as { type?: string; token?: unknown };
   if (msg?.type === "twitch-about") onAboutAnswer(msg);
@@ -826,10 +781,9 @@ type ParentPort = { on(event: "message", listener: (e: { data: unknown }) => voi
 const parentPort = (process as unknown as { parentPort?: ParentPort }).parentPort;
 parentPort?.on("message", ({ data }) => onAppMessage(data));
 if (process.send) process.on("message", onAppMessage);
-// A promise someone forgot to catch must not end the server mid-stream: the bubbles would stop
-// until the app restarts it. Log it so it can be fixed where it started.
+// An uncaught promise mustn't end the server mid-stream (bubbles stop until the app restarts it): log it
 process.on("unhandledRejection", (err) => console.error("[Server] Unhandled error, still running:", err));
-// The app holds the Twitch sign-in, so it reads a channel's About for the server (twitch-about.ts).
+// The app holds the Twitch sign-in, so it reads a channel's About for the server (twitch-about.ts)
 if (parentPort) connectAboutAsker((m) => parentPort.postMessage(m));
 else if (process.send) connectAboutAsker((m) => process.send?.(m));
 

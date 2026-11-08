@@ -24,31 +24,23 @@ import {
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
 
-/**
- * A YouTube Data API key restricted to that API, added to package.json at
- * build time from the YOUTUBE_API_KEY secret (never committed). Used to read
- * the exact artist and track of auto-generated uploads (issue #26).
- */
+// package.json's build-time extras; its YouTube Data API key (never committed) reads auto-generated uploads (#26)
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string }; edition?: string } };
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || PACKAGE.bubblefacts?.youtubeApiKey || "";
-/** The commit this was built from, and release, test build or dev (build.ts). */
 const BUILD = buildInfo(PACKAGE);
-/**
- * BubbleFacts Lite has no AI engine and never downloads a model (build.ts). From source,
- * BUBBLEFACTS_EDITION=lite npm run app shows Lite's screens; a packaged app goes by its build only.
- */
+/** Lite (retired): from source, BUBBLEFACTS_EDITION=lite npm run app shows its screens */
 const EDITION: Edition = !app.isPackaged && process.env.BUBBLEFACTS_EDITION === "lite" ? "lite" : editionOf(PACKAGE);
-/** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
+/** "2.0.0-beta.12 test build (c4ee826)", for the window, the log and reports */
 const versionWithBuild = () => versionLabel(app.getVersion(), BUILD, EDITION);
-/** Who writes the facts, for problem reports: Lite's own choice is no AI, not the built-in one. */
+/** Who writes the facts, for reports: Lite's "builtin" is no AI */
 const reportedAi = () => (EDITION === "lite" && settings.ai === "builtin" ? "none" : settings.ai);
 import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
 import { prepareEnv, registerPreparing } from "./preparing";
 
-/** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
+// BubbleFacts desktop app: setup, the dashboard, and a supervised fact server
 
-// A second copy hands over to the first (which shows its window) and leaves at once.
+// A second copy hands over to the first (which shows its window) and leaves at once
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.exit(0);
 
@@ -67,7 +59,7 @@ const ALLOWED_HOSTS = [
   "streamelements.com", "en.wikipedia.org", "discord.gg",
 ];
 
-// Loaded once the app is ready: before that, Windows and Linux can't read the keychain.
+// Loaded once the app is ready: before that, Windows and Linux can't read the keychain
 let settings: Settings = { ...DEFAULTS };
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -75,10 +67,9 @@ let quitting = false;
 let toldAboutTray = false;
 let builtinFailed = false;
 let update: Release | null = null;
-/** Where the in-app update stands: nothing yet, downloading, checked and ready, or failed (then the download page is offered). */
+/** The in-app update: idle, downloading, checked and ready, or failed (then the download page is offered) */
 let updating: { stage: "idle" | "downloading" | "ready" | "failed"; progress: number; file: string; error: string } = { stage: "idle", progress: 0, file: "", error: "" };
 let download: AbortController | null = null;
-/** The built-in AI's download, shown on the dashboard. */
 let modelDownload: (Progress & { error?: string }) | null = null;
 let downloadRetry: NodeJS.Timeout | null = null;
 let downloadFailures = 0;
@@ -86,46 +77,38 @@ let signingIn: AbortController | null = null;
 let signInExpired = false;
 let refreshTimer: NodeJS.Timeout | null = null;
 let refreshing: Promise<void> | null = null;
-/** Getting the chosen model into the musician's own Ollama, so they never run "ollama pull". */
+/** Pulling the chosen model into their own Ollama, so they never run "ollama pull" */
 let ollama: { pulling?: string; error?: string } | null = null;
-/** Bubbles paused from the dashboard or tray. Not saved: a restart shows bubbles again. */
+/** Pause bubbles; not saved, so restarting the app shows bubbles again */
 let paused = false;
 
-// Linux builds ship a standard Node.js for the fact server (see Supervisor).
+// Linux builds ship a standard Node.js for the fact server (see Supervisor)
 const nodeRuntime = path.join(process.resourcesPath, "runtime", "node");
 const supervisor = new Supervisor(
   path.join(ROOT, "dist/backend/server.js"),
   DIRS.logs,
   process.platform === "linux" && fs.existsSync(nodeRuntime) ? nodeRuntime : null
 );
-/** The landscape overlay, or with `vertical` the 1080x1920 one for phone-shaped streams. */
+/** The landscape overlay, or with `vertical` the 1080x1920 one */
 const overlayFile = (vertical = false) => path.join(DIRS.overlay, vertical ? VERTICAL_OVERLAY_FILE : OVERLAY_FILE);
 
-/** What the window says about a failure: plain words there, the technical side in the log (and so in reports). */
+/** A failure in plain words for the window; the technical side goes in the log (and so in reports) */
 function shown(where: string, err: unknown, opts: PlainOptions = {}): string {
   supervisor.note(`[App] ${where}: ${errorDetail(err)}`);
   return plainError(err, opts);
 }
 const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
 
-/**
- * Run as soon as the song list is connected, so the test bubble can appear
- * during setup. While the built-in AI is still downloading, songs get facts
- * that need no AI; the server restarts with the AI once it's ready.
- */
+/** Runs once songs are connected, so the test bubble shows in setup; until the AI is downloaded, no-AI facts only */
 function canStart(): boolean {
   return songSourceReady(settings);
 }
 
-/** The built-in model chosen in Settings, and the one it replaces when the quality is switched. */
+/** The model chosen in Settings, and the one it replaces on a switch of quality */
 const chosenModel = (): ModelFile => modelFor(settings.aiQuality);
 const otherModel = (): ModelFile => (chosenModel() === MODEL ? MODEL_HIGH : MODEL);
 
-/**
- * The model the server writes with: the chosen one once it's downloaded.
- * While a switch of quality downloads the new one, the one already there
- * keeps writing facts. Null when neither is downloaded.
- */
+/** The model the server writes with: the chosen one once downloaded, else the other during a switch; null if neither */
 function activeModel(): ModelFile | null {
   if (modelReady(DIRS.models, chosenModel())) return chosenModel();
   if (modelReady(DIRS.models, otherModel())) return otherModel();
@@ -134,13 +117,13 @@ function activeModel(): ModelFile | null {
 
 function serverEnv(): Record<string, string> {
   const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents"), edition: EDITION });
-  // In Lite, toServerEnv already chose no AI for "builtin": there is no model to look for.
+  // Lite: toServerEnv already chose no AI
   const builtinAi = settings.ai === "builtin" && EDITION === "full";
   const active = builtinAi ? activeModel() : null;
   if (builtinAi && (builtinFailed || !active)) env.AI_PROVIDER = "none";
   else if (builtinAi && active) {
     env.MODEL_PATH = modelPath(DIRS.models, active);
-    // Preparing's faster first-pass model (issue #296): only with a built-in model, so never in Lite.
+    // Preparing's faster first-pass model (#296)
     Object.assign(env, prepareEnv(settings, DIRS.models, (m) => modelReady(DIRS.models, m)));
   }
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
@@ -150,15 +133,12 @@ function serverEnv(): Record<string, string> {
   return env;
 }
 
-/** What the running server was started with, to tell a save that changes nothing for it. */
+/** What the running server was started with, to spot a save that changes nothing for it */
 let serverSignature = "";
 
 /**
- * Start the server, or restart it when something it uses has changed. A
- * save that doesn't touch the server (finishing setup, "start at login")
- * leaves it running: a restart mid-song announces the song again and
- * rewrites its facts (seen on a live stream, issue #55). `force` restarts
- * regardless, for a new sign-in or token.
+ * Start the server, or restart it only when something it uses changed: a restart mid-song announces
+ * the song again and rewrites its facts (seen on a live stream, #55). `force`: a new sign-in or token
  */
 function startServer(force = false): void {
   installOverlay(path.join(ROOT, "frontend/obs"), DIRS.overlay, settings.port, {
@@ -183,7 +163,7 @@ function state() {
   return {
     settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, shareKeySet: !!shareKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
-    // Where the Streamling and Nightbot presets look when Documents isn't in the usual place; empty when it is.
+    // Where the Streamling and Nightbot presets look when Documents is elsewhere; empty when it isn't
     nowPlayingFolders: presetFoldersShown(),
     twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitch.userCode, error: twitch.error },
     paused,
@@ -195,21 +175,19 @@ function state() {
     status: supervisor.status,
     overlayPath: overlayFile(),
     verticalOverlayPath: overlayFile(true),
-    // Lite or full: the window says what Lite does and hides what it doesn't have.
     edition: EDITION,
-    // Ready when some model can write facts, including the old one during a switch of quality. Lite has none to wait for.
+    // Some model can write facts, the old one during a switch included
     modelReady: EDITION === "lite" || activeModel() !== null,
-    // Downloading the newly chosen quality while the other model keeps writing facts.
     modelSwitching: EDITION === "full" && activeModel() === otherModel(),
     modelLicense: chosenModel().license,
-    // Larger AI needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
+    // Larger AI needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks
     totalMemory: os.totalmem(),
     arch: process.arch,
     version: app.getVersion(),
     versionLabel: versionWithBuild(),
     testBuild: BUILD.kind === "test",
     platform: process.platform,
-    // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
+    // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected)
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
     wrongKeyProblem: wrongKey.problem,
@@ -220,9 +198,9 @@ function state() {
   };
 }
 
-// --- What's new after an update ----------------------------------------
+// --- What's new after an update ---
 
-/** This version's highlights, shown on the dashboard until dismissed. Null on a new install. */
+/** This version's highlights, shown on the dashboard until dismissed; null on a new install */
 let whatsNew: WhatsNew | null = null;
 
 function checkWhatsNew(): void {
@@ -239,33 +217,31 @@ function markWhatsNewSeen(): void {
   saveSettings(settings);
 }
 
-// --- Supervisor events -------------------------------------------------
+// --- Supervisor events ---
 
 let serverWasRunning = false;
 supervisor.on("status", (status: Status) => {
-  // A server that just came up is a new one: Prepare my songs asks it again rather than waiting its usual while.
+  // A server that just came up is a new one: Prepare my songs asks it at once
   const running = status.state === "running";
   if (running && !serverWasRunning) preparing.serverRestarted();
   serverWasRunning = running;
-  // The streamer's Pause is the truth: a server that came back without it is told again.
+  // The streamer's Pause wins: a server that came back without it is told again
   if (typeof status.health?.paused === "boolean" && status.health.paused !== paused) void control("pause", { paused });
-  // The queue turned the sign-in down, or StreamerSongList stopped answering: is the sign-in still good? (issue #182)
+  // Queue refused or StreamerSongList silent: is the sign-in still good? (#182)
   const h = status.health;
   if (usesSignIn() && h && (h.status === "unauthorized" || h.degradedReason === OUTAGE_REASON)) void signInCheck.check("queue", settings.token);
   else if (h?.status === "ok") setSongListDown(false);
   send("status", status);
   updateTray(status);
 });
-// Another program had the port, so the server moved up. The overlay file keeps the
-// usual port and looks at the next few itself, so OBS finds the server either way.
+// The server moved to a higher port; the overlay tries the next few itself, so OBS still finds it
 supervisor.on("port", () => send("state", state()));
 supervisor.on("gpu-off", () => {
   settings.forceCpu = true;
   saveSettings(settings);
 });
-// The newly chosen model is running, so the one it replaced (or a download of it
-// that was stopped) only takes up disk space. Switching back downloads it again.
-// Not deleted before the new one loads: if it can't run here, switching back is instant.
+// The chosen model loaded: delete the replaced one (or its partial download), not before,
+// so one that can't run here can be switched back without a download
 supervisor.on("model-loaded", (loaded: string) => {
   if (settings.ai !== "builtin" || loaded !== modelPath(DIRS.models, chosenModel())) return;
   const other = modelPath(DIRS.models, otherModel());
@@ -289,11 +265,10 @@ supervisor.on("builtin-failed", () => {
   supervisor.restart(serverEnv());
 });
 
-// --- The built-in AI's download ------------------------------------------
+// --- The built-in AI's download ---
 
-/** Download the AI in the background whenever it's chosen and missing, retrying on its own. */
+/** Download the AI in the background whenever it's chosen and missing, retrying on its own */
 async function ensureModel(): Promise<void> {
-  // Lite never downloads a model: it has no engine to run one.
   if (EDITION === "lite" || settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
   if (downloadRetry) clearTimeout(downloadRetry);
   downloadRetry = null;
@@ -321,7 +296,7 @@ async function ensureModel(): Promise<void> {
     const stopped = download?.signal.aborted;
     download = null;
     send("state", state());
-    // Stopped by a switch away and back again, or to the other quality: pick up the chosen one.
+    // Stopped by a switch away and back, or to the other quality: pick up the chosen one
     if (stopped && !quitting && settings.ai === "builtin") void ensureModel();
   }
 }
@@ -333,7 +308,7 @@ function stopModelDownload(): void {
   modelDownload = null;
 }
 
-// --- The musician's own Ollama --------------------------------------------------
+// --- The musician's own Ollama ---
 
 async function ensureOllamaModel(): Promise<void> {
   if (settings.ai !== "ollama" || ollama?.pulling) {
@@ -372,16 +347,16 @@ async function ensureOllamaModel(): Promise<void> {
   }
 }
 
-// --- StreamerSongList sign-in ---------------------------------------------
+// --- StreamerSongList sign-in ---
 
-/** StreamerSongList stopped answering while the sign-in still holds: the dashboard says there's nothing to do. */
+/** StreamerSongList stopped answering while the sign-in still holds: the dashboard says there's nothing to do */
 let songListDown = false;
 function setSongListDown(down: boolean): void {
   if (down === songListDown) return;
   songListDown = down;
   send("state", state());
 }
-/** The app's own StreamerSongList sign-in is in use (a pasted token isn't checked: issue #182). */
+/** The app's own StreamerSongList sign-in is in use (a pasted token isn't checked, #182) */
 const usesSignIn = () => settings.songSource === "streamersonglist" && settings.tokenKind === "oauth" && !!settings.token;
 const signInCheck = new SignInCheck({
   validate: (token) => validateToken(token),
@@ -390,7 +365,7 @@ const signInCheck = new SignInCheck({
   songListDown: setSongListDown,
 });
 
-/** Refresh five minutes before the hour-long access token runs out. */
+/** Refresh five minutes before the hour-long access token runs out */
 function scheduleRefresh(delayMs?: number): void {
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = null;
@@ -399,7 +374,7 @@ function scheduleRefresh(delayMs?: number): void {
   refreshTimer = setTimeout(() => void refreshSignIn(), due);
 }
 
-/** One refresh at a time: a refresh token works once, so two at once would sign the musician out. */
+/** One refresh at a time: a refresh token works once, so two at once would sign the musician out */
 function refreshSignIn(): Promise<void> {
   refreshing ??= doRefresh().finally(() => (refreshing = null));
   return refreshing;
@@ -409,9 +384,9 @@ async function doRefresh(): Promise<void> {
   const used = settings.refreshToken;
   try {
     const t = await refresh(used);
-    // A new sign-in while this was running wins.
+    // A new sign-in while this ran wins
     if (settings.refreshToken !== used) return;
-    // The old refresh token stopped working the moment this one was issued: save before anything else.
+    // The old refresh token died when this one was issued: save before anything else
     settings = { ...settings, token: t.accessToken, refreshToken: t.refreshToken, tokenExpiresAt: t.expiresAt };
     saveSettings(settings);
     supervisor.updateToken(t.accessToken);
@@ -420,36 +395,32 @@ async function doRefresh(): Promise<void> {
       send("state", state());
     }
     scheduleRefresh();
-    // Does the new token hold? Told apart from StreamerSongList being down (issue #182).
+    // Does the new token hold? Told apart from StreamerSongList being down (#182)
     if (usesSignIn()) void signInCheck.check("refresh", t.accessToken);
   } catch (err) {
     if (settings.refreshToken !== used) return;
     if (err instanceof SignInExpired) {
-      // A now playing file doesn't use the sign-in, so there's nothing to ask the musician to redo.
+      // A now playing file doesn't use the sign-in
       if (settings.songSource === "nowplaying") return;
       signInExpired = true;
       send("state", state());
       notify("Sign in to StreamerSongList again", "BubbleFacts can't see your queue until you do. Open BubbleFacts and click Sign in.");
     } else {
-      scheduleRefresh(60_000); // Offline or a hiccup: try again shortly.
+      scheduleRefresh(60_000); // offline or a hiccup: try again in a minute
     }
   }
 }
 
-// --- Window and tray ---------------------------------------------------
+// --- Window and tray ---
 
 function asset(name: string): string {
   return path.join(ROOT, "desktop/build", name);
 }
 
-/** How long to wait for the window before reading the keychain anyway (see the unlock below). */
-const UNLOCK_WAIT_FALLBACK_MS = 120_000;
+const UNLOCK_WAIT_FALLBACK_MS = 120_000; // ms to wait for the window before reading the keychain anyway
 
-/**
- * Zoom like a browser (Ctrl, or Command on a Mac, with plus, minus or 0): the window has no menu
- * on Windows and Linux to do it. Steps are a browser's, up to 300%.
- */
-const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+/** Zoom keys like a browser's (Ctrl or Command with plus, minus, 0): Windows and Linux have no menu for it */
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]; // a browser's steps, up to 300%
 
 function addZoomKeys(window: BrowserWindow): void {
   window.webContents.on("before-input-event", (e, input) => {
@@ -467,7 +438,7 @@ function addZoomKeys(window: BrowserWindow): void {
   });
 }
 
-/** Closing the window hides it; the app keeps running in the menu bar or tray. The first time, say where to find it. */
+/** Closing hides the window to the menu bar or tray; the first time, say where to find it */
 function hideToTrayOnClose(window: BrowserWindow): void {
   window.on("close", (e) => {
     if (quitting) return;
@@ -475,7 +446,6 @@ function hideToTrayOnClose(window: BrowserWindow): void {
     window.hide();
     if (toldAboutTray) return;
     toldAboutTray = true;
-    // Windows hides tray icons behind the ^ next to the clock.
     const where = process.platform === "darwin"
       ? "the BubbleFacts icon in the menu bar"
       : process.platform === "win32"
@@ -514,7 +484,7 @@ function createWindow(): void {
   hideToTrayOnClose(win);
 }
 
-/** The About page in the window: the same on every system (Windows has no About panel of its own here). */
+/** The About page in the window, the same on every system (Windows has no About panel here) */
 function showAbout(): void {
   showWindow();
   const go = () => win?.webContents.send("show-view", "about");
@@ -526,7 +496,7 @@ function showWindow(): void {
   if (!win) createWindow();
   win?.show();
   win?.focus();
-  // A window hidden to the tray, then shown on another desktop Space, can stay blank on macOS until repainted.
+  // macOS: a window hidden to the tray, then shown on another Space, can stay blank until repainted
   win?.webContents.invalidate();
 }
 
@@ -561,17 +531,17 @@ function notify(title: string, body: string): void {
   if (Notification.isSupported()) new Notification({ title, body }).show();
 }
 
-/** The browser, only for https addresses on ALLOWED_HOSTS: sign-in pages and reports too. */
+/** Open in the browser, only https on ALLOWED_HOSTS */
 function openExternal(url: string): void {
   try {
     const u = new URL(url);
     if (u.protocol === "https:" && ALLOWED_HOSTS.includes(u.hostname)) void shell.openExternal(url);
   } catch {
-    // Ignore anything that isn't a valid address.
+    // Not a valid address
   }
 }
 
-/** Start at login. macOS and Windows have an API; Linux uses the autostart folder. */
+/** Start at login: an API on macOS and Windows, the autostart folder on Linux */
 function applyStartAtLogin(): void {
   if (process.platform === "linux") {
     const file = path.join(os.homedir(), ".config/autostart/bubblefacts.desktop");
@@ -584,14 +554,14 @@ function applyStartAtLogin(): void {
         fs.unlinkSync(file);
       }
     } catch {
-      // Not fatal: the musician can start it by hand.
+      // Not fatal: the musician can start it by hand
     }
     return;
   }
   app.setLoginItemSettings({ openAtLogin: settings.startAtLogin, args: ["--hidden"] });
 }
 
-/** Ask the running server to do something only the app may ask for. */
+/** Ask the running server for something only the app may ask (`/control/<pathname>`); null on failure */
 async function control(pathname: string, body: unknown = {}): Promise<Record<string, unknown> | null> {
   try {
     const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/control/${pathname}`, {
@@ -601,7 +571,7 @@ async function control(pathname: string, body: unknown = {}): Promise<Record<str
       signal: AbortSignal.timeout(3_000),
     });
     if (res.ok) return (await res.json()) as Record<string, unknown>;
-    // A refusal with a reason (a fact too long to save, say) goes to the window, so it can say why.
+    // A refusal with a reason (a fact too long to save) goes to the window to show
     const refusal = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     return refusal && typeof refusal.error === "string" ? refusal : null;
   } catch {
@@ -611,18 +581,14 @@ async function control(pathname: string, body: unknown = {}): Promise<Record<str
 
 async function setPaused(next: boolean): Promise<void> {
   paused = next;
-  // A server the supervisor restarts later (after a crash or a stall) starts paused too.
+  // A server the supervisor restarts later (crash, stall) starts paused too
   supervisor.setEnv({ BUBBLEFACTS_PAUSED: paused ? "1" : "" });
   await control("pause", { paused });
   updateTray(supervisor.status);
   send("state", state());
 }
 
-/**
- * Hands-free Wrong: the key from a foot pedal or Stream Deck. The server picks
- * the bubble (on stream now, or shown last); the dashboard shows the usual
- * note with Undo. Nothing on stream says it happened, and no sound.
- */
+/** Hands-free Wrong (foot pedal, Stream Deck): the server picks the bubble; nothing on stream says so, no sound */
 const wrongKey = new WrongKeyListener(globalShortcut, () => {
   void control("wrong-current").then((result) => {
     if (result?.removed) backUpNow();
@@ -630,29 +596,25 @@ const wrongKey = new WrongKeyListener(globalShortcut, () => {
   });
 });
 
-// --- Messages from the window ------------------------------------------
+// --- Messages from the window ---
 
 /**
- * Only BubbleFacts' own window may ask for anything. Navigation is already
- * blocked, so this is a second lock: if a page ever got into the window, it
- * still couldn't press Remove my data or install an update. Every
- * message registered with handle() below goes through it, including ones
- * added later; start-drag, an ipcMain.on, checks for itself.
+ * Only our own window may ask: a second lock after blocked navigation, so a page that got in still
+ * couldn't Remove my data or install an update. handle() applies it; start-drag (ipcMain.on) checks itself
  */
 const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean => {
   try {
-    // Compared loosely (drive letters and escaping differ between systems): a local file, and ours.
+    // Loose match (drive letters and escaping differ by system): a local file, and ours
     const url = new URL(e.senderFrame?.url ?? "");
     return url.protocol === "file:" && url.pathname.endsWith("/desktop/renderer/index.html");
   } catch {
     return false;
   }
 };
-/** Register a message from the window: refused from any other page, and a failure reaches the window in plain words. */
+/** Register a message from the window: refused from any other page, failures in plain words */
 function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
   ipcMain.handle(channel, (e, ...args) => {
     if (!fromOurPage(e)) throw new Error(`"${channel}" isn't available to this page`);
-    // Anything that slips through still reaches the window in plain words.
     return Promise.resolve()
       .then(() => listener(e, ...args))
       .catch((err) => {
@@ -668,25 +630,25 @@ handle("whats-new-seen", () => {
 
 handle("test-bubble", () => control("test"));
 handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
-  // Only a click in the On stream now list is live; one under Earlier songs never takes a bubble off.
+  // Only On stream now is live; Earlier songs never takes a bubble off
   const result = await control("wrong", { text: String(text), song, live: live === true });
   backUpNow();
   return result;
 });
 handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
-// Read from the file, so the list works even before the songs are connected.
+// From the file, so the list works before songs are connected
 handle("list-song-facts", () => {
   const list = readJson("song-facts.json");
   return Array.isArray(list) ? list : [];
 });
-// "Add facts for another song": songs on the list that match what's typed, so the title is picked, not retyped.
+// "Add facts for another song": list songs matching what's typed, to pick rather than retype
 handle("search-songs", (_e, query: unknown) => control("songs/search", { query: String(query ?? "").slice(0, 100), limit: 8 }));
 handle("save-song-facts", async (_e, data: unknown) => {
   const result = await control("song-facts", data);
   backUpNow();
   return result;
 });
-// "No facts for this song" or "for this artist", one click under Earlier songs (issue #262).
+// "No facts for this song" or "for this artist" under Earlier songs (#262)
 handle("set-facts-off", async (_e, song: unknown, kind: unknown, on: unknown) => {
   const result = await control("facts-off", { song, kind: kind === "artist" ? "artist" : "song", on: on === true });
   backUpNow();
@@ -699,12 +661,12 @@ handle("unwrong-fact", async (_e, article: string, song: unknown) => {
 });
 handle("set-paused", (_e, next: boolean) => setPaused(Boolean(next)));
 
-/** Prepare my songs (preparing.ts): its window messages, and when the computer is free for it. */
+/** Prepare my songs (preparing.ts): its window messages, and when the computer is free for it */
 const preparing = registerPreparing({
   handle,
   control,
   conditions: () => ({
-    // Lite has no built-in AI, and its window hides the setting: preparing never runs there.
+    // Never in Lite
     enabled: settings.prepareSongs && EDITION === "full",
     setupDone: settings.setupComplete,
     ai: settings.ai === "groq" || settings.ai === "anthropic" ? "online" : settings.ai === "builtin" && (builtinFailed || !activeModel()) ? "none" : "local",
@@ -716,7 +678,7 @@ const preparing = registerPreparing({
 
 handle("get-state", () => state());
 
-/** A connection test's technical side goes in the log; the window gets the plain reason. */
+/** A connection test's technical side goes in the log; the window gets the plain reason */
 const logged = <T extends { ok: boolean; detail?: string }>(where: string, r: T): T => {
   if (!r.ok && r.detail) supervisor.note(`[App] ${where}: ${r.detail}`);
   return r;
@@ -734,7 +696,7 @@ handle("test-sharing", async (_e, url: string, channel: string, key: string) =>
   logged("Sharing test", await testSharing(String(url ?? ""), String(channel ?? ""), String(key ?? "") || settings.shareKey))
 );
 
-/** Choose the text file another app writes the playing song to. The window saves the path with the other settings. */
+/** Choose the file another app writes the playing song to; the window saves the path with the settings */
 handle("choose-now-playing-file", async () => {
   const options = {
     title: "Choose the file your music app writes the song to",
@@ -747,7 +709,7 @@ handle("choose-now-playing-file", async () => {
   return { ok: true, path: filePaths[0] };
 });
 
-/** The settings with the window's changes in: a blank secret field keeps the one already saved, and a pasted token replaces the sign-in. */
+/** Settings with the window's changes: a blank secret keeps the saved one, a pasted token replaces the sign-in */
 function mergeSettings(changes: Partial<Settings>): Settings {
   const next: Settings = sanitize({ ...settings, ...changes });
   for (const key of ["token", "seJwt", "groqKey", "anthropicKey", "shareKey"] as const) if (!changes[key]) next[key] = settings[key];
@@ -755,28 +717,27 @@ function mergeSettings(changes: Partial<Settings>): Settings {
   return next;
 }
 
-/** After a save: make what changed take effect. `settings` already holds the new values; `previous` is what they replaced. */
+/** After a save, make changes take effect: `settings` holds the new values, `previous` the old */
 function applySettingsChange(previous: Settings, changes: Partial<Settings>): void {
   const aiChanged = settings.ai !== previous.ai;
   const qualityChanged = settings.aiQuality !== previous.aiQuality;
   const channelChanged = settings.updateChannel !== previous.updateChannel;
   const sourceChanged = settings.songSource !== previous.songSource;
-  // A new token (pasted, or a StreamElements one) or a switch of source starts over; health reports if it's still refused.
+  // A new token or a switch of source starts over; health reports if it's still refused
   const newSignIn = Boolean(changes.token || changes.seJwt || sourceChanged);
   if (aiChanged || qualityChanged) builtinFailed = false;
   saveSettings(settings);
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
   if (newSignIn) signInExpired = false;
-  if (changes.token) scheduleRefresh(); // Stops refreshing the replaced sign-in.
-  // A download of the quality no longer chosen stops; ensureModel then starts the chosen one.
+  if (changes.token) scheduleRefresh(); // stops refreshing the replaced sign-in
+  // Stop the old quality's download; ensureModel starts the chosen one
   if (qualityChanged) stopModelDownload();
   if (settings.ai === "builtin") void ensureModel();
   else stopModelDownload();
   void ensureOllamaModel();
-  // A new sign-in always starts the server over; anything else only if the server would notice.
   startServer(newSignIn);
-  // A new look or bubble size goes to the running server, which changes every overlay at once: no restart, no Refresh in OBS.
+  // A new look or size goes to the running server, which changes every overlay: no restart, no Refresh in OBS
   const style = styleEnv(settings);
   if (JSON.stringify(style) !== JSON.stringify(styleEnv(previous))) {
     supervisor.setEnv(style);
@@ -795,7 +756,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
 
 handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
-  // The window checks first; this is the backstop, so an over-long fact is never saved.
+  // The window checks first; this backstop means an over-long fact is never saved
   const problem = customFactsProblem(changes) ?? shareUrlProblem(changes);
   if (problem) return { error: problem };
   const previous = settings;
@@ -805,7 +766,7 @@ handle("save-settings", (_e, raw: Record<string, unknown>) => {
   return state();
 });
 
-// --- Connect Twitch (optional, issue #47) ---------------------------------------
+// --- Connect Twitch (optional, #47) ---
 
 const twitch = new TwitchSession(
   () => (settings.twitchRefreshToken
@@ -829,22 +790,22 @@ handle("disconnect-twitch", async () => {
   return state();
 });
 
-/** The server's question about a channel's About for a song no source knows: the token never leaves this process. */
+/** The server asks for a channel's About for a song no source knows; the token never leaves this process */
 supervisor.on("server-message", (message: unknown) => {
   const m = message as { type?: unknown; login?: unknown; chars?: unknown };
   if (m?.type !== "twitch-about" || typeof m.login !== "string" || typeof m.chars !== "number") return;
   const allowed = settings.twitchAbout && !!settings.twitchRefreshToken;
   void answerAbout(m.login, m.chars, allowed, (login) => twitch.withToken((token) => getChannel(login, token))).then((answer) => {
-    // A lost connection shows under Connect Twitch, as for Fill.
+    // A lost connection shows under Connect Twitch, as for Fill
     if (answer.state === "failed") send("state", state());
     supervisor.tell({ ...answer });
   });
 });
 
-/** The Twitch channel a song points to, for the window to offer Fill: one rule, in twitch.ts. */
+/** The Twitch channel a song points to, for Fill: one rule, in twitch.ts */
 handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
 
-/** Their Twitch About, as fact boxes for the streamer to review in the song facts editor. */
+/** Their Twitch About as fact boxes, for the streamer to review */
 handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
   const login = twitchLoginFrom(String(artist ?? ""), String(link ?? ""));
   if (!login) return { ok: false, message: "Put their Twitch link in \"Their link\" first, like twitch.tv/theirname." };
@@ -894,7 +855,7 @@ handle("sign-in", async () => {
 });
 handle("cancel-sign-in", () => signingIn?.abort());
 
-// --- Backup -----------------------------------------------------------------
+// --- Backup ---
 
 const readJson = (name: string): unknown => {
   try {
@@ -913,7 +874,7 @@ const readWrongLog = (): unknown[] => {
 };
 
 const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json"), wrongLog: readWrongLog() }, app.getVersion());
-/** After anything that changes the streamer's facts or settings: a copy they never have to think about. */
+/** After any change to facts or settings: a copy the streamer never has to think about */
 const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
 
 handle("save-backup", async () => {
@@ -929,7 +890,7 @@ handle("save-backup", async () => {
 });
 
 handle("restore-backup", async () => {
-  // Opens where the automatic backups are, so the newest is a click away.
+  // Opens at the automatic backups, so the newest is a click away
   const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
   const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
   if (canceled || !filePaths[0]) return { ok: false, message: "" };
@@ -950,7 +911,7 @@ handle("restore-backup", async () => {
   };
   const { response } = win ? await dialog.showMessageBox(win, confirm) : await dialog.showMessageBox(confirm);
   if (response !== 0) return { ok: false, message: "" };
-  // What's here now is backed up first, so a restore can itself be undone.
+  // Back up first, so a restore can be undone
   backUpNow();
   settings = sanitize({ ...settings, ...backup.settings });
   saveSettings(settings);
@@ -960,13 +921,13 @@ handle("restore-backup", async () => {
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
   void checkForUpdate();
-  // The fact server reads its files at start.
+  // The server reads its files at start
   startServer(true);
   send("state", state());
   return { ok: true, message: "Restored." };
 });
 
-/** The first half of uninstalling, without hunting for hidden folders. */
+/** The first half of uninstalling, without hunting for hidden folders */
 handle("remove-data", async () => {
   const options = {
     type: "warning" as const,
@@ -1000,8 +961,7 @@ handle("download-model", () => {
   void ensureOllamaModel();
 });
 handle("copy", (_e, text: string) => clipboard.writeText(text));
-// Dragging the overlay file onto OBS's Sources list makes a Browser source at the canvas size.
-// `vertical`: the 1080x1920 overlay, for an OBS whose canvas is vertical.
+// Dropping the overlay file on OBS's Sources makes a canvas-sized Browser source; `vertical`: the 1080x1920 one
 ipcMain.on("start-drag", (e, vertical?: unknown) =>
   fromOurPage(e) && e.sender.startDrag({ file: overlayFile(vertical === true), icon: asset("tray@2x.png") }));
 handle("open-external", (_e, url: string) => openExternal(url));
@@ -1011,7 +971,7 @@ handle("show-backups", () => {
   fs.mkdirSync(DIRS.backups, { recursive: true });
   return shell.openPath(DIRS.backups);
 });
-// Inside the app's archive other programs can't read it, so a copy goes in the data folder first.
+// Other programs can't read inside the app's archive: copy it to the data folder first
 handle("open-notices", () => {
   const copy = path.join(DATA, "THIRD-PARTY-NOTICES.md");
   fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), copy);
@@ -1025,17 +985,17 @@ handle("recent", async () => {
     return { song: null, facts: [] };
   }
 });
-// --- Updating itself ---------------------------------------------------------
+// --- Updating itself ---
 
 let updateChecks = 0;
-/** At start, and again when the musician picks Stable or Beta, so the dashboard notice matches right away. */
+/** At start, and when Stable or Beta is picked, so the dashboard notice matches at once */
 async function checkForUpdate(): Promise<void> {
   const mine = ++updateChecks;
   const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE), EDITION) : () => null);
-  // Only the newest check counts, and a download under way finishes.
+  // Only the newest check counts, and a download under way finishes
   if (mine !== updateChecks || updating.stage === "downloading") return;
   if (found?.version !== update?.version) updating = { stage: "idle", progress: 0, file: "", error: "" };
-  // "Get it" takes Lite to Lite's downloads on the download page.
+  // "Get it" opens Lite's downloads for Lite
   if (found && EDITION === "lite") found.url = `${found.url}#lite`;
   update = found;
   send("state", state());
@@ -1048,7 +1008,7 @@ handle("download-update", async () => {
   let last = 0;
   try {
     const file = await downloadUpdate(update.download, path.join(DATA, "updates"), (fraction) => {
-      // A few updates a second is plenty for a progress line.
+      // A few a second is plenty for a progress line
       if (Date.now() - last < 300) return;
       last = Date.now();
       updating.progress = fraction;
@@ -1071,13 +1031,13 @@ handle("install-update", () => {
     send("state", state());
     return;
   }
-  // The installer is waiting for this app to close. On Linux the app reopens the new AppImage itself.
+  // The installer waits for this app to close; on Linux the app reopens the new AppImage itself
   if (result.relaunch) app.relaunch({ execPath: result.relaunch, args: [] });
   quitting = true;
   app.quit();
 });
 
-/** The facts that went out to the overlay, for a report: from the server, or its file when the server isn't running. */
+/** Facts sent to the overlay, for a report: from the server, or its file when it isn't running */
 async function airedFacts(): Promise<AiredFact[]> {
   const fromServer = await control("aired");
   if (fromServer) return airedFrom(fromServer);
@@ -1104,7 +1064,7 @@ handle("report-beta", () =>
     })
   )
 );
-/** The same reports, as text to paste anywhere: no GitHub account needed. */
+/** The same reports as text to paste anywhere: no GitHub account needed */
 handle("copy-report", async (_e, kind: unknown) => {
   const common = { logLines: supervisor.lines, secrets: secretsOf(settings) };
   const aired = kind === "beta" ? [] : await airedFacts();
@@ -1118,7 +1078,7 @@ handle("report-fact", async (_e, song: string, fact: string) =>
   openExternal(wrongFactUrl({ song, fact, version: versionWithBuild(), logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 
-// --- Lifecycle -----------------------------------------------------------
+// --- Lifecycle ---
 
 app.on("second-instance", showWindow);
 app.on("activate", showWindow);
@@ -1127,17 +1087,17 @@ app.on("before-quit", () => {
   download?.abort();
   supervisor.stop();
 });
-// The key goes back to every other app.
+// Frees the hands-free Wrong key for other apps
 app.on("will-quit", () => wrongKey.stop());
 app.on("window-all-closed", () => {
-  // Stay running in the tray; quitting is explicit.
+  // Stay running in the tray; quitting is explicit
 });
 
-/** The system's About panel (the app menu on a Mac): the license and the credits, as in the window's footer. */
+/** The system's About panel (the app menu on a Mac): license and credits, as in the window's footer */
 function setAboutPanel(): void {
   app.setAboutPanelOptions({
     applicationName: "BubbleFacts",
-    // A Mac shows "Version <applicationVersion> (<version>)"; the other systems show applicationVersion alone.
+    // A Mac shows "Version <applicationVersion> (<version>)"; others applicationVersion alone
     ...(process.platform === "darwin"
       ? { applicationVersion: `${app.getVersion()}${BUILD.kind === "test" ? " test build" : ""}`, version: BUILD.commit || "dev" }
       : { applicationVersion: versionWithBuild() }),
@@ -1149,10 +1109,8 @@ function setAboutPanel(): void {
 }
 
 /**
- * Reading the keychain blocks this process until the prompt is answered, and a window that
- * isn't up by then can't appear at all. So wait for the window to say it's showing; the first
- * launch after an update can take well over a few seconds while macOS checks the new app.
- * The long fallback only covers a window that never loads.
+ * Reading the keychain blocks this process until its prompt is answered, and a window not up by then
+ * never appears: wait for the window (slow on the first launch after an update, as macOS checks the app)
  */
 async function unlockSecretsOnceWindowIsUp(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -1163,21 +1121,20 @@ async function unlockSecretsOnceWindowIsUp(): Promise<void> {
   send("state", state());
 }
 
-/** Setup is done but the keychain gave nothing back: ask for the sign-in again. */
+/** Setup is done but the keychain gave nothing back: ask for the sign-in again */
 function checkSignInSurvived(): void {
-  // A now playing file has no sign-in to lose.
   if (!settings.setupComplete || settings.songSource === "nowplaying") return;
   const saved = settings.songSource === "streamelements" ? settings.seJwt : settings.token;
   if (!saved) signInExpired = true;
 }
 
-/** Refresh a sign-in that ran out while the app was closed before the server needs it. */
+/** Refresh a sign-in that ran out while the app was closed, before the server needs it */
 async function refreshSignInIfDue(): Promise<void> {
   if (settings.tokenKind === "oauth" && settings.refreshToken && settings.tokenExpiresAt - Date.now() < 5 * 60_000) {
     await refreshSignIn();
   } else {
     scheduleRefresh();
-    // Before any queue request: a sign-in that ended while the app was closed is refreshed, or the notice shows, at once (issue #182).
+    // Before any queue request, so a sign-in that ended while closed shows its notice at once (#182)
     if (usesSignIn()) void signInCheck.check("start", settings.token);
   }
 }
@@ -1187,16 +1144,15 @@ async function startApp(): Promise<void> {
   app.setAppUserModelId("org.frolic.bubblefacts");
   setAboutPanel();
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
-  // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the
-  // app waits on that prompt. The window goes up first, saying what to click (issue #62).
+  // Mac: each new version asks again before the sign-in can be read, so the window goes up first (#62)
   settings = loadSettings(!(process.platform === "darwin" && !atLogin));
   pruneLogs(DIRS.logs);
-  // First in the log, so a log file says which build wrote it.
+  // First in the log, so a log file says which build wrote it
   supervisor.note(`[App] BubbleFacts ${versionWithBuild()} starting on ${process.platform} ${process.arch}`);
   createTray();
   if (!atLogin || !settings.setupComplete) createWindow();
   if (secretsWaiting()) await unlockSecretsOnceWindowIsUp();
-  // After the secrets are read: settings can't be saved before then.
+  // After the secrets are read: settings can't be saved before then
   checkWhatsNew();
   send("state", state());
   checkSignInSurvived();

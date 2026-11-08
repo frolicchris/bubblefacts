@@ -1,21 +1,14 @@
-/**
- * OBS tells a Browser source when the stream starts and stops (obs-browser's
- * `obsStreamingStarted` and `obsStreamingStopped` events, and
- * `window.obsstudio.getStatus`). The overlay passes it on as
- * `{ type: "obs_streaming", streaming }`, the one message an overlay sends, so
- * the credit bubble goes out as the stream goes live (credit.ts) rather than
- * only after a break in facts.
- */
+// Whether OBS is streaming, as the overlay reports it, so the credit goes out as the stream
+// goes live, not only after a break in facts (ARCHITECTURE.md: The credit bubble)
 
 export interface ObsStreamingMessage {
   type: "obs_streaming";
   streaming: boolean;
 }
 
-/** Longer than this is not the overlay's message. */
-const MAX_MESSAGE_CHARS = 200;
+const MAX_MESSAGE_CHARS = 200; // longer is not the overlay's message
 
-/** The overlay's one message, or null for anything else, which is ignored. */
+/** The overlay's one message, or null for anything else (ignored) */
 export function parseOverlayMessage(raw: string): ObsStreamingMessage | null {
   if (raw.length > MAX_MESSAGE_CHARS) return null;
   try {
@@ -28,38 +21,30 @@ export function parseOverlayMessage(raw: string): ObsStreamingMessage | null {
 }
 
 /**
- * Whether OBS is streaming, from what overlays report. Every overlay reports
- * (one per scene that shows it, and the vertical one), and one that reloads
- * reports again, so only a change from not streaming, or not known, to
- * streaming is a stream going live. "Not streaming" from an overlay that never
- * said it was live is ignored while another one says it is: a second copy of
- * OBS that only records would otherwise reset it, and the live overlay's next
- * reload would count as going live again.
+ * Whether OBS is streaming. Every overlay reports, and again on reload, so only a change to streaming is going live.
+ * "Not streaming" from an overlay never live is ignored while another is (a recording-only second OBS)
  */
 export class ObsStreaming {
   private streaming: boolean | undefined;
-  /** Overlays (by connection) that said OBS is streaming, since it last stopped. */
+  /** Overlays (by connection) that said OBS is streaming, since it last stopped */
   private live = new Set<number>();
 
-  /** `restored`: what the session file says, after a restart in the middle of a stream. */
+  /** `restored`: the session file's, after a restart mid-stream */
   constructor(restored?: boolean) {
     this.streaming = restored;
   }
 
-  /** What's known, for the session file: undefined until an overlay says. */
+  /** What's known, for the session file: undefined until an overlay says */
   get state(): boolean | undefined {
     return this.streaming;
   }
 
-  /**
-   * An overlay disconnected (OBS closed, or the source reloads): it no longer vouches for the stream,
-   * so an overlay that reopens and says "not streaming" is believed. A reload reports again anyway.
-   */
+  /** A disconnected overlay no longer vouches for the stream (a reload reports again anyway) */
   forget(client: number): void {
     this.live.delete(client);
   }
 
-  /** True when this report, from overlay `client`, means the stream just went live. */
+  /** True when this report from overlay `client` means the stream just went live */
   report(streaming: boolean, client: number): boolean {
     if (!streaming) {
       if (this.live.size && !this.live.has(client)) return false;
@@ -74,15 +59,9 @@ export class ObsStreaming {
   }
 }
 
-/** How long an overlay has to say whether OBS is streaming before the log says it hasn't. */
-export const STATUS_WAIT_MS = 10_000;
+export const STATUS_WAIT_MS = 10_000; // ms an overlay has to report before the log says it hasn't
 
-/**
- * Notes an overlay that connects and never says whether OBS is streaming: it's
- * outside OBS, or the Browser source's Page permissions keep it from asking, so
- * the credit falls back to its own timing. `heard` when it reports; `cancel`
- * when it disconnects.
- */
+/** Calls `onSilent` if an overlay never reports (outside OBS, or Page permissions); `heard` or `cancel` stops it */
 export function watchForStatus(onSilent: () => void, waitMs = STATUS_WAIT_MS, timer: typeof setTimeout = setTimeout): { heard: () => void; cancel: () => void } {
   let pending: ReturnType<typeof setTimeout> | null = timer(() => {
     pending = null;
