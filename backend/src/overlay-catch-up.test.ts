@@ -334,15 +334,17 @@ describe("the credit bubble with its switch off", () => {
     expect(loadSession(now)).toMatchObject({ creditSince: 0, creditText: CREDIT_TEXT });
   });
 
-  it("goes out at once, on top of the song, when OBS says the stream went live", async () => {
-    const { NO_AI_CREDIT_TEXT } = jest.requireActual<typeof import("./credit")>("./credit");
-    const credits = (o: { messages: FactsPayload[] }) => o.messages.filter((m) => (m.type as string) === "credit").map((m) => texts(m.facts ?? []));
+  it("goes out at once when OBS says the stream went live, and the song's later bubbles make room", async () => {
+    const { NO_AI_CREDIT_TEXT, creditLead } = jest.requireActual<typeof import("./credit")>("./credit");
+    const isCredit = (m: FactsPayload) => m.type === "facts_ready" && m.keep === true && m.facts?.[0]?.text === NO_AI_CREDIT_TEXT;
+    const credits = (o: { messages: FactsPayload[] }) => o.messages.filter(isCredit).map((m) => texts(m.facts ?? []));
     const streaming = (o: { ws: WebSocket }, on: boolean) => o.ws.send(JSON.stringify({ type: "obs_streaming", streaming: on }));
     const [main, vertical] = [await overlay(), await overlay()];
     // A soundcheck: the song's facts go out with OBS open, before going live, and the credit isn't due.
     now += 60_000;
     await play([fact("Soundcheck.", 0)]);
-    await play([fact("Warm-up.", 0)]);
+    const later = { ...fact("Later.", 30), position: { top: "60%", left: "10%" } };
+    await play([fact("Warm-up.", 0), later]);
     await until(() => main.messages.filter((m) => m.type === "facts_ready").length === 2);
     streaming(main, false);
     await settle();
@@ -351,8 +353,17 @@ describe("the credit bubble with its switch off", () => {
     const before = main.messages.length;
     streaming(main, true);
     await until(() => credits(main).length === 1 && credits(vertical).length === 1);
-    expect(credits(main)).toEqual([[NO_AI_CREDIT_TEXT]]);
-    expect(main.messages.slice(before).map((m) => m.type)).toEqual(["credit"]);
+    // `keep`: the bubble on screen stays. The credit takes the next bubble's spot, and that bubble
+    // moves later by the credit's time, so in a one-spot area the next bubble can't replace it early.
+    const batch = main.messages.slice(before);
+    expect(batch).toHaveLength(1);
+    const [credit, moved] = batch[0].facts!;
+    expect([credit.text, moved.text]).toEqual([NO_AI_CREDIT_TEXT, "Later."]);
+    expect(credit.position).toEqual(later.position);
+    expect(moved.delaySeconds).toBe(30 + creditLead(credit));
+    // An overlay that connects now gets the same schedule from the record, without the credit.
+    const late = await overlay();
+    expect((await late.batch()).find((f) => f.text === "Later.")!.delaySeconds).toBe(30 + creditLead(credit));
     // The other overlay and a reload say the same: not another stream.
     streaming(vertical, true);
     streaming(main, true);

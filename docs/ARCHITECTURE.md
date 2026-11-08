@@ -632,9 +632,13 @@ asked when the overlay connects). The overlay passes that on as
 (`parseOverlayMessage` in `obs-streaming.ts` lets nothing else through). A
 change to streaming (`ObsStreaming`, so the vertical overlay, a second scene
 and a reload don't count again) is a new stream (`newStream`): the credit goes
-out at once to every overlay as a `credit` message, on top of the song on
-stream like the test bubble, or with the next song's facts if none are out,
-bubbles are paused or a test bubble is up. So a soundcheck with OBS open before
+out at once to every overlay, in the spot of the song's next bubble, and the
+bubbles still to come move later by its time (a `keep` batch, as for the AI's
+later facts), so in a one-spot area (a corner, which setup offers) the next
+bubble can't replace it within seconds. The song's record moves with them, so
+an overlay that connects later, **Wrong** and a restart keep to the same
+schedule. With no song's facts out, bubbles paused or a test bubble up, it goes
+with the next song's facts instead. So a soundcheck with OBS open before
 going live can't use up the stream's one credit. Outside OBS, or if OBS doesn't
 send the signal, nothing changes and the break rule above stands. After the
 app restarts mid-stream, the first report of a live stream counts as going

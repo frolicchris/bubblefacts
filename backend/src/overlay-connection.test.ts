@@ -420,16 +420,4 @@ describe("OBS's streaming signal", () => {
     early.fire("obsStreamingStopped");
     expect(early.sent).toEqual([{ type: "obs_streaming", streaming: false }]);
   });
-
-  it("shows the credit on top of the song, whose bubbles carry on", () => {
-    const page = inObs(status(true));
-    page.open();
-    const song = { title: "Harbor Lights", artist: "Paper Comets" };
-    const at = { top: "8%", left: "33%" };
-    page.receive({ type: "new_song", song, quiet: true });
-    page.receive({ type: "facts_ready", song, facts: [{ text: "One.", delaySeconds: 0, durationSeconds: 8, position: at }, { text: "Two.", delaySeconds: 20, durationSeconds: 8, position: { top: "60%", left: "10%" } }] });
-    page.receive({ type: "credit", song, facts: [{ text: "Facts from Wikipedia.", delaySeconds: 0, durationSeconds: 8, position: at }] });
-    page.run();
-    expect(page.shown).toEqual(expect.arrayContaining(["Facts from Wikipedia.", "One.", "Two."]));
-  });
 });

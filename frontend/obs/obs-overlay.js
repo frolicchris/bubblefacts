@@ -308,9 +308,8 @@
       if (msg.song && !msg.quiet) msg.noBanner ? removeToast() : showToast(msg.song);
     } else if (msg.type === "facts_ready") {
       showFacts(msg.song, msg.facts, msg.keep === true);
-    } else if (msg.type === "test_bubble" || msg.type === "credit") {
-      // On top of the current song, whose bubbles and state are left alone. "credit": the stream
-      // just went live mid-song, so the bubble that says where the facts come from goes out now.
+    } else if (msg.type === "test_bubble") {
+      // On top of the current song, whose bubbles and state are left alone.
       if (msg.facts && msg.facts[0]) showBubble(msg.facts[0]);
     } else if (msg.type === "remove_fact") {
       if (songKey(msg.song) !== currentSongKey) return;

@@ -145,6 +145,11 @@ export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditConte
   return withCredit(facts, c.position, c.vertical);
 }
 
+/** How much later the song's bubbles go so the credit has its time: as long as it's up, and a gap. */
+export function creditLead(credit: Fact): number {
+  return Math.ceil(readingSeconds(credit)) + GAP_SECONDS;
+}
+
 /**
  * The credit as a bubble, and the song's facts moved later by the time it
  * takes. The credit is only sent to the overlay: it is never in the record of
@@ -152,6 +157,6 @@ export function planCredit(counter: CreditCounter, facts: Fact[], c: CreditConte
  */
 export function withCredit(facts: Fact[], position: Fact["position"], vertical?: Fact["vertical"]): { credit: Fact; facts: Fact[] } {
   const credit: Fact = { text: creditText(), source: "BubbleFacts", delaySeconds: 0, durationSeconds: config.factDurationSeconds, position, ...(vertical ? { vertical } : {}) };
-  const lead = Math.ceil(readingSeconds(credit)) + GAP_SECONDS;
+  const lead = creditLead(credit);
   return { credit, facts: facts.map((f) => ({ ...f, delaySeconds: f.delaySeconds + lead })) };
 }

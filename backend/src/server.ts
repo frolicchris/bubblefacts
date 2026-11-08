@@ -19,7 +19,7 @@ import { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
-import { creditText, planCredit, restoredCredit } from "./credit";
+import { creditLead, creditText, planCredit, restoredCredit } from "./credit";
 import { ObsStreaming, parseOverlayMessage } from "./obs-streaming";
 import { SongFactSharer } from "./share-song-facts";
 import { coverage, Preparer, PrepTarget } from "./preparer";
@@ -206,8 +206,11 @@ function cantPrepare(): string {
 
 /**
  * OBS says the stream just went live: a new stream for the credit bubble, with the switch on or off.
- * It goes out at once, on top of the song on stream, whose bubbles carry on; with no song's facts
- * out yet, or paused, or a test bubble up, it goes with the next song's facts instead.
+ * It goes out at once in the spot of the song's next bubble, and the bubbles still to come move
+ * later by its time, as when it goes with a song's facts: in a one-spot area (a corner, which setup
+ * offers) the next bubble would otherwise replace it within seconds. The record moves with them, so
+ * an overlay that connects later, Wrong and a restart keep to the same schedule. With no song's
+ * facts out yet, or paused, or a test bubble up, it goes with the next song's facts instead.
  */
 function onObsStreaming(streaming: boolean): void {
   if (!obsStreaming.report(streaming)) return;
@@ -215,12 +218,22 @@ function onObsStreaming(streaming: boolean): void {
   creditCount.newStream();
   const song = lastSent.song;
   const facts = lastSent.facts ?? [];
-  if (!song || !lastSent.ready || !facts.length) return;
-  const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
+  if (!song || !lastSent.ready || !facts.length || !factsShownAt) return;
+  const now = Date.now();
+  const next = remainingFacts(facts, factsShownAt, now)[0];
+  const spot = next ? { position: next.position, ...(next.vertical ? { vertical: next.vertical } : {}) } : spotsForSong(song)(0);
+  const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now, ...spot });
   if (!plan.credit) return;
-  for (const ws of clients.keys()) send(ws, { type: "credit", song, facts: [plan.credit] });
-  // The count, for a restart.
-  remember(song, facts);
+  const elapsed = (now - factsShownAt) / 1000;
+  const lead = creditLead(plan.credit);
+  const record = facts.map((f) => (f.delaySeconds > elapsed ? { ...f, delaySeconds: f.delaySeconds + lead } : f));
+  lastSent = { song, facts: record, ready: true };
+  shareNow();
+  // The schedule and the count, for a restart.
+  remember(song, record);
+  // `keep`: the bubble on screen stays, and these take the place of the turns still to come.
+  const sent: FactsPayload = { type: "facts_ready", song, facts: [plan.credit, ...remainingFacts(record, factsShownAt, now)], keep: true };
+  for (const ws of clients.keys()) send(ws, sent);
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
