@@ -21,7 +21,7 @@ export function buildInfo(pkg: { bubblefacts?: { build?: { commit?: unknown; kin
  * Which installer this is. "full" has the built-in AI; "lite" is BubbleFacts
  * Lite, built without the AI engine (scripts/dist-lite.mjs writes "lite" into
  * its package.json). Lite never downloads a model: songs get facts that need
- * no AI, unless the streamer chooses an online AI or their own Ollama.
+ * no AI, unless the streamer already chose an online AI or their own Ollama (no longer offered).
  */
 export type Edition = "full" | "lite";
 

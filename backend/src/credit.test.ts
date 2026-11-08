@@ -6,7 +6,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-credit-"));
 jest.mock("./config", () => ({ config: { dataDir: dir, factDurationSeconds: 8 } }));
 
 import { config } from "./config";
-import { CREDIT_EVERY_SONGS, CREDIT_TEXT, CreditCounter, creditText, OTHER_AI_CREDIT_TEXT, planCredit, restoredCredit, STREAM_BREAK_MS, TEST_QUIET_MS, withCredit } from "./credit";
+import { CREDIT_EVERY_SONGS, CREDIT_TEXT, CreditCounter, creditText, NO_AI_CREDIT_TEXT, OTHER_AI_CREDIT_TEXT, planCredit, restoredCredit, STREAM_BREAK_MS, TEST_QUIET_MS, withCredit } from "./credit";
 import { MAX_FACT_CHARS } from "./fact-limits";
 import { loadSession, saveSession } from "./session";
 import { Fact } from "./types";
@@ -114,11 +114,16 @@ describe("the credit bubble's content", () => {
 
   it("says when another AI writes the facts that BubbleFacts doesn't verify them, at a bubble's length", () => {
     expect(OTHER_AI_CREDIT_TEXT).toBe("Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html");
-    for (const text of [CREDIT_TEXT, OTHER_AI_CREDIT_TEXT]) expect(text.length).toBeLessThanOrEqual(MAX_FACT_CHARS);
+    for (const text of [CREDIT_TEXT, OTHER_AI_CREDIT_TEXT, NO_AI_CREDIT_TEXT]) expect(text.length).toBeLessThanOrEqual(MAX_FACT_CHARS);
     // Groq and other OpenAI-style services, Anthropic, and the streamer's own Ollama.
     for (const ai of ["openai", "anthropic", "ollama"]) expect(creditText(ai)).toBe(OTHER_AI_CREDIT_TEXT);
-    // BubbleFacts' own AI, and Lite's no AI, keep the usual credit.
-    for (const ai of ["builtin", "none", undefined]) expect(creditText(ai)).toBe(CREDIT_TEXT);
+    // BubbleFacts' own AI keeps the usual credit.
+    for (const ai of ["builtin", undefined]) expect(creditText(ai)).toBe(CREDIT_TEXT);
+    // With no AI (Lite, the full app while its AI downloads, the command line), it never says "retold by AI",
+    // but Wikipedia keeps its credit: some facts can still be its sentences.
+    expect(creditText("none")).toBe(NO_AI_CREDIT_TEXT);
+    expect(NO_AI_CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz. Spot a mistake? Let the streamer know. · BubbleFacts");
+    expect(NO_AI_CREDIT_TEXT).not.toMatch(/\bAI\b/);
   });
 
   it("goes out with the other AI's wording when one is writing, switched on or off", () => {

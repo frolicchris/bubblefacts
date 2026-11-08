@@ -97,7 +97,7 @@ describe("Settings", () => {
     const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
     expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
     expect(choice).toContain('name="ai" value="groq"');
-    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.");
+    expect(choice).toContain("Online AIs and Ollama aren't offered for now. You can keep the one you chose. Your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.");
     const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));
     for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
     const js = read("app.js");
@@ -105,7 +105,12 @@ describe("Settings", () => {
     // Nothing else points people to them: no Switch to Groq, and Settings' fine print doesn't offer them.
     expect(js).not.toContain("Switch to Groq");
     expect(settings).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
+    expect(html).not.toMatch(/choose (one|Anthropic|Groq|Ollama|an online AI) under Advanced/i);
     expect(settings).toContain("Larger AI is under Advanced.");
+    // Saving re-reads the saved settings into the form, which is what hides the choice after switching back.
+    const save = js.slice(js.indexOf("async function saveSettingsForm"), js.indexOf("\n  }", js.indexOf("async function saveSettingsForm")));
+    expect(save).toContain("state = saved;");
+    expect(save).toContain("fillSettings();");
   });
 
   it("offers the song sources as the same three cards as setup", () => {
@@ -155,7 +160,7 @@ describe("Settings", () => {
     expect(label?.[0]).toContain('aria-describedby="s-credit-hint"');
     expect(settings).toMatch(/<\/label>\s*<p class="hint indent" id="s-credit-hint">One extra bubble/);
     // Unchecked is rarer, not never: the server still credits each stream once (credit.ts).
-    expect(settings).toContain("Unchecked, it still shows once each stream, before the first song's facts");
+    expect(settings).toContain("Unchecked, it still shows once, before the first song's facts, and again after 20 minutes without facts.");
   });
 
   it("sets its help text at 14px and keeps the Save bar on screen", () => {

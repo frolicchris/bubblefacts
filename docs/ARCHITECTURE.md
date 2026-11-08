@@ -602,15 +602,17 @@ It goes out before the first song's facts of each stream, then with about
 every 5th song that has facts (`CreditCounter`), and the song's facts start
 after it. A song with no facts, bubbles paused, no overlay connected, or a test
 bubble in the last 20 seconds doesn't use up a turn, so the credit goes with
-the first facts viewers actually see. The credit is only sent to the overlay,
+the first facts sent while an overlay is connected. Facts an overlay only
+catches up on when it connects later (`/ws` sends it the record) don't count,
+so the credit then comes with the next song. The credit is only sent to the overlay,
 never put in the song's record, so **Wrong**, the dashboard and the shown log
 never see it, and an overlay that reloads mid-song isn't given it again. The
 count is kept in `session.json`, so a restart in the middle of a stream
 carries on.
 
 `CREDIT_BUBBLE=off` (the app's **Now and then, show where the facts come
-from**, unchecked) stops the repeats, not the first one: every stream that
-shows facts shows the credit at least once. The facts are retold from
+from**, unchecked) stops the repeats, not the first one: the credit shows at least once each
+time facts start going to OBS after a break. The facts are retold from
 licensed sources and can be wrong, whichever AI writes them, and a viewer
 should be able to learn that on every stream; the streamer can make it rarer,
 not remove it. A stream is told from the next by time: a start with no
@@ -619,7 +621,13 @@ minutes, the same break that makes a restart start the song afresh), even
 with the app left running in between. That includes a restart whose session
 says the last facts went out that long ago, or to no overlay (`shownAt` 0), so
 the time is unknown. A long break mid-stream may show it once more, which is
-the safe side of "at least once".
+the safe side of "at least once". The limit: BubbleFacts can't tell whether
+OBS is live, only whether an overlay is connected. Songs played with OBS open
+before going live (a soundcheck) count as on stream, so with the switch off
+they can use up the one credit, and a stream that starts within 20 minutes of
+them shows none. The settings hint and the guide say so; keeping the switch on
+is the sure way. Telling live from not would need OBS's own streaming events
+in the overlay, untested so far in a real OBS.
 
 When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 `ollama`), the credit says so and that BubbleFacts doesn't stand behind them
@@ -628,14 +636,18 @@ When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 bubblefacts.frolic.org/credits.html"). It states facts a viewer can check
 rather than a bare "not responsible": a bubble is no contract with viewers, so
 what limits BubbleFacts' liability is the MIT license's "as is" terms with the
-streamer, and the full disclaimer on the credits page (`#other-ai`), which the
-bubble points to. "Adapted" and the license name are what CC BY-SA 4.0 asks
+streamer, and the full disclaimer on the credits page, which the bubble points
+to (the page, not its `#other-ai` section: the address takes the last
+characters of the 160 a bubble allows). "Adapted" and the license name are what CC BY-SA 4.0 asks
 of a modified work (section 3(a)(1)(B) and (C)); the page carries the rest, as
 section 3(a)(2) allows. This wording was weighed for legal soundness, not
 written by a lawyer. Their captions go through the same screening, but
 the fact check before each release is run on the built-in AI, so nothing
 measures how often another AI is wrong or strays from the content standard.
-The same once-each-stream rule applies, switch or no switch. The session file
+The same at-least-once rule applies, switch or no switch. When no AI writes
+(`AI_PROVIDER=none`: Lite, the full app while its AI downloads or can't run,
+the command line set to none), the credit leaves out "retold by AI"
+(`NO_AI_CREDIT_TEXT`), since the rule means it shows even with the switch off. The session file
 keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
 (`restoredCredit`), so each stream shows the credit that fits the AI writing

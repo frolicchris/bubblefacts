@@ -533,7 +533,7 @@
           </select>
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
           <label class="inline"><input name="creditBubble" type="checkbox" aria-describedby="s-credit-hint"> Now and then, show where the facts come from</label>
-          <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later. Unchecked, it still shows once each stream, before the first song's facts, so viewers always learn where the facts come from.</p>
+          <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later. Unchecked, it still shows once, before the first song's facts, and again after 20 minutes without facts. Songs played with OBS open before you go live can use it up, so keep this checked if you want to be sure viewers see it.</p>
           <label class="inline"><input name="liveLearnBanner" type="checkbox"> Show a LIVE LEARN bubble during a live learn</label>
           <div class="grid3">
             <label>Facts per song <input name="factsPerSong" type="number" min="1" max="12" aria-describedby="s-facts-hint"></label>
@@ -618,7 +618,7 @@
 
         <p class="fine" data-edition="full">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Larger AI is under Advanced.</p>
         <div data-edition="lite" hidden>
-          <p class="fine">This is <strong>BubbleFacts Lite</strong>. It has no AI of its own, and unless you choose one under Advanced, nothing is sent to an AI service. Songs get facts from music databases (Wikidata and MusicBrainz), your song list and your own facts.</p>
+          <p class="fine">This is <strong>BubbleFacts Lite</strong>. It has no AI of its own. Songs get facts from music databases (Wikidata and MusicBrainz), your song list and your own facts.</p>
           <p class="fine">Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones. To get more, install the full BubbleFacts, which writes facts on this computer. <button class="link" type="button" data-open="https://bubblefacts.frolic.org/download.html">Get the full BubbleFacts</button></p>
         </div>
 
@@ -627,7 +627,7 @@
           <!-- Online AIs and Ollama aren't offered for now: shown only to someone who already chose one, until they switch back. -->
           <div id="s-other-ai" hidden>
           <p class="label" id="s-ai-label">Who writes the facts</p>
-          <p class="hint" id="s-ai-paused">Online AIs and Ollama aren't offered for now. You can keep the one you chose. Once each stream, your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.</p>
+          <p class="hint" id="s-ai-paused">Online AIs and Ollama aren't offered for now. You can keep the one you chose. Your viewers see a bubble saying its facts aren't verified by BubbleFacts and may be wrong. If you switch back and save, these choices go away.</p>
           <div class="checks" role="radiogroup" aria-labelledby="s-ai-label" aria-describedby="s-ai-paused s-ai-warning">
             <label><input type="radio" name="ai" value="builtin"> <span data-edition="full">On this computer (free)</span><span data-edition="lite" hidden>No AI: music databases and your own facts</span></label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
@@ -802,7 +802,7 @@
               <h3>Anthropic TypeScript SDK</h3>
               <p class="legal-copyright">© 2023 Anthropic, PBC.</p>
               <p class="fine"><button class="link" data-open="https://opensource.org/license/mit">MIT License</button></p>
-              <p class="fine">Used only if you choose Anthropic under Advanced.</p>
+              <p class="fine">Used only if you chose Anthropic to write the facts.</p>
             </li>
             <li>
               <h3>dotenv</h3>

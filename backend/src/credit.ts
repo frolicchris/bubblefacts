@@ -27,9 +27,17 @@ export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and Mu
  * MAX_FACT_CHARS, like any bubble. Its wording was weighed for legal soundness, but not by a lawyer.
  */
 export const OTHER_AI_CREDIT_TEXT = "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html";
+/**
+ * The credit when no AI writes (`AI_PROVIDER=none`): BubbleFacts Lite, the full app while its AI
+ * downloads or can't run, and the command line set to no AI. Some facts can still be sentences
+ * taken from a Wikipedia article (`artistGoodFacts`), so Wikipedia keeps its credit, but nothing
+ * is "retold by AI".
+ */
+export const NO_AI_CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz. Spot a mistake? Let the streamer know. · BubbleFacts";
 const OTHER_AIS: ReadonlySet<string> = new Set(["openai", "anthropic", "ollama"]);
-/** The credit for the AI that writes the facts (`AI_PROVIDER`). */
+/** The credit for the AI that writes the facts (`AI_PROVIDER`), or for no AI. */
 export function creditText(provider: string | undefined = config.aiProvider): string {
+  if (provider === "none") return NO_AI_CREDIT_TEXT;
   return provider !== undefined && OTHER_AIS.has(provider) ? OTHER_AI_CREDIT_TEXT : CREDIT_TEXT;
 }
 /** The credit comes with a song's facts this often: after one, the next is this many songs with facts later. */
@@ -39,9 +47,11 @@ const GAP_SECONDS = 1;
 /** A test bubble this recent is still up or just was: the credit waits for the next song. */
 export const TEST_QUIET_MS = 20_000;
 /**
- * No facts on stream for this long, and the next ones start a new stream: the credit goes first
- * again, even with the app left running in between. The same break that makes a restart start
- * the song afresh (`RESUME_WITHIN_MS`). A long break mid-stream may show it once more.
+ * No facts sent to an overlay for this long, and the next ones start a new stream: the credit goes
+ * first again, even with the app left running in between. The same break that makes a restart
+ * start the song afresh (`RESUME_WITHIN_MS`). A long break mid-stream may show it once more.
+ * BubbleFacts can't tell whether OBS is live, so facts sent to OBS before going live (a
+ * soundcheck) count as on stream: with the switch off, they can use up the stream's one credit.
  */
 export const STREAM_BREAK_MS = RESUME_WITHIN_MS;
 

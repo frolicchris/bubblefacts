@@ -315,7 +315,8 @@ describe("the credit bubble with its switch off", () => {
   afterAll(() => { mockCredit.real = false; });
 
   it("still goes out before the stream's first facts, then not again until another stream", async () => {
-    const { CREDIT_TEXT, STREAM_BREAK_MS } = jest.requireActual<typeof import("./credit")>("./credit");
+    // These tests run with AI_PROVIDER=none, so the credit is the one that says no AI retold anything.
+    const { NO_AI_CREDIT_TEXT: CREDIT_TEXT, STREAM_BREAK_MS } = jest.requireActual<typeof import("./credit")>("./credit");
     const screen = await overlay();
     const firstFacts = () => screen.messages.filter((m) => m.type === "facts_ready").map((m) => texts(m.facts ?? []));
     await play([fact("One.", 0)]);
@@ -328,5 +329,8 @@ describe("the credit bubble with its switch off", () => {
     await play([fact("Three.", 0)]);
     await until(() => firstFacts().length === 3);
     expect(firstFacts()[2]).toEqual([CREDIT_TEXT, "Three."]);
+    // What a restart reads back: the count and the wording it counted, so a restart doesn't credit again.
+    const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
+    expect(loadSession(now)).toMatchObject({ creditSince: 0, creditText: CREDIT_TEXT });
   });
 });
