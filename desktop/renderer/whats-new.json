@@ -1,4 +1,9 @@
 {
+  "2.2.0-rc.1": [
+    "The bubble that says where the facts come from now shows once each stream, the moment you go live in OBS.",
+    "Online AIs and Ollama are a legacy choice, leaving in 3.0. Their facts carry a bubble saying BubbleFacts hasn't checked them.",
+    "BubbleFacts Lite is retired. This is its last update; install the full BubbleFacts to keep getting updates, your settings and facts carry over."
+  ],
   "2.2.0-beta.4": [
     "Pick an icon for your bubbles: Settings, under Bubbles, next to Style.",
     "High quality is now called Larger AI. Standard is still the one we recommend.",
