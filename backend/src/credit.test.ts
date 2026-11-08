@@ -221,6 +221,10 @@ describe("the credit count across a restart", () => {
     expect(run(restoredCredit(session, CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([false]);
     expect(run(restoredCredit(session, OTHER_AI_CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([true]);
     expect(run(restoredCredit({ ...session, creditText: OTHER_AI_CREDIT_TEXT }, CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([true]);
+    // The built-in AI finishing its download restarts the server: the no-AI credit counts, not another one.
+    expect(run(restoredCredit({ ...session, creditText: NO_AI_CREDIT_TEXT }, CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([false]);
+    expect(run(restoredCredit(session, NO_AI_CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([false]);
+    expect(run(restoredCredit({ ...session, creditText: NO_AI_CREDIT_TEXT }, OTHER_AI_CREDIT_TEXT), [facts], { ...air, enabled: false })).toEqual([true]);
     // A session from before the credit's wording was saved credits first, once.
     expect(run(restoredCredit({ creditSince: 2, shownAt: SHOWN }, CREDIT_TEXT), [facts])).toEqual([true]);
     expect(run(restoredCredit(null, CREDIT_TEXT), [facts])).toEqual([true]);

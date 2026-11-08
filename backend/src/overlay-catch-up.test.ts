@@ -361,6 +361,9 @@ describe("the credit bubble with its switch off", () => {
     expect([credit.text, moved.text]).toEqual([NO_AI_CREDIT_TEXT, "Later."]);
     expect(credit.position).toEqual(later.position);
     expect(moved.delaySeconds).toBe(30 + creditLead(credit));
+    // What a restart reads back: OBS is live, so the first overlay to reconnect isn't a new stream.
+    const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
+    expect(loadSession(now)).toMatchObject({ obsStreaming: true });
     // An overlay that connects now gets the same schedule from the record, without the credit.
     const late = await overlay();
     expect((await late.batch()).find((f) => f.text === "Later.")!.delaySeconds).toBe(30 + creditLead(credit));

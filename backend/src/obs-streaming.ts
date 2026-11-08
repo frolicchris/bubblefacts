@@ -31,17 +31,67 @@ export function parseOverlayMessage(raw: string): ObsStreamingMessage | null {
  * Whether OBS is streaming, from what overlays report. Every overlay reports
  * (one per scene that shows it, and the vertical one), and one that reloads
  * reports again, so only a change from not streaming, or not known, to
- * streaming is a stream going live. After the app restarts, the first report
- * of a stream already live counts as going live: one more credit, the safe
- * side of "at least once".
+ * streaming is a stream going live. "Not streaming" from an overlay that never
+ * said it was live is ignored while another one says it is: a second copy of
+ * OBS that only records would otherwise reset it, and the live overlay's next
+ * reload would count as going live again.
  */
 export class ObsStreaming {
   private streaming: boolean | undefined;
+  /** Overlays (by connection) that said OBS is streaming, since it last stopped. */
+  private live = new Set<number>();
 
-  /** True when this report means the stream just went live. */
-  report(streaming: boolean): boolean {
-    const wentLive = streaming && this.streaming !== true;
-    this.streaming = streaming;
+  /** `restored`: what the session file says, after a restart in the middle of a stream. */
+  constructor(restored?: boolean) {
+    this.streaming = restored;
+  }
+
+  /** What's known, for the session file: undefined until an overlay says. */
+  get state(): boolean | undefined {
+    return this.streaming;
+  }
+
+  /**
+   * An overlay disconnected (OBS closed, or the source reloads): it no longer vouches for the stream,
+   * so an overlay that reopens and says "not streaming" is believed. A reload reports again anyway.
+   */
+  forget(client: number): void {
+    this.live.delete(client);
+  }
+
+  /** True when this report, from overlay `client`, means the stream just went live. */
+  report(streaming: boolean, client: number): boolean {
+    if (!streaming) {
+      if (this.live.size && !this.live.has(client)) return false;
+      this.streaming = false;
+      this.live.clear();
+      return false;
+    }
+    this.live.add(client);
+    const wentLive = this.streaming !== true;
+    this.streaming = true;
     return wentLive;
   }
+}
+
+/** How long an overlay has to say whether OBS is streaming before the log says it hasn't. */
+export const STATUS_WAIT_MS = 10_000;
+
+/**
+ * Notes an overlay that connects and never says whether OBS is streaming: it's
+ * outside OBS, or the Browser source's Page permissions keep it from asking, so
+ * the credit falls back to its own timing. `heard` when it reports; `cancel`
+ * when it disconnects.
+ */
+export function watchForStatus(onSilent: () => void, waitMs = STATUS_WAIT_MS, timer: typeof setTimeout = setTimeout): { heard: () => void; cancel: () => void } {
+  let pending: ReturnType<typeof setTimeout> | null = timer(() => {
+    pending = null;
+    onSilent();
+  }, waitMs);
+  (pending as { unref?: () => void } | null)?.unref?.();
+  const stop = () => {
+    if (pending) clearTimeout(pending);
+    pending = null;
+  };
+  return { heard: stop, cancel: stop };
 }

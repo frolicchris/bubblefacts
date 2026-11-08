@@ -20,7 +20,7 @@ import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { creditLead, creditText, planCredit, restoredCredit } from "./credit";
-import { ObsStreaming, parseOverlayMessage } from "./obs-streaming";
+import { ObsStreaming, parseOverlayMessage, watchForStatus } from "./obs-streaming";
 import { SongFactSharer } from "./share-song-facts";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
@@ -114,8 +114,11 @@ if (restored) {
 const creditCount = restoredCredit(restored);
 /** When the streamer last pressed Test: the credit bubble keeps clear of it. */
 let testAt = 0;
-/** Whether OBS is streaming, as overlays pass it on. */
-const obsStreaming = new ObsStreaming();
+/**
+ * Whether OBS is streaming, as overlays pass it on. Kept across a restart within a stream break
+ * (`RESUME_WITHIN_MS`), so the first overlay to reconnect doesn't count as the stream going live.
+ */
+const obsStreaming = new ObsStreaming(restored && Date.now() - restored.savedAt < RESUME_WITHIN_MS ? restored.obsStreaming : undefined);
 
 /** The [Shown] lines: logged where facts go out to an overlay, once per play of a song, and kept in the aired facts record. */
 const aired = new AiredFacts();
@@ -212,8 +215,11 @@ function cantPrepare(): string {
  * an overlay that connects later, Wrong and a restart keep to the same schedule. With no song's
  * facts out yet, or paused, or a test bubble up, it goes with the next song's facts instead.
  */
-function onObsStreaming(streaming: boolean): void {
-  if (!obsStreaming.report(streaming)) return;
+function onObsStreaming(streaming: boolean, client: number): void {
+  const wentLive = obsStreaming.report(streaming, client);
+  // Kept for a restart, with the song's record when there is one.
+  if (lastSent.song && lastSent.ready) remember(lastSent.song, lastSent.facts ?? []);
+  if (!wentLive) return;
   console.log("[Credit] OBS started streaming: the credit bubble is due");
   creditCount.newStream();
   const song = lastSent.song;
@@ -226,18 +232,27 @@ function onObsStreaming(streaming: boolean): void {
   if (!plan.credit) return;
   const elapsed = (now - factsShownAt) / 1000;
   const lead = creditLead(plan.credit);
-  const record = facts.map((f) => (f.delaySeconds > elapsed ? { ...f, delaySeconds: f.delaySeconds + lead } : f));
+  resendRemaining(song, facts.map((f) => (f.delaySeconds > elapsed ? { ...f, delaySeconds: f.delaySeconds + lead } : f)), plan.credit);
+}
+
+/**
+ * A new schedule for the song on stream: the record, the sharer and what a restart resumes take it,
+ * and every overlay gets the bubbles still to come with `keep` (the one on screen stays), after
+ * `first` when there is one. Nothing goes to an overlay while paused. The bubbles still to come, or
+ * null while paused.
+ */
+function resendRemaining(song: SSLSong, record: Fact[], first?: Fact): Fact[] | null {
   lastSent = { song, facts: record, ready: true };
   shareNow();
-  // The schedule and the count, for a restart.
   remember(song, record);
-  // `keep`: the bubble on screen stays, and these take the place of the turns still to come.
-  const sent: FactsPayload = { type: "facts_ready", song, facts: [plan.credit, ...remainingFacts(record, factsShownAt, now)], keep: true };
-  for (const ws of clients.keys()) send(ws, sent);
+  if (paused) return null;
+  const remaining = remainingFacts(record, factsShownAt);
+  for (const ws of clients.keys()) send(ws, { type: "facts_ready", song, facts: first ? [first, ...remaining] : remaining, keep: true });
+  return remaining;
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}) });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}), ...(obsStreaming.state !== undefined ? { obsStreaming: obsStreaming.state } : {}) });
 }
 
 
@@ -264,10 +279,20 @@ wss.on("connection", (ws, req) => {
     console.error(`[WS] Client #${client.id} error: ${err.message}`);
     drop();
   });
-  // The one message an overlay sends: whether OBS is streaming. Anything else is ignored.
+  // The one message an overlay sends: whether OBS is streaming. Anything else is ignored. One that
+  // never says is outside OBS or not allowed to ask, so the credit keeps to its own timing.
+  const status = watchForStatus(() =>
+    console.log(`[WS] Client #${client.id} hasn't said whether OBS is streaming: it's outside OBS, or the Browser source's Page permissions don't allow it. The credit bubble keeps to its own timing.`)
+  );
+  ws.on("close", () => {
+    status.cancel();
+    obsStreaming.forget(client.id);
+  });
   ws.on("message", (data, isBinary) => {
     const msg = isBinary ? null : parseOverlayMessage(String(data));
-    if (msg) onObsStreaming(msg.streaming);
+    if (!msg) return;
+    status.heard();
+    onObsStreaming(msg.streaming, client.id);
   });
   // First, before any bubble: even while paused, so Resume shows the right look.
   send(ws, bubbleStyle);
@@ -404,13 +429,8 @@ function sendLater(song: SSLSong, early: Fact[], facts: Fact[]): void {
     broadcast({ type: "facts_ready", song, facts: merged });
     return;
   }
-  lastSent = { song: lastSent.song, facts: merged, ready: true };
-  shareNow();
-  remember(lastSent.song!, merged);
-  if (paused) return;
-  const remaining = remainingFacts(merged, factsShownAt);
-  for (const ws of clients.keys()) send(ws, { type: "facts_ready", song: lastSent.song!, facts: remaining, keep: true });
-  if (clients.size) logShown(song, remaining);
+  const remaining = resendRemaining(lastSent.song!, merged);
+  if (remaining && clients.size) logShown(song, remaining);
 }
 
 // --- Routes --------------------------------------------------------------

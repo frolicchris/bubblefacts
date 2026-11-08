@@ -109,13 +109,18 @@ export class CreditCounter {
   }
 }
 
+/** BubbleFacts' own credits (its AI, or none while it downloads) count as one; another AI's is different. */
+const creditKind = (text: string) => (text === OTHER_AI_CREDIT_TEXT ? "other" : "own");
+
 /**
- * The counter after a restart, from the session file. A session whose credit said something else
- * (the streamer switched AI) counts for nothing: the new credit goes first, so every stream shows
- * the one that fits the AI writing its facts.
+ * The counter after a restart, from the session file. A session whose credit was of another kind
+ * (the streamer switched to or from another AI) counts for nothing: the new credit goes first, so
+ * every stream shows the one that fits the AI writing its facts. The built-in AI finishing its
+ * download, which restarts the server, doesn't credit again.
  */
 export function restoredCredit(s: Pick<Session, "creditSince" | "creditText" | "shownAt"> | null | undefined, text = creditText()): CreditCounter {
-  return new CreditCounter(s?.creditText === text ? s.creditSince : undefined, s?.shownAt);
+  const same = typeof s?.creditText === "string" && creditKind(s.creditText) === creditKind(text);
+  return new CreditCounter(same ? s!.creditSince : undefined, s?.shownAt);
 }
 
 export interface CreditContext {

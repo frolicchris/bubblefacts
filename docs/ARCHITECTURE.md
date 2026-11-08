@@ -640,9 +640,16 @@ an overlay that connects later, **Wrong** and a restart keep to the same
 schedule. With no song's facts out, bubbles paused or a test bubble up, it goes
 with the next song's facts instead. So a soundcheck with OBS open before
 going live can't use up the stream's one credit. Outside OBS, or if OBS doesn't
-send the signal, nothing changes and the break rule above stands. After the
-app restarts mid-stream, the first report of a live stream counts as going
-live: one more credit.
+send the signal, nothing changes and the break rule above stands, and the log
+says so once per overlay (`watchForStatus`: no report within 10 seconds means
+outside OBS, or a Page permissions setting that doesn't allow it). Whether OBS
+is streaming is kept in `session.json` (`obsStreaming`), so a restart within a
+stream break isn't a stream going live. "Not streaming" from an overlay that
+never said it was live is ignored while another connected overlay says it is,
+so a second copy of OBS that only records can't reset it; a disconnected
+overlay no longer vouches for the stream (`forget`). The no-AI and built-in-AI
+credits count as one kind (`restoredCredit`), so the server restart when the
+built-in AI finishes downloading doesn't credit again.
 
 When another AI writes the facts (`AI_PROVIDER` `openai`, `anthropic` or
 `ollama`), the credit says so and that BubbleFacts doesn't stand behind them
