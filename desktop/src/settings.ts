@@ -346,7 +346,10 @@ export const CUSTOM_FACT_LENGTH = 300; // characters, as for song facts (SONG_FA
 /** Only the text after a [tag] shows, so only it counts: "[Song of Storms] It plays in a windmill." */
 const bubbleText = (line: string) => line.trim().replace(/^\[[^\]]+\]\s*/, "");
 
-/** Why custom facts can't be saved as typed (refused, never trimmed), or null; only lists in `changes`, so an old long line blocks nothing else */
+/**
+ * Why custom facts can't be saved as typed (refused, never trimmed), or null. Only lists in `changes`
+ * are checked, so an older save's long line blocks nothing else
+ */
 export function customFactsProblem(changes: Partial<Pick<Settings, "myFacts" | "myOriginals">>): string | null {
   const lists = [["Your own facts", changes.myFacts], ["About your own compositions", changes.myOriginals]] as const;
   for (const [name, list] of lists) {
@@ -432,7 +435,7 @@ export function saveSettings(settings: Settings): void {
  * (basic_text) while isEncryptionAvailable() stays true (electronjs.org/docs/latest/api/safe-storage)
  */
 export function secretsUnprotected(): boolean {
-  // Only Linux lacks keyrings; asking on a Mac reads the keychain, prompting before the window can explain (#62)
+  // Only Linux can lack a keyring; on a Mac asking reads the keychain, which after an update prompts before the window can explain (#62)
   if (process.platform !== "linux") return false;
   if (!safeStorage.isEncryptionAvailable()) return true;
   const backend = (safeStorage as { getSelectedStorageBackend?: () => string }).getSelectedStorageBackend?.();

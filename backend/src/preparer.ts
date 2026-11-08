@@ -40,8 +40,8 @@ const LIST_WAIT_MS = 5000; // ms between asks whether the song list is read, onc
 
 export const CHECK_EVERY_MS = 7 * 24 * 60 * 60 * 1000; // ms (a week) between checks for a newer article version
 const MAX_TROUBLED_TRIES = 3;     // tries in a run before a song with failed lookups is saved as it is
-const FIRST_BACKOFF_MS = 60_000;  // ms waiting out throttling, doubling...
-const MAX_BACKOFF_MS = 600_000;   // ...up to this
+const FIRST_BACKOFF_MS = 60_000;  // ms, first wait out of throttling, doubling each time
+const MAX_BACKOFF_MS = 600_000;   // ms, the longest wait
 
 const abortableSleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {

@@ -102,7 +102,10 @@ export function customColors(accent: string, background: string): StyleColors {
   return { background, accent, text, label: readable([accent], bg, text), liveLearn: readable(GOLDS, bg, text) };
 }
 
-/** The look from settings, never refusing (a typo mustn't stop bubbles): unknown Style = Classic; `warn` hears what's ignored */
+/**
+ * The look from settings, never refusing (a typo mustn't stop bubbles): unknown Style = Classic, custom
+ * colors only when both are #rrggbb. `warn` hears what's ignored
+ */
 export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown; icon?: unknown } = {}): StylePayload {
   const raw = typeof style === "string" ? style.trim().toLowerCase() : "";
   const name = (BUBBLE_STYLES as readonly string[]).includes(raw) ? (raw as BubbleStyleName) : "classic";

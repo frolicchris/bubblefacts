@@ -31,7 +31,7 @@ const LOOKUP_HOSTS = /(?:^|\.)(?:wikipedia\.org|wikidata\.org|musicbrainz\.org)$
 
 let watching = false;
 
-/** Counts failed and throttled lookups while preparing, which would freeze "nothing found"; wraps `fetch` once, live passes through */
+/** Counts failed and throttled lookups while preparing, so a false miss isn't saved; wraps `fetch` once, live calls pass through */
 export function watchLookupTrouble(): void {
   if (watching) return;
   watching = true;
