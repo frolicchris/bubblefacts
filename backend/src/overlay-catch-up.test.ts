@@ -3,11 +3,8 @@ import WebSocket from "ws";
 import type { Fact, FactsPayload, SSLQueueItem, SSLSong } from "./types";
 import type { StylePayload } from "./bubble-style";
 
-/**
- * The real server, with a stand-in song list and fact generator, and overlays
- * as WebSocket clients: what an overlay that connects or reloads mid-song is
- * sent (issue #279).
- */
+// The real server with a stand-in song list and generator, overlays as WebSocket clients:
+// what an overlay joining mid-song is sent (#279)
 
 const mockServers: http.Server[] = [];
 jest.mock("http", () => {
@@ -22,14 +19,14 @@ jest.mock("http", () => {
   };
 });
 jest.mock("./config", () => {
-  // Made-up settings: nothing here reaches StreamerSongList or an AI.
+  // Made-up settings: nothing here reaches StreamerSongList or an AI
   Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none" });
   const actual = jest.requireActual("./config");
   return { ...actual, config: { ...actual.config, port: 0, host: "127.0.0.1", songSource: "streamersonglist", creditBubble: false } };
 });
 jest.mock("./local-only", () => ({ allowedHost: () => true, allowedOrigin: () => true }));
-// The credit bubble goes out once each stream even switched off (credit.test.ts). It stays out of the
-// batches here until the last tests, which check it on the real server.
+// The credit goes out once each stream even switched off (credit.test.ts): kept out of the batches
+// here until the last tests, which check it on the real server
 const mockCredit = { real: false };
 jest.mock("./credit", () => {
   const actual = jest.requireActual("./credit");
@@ -68,7 +65,7 @@ jest.mock("./fact-generator", () => ({
   forgetSong: () => {},
   selfTest: () => Promise.resolve({}),
   setCurrentSong: () => {},
-  // Every call gives the song's full list, as a regenerated batch would.
+  // Every call gives the song's full list, as a regenerated batch would
   generateFacts: () => Promise.resolve(mockFacts.list.map((f) => ({ ...f }))),
   factStats: {},
   markWrong: () => "Some article",
@@ -106,10 +103,10 @@ async function until(check: () => boolean): Promise<void> {
   if (!check()) throw new Error("timed out");
 }
 
-/** An overlay: connects and records every message the server sends it. */
+/** An overlay: connects and records every message the server sends it */
 async function overlay() {
   const messages: FactsPayload[] = [];
-  /** The bubbles' look, kept apart: every overlay gets it as it connects (issue #177). */
+  /** The bubbles' look, kept apart: every overlay gets it as it connects (issue #177) */
   const styles: StylePayload[] = [];
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   sockets.push(ws);
@@ -129,7 +126,7 @@ const fact = (text: string, delaySeconds: number): Fact => ({ text, delaySeconds
 const texts = (facts: Fact[]) => facts.map((f) => f.text);
 
 let songs = 0;
-/** A new song starts, with these facts, and they go out to whatever overlays are connected. */
+/** A new song starts, with these facts, and they go out to whatever overlays are connected */
 async function play(facts: Fact[]): Promise<SSLSong> {
   const song = { title: `Harbor Lights ${++songs}`, artist: "Paper Comets" };
   mockFacts.list = facts;
@@ -156,14 +153,14 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     expect(texts(await first.batch())).toEqual(["One.", "Two.", "Three."]);
 
     now += 5000;
-    // Two overlays at once, as with a second output: each gets the same bubbles.
+    // Two overlays at once, as with a second output: each gets the same bubbles
     const [second, third] = await Promise.all([overlay(), overlay()]);
     const caughtUp = await second.batch();
-    // "One." is on screen for 3 seconds more; the rest keep their places in the schedule.
+    // "One." is on screen for 3 seconds more; the rest keep their places in the schedule
     expect(caughtUp.map((f) => [f.text, f.delaySeconds])).toEqual([["One.", 0], ["Two.", 10], ["Three.", 25]]);
     expect(caughtUp[0].durationSeconds).toBe(3);
     expect(await third.batch()).toEqual(caughtUp);
-    // No second NOW PLAYING banner.
+    // No second NOW PLAYING banner
     expect(second.messages[0]).toMatchObject({ type: "new_song", quiet: true });
   });
 
@@ -176,7 +173,7 @@ describe("an overlay that connects mid-song (issue #279)", () => {
     now += 6000;
     const phone = await overlay();
     const caughtUp = await phone.batch();
-    // Both still up in their own landscape spots; each keeps its vertical spot for the vertical page.
+    // Both still up in their own landscape spots; each keeps its vertical spot for the vertical page
     expect(caughtUp.map((f) => [f.text, f.delaySeconds])).toEqual([["One.", 0], ["Two.", 0], ["Three.", 24]]);
     expect(caughtUp.every((f) => f.vertical?.top === "15%")).toBe(true);
   });
@@ -191,7 +188,7 @@ describe("an overlay that connects mid-song (issue #279)", () => {
 
     now += 4000;
     const again = await overlay();
-    // "Two." finished at 23 seconds; only "Three." is still to come, 6 seconds from now.
+    // "Two." finished at 23 seconds; only "Three." is still to come, 6 seconds from now
     expect((await again.batch()).map((f) => [f.text, f.delaySeconds])).toEqual([["Three.", 6]]);
   });
 
@@ -255,7 +252,7 @@ describe("the bubbles' look (issue #177)", () => {
   it("changes on every overlay at once when the app saves a new one, with no song announced again", async () => {
     const [a, b] = await Promise.all([overlay(), overlay()]);
     await play([fact("Mid-song.", 0)]);
-    // The song's own messages first: on a slow runner they can still be on their way.
+    // The song's own messages first: on a slow runner they can still be on their way
     await Promise.all([a.batch(), b.batch()]);
     const before = a.messages.length;
     const answer = (await post("style", { style: "light", accent: "#FF8800", background: "#ffffff" })) as { overlays: number; colors: object };
@@ -264,7 +261,7 @@ describe("the bubbles' look (issue #177)", () => {
     await until(() => a.styles.length === 2 && b.styles.length === 2);
     expect(a.styles[1]).toEqual({ type: "style", style: "light", colors: answer.colors });
     expect(a.messages.length).toBe(before);
-    // An overlay that connects later gets the new look too.
+    // An overlay that connects later gets the new look too
     const late = await overlay();
     await until(() => late.styles.length > 0);
     expect(late.styles[0]).toMatchObject({ style: "light" });
@@ -288,7 +285,7 @@ describe("the aired facts record, for the app's reports", () => {
     const before = (await airedTexts()).length;
     await overlay();
     const song = await play([fact("Aired one.", 0), fact("Aired two.", 15)]);
-    // A second overlay catching up adds nothing.
+    // A second overlay catching up adds nothing
     await (await overlay()).batch();
     let added = (await airedTexts()).slice(before);
     expect(added.map((a) => [a.title, a.text])).toEqual([[song.title, "Aired one."], [song.title, "Aired two."]]);
@@ -315,7 +312,7 @@ describe("the credit bubble with its switch off", () => {
   afterAll(() => { mockCredit.real = false; });
 
   it("still goes out before the stream's first facts, then not again until another stream", async () => {
-    // These tests run with AI_PROVIDER=none, so the credit is the one that says no AI retold anything.
+    // AI_PROVIDER=none here, so the credit is the no-AI one
     const { NO_AI_CREDIT_TEXT: CREDIT_TEXT, STREAM_BREAK_MS } = jest.requireActual<typeof import("./credit")>("./credit");
     const screen = await overlay();
     const firstFacts = () => screen.messages.filter((m) => m.type === "facts_ready").map((m) => texts(m.facts ?? []));
@@ -324,12 +321,12 @@ describe("the credit bubble with its switch off", () => {
     await play([fact("Two.", 0)]);
     await until(() => firstFacts().length === 2);
     expect(firstFacts()).toEqual([[CREDIT_TEXT, "One."], ["Two."]]);
-    // No facts on stream for a break: the next ones start another stream, and the credit goes first again.
+    // No facts on stream for a break: the next start another stream, credit first again
     now += STREAM_BREAK_MS;
     await play([fact("Three.", 0)]);
     await until(() => firstFacts().length === 3);
     expect(firstFacts()[2]).toEqual([CREDIT_TEXT, "Three."]);
-    // What a restart reads back: the count and the wording it counted, so a restart doesn't credit again.
+    // What a restart reads back: the count and its wording, so it doesn't credit again
     const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
     expect(loadSession(now)).toMatchObject({ creditSince: 0, creditText: CREDIT_TEXT });
   });
@@ -340,7 +337,7 @@ describe("the credit bubble with its switch off", () => {
     const credits = (o: { messages: FactsPayload[] }) => o.messages.filter(isCredit).map((m) => texts(m.facts ?? []));
     const streaming = (o: { ws: WebSocket }, on: boolean) => o.ws.send(JSON.stringify({ type: "obs_streaming", streaming: on }));
     const [main, vertical] = [await overlay(), await overlay()];
-    // A soundcheck: the song's facts go out with OBS open, before going live, and the credit isn't due.
+    // A soundcheck: facts go out with OBS open before going live, and the credit isn't due
     now += 60_000;
     await play([fact("Soundcheck.", 0)]);
     const later = { ...fact("Later.", 30), position: { top: "60%", left: "10%" } };
@@ -349,30 +346,30 @@ describe("the credit bubble with its switch off", () => {
     streaming(main, false);
     await settle();
     expect(credits(main)).toEqual([]);
-    // Live: the credit goes to every overlay at once, on top of the song, whose facts aren't sent again.
+    // Live: the credit goes to every overlay at once, on top of the song, whose facts aren't resent
     const before = main.messages.length;
     streaming(main, true);
     await until(() => credits(main).length === 1 && credits(vertical).length === 1);
-    // `keep`: the bubble on screen stays. The credit takes the next bubble's spot, and that bubble
-    // moves later by the credit's time, so in a one-spot area the next bubble can't replace it early.
+    // `keep`: the bubble on screen stays; the credit takes the next bubble's spot, which moves later
+    // by the credit's time, so in a one-spot area it can't replace the credit early
     const batch = main.messages.slice(before);
     expect(batch).toHaveLength(1);
     const [credit, moved] = batch[0].facts!;
     expect([credit.text, moved.text]).toEqual([NO_AI_CREDIT_TEXT, "Later."]);
     expect(credit.position).toEqual(later.position);
     expect(moved.delaySeconds).toBe(30 + creditLead(credit));
-    // What a restart reads back: OBS is live, so the first overlay to reconnect isn't a new stream.
+    // What a restart reads back: OBS is live, so the first overlay to reconnect isn't a new stream
     const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
     expect(loadSession(now)).toMatchObject({ obsStreaming: true });
-    // An overlay that connects now gets the same schedule from the record, without the credit.
+    // An overlay connecting now gets the same schedule from the record, without the credit
     const late = await overlay();
     expect((await late.batch()).find((f) => f.text === "Later.")!.delaySeconds).toBe(30 + creditLead(credit));
-    // The other overlay and a reload say the same: not another stream.
+    // The other overlay and a reload say the same: not another stream
     streaming(vertical, true);
     streaming(main, true);
     await settle();
     expect(credits(main)).toHaveLength(1);
-    // Stopped, then live again: another stream, another credit.
+    // Stopped, then live again: another stream, another credit
     streaming(main, false);
     streaming(main, true);
     await until(() => credits(main).length === 2);

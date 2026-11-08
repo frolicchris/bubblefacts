@@ -32,7 +32,7 @@
 
   // The server, for a Local File: change it with PORT, or HOST for another machine
   const SERVER = "127.0.0.1:3000";
-  const PORT_SPAN = 10; // next ports also tried; the app moves up when its port is taken
+  const PORT_SPAN = 10; // ports after it also tried as a Local File: the app moves up when its port is taken
   const [SERVER_HOST, SERVER_PORT] = SERVER.split(":");
   // OBS serves a Local File from http://absolute/<path>, not file://
   const LOCAL_FILE = location.protocol === "file:" || location.hostname === "absolute";

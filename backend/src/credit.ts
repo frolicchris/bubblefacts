@@ -6,9 +6,8 @@ import { Fact } from "./types";
 // each stream, then about every 5th song with facts (ARCHITECTURE.md: The credit bubble)
 
 export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold by AI. Spot a mistake? Let the streamer know. · BubbleFacts";
-// Another AI writes (an online service or the streamer's Ollama): facts a viewer can check, no
-// vouching; within MAX_FACT_CHARS (ARCHITECTURE.md: The credit bubble). Wikidata and MusicBrainz
-// (CC0) need no credit; the credits page names them
+// Another AI writes (an online service or the streamer's Ollama): only facts a viewer can check, within
+// MAX_FACT_CHARS (ARCHITECTURE.md: The credit bubble). Wikidata and MusicBrainz (CC0) need no credit
 export const OTHER_AI_CREDIT_TEXT = "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html";
 // No AI writes (`AI_PROVIDER=none`): Wikipedia keeps its credit, since some facts are still
 // sentences taken from an article (`artistGoodFacts`)
