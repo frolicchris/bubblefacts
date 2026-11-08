@@ -138,6 +138,8 @@ describe("Settings", () => {
     const label = settings.match(/<label class="inline"><input name="creditBubble"[^>]*>[^<]*<\/label>/);
     expect(label?.[0]).toContain('aria-describedby="s-credit-hint"');
     expect(settings).toMatch(/<\/label>\s*<p class="hint indent" id="s-credit-hint">One extra bubble/);
+    // Unchecked is rarer, not never: the server still credits each stream once (credit.ts).
+    expect(settings).toContain("Unchecked, it still shows once each stream, before the first song's facts");
   });
 
   it("sets its help text at 14px and keeps the Save bar on screen", () => {

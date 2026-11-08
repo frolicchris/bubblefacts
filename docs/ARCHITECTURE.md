@@ -597,15 +597,29 @@ dullest and the most often wrong, so accuracy and fun mostly pull the same way.
 
 One extra bubble tells viewers where the facts come from and that they may be
 wrong ("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz, retold
-by AI. Spot a mistake? Let the streamer know. · BubbleFacts"; `credit.ts`, issue #278, `CREDIT_BUBBLE=off`
-hides it). It goes out before the first song's facts after BubbleFacts starts,
-then with about every 5th song that has facts (`CreditCounter`), and the
-song's facts start after it. A song with no facts, bubbles paused, no overlay
-connected, or a test bubble in the last 20 seconds doesn't use up a turn. The
-credit is only sent to the overlay, never put in the song's record, so **Wrong**,
-the dashboard and the shown log never see it, and an overlay that reloads
-mid-song isn't given it again. The count is kept in `session.json`, so a
-restart in the middle of a stream carries on.
+by AI. Spot a mistake? Let the streamer know. · BubbleFacts"; `credit.ts`, issue #278).
+It goes out before the first song's facts of each stream, then with about
+every 5th song that has facts (`CreditCounter`), and the song's facts start
+after it. A song with no facts, bubbles paused, no overlay connected, or a test
+bubble in the last 20 seconds doesn't use up a turn, so the credit goes with
+the first facts viewers actually see. The credit is only sent to the overlay,
+never put in the song's record, so **Wrong**, the dashboard and the shown log
+never see it, and an overlay that reloads mid-song isn't given it again. The
+count is kept in `session.json`, so a restart in the middle of a stream
+carries on.
+
+`CREDIT_BUBBLE=off` (the app's **Now and then, show where the facts come
+from**, unchecked) stops the repeats, not the first one: every stream that
+shows facts shows the credit at least once. The facts are retold from
+licensed sources and can be wrong, whichever AI writes them, and a viewer
+should be able to learn that on every stream; the streamer can make it rarer,
+not remove it. A stream is told from the next by time: a start with no
+session from that stream, or no facts on stream for `STREAM_BREAK_MS` (20
+minutes, the same break that makes a restart start the song afresh), even
+with the app left running in between. That includes a restart whose session
+says the last facts went out that long ago, or to no overlay (`shownAt` 0), so
+the time is unknown. A long break mid-stream may show it once more, which is
+the safe side of "at least once".
 
 ### The content standard
 

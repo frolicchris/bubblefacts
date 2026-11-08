@@ -5,7 +5,7 @@ import path from "path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-credit-"));
 jest.mock("./config", () => ({ config: { dataDir: dir, factDurationSeconds: 8 } }));
 
-import { CREDIT_EVERY_SONGS, CREDIT_TEXT, CreditCounter, planCredit, TEST_QUIET_MS, withCredit } from "./credit";
+import { CREDIT_EVERY_SONGS, CREDIT_TEXT, CreditCounter, planCredit, STREAM_BREAK_MS, TEST_QUIET_MS, withCredit } from "./credit";
 import { loadSession, saveSession } from "./session";
 import { Fact } from "./types";
 
@@ -40,11 +40,22 @@ describe("the credit bubble's timing", () => {
     expect(run(counter, [facts])).toEqual([true]);
   });
 
-  it("is off with the switch, and the count stays where it was", () => {
+  it("still goes with the first song of a stream when switched off, and only that one", () => {
+    const off = { ...air, enabled: false };
     const counter = new CreditCounter();
-    expect(run(counter, [facts, facts], { ...air, enabled: false })).toEqual([false, false]);
-    expect(counter.since).toBeUndefined();
-    expect(run(counter, [facts])).toEqual([true]);
+    const shown = run(counter, Array.from({ length: 12 }, () => facts), off);
+    expect(shown.map((s, i) => (s ? i + 1 : 0)).filter(Boolean)).toEqual([1]);
+    // Songs without facts, paused or with no overlay don't use it up: it waits for the first facts viewers see.
+    const later = new CreditCounter();
+    expect(run(later, [[], facts], { ...off, onAir: false })).toEqual([false, false]);
+    expect(run(later, [[], facts, facts], off)).toEqual([false, true, false]);
+  });
+
+  it("waits for a test bubble to clear when switched off too, and still goes with the next song", () => {
+    const counter = new CreditCounter();
+    const off = { ...air, enabled: false };
+    expect(run(counter, [facts], { ...off, testAt: NOW - TEST_QUIET_MS + 1 })).toEqual([false]);
+    expect(run(counter, [facts, facts], off)).toEqual([true, false]);
   });
 
   it("waits while paused or with no overlay connected, since nobody sees it", () => {
@@ -62,6 +73,33 @@ describe("the credit bubble's timing", () => {
     expect(run(counter, [facts, facts, facts, facts])).toEqual([false, false, false, false]);
     expect(run(counter, [facts], justTested)).toEqual([false]);
     expect(run(counter, [facts])).toEqual([true]);
+  });
+});
+
+describe("a new stream with the app left running", () => {
+  /** Songs with facts, each at its own time. */
+  const at = (counter: CreditCounter, times: number[], enabled = true) => times.map((now) => !!planCredit(counter, facts, { ...air, enabled, now }).credit);
+
+  it("credits first again after a break with no facts on stream, switched on or off", () => {
+    for (const enabled of [true, false]) {
+      const counter = new CreditCounter();
+      const next = NOW + 2 * 60_000 + STREAM_BREAK_MS;
+      expect(at(counter, [NOW, NOW + 60_000, NOW + 2 * 60_000, next, next + 60_000], enabled)).toEqual([true, false, false, true, false]);
+    }
+  });
+
+  it("carries on when the gap between songs is shorter than a break", () => {
+    const counter = new CreditCounter();
+    const times = Array.from({ length: 12 }, (_, i) => NOW + i * (STREAM_BREAK_MS - 1));
+    expect(at(counter, times, false)).toEqual(times.map((_, i) => i === 0));
+  });
+
+  it("counts only time with facts on stream: an overlay that's away doesn't move the clock", () => {
+    const counter = new CreditCounter();
+    expect(at(counter, [NOW], false)).toEqual([true]);
+    // Facts that went nowhere don't count as on stream.
+    expect(planCredit(counter, facts, { ...air, enabled: false, onAir: false, now: NOW + STREAM_BREAK_MS - 1 }).credit).toBeUndefined();
+    expect(at(counter, [NOW + STREAM_BREAK_MS], false)).toEqual([true]);
   });
 });
 
@@ -88,14 +126,19 @@ describe("the credit bubble's content", () => {
   });
 
   it("leaves the facts alone when it isn't due", () => {
-    const counter = new CreditCounter(2);
+    const counter = new CreditCounter(2, NOW - 60_000);
     expect(planCredit(counter, facts, air)).toEqual({ facts });
   });
 });
 
 describe("the credit count across a restart", () => {
-  const save = (creditSince?: number) =>
-    saveSession({ song: { title: "The Moon", artist: "DuckTales" }, facts, shownAt: 1000, recent: [], savedAt: 1000, ...(creditSince === undefined ? {} : { creditSince }) });
+  const SHOWN = NOW - 60_000;
+  const save = (creditSince?: number, shownAt = SHOWN) =>
+    saveSession({ song: { title: "The Moon", artist: "DuckTales" }, facts, shownAt, recent: [], savedAt: SHOWN, ...(creditSince === undefined ? {} : { creditSince }) });
+  const restart = (now = NOW) => {
+    const s = loadSession(now);
+    return new CreditCounter(s?.creditSince, s?.shownAt);
+  };
 
   it("carries on from the session file instead of crediting again", () => {
     const before = new CreditCounter();
@@ -103,16 +146,29 @@ describe("the credit count across a restart", () => {
     expect(before.since).toBe(2);
     save(before.since);
 
-    const after = new CreditCounter(loadSession(2000)?.creditSince);
     // Two more songs finish the count of 5, so the credit comes with the 3rd.
-    expect(run(after, [facts, facts, facts])).toEqual([false, false, true]);
+    expect(run(restart(), [facts, facts, facts])).toEqual([false, false, true]);
+    // Switched off, a restart in the middle of a stream doesn't credit again.
+    save(2);
+    expect(run(restart(), [facts, facts, facts], { ...air, enabled: false })).toEqual([false, false, false]);
   });
 
   it("credits first when there is no session from this stream, or none counted yet", () => {
     save();
-    expect(loadSession(2000)).not.toBeNull();
-    expect(run(new CreditCounter(loadSession(2000)?.creditSince), [facts])).toEqual([true]);
-    expect(run(new CreditCounter(loadSession(1000 + 7 * 60 * 60_000)?.creditSince), [facts])).toEqual([true]);
+    expect(loadSession(NOW)).not.toBeNull();
+    expect(run(restart(), [facts])).toEqual([true]);
+    expect(run(restart(SHOWN + 7 * 60 * 60_000), [facts])).toEqual([true]);
+  });
+
+  it("credits first when the last facts went out a stream break ago, or to no overlay, switched on or off", () => {
+    for (const enabled of [true, false]) {
+      // Still in the session file's window, but after a break: another stream.
+      save(2, NOW - STREAM_BREAK_MS);
+      expect(run(restart(), [facts], { ...air, enabled })).toEqual([true]);
+      // The last song went out with no overlay connected, so when viewers last saw facts isn't known.
+      save(2, 0);
+      expect(run(restart(), [facts], { ...air, enabled })).toEqual([true]);
+    }
   });
 
   it("ignores a count in the file that can't be right", () => {
@@ -120,6 +176,9 @@ describe("the credit count across a restart", () => {
     expect(new CreditCounter(Number.NaN).since).toBeUndefined();
     fs.writeFileSync(path.join(dir, "session.json"), JSON.stringify({ song: { title: "A", artist: "B" }, facts: [], recent: [], savedAt: 1000, shownAt: 0, creditSince: "3" }));
     expect(loadSession(2000)).toBeNull();
-    expect(new CreditCounter(99).since).toBe(CREDIT_EVERY_SONGS - 1);
+    expect(new CreditCounter(99, NOW).since).toBe(CREDIT_EVERY_SONGS - 1);
+    // A count with no time facts were last on stream can't say which stream it's from.
+    expect(new CreditCounter(2).since).toBeUndefined();
+    expect(new CreditCounter(2, Number.NaN).since).toBeUndefined();
   });
 });

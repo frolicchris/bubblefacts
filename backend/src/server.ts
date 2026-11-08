@@ -110,7 +110,7 @@ if (restored) {
 }
 
 /** When the credit bubble is next due (credit.ts). A restart in the middle of a stream carries on with the count. */
-const creditCount = new CreditCounter(restored?.creditSince);
+const creditCount = new CreditCounter(restored?.creditSince, restored?.shownAt);
 /** When the streamer last pressed Test: the credit bubble keeps clear of it. */
 let testAt = 0;
 
@@ -202,7 +202,7 @@ function cantPrepare(): string {
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(config.creditBubble && creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since } : {}) });
 }
 
 
@@ -342,7 +342,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
     );
   }
   // The credit bubble goes with a song that has facts and is really going to a connected overlay
-  // (not paused), and not while a test bubble is up. Its facts then start after it.
+  // (not paused), and not while a test bubble is up: once each stream at least, even switched off.
+  // Its facts then start after it.
   const plan = planCredit(creditCount, facts, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
   broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
 }
