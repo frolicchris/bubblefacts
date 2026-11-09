@@ -69,6 +69,8 @@ interface Client {
   ua: string;
   addr: string;
   connectedAt: number;
+  /** Set by any pong or message; cleared at each heartbeat. Still clear at the next one: the connection is dead. */
+  alive: boolean;
 }
 const clients = new Map<WebSocket, Client>();
 let clientSeq = 0;
@@ -123,7 +125,11 @@ const obsStreaming = new ObsStreaming(restored && Date.now() - restored.savedAt 
 /** The [Shown] lines: logged where facts go out to an overlay, once per play of a song, and kept in the aired facts record. */
 const aired = new AiredFacts();
 const shown = new ShownLog(aired);
-const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
+const logShown = (song: SSLSong, facts: Fact[]) => {
+  shown.log(song, facts);
+  // [Shown] says what went out, not that an overlay drew it: this says how many connections it went to.
+  if (facts.length) console.log(`[WS] Sent ${facts.length} bubble${facts.length === 1 ? "" : "s"} to ${clients.size} overlay${clients.size === 1 ? "" : "s"}`);
+};
 
 /** Share song facts with other apps: the streamer's choice, and off by default. */
 const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFactsChannel
@@ -256,14 +262,35 @@ function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): voi
 }
 
 
+/**
+ * A connection that died without closing (OBS killed, a sleep, a dropped network) stays in `clients`
+ * and counts as an overlay: the bubbles go to nobody and the log still says [Shown]. Every overlay is
+ * pinged on this beat, and one that answered nothing since the last beat is dropped, so its source
+ * reconnects (and is caught up on the song) by itself. The env var is for the tests.
+ */
+const HEARTBEAT_MS = Number(process.env.BUBBLEFACTS_HEARTBEAT_MS) || 15_000;
+setInterval(() => {
+  for (const [ws, client] of clients) {
+    if (!client.alive) {
+      console.warn(`[WS] Client #${client.id} stopped answering: dropped, total ${clients.size - 1}. An overlay that is still there reconnects by itself.`);
+      ws.terminate();
+      continue;
+    }
+    client.alive = false;
+    try { ws.ping(); } catch { ws.terminate(); }
+  }
+}, HEARTBEAT_MS).unref();
+
 wss.on("connection", (ws, req) => {
   const client: Client = {
     id: ++clientSeq,
     ua: req.headers["user-agent"] ?? "unknown",
     addr: req.socket.remoteAddress ?? "unknown",
     connectedAt: Date.now(),
+    alive: true,
   };
   clients.set(ws, client);
+  ws.on("pong", () => { client.alive = true; });
   console.log(`[WS] Client #${client.id} connected from ${client.addr} (${client.ua}), total ${clients.size}`);
   // OBS is up: the stream comes first. Preparing stops at once, and the app starts it again once OBS is closed.
   if (preparer.running) {
@@ -289,6 +316,7 @@ wss.on("connection", (ws, req) => {
     obsStreaming.forget(client.id);
   });
   ws.on("message", (data, isBinary) => {
+    client.alive = true;
     const msg = isBinary ? null : parseOverlayMessage(String(data));
     if (!msg) return;
     status.heard();
