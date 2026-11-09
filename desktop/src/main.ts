@@ -280,13 +280,27 @@ supervisor.on("model-loaded", (loaded: string) => {
   }
   send("state", state());
 });
+/** A failed load can be a moment's trouble (memory taken by a game, a busy start): the AI is tried again a few minutes later, twice at most. */
+const BUILTIN_RETRY_MS = 3 * 60_000;
+const BUILTIN_RETRIES = 2;
+let builtinRetries = 0;
 supervisor.on("builtin-failed", () => {
   if (!builtinFailed) {
     builtinFailed = true;
-    notify("The built-in AI can't run on this computer", "For now, songs get facts from music databases and your own facts.");
+    notify("The built-in AI can't run on this computer", builtinRetries < BUILTIN_RETRIES ? "For now, songs get facts from music databases and your own facts. It will try again in a few minutes." : "For now, songs get facts from music databases and your own facts.");
   }
   send("state", state());
   supervisor.restart(serverEnv());
+  if (builtinRetries < BUILTIN_RETRIES) {
+    builtinRetries++;
+    setTimeout(() => {
+      if (!builtinFailed) return;
+      builtinFailed = false;
+      supervisor.note("[App] Trying the built-in AI again");
+      send("state", state());
+      supervisor.restart(serverEnv());
+    }, BUILTIN_RETRY_MS).unref();
+  }
 });
 
 // --- The built-in AI's download ------------------------------------------

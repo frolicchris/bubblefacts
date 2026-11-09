@@ -23,7 +23,7 @@ jest.mock("http", () => {
 });
 jest.mock("./config", () => {
   // Made-up settings: nothing here reaches StreamerSongList or an AI.
-  Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none", BUBBLEFACTS_HEARTBEAT_MS: "150" });
+  Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none", BUBBLEFACTS_HEARTBEAT_MS: "150", BUBBLEFACTS_DRAW_GRACE_MS: "150" });
   const actual = jest.requireActual("./config");
   return { ...actual, config: { ...actual.config, port: 0, host: "127.0.0.1", songSource: "streamersonglist", creditBubble: false } };
 });
@@ -405,5 +405,21 @@ describe("an overlay whose connection died without closing", () => {
     // It can reconnect, and is caught up again.
     const again = await overlay();
     expect(again.ws.readyState).toBe(WebSocket.OPEN);
+  });
+});
+
+describe("an overlay that is connected but draws nothing", () => {
+  it("is named in the log when a batch was sent and it never said it drew a bubble", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const quiet = await overlay();
+    const drawing = await overlay();
+    await play([fact("A bubble", 0)]);
+    await drawing.batch();
+    drawing.ws.send(JSON.stringify({ type: "drew" }));
+    await until(() => warn.mock.calls.some((c) => /drew none/.test(String(c[0]))));
+    const said = warn.mock.calls.map((c) => String(c[0])).find((m) => /drew none/.test(m))!;
+    expect(said).toMatch(/1 of \d+ overlays/);
+    quiet.ws.terminate();
+    warn.mockRestore();
   });
 });
