@@ -52,7 +52,7 @@
     "browser-source"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "main": "dist/desktop/main.js",
   "productName": "BubbleFacts",

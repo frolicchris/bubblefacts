@@ -24,7 +24,7 @@ echo
 echo "--- Preflight ---"
 
 [ -f .env ] || fail "No .env file. Run: cp .env.example .env  and fill it in"
-command -v node >/dev/null || fail "Node.js not found. Install Node 20 or newer"
+command -v node >/dev/null || fail "Node.js not found. Install Node 22 or newer"
 [ -d node_modules ] || fail "Dependencies missing. Run: npm install"
 
 PORT="${PORT:-$(env_get PORT)}"

@@ -3,7 +3,7 @@
 OBS overlay and desktop app that show verified trivia about the song a
 StreamerSongList queue, a StreamElements request player or a now playing file
 says is playing.
-Node 20+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
+Node 22+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
 `docs/ARCHITECTURE.md` before changing the fact pipeline. It records the
 constraints that were learned on live streams.
 
