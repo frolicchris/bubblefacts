@@ -1,12 +1,12 @@
 import type { SSLSong } from "../types";
-import { escapeRe, hasNoArtist } from "../text";
+import { editDistance, escapeRe, hasNoArtist } from "../text";
 import { setCapped } from "../capped-map";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { dropVersionTags, isVariantTag, normalizeTitle, resolveGameAndTrack } from "./titles";
-import { COMPANY, initialsDiffer, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, ROMAN, significantTokens, STOPWORDS, withoutQualifier } from "./relevance";
-import { orderExtract, RateLimited, wikiExtract, wikiResolveTitles, wikiSearch, wikiSearchSuggestion } from "./wikipedia";
+import { COMPANY, initialsDiffer, isInitials, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, significantTokens, withoutQualifier } from "./relevance";
+import { ownArticleExtract, RateLimited, wikiExtract, wikiResolveTitles, wikiSearch, wikiSearchSuggestion } from "./wikipedia";
 import { writingText } from "./covers";
-import { GENERIC_TRACK, NOT_A_LIST } from "./summary";
+import { GENERIC_TRACK } from "./summary";
 
 /**
  * Other readings of a request: the same text read as a different game,
@@ -244,17 +244,6 @@ function namedInTitle(title: string, first: { game: string; track: string }): Re
   ];
 }
 
-/** Edit distance: how many letters to add, drop or change to turn one string into the other. */
-export function editDistance(a: string, b: string): number {
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
 /** Installment numbers in a title, roman numerals as arabic: "Star Trek II" has 2. */
 const numerals = (s: string) => significantTokens(normalizeTitle(s)).filter((t) => /\d/.test(t));
 
@@ -307,23 +296,6 @@ export function isSameWorkRedirect(from: string, to: string): boolean {
   if (/\d/.test(toWords[toWords.length - 1] ?? "") && !fromNumbers.includes(toWords[toWords.length - 1])) return false;
   const fromWords = new Set(significantTokens(normalizeTitle(from)).filter((t) => !/\d/.test(t)));
   return significantTokens(normalizeTitle(to)).some((t) => fromWords.has(t)) || isRespelling(from, to);
-}
-
-/**
- * Whether a name is the initials of a title, its installment number kept:
- * "FFVII" and "FF7" are "Final Fantasy VII". Only for a redirect Wikipedia
- * itself keeps, so the abbreviation is its, not a guess.
- */
-export function isInitials(short: string, long: string): boolean {
-  const s = normalizeTitle(short).replace(/ /g, "");
-  if (s.length < 2 || /\s/.test(short.trim())) return false;
-  const words = normalizeTitle(long).split(" ").filter(Boolean);
-  const forms = (keep: (w: string) => boolean) => {
-    const kept = words.filter(keep);
-    const num = (w: string) => /^\d+$/.test(w) || w in ROMAN;
-    return [kept.map((w) => (num(w) ? w : w[0])).join(""), kept.map((w) => (num(w) ? (ROMAN[w] ?? w) : w[0])).join("")];
-  };
-  return [...forms(() => true), ...forms((w) => !STOPWORDS.has(w))].includes(s);
 }
 
 export const wikipediaNames = new Map<string, string | null>();
@@ -401,16 +373,6 @@ export async function wikipediaName(name: string): Promise<string | null> {
   wikipediaNames.set(name, found);
   if (found) console.log(`[Grounding] Wikipedia calls "${name}" "${found}"`);
   return found;
-}
-
-/**
- * The song's own article, read for a reference. When its sections have names
- * the usual ordering doesn't look for ("Origin", "Form"), it would keep little
- * more than the lead: then every section but the lists is read instead.
- */
-export function ownArticleExtract(full: string, budget: number, names: string[]): string {
-  const extract = orderExtract(full, budget, names);
-  return extract.length >= MIN_CONTEXT_CHARS ? extract : orderExtract(full, budget, names, true, NOT_A_LIST);
 }
 
 /** What a song is, in its article's opening: "a traditional English folk song". */

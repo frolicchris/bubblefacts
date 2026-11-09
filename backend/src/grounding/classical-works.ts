@@ -5,10 +5,10 @@ import { itemLabels, knownPerson, personItem, searchWorks, wholesOf, WikidataBus
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { type ClassicalTitle, dropVersionTags, FORM_WORDS, normalizeKeys, normalizeTitle, ORDINAL_WORDS, parseClassicalTitle, resolveGameAndTrack, ROMAN_NUMBER } from "./titles";
 import { qualifierOf, ROMAN } from "./relevance";
-import { orderExtract, RateLimited, wholeSentences, wikiExtract, withoutVideoSections } from "./wikipedia";
+import { NOT_A_LIST, orderExtract, ownArticleExtract, RateLimited, wholeSentences, wikiExtract, withoutVideoSections } from "./wikipedia";
 import { openingSays, opensAboutMusicOrWork } from "./covers";
-import { GENERIC_SECTION, NOT_A_LIST, SCREEN_OR_BOOK, sectionsOf } from "./summary";
-import { CATEGORY_ARTIST, CREDIT_JOIN, type Grounded, groundingCache, MAX_GROUNDING, NEGATIVE_TTL_MS, NO_ONE, ownArticleExtract } from "./readings";
+import { GENERIC_SECTION, SCREEN_OR_BOOK, sectionsOf } from "./summary";
+import { CATEGORY_ARTIST, CREDIT_JOIN, type Grounded, groundingCache, MAX_GROUNDING, NEGATIVE_TTL_MS, NO_ONE } from "./readings";
 import { classicalKey, classicalPages, isPerformerArticle } from "./work-match";
 
 /**

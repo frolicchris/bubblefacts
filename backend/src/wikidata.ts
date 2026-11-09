@@ -1,5 +1,8 @@
 import { config } from "./config";
-import { artistNames, MAX_FACT_CHARS, mentionsName, namesLoosely, normalizeTitle, resolveGameAndTrack, USER_AGENT } from "./fact-verifier";
+import { MAX_FACT_CHARS } from "./fact-limits";
+import { namesLoosely } from "./grounding/relevance";
+import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack } from "./grounding/titles";
+import { USER_AGENT } from "./grounding/wikipedia";
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
 import { fitOrSplit, packFacts } from "./data-facts";

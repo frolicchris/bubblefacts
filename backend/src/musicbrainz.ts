@@ -1,26 +1,11 @@
 import { config } from "./config";
-import {
-  artistNames,
-  editDistance,
-  foldSymbols,
-  initialsDiffer,
-  isPieceArticle,
-  isInitials,
-  looksLikeArtistName,
-  MAX_CONTEXT_CHARS,
-  MAX_FACT_CHARS,
-  mentionsName,
-  MIN_CONTEXT_CHARS,
-  normalizeTitle,
-  openingSays,
-  orderExtract,
-  ownArticleExtract,
-  resolveGameAndTrack,
-  USER_AGENT,
-  wikiExtract,
-} from "./fact-verifier";
+import { MAX_CONTEXT_CHARS, MAX_FACT_CHARS, MIN_CONTEXT_CHARS } from "./fact-limits";
+import { isPieceArticle, openingSays } from "./grounding/covers";
+import { initialsDiffer, isInitials, looksLikeArtistName } from "./grounding/relevance";
+import { artistNames, foldSymbols, mentionsName, normalizeTitle, resolveGameAndTrack } from "./grounding/titles";
+import { orderExtract, ownArticleExtract, USER_AGENT, wikiExtract } from "./grounding/wikipedia";
+import { editDistance, hasNoArtist } from "./text";
 import { pageArtistIds } from "./wikidata";
-import { hasNoArtist } from "./text";
 import { SSLSong } from "./types";
 import { fitOrSplit } from "./data-facts";
 import { otherOrder } from "./youtube-title";

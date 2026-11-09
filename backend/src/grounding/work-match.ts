@@ -1,9 +1,10 @@
 import type { SSLSong } from "../types";
+import { editDistance } from "../text";
 import { artistNames, dropVersionTags, mentionsName, normalizeTitle, resolveGameAndTrack } from "./titles";
-import { initialsDiffer, PERFORMER_QUALIFIER, qualifierOf, significantTokens, withoutQualifier } from "./relevance";
+import { namesLoosely, PERFORMER_QUALIFIER, qualifierOf, significantTokens, withoutQualifier } from "./relevance";
 import { articleText, isPieceArticle, openingSays } from "./covers";
 import { namesPiece, SCREEN_OR_BOOK } from "./summary";
-import { editDistance, isRespelling } from "./readings";
+import { isRespelling } from "./readings";
 
 /**
  * Whether the article is about the requested work (issue #255):
@@ -36,25 +37,6 @@ function leadSentences(full: string, n: number): string {
   const lead = full.split(/\n==/)[0].replace(/\s+/g, " ").trim();
   const ends = [...lead.matchAll(/[.!?](?=\s+[\p{Lu}"“(])/gu)].map((m) => (m.index ?? 0) + 1);
   return ends.length >= n ? lead.slice(0, ends[n - 1]) : lead;
-}
-
-/** Whether normalized text names one of these, spelled a letter or two differently ("Colbie Cailat"). */
-export function namesLoosely(text: string, names: string[]): boolean {
-  if (mentionsName(text, names)) return true;
-  const words = text.split(" ");
-  return names.some((name) => {
-    const want = name.replace(/ /g, "");
-    const n = name.split(" ").length;
-    if (want.length < 5) return false;
-    for (let size = Math.max(1, n - 1); size <= n + 1; size++) {
-      for (let i = 0; i + size <= words.length; i++) {
-        const got = words.slice(i, i + size).join("");
-        if (initialsDiffer(words.slice(i, i + size).join(" "), name)) continue;
-        if (Math.abs(got.length - want.length) <= 2 && editDistance(got, want) <= Math.max(1, Math.floor(want.length * 0.15))) return true;
-      }
-    }
-    return false;
-  });
 }
 
 /**
