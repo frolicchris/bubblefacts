@@ -24,7 +24,7 @@ export const PREPARED_FILE = "prepared-facts.json";
  * content standard, which sources are read) would write different facts:
  * every saved entry is then prepared again, and none is shown meanwhile.
  */
-export const PREPARED_RULES_VERSION = 1;
+export const PREPARED_RULES_VERSION = 2;
 
 /** A prepared song is prepared again after this long, whatever else changed. */
 export const PREPARED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
