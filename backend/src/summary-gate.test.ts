@@ -115,6 +115,24 @@ describe("summaryMismatch: a short artist name that found something else (made-u
   });
 });
 
+describe("summaryMismatch: a game's own article for one of its tracks", () => {
+  // Game soundtracks list the game as the artist; its article rarely names the track (2026-11-08, Golden Axe).
+  it("keeps the game's article when the artist field is the game and the article never names the track", () => {
+    const game = ref("Golden Axe (video game)", "Golden Axe is a 1989 beat 'em up video game by Sega.");
+    expect(summaryMismatch(summary("1989 video game"), { title: "Turtle Village", artist: "Golden Axe" }, game)).toBe("");
+    const celeste = ref("Celeste (video game)", "Celeste is a 2018 platform game.");
+    expect(summaryMismatch(summary("2018 video game"), { title: "First Steps", artist: "Celeste" }, celeste)).toBe("");
+  });
+
+  it("still refuses a page about something else that shares the artist's name", () => {
+    const robot = ref("VX-409", "VX-409 is a fictional robot in a film series.");
+    expect(summaryMismatch(summary("Fictional robot in a film franchise"), { title: "The Man Inside", artist: "Vx409" }, robot)).toMatch(/not a performer of that name/);
+    // A game that shares a performer's name is still not that performer's article.
+    const other = ref("Celeste (video game)", "Celeste is a 2018 platform game.");
+    expect(summaryMismatch(summary("2018 video game"), { title: "Moon River Cover", artist: "Celeste Singer" }, other)).not.toMatch(/not a performer of that name/);
+  });
+});
+
 describe("summaryGate", () => {
   it("asks Wikipedia's summary endpoint with the project's User-Agent, and caches the answer", async () => {
     const fetch = serveSummaries({ "Lantern Hill": { description: "1975 song by the Marmalade Owls" } });
