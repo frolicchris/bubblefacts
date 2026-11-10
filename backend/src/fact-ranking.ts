@@ -5,8 +5,9 @@
  *   1. When the work match is unsure, no AI captions at all (`unsure`).
  *   2. An AI caption is held back when its source sentence is risky to retell:
  *      a reporting verb, a quote of four or more words, a body sentence of 30
- *      or more words, a hedge the caption lost, or a body sentence the caption
- *      kept less than half of (`sourceRisk`).
+ *      or more words, a hedge the caption lost, a body sentence the caption
+ *      kept less than half of, or a caption with under 60% of its own words
+ *      from that sentence (`sourceRisk`).
  *   3. Fewer than three left: held-back captions come back, fewest flags first,
  *      until there are three. Never one dropped by step 1.
  * Then fun: what is left is ordered by a small interest score read from the
@@ -16,6 +17,10 @@
  * it. Data facts and lead captions go first among equals, no two bubbles in a
  * row tell the same kind of fact when that can be helped, and a song shows at
  * most four.
+ * A dull data fact (the year, the album, the label, the writing credit: `dullData`) is
+ * left out when the song shows anything else; a song with nothing else keeps them. It
+ * still counts toward the floor of three and the most of four, so leaving it out never brings a
+ * risky caption back or a lower-ranked one in.
  * A caption about the game, film or show around the song rather than its music (voice casting,
  * ports, the series, the plot: `aboutTheMusic`) goes below the music captions, and at most
  * MAX_OFF_MUSIC are shown: enough to say what the song is from, and fewer bubbles rather than
@@ -83,6 +88,8 @@ const TITLE_SMALL = /^(a|an|the|of|in|on|and|or|to|for|at|by|with|from|de|la|le|
 /** A section name the reference puts before a body sentence ("Development: ..."). */
 const SECTION_LABEL = /^[A-Z][^:.!?"]{1,60}: /;
 const LONG_BODY_WORDS = 30;
+/** A caption needs this share of its own words from its source sentence. */
+const OWN_WORDS_FROM_SOURCE = 0.6;
 
 /** A quoted title ("Cutie Mew Mew Magic") rather than someone's words. */
 const isTitle = (quote: string) => {
@@ -104,11 +111,11 @@ export function sourceRisk(caption: string, sentence: string, isLead: boolean): 
   const hedges = (s: string) => new Set((s.match(HEDGES) ?? []).map((h) => h.toLowerCase()));
   const kept = hedges(caption);
   if ([...hedges(source)].some((h) => !kept.has(h))) flags.push("hedge dropped");
-  if (!isLead) {
-    const have = words(source);
-    const shared = [...words(caption)].filter((w) => have.has(w)).length;
-    if (shared / Math.max(1, have.size) < 0.5) flags.push("compressed under half");
-  }
+  const have = words(source);
+  const said = words(caption);
+  const shared = [...said].filter((w) => have.has(w)).length;
+  if (!isLead && shared / Math.max(1, have.size) < 0.5) flags.push("compressed under half");
+  if (shared / Math.max(1, said.size) < OWN_WORDS_FROM_SOURCE) flags.push("under 60% of its words from the source");
   return flags;
 }
 
@@ -171,6 +178,13 @@ export function interest(text: string, sentence = text): { score: number; hook: 
   const hook = order.find((h) => kinds.includes(h)) ?? "plain";
   return { score, hook, reasons };
 }
+
+/** The data facts viewers find dull: the year, the album, the label and the writing credit. */
+const DULL_DATA = /\b(?:came out in|appears on|is on the album|was released on|was (?:written|composed) by)\b/;
+
+/** Whether a data fact says only dull things (a bubble that also names the genres does not), so it is left out when a song shows anything else. */
+export const dullData = (c: Pick<Candidate, "text" | "kind">) =>
+  c.kind === "data" && c.text.split(/(?<=[.!?])\s+/).every((sentence) => DULL_DATA.test(sentence));
 
 // --- About the music, or the work around it -----------------------------
 
@@ -271,7 +285,12 @@ export function rankFacts(
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
   const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
-  const kept = ranked.slice(0, max);
+  const top = ranked.slice(0, max);
+  // Dull data facts go when anything else is left; a song with nothing else keeps them. Nothing takes
+  // their place: the captions next in line are the ones wrong most often (measured 2026-11-10).
+  const lively = top.filter((c) => !dullData(c));
+  const kept = lively.length ? lively : top;
+  for (let n = top.length - kept.length; n > 0; n--) log("[Rank] not shown (dull data fact)");
   // Kinds take turns within each group: leading data facts, the rest, then any captions brought back.
   return [0, 1, 2].flatMap((g) => rotate(kept.filter((c) => group(c) === g)));
 }

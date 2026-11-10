@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
+import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, dullData, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
 
 // Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls).
 const LONG_BODY =
@@ -35,7 +35,13 @@ describe("sourceRisk: is the source sentence risky to retell? (S3, step 2)", () 
     const source = "Recording: The strings were played in Lisbon by a quartet hired for two days by the producer Ana Ferro.";
     expect(sourceRisk("Ana Ferro hired a quartet.", source, false)).toContain("compressed under half");
     expect(sourceRisk("A quartet hired for two days played the strings in Lisbon.", source, false)).toEqual([]);
-    expect(sourceRisk("A quartet hired for two days added the strings in Lisbon.", "", false)).toEqual(["compressed under half"]);
+    expect(sourceRisk("A quartet hired for two days added the strings in Lisbon.", "", false)).toEqual(["compressed under half", "under 60% of its words from the source"]);
+  });
+
+  it("flags a caption with under 60% of its own words from its source, lead or not", () => {
+    const source = "Lantern Hill was recorded in a barn near Dayton.";
+    expect(sourceRisk("Lantern Hill was recorded in a barn near Dayton.", source, true)).toEqual([]);
+    expect(sourceRisk("Lantern Hill was recorded in a famous haunted barn by candlelight.", source, true)).toEqual(["under 60% of its words from the source"]);
   });
 });
 
@@ -95,13 +101,13 @@ describe("rankFacts: safety first, then fun", () => {
 
   it(`brings held-back captions back to reach ${FLOOR}, fewest flags first, after the safe ones`, () => {
     const shown = rankFacts([
-      data("Lantern Hill came out in 2004."),
+      data("Lantern Hill was produced by Ana Ferro."),
       caption("Quill hired a quartet.", "Recording: Quill hired a quartet for two days to add strings in Lisbon, according to the liner notes.", false),
       caption("The song was recorded in a barn.", "The song was mostly recorded in a barn.", true),
-      caption("The chorus was rewritten.", LONG_BODY, false),
+      caption("The band tried a dozen tempos for the bridge.", LONG_BODY, false),
     ]);
-    // A reporting verb, a hedge lost and heavy compression (3 flags) stay out; one long body sentence (2) comes back.
-    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill came out in 2004.", "The song was recorded in a barn.", "The chorus was rewritten."]);
+    // A reporting verb and heavy compression (2 flags) stay out; a hedge lost and one long body sentence (1 each) come back.
+    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill was produced by Ana Ferro.", "The song was recorded in a barn.", "The band tried a dozen tempos for the bridge."]);
     expect(shown.slice(1).every((c) => c.refill)).toBe(true);
   });
 
@@ -129,8 +135,37 @@ describe("rankFacts: safety first, then fun", () => {
   });
 
   it("puts the song's data facts first on its artist's or game's article", () => {
-    const shown = rankFacts([data("Lantern Hill came out in 2004."), caption("The cowbell was borrowed from a farm next door.")], { dataFirst: true });
-    expect(shown[0].text).toBe("Lantern Hill came out in 2004.");
+    const shown = rankFacts([data("Lantern Hill was produced by Ana Ferro."), caption("The cowbell was borrowed from a farm next door.")], { dataFirst: true });
+    expect(shown[0].text).toBe("Lantern Hill was produced by Ana Ferro.");
+  });
+
+  it("leaves out dull data facts (year, album, label, writing credit) when the song shows anything else", () => {
+    const log = jest.fn();
+    const dull = [data("Lantern Hill came out in 2004."), data("Lantern Hill appears on Paper Boats."), data("Lantern Hill was released on Moth Records."), data("Lantern Hill was written by Mara Quill.")];
+    const shown = rankFacts([...dull.slice(0, 3), caption("The cowbell was borrowed from a farm next door.")], { dataFirst: true, log });
+    expect(shown.map((c) => c.text)).toEqual(["The cowbell was borrowed from a farm next door."]);
+    expect(log).toHaveBeenCalledWith("[Rank] not shown (dull data fact)");
+    expect(dull.every(dullData)).toBe(true);
+    expect(dullData(data("Lantern Hill was produced by Ana Ferro."))).toBe(false);
+    expect(dullData(caption("Lantern Hill came out in 2004."))).toBe(false);
+    expect(dullData(data("Lantern Hill came out in 2004 and appears on Paper Boats. Its genres include dream pop."))).toBe(false);
+  });
+
+  it("lets nothing take a dull data fact's place: the song shows fewer bubbles", () => {
+    const captions = ["The cowbell was borrowed from a farm next door.", "The drums were played in a stairwell.", "The band named it after a hill.", "The band rehearsed it at night."].map((t) => caption(t));
+    const shown = rankFacts([data("Lantern Hill came out in 2004."), ...captions], { dataFirst: true });
+    expect(shown.map((c) => c.text)).toEqual(captions.slice(0, 3).map((c) => c.text));
+  });
+
+  it("keeps the dull data facts when the song has nothing else", () => {
+    const shown = rankFacts([data("Lantern Hill came out in 2004."), data("Lantern Hill was written by Mara Quill.")]);
+    expect(shown.map((c) => c.text)).toEqual(["Lantern Hill came out in 2004.", "Lantern Hill was written by Mara Quill."]);
+  });
+
+  it("counts a dull data fact toward the floor, so leaving it out brings no risky caption back", () => {
+    const risky = caption("The song is about a lighthouse.", "Quill said the song is about a lighthouse.");
+    const shown = rankFacts([data("Lantern Hill came out in 2004."), caption("The cowbell was borrowed from a farm next door."), caption("The drums were played in a stairwell."), risky]);
+    expect(shown.map((c) => c.text)).toEqual(["The cowbell was borrowed from a farm next door.", "The drums were played in a stairwell."]);
   });
 
   it("never shows the same kind of fact twice in a row when another kind is left", () => {
