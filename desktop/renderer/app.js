@@ -1158,8 +1158,6 @@
     } else if (state.builtinFailed && state.settings.ai === "builtin") {
       add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts.", null);
     }
-    // BubbleFacts Lite is retired: its last release says so, and points to the full app.
-    if (isLite()) add("warn", "BubbleFacts Lite is retired, and this is its last update. To keep getting updates, install the full BubbleFacts: your settings and facts carry over.", "Get BubbleFacts", () => api.openExternal("https://bubblefacts.frolic.org/download.html"));
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
     return notices;
   }
@@ -1290,8 +1288,8 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
-    // Someone already using an online AI, Larger AI or the example packs finds them open.
-    $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
+    // Someone already using an online AI or Larger AI finds them open.
+    $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
     // Other AIs are a legacy choice (leaving in 3.0): only someone whose saved choice is one sees them.
@@ -1308,19 +1306,10 @@
     renderDraftNote();
   }
 
-  /**
-   * BubbleFacts Lite has no built-in AI. Elements marked data-edition="full" or "lite" show only in that
-   * edition; Lite's own choice under "Who writes the facts" reads "No AI" (the same "builtin" setting).
-   */
-  const isLite = () => state.edition === "lite";
-  function showEdition() {
-    for (const el of $$("[data-edition]")) el.hidden = el.dataset.edition !== (isLite() ? "lite" : "full");
-  }
-
   /** Larger AI is a choice under "On this computer", with a warning (never a block) where it may struggle. */
   const GB = 1024 ** 3;
   function renderQuality() {
-    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin" || isLite();
+    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin";
     const reasons = [];
     // A computer sold with 16 GB reports a little less, as some is set aside for the system.
     if (state.totalMemory && state.totalMemory < 15 * GB) {
@@ -1607,7 +1596,6 @@
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
-    showEdition();
     // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;

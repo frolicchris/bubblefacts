@@ -76,7 +76,7 @@ npm run check       # typecheck, lint, tests, and the build plus script tests; a
 npm run typecheck   # TypeScript in strict mode, the server and the desktop app, tests included
 npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts
 npm test            # jest, a few seconds: the server and the desktop app
-npm run test:scripts # builds, then the release and Lite scripts' own tests
+npm run test:scripts # builds, then the release scripts' own tests
 npm run build       # compile the server to dist/
 ```
 
@@ -97,10 +97,7 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
    uses Electron's, so use Ollama while developing on Linux: quit the app, set
    `"ai": "ollama"` in its `settings.json`, and open it again (Settings shows
    the choice only once it's set).
-4. `npm run dist` builds installers for your own system into `release/`, and
-   `npm run dist:lite` builds BubbleFacts Lite (no AI engine) into
-   `release-lite/`. To see Lite's screens without building it, run
-   `BUBBLEFACTS_EDITION=lite npm run app`.
+4. `npm run dist` builds installers for your own system into `release/`.
 5. Put a new feature in its own file in `desktop/src/`, with its tests beside
    it; `main.ts` only wires the app together. If the window needs to talk to
    the feature, export a `registerSomething({ handle, … })` that registers its
@@ -117,7 +114,7 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 ```
 
 **Test builds for every system:** on GitHub, go to **Actions → Release → Run
-workflow**. The installers appear as downloadable artifacts on the run, two for each system: the full app, and Lite (`-lite` in the name). This
+workflow**. The installers appear as downloadable artifacts on the run, one for each system. This
 works in forks too. A test build says so at the bottom of its window, with
 the commit it was built from, for example `2.0.0-rc.1 test build (c4ee826)`;
 a build from your own computer says `(dev)`.

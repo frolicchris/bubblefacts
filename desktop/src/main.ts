@@ -14,7 +14,7 @@ import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-
 import { presetFoldersShown } from "./now-playing-folder";
 import { AiredFact, airedFrom, betaReportText, betaReportUrl, problemReportText, problemReportUrl, wrongFactUrl } from "./reports";
 import { errorDetail, plainError, PlainOptions } from "./plain-errors";
-import { buildInfo, Edition, editionOf, versionLabel } from "./build";
+import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
@@ -30,19 +30,12 @@ import { SignInCheck, validateToken } from "./sign-in-check";
  * the exact artist and track of auto-generated uploads (issue #26).
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string }; edition?: string } };
+const PACKAGE = require("../../package.json") as { bubblefacts?: { youtubeApiKey?: string; build?: { commit?: string; kind?: string } } };
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || PACKAGE.bubblefacts?.youtubeApiKey || "";
 /** The commit this was built from, and release, test build or dev (build.ts). */
 const BUILD = buildInfo(PACKAGE);
-/**
- * BubbleFacts Lite has no AI engine and never downloads a model (build.ts). From source,
- * BUBBLEFACTS_EDITION=lite npm run app shows Lite's screens; a packaged app goes by its build only.
- */
-const EDITION: Edition = !app.isPackaged && process.env.BUBBLEFACTS_EDITION === "lite" ? "lite" : editionOf(PACKAGE);
 /** The version with its build, for the window, the log and reports: "2.0.0-beta.12 test build (c4ee826)". */
-const versionWithBuild = () => versionLabel(app.getVersion(), BUILD, EDITION);
-/** Who writes the facts, for problem reports: Lite's own choice is no AI, not the built-in one. */
-const reportedAi = () => (EDITION === "lite" && settings.ai === "builtin" ? "none" : settings.ai);
+const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
 import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
 import { prepareEnv, registerPreparing } from "./preparing";
 
@@ -133,14 +126,13 @@ function activeModel(): ModelFile | null {
 }
 
 function serverEnv(): Record<string, string> {
-  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents"), edition: EDITION });
-  // In Lite, toServerEnv already chose no AI for "builtin": there is no model to look for.
-  const builtinAi = settings.ai === "builtin" && EDITION === "full";
+  const env = toServerEnv(settings, { modelsDir: DIRS.models, logDir: DIRS.logs, topicsDir: DIRS.facts, clientId: CLIENT_ID, documentsDir: app.getPath("documents") });
+  const builtinAi = settings.ai === "builtin";
   const active = builtinAi ? activeModel() : null;
   if (builtinAi && (builtinFailed || !active)) env.AI_PROVIDER = "none";
   else if (builtinAi && active) {
     env.MODEL_PATH = modelPath(DIRS.models, active);
-    // Preparing's faster first-pass model (issue #296): only with a built-in model, so never in Lite.
+    // Preparing's faster first-pass model (issue #296): only with a built-in model.
     Object.assign(env, prepareEnv(settings, DIRS.models, (m) => modelReady(DIRS.models, m)));
   }
   if (paused) env.BUBBLEFACTS_PAUSED = "1";
@@ -195,12 +187,10 @@ function state() {
     status: supervisor.status,
     overlayPath: overlayFile(),
     verticalOverlayPath: overlayFile(true),
-    // Lite or full: the window says what Lite does and hides what it doesn't have.
-    edition: EDITION,
-    // Ready when some model can write facts, including the old one during a switch of quality. Lite has none to wait for.
-    modelReady: EDITION === "lite" || activeModel() !== null,
+    // Ready when some model can write facts, including the old one during a switch of quality.
+    modelReady: activeModel() !== null,
     // Downloading the newly chosen quality while the other model keeps writing facts.
-    modelSwitching: EDITION === "full" && activeModel() === otherModel(),
+    modelSwitching: activeModel() === otherModel(),
     modelLicense: chosenModel().license,
     // Larger AI needs about 16 GB and, on a Mac, Apple silicon: the window warns, never blocks.
     totalMemory: os.totalmem(),
@@ -307,8 +297,7 @@ supervisor.on("builtin-failed", () => {
 
 /** Download the AI in the background whenever it's chosen and missing, retrying on its own. */
 async function ensureModel(): Promise<void> {
-  // Lite never downloads a model: it has no engine to run one.
-  if (EDITION === "lite" || settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
+  if (settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
   if (downloadRetry) clearTimeout(downloadRetry);
   downloadRetry = null;
   download = new AbortController();
@@ -718,8 +707,7 @@ const preparing = registerPreparing({
   handle,
   control,
   conditions: () => ({
-    // Lite has no built-in AI, and its window hides the setting: preparing never runs there.
-    enabled: settings.prepareSongs && EDITION === "full",
+    enabled: settings.prepareSongs,
     setupDone: settings.setupComplete,
     ai: settings.ai === "groq" || settings.ai === "anthropic" ? "online" : settings.ai === "builtin" && (builtinFailed || !activeModel()) ? "none" : "local",
     serverUp: supervisor.status.state === "running",
@@ -1045,12 +1033,10 @@ let updateChecks = 0;
 /** At start, and again when the musician picks Stable or Beta, so the dashboard notice matches right away. */
 async function checkForUpdate(): Promise<void> {
   const mine = ++updateChecks;
-  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE), EDITION) : () => null);
+  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE)) : () => null);
   // Only the newest check counts, and a download under way finishes.
   if (mine !== updateChecks || updating.stage === "downloading") return;
   if (found?.version !== update?.version) updating = { stage: "idle", progress: 0, file: "", error: "" };
-  // "Get it" takes Lite to Lite's downloads on the download page.
-  if (found && EDITION === "lite") found.url = `${found.url}#lite`;
   update = found;
   send("state", state());
 }
@@ -1103,7 +1089,7 @@ async function airedFacts(): Promise<AiredFact[]> {
 }
 
 handle("report-problem", async () =>
-  openExternal(problemReportUrl({ version: versionWithBuild(), ai: reportedAi(), logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
 );
 handle("report-beta", () =>
   openExternal(
@@ -1125,7 +1111,7 @@ handle("copy-report", async (_e, kind: unknown) => {
   clipboard.writeText(
     kind === "beta"
       ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource, nowPlayingPreset: settings.nowPlayingPreset })
-      : problemReportText({ ...common, version: versionWithBuild(), ai: reportedAi(), aired })
+      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai, aired })
   );
 });
 handle("report-fact", async (_e, song: string, fact: string) =>

@@ -20,8 +20,7 @@ npm run build       # compile to dist/
 npm run bump -- X.Y.Z  # set a new version everywhere a release needs it
 npm run app         # build and run the desktop app in development
 npm run dist        # build installers into release/ (on iCloud-synced folders, see .github/CONTRIBUTING.md)
-npm run dist:lite   # build BubbleFacts Lite (no AI engine) into release-lite/; same arguments as dist
-npm run test:scripts  # the version and Lite build scripts' own tests (part of check)
+npm run test:scripts  # the version and release scripts' own tests (part of check)
 bash scripts/start-overlay.sh
 ```
 Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.

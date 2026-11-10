@@ -29,15 +29,12 @@ describe("assetName", () => {
 
   it("leaves a .deb install to the system's own updates", () => {
     expect(assetName("2.0.0", "linux", "x64", false)).toBeNull();
-    expect(assetName("2.0.0", "linux", "x64", false, "lite")).toBeNull();
   });
 
-  it("keeps Lite on Lite and the full app on the full one", () => {
-    expect(assetName("2.2.0-beta.3", "darwin", "arm64", false, "lite")).toBe("BubbleFacts-2.2.0-beta.3-lite-mac-arm64.dmg");
-    expect(assetName("2.2.0", "darwin", "x64", false, "lite")).toBe("BubbleFacts-2.2.0-lite-mac-x64.dmg");
-    expect(assetName("2.2.0", "win32", "x64", false, "lite")).toBe("BubbleFacts-2.2.0-lite-windows-x64.exe");
-    expect(assetName("2.2.0", "linux", "x64", true, "lite")).toBe("BubbleFacts-2.2.0-lite-linux-x86_64.AppImage");
-    expect(assetName("2.2.0", "win32", "x64", false, "full")).toBe("BubbleFacts-2.2.0-windows-x64.exe");
+  it("never names a -lite installer (BubbleFacts Lite is retired)", () => {
+    for (const [platform, arch, appImage] of [["darwin", "arm64", false], ["darwin", "x64", false], ["win32", "x64", false], ["linux", "x64", true]] as const) {
+      expect(assetName("2.2.0", platform, arch, appImage)).not.toContain("lite");
+    }
   });
 });
 
@@ -227,24 +224,15 @@ describe("newerRelease with an installer", () => {
     expect(r?.download).toEqual({ name: "BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", url: `${base}a.dmg`, size: 10, sumsUrl: `${base}SHA256SUMS.txt` });
   });
 
-  it("picks Lite's installer for Lite and the full one for the full app, from a release with both", async () => {
-    const both = () =>
+  it("picks the full installer from a release that still has Lite's (the 2.2.0 releases)", async () => {
+    mockFetch.mockResolvedValueOnce(
       release([
         ["BubbleFacts-2.0.0-beta.5-lite-mac-arm64.dmg", `${base}lite.dmg`],
         ["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`],
         ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`],
-      ]);
-    mockFetch.mockResolvedValueOnce(both());
-    expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "lite")))?.download?.url).toBe(`${base}lite.dmg`);
-    mockFetch.mockResolvedValueOnce(both());
-    expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "full")))?.download?.url).toBe(`${base}full.dmg`);
-  });
-
-  it("sends Lite to the download page when a release has no Lite installer", async () => {
-    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`]]));
-    const r = await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "lite"));
-    expect(r).toMatchObject({ version: "2.0.0-beta.5" });
-    expect(r?.download).toBeUndefined();
+      ])
+    );
+    expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false)))?.download?.url).toBe(`${base}full.dmg`);
   });
 
   it("falls back to the download page without a checksum list or its signature, or for a file from anywhere else", async () => {

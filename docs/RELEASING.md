@@ -6,29 +6,16 @@ For the maintainer. Contributors don't need any of this; see
 **Releases** are made by the maintainer pushing a version tag, such as
 `v2.0.0`. Version tags are protected, so a published release's tag can't be
 moved or deleted. The Release workflow builds every installer on its own
-system, for the full app and for BubbleFacts Lite (below), and puts them in a
+system, and puts them in a
 *draft* release with a `SHA256SUMS.txt` file, a
 software bill of materials (`bubblefacts-sbom.spdx.json`) and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
 
-**BubbleFacts Lite is retired.** The next release is its last: Lite's dashboard
-tells its users to install the full BubbleFacts, which keeps their settings and
-facts, and the website no longer offers it. Once that release is out, remove
-Lite: the Lite build and its artifact in `release.yml`, the Lite smoke tests,
-`scripts/dist-lite.mjs` and its test, the `dist:lite` script, the edition code
-and Lite's text in the app, the `-lite` line in `.github/release-template.md`,
-and this paragraph. Until then:
-
-**BubbleFacts Lite.** Each system also gets a Lite installer: the same app
-without the AI engine (node-llama-cpp and its native builds), for streamers who
-want no AI or not the 2 GB download. Its files have `-lite` after the version
-(`BubbleFacts-2.2.0-lite-mac-arm64.dmg`, `bubblefacts-lite_2.2.0_amd64.deb`),
-and the in-app update keeps a Lite install on Lite. To build it on your own
-computer, run `npm run dist:lite` (it takes the same arguments as
-`npm run dist`, and writes into `release-lite/`). It changes `package.json`
-while it builds and puts it back when it's done; if a build is killed hard
-enough that it can't, `git checkout package.json`.
+**BubbleFacts Lite** (issue #34) was retired after 2.2.0: the 2.2.0 releases
+were its last, and their Lite builds ask Lite users to install the full app,
+which keeps their settings and facts. Releases from 2.3.0 build the full app
+only.
 
 **Update channels.** Every beta and release candidate is published as a GitHub
 pre-release; full releases (`v2.0.0`, `v2.0.1`) are not. That's what the app's
@@ -142,7 +129,7 @@ reads.
    tagging. The app shows them once on the dashboard after the update; a
    version without an entry shows nothing.
 2. The Release workflow passed for every system, and the draft has every
-   installer, full and Lite (`-lite` in the name), `SHA256SUMS.txt`,
+   installer, `SHA256SUMS.txt`,
    `bubblefacts.zip` and `bubblefacts-sbom.spdx.json`.
 3. The **Smoke test** workflow starts by itself when the Release run finishes
    successfully, and tests that run's artifacts. (A draft release can't be
@@ -151,21 +138,15 @@ reads.
    from the default branch's copy of `smoke.yml`, so a change to that file
    counts only after it is merged. Every smoke system passes (Windows, Linux
    `.deb` and AppImage, Apple-silicon and Intel Mac), including writing and
-   keeping captions, and both Lite systems (Windows and Linux `.deb`), which
-   check that Lite's server starts, it says it's Lite and no AI engine file is
-   in it. Each starts the app as shipped first, past setup, and requires its
+   keeping captions. Each starts the app as shipped first, past setup, and requires its
    fact server to be listening: the check that would have caught the Linux
-   server not starting from 2.0.0 to 2.1.0 (fixed in 2.1.1). Open one Mac Lite
-   build by hand (step 5).
+   server not starting from 2.0.0 to 2.1.0 (fixed in 2.1.1).
 4. Download one installer from the draft. Its checksum matches the draft's
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
 5. Install it and open it. The setup screen appears and shows the new version
-   at the bottom, with the tagged commit and no "test build". Open one Lite
-   installer too: its version says "Lite", setup says what Lite does, nothing
-   downloads, the dashboard says Lite is retired with a **Get BubbleFacts**
-   button, and Settings, Advanced, shows no **On this computer**. In either,
-   **Who writes the facts** doesn't show for a new install.
+   at the bottom, with the tagged commit and no "test build". Settings,
+   Advanced, doesn't show **Who writes the facts** for a new install.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.

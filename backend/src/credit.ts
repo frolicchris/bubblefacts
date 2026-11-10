@@ -28,7 +28,7 @@ export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and Mu
  */
 export const OTHER_AI_CREDIT_TEXT = "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html";
 /**
- * The credit when no AI writes (`AI_PROVIDER=none`): BubbleFacts Lite, the full app while its AI
+ * The credit when no AI writes (`AI_PROVIDER=none`): the app while its AI
  * downloads or can't run, and the command line set to no AI. Some facts can still be sentences
  * taken from a Wikipedia article (`artistGoodFacts`), so Wikipedia keeps its credit, but nothing
  * is "retold by AI".
