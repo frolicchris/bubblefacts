@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { gameTrackText, isSeriesWide, namesThisGame, normalizeTitle, repairScope, seriesScope } from "./fact-verifier";
 
-// Made-up series, games, people and songs.
+// Made-up series, games, people and songs
 const SERIES = [
   "The music for the Star Quest video game series has been provided by a number of composers, from in-house staff to outside bands. The series is known for its music.",
   "",
@@ -36,7 +36,7 @@ describe("series-wide music articles", () => {
     expect(isSeriesWide("Music of Star Quest", SERIES, "Star Quest")).toBe(true);
     expect(isSeriesWide("Music of the Star Quest series", "The music of the series ...", "Star Quest 2")).toBe(true);
     expect(isSeriesWide("Music of Star Quest 2", "The music of the video game Star Quest 2 was composed by regular series composer Mel Ostrova. It came out in 1992.", "Star Quest 2")).toBe(false);
-    // A game's own article is never cut this way.
+    // A game's own article is never cut this way
     expect(isSeriesWide("Star Quest (video game)", SERIES, "Star Quest")).toBe(false);
   });
 
@@ -46,7 +46,7 @@ describe("series-wide music articles", () => {
     expect(text).toContain("The Comet Road theme from Star Quest was remixed");
     expect(text).toContain("A vinyl album of Star Quest music");
     expect(text).not.toMatch(/Ostrova|Saari|Zero|box set/);
-    // The game's section isn't under "History" any more, so section-aware selection doesn't treat it as narrative.
+    // Out from under "History", so section-aware selection doesn't read it as narrative
     expect(text).not.toContain("== History ==");
   });
 

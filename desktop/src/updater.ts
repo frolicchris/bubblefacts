@@ -5,22 +5,16 @@ import path from "path";
 import type { Edition } from "./build";
 import { plainWithDetail } from "./plain-errors";
 
-/**
- * The app's own updater. The standard one for Electron needs a Mac app
- * signed with an Apple Developer ID, which BubbleFacts doesn't have yet, so
- * this does the same job by hand: download the release's installer, check it
- * against the release's SHA256SUMS.txt (whose signature is checked first), then swap the app and reopen it.
- * Nothing is installed until the musician clicks: never mid-stream.
- */
+// The app's own updater (Electron's needs an Apple Developer ID): download the installer, check it
+// against the signed SHA256SUMS.txt, swap the app. Nothing installs without a click: never mid-stream
 
 /**
- * The public half of the key that signs each release's SHA256SUMS.txt (the release workflow
- * signs it with the UPDATE_SIGNING_KEY secret, as SHA256SUMS.txt.sig). A matching checksum alone
- * only proves the file wasn't damaged; this proves the checksums came from this project's release workflow.
+ * Public key for SHA256SUMS.txt.sig (the release workflow's UPDATE_SIGNING_KEY; RELEASING.md: Update signing key)
+ * A checksum alone proves only an undamaged file; the signature proves the list came from our release workflow
  */
 export const UPDATE_PUBLIC_KEY = "MCowBQYDK2VwAyEAVDVtpQIHiCwZheXDIL9kyVzYNuW6d5EwUaXena2EAfI=";
 
-/** True when `sigBase64` is a valid Ed25519 signature of `sums` under the given public key (base64 SPKI DER). */
+/** True when `sigBase64` is a valid Ed25519 signature of `sums` under `publicKey` (base64 SPKI DER) */
 export function verifySums(sums: Buffer, sigBase64: string, publicKey = UPDATE_PUBLIC_KEY): boolean {
   try {
     const key = crypto.createPublicKey({ key: Buffer.from(publicKey, "base64"), format: "der", type: "spki" });
@@ -34,13 +28,13 @@ export interface Download {
   name: string;
   url: string;
   size: number;
-  /** The release's SHA256SUMS.txt. */
+  /** The release's SHA256SUMS.txt */
   sumsUrl: string;
 }
 
 /**
- * The installer this copy of the app can update itself from, or null (a .deb, or an unknown system).
- * Lite updates to Lite and the full app to the full one: Lite's names have "-lite" after the version.
+ * The installer this copy can update from, or null (a .deb, or an unknown system)
+ * Lite updates to Lite, full to full: Lite's names have "-lite" after the version
  */
 export function assetName(version: string, platform = process.platform, arch = process.arch, appImage = Boolean(process.env.APPIMAGE), edition: Edition = "full"): string | null {
   const v = edition === "lite" ? `${version}-lite` : version;
@@ -50,7 +44,7 @@ export function assetName(version: string, platform = process.platform, arch = p
   return null;
 }
 
-/** The checksum SHA256SUMS.txt lists for a file ("<64 hex>  <name>"), or null. */
+/** The checksum SHA256SUMS.txt lists for a file ("<64 hex>  <name>"), or null */
 export function expectedSum(sums: string, name: string): string | null {
   for (const line of sums.split(/\r?\n/)) {
     const m = /^([0-9a-f]{64})\s+\*?(.+)$/i.exec(line.trim());
@@ -66,14 +60,10 @@ export function sha256(file: string): Promise<string> {
   });
 }
 
-/**
- * Download the installer into `dir` and check it. Resolves to the file's
- * path only when its SHA-256 is the one the release lists; otherwise the
- * file is deleted and this throws.
- */
+/** Download the installer into `dir`; its path only when the SHA-256 matches the signed list, else deleted and throws */
 export async function downloadUpdate(d: Download, dir: string, onProgress: (fraction: number) => void, signal?: AbortSignal, publicKey = UPDATE_PUBLIC_KEY): Promise<string> {
   fs.mkdirSync(dir, { recursive: true });
-  // Earlier downloads are never reused: a half-written file would fail its check anyway.
+  // Earlier downloads are never reused: a half-written one would fail its check anyway
   for (const old of fs.readdirSync(dir)) fs.rmSync(path.join(dir, old), { force: true, recursive: true });
   const sums = await fetch(d.sumsUrl, { signal });
   if (!sums.ok) throw plainWithDetail("BubbleFacts couldn't check the download.", `checksums: HTTP ${sums.status}`);
@@ -88,8 +78,7 @@ export async function downloadUpdate(d: Download, dir: string, onProgress: (frac
   const file = path.join(dir, d.name);
   const res = await fetch(d.url, { signal });
   if (!res.ok || !res.body) throw plainWithDetail("The download didn't finish.", `HTTP ${res.status}`);
-  // Written through a file handle so a full or failing disk is an error the window can show,
-  // not an unhandled stream error that takes the app down.
+  // A file handle makes a full or failing disk an error the window shows, not a stream error that crashes the app
   let out: fs.promises.FileHandle | null = null;
   let got = 0;
   try {
@@ -110,11 +99,11 @@ export async function downloadUpdate(d: Download, dir: string, onProgress: (frac
   return file;
 }
 
-/** The .app bundle this process runs from, or null when it isn't a normal install that can be replaced. */
+/** The .app bundle this runs from, or null when it isn't a normal install that can be replaced */
 export function macBundle(execPath = process.execPath): string | null {
   const bundle = path.resolve(execPath, "../../..");
   if (!bundle.endsWith(".app")) return null;
-  // Opened straight from the disk image, or run from Gatekeeper's read-only copy.
+  // Opened straight from the disk image, or run from Gatekeeper's read-only copy
   if (bundle.startsWith("/Volumes/") || bundle.includes("/AppTranslocation/")) return null;
   try {
     fs.accessSync(path.dirname(bundle), fs.constants.W_OK);
@@ -126,10 +115,8 @@ export function macBundle(execPath = process.execPath): string | null {
 }
 
 /**
- * The script that swaps the Mac app once this process has quit. It checks
- * the disk image really holds BubbleFacts, copies it beside the old app,
- * swaps the two, and reopens. If anything fails, the old app is put back
- * and reopened.
+ * Swaps the Mac app once this process quits: checks the disk image holds BubbleFacts, copies it
+ * beside the old app, swaps and reopens. On any failure the old app is put back and reopened
  */
 export const MAC_SWAP_SCRIPT = `#!/bin/bash
 PID="$1"; DMG="$2"; APP="$3"; LOG="$4"
@@ -166,13 +153,10 @@ rm -f "$DMG"
 reopen
 `;
 
-/** `relaunch`: the app must reopen this file itself as it quits (Linux), with no shell in between. */
+/** `relaunch`: the app reopens this file itself as it quits (Linux), with no shell in between */
 export type InstallResult = { started: true; relaunch?: string } | { started: false; reason: string; detail?: string };
 
-/**
- * Start installing a checked download. On success the caller must quit the
- * app right away: the installer (or the swap script) is waiting for it.
- */
+/** Start installing a checked download; on success quit at once, as the installer or swap script waits for it */
 export function startInstall(file: string, opts: { pid: number; logFile: string; scriptDir: string }): InstallResult {
   const detached = (cmd: string, args: string[]) => spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
   if (process.platform === "darwin") {
@@ -184,7 +168,7 @@ export function startInstall(file: string, opts: { pid: number; logFile: string;
     return { started: true };
   }
   if (process.platform === "win32") {
-    // The installer replaces the app and opens it again when it's done.
+    // The installer replaces the app and reopens it
     detached(file, []);
     return { started: true };
   }
@@ -199,7 +183,6 @@ export function startInstall(file: string, opts: { pid: number; logFile: string;
     } catch (err) {
       return { started: false, reason: "BubbleFacts couldn't replace its own file.", detail: err instanceof Error ? err.message : String(err) };
     }
-    // The app reopens the new file itself as it quits: no shell is involved.
     return { started: true, relaunch: appImage };
   }
   return { started: false, reason: "This kind of install updates through your system." };

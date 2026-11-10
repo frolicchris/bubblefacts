@@ -56,7 +56,7 @@ import { SSLQueueItem, SSLSong } from "./types";
 const song = (title: string, artist = "MarlowKeys"): SSLSong => ({ title, artist });
 const about = ["Marlow writes piano loops in Lisbon.", "Marlow scored two short films."];
 let asked: string[];
-/** The app's answer to every question. */
+/** The app's answer to every question */
 let answer: (login: string) => Record<string, unknown>;
 
 beforeEach(() => {

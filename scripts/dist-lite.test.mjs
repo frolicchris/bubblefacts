@@ -12,14 +12,14 @@ const engine = (s) => /node-llama-cpp/.test(s);
 
 test("Lite leaves the AI engine out of the app", () => {
   assert.equal(lite.dependencies["node-llama-cpp"], undefined);
-  // Everything else the app needs is still there.
+  // Everything else the app needs is still there
   for (const dep of Object.keys(full.dependencies).filter((d) => !engine(d))) assert.equal(lite.dependencies[dep], full.dependencies[dep]);
-  // No pattern copies the engine in, and two keep it out.
+  // No pattern copies the engine in, and two keep it out
   assert.deepEqual(lite.build.files.filter((f) => engine(f) && !f.startsWith("!")), []);
   assert.ok(lite.build.files.includes("!node_modules/node-llama-cpp{,/**/*}"));
   assert.ok(lite.build.files.includes("!node_modules/@node-llama-cpp{,/**/*}"));
   assert.ok((lite.build.asarUnpack ?? []).every((f) => !engine(f)));
-  // The app's own files are all still copied, the notices as Lite's own under the same name.
+  // The app's own files are all still copied, the notices as Lite's own under the same name
   for (const f of full.build.files.filter((file) => !engine(file) && file !== "THIRD-PARTY-NOTICES.md")) assert.ok(lite.build.files.includes(f), f);
   assert.ok(!lite.build.files.includes("THIRD-PARTY-NOTICES.md"));
   assert.deepEqual(lite.build.files.find((f) => typeof f === "object"), { from: "build-lite", to: ".", filter: ["THIRD-PARTY-NOTICES.md"] });
@@ -28,12 +28,12 @@ test("Lite leaves the AI engine out of the app", () => {
 test("Lite says it's Lite, keeps everything else the app reads, and is the same app to the system", () => {
   assert.equal(lite.bubblefacts.edition, "lite");
   for (const [key, value] of Object.entries(full.bubblefacts)) assert.deepEqual(lite.bubblefacts[key], value);
-  // Same app ID and name: Lite and the full app install over each other and share settings.
+  // Same app ID and name: Lite and the full app install over each other and share settings
   assert.equal(lite.build.appId, full.build.appId);
   assert.equal(lite.build.productName, full.build.productName);
   assert.equal(lite.name, full.name);
   assert.equal(lite.version, full.version);
-  // No Node.js shipped for the engine on Linux.
+  // No Node.js shipped for the engine on Linux
   assert.equal(lite.build.linux.extraResources, undefined);
 });
 
@@ -43,7 +43,7 @@ test("Lite's installers have -lite in their names, the names the in-app update l
   assert.equal(lite.build.win.artifactName, "BubbleFacts-${version}-lite-windows-${arch}.${ext}");
   assert.equal(lite.build.appImage.artifactName, "BubbleFacts-${version}-lite-linux-x86_64.${ext}");
   assert.equal(lite.build.deb.artifactName, "bubblefacts-lite_${version}_amd64.${ext}");
-  // The full names are the same with "-lite" taken out (desktop/src/updater.ts, assetName).
+  // The full names are the same with "-lite" taken out (desktop/src/updater.ts, assetName)
   for (const key of ["mac", "win", "appImage"]) assert.equal(lite.build[key].artifactName.replace("-lite-", "-"), full.build[key].artifactName);
 });
 
@@ -65,7 +65,7 @@ test("Lite ships only the packages reached without the AI engine", () => {
 });
 
 test("follows a package's dependencies wherever npm printed them, even under the engine", () => {
-  // npm printed on-finished in full under the engine first, and only as "deduped" under express.
+  // npm printed on-finished in full under the engine first, and only as "deduped" under express
   const tree = {
     dependencies: {
       "node-llama-cpp": { version: "3.0.0", dependencies: { "on-finished": { version: "2.4.1", dependencies: { "ee-first": { version: "1.1.1" } } } } },
@@ -86,7 +86,7 @@ test("Lite's notices leave out the AI engine, the models and the Linux Node.js, 
   assert.match(out, /\*\*Electron\*\*/);
   assert.match(out, /\*\*Facts\*\*/);
   assert.match(out, /BubbleFacts Lite: it has no AI engine/);
-  // The count matches what's listed, and license texts with headings of their own come through whole.
+  // The count matches what's listed, and license texts with headings of their own come through whole
   const listed = [...out.matchAll(/^### /gm)].length;
   assert.match(out, new RegExp(`^## npm packages \\(${listed}\\)$`, "m"));
   assert.ok(out.includes("# Blue Oak Model License") === notices.includes("# Blue Oak Model License") || !keep.size);

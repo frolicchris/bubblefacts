@@ -5,7 +5,7 @@ const fact = (text: string, source?: string): Fact => ({ text, delaySeconds: 0, 
 const song = { title: "Logged Song", artist: "Logged Artist" };
 
 describe("the [Shown] log", () => {
-  // console.log is already muted for all tests (test-setup.ts): read that mock, don't replace it.
+  // console.log is muted for all tests (test-setup.ts): read that mock, don't replace it
   const log = console.log as unknown as jest.Mock;
   const lines = () => log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith("[Shown]"));
   beforeEach(() => log.mockClear());
@@ -22,7 +22,7 @@ describe("the [Shown] log", () => {
     shown.log(song, batch);
     shown.log(song, batch.slice(1));
     expect(lines()).toHaveLength(3);
-    // New facts for the same play (the streamer saved some) are logged.
+    // New facts for the same play (the streamer saved some) are logged
     shown.log(song, [fact("Two."), fact("Four.")]);
     expect(lines()).toHaveLength(4);
   });

@@ -2,39 +2,32 @@ import crypto from "crypto";
 import http from "http";
 import { cantReach, plainError, plainWithDetail } from "./plain-errors";
 
-/**
- * "Sign in with StreamerSongList": OAuth 2 authorization code with PKCE, the
- * flow for apps that can't keep a secret. The browser returns to a small
- * one-time server on this computer. Access tokens last an hour; the app
- * refreshes them, and each refresh hands back a new refresh token.
- */
+// "Sign in with StreamerSongList": OAuth 2 with PKCE, returning to a one-time server on this computer
+// Access tokens last an hour; each refresh hands back a new refresh token (DESKTOP-APP.md: Song list sign-in)
 
-/**
- * Public client ID from dev.streamersonglist.com, kept in package.json under
- * "bubblefacts". Not a secret: apps that can't keep one use PKCE instead.
- * Empty until the app is registered, which hides the sign-in button.
- */
+// Public client ID from dev.streamersonglist.com (package.json "bubblefacts"); not a secret, PKCE stands in
+// Empty until the app is registered, which hides the sign-in button
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pkg = require("../../package.json") as { bubblefacts?: { sslClientId?: string } };
 export const CLIENT_ID = process.env.BUBBLEFACTS_SSL_CLIENT_ID || pkg.bubblefacts?.sslClientId || "";
 const ID_BASE = "https://id.streamersonglist.com";
 const API_BASE = "https://api.streamersonglist.com";
-/** Must match the redirect URI registered for the app exactly. */
+/** Must match the app's registered redirect URI exactly */
 export const REDIRECT_PORT = 53682;
 const REDIRECT_URI = `http://127.0.0.1:${REDIRECT_PORT}/callback`;
 const SCOPES = "openid offline_access streamer.queue.read streamer.settings.read";
-const SIGN_IN_TIMEOUT_MS = 5 * 60_000;
+const SIGN_IN_TIMEOUT_MS = 5 * 60_000; // ms to finish signing in
 
 export interface SignIn {
   accessToken: string;
   refreshToken: string;
-  /** Milliseconds since 1970. */
+  /** ms since 1970 */
   expiresAt: number;
   channel: string;
   streamerId: number;
 }
 
-/** A refresh StreamerSongList turned down for good: the musician has to sign in again. */
+/** A refresh turned down for good: the musician signs in again */
 export class SignInExpired extends Error {}
 
 const base64url = (b: Buffer) => b.toString("base64url");
@@ -44,7 +37,7 @@ const PAGE = (title: string, body: string) =>
   `<body style="font:17px -apple-system,Segoe UI,sans-serif;background:#0b0d1f;color:#eef0ff;display:grid;place-items:center;height:90vh;text-align:center">` +
   `<div><h1 style="color:#ffd700">${title}</h1><p>${body}</p></div>`;
 
-/** Open the StreamerSongList sign-in page and wait for the musician to finish. */
+/** Open the StreamerSongList sign-in page and wait for the musician to finish */
 export async function signIn(openBrowser: (url: string) => void, signal?: AbortSignal): Promise<SignIn> {
   if (!CLIENT_ID) throw new Error("Sign-in isn't available in this version. Paste a token instead.");
   const verifier = base64url(crypto.randomBytes(32));
@@ -55,7 +48,7 @@ export async function signIn(openBrowser: (url: string) => void, signal?: AbortS
     const finish = (err: Error | null, value = "") => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
-      // A browser that kept its connection open would otherwise reach this finished server on the next sign-in.
+      // Else a browser that kept its connection open reaches this finished server on the next sign-in
       server.close();
       server.closeIdleConnections();
       if (err) reject(err);
@@ -72,7 +65,7 @@ export async function signIn(openBrowser: (url: string) => void, signal?: AbortS
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", Connection: "close" });
       if (url.searchParams.get("state") !== state) {
         res.end(PAGE("Something went wrong", "Go back to BubbleFacts and click Sign in again."));
-        return; // A stray or forged request: keep waiting for the real one.
+        return; // A stray or forged request: keep waiting for the real one
       }
       if (error || !got) {
         res.end(PAGE("Sign-in canceled", "Go back to BubbleFacts to try again."));
@@ -109,7 +102,7 @@ export async function signIn(openBrowser: (url: string) => void, signal?: AbortS
   return { ...tokens, ...who };
 }
 
-/** Swap the refresh token for new tokens. Persist the result at once: the old refresh token stops working. */
+/** Swap the refresh token for new tokens; save them at once, as the old refresh token stops working */
 export async function refresh(refreshToken: string): Promise<Pick<SignIn, "accessToken" | "refreshToken" | "expiresAt">> {
   return tokenRequest({ grant_type: "refresh_token", refresh_token: refreshToken });
 }
@@ -142,7 +135,7 @@ async function tokenRequest(params: Record<string, string>) {
   return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresAt: Date.now() + lifetime * 1000 };
 }
 
-/** Which channel the token reaches. */
+// Which channel the token reaches
 async function whoIs(accessToken: string): Promise<Pick<SignIn, "channel" | "streamerId">> {
   const res = await fetch(`${API_BASE}/oauth2/validate`, {
     headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": CLIENT_ID, Accept: "application/json" },
@@ -156,11 +149,8 @@ async function whoIs(accessToken: string): Promise<Pick<SignIn, "channel" | "str
   return { channel: body.username || (await channelName(accessToken, body.streamer_id)), streamerId: body.streamer_id };
 }
 
-/**
- * The channel's name, asked for by its ID. Some accounts' sign-in carries no
- * username (a beta tester's didn't), and the name is only for display: the
- * ID is what the app follows. Empty when it can't be read.
- */
+// The channel's name by ID, for display only (the app follows the ID), else ""
+// Some sign-ins carry no username (a beta tester's didn't)
 async function channelName(accessToken: string, streamerId: number): Promise<string> {
   try {
     const res = await fetch(`${API_BASE}/streamers?streamer_id=${streamerId}`, {
@@ -175,7 +165,7 @@ async function channelName(accessToken: string, streamerId: number): Promise<str
   }
 }
 
-/** Tell StreamerSongList to forget this sign-in. Best effort: removing the app's data goes ahead regardless. */
+/** Tell StreamerSongList to forget this sign-in; best effort, as removing the app's data goes ahead anyway */
 export async function revoke(refreshToken: string): Promise<void> {
   if (!CLIENT_ID || !refreshToken) return;
   try {
@@ -186,6 +176,6 @@ export async function revoke(refreshToken: string): Promise<void> {
       signal: AbortSignal.timeout(5_000),
     });
   } catch {
-    // Offline: the token still expires on its own.
+    // Offline: the token still expires on its own
   }
 }

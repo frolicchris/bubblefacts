@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-/** The only things the window can ask the app to do. */
+// The only things the window can ask the app to do
 contextBridge.exposeInMainWorld("bubbleFacts", {
   getState: () => ipcRenderer.invoke("get-state"),
   unlockReady: () => ipcRenderer.send("unlock-ready"),

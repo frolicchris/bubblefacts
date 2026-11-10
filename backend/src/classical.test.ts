@@ -20,7 +20,7 @@ import {
 } from "./fact-verifier";
 import { classicalPace, pickPerson, WorkItem } from "./wikidata";
 
-// Issue #260. Every composer, performer and piece here is made up.
+// Every composer, performer and piece here is made up (#260)
 
 describe("parseClassicalTitle", () => {
   it("reads catalog numbers, the number and the key, however a list spells them", () => {
@@ -82,14 +82,14 @@ describe("workFits and pickWork", () => {
     expect(workFits(sonata4, parseClassicalTitle("Lighthouse Sonata"))).toBe("exact");
     expect(workFits(sonata4, parseClassicalTitle("Sonata No. 4 in C# minor"))).toBe("name");
     expect(workFits(sonata5, parseClassicalTitle("Piano Sonata No. 4"))).toBe("");
-    // The key decides between two preludes: "Prelude in C# minor" isn't the one in G minor.
+    // The key decides between two preludes: "Prelude in C# minor" isn't the one in G minor
     expect(workFits(work({ names: ["Prelude in G minor"] }), parseClassicalTitle("Prelude in C# minor"))).toBe("");
     expect(workFits(work({ names: ["Prelude in C-sharp minor"] }), parseClassicalTitle("Prelude in C# minor"))).toBe("exact");
   });
 
   it("matches a name the request holds whole: 'Alla Marina' in 'Rondo Alla Marina'", () => {
     expect(workFits(work({ names: ["Piano Sonata No. 9", "Alla Marina"] }), parseClassicalTitle("Rondo Alla Marina"))).toBe("name");
-    // One word isn't enough the other way round: "Rondo" alone names nothing.
+    // One word isn't enough the other way round: "Rondo" alone names nothing
     expect(workFits(work({ names: ["Rondo"] }), parseClassicalTitle("Rondo Alla Marina"))).toBe("");
   });
 
@@ -112,12 +112,12 @@ describe("workFits and pickWork", () => {
     const a = work({ id: "Q11", names: ["Mazurka in F minor, Op. 5, No. 3"], parents: ["Q20"] });
     const b = work({ id: "Q12", names: ["Mazurka in F minor, Op. 40, No. 2"], parents: ["Q21"] });
     expect(pickWork([a, b], parsed)).toMatchObject({ tied: [{ id: "Q11" }, { id: "Q12" }] });
-    // Two items for one piece, leading to the same parent, are one.
+    // Two items for one piece, leading to the same parent, are one
     expect(pickWork([a, { ...b, parents: ["Q20"] }], parsed)).toMatchObject({ work: { id: "Q11" } });
     expect(pickWork([a, { ...b, page: "Mazurka in F minor, Op. 40, No. 2 (Marrow)" }], parsed)).toMatchObject({ work: { id: "Q12" } });
-    // A copy with no article and no parent leads nowhere and doesn't count.
+    // A copy with no article and no parent leads nowhere and doesn't count
     expect(pickWork([a, work({ id: "Q13", names: ["Mazurka in F minor"] })], parsed)).toMatchObject({ work: { id: "Q11" } });
-    // A part beats the whole it is in.
+    // A part beats the whole it is in
     expect(pickWork([work({ id: "Q20", names: ["Mazurka in F minor"], page: "Mazurkas (Marrow)" }), a], parsed)).toMatchObject({ work: { id: "Q11" } });
   });
 
@@ -125,7 +125,7 @@ describe("workFits and pickWork", () => {
     const set = work({ id: "Q10", names: ["Deux lanternes", "Two Lanterns", "Lanterns"], page: "Two Lanterns" });
     expect(workFits(set, parseClassicalTitle("Lantern No. 1"))).toBe("set");
     expect(workFits(set, parseClassicalTitle("Lantern No. 1"), true)).toBe("");
-    // Another catalog number is another set.
+    // Another catalog number is another set
     expect(workFits(work({ names: ["Nocturnes, Op. 7"] }), parseClassicalTitle("Nocturne Op. 9 No. 2"))).toBe("");
     expect(workFits(work({ names: ["Nocturnes, Op. 9"] }), parseClassicalTitle("Nocturne Op. 9 No. 2"))).toBe("set");
   });
@@ -181,7 +181,7 @@ describe("sections of a piece's or a parent work's article", () => {
     expect(movementSection(sonata, { n: 3 })?.heading).toBe("III. Presto agitato");
     expect(movementSection(sonata, { name: "Adagio" })?.heading).toBe("I. Adagio");
     expect(movementSection(sonata, { n: 2 })).toBeNull();
-    // A movement asked for by its name: "Rondo Presto Agitato" holds "Presto agitato".
+    // A movement asked for by its name: "Rondo Presto Agitato" holds "Presto agitato"
     expect(movementSection(sonata, { name: "Rondo Presto Agitato" })?.heading).toBe("III. Presto agitato");
   });
 });
@@ -198,7 +198,7 @@ describe("notForAPiece", () => {
 });
 
 describe("classical pieces through Wikidata (issue #260)", () => {
-  // Responses shaped like Wikidata's and Wikipedia's, trimmed, with made-up names.
+  // Responses shaped like Wikidata's and Wikipedia's, trimmed, with made-up names
   type Entry = { match: string; body?: unknown; page?: string; extract?: string };
   const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/classical-works.json"), "utf8")) as Record<string, Entry[]>;
   const asked: string[] = [];
@@ -212,7 +212,7 @@ describe("classical pieces through Wikidata (issue #260)", () => {
       return { ok: true, status: 200, json: async () => hit?.body ?? { search: [], query: { search: [] }, entities: {} } } as Response;
     }
     const hit = fixtures.wikipedia.find((e) => url.includes(e.match));
-    // Last edited long ago: read as it is (issue #242).
+    // Last edited long ago: read as it is (#242)
     const body = hit?.extract !== undefined ? { query: { pages: { 1: { title: hit.page, extract: hit.extract, revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } } : (hit?.body ?? { query: { search: [], pages: {} } });
     return { ok: true, status: 200, json: async () => body } as Response;
   });

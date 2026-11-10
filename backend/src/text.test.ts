@@ -56,7 +56,7 @@ describe("withoutRequestCredit: who asked or paid for a song", () => {
     expect(withoutArtistNote("Lanterns for Hollows")).toBe("Lanterns for Hollows");
     expect(withoutArtistNote("Wren, Hollow & Fire")).toBe("Wren, Hollow & Fire");
     expect(withoutArtistNote("Special Request")).toBe("Special Request");
-    // "for" counts only in an artist field: a title is often "A Song for Someone".
+    // "for" counts only in an artist field: a title is often "A Song for Someone"
     expect(withoutRequestCredit("Glass Orchard, for Wren")).toBe("Glass Orchard, for Wren");
     expect(withoutRequestCredit("The Request")).toBe("The Request");
   });

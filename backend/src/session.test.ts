@@ -93,7 +93,7 @@ describe("the bubble a hands-free Wrong is for", () => {
     const overlapping = [fact("First.", 0), fact("Second.", 6)];
     expect(factOnScreen(overlapping, 1000, at(6.5))?.text).toBe("First.");
     expect(factOnScreen(overlapping, 1000, at(8))?.text).toBe("Second.");
-    // One at a time, the earlier bubble is gone, so the new one is meant.
+    // One at a time, the earlier bubble is gone, so the new one is meant
     expect(factOnScreen(facts, 1000, at(15.5))?.text).toBe("Two.");
   });
 
@@ -108,9 +108,9 @@ describe("factOnScreen after a hands-free Wrong", () => {
   const shownAt = 1_000_000;
   it("never works back to bubbles that appeared before the last press", () => {
     const facts = [fact("First fact here.", 0), fact("Second fact here.", 10)];
-    // The second was marked at 12 s and removed; a repeat press at 30 s finds nothing newer.
+    // The second was marked at 12 s and removed; a repeat press at 30 s finds nothing newer
     expect(factOnScreen([facts[0]], shownAt, shownAt + 30_000, shownAt + 12_000)).toBeNull();
-    // A bubble that appears after the press still counts.
+    // A bubble that appears after the press still counts
     expect(factOnScreen([...facts, fact("Third fact here.", 20)], shownAt, shownAt + 21_000, shownAt + 12_000)?.text).toBe("Third fact here.");
   });
 });
@@ -152,12 +152,12 @@ describe("the AI's captions after the facts from data (issue #256)", () => {
   const all = [...early, at("Caption one.", 30), at("Caption two.", 45)];
 
   it("adds the captions after the last fact sent, never in the past", () => {
-    // Sent with a credit bubble ahead: the record's delays are 7 seconds later.
+    // Sent behind a credit bubble: the record's delays are 7 s later
     const record = [at("Data one.", 7), at("Data two.", 22)];
     expect(withLaterFacts(record, early, all, 3, 15).map((f) => [f.text, f.delaySeconds])).toEqual([
       ["Data one.", 7], ["Data two.", 22], ["Caption one.", 37], ["Caption two.", 52],
     ]);
-    // The AI was slow: the facts from data have all been shown.
+    // The AI was slow: the facts from data have all been shown
     expect(withLaterFacts(record, early, all, 60, 15).slice(2).map((f) => f.delaySeconds)).toEqual([61, 76]);
   });
 

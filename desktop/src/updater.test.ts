@@ -140,16 +140,16 @@ describe("macBundle", () => {
     expect(MAC_SWAP_SCRIPT).toContain('mv "$OLD" "$APP"');
   });
 
-  // The swap script is bash, run by macOS: there's no /bin/bash to run it with on Windows.
+  // The swap script is bash, for macOS: no /bin/bash on Windows
   (process.platform === "win32" ? describe.skip : describe)("when the disk image won't open (a tester's update, canceled half a second in)", () => {
-    // The script, run for real, with stand-ins for the macOS tools it calls.
+    // The script, run for real, with stand-ins for the macOS tools it calls
     let dir: string;
     const run = (hdiutilFails: number, interrupt = false) => {
       const bin = path.join(dir, "bin");
       fs.mkdirSync(bin, { recursive: true });
       const stub = (name: string, body: string) => fs.writeFileSync(path.join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
-      // hdiutil fails its first `hdiutilFails` attaches; every call is recorded.
-      // With `interrupt`, its first attach also sends the script the signals that could end it partway.
+      // hdiutil fails its first `hdiutilFails` attaches, recording every call; with `interrupt`,
+      // its first attach also sends the script the signals that could end it partway
       const signal = interrupt ? `[ "$n" = 1 ] && kill -TERM $PPID && kill -INT $PPID && kill -HUP $PPID;` : "";
       stub("hdiutil", `echo "hdiutil $1" >> "${dir}/calls"; [ "$1" = attach ] || exit 0; n=$(grep -c "hdiutil attach" "${dir}/calls"); ${signal} [ "$n" -gt ${hdiutilFails} ]`);
       stub("diskutil", `echo "diskutil $1 $2" >> "${dir}/calls"; exit 1`);
@@ -159,7 +159,7 @@ describe("macBundle", () => {
       fs.writeFileSync(script, MAC_SWAP_SCRIPT, { mode: 0o700 });
       const app = path.join(dir, "BubbleFacts.app");
       fs.mkdirSync(app, { recursive: true });
-      // 999999: a process id that isn't running, so the script doesn't wait.
+      // 999999: a process id that isn't running, so the script doesn't wait
       require("child_process").execFileSync("/bin/bash", [script, "999999", path.join(dir, "u.dmg"), app, path.join(dir, "log")], {
         env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, BF_RETRY_DELAY: "0" },
       });
@@ -195,7 +195,7 @@ describe("macBundle", () => {
       expect(out.calls.match(/hdiutil attach/g)).toHaveLength(3);
       expect(out.log).toContain("try 2 of 3");
       expect(out.log).not.toContain("try 3 of 3");
-      // The stand-in image holds no app, so the check after opening it stops the swap, and the app reopens.
+      // The stand-in image holds no app: the check after opening it stops the swap and the app reopens
       expect(out.log).toContain("not BubbleFacts");
       expect(out.calls).toMatch(/open .*BubbleFacts\.app/);
     });

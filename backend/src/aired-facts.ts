@@ -5,27 +5,20 @@ import { config } from "./config";
 import { withoutArtistNote } from "./text";
 import { Fact, SSLSong } from "./types";
 
-/**
- * The facts that went out to the overlay, newest last, in `aired-facts.json`
- * in the data folder: each with its song, source, link and time, so a report
- * from the app can say exactly which fact it means after the log lines about
- * it have scrolled away. ShownLog (shown-log.ts) adds to it, so it keeps that
- * rule: only facts that really went out, once per play. Private: it stays on
- * this computer and goes with "Remove my data". The newest
- * `AIRED_FACTS_KEPT` are kept.
- */
+// Facts that went out to the overlay, newest last, with song, source, link and time, so reports outlast the log
+// Filled by ShownLog: only facts that really went out, once per play (ARCHITECTURE.md: How do I see what a stream showed?)
 export const AIRED_FACTS_FILE = "aired-facts.json";
-export const AIRED_FACTS_KEPT = 500;
+export const AIRED_FACTS_KEPT = 500; // facts kept, the newest
 
 export interface AiredFact {
   title: string;
-  /** Without a note after the artist's name (issue #262): reports made from this are public. */
+  /** Without a note after the artist's name (#262): reports made from this are public */
   artist: string;
   text: string;
-  /** Its source label as shown, such as "Wikipedia: Some Game". */
+  /** Its source label as shown, such as "Wikipedia: Some Game" */
   source?: string;
   url?: string;
-  /** When it went out, as an ISO date. */
+  /** When it went out, as an ISO date */
   at: string;
 }
 
@@ -45,12 +38,12 @@ export class AiredFacts {
     this.entries = this.load();
   }
 
-  /** The record, oldest first. */
+  /** The record, oldest first */
   list(): AiredFact[] {
     return this.entries.map((e) => ({ ...e }));
   }
 
-  /** Facts that just went out for a song. Never throws: a record that can't be written mustn't stop the bubbles. */
+  /** Facts that just went out for a song; never throws, as a failed write mustn't stop the bubbles */
   add(song: Pick<SSLSong, "title" | "artist">, facts: Fact[], now = new Date()): void {
     if (!facts.length) return;
     const at = now.toISOString();
@@ -72,7 +65,7 @@ export class AiredFacts {
       const saved: unknown = JSON.parse(fs.readFileSync(this.file, "utf8"));
       return Array.isArray(saved) ? saved.filter(isAired).slice(-this.kept) : [];
     } catch {
-      // None yet, or unreadable: start a new one.
+      // None yet, or unreadable: start a new one
       return [];
     }
   }

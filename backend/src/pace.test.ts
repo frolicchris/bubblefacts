@@ -1,6 +1,6 @@
 import { busyThreads, CALM_SAMPLES, CpuWatch, cpuTimes, LATE_MS, ON_TIME_MS, othersCpuShare, PaceKeeper, paceLine, QUICK_PROBE_EVERY, RECOVER_SONGS, shorterContext, wordsPerSecond } from "./pace";
 
-/** Plays a song whose AI facts came after `ms`. */
+/** Plays a song whose AI facts came after `ms` */
 function onTime(p: PaceKeeper, ms: number): void {
   p.songStarted();
   p.ready(ms);
@@ -18,7 +18,7 @@ describe("keeping up with a slow computer (issue #314)", () => {
   it("asks for less once facts are late on average over the last few songs", () => {
     const p = new PaceKeeper();
     onTime(p, LATE_MS + 30_000);
-    // One long song may have been a long article.
+    // One long song may have been a long article
     expect(p.pace()).toBe("full");
     onTime(p, LATE_MS + 30_000);
     expect(p.pace()).toBe("short");
@@ -59,7 +59,7 @@ describe("keeping up with a slow computer (issue #314)", () => {
       tries.push(p.aiThisSong());
     }
     expect(tries).toEqual([...Array(QUICK_PROBE_EVERY - 1).fill(false), true]);
-    // The try is asked the short way.
+    // The try is asked the short way
     expect(p.ask()).toBe("short");
     p.ready(40_000);
     expect(p.pace()).toBe("short");
@@ -126,7 +126,7 @@ describe("how busy the computer is", () => {
     const before = cpuTimes([core(0, 0), core(0, 0)]);
     const after = cpuTimes([core(900, 100), core(900, 100)]);
     expect(othersCpuShare(before, after, 0)).toBeCloseTo(0.9);
-    // Half of the busy time was the AI's own work.
+    // Half of the busy time was the AI's own work
     expect(othersCpuShare(before, after, 900)).toBeCloseTo(0.45);
   });
 
@@ -148,7 +148,7 @@ describe("how busy the computer is", () => {
     const w = new CpuWatch();
     w.read(0.9);
     for (let i = 0; i < CALM_SAMPLES - 1; i++) w.read(0.2);
-    // Between calm and busy: not calm.
+    // Between calm and busy: not calm
     w.read(0.6);
     expect(w.read(0.2)).toBe(true);
   });

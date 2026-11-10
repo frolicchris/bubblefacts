@@ -1,21 +1,15 @@
-/* Small screen reader helpers for the renderer. Plain functions, so tests can run them without a window. */
+/* Screen reader helpers for the renderer; plain functions, so tests run them without a window */
 (function () {
   "use strict";
 
-  /**
-   * What to announce when a status light is redrawn: only a change into a warning or a
-   * problem, never the same light again on the next poll.
-   */
+  /** What to announce on a status light redraw: only a change into a warning or problem, never the same light again */
   function lightAnnouncement(prev, next, label) {
     if (next.kind !== "warn" && next.kind !== "bad") return "";
     if (prev && prev.kind === next.kind && prev.text === next.text) return "";
     return `${label}: ${next.text}`;
   }
 
-  /**
-   * A fact's length counter announces once when the text goes over the limit, and again
-   * only after it has dropped back under and crossed again.
-   */
+  /** A fact's length counter announces going over the limit once, again only after dropping under and crossing again */
   function counterStep(wasOver, length, max, message) {
     const over = length > max;
     return { over, announce: over && !wasOver ? message : "" };

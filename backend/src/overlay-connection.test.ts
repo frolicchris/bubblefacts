@@ -2,10 +2,7 @@ import fs from "fs";
 import path from "path";
 import vm from "vm";
 
-/**
- * The overlay is a plain script OBS loads in a Browser source. Run it with a
- * stand-in page and record where it tries to connect.
- */
+// The overlay script, run on a stand-in page: where it connects, what it shows and sends
 const SCRIPT = fs.readFileSync(path.resolve(__dirname, "../../frontend/obs/obs-overlay.js"), "utf8");
 
 function connectionsFrom(href: string, failFirst = 0): string[] {
@@ -20,7 +17,7 @@ function connectionsFrom(href: string, failFirst = 0): string[] {
     onmessage?: () => void;
     constructor(target: string) {
       urls.push(target);
-      // Refuse the first few, like ports nothing listens on.
+      // Refuse the first few, like ports nothing listens on
       if (urls.length <= failFirst) timers.push(() => this.onclose?.());
     }
     close() {}
@@ -40,7 +37,7 @@ function connectionsFrom(href: string, failFirst = 0): string[] {
 
 describe("where the overlay connects", () => {
   it("reaches the app's server when OBS loads it as a Local file", () => {
-    // OBS serves local files from http://absolute/<path>, never file://.
+    // OBS serves local files from http://absolute/<path>, never file://
     const urls = connectionsFrom("http://absolute/Users/jane/Library/Application%20Support/BubbleFacts/overlay/BubbleFacts.html");
     expect(urls[0]).toBe("ws://127.0.0.1:3000/ws");
   });
@@ -59,18 +56,15 @@ describe("where the overlay connects", () => {
   });
 });
 
-/**
- * Runs the overlay against a fake page and returns the texts of bubbles it shows.
- * `layout`: "vertical" for obs-overlay-vertical.html, in a 1080x1920 source.
- */
+/** Runs the overlay on a fake page, recording the bubbles it shows; `layout` "vertical": a 1080x1920 vertical page */
 function overlay(layout = "") {
   const shown: string[] = [];
-  /** Each bubble's spot, as the page placed it. */
+  /** Each bubble's spot, as the page placed it */
   const spots: Record<string, Record<string, unknown>> = {};
-  // Bubbles taken off the page at once, without fading out.
+  // Bubbles taken off the page at once, without fading out
   const gone: string[] = [];
   const hidden: string[] = [];
-  // Timers the overlay can cancel, as a browser's.
+  // Timers the overlay can cancel, as a browser's
   const timers: Array<{ id: number; fn: () => void }> = [];
   let timerId = 0;
   let socket: { onmessage?: (e: { data: string }) => void; onopen?: () => void } = {};
@@ -91,7 +85,7 @@ function overlay(layout = "") {
     constructor() { socket = this as typeof socket; }
     close() {}
   }
-  /** The page's <html>, where the Style goes, and the style sheets the overlay adds to <head>. */
+  /** The page's <html>, where the Style goes, and the style sheets the overlay adds to <head> */
   const root = { dataset: { layout } as Record<string, string> };
   const sheets: Array<{ textContent?: string }> = [];
   vm.runInNewContext(SCRIPT, {
@@ -114,11 +108,11 @@ function overlay(layout = "") {
   const fact = (text: string, position: object = { top: "0%", left: "0%" }) => ({ text, delaySeconds: 0, durationSeconds: 5, position });
   const send = (msg: object) => socket.onmessage?.({ data: JSON.stringify(msg) });
   const run = () => { while (timers.length) timers.shift()!.fn(); };
-  /** Fires only the timers already waiting: each fact's turn, in order, before any bubble's own time runs out. */
+  /** Fires only the timers already waiting: each fact's turn, in order, before any bubble's time runs out */
   const step = (n: number) => timers.splice(0, n).forEach((t) => t.fn());
   socket.onopen?.();
   send({ type: "new_song", song });
-  // The Now Playing banner's timers: out of the way, so `step` reaches the bubbles.
+  // The Now Playing banner's timers: out of the way, so `step` reaches the bubbles
   run();
   return { shown, hidden, gone, spots, send, run, step, song, fact, root, sheets };
 }
@@ -153,12 +147,12 @@ describe("bubble Styles (issue #177)", () => {
     expect(o.root.dataset.style).toBe("minimal");
     expect(o.sheets).toHaveLength(1);
     const css = o.sheets[0].textContent ?? "";
-    // No specificity: OBS's Custom CSS box still wins.
+    // No specificity: OBS's Custom CSS box still wins
     expect(css.startsWith(":where(html) {")).toBe(true);
     expect(css).toContain("--bf-bg-1: rgba(255, 255, 255, 1);");
     expect(css).toContain("--bf-accent: #ff8800;");
     expect(css).toContain("--bf-text: #111111;");
-    // Dark text gets no dark shadow under it.
+    // Dark text gets no dark shadow under it
     expect(css).toContain("--bf-text-shadow: none;");
     o.send({ type: "style", style: "minimal" });
     expect(o.sheets).toHaveLength(1);
@@ -179,7 +173,7 @@ describe("bubble Styles (issue #177)", () => {
     expect(o.sheets).toHaveLength(1);
     expect(o.sheets[0].textContent).toContain("--bf-scale: 1.25;");
     expect(o.sheets[0].textContent).toContain("--bf-vertical-scale: 1.5;");
-    // No specificity, so OBS's Custom CSS still wins.
+    // No specificity, so OBS's Custom CSS still wins
     expect(o.sheets[0].textContent).toMatch(/^:where\(html\) \{/);
     for (const scale of [0.1, 9, "2; } .popup-bubble { display: none } :root {", null]) {
       o.send({ type: "style", style: "classic", scale });
@@ -298,7 +292,7 @@ describe("bubbles in one fixed spot", () => {
     expect(o.hidden).toEqual(["First.", "Second."]);
     o.run();
     expect(o.shown).toEqual(["First.", "Second.", "Third."]);
-    // Each hides once, however many reasons it had to go.
+    // Each hides once, however many reasons it had to go
     expect(o.hidden).toEqual(["First.", "Second.", "Third."]);
   });
 });
@@ -310,7 +304,7 @@ describe("more facts for the song on now (issue #256)", () => {
     const o = overlay();
     o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Data one.", spot), o.fact("Data two.", spot)] });
     o.step(1);
-    // The server sends what's still to come: the second fact from data, then the captions.
+    // The server sends what's still to come: the second fact from data, then the captions
     o.send({ type: "facts_ready", song: o.song, keep: true, facts: [o.fact("Data two.", spot), o.fact("Caption.", spot)] });
     expect([o.hidden, o.gone]).toEqual([[], []]);
     o.run();
@@ -336,10 +330,7 @@ describe("more facts for the song on now (issue #256)", () => {
   });
 });
 
-/**
- * The overlay in a stand-in OBS: what it sends the app, and what it shows. `obs`: the page's
- * window.obsstudio, or undefined outside OBS.
- */
+/** The overlay in a stand-in OBS: what it sends and shows. `obs`: window.obsstudio, undefined outside OBS */
 function inObs(obs?: { getStatus?: (cb: (s: unknown) => void) => void }) {
   const sent: unknown[] = [];
   const shown: string[] = [];
@@ -409,10 +400,10 @@ describe("OBS's streaming signal", () => {
     const refused = inObs({ getStatus: () => { throw new Error("not allowed"); } });
     expect(() => refused.open()).not.toThrow();
     expect(refused.sent).toEqual([]);
-    // The events still come through.
+    // The events still come through
     refused.fire("obsStreamingStarted");
     expect(refused.sent).toEqual([{ type: "obs_streaming", streaming: true }]);
-    // Before connecting, and after a drop, there's nowhere to send it.
+    // Before connecting, and after a drop, there's nowhere to send it
     const early = inObs(status(false));
     early.fire("obsStreamingStarted");
     early.open();

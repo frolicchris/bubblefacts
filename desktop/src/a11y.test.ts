@@ -10,7 +10,7 @@ type A11y = {
 const renderer = path.join(__dirname, "..", "renderer");
 const read = (f: string) => fs.readFileSync(path.join(renderer, f), "utf8");
 
-/** The renderer's helper is a plain browser script; run it with a stand-in window. */
+/** The renderer's helper is a plain browser script: run it with a stand-in window */
 function load(): A11y {
   const win: { A11y?: A11y } = {};
   new Function("window", read("a11y.js"))(win);

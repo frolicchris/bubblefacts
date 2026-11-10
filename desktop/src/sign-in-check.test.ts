@@ -23,7 +23,7 @@ describe("asking StreamerSongList whether the sign-in holds (issue #182)", () =>
     expect(await validateToken("t", answer(403, {}))).toBe("unknown");
     expect(await validateToken("t", answer(429, {}))).toBe("unknown");
     expect(await validateToken("t", answer(404, {}))).toBe("unknown");
-    // A 200 that isn't a JSON object: a maintenance page, say.
+    // A 200 that isn't a JSON object, such as a maintenance page
     expect(await validateToken("t", answer(200, undefined, true))).toBe("unknown");
     expect(await validateToken("t", answer(200, "ok"))).toBe("unknown");
     expect(await validateToken("t", answer(200, ["x"]))).toBe("unknown");

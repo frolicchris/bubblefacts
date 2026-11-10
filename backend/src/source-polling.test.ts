@@ -66,7 +66,7 @@ describe("pollLoop attempts", () => {
 
   it("keeps the age small while every fetch fails", async () => {
     const loop = make(async () => {
-      // pollOnce handles its own errors, so a failed fetch is a tick that ends quietly.
+      // pollOnce handles its own errors, so a failed fetch is a tick that ends quietly
     });
     loop.schedule();
     await jest.advanceTimersByTimeAsync(10 * 60_000);

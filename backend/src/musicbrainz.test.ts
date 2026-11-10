@@ -52,7 +52,7 @@ describe("performerFacts", () => {
 
   it("states no year when the artist's same title came out earlier on another recording", () => {
     const later = rec("Glass Harbor", "Ola Brandt", "2008-07-14", [["Quiet Rooms"]]);
-    // The first recording credits others too, so it scores low and isn't a match itself.
+    // The first recording credits others too, so it scores low and isn't a match itself
     const first = { ...rec("Glass Harbor", "Ola Brandt", "1986", [["Green Room"]], 81), "artist-credit": [{ name: "Ola Brandt" }, { name: "Mara Quill" }] };
     expect(performerFacts([later, first], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" is on the album Quiet Rooms.']);
     expect(performerFacts([later], "Glass Harbor", "Ola Brandt")).toEqual(['"Glass Harbor" came out in 2008 and is on the album Quiet Rooms.']);
@@ -170,7 +170,7 @@ describe("release years (October 2026 fact checks)", () => {
 });
 
 describe("MusicBrainz's own link to the article (issue #245)", () => {
-  // Responses recorded from MusicBrainz, Wikidata and Wikipedia, trimmed, with made-up names.
+  // Responses recorded from MusicBrainz, Wikidata and Wikipedia, trimmed, with made-up names
   type Entry = { match: string; body?: unknown; page?: string; extract?: string };
   const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/musicbrainz-link.json"), "utf8")) as Record<string, Entry[]>;
   let scenario: Entry[] = [];
@@ -182,9 +182,9 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
     asked.push(url);
     const hit = scenario.find((e) => url.includes(e.match));
     let body: unknown = hit?.body;
-    // Last edited long ago: read as it is (issue #242).
+    // Last edited long ago: read as it is (#242)
     if (hit?.extract !== undefined) body = { query: { pages: { 1: { title: hit.page, extract: hit.extract, revisions: [{ timestamp: "2020-01-01T00:00:00Z" }] } } } };
-    // Wikipedia knows none of these names: every ordinary lookup misses.
+    // Wikipedia knows none of these names: every ordinary lookup misses
     body ??= host(url).endsWith(".wikipedia.org") ? { query: { search: [], pages: {} } } : toMusicBrainz(url) && new URL(url).pathname === "/ws/2/artist" ? { artists: [] } : {};
     return { ok: true, status: 200, json: async () => body } as Response;
   });
@@ -217,7 +217,7 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
 
   it("never takes an album's or a TV series' page, even from MusicBrainz's link", async () => {
     expect(await run("notAnAct", "Low Orbit", "Kestrel Moon")).toBe("");
-    // Both linked pages were read, and the gate turned them down.
+    // Both linked pages were read, and the gate turned them down
     expect(asked.some((u) => u.includes("titles=Low Orbit (album)"))).toBe(true);
     expect(asked.some((u) => u.includes("titles=Kestrel Moon (TV series)"))).toBe(true);
   });
@@ -272,7 +272,7 @@ describe("MusicBrainz's own link to the article (issue #245)", () => {
 });
 
 describe("artistPageFit: an opening the content standard left out", () => {
-  // Made-up names. The first sentence ("... is a Cuban-American musician") breaks the identity list and is gone.
+  // Made-up names; the first sentence ("... is a Cuban-American musician") breaks the identity list and is gone
   const full = "Known for his style of dress, Ravel Quillon is considered a leading figure in the dark cabaret genre. He has released 13 studio albums.";
 
   it("reads Wikidata's description when the opening says nothing", () => {
@@ -288,8 +288,8 @@ describe("artistPageFit: an opening the content standard left out", () => {
 });
 
 describe("musicbrainzFacts: no year it can't vouch for", () => {
-  // Made-up names. Heart's "Alone" once got 2010 (a later EP: the 1987 single wasn't among the results),
-  // and "Vampire Killer" 2015 (an album called "Castlevania" credited to "Castlevania").
+  // Made-up names; Heart's "Alone" once got 2010 (a later EP: the 1987 single wasn't in the results),
+  // and "Vampire Killer" 2015 (an album "Castlevania" credited to "Castlevania")
   let byArtist: { count: number; recordings: unknown[] };
   const fetchMock = jest.fn(async (input: string | URL) => {
     const url = new URL(String(input));
@@ -326,9 +326,9 @@ describe("year and album in one bubble (#256)", () => {
   });
 
   it("keeps a single fact when only one value is known", () => {
-    // A release named like the song gives the year but is not an album to name.
+    // A release named like the song gives the year but is not an album to name
     expect(performerFacts(lantern("Harbor Lights", "Harbor Lights"), "Harbor Lights", "Glass Orchard")).toEqual(['"Harbor Lights" came out in 2021.']);
-    // The year is held back for an artist who had died by then; the album stays on its own.
+    // The year is held back for an artist who had died by then; the album stays on its own
     expect(performerFacts(lantern("Harbor Lights", "Paper Boats"), "Harbor Lights", "Glass Orchard", 1950)).toEqual(['"Harbor Lights" is on the album Paper Boats.']);
   });
 
@@ -348,7 +348,7 @@ describe("year and album in one bubble (#256)", () => {
 });
 
 describe("musicbrainzFacts: the year is checked against the artist's death (#256)", () => {
-  // Each run has its own title: lookups are cached by song.
+  // Each run has its own title: lookups are cached by song
   const run = async (title: string, ended: string | undefined) => {
     const search = [{ ...rec(title, "Glass Orchard", "1995-03-05", [["Paper Boats"]]), "artist-credit": [{ name: "Glass Orchard", artist: { id: "artist-1" } }] }];
     const real = global.fetch;
@@ -479,7 +479,7 @@ describe("settleTitleOrder: which side of a fan's \"X - Y\" is the artist", () =
     asked.push(decodeURIComponent(String(input)).replace(/\+/g, " "));
     return { ok: true, status: 200, json: async () => reply } as Response;
   });
-  // As parseVideoTitle reads "Copper Moon - Juniper Reyes" from a fan's channel.
+  // As parseVideoTitle reads "Copper Moon - Juniper Reyes" from a fan's channel
   const unsure = { title: "Juniper Reyes", artist: "Copper Moon", confident: true, performer: false, orderUnsure: true };
 
   beforeEach(() => {
@@ -555,13 +555,13 @@ describe("closeName: another middle initial is another person", () => {
 });
 
 describe("a busy MusicBrainz while songs are prepared", () => {
-  // Seen on a Mac on 2026-11-02: a 503 the retry got past still put the next song off for a minute or two.
+  // Seen on a Mac on 2026-11-02: a 503 the retry got past still delayed the next song a minute or two
   const answers: number[] = [];
   const fetchMock = jest.fn(async () => {
     const status = answers.shift() ?? 200;
     return { ok: status === 200, status, json: async () => ({ recordings: [], count: 0 }) } as Response;
   });
-  // Each case asks about its own song: an answer is kept, so a second ask wouldn't reach MusicBrainz.
+  // Each case asks about its own song: answers are kept, so a repeat wouldn't reach MusicBrainz
   const prepared = async (title: string, statuses: number[]) => {
     answers.splice(0, answers.length, ...statuses);
     const ctx: PrepContext = { recent: [], trouble: 0, signal: new AbortController().signal, answers: new Map() };

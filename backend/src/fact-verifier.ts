@@ -1,15 +1,4 @@
-/**
- * Grounding and screening.
- *
- * Grounding fetches the song's Wikipedia article so the model restates a
- * source instead of recalling from memory. Screening then drops any sentence
- * whose names, years or platforms the source does not contain. Every check
- * is a string comparison: no second model, no added latency.
- *
- * The code lives in `grounding/` and `screening/` (see the module map in
- * docs/ARCHITECTURE.md). This file re-exports what callers use, so they
- * import from one place.
- */
+// Grounding and screening, re-exported so callers import from one place (ARCHITECTURE.md: module map)
 
 export { MAX_CONTEXT_CHARS, MAX_FACT_CHARS, MIN_CONTEXT_CHARS } from "./fact-limits";
 export { artistNames, dropVersionTags, foldSymbols, mentionsName, normalizeKeys, normalizeTitle, parseClassicalTitle, resolveGameAndTrack, splitGameAndTrack } from "./grounding/titles";

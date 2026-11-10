@@ -5,29 +5,25 @@ import { normalizeTitle } from "./titles";
 import { STABLE_AGE_MS, USER_AGENT, WIKI_API } from "./wikipedia";
 import { contentTokens } from "../screening/similarity";
 
-/**
- * Work scope: sentences about another work (italic titles) are kept out of
- * the reference.
- */
+// Work scope: sentences about another work (italic titles) kept out of the reference
+// (ARCHITECTURE.md: The life of one song)
 
-// --- Work scope: italic titles ----------------------------------------------
-
-/** WORK_SCOPE=off reads every sentence of a game's or a work's article, as before. */
+// WORK_SCOPE=off reads every sentence of a game's or a work's article, as before
 export const workScope = { on: process.env.WORK_SCOPE !== "off" };
 
-/** One sentence of an article's wikitext as plain words, with the titles it sets in italics. */
+/** One wikitext sentence as plain words, with its italic titles */
 export interface ItalicSentence {
   text: string;
-  /** Each italic title as shown, its link target when the italics are one link, and whether it's bold too (the article's own subject). */
+  /** Each italic title as shown, its link target if one link, and whether bold too (the article's subject) */
   works: Array<{ title: string; target: string; subject: boolean }>;
-  /** The paragraph the sentence sits in, counted through the article. */
+  /** Paragraph number through the article */
   para: number;
 }
 
-/** Inline templates whose text is part of the sentence, and which argument holds it. */
+// Inline templates whose text is part of the sentence -> the argument holding it
 const TEXT_TEMPLATES: Record<string, number> = { nihongo: 1, nihongo2: 1, nihongo3: 1, "nihongo foot": 1, lang: 2, nowrap: 1, nobr: 1, small: 1, ill: 1, "interlanguage link": 1, "not a typo": 1, vgy: 1, "'": -1 };
 
-/** Remove `[[File:...]]` and similar links, which nest other links inside them. */
+/** Without `[[File:...]]` and similar links, which nest other links */
 function withoutFileLinks(t: string): string {
   let out = "";
   let i = 0;
@@ -45,17 +41,12 @@ function withoutFileLinks(t: string): string {
   return out;
 }
 
-/**
- * An article's wikitext as sentences of plain words, each with its italic
- * titles. Wikipedia's style puts the titles of games, albums, films, shows
- * and books in italics (''Title''); the article's own subject in bold
- * italics in its lead. Approximate on purpose: references, tables and other
- * templates are dropped, so the words are matched to the plain text loosely.
- */
+// Wikitext as plain sentences with their italic titles (''Title''; the subject's in bold italics).
+// Approximate on purpose: refs, tables and templates go, so words match the plain text loosely
 export function italicSentences(wikitext: string): ItalicSentence[] {
   let t = withoutRefsAndComments(wikitext);
   t = withoutFileLinks(t);
-  // A link's "|" isn't a template's.
+  // A link's "|" isn't a template's
   t = t.replace(/\[\[([^[\]]*)\]\]/g, (m) => m.replace(/\|/g, "\u0003"));
   for (let guard = 0; guard < 20 && /\{\{[^{}]*\}\}/.test(t); guard++) {
     t = t.replace(/\{\{([^{}]*)\}\}/g, (_, body: string) => {
@@ -64,9 +55,9 @@ export function italicSentences(wikitext: string): ItalicSentence[] {
       return at === undefined ? "" : at < 0 ? "'" : (parts[at] ?? "").replace(/^\s*\d+\s*=\s*/, "");
     });
   }
-  // Tags go until none is left ("<scr<b>ipt>" leaves "<script>" once), then any stray angle bracket.
+  // Tags go until none is left ("<scr<b>ipt>" leaves "<script>" once), then stray angle brackets
   t = removeAll(t.replace(/\{\|[\s\S]*?\|\}/g, ""), /<[^>]+>/g).replace(/[<>]/g, "");
-  // Bold italics: the subject's own title. Then bold alone is dropped, and italics marked.
+  // Bold italics: the subject's own title; then bold alone dropped, italics marked
   t = t.replace(/'''''([^'\n][^\n]*?)'''''/g, "\u0001\u0004$1\u0002").replace(/'''/g, "").replace(/''([^'\n][^\n]*?)''/g, "\u0001$1\u0002");
   const linkText = (s: string) => s.replace(/\[\[([^\]\u0003]*)(?:\u0003([^\]]*))?\]\]/g, (_, target: string, shown?: string) => shown ?? target.replace(/#.*$/, "")).replace(/\[https?:\/\/\S+\s*([^\]]*)\]/g, "$1");
   const out: ItalicSentence[] = [];
@@ -91,30 +82,26 @@ export function italicSentences(wikitext: string): ItalicSentence[] {
   return out;
 }
 
-/** Words shared by too many titles to say two works are related. */
+// In too many titles to say two works are related
 const GENERIC_TITLE_WORDS = new Set("music game games video series soundtrack soundtracks original edition version theme album songs song live best greatest hits collection volume part chapter story world legend super".split(" "));
 
-/** A title's distinctive words: 4+ letters, not generic. */
+// A title's distinctive words: 4+ letters, not generic
 const titleWords = (s: string) => normalizeTitle(s).split(" ").filter((w) => w.length >= 4 && !GENERIC_TITLE_WORDS.has(w));
 
-/** "Music of Some Game", "Some Game (soundtrack)", "Some Game (video game)": the work a page is about. */
+/** The work a page is about: "Some Game" from "Music of Some Game", "Some Game (soundtrack)" */
 export function workOfPage(page: string): string {
   return page.replace(/\s*\([^)]*\)\s*$/, "").replace(/^(?:the )?(?:music|soundtracks?|scores?) (?:of|from|for) (?:the )?/i, "").replace(/\s+(?:series|franchise)$/i, "").trim();
 }
 
-/**
- * The requested work's names, normalized: the request's game or work field,
- * the work the article is about, and the titles the article's lead sets in
- * bold italics (its subject's own names, by Wikipedia's style).
- */
+/** The requested work's names, normalized: the game field, the page's work, the lead's bold italic titles */
 export function requestedWork(game: string, page: string, sentences: ItalicSentence[] = []): string[] {
   const firstPara = sentences.find((s) => s.works.some((w) => w.subject))?.para;
   const subject = sentences.filter((s) => s.para === firstPara).flatMap((s) => s.works.filter((w) => w.subject).map((w) => w.title));
   const plain = game.replace(/\s+(?:CD|HD|DX|Remastered|Remaster|Deluxe|Definitive Edition|Complete Edition)$/i, "");
   const titles = [game, plain, workOfPage(page), ...subject];
-  // "Dark Moon" for "Some Mansion: Dark Moon": a subtitle of two words or more is the work's short name.
+  // "Dark Moon" for "Some Mansion: Dark Moon": a subtitle of two words or more is the work's short name
   const subtitles = titles.map((t) => /:\s*(.+)$/.exec(t)?.[1] ?? "").filter((t) => t.trim().split(/\s+/).length >= 2);
-  // Paired versions: "Some Red, Blue and Yellow" is also "Some Red", "Red and Blue" and, in italics, "Blue".
+  // Paired versions: "Some Red, Blue and Yellow" is also "Some Red", "Red and Blue" and, in italics, "Blue"
   const versions = titles.flatMap((t) => {
     const m = /^(.*?)\b((?:[\p{L}\p{N}'’-]+,\s+)*[\p{L}\p{N}'’-]+,?\s+(?:and|&)\s+[\p{L}\p{N}'’-]+)$/u.exec(t.trim());
     if (!m) return [];
@@ -125,27 +112,23 @@ export function requestedWork(game: string, page: string, sentences: ItalicSente
   return [...new Set([...titles, ...subtitles, ...versions].map((t) => normalizeTitle(t).replace(/^the /, "")).filter((n) => n.length >= 3))];
 }
 
-/** What an album of a work's own music is called: "Original Soundtrack", "Original Sound Version", "Piano Collections". */
+// Albums of a work's own music: "Original Soundtrack", "Original Sound Version", "Piano Collections"
 const MUSIC_ALBUM = /\b(?:soundtracks?|OST|OSV|original sound|sound version|music|arranged|arrange|piano|orchestral|orchestra|symphonic|remix(?:es)?|album|tracks|collections?|grand finale|concert|melodies)\b/i;
-/** A spoken album or radio play of a work: not its music. */
+// A spoken album or radio play: not its music
 const NOT_MUSIC_ALBUM = /\b(?:drama|radio)\b/i;
 
-/** Words that make a mention of the requested work one of its editions: "the 2019 remake of Some Game". */
+// Makes a mention of the work one of its editions: "the 2019 remake of Some Game"
 const EDITION_WORD = /\b(?:remake|remaster(?:ed)?|reboot|re-?release|reimagining|sequel|prequel|spin-?off|port|follow-?up|successor)\b/i;
-/** A section about other works: "Sequels", "Remake", "Spin-offs". */
+// Sections about other works: "Sequels", "Remake", "Spin-offs"
 const EDITION_HEADING = /\b(?:sequels?|prequels?|remakes?|remasters?|reboots?|spin-?offs?|successors?)\b/i;
-/** A sentence about an edition, not the work: "The remake adds ...", "Its 2019 remaster ...". */
+// About an edition, not the work: "The remake adds ...", "Its 2019 remaster ..."
 const EDITION_LED = /^(?:In \d{4}, )?(?:The|A|An|This|Its|Their) (?:\d{4} |later |enhanced |HD |high-definition |3D |Western |English )?(?:remake|remaster|remastered version|reboot|re-?release|sequel|prequel|spin-?off|port|follow-?up|reimagining)\b/;
-/** A sentence that goes on about what the one before it named. */
+// Goes on about what the sentence before named
 const LEANS_ON_PREVIOUS = /^["“]?(?:It|Its|They|Their|This|These|The (?:game|remake|remaster|sequel|prequel|port|reboot|film|album|soundtrack|version|release|title))\b/;
 
-/**
- * Whether a plain sentence names a work by its words: the name with word
- * edges, not as part of a longer title the sentence also has in italics,
- * and not next to an edition word ("the remake of Some Game").
- */
+/** Whether a sentence names the work in words: whole, not in a longer italic title, not by an edition word */
 function namesWorkPlainly(sentence: string, allNames: string[], longer: string[], exempt = ""): { clean: boolean; edition: boolean } {
-  // One word ("red") is too common to be the work's name in plain text; in italics it is.
+  // One word ("red") is too common to be the work's name in plain text; in italics it is
   const names = allNames.filter((n) => n.includes(" ") || n.length >= 8);
   let text = ` ${normalizeTitle(sentence)} `;
   for (const l of longer.map(normalizeTitle).filter(Boolean).sort((a, b) => b.length - a.length)) text = text.split(` ${l} `).join(" \u0005 ");
@@ -164,16 +147,7 @@ function namesWorkPlainly(sentence: string, allNames: string[], longer: string[]
   return { clean, edition };
 }
 
-/**
- * The article's plain sentences that are about another work than the one
- * requested: a sentence that names, in italics, a related work (a sequel, a
- * remake, an edition, another game of the series: a title sharing a
- * distinctive word with the requested one) and doesn't name the requested
- * work itself; a sentence about "the remake" or "the sequel"; and the
- * sentences right after one of those that go on with "It" or "The game".
- * A series named as a series ("the Some Game series") is not another work.
- * Unrelated titles (a magazine, the composer's other game) are left alone.
- */
+/** The article's sentences about another work than the requested one (ARCHITECTURE.md: The life of one song) */
 export function otherWorkSentences(full: string, wikitext: string, game: string, page: string): Set<string> {
   const wiki = italicSentences(wikitext);
   const names = requestedWork(game, page, wiki);
@@ -183,29 +157,28 @@ export function otherWorkSentences(full: string, wikitext: string, game: string,
   const index = wiki.map((w) => contentTokens(w.text));
   const namesEdition = EDITION_WORD.test(game);
   const norm = (t: string) => normalizeTitle(t).replace(/^the /, "");
-  // An album of the requested work's own music: "Some Game Original Soundtrack", "Piano Collections Some Game".
-  // Not an album of a related game's music: "Melodies of Some Game Advance" for "Some Game".
+  // The work's own album ("Some Game Original Soundtrack"), not a related game's ("Melodies of Some Game Advance")
   const games = [...new Set(wiki.flatMap((x) => x.works).map((w) => norm(w.title)).filter((t) => !names.includes(t) && !MUSIC_ALBUM.test(t) && titleWords(t).some((x) => own.has(x))))];
   const ownAlbum = (t: string) => {
     const n = ` ${norm(t)} `;
     return names.some((x) => x.includes(" ") && n.includes(` ${x} `)) && MUSIC_ALBUM.test(t) && !NOT_MUSIC_ALBUM.test(t) && !games.some((g) => n.includes(` ${g} `));
   };
-  // A link to "Some Game (TV series)" from "Some Game (video game)" is the show, not the game.
+  // A link to "Some Game (TV series)" from "Some Game (video game)" is the show, not the game
   const qualifier = (t: string) => /\(([^)]*)\)\s*$/.exec(t)?.[1]?.toLowerCase() ?? "";
   const isRequested = (w: { title: string; target: string }) =>
     (w.target
       ? names.includes(norm(w.target)) || (names.includes(norm(workOfPage(w.target))) && (!qualifier(w.target) || qualifier(w.target) === qualifier(page)))
       : names.includes(norm(w.title))) || ownAlbum(w.title);
-  // A series named by one word ("Some" for "Some Mania"), or as a kind of game: "the early Some games", "a Some fangame".
+  // A series by one word ("Some" for "Some Mania") or as a kind of game: "the early Some games", "a Some fangame"
   const asSeries = (w: { title: string }, s: string) => {
     const t = norm(w.title);
     if (!t.includes(" ") && names.some((n) => n.startsWith(`${t} `))) return true;
     return new RegExp(String.raw`${escapeRe(w.title)}['’]?s?\s+(?:video game\s+)?(?:series|franchise|saga|games|titles|fans|fangames?|community|universe|characters?|mascot)\b`, "i").test(s);
   };
   const related = (w: { title: string }) => titleWords(w.title).some((x) => own.has(x));
-  // Every related work the article names in italics, to tell a section headed with one ("=== Some Game Zero ===").
+  // Related italic titles, to spot a section headed with one ("=== Some Game Zero ===")
   const otherTitles = new Set(wiki.flatMap((x) => x.works).filter((w) => !isRequested(w) && related(w)).map((w) => norm(w.title)));
-  // A request for "Some Game Zero" from the article on "Some Game": "a remake, Some Game Zero" names the request itself.
+  // "Some Game Zero" from the "Some Game" article: "a remake, Some Game Zero" names the request itself
   const requestIsEdition = norm(game) !== norm(workOfPage(page)) ? norm(game) : "";
   const heads: Array<{ level: number; other: boolean }> = [];
   for (const line of full.split("\n")) {
@@ -230,7 +203,7 @@ export function otherWorkSentences(full: string, wikitext: string, game: string,
         index.forEach((have, i) => {
           let n = 0;
           for (const t of want) if (have.has(t)) n++;
-          // Shared words over the longer of the two: a short sentence doesn't match a long one that contains it.
+          // Over the longer of the two: a short sentence doesn't match a long one containing it
           const fit = n / Math.max(want.size, have.size);
           if (fit > share) [best, share] = [i, fit];
         });
@@ -238,10 +211,10 @@ export function otherWorkSentences(full: string, wikitext: string, game: string,
       const works = best >= 0 && share >= 0.5 ? wiki[best].works : [];
       const series = (w: { title: string; target: string }) => /\b(?:series|franchise)\b/i.test(w.target) || asSeries(w, s);
       const others = works.filter((w) => !isRequested(w) && !series(w) && related(w));
-      // The work named in words or italics, not as part of another title and not as "the remake of Some Game".
+      // The work named in words or italics, not inside another title or as "the remake of Some Game"
       const plainly = namesWorkPlainly(s, [...names, ...works.filter(isRequested).map((w) => norm(w.title))], works.filter((w) => !isRequested(w)).map((w) => w.title), requestIsEdition);
-      // "It was a hit, outselling Some Game 11": a sentence led by "It" or "The game" is about the article's own work,
-      // unless the one before it was about another, or it says it is a remake.
+      // "It was a hit, outselling Some Game 11": led by "It" or "The game", it's the article's own work,
+      // unless the one before was about another or it says it's a remake
       const subjectLed: boolean =
         !carry && !plainly.edition && (/^["“]?(?:It|Its|The game|This game)\b/.test(s) || /^[^.;]{0,80}?,\s+(?:it|the game) (?:is|was|became|remains)\b/.test(s));
       const namesIt: boolean = plainly.clean || subjectLed;
@@ -255,14 +228,14 @@ export function otherWorkSentences(full: string, wikitext: string, game: string,
   return out;
 }
 
-/** Wikitext by page, for the infobox facts and the italic titles: one request per article. */
+// Wikitext by page, for infobox facts and italic titles: one request per article
 export const wikitextCache = new Map<string, { text: string; at: number }>();
 
-/** An article's wikitext ("" for a missing page), remembered; throws when Wikipedia can't be reached. */
+/** An article's wikitext ("" if missing), remembered; throws when Wikipedia can't be reached */
 export async function loadWikitext(page: string): Promise<string> {
   const hit = wikitextCache.get(page);
   if (hit) return hit.text;
-  // The newest version at least STABLE_AGE_MS old, as for the article's text (issue #242).
+  // Newest version at least STABLE_AGE_MS old, as for the article's text (#242)
   const before = new Date(Date.now() - STABLE_AGE_MS).toISOString().replace(/\.\d{3}Z$/, "Z");
   const url = `${WIKI_API}?${new URLSearchParams({ action: "query", prop: "revisions", rvprop: "content", rvslots: "main", rvlimit: "1", rvdir: "older", rvstart: before, titles: page, redirects: "1", format: "json", formatversion: "2" })}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(config.groundingTimeoutMs), headers: { "User-Agent": USER_AGENT } });
@@ -273,7 +246,7 @@ export async function loadWikitext(page: string): Promise<string> {
   return text;
 }
 
-/** An article's wikitext, or "" when it can't be had. Never throws. */
+/** An article's wikitext, or "" when it can't be had; never throws */
 export async function wikitextOf(page: string): Promise<string> {
   if (!page) return "";
   try {
@@ -285,10 +258,10 @@ export async function wikitextOf(page: string): Promise<string> {
 }
 
 export const workScopeCache = new Map<string, Set<string>>();
-/** Five apostrophes: bold italics, how Wikipedia's style names a work's article subject. */
+// Five apostrophes: bold italics, how Wikipedia names a work article's subject
 const BOLD_ITALIC = new RegExp(`${"'".repeat(5)}[^'\n]`);
 
-/** The sentences of these articles about another work than `game`, from their wikitext. */
+/** These articles' sentences about another work than `game`, or null */
 export async function otherWorkScope(articles: Array<{ page: string; full: string } | null | undefined>, game: string): Promise<Set<string> | null> {
   if (!workScope.on || !game.trim()) return null;
   const out = new Set<string>();
@@ -298,7 +271,7 @@ export async function otherWorkScope(articles: Array<{ page: string; full: strin
     let drop = workScopeCache.get(key);
     if (!drop) {
       const wikitext = await wikitextOf(a.page);
-      // Only a work's article: its lead names it in bold italics. A person's or a band's is in bold alone.
+      // Only a work's article: its lead names it in bold italics; a person's or band's is bold alone
       const aWork = BOLD_ITALIC.test(wikitext.split(/\n==/)[0]) || /^(?:music|soundtracks?|scores?) (?:of|from|for)\b|\((?:[^)]*\s)?(?:soundtrack|score|album)\)$/i.test(a.page);
       drop = wikitext && aWork ? otherWorkSentences(a.full, wikitext, game, a.page) : new Set<string>();
       if (workScopeCache.size > 200) workScopeCache.clear();

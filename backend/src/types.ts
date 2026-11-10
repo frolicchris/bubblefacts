@@ -1,89 +1,75 @@
-/**
- * Shapes shared across the backend: the queue entry every song source hands
- * over (StreamerSongList's API shape; StreamElements and the now playing file
- * fill it in as far as they can, see song-source.ts), and the overlay's
- * WebSocket protocol (`Fact`, `FactsPayload`). Fields marked "API shape, not
- * read" are filled in or kept to match the API, but nothing reads them.
- */
+// Shapes shared across the backend: the queue entry every song source fills (StreamerSongList's API;
+// see song-source.ts) and the overlay's WebSocket protocol. "API shape, not read": kept for the API, unused
 
-// --- The song, as the sources and the overlay share it -------------------
+// --- The song, as sources and overlay share it ---
 
-/** The song as the overlay sees it. */
+/** The song as the overlay sees it */
 export interface SSLSong {
   title: string;
   artist: string;
-  /** Off-list request: the overlay shows a banner and no facts. */
+  /** Off-list request: a banner, no facts */
   liveLearn?: boolean;
   requestedBy?: string;
-  /**
-   * The artist field names a performer, as in a music video's title, so an
-   * article about a band or singer of that name is a match.
-   */
+  /** Artist field names a performer (as in a music video title), so a band or singer article matches */
   performer?: boolean;
-  /** The artist is only a guess from the uploader's channel, which may be a cover channel. */
+  /** Artist only guessed from the uploader's channel, maybe a cover channel */
   artistUncertain?: boolean;
-  /**
-   * Set by the now playing file when its line names no artist: the artist may
-   * be looked up by the title alone (`artistByTitle` in musicbrainz.ts).
-   */
+  /** Now playing line named no artist: it may be looked up by title (`artistByTitle` in musicbrainz.ts) */
   titleOnly?: boolean;
-  /**
-   * The artist was found by the title alone, so the article found with it may
-   * not be this song's: its work match is unsure, and only facts from data show.
-   */
+  /** Artist found by title alone: the article may not be this song's, so data facts only */
   artistFromTitle?: boolean;
-  /** StreamerSongList's song ID, when the song is on the list. Matches the streamer's own facts for it. */
+  /** StreamerSongList song ID, when listed; matches the streamer's own facts */
   songId?: number;
-  /** The YouTube video ID of a StreamElements request. */
+  /** YouTube video ID of a StreamElements request */
   videoId?: string;
 }
 
-// --- Queue shapes: StreamerSongList's API, filled by StreamElements and the now playing file too ---
+// --- Queue shapes: StreamerSongList's API, also filled by StreamElements and the now playing file ---
 
-/** API `QueueSong`. Its id lives on the entry as `songId`. */
+/** API `QueueSong`; its id is the entry's `songId` */
 export interface SSLQueueSong {
   title: string;
   artist: string;
-  /** Set by StreamElements from a music video's title. See `SSLSong.performer`. */
+  /** Set by StreamElements from a video title; see `SSLSong.performer` */
   performer?: boolean;
-  /** Set by StreamElements. See `SSLSong.artistUncertain`. */
+  /** Set by StreamElements; see `SSLSong.artistUncertain` */
   artistUncertain?: boolean;
-  /** Set by StreamElements: the request's YouTube video ID. */
+  /** Set by StreamElements */
   videoId?: string;
   comment?: string | null;
-  /** API shape, not read. */
+  /** API shape, not read */
   duration?: number | null;
-  /** Filled by StreamElements (the video's length) and left null by the now playing file. API shape, not read. */
+  /** StreamElements: the video's length; now playing file: null. API shape, not read */
   durationSeconds?: number | null;
   timesPlayed?: number;
-  /** API shape, not read. */
+  /** API shape, not read */
   lastPlayed?: string | null;
   attributes?: Array<{ name?: string }> | null;
 }
 
-/** API `Request`. */
+/** API `Request` */
 export interface SSLRequest {
-  /** API shape, not read. */
+  /** API shape, not read */
   id: number;
   name: string;
-  /** `platform` is API shape, not read. */
+  /** `platform`: API shape, not read */
   user?: { username: string; platform: string };
 }
 
-/** API `QueueDetails` (an entry in `items`) or `NowPlayingDetails` (the `playing` slot). */
+/** API `QueueDetails` (in `items`) or `NowPlayingDetails` (the `playing` slot) */
 export interface SSLQueueItem {
   id: number;
   songId: number | null;
   song: SSLQueueSong;
-  /** Typed-in title for an off-list request. */
+  /** Typed-in title of an off-list request */
   nonlistSong: string | null;
-  /** Newer live-learn fields; either can be null. */
+  /** Newer live-learn fields; either can be null */
   nonlistTitle?: string | null;
   nonlistArtist?: string | null;
   note: string | null;
-  /** API shape, not read. */
+  /** API shape, not read */
   streamerId: number;
-  /** API shape, not read. */
+  /** API shape, not read */
   createdAt: string;
   requests: SSLRequest[] | null;
 }
@@ -92,56 +78,50 @@ export interface SSLQueueItem {
 export interface SSLQueueResponse {
   items: SSLQueueItem[] | null;
   playing?: SSLQueueItem | null;
-  /** API shape, not read. */
+  /** API shape, not read */
   total: number;
 }
 
-/** `GET /streamers`, only the fields used here. */
+/** `GET /streamers`, only the fields used here */
 export interface SSLStreamerInfo {
   id: number;
   promoteQueueToPlaying?: boolean;
 }
 
-// --- Overlay shapes --------------------------------------------------------
+// --- Overlay shapes ---
 
-/** One bubble. Shown `delaySeconds` after the batch arrives; `position` is CSS percentages. */
+/** One bubble, shown `delaySeconds` after the batch arrives; `position` in CSS percentages */
 export interface Fact {
   text: string;
-  /** Where it came from, for the dashboard: "Wikipedia: <article>", "Wikidata", "Your facts for this song"... */
+  /** Source, for the dashboard: "Wikipedia: <article>", "Wikidata", "Your facts for this song"... */
   source?: string;
-  /** For the dashboard: the article to open, and the sentence in it the fact was written from. */
+  /** For the dashboard: the article, and the sentence the fact was written from */
   url?: string;
   evidence?: string;
   delaySeconds: number;
   durationSeconds: number;
-  /**
-   * `top`, or `bottom` for a bubble that sits on the bottom edge and grows upward.
-   * `left`, or `right` for one measured from the right edge; neither centers it.
-   */
+  /** `top`, or `bottom` (on the bottom edge, grows up); `left`, or `right` (from the right edge); neither centers */
   position: Spot;
-  /** Where the vertical overlay (1080x1920, for phone-shaped streams) shows it, by the same rules. */
+  /** Its spot on the vertical overlay (1080x1920), same rules */
   vertical?: Spot;
-  /** For a fact from a companion article: the article it was reached through ("Wikipedia: <article>"), so Wrong on that one takes it too. */
+  /** Companion article fact: the article it came through ("Wikipedia: <article>"), so Wrong on that takes it too */
   via?: string;
 }
 
-/** Where a bubble sits, as CSS lengths. */
+/** Where a bubble sits, as CSS lengths */
 export type Spot = { top?: string; bottom?: string; left?: string; right?: string };
 
-/** Server-to-overlay WebSocket message. `remove_fact` takes one fact, by `text`, off the current song. */
+/** Server-to-overlay WebSocket message; `remove_fact` takes one fact (by `text`) off the current song */
 export interface FactsPayload {
-  /** `test_bubble`: one bubble shown on top of whatever's playing, which carries on untouched. */
+  /** `test_bubble`: one bubble over whatever's playing, which carries on untouched */
   type: "new_song" | "facts_ready" | "clear" | "remove_fact" | "test_bubble";
   song?: SSLSong;
   facts?: Fact[];
   text?: string;
-  /** On new_song: the same song resuming after a pause, so no NOW PLAYING banner. */
+  /** new_song: same song resuming after a pause, so no NOW PLAYING banner */
   quiet?: boolean;
-  /** On new_song: the streamer turned NOW PLAYING off. A LIVE LEARN banner is never hidden. */
+  /** new_song: NOW PLAYING turned off; LIVE LEARN is never hidden */
   noBanner?: boolean;
-  /**
-   * On facts_ready: more of the song's facts, after the ones sent earlier (the AI's captions after
-   * the facts from data). The bubble on screen stays; these replace the ones still to come.
-   */
+  /** facts_ready: more facts after earlier ones (AI captions after data facts); the bubble up stays, these replace the rest */
   keep?: boolean;
 }

@@ -1,4 +1,4 @@
-// Mock config before importing anything that uses it
+// Before importing anything that reads config
 jest.mock("./config", () => ({
   config: {
     sslStreamerName: "teststreamer",
@@ -13,7 +13,7 @@ jest.mock("./config", () => ({
   },
 }));
 
-// The realtime stream opens a real socket; stub it out entirely.
+// The realtime stream opens a real socket: stub it out
 const startMock = jest.fn();
 const stopMock = jest.fn();
 jest.mock("./centrifugo-client", () => ({
@@ -24,7 +24,6 @@ jest.mock("./centrifugo-client", () => ({
   })),
 }));
 
-// Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
@@ -316,7 +315,7 @@ describe("SongListClient", () => {
       await client.connect();
       const [, , onPublication] = (CentrifugoStream as unknown as jest.Mock).mock.calls.at(-1);
       const before = mockFetch.mock.calls.length;
-      // StreamerSongList sends each change on both channels, often several changes at once.
+      // StreamerSongList sends each change on both channels, often several changes at once
       for (const type of ["queue_add", "queue_reorder"]) {
         onPublication("streamer:123", { type, data: { streamerId: 123 } });
         onPublication("streamer:123-queue", { type, data: { streamerId: 123 } });
@@ -375,10 +374,9 @@ describe("SongListClient", () => {
       await client.learnListFormat();
       expect(mockFetch).toHaveBeenCalledTimes(total / 100);
       expect(client.searchSongs("night theme 19999", 8)).toEqual([{ id: 20_000, title: "Night Theme 19999", artist: "Artist 199" }]);
-      // A machine's speed changes the time, not how many times slower a search is than one plain
-      // pass over the same list. So the search is timed against that pass, here, on this machine
-      // (200 ms flat failed at 104.8 ms in #208 and 270.5 ms in the release run, both on slow builders).
-      // The fastest of several rounds on each side ignores a pause that hits only one of them.
+      // Timed against one plain pass over the list on this machine: speed changes the time, not the ratio
+      // (a flat 200 ms failed on slow builders in #208 and a release run). Fastest of several rounds
+      // on each side ignores a pause that hits only one
       const fastest = (work: () => void): number => {
         let best = Infinity;
         for (let round = 0; round < 7; round++) {
@@ -391,9 +389,9 @@ describe("SongListClient", () => {
       const songs = Array.from({ length: total }, (_, i) => ({ title: `Night Theme ${i}`, artist: `Artist ${i % 900}` }));
       const plainPass = fastest(() => songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes("no such song")));
       const search = fastest(() => client.searchSongs("no such song", 8));
-      // About 4 times a plain pass here; a search that rebuilt or re-sorted the list on every keystroke would be hundreds of times.
+      // About 4x a plain pass here; rebuilding or re-sorting the list per keystroke would be hundreds of times
       expect(search).toBeLessThan(Math.max(plainPass, 0.5) * 40);
-      // Where the speed is known (not on a shared builder), each keystroke's search still fits in the 200 ms the editor waits.
+      // Off shared builders, each keystroke's search still fits the editor's 200 ms wait
       if (!process.env.CI) expect(search).toBeLessThan(200);
     });
 
@@ -402,7 +400,7 @@ describe("SongListClient", () => {
       mockFetch.mockRejectedValueOnce(new Error("network down"));
       await client.learnListFormat();
       expect(client.searchSongs("rain", 8)).toBeNull();
-      // Too soon to try again.
+      // Too soon to try again
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const now = Date.now();
       jest.spyOn(Date, "now").mockReturnValue(now + 61_000);

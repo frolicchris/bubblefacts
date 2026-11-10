@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomBytes, sign, KeyObject } from "crypto";
 import { checkReleaseSignature, parsePublicKey, ReleaseKey, trustedCommentFor } from "./release-signature";
 
-// A throwaway key made for these tests only, written in minisign's own file formats.
+// A throwaway key made for these tests only, written in minisign's own file formats
 function testKey(): { key: ReleaseKey; file: string; secret: KeyObject; id: Buffer } {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const id = randomBytes(8);

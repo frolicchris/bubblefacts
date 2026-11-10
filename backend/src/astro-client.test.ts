@@ -2,7 +2,7 @@ import { AddressInfo } from "net";
 import { WebSocketServer, WebSocket } from "ws";
 import { AstroStream } from "./astro-client";
 
-/** A stand-in for Astro on a local port, speaking just enough of the protocol. */
+/** A stand-in for Astro on a local port, speaking just enough of the protocol */
 function fakeAstro(onSubscribe: (sub: Record<string, any>, ws: WebSocket) => void) {
   const server = new WebSocketServer({ port: 0 });
   const sockets: WebSocket[] = [];

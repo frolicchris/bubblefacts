@@ -1,13 +1,10 @@
-/**
- * What the musician reads when something fails: what happened and what to
- * do, in plain words. Network codes, HTTP statuses and parser messages stay
- * in the log (`errorDetail`), where problem reports pick them up.
- */
+// Failures in plain words: what happened and what to do. Codes, HTTP statuses and parser
+// messages go to the log (`errorDetail`), where problem reports pick them up
 
 export interface PlainOptions {
-  /** Who BubbleFacts was talking to, as the musician knows it: "Twitch", "StreamerSongList". */
+  /** Who BubbleFacts was talking to, as the musician knows it: "Twitch", "StreamerSongList" */
   service?: string;
-  /** Said when nothing more specific fits. */
+  /** Said when nothing more specific fits */
   fallback?: string;
 }
 
@@ -22,14 +19,14 @@ const NO_SPACE = new Set(["ENOSPC", "EDQUOT"]);
 const NOT_ALLOWED = new Set(["EACCES", "EPERM", "EROFS", "EBUSY"]);
 const MISSING = new Set(["ENOENT", "ENOTDIR", "EISDIR"]);
 
-/** JavaScript's and the runtime's own errors: their messages are for programmers, whatever they say. */
+// JavaScript's and the runtime's own errors: their messages are for programmers, whatever they say
 const BUILT_IN = new Set(["TypeError", "SyntaxError", "RangeError", "ReferenceError", "AbortError", "TimeoutError", "DOMException", "SystemError"]);
 
-/** Words that only make sense to a programmer. A message without them was written for the musician. */
+// Words only a programmer reads; a message without them was written for the musician
 const TECHNICAL =
   /\bE[A-Z]{3,}\b|\bUND_ERR|fetch failed|Unexpected (token|end|character)|\bJSON\b|is not (a function|defined|iterable)|Cannot read propert|\bundefined\b|\b(Type|Syntax|Reference|Range|Abort)Error\b|^\s*at .+:\d+|\(\d{3}\)|\bHTTP\b|status code|\bsocket\b|aborted due to|operation was aborted|ERR_[A-Z_]+|\b(?:127\.0\.0\.1|localhost):\d+/im;
 
-/** An error and the errors it wraps (fetch puts the real one in `cause`). */
+// An error and the errors it wraps (fetch puts the real one in `cause`)
 function chain(err: unknown): Array<{ name: string; message: string; code: string }> {
   const out: Array<{ name: string; message: string; code: string }> = [];
   let e: unknown = err;
@@ -48,20 +45,19 @@ function chain(err: unknown): Array<{ name: string; message: string; code: strin
 
 export const looksTechnical = (text: string): boolean => TECHNICAL.test(text);
 
-/** The sentence for a request that never got an answer. */
+/** The sentence for a request that never got an answer */
 export const cantReach = (service = ""): string =>
   service
     ? `BubbleFacts can't reach ${service} right now. Check your internet connection, then try again.`
     : "BubbleFacts can't reach the internet right now. Check your connection, then try again.";
 
-/** The plain sentence to show for `err`. A message the code already wrote in plain words is kept as it is. */
+/** The plain sentence to show for `err`; a message already in plain words is kept */
 export function plainError(err: unknown, opts: PlainOptions = {}): string {
   const parts = chain(err);
   const codes = new Set(parts.map((p) => p.code).filter(Boolean));
   const has = (set: Set<string>) => [...codes].some((c) => set.has(c));
   const all = parts.map((p) => `${p.name} ${p.message}`).join(" ");
   const who = opts.service || "";
-  // Written for the musician already: kept as it is.
   const own = parts[0];
   if (own && own.message.trim() && !own.code && !BUILT_IN.has(own.name) && !looksTechnical(own.message)) return own.message.trim();
 
@@ -82,7 +78,7 @@ export function plainError(err: unknown, opts: PlainOptions = {}): string {
   return opts.fallback ?? SOMETHING_WENT_WRONG;
 }
 
-/** Everything technical about `err`, on one line, for the log. */
+/** Everything technical about `err`, on one line, for the log */
 export function errorDetail(err: unknown): string {
   return chain(err)
     .map((p) => [p.name && p.name !== "Error" ? p.name : "", p.code, p.message].filter(Boolean).join(" "))
@@ -92,5 +88,5 @@ export function errorDetail(err: unknown): string {
     .slice(0, 500);
 }
 
-/** An error with a plain message for the window and a technical cause for the log. */
+/** An error with a plain message for the window and a technical cause for the log */
 export const plainWithDetail = (message: string, detail: string) => new Error(message, { cause: detail });

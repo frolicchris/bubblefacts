@@ -1,22 +1,14 @@
 import { MAX_FACT_CHARS } from "./fact-verifier";
 
-/**
- * Basic facts from Wikidata and MusicBrainz, told in as few bubbles as fit.
- *
- * Viewers on a busy PC may see nothing but the instant data facts, so a
- * song's year and album read as one bubble, not two thin ones. Every value is
- * placed in a sentence exactly as the source gives it; no AI writes any of it.
- */
+// Wikidata and MusicBrainz facts in as few bubbles as fit: on a busy PC they may be all a viewer sees
+// Values placed as the source gives them, no AI (ARCHITECTURE.md: Where structured facts come from)
 
-/** The combined sentence when it fits a bubble, else the separate sentences. */
+/** The combined sentence when it fits a bubble, else the separate ones */
 export function fitOrSplit(combined: string, separate: string[]): string[] {
   return combined.length <= MAX_FACT_CHARS ? [combined] : separate;
 }
 
-/**
- * Sentences about one subject packed into bubbles of at most MAX_FACT_CHARS, in order.
- * `full` opens a bubble and names the subject; `short` follows it in the same bubble.
- */
+/** One subject's sentences packed into bubbles, in order: `full` opens a bubble, `short` follows in it */
 export function packFacts(parts: Array<{ full: string; short: string }>): string[] {
   const bubbles: string[] = [];
   let open = "";

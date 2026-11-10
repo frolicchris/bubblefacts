@@ -7,48 +7,30 @@ import { articleText } from "./covers";
 import { GENERIC_TRACK, isMusicArticleFor } from "./summary";
 import { groundingCache, NEGATIVE_TTL_MS } from "./readings";
 
-/**
- * A companion article (issue #48, step 2): the game's music article or the
- * album's adds its sentences about the track when the track's own says little.
- */
+// Companion article (#48): the game's music article or the album's adds its sentences about the track
+// when the track's own says little; one track's page had two, its series' "Music of" page six
+// (ARCHITECTURE.md: The life of one song)
 
-// --- A companion article (issue #48, step 2) ----------------------------------
-//
-// A track's own article often says little about how it was made, while the
-// game's music article or the album's says more: one track's page had two such
-// sentences, its series' "Music of" page six. When the reference's article has
-// fewer than MIN_MAKING_SENTENCES, the companion's sentences about this very
-// track join the reference on a line of their own, labelled with the
-// companion's title, so a caption from them is credited and linked to it (and
-// Wrong blocks that page). Never the companion's general soundtrack facts.
-
-/** Fewer sentences than this from the makers in the article: a companion article is read for more. */
-export const MIN_MAKING_SENTENCES = 3;
+export const MIN_MAKING_SENTENCES = 3;   // fewer from the makers in the article: read a companion
 const MAX_COMPANION_SENTENCES = 4;
 const MAX_COMPANION_CHARS = 800;
-/** The label of a companion article's line in a reference: `From the article "Music of Some Game": ...`. */
+// A companion's line in a reference: `From the article "Music of Some Game": ...`
 export const COMPANION_LABEL = /^From the article "([^"\n]+)": /;
 const companionLabel = (page: string) => `From the article "${page}": `;
-/** Sections of a companion with nothing to retell: lists, credits, references. */
+// Nothing to retell: lists, credits, references
 const COMPANION_SKIP_HEADING = /track listing|personnel|credits|chart|certification|references|notes|external|see also|bibliography|further reading/i;
 
-/** Companion articles found per article and subject, a miss kept NEGATIVE_TTL_MS. */
+// Per article and subject; a miss kept NEGATIVE_TTL_MS
 export const companionCache = new Map<string, { page: string; full: string } | { page: ""; at: number }>();
 const MAX_COMPANIONS = 100;
 
-/** Whether a sentence names the track in quotation marks, as Wikipedia sets a song's title: "Some Track". */
+/** Whether a sentence quotes the track's name, as Wikipedia sets a song's title */
 function quotesTrack(sentence: string, track: string): boolean {
   const name = normalizeTitle(track);
   return [...sentence.matchAll(/["“]([^"“”\n]{1,120})["”]/g)].some((m) => normalizeTitle(m[1]) === name);
 }
 
-/**
- * The companion article's sentences about this track, in article order: those
- * that name it in quotation marks, and those in a section headed with its name
- * that name no other title. What the makers said comes first when the budget
- * is short. Each must stand alone, carry no critic's opinion, and not be
- * in `already` (the reference's own article).
- */
+/** The companion's sentences about the track, in article order, makers' first if short; none already in `already` */
 export function companionSentences(full: string, track: string, already = ""): string[] {
   const name = normalizeTitle(track);
   if (name.length < 3 || GENERIC_TRACK.test(name)) return [];
@@ -79,7 +61,7 @@ export function companionSentences(full: string, track: string, already = ""): s
   return kept.sort((a, b) => a.at - b.at).map((s) => s.text);
 }
 
-/** "[[Music of Some Game]]", "| album = ''[[Some Album]]''": linked page titles, the infobox's album first. */
+/** Linked titles, "[[Music of Some Game]]", and the infobox's "| album = ''[[Some Album]]''" */
 function companionLinks(wikitext: string): { album: string | null; links: string[] } {
   const title = (link: string) => {
     const t = link.replace(/_/g, " ").replace(/\s+/g, " ").trim();
@@ -91,12 +73,7 @@ function companionLinks(wikitext: string): { album: string | null; links: string
   return { album: album ? title(album) : null, links: [...new Set(links)] };
 }
 
-/**
- * The companion article for `page` and its subject `game` (a game or an artist), or null: the
- * album the article's infobox names, a "Music of" or soundtrack page it links to, or, for a game's
- * track, the game's "Music of" page under its usual names. One title lookup and one article read,
- * both remembered; the article's wikitext is the infobox facts' own. Never a blocked page.
- */
+/** The companion for `page` and its game or artist, or null; never a blocked page */
 async function findCompanion(page: string, game: string, track: string, usable: (title: string) => boolean, gameTrack: boolean): Promise<{ page: string; full: string } | null> {
   const key = `${page}\0${normalizeTitle(game)}`;
   const hit = companionCache.get(key);
@@ -115,16 +92,16 @@ async function findCompanion(page: string, game: string, track: string, usable: 
     const resolved = await wikiResolveTitles(candidates);
     for (const name of candidates) {
       const found = resolved.get(name);
-      // A title with quotation marks couldn't be read back from its label: Wrong must block the very page.
+      // A title with quotes can't be read back from its label, and Wrong must block that very page
       if (!found || found.fragment || found.page === page || found.page.includes('"') || !usable(found.page)) continue;
-      // A title track's album: every sentence about the album would name the track.
+      // A title track's album: every sentence about it names the track
       if (normalizeTitle(withoutQualifier(found.page)) === normalizeTitle(track)) continue;
       const fromAlbum = name === album && !isMusicArticleFor(found.page, game);
       if (!fromAlbum && !isMusicArticleFor(found.page, game)) continue;
       const full = articleText(found.page) || (await wikiExtract(found.page));
       if (!full) continue;
       const lead = full.slice(0, 500);
-      // An album's page must open as a record's; a game's track never takes a film's soundtrack.
+      // An album's page opens as a record's; a game's track never takes a film's soundtrack
       if (fromAlbum && !/\b(album|soundtrack|EP|mixtape|score)\b/i.test(lead)) continue;
       if (gameTrack && /\b(film|movie|television series|TV series)\b/i.test(lead) && !/\bvideo games?\b/i.test(lead)) continue;
       const out = { page: found.page, full };
@@ -133,18 +110,13 @@ async function findCompanion(page: string, game: string, track: string, usable: 
     }
     return miss();
   } catch {
-    // Throttled, unreachable, or an older version that couldn't be read: the article serves alone,
-    // and the song isn't kept off Wikipedia for its companion's sake. Nothing is remembered.
+    // Throttled, unreachable or unreadable: the article serves alone; nothing remembered
     setOlderVersionFailures(failedBefore);
     return null;
   }
 }
 
-/**
- * The companion line for a reference built from `page` (`full`), or "" when the
- * article has MIN_MAKING_SENTENCES or more from the makers, or no companion
- * says anything about the track. Never throws.
- */
+/** The companion line for `page`'s reference, or "" (enough makers' sentences, or none on the track); never throws */
 export async function companionLine(page: string, full: string, game: string, track: string, usable: (title: string) => boolean, gameTrack: boolean): Promise<string> {
   if (!track || normalizeTitle(track) === normalizeTitle(game)) return "";
   const making = creatorSentences(withoutVideoSections(full), [track, game], true).length;
@@ -157,12 +129,12 @@ export async function companionLine(page: string, full: string, game: string, tr
   return `${companionLabel(companion.page)}${sentences.join(" ")}`;
 }
 
-/** The companion articles a reference quotes, by title. */
+/** Titles of the companions a reference quotes */
 export function companionPages(context: string): string[] {
   return context.split("\n").flatMap((line) => COMPANION_LABEL.exec(line)?.[1] ?? []);
 }
 
-/** The companion article a reference sentence comes from, or "" when it is the reference's own article's. */
+/** The companion a reference sentence comes from, or "" for the article's own */
 export function companionOf(sentence: string, context: string): string {
   const want = sentence.replace(/…$/, "").trim();
   if (!want) return "";
@@ -173,7 +145,7 @@ export function companionOf(sentence: string, context: string): string {
   return "";
 }
 
-/** A reference without the lines of companion articles that are now blocked for the song. */
+/** A reference without the lines of companions now blocked for the song */
 export function withoutBlockedCompanions(text: string, usable: (title: string) => boolean): string {
   if (!companionPages(text).some((p) => !usable(p))) return text;
   return text
@@ -186,10 +158,7 @@ export function withoutBlockedCompanions(text: string, usable: (title: string) =
     .replace(/^(.*)\n\n/, "$1\n");
 }
 
-/**
- * What the grounding cache holds under a key, if it can be used: the reference, "" for a
- * recent miss, or undefined when there's nothing (a blocked article, an expired miss).
- */
+/** Cached reference, "" for a recent miss, or undefined (nothing, blocked, or an expired miss) */
 export function cachedGrounding(key: string, usable: (title: string) => boolean): string | undefined {
   const hit = groundingCache.get(key);
   if (!hit) return undefined;

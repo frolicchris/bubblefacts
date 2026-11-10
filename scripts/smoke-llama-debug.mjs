@@ -1,6 +1,5 @@
-// Diagnostics for when the built-in AI won't load on a system: loads
-// node-llama-cpp from an installed app with debug logging, processor-only,
-// and reports how far it got. Run like smoke-packaged.mjs:
+// When the built-in AI won't load: loads an installed app's node-llama-cpp processor-only with debug logs,
+// reporting how far it got. Run like smoke-packaged.mjs:
 //   ELECTRON_RUN_AS_NODE=1 <app executable> scripts/smoke-llama-debug.mjs <resources dir> <model.gguf>
 import fs from "node:fs";
 import path from "node:path";

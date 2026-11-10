@@ -4,7 +4,7 @@ import path from "path";
 type Changes = Record<string, string | boolean>;
 type SongSource = { fieldShown(name: string, source: string, preset: string): boolean; sourceChanges(c: Changes): Changes };
 
-/** The renderer's helper is a plain browser script; run it with a stand-in window. */
+/** The renderer's helper is a plain browser script: run it with a stand-in window */
 function load(): SongSource {
   const code = fs.readFileSync(path.join(__dirname, "..", "renderer", "song-source.js"), "utf8");
   const win: { SongSource?: SongSource } = {};
@@ -88,7 +88,7 @@ describe("Settings wiring for song sources", () => {
     const html = read("index.html");
     expect(html.indexOf('src="song-source.js"')).toBeGreaterThan(-1);
     expect(html.indexOf('src="song-source.js"')).toBeLessThan(html.indexOf('src="app.js"'));
-    // Each preset card's folder sits in a part that starts hidden.
+    // Each preset card's folder sits in a part that starts hidden
     for (const card of ["streamling", "nightbot"]) {
       expect(html).toMatch(new RegExp(`data-np-card="${card}" hidden>[^]*?data-np-folder="${card}"`));
     }

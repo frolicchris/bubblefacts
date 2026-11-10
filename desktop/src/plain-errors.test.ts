@@ -1,6 +1,6 @@
 import { cantReach, errorDetail, looksTechnical, plainError, plainWithDetail, SOMETHING_WENT_WRONG } from "./plain-errors";
 
-/** What fetch throws when the network is down: the real reason is in `cause`. */
+/** What fetch throws when the network is down: the real reason is in `cause` */
 const fetchFailed = (code: string) => Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error(`connect ${code} 1.2.3.4:443`), { code }) });
 const errno = (code: string, message: string) => Object.assign(new Error(`${code}: ${message}`), { code });
 

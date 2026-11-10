@@ -4,7 +4,7 @@ jest.mock("./config", () => ({
 
 import { composerNames, gameTrackText, isChartFact, receptionFilter, sectionExtract, sectionSelection, selectSections } from "./fact-verifier";
 
-// Made-up song, people and game.
+// Made-up song, people and game
 const SONG = [
   `"Paper Lanterns" is a song by the band Quiet Harbor, released in 2011 as the lead single from their album Low Tide. It was written by Mara Velde and Tobin Ashworth.`,
   "",
@@ -58,15 +58,15 @@ const GAME = [
 describe("section-aware selection", () => {
   it("puts the lead first, then checkable sections, then the rest", () => {
     const parts = selectSections(SONG, ["Paper Lanterns"]);
-    // "Critical reception" has only a reviewer's verdict, so nothing of it is kept.
+    // "Critical reception" has only a reviewer's verdict, so nothing of it is kept
     expect(parts.map((p) => p.heading)).toEqual(["", "Composition", "Release history", "Charts", "Background"]);
   });
 
   it("keeps a narrative sentence only when it names the song or its composer and is about music", () => {
     const background = selectSections(SONG, ["Paper Lanterns"]).find((p) => p.heading === "Background")!.sentences;
-    // Names the song but says nothing musical: "wrote" and "played live" aren't music words here.
+    // Names the song but says nothing musical: "wrote" and "played live" aren't music words here
     expect(background).not.toContain(`Velde wrote "Paper Lanterns" on a borrowed piano in one night.`);
-    // Names a writer from the lead ("written by ... Tobin Ashworth") and a melody.
+    // Names a writer from the lead ("written by ... Tobin Ashworth") and a melody
     expect(background).toEqual(["Ashworth composed the bridge melody after a long tour of coastal towns."]);
   });
 
@@ -79,7 +79,7 @@ describe("section-aware selection", () => {
   it("lets a subsection's own heading decide, and otherwise follows its section", () => {
     const parts = selectSections(GAME, ["Harbor Lights"]);
     expect(parts.map((p) => p.heading)).toEqual(["", "Music", "Reception", "Gameplay", "Development"]);
-    // "Art direction" sits under Development and has no telling heading of its own: left out with it.
+    // "Art direction" sits under Development with no telling heading of its own: left out with it
     expect(parts.some((p) => p.heading === "Art direction")).toBe(false);
     expect(parts.find((p) => p.heading === "Development")!.sentences).toEqual(["Frost wrote the soundtrack over six months using only a synthesizer and a flute."]);
     expect(parts.find((p) => p.heading === "Gameplay")!.sentences).toEqual([`The theme "Harbor Lights" plays whenever the ship docks at a port town.`]);
@@ -126,7 +126,7 @@ describe("section-aware selection", () => {
   });
 
   describe("verdict sections", () => {
-    // Made-up song, band, critics and publications.
+    // Made-up song, band, critics and publications
     const VERDICTS = [
       `"Copper Kite" is a song by the band Low Meridian, released in 1984 as a single from their album Northbound.`,
       "",
@@ -157,7 +157,7 @@ describe("section-aware selection", () => {
     it("keeps only chart, sales and certification numbers from reception", () => {
       expect(kept()).toContain("The single peaked at number 7 on the national chart and sold 250,000 copies.");
       expect(kept().some((s) => s.startsWith("Critic Ada Fenwick"))).toBe(false);
-      // A subsection with its own telling heading keeps everything; one under Reception follows it.
+      // A subsection with its own telling heading keeps everything; one under Reception follows it
       expect(kept()).toContain("It spent eleven weeks on the chart, the band's longest run at the time.");
       expect(kept().some((s) => s.includes("4th best single"))).toBe(false);
     });

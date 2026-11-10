@@ -2,7 +2,7 @@ import { AddressInfo } from "net";
 import { WebSocket, WebSocketServer } from "ws";
 import { CentrifugoStream, SSLEvent, StreamTiming } from "./centrifugo-client";
 
-// A local stand-in for StreamerSongList's Centrifugo, speaking its unidirectional protocol.
+// A local stand-in for StreamerSongList's Centrifugo, speaking its unidirectional protocol
 describe("CentrifugoStream", () => {
   let server: WebSocketServer;
   let url: string;
@@ -34,7 +34,7 @@ describe("CentrifugoStream", () => {
     jest.restoreAllMocks();
   });
 
-  /** What Centrifugo 6 answers: `subs` lists only the channels it subscribed. */
+  /** What Centrifugo 6 answers: `subs` lists only the channels it subscribed */
   const centrifugo = (request: Record<string, any>, socket: WebSocket) => {
     const subs = Object.fromEntries(Object.keys(request.subs ?? {}).map((c) => [c, { recoverable: true, epoch: "abc", offset: 7, positioned: true }]));
     socket.send(JSON.stringify({ connect: { client: "c-1", version: "6.9.4 OSS", ...(Object.keys(subs).length ? { subs } : {}), ping: 25, session: "s-1" } }));
@@ -56,7 +56,7 @@ describe("CentrifugoStream", () => {
   });
 
   it("is not connected when the server subscribed nothing, so polling isn't slowed for events that never come", async () => {
-    // 2.0's request: Centrifugo connects it, ignores the unknown field, and subscribes nothing.
+    // 2.0's request: Centrifugo connects it, ignores the unknown field, and subscribes nothing
     reply = (_request, socket) => socket.send(JSON.stringify({ connect: { client: "c-1", version: "6.9.4 OSS", ping: 25, session: "s-1" } }));
     const connected = await start();
     expect(connected).toHaveBeenCalledTimes(1);
@@ -66,12 +66,12 @@ describe("CentrifugoStream", () => {
   it("passes on every publication, with or without a type, including several frames in one message", async () => {
     reply = (request, socket) => {
       centrifugo(request, socket);
-      // As StreamerSongList sends them: a bare publication, the same one on both channels.
+      // As StreamerSongList sends them: a bare publication, the same one on both channels
       for (const channel of CHANNELS) {
         socket.send(JSON.stringify({ channel, pub: { data: { type: "queue_reorder", data: { streamerId: 4242, items: [{ id: 11 }, { id: 12 }], playingId: 11 } }, offset: 8 } }));
       }
       socket.send("{}");
-      // Wrapped in "push", with no type, and two frames in one message.
+      // Wrapped in "push", with no type, and two frames in one message
       socket.send(
         [
           JSON.stringify({ push: { channel: "streamer:4242-queue", pub: { data: { queueId: 12 }, offset: 9 } } }),

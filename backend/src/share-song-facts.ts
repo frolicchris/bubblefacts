@@ -1,37 +1,25 @@
 import { Fact, SSLSong } from "./types";
 
-/**
- * "Share song facts with other apps": hands the song on now and its facts to
- * the address the streamer set, as context that app may use when chat asks
- * about the song. Off unless the streamer turns it on with their own address
- * and key. It sits beside the overlay, never in
- * front of it: `update` returns at once, a failure is logged by reason only,
- * and nothing is retried until the next change. The key is never logged.
- *
- * Only the song and its facts are sent, not who requested it.
- */
+// "Share song facts with other apps" (off by default): the song on now and its facts, never its requester,
+// go to the streamer's address as context for chat answers. Beside the overlay, never in front: `update`
+// returns at once, a failure logs its reason only, nothing is retried until the next change, the key is never logged
 
-/** The longest `data.content` that is sent. */
-export const CONTENT_LIMIT = 1000;
-/** Names this app's snapshot, so each update replaces only it. */
-export const SOURCE_ID = "bubblefacts";
+export const CONTENT_LIMIT = 1000; // characters of `data.content`, at most
+export const SOURCE_ID = "bubblefacts"; // names this app's snapshot, so each update replaces only it
 
-/** Used when the song source doesn't say how long a song is. */
-const DEFAULT_SONG_SECONDS = 390;
-const TTL_MARGIN_SECONDS = 30;
-const MAX_TTL_SECONDS = 3600;
-/** Snapshots expire, so a long song is sent again, up to this long: a song left on the queue doesn't send all night. */
-const REFRESH_FOR_MS = 60 * 60 * 1000;
-/** Lets the changes around a new song land as one request. */
-const SETTLE_MS = 400;
-const TIMEOUT_MS = 5000;
-const NAME_LIMIT = 150;
+const DEFAULT_SONG_SECONDS = 390; // seconds, when the song source doesn't give a length
+const TTL_MARGIN_SECONDS = 30; // seconds a snapshot outlasts its song
+const MAX_TTL_SECONDS = 3600; // seconds, longest snapshot life
+const REFRESH_FOR_MS = 60 * 60 * 1000; // ms a song is resent as snapshots expire, so one left on the queue doesn't send all night
+const SETTLE_MS = 400; // ms for the changes around a new song to land as one request
+const TIMEOUT_MS = 5000; // ms per request
+const NAME_LIMIT = 150; // characters of a title or artist
 
 const INTRO_CHECKED = "Checked facts from Wikipedia, Wikidata and MusicBrainz:";
 const INTRO_STREAMER = "From the streamer:";
 const CLOSING = "Answer questions about this song only from these facts and add nothing.";
 
-/** https, or plain http on this computer only, with no sign-in in the address. The address, or null. */
+/** The address if https, or http on this computer only, with no sign-in in it; else null */
 export function shareAddress(text: string): string | null {
   try {
     const url = new URL(text.trim());
@@ -43,12 +31,12 @@ export function shareAddress(text: string): string | null {
   }
 }
 
-/** Titles can come from viewers' requests: one line, no control characters, and a fair length. */
+// Titles can come from viewers' requests: one line, no control characters, a fair length
 const oneLine = (text: string, limit: number) => text.replace(/[\p{Cc}\s]+/gu, " ").trim().slice(0, limit).trim();
 
 const isChecked = (fact: Fact) => /^(Wikipedia|Wikidata|MusicBrainz)\b/.test(fact.source ?? "");
 
-/** The text for a song and its facts, whole facts only, or "" when there are none to share. */
+/** The text for a song and its facts, whole facts only, or "" when there are none */
 export function shareContent(song: SSLSong, facts: Fact[]): string {
   const title = oneLine(song.title, NAME_LIMIT);
   const artist = oneLine(song.artist, NAME_LIMIT);
@@ -72,7 +60,7 @@ export function shareContent(song: SSLSong, facts: Fact[]): string {
   return parts.length ? [head, ...parts, CLOSING].join(" ") : "";
 }
 
-/** Seconds the snapshot stays: about the song's length. */
+/** Seconds the snapshot stays: about the song's length */
 export function shareTtl(songSeconds?: number | null): number {
   const seconds = songSeconds && songSeconds > 0 ? songSeconds : DEFAULT_SONG_SECONDS;
   return Math.min(MAX_TTL_SECONDS, Math.round(seconds) + TTL_MARGIN_SECONDS);
@@ -82,7 +70,7 @@ export interface ShareOptions {
   url: string;
   apiKey: string;
   channel: string;
-  /** Shorter in tests. */
+  /** Shorter in tests */
   settleMs?: number;
   timeoutMs?: number;
   log?: (line: string) => void;
@@ -90,7 +78,7 @@ export interface ShareOptions {
 
 export class SongFactSharer {
   private wanted = { content: "", ttl: 0 };
-  /** What the other app holds as far as this app knows. */
+  /** What the other app holds, as far as this app knows */
   private held = "";
   private sending = false;
   private settle: NodeJS.Timeout | null = null;
@@ -101,7 +89,7 @@ export class SongFactSharer {
 
   constructor(private readonly options: ShareOptions) {}
 
-  /** The song on now and its facts, or null when nothing is. Returns at once. */
+  /** The song on now and its facts, or null when nothing is; returns at once */
   update(song: SSLSong | null, facts: Fact[], songSeconds?: number | null): void {
     if (this.refused) return;
     const content = song ? shareContent(song, facts) : "";
@@ -139,7 +127,7 @@ export class SongFactSharer {
       this.lastProblem = "";
     }
     if (this.refused) return;
-    // It changed while that was on its way.
+    // It changed while that was on its way
     if (this.wanted.content !== content) return void this.send();
     if (content) this.scheduleRefresh(ttl);
   }
@@ -151,7 +139,7 @@ export class SongFactSharer {
     this.refresh.unref?.();
   }
 
-  /** The reason it failed, or "". Empty content clears this app's snapshot. */
+  /** The reason it failed, or ""; empty content clears this app's snapshot */
   private async post(content: string, ttl: number): Promise<string> {
     const data = { channelName: this.options.channel, sourceId: SOURCE_ID, content, ...(content ? { ttl } : {}) };
     try {
@@ -159,12 +147,12 @@ export class SongFactSharer {
         method: "POST",
         headers: { Authorization: `Bearer ${this.options.apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ eventType: "INTEGRATION_STATE", data }),
-        // Never to another address than the one the streamer set.
+        // Never to another address than the one the streamer set
         redirect: "error",
         signal: AbortSignal.timeout(this.options.timeoutMs ?? TIMEOUT_MS),
       });
       if (res.status === 401 || res.status === 403) {
-        // It won't get better until the key or channel changes, and that restarts the server.
+        // Won't improve until the key or channel changes, which restarts the server
         this.refused = true;
         return "the key or channel was refused";
       }

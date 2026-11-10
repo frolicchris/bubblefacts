@@ -84,7 +84,7 @@ describe("the device code sign-in", () => {
     const done = finishDeviceCode(code);
     await jest.advanceTimersByTimeAsync(2500);
     await expect(done).resolves.toMatchObject({ accessToken: "at", refreshToken: "rt", login: "janeplayskeys" });
-    // No client secret is ever sent: the app is a public client.
+    // No client secret is ever sent: the app is a public client
     for (const [, init] of mockFetch.mock.calls) expect(String(init?.body ?? "")).not.toMatch(/client_secret/);
     jest.useRealTimers();
   });

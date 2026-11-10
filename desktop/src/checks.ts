@@ -1,11 +1,11 @@
 import { cantReach, errorDetail, plainError } from "./plain-errors";
 
-/** One-off checks the app runs for the musician. */
+// One-off checks the app runs for the musician: connections, sharing, newer releases
 
-/** `detail`: what went wrong in technical terms, for the log only. */
+/** `detail`: what went wrong in technical terms, for the log only */
 export type ConnectionResult = { ok: true; id: number } | { ok: false; reason: string; detail?: string };
 
-/** Try the channel name and token against StreamerSongList, and explain any failure plainly. */
+/** Try the channel name and token against StreamerSongList; failures in plain words */
 export async function testSongList(channel: string, token: string, kind: string): Promise<ConnectionResult> {
   if (!channel.trim()) return { ok: false, reason: "Enter your channel name." };
   if (!token.trim()) return { ok: false, reason: "Paste your Streamer Access Token." };
@@ -32,10 +32,7 @@ export type StreamElementsResult = { ok: true; channel: string; id: string } | {
 
 const SE_API = "https://api.streamelements.com/kappa/v2";
 
-/**
- * Try a StreamElements JWT token: which channel it belongs to, then whether
- * it can read that channel's song request player. Explains failures plainly.
- */
+/** Try a StreamElements JWT token: its channel, then whether it reads that song request player */
 export async function testStreamElements(channel: string, jwt: string): Promise<StreamElementsResult> {
   const token = jwt.trim();
   if (!token) return { ok: false, reason: "Paste your StreamElements JWT token." };
@@ -53,7 +50,7 @@ export async function testStreamElements(channel: string, jwt: string): Promise<
     if (wanted && name && wanted.toLowerCase() !== name.toLowerCase()) {
       return { ok: false, reason: `That token is for the StreamElements channel "${name}", not "${wanted}". Paste the token for "${wanted}", or change the channel name.` };
     }
-    // The song itself, then the player's state, which is the part that needs the token. 404: no requests yet.
+    // The song, then the player's state (the part needing the token); 404 means no requests yet
     for (const part of ["playing", "player"]) {
       const res = await get(`/songrequest/${encodeURIComponent(info._id)}/${part}`);
       if (res.status === 401 || res.status === 403) {
@@ -69,7 +66,7 @@ export async function testStreamElements(channel: string, jwt: string): Promise<
   }
 }
 
-/** https, or plain http on this computer only, with no sign-in in the address. The address, or null. As in the server's share-song-facts.ts. */
+/** The address if https (http only on this computer) with no sign-in in it, else null; as share-song-facts.ts */
 export function shareAddress(text: string): string | null {
   try {
     const url = new URL(text.trim());
@@ -81,10 +78,7 @@ export function shareAddress(text: string): string | null {
   }
 }
 
-/**
- * Try a sharing address, key and channel by clearing this app's own entry there:
- * empty content sends no song or fact, and a wrong key or channel is refused.
- */
+/** Try a sharing address, key and channel by clearing our own entry there (empty content sends nothing) */
 export async function testSharing(address: string, channel: string, key: string): Promise<{ ok: true } | { ok: false; reason: string; detail?: string }> {
   const url = shareAddress(address);
   const name = channel.trim().replace(/^@/, "");
@@ -108,10 +102,7 @@ export async function testSharing(address: string, channel: string, key: string)
   }
 }
 
-/**
- * Compare versions like 2.0.0 and 2.0.0-beta.2 the semver way: a prerelease
- * comes before its release, and prerelease parts compare number by number.
- */
+/** Compare versions the semver way: 2.0.0-beta.2 before 2.0.0, prerelease parts number by number */
 export function compareVersions(a: string, b: string): number {
   const split = (v: string) => {
     const [core, pre] = v.replace(/^v/, "").split("-", 2);
@@ -134,23 +125,21 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/** How long a new feature release (x.y.0) is out before the Stable channel offers it. */
+/** ms a feature release (x.y.0) is out before Stable offers it */
 export const STABLE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
 
-/** A newer release on GitHub, if there is one. */
+/** A newer release on GitHub */
 export interface Release {
   version: string;
-  /** The download page, for installs that can't update themselves. */
+  /** The download page, for installs that can't update themselves */
   url: string;
-  /** The installer for this computer, when the app can update itself from it. */
+  /** This computer's installer, when the app can update itself from it */
   download?: { name: string; url: string; size: number; sumsUrl: string };
 }
 
 /**
- * Stable hears only about full releases; Beta hears about the newest of
- * anything, betas, release candidates and full releases alike. Either way only
- * a version newer than this one counts, so switching to Stable never goes back.
- * `installerFor` names the installer this copy can update from (see updater.ts), or null.
+ * The newest release for the channel (Stable: full releases only; Beta: anything), only if newer than this one
+ * `installerFor`: the installer this copy can update from (updater.ts), or null
  */
 export async function newerRelease(
   current: string,
@@ -171,10 +160,9 @@ export async function newerRelease(
       published_at?: string | null;
       assets?: Array<{ name: string; browser_download_url: string; size: number }>;
     }>;
-    // A version with a "-" is a prerelease even if it was published without GitHub's pre-release box checked.
+    // A "-" in the version means prerelease, even without GitHub's pre-release box checked
     const isPrerelease = (r: { tag_name: string; prerelease: boolean }) => r.prerelease || r.tag_name.includes("-");
-    // Beta hears about a full release at once; Stable a few days later, once Beta has had it (a staged
-    // rollout). A maintenance release (2.0.1) carries only fixes, often for security, so it doesn't wait.
+    // Staged rollout: Stable waits STABLE_WAIT_MS; a maintenance release (2.0.1, often security) doesn't
     const isPatch = (r: { tag_name: string }) => !/\.0$/.test(r.tag_name.replace(/-.*$/, ""));
     const settled = (r: { tag_name: string; published_at?: string | null }) =>
       isPatch(r) || now - Date.parse(r.published_at ?? "") >= STABLE_WAIT_MS;
@@ -184,12 +172,12 @@ export async function newerRelease(
       .sort((a, b) => compareVersions(b, a))[0];
     if (!newest || compareVersions(newest, current) <= 0) return null;
     const found: Release = { version: newest, url: "https://bubblefacts.frolic.org/download.html" };
-    // Only GitHub's own download addresses, and only with a checksum list to check against.
+    // Only GitHub's own download addresses, and only with a checksum list to check against
     const assets = releases.find((r) => r.tag_name.replace(/^v/, "") === newest)?.assets ?? [];
     const fromGitHub = (u: string) => u.startsWith("https://github.com/frolicchris/bubblefacts/releases/download/");
     const installer = assets.find((a) => a.name === installerFor(newest));
     const sums = assets.find((a) => a.name === "SHA256SUMS.txt");
-    // The signature is required: a release without one is installed by hand from the download page.
+    // Signature required: a release without one is installed by hand from the download page
     const signature = assets.find((a) => a.name === "SHA256SUMS.txt.sig");
     if (installer && sums && signature && fromGitHub(installer.browser_download_url) && fromGitHub(sums.browser_download_url)) {
       found.download = { name: installer.name, url: installer.browser_download_url, size: installer.size, sumsUrl: sums.browser_download_url };
