@@ -100,7 +100,7 @@ maintainer and the AI sessions he directs as much as anyone else.
    | --- | --- |
    | Fix | A test fails without it. |
    | Feature | Its issue was agreed first. Tests cover it, and the docs and settings are updated. |
-   | Fact quality: how facts are found, written or screened | As a fix or a feature, and also: the wrong fact behind it is a labeled case in `backend/src/fixtures/`, and the pull request says how many facts changed on songs already measured (how many it fixed, how many it broke). It merges when it fixes more than it breaks and adds no new kind of mistake. |
+   | Fact quality: how facts are found, written or screened | As a fix or a feature, and also: the wrong fact behind it is a labeled case in `backend/src/fixtures/`, and the pull request says how many facts changed on songs already measured (how many it fixed, how many it broke). It merges when it fixes more than it breaks, or breaks nothing and adds true facts, with no new kind of mistake either way. |
    | Structure: moving or renaming code | Nothing behaves differently, and no test changes except to follow a move. Never mixed with another kind. |
 
 4. **During a release freeze** (from the first release candidate to the final
