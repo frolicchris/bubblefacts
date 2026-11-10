@@ -25,6 +25,15 @@ invented one of the same shape. Add the title even if you can't fix
 the rule yourself. [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md#song-sources-and-youtube-titles)
 explains how titles are read.
 
+## Captions that should have been dropped
+
+A caption that said something its source didn't, or a true one that was
+dropped, belongs in `backend/src/fixtures/captions.json`: the source
+sentences, the caption, `keep` or `drop` with the reason, and where it came
+from, with made-up names. The tests read every row, so a fix can't quietly
+break an older caption, and every reason a caption can be dropped for must
+have a row. Can't fix the rule yourself? Add the row with `"known": "miss"`.
+
 ## Topic packs are examples
 
 The packs in `topics/` are examples that show the format and make the overlay
