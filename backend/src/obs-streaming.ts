@@ -20,6 +20,17 @@ export function parseOverlayMessage(raw: string): ObsStreamingMessage | null {
   }
 }
 
+/** True for the overlay's `{ type: "drew" }`: a bubble went on its page. Anything else is not. */
+export function isDrewMessage(raw: string): boolean {
+  if (raw.length > MAX_MESSAGE_CHARS) return false;
+  try {
+    const m = JSON.parse(raw) as Record<string, unknown> | null;
+    return !!m && typeof m === "object" && !Array.isArray(m) && m.type === "drew" && Object.keys(m).length === 1;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Whether OBS is streaming. Every overlay reports, and again on reload, so only a change to streaming is going live.
  * "Not streaming" from an overlay never live is ignored while another is (a recording-only second OBS)

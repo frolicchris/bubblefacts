@@ -27,9 +27,10 @@ describe("installOverlay", () => {
     // Dragged into OBS, the file's name becomes the source's name
     expect(VERTICAL_OVERLAY_FILE).toBe("BubbleFacts Vertical.html");
     expect(page).toContain('data-layout="vertical"');
-    // The same styles and script as the landscape page, so the port and sizes reach it too
-    expect(page).toContain('href="obs-overlay.css"');
-    expect(page).toContain('src="obs-overlay.js"');
+    // Same styles and script as the landscape page, so the port and sizes reach it too
+    // A new query each write, so a reloaded OBS source doesn't keep the old script
+    expect(page).toMatch(/href="obs-overlay\.css\?v=\d+"/);
+    expect(page).toMatch(/src="obs-overlay\.js\?v=\d+"/);
     const css = fs.readFileSync(path.join(dir, "obs-overlay.css"), "utf8");
     expect(css).toContain("--bf-scale: 1.25;");
     expect(css).toContain("--bf-vertical-scale: 1.5;");

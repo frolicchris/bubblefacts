@@ -20,7 +20,7 @@ import { sameSong, wrongTarget } from "./wrong-target";
 import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { creditLead, creditText, planCredit, restoredCredit } from "./credit";
-import { ObsStreaming, parseOverlayMessage, watchForStatus } from "./obs-streaming";
+import { ObsStreaming, isDrewMessage, parseOverlayMessage, watchForStatus } from "./obs-streaming";
 import { SongFactSharer } from "./share-song-facts";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
@@ -64,6 +64,10 @@ interface Client {
   ua: string;
   addr: string;
   connectedAt: number;
+  /** Beats in a row with no pong or message. Two: the connection is dead (one can be a stalled computer, not a dead overlay). */
+  missed: number;
+  /** When the overlay last said it drew a bubble; 0 before the first. */
+  drewAt: number;
 }
 const clients = new Map<WebSocket, Client>();
 let clientSeq = 0;
@@ -109,7 +113,11 @@ const obsStreaming = new ObsStreaming(restored && Date.now() - restored.savedAt 
 // The [Shown] lines: once per play of a song, as facts go out to an overlay; also the aired facts record
 const aired = new AiredFacts();
 const shown = new ShownLog(aired);
-const logShown = (song: SSLSong, facts: Fact[]) => shown.log(song, facts);
+const logShown = (song: SSLSong, facts: Fact[]) => {
+  shown.log(song, facts);
+  // [Shown] says what went out, not that an overlay drew it: this says how many connections it went to.
+  if (facts.length) console.log(`[WS] Sent ${facts.length} bubble${facts.length === 1 ? "" : "s"} to ${clients.size} overlay${clients.size === 1 ? "" : "s"}`);
+};
 
 // Share song facts with other apps: the streamer's choice, off by default
 const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFactsChannel
@@ -142,7 +150,10 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   if (paused && payload.type !== "clear") return;
   const sent: FactsPayload = credit && payload.type === "facts_ready" ? { ...payload, facts: [credit, ...(payload.facts ?? [])] } : payload;
   for (const ws of clients.keys()) send(ws, sent);
-  if (payload.type === "facts_ready" && payload.song && clients.size) logShown(payload.song, payload.facts ?? []);
+  if (payload.type === "facts_ready" && payload.song && clients.size) {
+    logShown(payload.song, payload.facts ?? []);
+    watchDrawn(payload.song, sent.facts ?? []);
+  }
 }
 
 const TARGETS_FRESH_MS = 30_000; // ms between rebuilds of the songs to prepare (the window asks every 5 s)
@@ -235,14 +246,62 @@ function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): voi
 }
 
 
+/**
+ * A connection can answer pings and still draw nothing (a page that hung, or a stale one). Each
+ * overlay says when it puts a bubble on its page; a batch's first bubble is due after its delay, so
+ * a little later this logs the overlays that were sent the batch and drew nothing since. It
+ * only reports: the streamer sees it in the log, and a reload of the source clears it.
+ */
+const DRAW_GRACE_MS = Number(process.env.BUBBLEFACTS_DRAW_GRACE_MS) || 6000;
+function watchDrawn(song: SSLSong, facts: Fact[]): void {
+  if (!facts.length) return;
+  const sentAt = Date.now();
+  const first = Math.min(...facts.map((f) => f.delaySeconds ?? 0));
+  if (first > 20) return;
+  const token = generation;
+  setTimeout(() => {
+    if (token !== generation || paused) return;
+    const silent = [...clients.values()].filter((c) => c.connectedAt <= sentAt && c.drewAt < sentAt);
+    if (silent.length) console.warn(`[WS] ${silent.length} of ${clients.size} overlays were sent the bubbles for "${song.title}" and drew none: ${silent.map((c) => "#" + c.id).join(", ")}. Reload the Browser source in OBS.`);
+  }, Math.max(first, 0) * 1000 + DRAW_GRACE_MS).unref();
+}
+
+/**
+ * A connection that died without closing (OBS killed, a sleep, a dropped network) stays in `clients`
+ * and counts as an overlay: the bubbles go to nobody and the log still says [Shown]. Every overlay is
+ * pinged on this beat, and one that answered nothing since the last beat is dropped, so its source
+ * reconnects (and is caught up on the song) by itself. The env var is for the tests.
+ */
+const HEARTBEAT_MS = Number(process.env.BUBBLEFACTS_HEARTBEAT_MS) || 15_000;
+let lastBeat = Date.now();
+setInterval(() => {
+  // After a sleep or a stall the pongs waiting to be read haven't been: that beat counts for nothing.
+  const late = Date.now() - lastBeat > HEARTBEAT_MS * 1.5;
+  lastBeat = Date.now();
+  const dropped: number[] = [];
+  for (const [ws, client] of clients) {
+    if (!late && client.missed >= 2) {
+      dropped.push(client.id);
+      ws.terminate();
+      continue;
+    }
+    if (!late) client.missed++;
+    try { ws.ping(); } catch { ws.terminate(); }
+  }
+  if (dropped.length) console.warn(`[WS] Client${dropped.length === 1 ? "" : "s"} ${dropped.map((id) => "#" + id).join(", ")} stopped answering: dropped, total ${clients.size}. An overlay that is still there reconnects by itself.`);
+}, HEARTBEAT_MS).unref();
+
 wss.on("connection", (ws, req) => {
   const client: Client = {
     id: ++clientSeq,
     ua: req.headers["user-agent"] ?? "unknown",
     addr: req.socket.remoteAddress ?? "unknown",
     connectedAt: Date.now(),
+    missed: 0,
+    drewAt: 0,
   };
   clients.set(ws, client);
+  ws.on("pong", () => { client.missed = 0; });
   console.log(`[WS] Client #${client.id} connected from ${client.addr} (${client.ua}), total ${clients.size}`);
   // OBS is up, the stream comes first: preparing stops, and the app restarts it once OBS is closed
   if (preparer.running) {
@@ -267,6 +326,11 @@ wss.on("connection", (ws, req) => {
     obsStreaming.forget(client.id);
   });
   ws.on("message", (data, isBinary) => {
+    client.missed = 0;
+    if (!isBinary && isDrewMessage(String(data))) {
+      client.drewAt = Date.now();
+      return;
+    }
     const msg = isBinary ? null : parseOverlayMessage(String(data));
     if (!msg) return;
     status.heard();
@@ -344,7 +408,9 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
       // Facts turned off for the song or artist while the app was closed stay off (#262)
       before.facts = allowedFacts(song, before.facts).map((f, i) => ({ ...f, ...spotFor(i) }));
       console.log(`[Server] "${song.title}" was showing before the restart: carrying on with the bubbles not shown yet`);
-      primeFacts(song, before.facts);
+      // Only the streamer's own facts (the AI was off, still loading or failed that time): not cached as the song's
+      // facts for good, so the next play asks again with whatever is working now.
+      if (!before.facts.every((f) => f.source?.startsWith("Your "))) primeFacts(song, before.facts);
       broadcast(song.liveLearn ? newSong(song) : { type: "new_song", song, quiet: true });
       broadcast({ type: "facts_ready", song, facts: remainingFacts(before.facts, before.shownAt) });
       // The record keeps the full set and first send time, for an overlay connecting later

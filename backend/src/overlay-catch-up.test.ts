@@ -20,7 +20,7 @@ jest.mock("http", () => {
 });
 jest.mock("./config", () => {
   // Made-up settings: nothing here reaches StreamerSongList or an AI
-  Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none" });
+  Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none", BUBBLEFACTS_HEARTBEAT_MS: "150", BUBBLEFACTS_DRAW_GRACE_MS: "150" });
   const actual = jest.requireActual("./config");
   return { ...actual, config: { ...actual.config, port: 0, host: "127.0.0.1", songSource: "streamersonglist", creditBubble: false } };
 });
@@ -386,5 +386,37 @@ describe("the credit bubble with its switch off", () => {
     await play([fact("First live.", 0)]);
     await until(() => screen.messages.some((m) => m.type === "facts_ready"));
     expect(texts(screen.messages.find((m) => m.type === "facts_ready")!.facts!)).toEqual([NO_AI_CREDIT_TEXT, "First live."]);
+  });
+});
+
+describe("an overlay whose connection died without closing", () => {
+  it("is dropped after the heartbeat, while one that answers stays", async () => {
+    const live = await overlay();
+    // A connection that never answers a ping, like OBS killed or a network that went away.
+    const dead = new WebSocket(`ws://127.0.0.1:${port}/ws`, { autoPong: false });
+    sockets.push(dead);
+    await new Promise((r) => dead.once("open", r));
+    const closed = new Promise<void>((r) => dead.once("close", () => r()));
+    await closed;
+    expect(live.ws.readyState).toBe(WebSocket.OPEN);
+    // It can reconnect, and is caught up again.
+    const again = await overlay();
+    expect(again.ws.readyState).toBe(WebSocket.OPEN);
+  });
+});
+
+describe("an overlay that is connected but draws nothing", () => {
+  it("is named in the log when a batch was sent and it never said it drew a bubble", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const quiet = await overlay();
+    const drawing = await overlay();
+    await play([fact("A bubble", 0)]);
+    await drawing.batch();
+    drawing.ws.send(JSON.stringify({ type: "drew" }));
+    await until(() => warn.mock.calls.some((c) => /drew none/.test(String(c[0]))));
+    const said = warn.mock.calls.map((c) => String(c[0])).find((m) => /drew none/.test(m))!;
+    expect(said).toMatch(/1 of \d+ overlays/);
+    quiet.ws.terminate();
+    warn.mockRestore();
   });
 });

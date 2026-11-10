@@ -741,7 +741,13 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
   const prep = preparing();
   const run = async () => {
     if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
+    const loadStarted = Date.now();
     const { session } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
+    // Loading the model (a first load, or after a switch) says nothing about how fast the computer writes facts:
+    // the wait viewers are timed on starts after it, and a song that changed meanwhile isn't written for.
+    const loadedMs = Date.now() - loadStarted;
+    if (!prep && loadedMs > 2000) songStartedAt += loadedMs;
+    if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
     session.resetChatHistory();
     const stop = new AbortController();
     running = { key, stop, prep: Boolean(prep) };

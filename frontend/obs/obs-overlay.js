@@ -1,7 +1,7 @@
 /* BubbleFacts
  * ====================
  *
- * v2.2.0-beta.4
+ * v2.2.0-rc.2
  *
  *  <https://github.com/frolicchris/bubblefacts>
  *
@@ -176,6 +176,7 @@
     container.appendChild(bubble);
     bubbles.push(bubble);
     animateIn(bubble);
+    reportDrew();
 
     bubbleTimers.push(setTimeout(() => {
       bubble.classList.remove("visible");
@@ -310,6 +311,10 @@
   /** Tells the app OBS started or stopped streaming, so the credit goes out as the stream goes live */
   function sendStreaming(streaming) {
     if (socket && socket.readyState === 1) socket.send(JSON.stringify({ type: "obs_streaming", streaming }));
+  }
+  /** Tells the app a bubble went on the page, so its log can say when a batch was sent but nothing was drawn. */
+  function reportDrew() {
+    if (socket && socket.readyState === 1) socket.send(JSON.stringify({ type: "drew" }));
   }
   window.addEventListener("obsStreamingStarted", () => sendStreaming(true));
   window.addEventListener("obsStreamingStopped", () => sendStreaming(false));

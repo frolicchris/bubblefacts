@@ -7,8 +7,8 @@ import { config } from "./config";
 // Facts from a source only; own, song-list and custom facts are built on play (ARCHITECTURE.md: Prepared songs)
 export const PREPARED_FILE = "prepared-facts.json";
 
-/** Raise when the pipeline would write different facts (prompt, screening, ranking, content standard, sources) */
-export const PREPARED_RULES_VERSION = 1;
+/** Raise when the pipeline would write different facts (prompt, screening, ranking, content standard, sources): every entry is prepared again, none shown meanwhile */
+export const PREPARED_RULES_VERSION = 2;
 
 export const PREPARED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // ms (30 days) until a song is prepared again regardless
 // Pace kept for the finish date (preparer.ts)
