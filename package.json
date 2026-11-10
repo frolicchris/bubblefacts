@@ -13,9 +13,8 @@
     "build:desktop": "tsc -p desktop/tsconfig.json",
     "app": "npm run build && npm run build:desktop && electron .",
     "dist": "npm run build && npm run build:desktop && electron-builder --publish never",
-    "dist:lite": "npm run build && npm run build:desktop && node scripts/dist-lite.mjs",
     "bump": "node scripts/bump-version.mjs",
-    "test:scripts": "npm run build && node --test scripts/bump-version.test.mjs scripts/dist-lite.test.mjs scripts/dist-exports.test.mjs"
+    "test:scripts": "npm run build && node --test scripts/bump-version.test.mjs scripts/dist-exports.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",

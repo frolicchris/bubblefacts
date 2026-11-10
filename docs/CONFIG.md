@@ -272,7 +272,7 @@ need them with a `.env` file.
 
 | Setting | What it does |
 |---|---|
-| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **Larger AI** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` uses no AI: songs get Wikidata, MusicBrainz and your own facts. The app uses it while the model downloads, if the built-in AI can't run, and in BubbleFacts Lite, where choosing the built-in AI means no AI. |
+| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **Larger AI** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` uses no AI: songs get Wikidata, MusicBrainz and your own facts. The app uses it while the model downloads and if the built-in AI can't run. |
 | `PREPARE_MODEL_PATH` | With **Larger AI** chosen and the Standard model downloaded too: the Standard model writes the first pass of **Prepare my songs**, being faster. Songs it wrote are written again by Larger AI once every song has its first pass. |
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |

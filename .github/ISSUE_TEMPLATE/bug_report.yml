@@ -57,7 +57,7 @@ body:
     id: ai
     attributes:
       label: Where the AI runs
-      options: [Built into the app, No AI (BubbleFacts Lite), Ollama on my computer, Groq, Anthropic, OpenRouter, Gemini, Other or not sure]
+      options: [Built into the app, No AI, Ollama on my computer, Groq, Anthropic, OpenRouter, Gemini, Other or not sure]
     validations:
       required: true
   - type: textarea

@@ -137,7 +137,7 @@ describe("the credit bubble's content", () => {
     for (const ai of ["openai", "anthropic", "ollama"]) expect(creditText(ai)).toBe(OTHER_AI_CREDIT_TEXT);
     // BubbleFacts' own AI keeps the usual credit.
     for (const ai of ["builtin", undefined]) expect(creditText(ai)).toBe(CREDIT_TEXT);
-    // With no AI (Lite, the full app while its AI downloads, the command line), it never says "retold by AI",
+    // With no AI (the app while its AI downloads, the command line), it never says "retold by AI",
     // but Wikipedia keeps its credit: some facts can still be its sentences.
     expect(creditText("none")).toBe(NO_AI_CREDIT_TEXT);
     expect(NO_AI_CREDIT_TEXT).toBe("Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz. Spot a mistake? Let the streamer know. · BubbleFacts");

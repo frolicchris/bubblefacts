@@ -494,8 +494,7 @@ sign-ins and the built-in AI. Its design decisions are in
    passed screening all lead to the same place: entry facts plus custom
    facts, or nothing when the streamer has none (the app's default). The AI is
    never asked to write without a reference. With `AI_PROVIDER=none` (the app
-   while its model downloads, and BubbleFacts Lite, which ships without the AI
-   engine) no AI is asked at all: articles aren't turned into captions, so only
+   while its model downloads or when it can't run) no AI is asked at all: articles aren't turned into captions, so only
    facts that need no AI (Wikidata and MusicBrainz, a Twitch About, the song
    list and the streamer's own) reach the stream, and
    `node-llama-cpp` is never imported (it's loaded only for `builtin`).
@@ -671,8 +670,8 @@ reads vouches for those facts: the app, the site and the credit say only that
 BubbleFacts doesn't control or test that AI and can't vouch for what it
 writes, never that its facts were screened or checked.
 The same at-least-once rule applies, switch or no switch. When no AI writes
-(`AI_PROVIDER=none`: Lite, the full app while its AI downloads or can't run,
-the command line set to none), the credit leaves out "retold by AI"
+(`AI_PROVIDER=none`: the app while its AI downloads or can't run, the
+command line set to none), the credit leaves out "retold by AI"
 (`NO_AI_CREDIT_TEXT`), since the rule means it shows even with the switch off. The session file
 keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
@@ -1758,9 +1757,7 @@ the next tick. A song on stream also takes the model from a preparing turn
 at once (`setCurrentSong`), and the preparing model, when there is one, gives
 its memory back when a run ends. An online AI (Groq, Anthropic) is never used
 for preparing: every song would count against the streamer's own key and
-limits. BubbleFacts Lite has no AI engine of its own, so the setting and **Your
-songs** are hidden there (`data-edition="full"`), even with Ollama, and the app
-never starts it (`EDITION === "full"` in main.ts).
+limits.
 The process's own priority isn't lowered by preparing itself (the CPU watch of
 issue #314 may lower it while other programs are busy): on Linux and macOS it can't
 be raised again without administrator rights, which would slow the stream.
