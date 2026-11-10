@@ -14,8 +14,8 @@
 export { MAX_CONTEXT_CHARS, MAX_FACT_CHARS, MIN_CONTEXT_CHARS } from "./fact-limits";
 export { artistNames, dropVersionTags, foldSymbols, mentionsName, normalizeKeys, normalizeTitle, parseClassicalTitle, resolveGameAndTrack, splitGameAndTrack } from "./grounding/titles";
 export type { ClassicalTitle } from "./grounding/titles";
-export { editionNotInTitle, initialsDiffer, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, qualifierNamesAnotherArtist } from "./grounding/relevance";
-export { creatorSentences, isDisambiguation, orderExtract, receptionSentences, rememberArticle, settledRevision, STABLE_AGE_MS, theorySentences, USER_AGENT, wikiExtract, withoutVideoSections, withSearches } from "./grounding/wikipedia";
+export { editionNotInTitle, initialsDiffer, isRelevantArticle, isInitials, looksLikeArtistName, namesLoosely, numeralStyleDiffers, qualifierNamesAnotherArtist } from "./grounding/relevance";
+export { creatorSentences, isDisambiguation, orderExtract, ownArticleExtract, receptionSentences, rememberArticle, settledRevision, STABLE_AGE_MS, theorySentences, USER_AGENT, wikiExtract, withoutVideoSections, withSearches } from "./grounding/wikipedia";
 export { notForStream, platformSupported, unsupportedCredit, unsupportedName, unsupportedWinner } from "./screening/names";
 export { alteredQuote, explainMusicTerms, restatesRequest, supportingSentence, tooSimilar } from "./screening/similarity";
 export { lostQualifier, numberedReference, referenceSentences, retoldSentences, support, unsupportedConnective, unsupportedRelation } from "./screening/sentences";
@@ -32,9 +32,10 @@ export { articleMisfit, articleText, coverScope, isCoverOf, isPieceArticle, isPl
 export type { GameArticles } from "./grounding/covers";
 export { describedKind, gameInsteadOfScreen, gameTrackText, isMusicArticleFor, isScreenPage, isSeriesWide, namesPiece, namesThisGame, oneOfSeveral, otherParts, pageSummary, seriesScope, soundtrackPart, summaryGate, summaryMismatch, trackSentences } from "./grounding/summary";
 export type { DescribedKind, PageSummary } from "./grounding/summary";
-export { editDistance, isInitials, isRespelling, isSameWorkRedirect, lookupForm, ownArticleExtract, readings, workFromTitle } from "./grounding/readings";
+export { editDistance } from "./text";
+export { isRespelling, isSameWorkRedirect, lookupForm, readings, workFromTitle } from "./grounding/readings";
 export type { Reading } from "./grounding/readings";
-export { isNonMusicWork, isPerformerArticle, isWorkArticle, namesLoosely, workMatchConfidence } from "./grounding/work-match";
+export { isNonMusicWork, isPerformerArticle, isWorkArticle, workMatchConfidence } from "./grounding/work-match";
 export type { WorkMatch } from "./grounding/work-match";
 export { movementSection, namesOneWork, nameWords, notForAPiece, pickWork, pieceSection, workFits, workQueries } from "./grounding/classical-works";
 export type { WorkFit } from "./grounding/classical-works";
