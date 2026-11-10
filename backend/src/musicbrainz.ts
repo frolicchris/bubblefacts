@@ -547,6 +547,13 @@ async function songItem(recordings: Recording[]): Promise<{ page: string; perfor
 const leadOf = (full: string) => full.split(/\n==/)[0].slice(0, 1500);
 const withoutQualifier = (page: string) => page.replace(/\s*\([^)]*\)\s*$/, "");
 
+/** Whether the article's opening says one of `names` wrote the song: "written by Siedah Garrett and Glen Ballard" */
+function wroteIt(full: string, names: string[]): boolean {
+  return leadOf(full)
+    .split(/(?<=[.!?])\s+/)
+    .some((sentence) => /\b(?:written|composed|penned|co-written|songwriters?|writers?|lyrics)\b/i.test(sentence) && mentionsName(normalizeTitle(sentence), names));
+}
+
 /** Whether a song's page fits; when Wikidata's `performers` aren't the artist, it's a cover's `original` */
 export function songPageFit(page: string, full: string, titles: string[], artists: string[], performers: string[]): { ok: boolean; original?: string; why?: string } {
   if (!isPieceArticle(page, full)) return { ok: false, why: "isn't about a piece of music" };
@@ -556,6 +563,8 @@ export function songPageFit(page: string, full: string, titles: string[], artist
   const intro = normalizeTitle(leadOf(full));
   const theirs = !performers.length || performers.some((p) => artistNames(p).some((n) => artists.some((a) => closeName(a, n, 0.25))));
   if (theirs) return mentionsName(intro, artists) ? { ok: true } : { ok: false, why: "never names the artist" };
+  // A list may credit a song's writers ("Glen Ballard and Siedah Garrett"): the song isn't a cover of its own writers' work.
+  if (wroteIt(full, artists)) return { ok: true };
   const original = performers.find((p) => mentionsName(intro, artistNames(p)));
   return original ? { ok: true, original } : { ok: false, why: "is by someone its intro never names" };
 }

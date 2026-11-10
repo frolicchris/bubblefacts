@@ -2,7 +2,7 @@ import type { SSLSong } from "../types";
 import { escapeRe, hasNoArtist } from "../text";
 import { setCapped } from "../capped-map";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
-import { dropVersionTags, isVariantTag, normalizeTitle, resolveGameAndTrack } from "./titles";
+import { dropVersionTags, isVariantTag, mentionsName, normalizeTitle, resolveGameAndTrack } from "./titles";
 import { COMPANY, initialsDiffer, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, ROMAN, significantTokens, STOPWORDS, withoutQualifier } from "./relevance";
 import { orderExtract, RateLimited, wikiExtract, wikiResolveTitles, wikiSearch, wikiSearchSuggestion } from "./wikipedia";
 import { writingText } from "./covers";
@@ -345,9 +345,12 @@ export function ownArticleExtract(full: string, budget: number, names: string[])
 // A song, in its article's opening: "a traditional English folk song"
 const SONG_WORDS = /\b(song|ballad|hymn|carol|tune|melody|lullaby|anthem|folk ?song|canzone|chanson)s?\b/i;
 
-/** A song by no one ("Traditional"): its own article by title alone, opening as a song ("Santa Lucia" is a town too) */
-export async function groundSongAlone(song: SSLSong, title: string, usable: (title: string) => boolean): Promise<Grounded> {
-  const key = `\0alone\0${normalizeTitle(title)}`;
+/**
+ * A song by no one ("Traditional"): its own article by title alone, opening as a song ("Santa Lucia" is a town too).
+ * With `credits`, the article must name one of them (a credited song, see lookup.ts).
+ */
+export async function groundSongAlone(song: SSLSong, title: string, usable: (title: string) => boolean, credits: string[] = []): Promise<Grounded> {
+  const key = `\0alone\0${normalizeTitle(title)}${credits.length ? `\0${credits.join("|")}` : ""}`;
   const hit = groundingCache.get(key);
   if (hit && (hit.text || Date.now() - hit.at < NEGATIVE_TTL_MS) && (!hit.text || usable(hit.text.split("\n")[0]))) return { text: hit.text, unreachable: false };
   const tried = new Set<string>();
@@ -362,10 +365,16 @@ export async function groundSongAlone(song: SSLSong, title: string, usable: (tit
           console.log(`[Grounding] "${page}" isn't about a song, skipping`);
           continue;
         }
+        // A list's credits aren't always the performer's: a song's own article under its exact title still fits
+        // when it names one of the credited people anywhere ("written by ...", "the Eagles").
+        if (credits.length && !mentionsName(normalizeTitle(full), credits)) {
+          console.log(`[Grounding] "${page}" never names ${credits.join(" or ")}, skipping`);
+          continue;
+        }
         const extract = ownArticleExtract(full, MAX_CONTEXT_CHARS - page.length - 1, [title]);
         if (extract.length < MIN_CONTEXT_CHARS) continue;
         const text = `${page}\n${writingText(full, extract, MAX_CONTEXT_CHARS - page.length - 1, [title])}`;
-        console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars, the song by its title alone)`);
+        console.log(`[Grounding] "${song.title}" -> ${page} (${extract.length} chars, the song by its title${credits.length ? " and a credited name" : " alone"})`);
         setCapped(groundingCache, key, { text, at: Date.now() }, MAX_GROUNDING);
         return { text, unreachable: false };
       }

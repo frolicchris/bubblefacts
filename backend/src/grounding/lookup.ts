@@ -91,7 +91,26 @@ async function findGrounding(song: SSLSong, skip: ReadonlySet<string>): Promise<
   const linked = config.mbLink && !isPlaceholderRequest(song) && !hasNoArtist(song.artist) ? await linkedGrounding(song, usable) : "";
   if (linked) linkedPages.add(linked.split("\n")[0]);
   // Still nothing for "Some Name Theme": the article of what it's named for, gated
-  return linked || (isPlaceholderRequest(song) ? "" : await themeGrounding(song, usable));
+  if (linked) return linked;
+  if (isPlaceholderRequest(song)) return "";
+  const theme = await themeGrounding(song, usable);
+  return theme || (await creditedSong(song, usable));
+}
+
+/**
+ * Last resort: credits aren't always the performer ("Don Henley: Hotel California", the writers, a second name).
+ * The song's own article by exact title fits if it names a credited person anywhere.
+ */
+async function creditedSong(song: SSLSong, usable: (title: string) => boolean): Promise<string> {
+  if (song.performer || song.artistUncertain || hasNoArtist(song.artist)) return "";
+  const own = lookupForm(song) ?? song;
+  const colon = /^(.+?):\s+([^:]+)$/.exec(own.title.trim());
+  const credit = colon && looksLikeArtistName(colon[1].trim()) ? colon[1].trim() : "";
+  const title = credit ? colon![2].trim() : own.title.trim();
+  const credits = [...new Set([...artistNames(own.artist ?? ""), ...(credit ? artistNames(credit) : [])].filter(Boolean))];
+  if (!title || !credits.length) return "";
+  const found = await groundSongAlone(song, title, usable, credits);
+  return found.text;
 }
 
 /** Wikipedia search terms for one reading, in order */

@@ -5,7 +5,7 @@ jest.mock("./config", () => ({
 import { config } from "./config";
 import { PrepContext, prepContext, watchLookupTrouble } from "./prep-context";
 import { clearGroundingCache, fetchGrounding, workMatchConfidence } from "./fact-verifier";
-import { artistByTitle, artistPageFit, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, closeName, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
+import { artistByTitle, artistPageFit, cachedArtistByTitle, clearLinkCache, clearOrderCache, clearTitleCache, closeName, composersOf, firstYear, gameCandidates, linkedGrounding, musicbrainzFacts, songPageFit, performerFacts, readableName, recordingOrder, settleTitleOrder, statedYear, statesAlbum, withoutYear } from "./musicbrainz";
 import fs from "fs";
 import path from "path";
 
@@ -579,5 +579,16 @@ describe("a busy MusicBrainz while songs are prepared", () => {
 
   it("still counts one the retry didn't", async () => {
     expect(await prepared("Tidewater Reel", [503, 503])).toBeGreaterThan(0);
+  });
+});
+
+describe("songPageFit: a credited writer", () => {
+  const page = "Man in the Mirror";
+  const full = '"Man in the Mirror" is a song by American singer Michael Jackson, released on his album Bad. It was written by Siedah Garrett and Glen Ballard, and is a pop and gospel song about change.';
+  it("is no cover when the artist is named as a writer", () => {
+    expect(songPageFit(page, full, ["Man in the Mirror"], ["glen ballard", "siedah garrett"], ["Michael Jackson"])).toEqual({ ok: true });
+  });
+  it("is still a cover for someone who is no writer", () => {
+    expect(songPageFit(page, full, ["Man in the Mirror"], ["some singer"], ["Michael Jackson"])).toMatchObject({ ok: true, original: "Michael Jackson" });
   });
 });

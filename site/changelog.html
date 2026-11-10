@@ -26,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.2.0-rc.2">
-  <script src="assets/site.js?v=2.2.0-rc.2" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.2.0">
+  <script src="assets/site.js?v=2.2.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -53,6 +53,28 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-2">
+          <h2 id="v2-2">Version 2.2.0 <span class="tag">November 10, 2026</span></h2>
+          <p>Facts ready the moment a song starts, a look for every stream, and fewer wrong facts. Shaped by beta testers' live streams.</p>
+          <ul>
+            <li>New: <span class="ui">Prepare my songs</span> writes facts for your list ahead of time, only while OBS is closed and your computer is plugged in. Off until you turn it on in Settings.</li>
+            <li>New: Styles and icons for the bubbles, under <span class="ui">Bubbles</span>: Classic, Light, Minimal, Retro game or High contrast, or your own colors. A change shows on stream as soon as you click <span class="ui">Save</span>.</li>
+            <li>New: a vertical overlay for phone-shaped streams.</li>
+            <li>New: bubbles about the good artists do, such as charity work and benefit shows. At most one a song.</li>
+            <li>New: original songs by Twitch artists can get facts from the artist's Twitch About page. Connect Twitch to use it.</li>
+            <li>New: the bubble that says where the facts come from shows at least once each stream, the moment you go live in OBS.</li>
+            <li>Improved: fewer wrong facts. BubbleFacts keeps to the right artist, recording and work, and video game songs get facts from the game's article. No more facts about a song's or artist's failures.</li>
+            <li>Improved: on a busy or slower computer, BubbleFacts writes fewer, quicker facts and gives the AI less of the computer.</li>
+            <li>Improved: setup asks where bubbles go, and Settings is shorter with a Save bar that stays in view.</li>
+            <li>Changed: High quality is now called Larger AI. Standard is still the one we recommend.</li>
+            <li>Changed: online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. Their facts carry a bubble saying BubbleFacts hasn't verified them. BubbleFacts Lite is retired; this is its last update.</li>
+            <li>Fixed: an OBS source that stops answering reconnects by itself, and the built-in AI tries again if it fails to load.</li>
+            <li>Fixed: songs prepared before the fact rules changed are prepared again.</li>
+            <li>Security: in-app updates now check a signature on each release.</li>
+            <li>Accuracy, measured: about 6% of facts wrong or misleading with the default Standard AI (range 4 to 8%) on 160 fresh songs. <span class="ui">Wrong</span> is the backstop. Details in <a href="https://github.com/frolicchris/bubblefacts/issues/172">#172</a>.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-2-rc2">
           <h2 id="v2-2-rc2">Version 2.2.0-rc.2 <span class="tag">Release candidate, November 9, 2026</span></h2>

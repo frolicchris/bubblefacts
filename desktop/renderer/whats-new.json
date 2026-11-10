@@ -1,4 +1,10 @@
 {
+  "2.2.0": [
+    "Prepare my songs: facts ready the moment a song starts. Turn it on in Settings.",
+    "Styles and icons for the bubbles, and a vertical overlay for phone-shaped streams.",
+    "Fewer wrong facts, and video game songs now get facts from the game's article.",
+    "An OBS source that stops answering reconnects by itself."
+  ],
   "2.2.0-rc.2": [
     "Video game songs now get facts from the game's Wikipedia article, not just your own facts.",
     "An OBS source that stops answering is dropped and reconnects by itself.",
