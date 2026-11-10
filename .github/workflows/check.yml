@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request replaces the run before it. Pushes to main each run to the end.
+concurrency:
+  group: check-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 env:
   # The checks don't run the desktop app, so skip downloading Electron itself.
   ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
@@ -18,7 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [20, 22]
+        # 22: the oldest Node.js the project supports, and the one the Linux app carries. 26: the newest LTS.
+        node: [22, 26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -26,16 +32,16 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      # shellcheck comes preinstalled on GitHub's Ubuntu runners.
+      # shellcheck comes preinstalled on GitHub's Ubuntu runners. The check builds too (its script tests need dist/).
       - run: npm run check
-      - run: npm run build
       # Shipped dependencies only: a high or critical advisory fails the check.
       - name: Audit shipped dependencies
         if: matrix.node == 22
         run: npm audit --omit=dev --audit-level=high
 
   # The desktop app ships on macOS and Windows too: run the tests there, where
-  # paths, line endings and file locking differ.
+  # paths, line endings and file locking differ. Node.js 24 is what the app's
+  # Electron runs the fact server on there; raise it with Electron's.
   other-systems:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -47,7 +53,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run typecheck

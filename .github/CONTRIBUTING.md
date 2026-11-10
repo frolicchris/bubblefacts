@@ -44,7 +44,7 @@ change.
    StreamElements, YouTube titles, Wikipedia, Wikidata, MusicBrainz, **Wrong**)
    and why it works the way it does. Most of the unusual choices exist because
    of something that went wrong on a live stream.
-2. Install [Node.js](https://nodejs.org/en/download) 20 or newer and
+2. Install [Node.js](https://nodejs.org/en/download) 22 or newer and
    [ShellCheck](https://www.shellcheck.net), then run `npm ci`. It installs
    Electron and the built-in AI's native parts too (several hundred MB).
    Changing only the server or the overlay? `ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci`
