@@ -1726,6 +1726,10 @@ describe("glued and dashed version tags, credits of several names (a second song
     ]);
     expect(readings({ title: "Mia", artist: "Bad Bunny x Drake" }).slice(1, 3).map((r) => r.game)).toEqual(["Bad Bunny", "Drake"]);
     expect(readings({ title: "Before I Let Go", artist: "Maze ft. Frankie Beverly" })[1]).toEqual({ game: "Maze", track: "Before I Let Go", trackOnly: true });
+    // A person's name before a colon in the title is a credit: the song's own article is searched without it.
+    expect(readings({ title: "Don Henley: Hotel California", artist: "Eagles" })).toContainEqual({ game: "Don Henley", track: "Hotel California", trackOnly: true });
+    // A work's name before a colon is no credit.
+    expect(readings({ title: "Super Mario 64: Dire Dire Docks", artist: "Koji Kondo" }).some((r) => r.track === "Dire Dire Docks" && r.trackOnly && r.game === "Super Mario 64")).toBe(false);
     // A capital X is part of a name.
     expect(readings({ title: "Industry Baby", artist: "Lil Nas X" })).toHaveLength(1);
   });

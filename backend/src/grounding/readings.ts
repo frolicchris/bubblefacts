@@ -235,6 +235,9 @@ function namedInTitle(title: string, first: { game: string; track: string }): Re
   if (from) return [{ game: from.work, track: from.track, trackOnly: true }];
   const bracket = /^(.+?)\s*\(([^)]+)\)$/.exec(title);
   if (bracket) return isVariantTag(bracket[2]) ? [] : [{ game: bracket[2].trim(), track: bracket[1].trim(), trackOnly: true }];
+  // "Don Henley: Hotel California": a person's name before a colon is a credit the list added, not part of the song's name.
+  const credit = /^(.+?):\s+(.+)$/.exec(title);
+  if (credit && looksLikeArtistName(credit[1].trim()) && !/:/.test(credit[2])) return [{ game: credit[1].trim(), track: credit[2].trim(), trackOnly: true }];
   const dash = /^(.+)\s[-–—]\s(.+)$/.exec(title);
   if (!dash || /\s[-–—]\s/.test(dash[1])) return [];
   const [left, right] = [dash[1].trim(), dash[2].trim()];
