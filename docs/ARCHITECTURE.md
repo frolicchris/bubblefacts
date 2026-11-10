@@ -566,8 +566,9 @@ model is asked.
    reporting verb ("said", "according to", "described"), a quote of four or
    more words (a quoted title in Title Case doesn't count), 30 or more words
    outside the lead, or a hedge ("usually", "about", "may") the caption lost;
-   or a caption keeping less than half of a sentence outside the lead (or
-   matching no sentence at all).
+   a caption keeping less than half of a sentence outside the lead (or
+   matching no sentence at all); or a caption with under 60% of its own
+   words from its source sentence.
 3. **Floor of three.** With fewer than three bubbles left, held-back captions
    come back, fewest flags first, after the others. Never one from step 1.
 4. **Interest** (`interest`): a number, an age or a place you can picture
@@ -587,8 +588,15 @@ model is asked.
    is from. The rest are left out, so an article with little about the music
    gives fewer bubbles instead of trivia (issue #189). Data facts aren't
    affected.
-6. **At most four**, and no two of the same kind in a row when another kind
-   is left.
+6. **Dull data facts left out** (`dullData`): the year a song came out, the
+   album it is on, its label and its writing credit are not shown when the
+   song has anything else to show. A song with nothing else keeps them, and
+   facts already sent early stay. They still count toward the floor of
+   three and the most of four, so leaving them out never brings a
+   held-back caption back or a lower-ranked one in: the song shows fewer
+   bubbles.
+7. **At most four**, counted before the dull ones go, and no two of the same
+   kind in a row when another kind is left.
 
 Why these: on judged runs, captions from the lead were about 5% wrong and
 those from the body about 13%, and release and sales sentences were both the

@@ -288,18 +288,18 @@ describe("generateFacts", () => {
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
     process.env.CITE_SENTENCES = "on";
     mockCreate.mockResolvedValue(reply(citing(MODEL_LINES, 2)));
-    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" was produced by Bo Sample.']);
     const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
-    expect(facts[0]).toBe('"Whatever Happens" came out in 2001.');
+    expect(facts[0]).toBe('"Whatever Happens" was produced by Bo Sample.');
     expect(facts.length).toBeGreaterThan(1);
   });
 
   it("puts facts about the song first when the article is only about the artist (citations off, the default)", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (fetchGrounding as jest.Mock).mockResolvedValueOnce(`Michael Jackson\nThe soundtrack was recorded with a small string section in one weekend. ${MODEL_LINES}`);
-    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" came out in 2001.']);
+    (wikidataFacts as jest.Mock).mockResolvedValueOnce(['"Whatever Happens" was produced by Bo Sample.']);
     const facts = (await generateFacts({ title: "Whatever Happens", artist: "Michael Jackson" })).map((f) => f.text);
-    expect(facts[0]).toBe('"Whatever Happens" came out in 2001.');
+    expect(facts[0]).toBe('"Whatever Happens" was produced by Bo Sample.');
     expect(facts.length).toBeGreaterThan(1);
   });
 
@@ -928,7 +928,7 @@ describe("data facts from the matched article's own item, with no AI (issue #256
 
     it("never takes a song fact's place when the bubbles are full", async () => {
       (fetchGrounding as jest.Mock).mockResolvedValue(songPage);
-      const songFacts = ['"Harbor Lights" came out in 2004.', '"Harbor Lights" was written by Ada Penn.', '"Harbor Lights" was produced by Bo Sample.', '"Harbor Lights" made the Ashford Chart.'];
+      const songFacts = ['The genres of "Harbor Lights" include dream pop.', '"Harbor Lights" features Mo Reed on cello.', '"Harbor Lights" was produced by Bo Sample.', '"Harbor Lights" made the Ashford Chart.'];
       (wikidataFacts as jest.Mock).mockResolvedValue(songFacts);
       (artistGoodFacts as jest.Mock).mockResolvedValue([{ ...good, text: "Velvet Lark donated to charity." }]);
       const facts = await generateFacts({ title: "Harbor Lights", artist: "Velvet Lark" });
@@ -948,10 +948,8 @@ describe("data facts from the matched article's own item, with no AI (issue #256
     const mb = ['"Harbr Lights (2004)" came out in 2009 and is on the album Paper Boats.'];
     (musicbrainzFacts as jest.Mock).mockImplementation(() => new Promise((r) => setTimeout(() => r(mb), 20)));
     const facts = await generateFacts(request);
-    expect(facts.map((f) => [f.text, f.source])).toEqual([
-      ['"Harbr Lights (2004)" is on the album Paper Boats.', SOURCE.musicbrainz],
-      ['The genres of "Harbor Lights" include dream pop.', SOURCE.wikidata],
-    ]);
+    // The album fact that is left is a dull one, and the genres are there to show instead.
+    expect(facts.map((f) => [f.text, f.source])).toEqual([['The genres of "Harbor Lights" include dream pop.', SOURCE.wikidata]]);
   });
 
   it("doesn't hold MusicBrainz's facts back for an item still on its way", async () => {
@@ -1051,8 +1049,8 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
 
   it("adds the article's infobox fact after the ones sent early (merge of #243 and #298)", async () => {
     slowAI(200);
-    const writer = '"Harbor Lights" was written by Mara Quill.';
-    const box = jest.spyOn(jest.requireActual("./infobox"), "infoboxFacts").mockResolvedValue([{ text: writer, evidence: "writer: Mara Quill", values: ["Mara Quill"] }]);
+    const writer = '"Harbor Lights" was produced by Mara Quill.';
+    const box = jest.spyOn(jest.requireActual("./infobox"), "infoboxFacts").mockResolvedValue([{ text: writer, evidence: "producer: Mara Quill", values: ["Mara Quill"] }]);
     let early: Fact[] = [];
     const facts = await generateFacts(request, null, (data) => (early = data));
     box.mockRestore();
