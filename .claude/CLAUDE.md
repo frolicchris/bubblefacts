@@ -8,7 +8,9 @@ Node 20+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
 constraints that were learned on live streams.
 
 The rules for every contributor are in `.github/CONTRIBUTING.md`; the rules
-below add to them.
+below add to them. Every session follows its "How a change moves"
+section: the milestone is the plan, at most three pull requests are open, and
+each holds one kind of change.
 
 ## Commands
 ```bash
