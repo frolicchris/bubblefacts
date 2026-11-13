@@ -1323,11 +1323,13 @@ async function liveLearnFacts(song: SSLSong, want: number, asked: SSLSong): Prom
  */
 async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Promise<Generated | null> {
   // A guessed artist is no name to match a stranger's channel on.
-  const login = song.artistFromTitle || song.artistUncertain ? "" : loginForArtist(song.artist ?? "");
+  // A credit "Jane (@janeplayskeys)" names the channel outright; any other artist is only a guess at one.
+  const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1]?.toLowerCase();
+  const login = song.artistFromTitle || song.artistUncertain ? "" : handle ?? loginForArtist(song.artist ?? "");
   if (!login || taggedFactsFor(song).length) return null;
   try {
     // Without an AI nothing has looked for the article yet, and a song with one is never looked up here.
-    if (config.aiProvider === "none" && (await findReference(song)).context) return null;
+    if (!handle && config.aiProvider === "none" && (await findReference(song)).context) return null;
     const about = await twitchAbout(login);
     if (!about) return null;
     const label = `${SOURCE.twitchAbout}${about.name}`;
@@ -1336,7 +1338,7 @@ async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Pr
     const fit = onStandard(about.facts, names).filter((f) => !notForStream(f) && !aboutIsChannelTalk(f) && !loadedCaption(f, names, true));
     const shown = fit.map((f) => `${ABOUT_CREDIT}${f}`).filter((f) => !recentList().includes(f) && !restatesRequest(f, song)).slice(0, Math.min(want, MAX_ABOUT_FACTS));
     if (!shown.length) return null;
-    console.log(`[FactGen] "${song.title}": ${shown.length} from the Twitch About of the channel named like its artist`);
+    console.log(`[FactGen] "${song.title}": ${shown.length} from the Twitch About of the channel named like (or tagged on) its artist`);
     remember(shown);
     record(asked, "twitchAbout", shown.length);
     return { facts: toFacts(song, shown, () => label), ttlMs: Infinity };
@@ -1415,7 +1417,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   let read = song;
   // "Jane (@janeplayskeys)": another music content creator's piece. No encyclopedia knows it, so nothing is looked up.
   const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1];
-  if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): not looked up`);
+  if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): only their Twitch About is looked up`);
   // "Off-List YouTube Request < 5 Min (Free)": a slot in the queue, not a song. Its "article" would be YouTube's.
   const placeholder = isPlaceholderRequest(song);
   if (placeholder) console.log(`[FactGen] "${song.title}" is a request placeholder, not a song: not looked up`);
@@ -1442,7 +1444,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       return { facts: toFacts(song, shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
     }
     // `data` rather than `shownData`: facts already shown still mean the databases know this song.
-    const fromTwitch = lookup && !data.length ? await twitchAboutFacts(song, want, asked) : null;
+    // A handle credit is the channel itself: its About is tried although the databases were skipped.
+    const aboutLookup = (lookup && !data.length) || (!!handle && config.factVerification && !placeholder);
+    const fromTwitch = aboutLookup ? await twitchAboutFacts(song, want, asked) : null;
     if (fromTwitch) return fromTwitch;
     if (sourcedOnly) return none;
     const lines = entryFacts(entry, want);
