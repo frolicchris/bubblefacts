@@ -132,15 +132,21 @@ describe("shareAddress", () => {
 describe("SongFactSharer", () => {
   let stand: ReturnType<typeof standIn>;
   const lines: string[] = [];
+  /** Every sharer a test starts, stopped when it ends: one left running would log into the next test. */
+  const started: SongFactSharer[] = [];
+  const track = (s: SongFactSharer) => (started.push(s), s);
   const sharer = (more: { refreshMs?: number } = {}) =>
-    new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log: (l) => lines.push(l), ...more });
+    track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log: (l) => lines.push(l), ...more }));
 
   beforeEach(async () => {
     lines.length = 0;
     stand = standIn();
     await stand.ready;
   });
-  afterEach(() => stand.close());
+  afterEach(() => {
+    for (const s of started.splice(0)) s.stop();
+    return stand.close();
+  });
 
   it("sends one snapshot of the song to the events endpoint, with the key as a bearer token", async () => {
     sharer().update(song, facts);
@@ -241,6 +247,18 @@ describe("SongFactSharer", () => {
     expect(lines[0]).toBe("[Share] Song facts not shared: the event was refused");
   });
 
+  it("says nothing more once it's stopped, even when a request was on its way", async () => {
+    stand.server.delayMs = 60;
+    const s = sharer();
+    s.update(song, facts);
+    await until(() => stand.server.requests.length === 1);
+    s.stop();
+    // The connection goes away under the request that was still waiting for its answer.
+    await stand.close();
+    await settled();
+    expect(lines).toEqual([]);
+  });
+
   it("stops after the key is refused, until a restart", async () => {
     stand.server.status = 401;
     const s = sharer({ refreshMs: 15 });
@@ -254,12 +272,12 @@ describe("SongFactSharer", () => {
   });
 
   it("says a dead connection and a timeout quietly", async () => {
-    const dead = new SongFactSharer({ url: "http://127.0.0.1:9/v1/events", apiKey: KEY, channel: "c", settleMs: 1, log: (l) => lines.push(l) });
+    const dead = track(new SongFactSharer({ url: "http://127.0.0.1:9/v1/events", apiKey: KEY, channel: "c", settleMs: 1, log: (l) => lines.push(l) }));
     dead.update(song, facts);
     await until(() => lines.length === 1);
     expect(lines[0]).toBe("[Share] Song facts not shared: no connection");
     stand.server.delayMs = 400;
-    const slow = new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "c", settleMs: 1, timeoutMs: 20, log: (l) => lines.push(l) });
+    const slow = track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "c", settleMs: 1, timeoutMs: 20, log: (l) => lines.push(l) }));
     slow.update(song, facts);
     await until(() => lines.length === 2);
     expect(lines[1]).toBe("[Share] Song facts not shared: timed out");

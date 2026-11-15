@@ -130,6 +130,7 @@ export class SongFactSharer {
   private refresh: NodeJS.Timeout | null = null;
   private refreshUntil = 0;
   private refused = false;
+  private stopped = false;
   private lastProblem = "";
 
   constructor(private readonly options: ShareOptions) {}
@@ -147,7 +148,9 @@ export class SongFactSharer {
     this.settle.unref?.();
   }
 
+  /** Nothing more is sent or said: a request already on its way ends quietly. */
   stop(): void {
+    this.stopped = true;
     this.refused = true;
     this.clearTimer("settle");
     this.clearTimer("refresh");
@@ -211,7 +214,7 @@ export class SongFactSharer {
   }
 
   private note(problem: string): void {
-    if (problem === this.lastProblem) return;
+    if (this.stopped || problem === this.lastProblem) return;
     this.lastProblem = problem;
     (this.options.log ?? console.warn)(`[Share] Song facts not shared: ${problem}`);
   }
