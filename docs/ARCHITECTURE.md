@@ -1916,7 +1916,8 @@ an integration with one product.
   MusicBrainz are named as checked against the sources they came from, with
   BubbleFacts credited. The streamer's own are "From the streamer", and an
   artist's Twitch About keeps its own lead-in. The text asks the other app to
-  answer only from these facts and add nothing: it may change how a fact
+  state facts only from these and add none, and says its own opinions are
+  welcome when said as its own: it may change how a fact
   sounds, never what it says.
 - **Never who asked for the song.** The song list's "Requested by ..." line is
   about a viewer, so it stays on the overlay (`namesRequester`), and the

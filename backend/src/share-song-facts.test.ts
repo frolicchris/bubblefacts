@@ -9,7 +9,7 @@ const song: SSLSong = { title: "Paper Lanterns", artist: "The Made Up Band", req
 const fact = (text: string, source = "Wikipedia: Paper Lanterns"): Fact => ({ text, source, delaySeconds: 0, durationSeconds: 8, position: {} });
 const facts = [fact("It was recorded in one take."), fact("It came out in 1999.", "Wikidata")];
 const HEAD = 'Now playing: "Paper Lanterns" by The Made Up Band.';
-const NO_FACTS = `${HEAD} BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it.`;
+const NO_FACTS = `${HEAD} BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. Your own opinions are welcome, said as yours.`;
 
 /** A stand-in for the events API: records what it's sent and answers with `status`. */
 function standIn() {
@@ -42,9 +42,9 @@ const until = async (done: () => boolean) => {
 const settled = () => new Promise((r) => setTimeout(r, 40));
 
 describe("shareContent", () => {
-  it("says the song, its checked facts and where they were checked, and to add nothing", () => {
+  it("says the song, its checked facts and where they were checked, and to add no facts of its own", () => {
     expect(shareContent(song, facts)).toBe(
-      `${HEAD} Facts from BubbleFacts, checked against Wikipedia and Wikidata: It was recorded in one take. It came out in 1999. Answer questions about this song only from these facts, add nothing, and credit BubbleFacts.`
+      `${HEAD} Facts from BubbleFacts, checked against Wikipedia and Wikidata: It was recorded in one take. It came out in 1999. State facts about this song only from these, add none, and credit BubbleFacts. Your own opinions are welcome, said as yours.`
     );
   });
 
@@ -73,15 +73,15 @@ describe("shareContent", () => {
 
   it("doesn't call the streamer's own facts checked, or credit them to BubbleFacts", () => {
     const text = shareContent(song, [facts[0], fact("Written on a train.", "Your facts for this song")]);
-    expect(text).toContain("It was recorded in one take. From the streamer: Written on a train. Answer");
+    expect(text).toContain("It was recorded in one take. From the streamer: Written on a train. State");
     expect(shareContent(song, [fact("Written on a train.", "Your facts for this song")])).toBe(
-      `${HEAD} From the streamer: Written on a train. Answer questions about this song only from these facts and add nothing.`
+      `${HEAD} From the streamer: Written on a train. State facts about this song only from these, and add none. Your own opinions are welcome, said as yours.`
     );
   });
 
   it("keeps an artist's Twitch About as theirs, not the streamer's", () => {
     const text = shareContent(song, [fact("From their Twitch About: I write songs about trains.", "Twitch About: madeupartist")]);
-    expect(text).toBe(`${HEAD} From their Twitch About: I write songs about trains. Answer questions about this song only from these facts and add nothing.`);
+    expect(text).toBe(`${HEAD} From their Twitch About: I write songs about trains. State facts about this song only from these, and add none. Your own opinions are welcome, said as yours.`);
   });
 
   it("leaves out an unknown artist", () => {
@@ -92,7 +92,7 @@ describe("shareContent", () => {
     const many = Array.from({ length: 12 }, (_, i) => fact(`Fact ${i} ${"x".repeat(280)}.`));
     const long = shareContent({ title: "T".repeat(500), artist: "A".repeat(500) }, many);
     expect(long.length).toBeLessThanOrEqual(CONTENT_LIMIT);
-    expect(long).toMatch(/credit BubbleFacts\.$/);
+    expect(long).toMatch(/credit BubbleFacts\. Your own opinions are welcome, said as yours\.$/);
     expect(long.match(/Fact \d+ x{280}\./g)?.length).toBeGreaterThan(0);
     const mixed = shareContent(song, [...Array.from({ length: 8 }, (_, i) => fact(`Checked ${i} ${"y".repeat(150)}.`, "Wikidata")), fact("Written on a train.", "Your custom facts")]);
     expect(mixed.length).toBeLessThanOrEqual(CONTENT_LIMIT);

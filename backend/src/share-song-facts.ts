@@ -41,9 +41,11 @@ const NAME_LIMIT = 150;
 const CHECKED_SOURCES = ["Wikipedia", "Wikidata", "MusicBrainz"] as const;
 const TWITCH_ABOUT = "Twitch About: ";
 const INTRO_STREAMER = "From the streamer:";
-const CLOSING = "Answer questions about this song only from these facts and add nothing.";
-const CLOSING_CREDIT = "Answer questions about this song only from these facts, add nothing, and credit BubbleFacts.";
-const NO_FACTS = "BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it.";
+/** Facts only from what is given; an opinion of the other app's own is fine, as long as it reads as one. */
+const OPINIONS = "Your own opinions are welcome, said as yours.";
+const CLOSING = `State facts about this song only from these, and add none. ${OPINIONS}`;
+const CLOSING_CREDIT = `State facts about this song only from these, add none, and credit BubbleFacts. ${OPINIONS}`;
+const NO_FACTS = `BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. ${OPINIONS}`;
 
 const listOf = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(""));
 const introChecked = (sources: string[]) => `Facts from BubbleFacts, checked against ${listOf(sources)}:`;
