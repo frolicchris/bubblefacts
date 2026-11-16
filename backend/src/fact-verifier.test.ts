@@ -977,8 +977,9 @@ describe("fetchGrounding", () => {
     expect(await fetchGrounding({ title: "Track One", artist: "The Tiny Game 2" })).toBe("");
     const calls = fetchMock.mock.calls.length;
     expect(await fetchGrounding({ title: "Track Two", artist: "The Tiny Game 2" })).toBe("");
-    // Only the search for Track Two's own article; the game isn't looked up again.
-    expect(fetchMock.mock.calls.length).toBe(calls + 1);
+    // The search for Track Two's own article and the last resort, the song by its title with a credited name
+    // (two searches); the game isn't looked up again.
+    expect(fetchMock.mock.calls.length).toBe(calls + 3);
   });
 
   it("never grounds a game track on a generic article named like the track", async () => {

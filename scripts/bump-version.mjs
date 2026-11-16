@@ -109,27 +109,36 @@ export function addChangelogStub(html, version, date) {
   return html.slice(0, at) + stub + html.slice(at);
 }
 
+/**
+ * Every file that carries the version besides package.json and its lockfile, with the change a
+ * release makes to it. The tests run these on the version package.json already has: none may
+ * change a file, or a release would go out with an old version somewhere.
+ */
+export function versionEdits(root, version, date = new Date()) {
+  const pages = fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html")).sort();
+  return [
+    ["frontend/obs/obs-overlay.js", (t) => bumpOverlay(t, version)],
+    [".github/ISSUE_TEMPLATE/beta_test.yml", (t) => bumpBetaForm(t, version)],
+    [".github/ISSUE_TEMPLATE/bug_report.yml", (t) => bumpBugForm(t, version)],
+    ["site/changelog.html", (t) => addChangelogStub(t, version, date)],
+    ...pages.map((page) => [`site/${page}`, (t) => bumpSiteAssets(t, version)]),
+  ];
+}
+
 function main() {
   const version = checkVersion(process.argv[2]);
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const edit = (file, change) => {
+  // npm version also updates package-lock.json. --allow-same-version keeps a second run from failing.
+  execFileSync("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: root, stdio: "ignore", shell: process.platform === "win32" });
+  console.log(`set ${version}  package.json, package-lock.json`);
+  for (const [file, change] of versionEdits(root, version)) {
     const full = path.join(root, file);
     const before = fs.readFileSync(full, "utf8");
     const after = change(before);
     if (after !== before) fs.writeFileSync(full, after);
     console.log(`${after !== before ? "updated" : "already done"}  ${file}`);
-  };
-  // npm version also updates package-lock.json. --allow-same-version keeps a second run from failing.
-  execFileSync("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: root, stdio: "ignore", shell: process.platform === "win32" });
-  console.log(`set ${version}  package.json, package-lock.json`);
-  edit("frontend/obs/obs-overlay.js", (t) => bumpOverlay(t, version));
-  edit(".github/ISSUE_TEMPLATE/beta_test.yml", (t) => bumpBetaForm(t, version));
-  edit(".github/ISSUE_TEMPLATE/bug_report.yml", (t) => bumpBugForm(t, version));
-  edit("site/changelog.html", (t) => addChangelogStub(t, version, new Date()));
-  for (const page of fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html")).sort()) {
-    edit(`site/${page}`, (t) => bumpSiteAssets(t, version));
   }
-  console.log("Next: fill in the FILL IN lines in site/changelog.html, then run npm run check.");
+  console.log("Next: fill in the FILL IN lines in site/changelog.html, add this version's highlights to desktop/renderer/whats-new.json, then run npm run check.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

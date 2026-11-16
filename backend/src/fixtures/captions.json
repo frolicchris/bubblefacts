@@ -1,0 +1,675 @@
+{
+  "about": "Captions a small model wrote from a reference, labeled by hand: 'keep' for a true caption that must survive screening, 'drop' with the exact reason screenClaims gives. To add a row, copy the source sentences (the article's title on the first line), the caption and where it came from, with made-up names. Optional fields: 'track', 'artists' and 'otherParts' are screenClaims' options, 'cites' is the sentence number a cited caption gives, 'before' and 'after' are another caption screened in the same batch, and 'known': 'miss' marks a caption the screens get wrong today (the test fails once they get it right, so the fix deletes the flag).",
+  "cases": [
+    {
+      "source": "Visit evil.example.com or www.example.org. Type !raid now. Follow @someone today.",
+      "caption": "Fans can visit evil.example.com to hear the original recording today.",
+      "expect": "drop",
+      "reason": "a link",
+      "from": "fact-verifier.test.ts, never puts a link, a chat command or an @mention on stream"
+    },
+    {
+      "source": "Visit evil.example.com or www.example.org. Type !raid now. Follow @someone today.",
+      "caption": "Viewers should type !raid in chat to celebrate this classic song.",
+      "expect": "drop",
+      "reason": "a chat command",
+      "from": "fact-verifier.test.ts, never puts a link, a chat command or an @mention on stream"
+    },
+    {
+      "source": "Visit evil.example.com or www.example.org. Type !raid now. Follow @someone today.",
+      "caption": "Follow @someone for more trivia about this song and its composer.",
+      "expect": "drop",
+      "reason": "an @mention",
+      "from": "fact-verifier.test.ts, never puts a link, a chat command or an @mention on stream"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by Mara Quillon. It was recorded in two days at a church in Vellmar. Quillon was charged with assault in 1998, but the charges were dropped.",
+      "caption": "Mara Quillon was convicted of assault in 1998.",
+      "expect": "drop",
+      "reason": "content standard: crime or lawsuits",
+      "from": "content-standard.test.ts, \"charged\" retold as \"convicted\""
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by Mara Quillon. Quillon got threatening mail late in the 1970s.",
+      "caption": "Mara Quillon got threatening mail late in the 1970s.",
+      "expect": "drop",
+      "reason": "content standard: threats or stalking",
+      "from": "content-standard.test.ts, a caption that says someone got threats"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by the Tinfoil Lanterns. During the sessions, Tobin Varr struggled with heroin addiction.",
+      "caption": "During the sessions, Tobin Varr struggled with heroin addiction.",
+      "expect": "drop",
+      "reason": "content standard: drugs or addiction",
+      "from": "content-standard.test.ts, the word lists (helper only)"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by Lisette Moraine. A tabloid wrote about Lisette Moraine's sexual relationship with her manager.",
+      "caption": "A tabloid wrote about Lisette Moraine's sexual relationship with her manager.",
+      "expect": "drop",
+      "reason": "content standard: sexual content",
+      "from": "content-standard.test.ts, the word lists (helper only)"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by Mara Quillon. It was recorded in two days at a church in Vellmar. Quillon was charged with assault in 1998, but the charges were dropped.",
+      "caption": "Mara Quillon recorded it while pregnant with her daughter.",
+      "expect": "drop",
+      "reason": "content standard: private life",
+      "from": "content-standard.test.ts, a private detail its source never gave"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by Ines Calloway. Ines Calloway was diagnosed with cancer during the tour.",
+      "caption": "Ines Calloway was diagnosed with cancer during the tour.",
+      "expect": "drop",
+      "reason": "content standard: health",
+      "from": "content-standard.test.ts, the word lists (helper only)"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by Ronan Vey. Ronan Vey died in a car crash in 2004.",
+      "caption": "Ronan Vey died in a car crash in 2004.",
+      "expect": "drop",
+      "reason": "content standard: how someone died",
+      "from": "content-standard.test.ts, the word lists (helper only)"
+    },
+    {
+      "source": "Glass Orchard\nGlass Orchard is a 1999 song by the Tinfoil Lanterns. The Tinfoil Lanterns' single failed to make the Billboard Hot 100.",
+      "caption": "The Tinfoil Lanterns' single failed to make the Billboard Hot 100.",
+      "expect": "drop",
+      "reason": "content standard: put-downs",
+      "from": "content-standard.test.ts, the word lists (helper only)"
+    },
+    {
+      "source": "Corin Hale\nCorin Hale is a singer and fiddler from Halifax. Corin Hale has described herself as queer in several interviews. Her first album was recorded in a barn in 2015.",
+      "caption": "Corin Hale is queer.",
+      "expect": "drop",
+      "reason": "content standard: identity",
+      "artists": ["corin hale"],
+      "from": "content-standard.test.ts, dropped when it loses who said it"
+    },
+    {
+      "source": "",
+      "caption": "Ada Penn is not credited as a composer in the provided reference material.",
+      "expect": "drop",
+      "reason": "meta-commentary",
+      "from": "fact-verifier.test.ts, drops meta-commentary about the source (name changed)"
+    },
+    {
+      "source": "Glass Harbor\nGlass Harbor is a waltz written in 1984 by Ada Penn.",
+      "caption": "It is a waltz.",
+      "expect": "drop",
+      "reason": "too short",
+      "from": "new: fact-verifier.test.ts only has fragments left after a prefix is stripped"
+    },
+    {
+      "source": "Night Drive\nNight Drive is a song by Tin Sail. It was considered one of the best songs of 2017.",
+      "caption": "Night Drive was considered one of the best songs of 2017.",
+      "expect": "drop",
+      "reason": "opinion",
+      "from": "fact-verifier.test.ts, drops opinions even when the source quotes them (issue #21, names changed)"
+    },
+    {
+      "source": "Starfall\nThe Harbor Times called all of the music \"incredible\".",
+      "caption": "The Harbor Times called all of the music \"incredible\".",
+      "expect": "drop",
+      "reason": "a critic's view",
+      "from": "fact-verifier.test.ts, screening slips found replaying real songs (outlet changed)"
+    },
+    {
+      "source": "Night Drive\nNight Drive is a song by Dale Hart. He combined two words to make the title.",
+      "caption": "He combined two words to make the title.",
+      "expect": "drop",
+      "reason": "doesn't say who",
+      "from": "new: screen.ts comment, \"He combined two words\""
+    },
+    {
+      "source": "Glass Harbor\n\"Glass Harbor\" is a song by Dana Reyes, released on 3 May 1994. Reyes said: \"Somewhere between an hour and two, I had the whole thing written.\"",
+      "caption": "I had the whole thing written somewhere between an hour and two.",
+      "expect": "drop",
+      "reason": "doesn't say who is speaking",
+      "from": "fact-verifier.test.ts, a caption that opens in someone's own words with no one named"
+    },
+    {
+      "source": "Ada Penn\nAda Penn is a composer from Lisbon. She wrote twelve symphonies and four operas. The symphonies are spread evenly through her career. This was loosely based on the harbor at night. This theme draws on old harbor songs. Her song Glass Harbor was written in 1984.",
+      "caption": "This was loosely based on the harbor at night.",
+      "expect": "drop",
+      "reason": "doesn't say what \"this\" is",
+      "track": "Glass Harbor",
+      "from": "fact-verifier.test.ts, a bubble names what it's about"
+    },
+    {
+      "source": "Ada Penn\nAda Penn is a composer from Lisbon. She wrote twelve symphonies and four operas. The symphonies are spread evenly through her career. This was loosely based on the harbor at night. This theme draws on old harbor songs. Her song Glass Harbor was written in 1984.",
+      "caption": "The symphonies are spread evenly through her career.",
+      "expect": "drop",
+      "reason": "doesn't say whose symphonies",
+      "track": "Glass Harbor",
+      "from": "fact-verifier.test.ts, a bubble names what it's about"
+    },
+    {
+      "source": "Glass Harbor\nGlass Harbor is a song written in 1984 by Ada Penn for her brother.",
+      "caption": "The song was written in 1984 for her brother.",
+      "expect": "drop",
+      "reason": "doesn't say who \"her\" is",
+      "from": "fact-verifier.test.ts, a 'his' or 'her' with nobody named for it"
+    },
+    {
+      "source": "Paper Lanterns\nPaper Lanterns is a song by Jo Vance. Bo Lind shot the film in ten days.",
+      "caption": "Bo Lind shot the film in ten days.",
+      "expect": "drop",
+      "reason": "doesn't say what \"the film\" is",
+      "from": "fact-verifier.test.ts, captions that lean on the sentence around them (helper only)"
+    },
+    {
+      "source": "Skyreach (video game)\nSkyreach is a 2001 platform game developed by Lumen North. Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence. The game's music was composed by Ada Penn.",
+      "caption": "Northwind Media signed a five-year deal with Halcyon Pictures to make games based on the Skyreach licence.",
+      "expect": "drop",
+      "reason": "a company's business, not the music",
+      "track": "Glass Harbor",
+      "from": "fact-verifier.test.ts, companyHistory is a reason screenClaims drops a caption"
+    },
+    {
+      "source": "Somebody Waits\nLike her previous single, the video was shot at the Starlight Theater. Rosa Lind's video game cameo came in 2001.",
+      "caption": "The Starlight Theater is where Rosa Lind's video was shot.",
+      "expect": "drop",
+      "reason": "about the music video",
+      "from": "fact-verifier.test.ts, a caption about someone's video, but not their video game"
+    },
+    {
+      "source": "Music of Starfall\nSince 2020, the studio has been releasing music soundtracks for Starfall, primarily composed by Mia Chen. The Windvale soundtrack was performed by the Northshore Philharmonic Orchestra.",
+      "caption": "The Windvale soundtrack was performed by the Northshore Philharmonic Orchestra.",
+      "expect": "drop",
+      "reason": "about another part of the soundtrack (\"Windvale\")",
+      "otherParts": ["Windvale", "Stonehold", "Tidemark"],
+      "from": "new: fact-verifier.test.ts only tests how the parts are cut (soundtrackPart)"
+    },
+    {
+      "source": "",
+      "caption": "This piece won Best Original Soundtrack at the 2016 Tokyo Game Awards.",
+      "expect": "drop",
+      "reason": "award claim",
+      "from": "fact-verifier.test.ts, drops fabricated award claims"
+    },
+    {
+      "source": "Starfall\nThe main theme was performed live at an awards ceremony in Tokyo.",
+      "caption": "The main theme was performed live at the Grammy ceremony in Tokyo.",
+      "expect": "drop",
+      "reason": "award name",
+      "from": "new"
+    },
+    {
+      "source": "",
+      "caption": "The single topped the Billboard chart for three weeks.",
+      "expect": "drop",
+      "reason": "chart position",
+      "from": "fact-verifier.test.ts, drops chart positions and sales figures"
+    },
+    {
+      "source": "",
+      "caption": "The soundtrack sold 2 million copies worldwide.",
+      "expect": "drop",
+      "reason": "sales/quantity figure",
+      "from": "fact-verifier.test.ts, drops chart positions and sales figures"
+    },
+    {
+      "source": "",
+      "caption": "The single sold 40,000 copies in its first week.",
+      "expect": "drop",
+      "reason": "sales figure",
+      "from": "new"
+    },
+    {
+      "source": "",
+      "caption": "The single was certified gold within a month of release.",
+      "expect": "drop",
+      "reason": "certification claim",
+      "from": "new"
+    },
+    {
+      "source": "",
+      "caption": "It was the first ever game score recorded with a full choir.",
+      "expect": "drop",
+      "reason": "superlative",
+      "from": "new"
+    },
+    {
+      "source": "Starfall\nThe game's music was composed by Mia Chen and released in 2016.",
+      "caption": "The soundtrack was recorded back in 1998 by the team.",
+      "expect": "drop",
+      "reason": "unsupported year 1998",
+      "from": "fact-verifier.test.ts, drops a year the reference does not contain (names changed)"
+    },
+    {
+      "source": "Glass Harbor\n\"Glass Harbor\" is a song by Dana Reyes, released on 3 May 1994. Reyes said: \"Somewhere between an hour and two, I had the whole thing written.\"",
+      "caption": "Glass Harbor was released on November 22, 1994.",
+      "expect": "drop",
+      "reason": "unsupported date \"November 22\"",
+      "from": "fact-verifier.test.ts, a day or month the source doesn't give, though the year is there"
+    },
+    {
+      "source": "Starfall\nThe game's music was composed by Mia Chen and released in 2016.",
+      "caption": "The score was squeezed onto the SNES sound chip.",
+      "expect": "drop",
+      "reason": "unsupported platform \"SNES\"",
+      "from": "fact-verifier.test.ts, drops a platform the reference does not mention (names changed)"
+    },
+    {
+      "source": "Starfall\nThe game's music was composed by Mia Chen. A piano arrangement album followed.",
+      "caption": "The Starfall score was written by Ivo Brandt and Kit Arden.",
+      "expect": "drop",
+      "reason": "unsupported name \"Ivo Brandt\"",
+      "from": "fact-verifier.test.ts, drops a fabricated composer the reference never names (names changed)"
+    },
+    {
+      "source": "Starfall is a 2019 game. John Smith directed the game. The music was composed by Mia Chen.",
+      "caption": "John Smith wrote the soundtrack for Starfall.",
+      "expect": "drop",
+      "reason": "unsupported credit for \"John Smith\"",
+      "from": "fact-verifier.test.ts, drops a credit the source gives someone else"
+    },
+    {
+      "source": "Glass Harbor\nGlass Harbor is a song composed by Ivo Marek with lyrics by Dale Hart. It was originally performed by Ana Bell in the 1961 film Night Harbor, winning an Academy Award for Best Original Song. Ivo Marek won the Grammy Award for Record of the Year.",
+      "caption": "Ana Bell won an Academy Award for Best Original Song for her performance.",
+      "expect": "drop",
+      "reason": "award not given to \"Ana Bell\" in the source",
+      "from": "fact-verifier.test.ts, who won the award (stream replay, names changed)"
+    },
+    {
+      "source": "Glass Harbor\nReyes said the song \"was all in my head\" before they started.",
+      "caption": "Reyes said the song \"lived only in her imagination\" before they started.",
+      "expect": "drop",
+      "reason": "quote not in the source: \"lived only in her imagination\"",
+      "from": "fact-verifier.test.ts, a quotation the source doesn't contain word for word (names changed)"
+    },
+    {
+      "source": "Venom\nThe song was meant for Eli Straite, but plans changed when the members of the trio heard his demo version.",
+      "caption": "The members of the trio heard Straite's demo version after plans changed.",
+      "expect": "drop",
+      "reason": "\"after\" turns round the order of the sentence it retells",
+      "from": "fact-verifier.test.ts, a cause turned round from a 'when' clause"
+    },
+    {
+      "source": "Paper Sky\nIt reached number one on the UK Singles Chart, becoming Tin Sail's second number-one hit in the UK.",
+      "caption": "Paper Sky reached number one on the UK Singles Chart twice.",
+      "expect": "drop",
+      "reason": "\"twice\" isn't in the sentence it retells",
+      "from": "fact-verifier.test.ts, a count or number the source doesn't give (helper only, names changed)"
+    },
+    {
+      "source": "Where You Are\nIt was written by Rafe Lyle and Owen Grant. Lyle, the younger brother of Dana Lyle, later wrote for Tin Sail.",
+      "caption": "Owen Grant is Rafe Lyle's older brother.",
+      "expect": "drop",
+      "reason": "\"brother\" isn't stated for them in the source",
+      "from": "fact-verifier.test.ts, an invented kinship (helper only, names changed)"
+    },
+    {
+      "source": "Moth Hour\nMore than a thousand recordings were released by jazz and pop musicians around the world.",
+      "caption": "More than a thousand recordings were released by jazz musicians.",
+      "expect": "drop",
+      "reason": "\"jazz musicians\", without \"pop\"",
+      "from": "fact-verifier.test.ts, keeps both halves of a pair (helper only)"
+    },
+    {
+      "source": "Moth Hour\nExe:Dawn[st] came out in 2017. Halo Works later published this version on Steam in 2018. Exe:Dawn[cl] was nominated at the Game Awards.",
+      "caption": "Halo Works published Exe:Dawn on Steam in 2018.",
+      "expect": "drop",
+      "reason": "doesn't say which version",
+      "from": "fact-verifier.test.ts, does not swap in another edition (helper only)"
+    },
+    {
+      "source": "Moth Hour\nExe:Dawn[st] came out in 2017. Halo Works later published this version on Steam in 2018. Exe:Dawn[cl] was nominated at the Game Awards.",
+      "caption": "Exe:Dawn was nominated at the Game Awards.",
+      "expect": "drop",
+      "reason": "\"Exe:Dawn\" cuts another edition's name short",
+      "from": "fact-verifier.test.ts, does not swap in another edition (helper only)"
+    },
+    {
+      "source": "Moth Hour\nThe album stayed at number one for longer than any record for 13 years.",
+      "caption": "The album stayed at number one for 13 years.",
+      "expect": "drop",
+      "reason": "drops what it's compared with",
+      "from": "fact-verifier.test.ts, keeps a comparison (helper only)"
+    },
+    {
+      "source": "Moth Hour\nAnn Roe said \"It is a letter home. In essence, a reminder of what the road can do to a person.\"\n\nThe band toured Norway that spring.",
+      "caption": "In essence, a reminder of what the road can do to a person.",
+      "expect": "drop",
+      "reason": "someone's words, without who said them",
+      "from": "fact-verifier.test.ts, does not lift the tail of a quote with no speaker (helper only)"
+    },
+    {
+      "source": "Silent Promises\nIt peaked at numbers 15 and 16 on the US Billboard Hot 100 and Cash Box Top 100, and number three on the R&B chart.",
+      "caption": "\"Silent Promises\" peaked at numbers 15 and 16 on the US Billboard Hot 100.",
+      "expect": "drop",
+      "reason": "15 and 16, without the second chart",
+      "from": "fact-verifier.test.ts, one chart with the two peaks of two charts (helper only)"
+    },
+    {
+      "source": "All I Need\nSinger Nadia Rowe released it as the official second single from her third album, Midnight Hours, on December 4, 1990.",
+      "caption": "Nadia Rowe released \"All I Need\" as her second single.",
+      "expect": "drop",
+      "reason": "\"second single\" without the album it's from",
+      "from": "fact-verifier.test.ts, 'her second single' when it's the second single from an album (helper only)"
+    },
+    {
+      "source": "Jungle Dance\n\"Jungle Dance\" is a song by Kira Vale, released on 10 May 2019 as the second single from Kira Vale's debut EP, The Young Ones.",
+      "caption": "Kira Vale released her debut EP \"The Young Ones\" on 10 May 2019.",
+      "expect": "drop",
+      "reason": "a date the source gives another release, not the EP",
+      "from": "fact-verifier.test.ts, an EP's date that is the single's (helper only)"
+    },
+    {
+      "source": "Wall Run\nThe music video for \"Wall Run\" was inspired by the 1998 film Fangs.",
+      "caption": "The song was inspired by the 1998 film Fangs.",
+      "expect": "drop",
+      "reason": "the source says this of the music video",
+      "from": "fact-verifier.test.ts, a detail the source gives the video, the single or the release (helper only)"
+    },
+    {
+      "source": "Until We Fall\nThe label was using Chartwave. The company had a top 20 downloads section, based on data from peer-to-peer networks, which featured \"Until We Fall\".",
+      "caption": "The band had a top 20 downloads section based on data from peer-to-peer networks.",
+      "expect": "drop",
+      "reason": "the sentence it retells isn't about \"the band\"",
+      "from": "fact-verifier.test.ts, 'the band' for what the source says 'the company' did (helper only)"
+    },
+    {
+      "source": "Never Let You Go\n\"Never Let You Go\" is a ballad written by singer-songwriters Dana Vale and Ike Morrow. It reached number one on the Adult Contemporary chart.",
+      "caption": "Dana Vale described the song as a \"very tender\" ballad.",
+      "expect": "drop",
+      "reason": "words the source doesn't give to Vale",
+      "from": "fact-verifier.test.ts, a quote from someone the source only credits"
+    },
+    {
+      "source": "Paper Sky\nThe song was first performed on December 2, 1932. Ada Pell recorded a hit version later that year, featuring Bo Hart on trumpet. Nate Cole recorded it in 1943.",
+      "caption": "Nate Cole recorded a hit version of the song featuring Bo Hart on trumpet.",
+      "expect": "drop",
+      "reason": "the sentence it retells is about Ada Pell",
+      "from": "fact-verifier.test.ts, a caption opening on a person the retold sentence gives to another (helper only)"
+    },
+    {
+      "source": "Music of Starfall\nThe vocals of Juno's voice actor Kai Moreno were recorded at the Harbor Opera House.",
+      "caption": "The vocals of Kai Moreno's voice actor were recorded at the Harbor Opera House.",
+      "expect": "drop",
+      "reason": "the source names someone else's voice actor",
+      "from": "fact-verifier.test.ts, a role turned round (helper only)"
+    },
+    {
+      "source": "Lamp Street\nLamp Street is a band. It was formed in 1976 by Ann Roe and Bo Lind, who formed a production and songwriting team known as Roe & Lind. Roe began her career in 1963, after forming the group Sparrows with Cy Hale.",
+      "caption": "Ann Roe and Bo Lind formed a production and songwriting team in 1976.",
+      "expect": "drop",
+      "reason": "joins two statements: \"1976\" belongs to another clause",
+      "from": "fact-verifier.test.ts, two statements told as one (helper only)"
+    },
+    {
+      "source": "Ivo Marek\nThe idea of a symphony on the general's career may have been suggested to Marek by Count Ardent in 1798. His Concerto No. 9 is sometimes described as a breakthrough; Lee Rosen called it \"perhaps the first masterpiece\".",
+      "caption": "Count Ardent suggested Marek write a symphony on the general's career in 1798.",
+      "expect": "drop",
+      "reason": "drops the source's \"may have\"",
+      "from": "fact-verifier.test.ts, a hedge the caption leaves out (helper only)"
+    },
+    {
+      "source": "Lena Moss\nLena Moss appears across the series. In Night Harbor Returns, Lena's ghost is seen as a face in the window, an effect made with a mirror.",
+      "caption": "Lena's ghost is seen as a face in the window.",
+      "expect": "drop",
+      "reason": "drops what the source opens with: \"Night Harbor Returns\"",
+      "from": "fact-verifier.test.ts, keeps the work a sentence opens on (helper only)"
+    },
+    {
+      "source": "Moth Hour\nIt set a record on the Alt Songs chart. It was the second-most played song of the 2010s decade on the format.",
+      "caption": "\"Moth Hour\" was the second-most played song of the 2010s decade.",
+      "expect": "drop",
+      "reason": "drops the source's limit: \"on the format\"",
+      "from": "fact-verifier.test.ts, keeps a limit that points back (helper only)"
+    },
+    {
+      "source": "Moth Hour\n\"Moth Hour\" reached number one on the Billboard Hot 100, topped the Billboard Hot Soul Singles chart within three weeks, and became her fastest-rising hit.",
+      "caption": "\"Moth Hour\" reached number one on the Billboard Hot 100 chart within three weeks.",
+      "expect": "drop",
+      "reason": "\"within three weeks\" belongs to another chart",
+      "from": "fact-verifier.test.ts, a span moved to another chart of the run (helper only)"
+    },
+    {
+      "source": "Moth Hour\nIn June 2025, Rob Lane confirmed to Sound Weekly that a script for a sequel is still being worked on.",
+      "caption": "A script for a sequel is still being worked on by Rob Lane.",
+      "expect": "drop",
+      "reason": "the source doesn't have Lane doing this",
+      "from": "fact-verifier.test.ts, catches a statement turned round (helper only)"
+    },
+    {
+      "source": "Moth Hour\n\"Moth Hour\" was the top new entry on the UK Singles Chart for the week of 1-7 October.",
+      "caption": "\"Moth Hour\" was the top new entry for the week of 1-7 October.",
+      "expect": "drop",
+      "reason": "doesn't say which chart: \"top new entry\"",
+      "from": "fact-verifier.test.ts, wants a chart for a chart claim (helper only)"
+    },
+    {
+      "source": "Ivo Marek\nWhen the symphony premiered in early 1805 it got a mixed reception. Some listeners disliked its length. In 1807, after a concert in Leipzig, the public demanded it again a week later.",
+      "caption": "The public demanded the symphony again a week after its premiere in 1805.",
+      "expect": "drop",
+      "reason": "1805 isn't the year of the sentence it retells",
+      "from": "fact-verifier.test.ts, a year the retold sentence doesn't place there (helper only)"
+    },
+    {
+      "source": "Pine Lantern\nIn January 2010, Ada and Bo regrouped as Pine Lantern. The duo played their first show on June 22, 2011. Their tour began in March and ended in May.",
+      "caption": "Ada and Bo regrouped as Pine Lantern in January.",
+      "expect": "drop",
+      "reason": "says the month but not the year the source gives it with (January 2010)",
+      "from": "fact-verifier.test.ts, a month told without its year"
+    },
+    {
+      "source": "Max Groove\nHe sided against modern game music, saying it serves a more atmospheric role. He noted that the Ember Saga series was an exception.",
+      "caption": "The Ember Saga series is an exception to his preference for atmospheric soundtracks.",
+      "expect": "drop",
+      "reason": "says what the exception is to; the source doesn't",
+      "from": "fact-verifier.test.ts, an exception the caption explains on its own (helper only)"
+    },
+    {
+      "source": "Ari Song\nAri Song is a South Korean pianist. From 2010 he presented a radio show alongside singer Bo Kim. The duo initially raised eyebrows.",
+      "caption": "The duo initially raised eyebrows.",
+      "expect": "drop",
+      "reason": "doesn't say who or what \"the duo\" is",
+      "from": "fact-verifier.test.ts, 'the duo' the source's subject isn't (helper only)"
+    },
+    {
+      "source": "Star Voyage III\nAmong the new cues Hartley wrote was a percussive and atonal theme for the raiders. Music author Dana Reyes described the cue as a compromise between music from Hartley's earlier film Nightfall and the raiders' old music.",
+      "caption": "A percussive and atonal theme was written for the raiders as a compromise between Hartley's earlier film Nightfall and others.",
+      "expect": "drop",
+      "reason": "a view the source gives to Reyes",
+      "from": "fact-verifier.test.ts, a critic's reading told as the composer's intent (helper only)"
+    },
+    {
+      "source": "Dana Reyes\nOpening to strong reviews, the show won four stage awards, including Best New Musical. Reyes said Glass Harbor took a week to write. Her song Paper Lanterns reached number two.",
+      "caption": "The musical won four stage awards, including Best New Musical.",
+      "expect": "drop",
+      "reason": "doesn't say which musical",
+      "track": "Glass Harbor",
+      "from": "fact-verifier.test.ts, on another work's article, 'The song' or 'The musical'"
+    },
+    {
+      "source": "Moth Hour\n\"Moth Hour\" is a song by Lamp Street.\n\nBo Lind version: It was the second of two singles from his LP.\n\nB-sides: \"Tin Cup\" was played live a few times during 2004.\n\nLamp Street version: It was their first hit single in Norway.",
+      "caption": "\"Tin Cup\" was played live a few times during 2004.",
+      "expect": "drop",
+      "reason": "from a section about another recording",
+      "artists": ["lamp street"],
+      "from": "fact-verifier.test.ts, a section about another recording (helper only)"
+    },
+    {
+      "source": "Starfall\nThe game's music was composed by Mia Chen, the in-house sound lead at Northwind, who recorded it with a small string group in a converted barn outside the town.",
+      "caption": "The game's music was composed by Mia Chen, the in-house sound lead at Northwind, who recorded it with a small string group in a converted barn outside the town over a number of weeks.",
+      "expect": "drop",
+      "reason": "too long (183 chars)",
+      "from": "fact-verifier.test.ts, rejects a fact too long for the bubble (text changed)"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Paper Lanterns was composed by series composer Ada Pell.",
+      "expect": "drop",
+      "reason": "doesn't say which sentence it retells",
+      "cites": 0,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: no sentence number"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Paper Lanterns was composed by series composer Ada Pell.",
+      "expect": "drop",
+      "reason": "cites sentence 40, which the reference doesn't have",
+      "cites": 40,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: a number the reference doesn't have"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Paper Lanterns was recorded in October 1933 as a hit version.",
+      "expect": "drop",
+      "reason": "doesn't retell the sentence it cites",
+      "cites": 1,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: barely shares a word with the sentence it cites"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Tom Hale recorded a hit version of Paper Lanterns in October 1933.",
+      "expect": "drop",
+      "reason": "\"Tom\" isn't in the sentence it cites",
+      "cites": 6,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: a name from another sentence"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "The band completed three songs with this encouragement.",
+      "expect": "drop",
+      "reason": "\"three\" isn't in the sentence it cites",
+      "cites": 3,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: a number from another sentence"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Rui Moreno recalled in 1933 thinking Paper Lanterns was quite catchy.",
+      "expect": "drop",
+      "reason": "1933 isn't in the sentence it cites",
+      "cites": 1,
+      "artists": ["northlight"],
+      "from": "new: fact-verifier.test.ts names a year from another sentence but has no case for it"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Paper Lanterns was the first song composed by series composer Ada Pell.",
+      "expect": "drop",
+      "reason": "\"first\" isn't in the sentence it cites",
+      "cites": 5,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: a first the sentence doesn't give"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Ada Pell said Paper Lanterns was a song for the trio Northlight.",
+      "expect": "drop",
+      "reason": "the sentence it cites doesn't give Pell's words",
+      "cites": 5,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: words the sentence doesn't give"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "Moreno was paid $3,000 for his work on the strings.",
+      "expect": "drop",
+      "reason": "the sentence it cites is about Kit Arden",
+      "cites": 4,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: the sentence's doing given to someone it only mentions"
+    },
+    {
+      "source": "Starfall\nThe game's music was composed by Mia Chen, the in-house sound lead at Northwind.",
+      "caption": "Mia Chen wrote the music for the Starfall game.",
+      "expect": "drop",
+      "reason": "near-duplicate of an earlier fact",
+      "before": "The game's music was composed by Mia Chen.",
+      "from": "fact-verifier.test.ts, keeps only one of several restatements of the same source sentence (names changed)"
+    },
+    {
+      "source": "Starfall\nThe game's music was composed by Mia Chen, the in-house sound lead at Northwind.",
+      "caption": "Mia Chen wrote the music for the Starfall game.",
+      "expect": "drop",
+      "reason": "near-duplicate of a closer retelling",
+      "after": "The game's music was composed by Mia Chen.",
+      "from": "new: fact-verifier.test.ts only checks which of the two is kept"
+    },
+    {
+      "source": "K!te recorded a cover of the song in 2017.",
+      "caption": "K!te recorded a cover of the song in 2017 for a charity album.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, keeps names that only look like links or commands (name changed)"
+    },
+    {
+      "source": "The soundtrack won an award for its orchestration in 2017.",
+      "caption": "The soundtrack won an award for its orchestration.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, keeps an award claim the reference actually corroborates"
+    },
+    {
+      "source": "Ivo Marek\nHis music shows an Orlov‐influenced Impressionism.",
+      "caption": "Marek's music shows Orlov-influenced Impressionism.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, true facts the screen used to drop: U+2010 hyphens (names changed)"
+    },
+    {
+      "source": "Somebody Waits\nThe song was produced by Corin J. Eastman. It reached number two.",
+      "caption": "The song was produced by Corin J. Eastman.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, true facts the screen used to drop: middle initials (names changed)"
+    },
+    {
+      "source": "Where You Are\nThe song was written by singer-songwriters Rafe Lyle and Owen Grant.",
+      "caption": "The song was written by Rafe Lyle and Owen Grant.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, true facts the screen used to drop: descriptors before names (names changed)"
+    },
+    {
+      "source": "Somebody Waits\nLike her previous single, the video was shot at the Starlight Theater. Rosa Lind's video game cameo came in 2001.",
+      "caption": "Rosa Lind's video game cameo came in 2001.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, a caption about someone's video, but not their video game"
+    },
+    {
+      "source": "Glass Harbor\nI Wanna Stay was the B-side of Glass Harbor in 1994.",
+      "caption": "I Wanna Stay was the B-side of Glass Harbor in 1994.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, a title that starts with \"I\" is no speaker"
+    },
+    {
+      "source": "Dreamland\nAfter Marisol began writing songs for her new album Daylight, she decided to include the hook from the Ring Ring Club song \"Spark of Love\" in an up-tempo song.",
+      "caption": "Marisol decided to use the hook from \"Spark of Love\" after she began writing songs for Daylight.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, 'A after B' when the source says 'after A, B': the right way round"
+    },
+    {
+      "source": "Pine Lantern\nIn January 2010, Ada and Bo regrouped as Pine Lantern. The duo played their first show on June 22, 2011. Their tour began in March and ended in May.",
+      "caption": "The Pine Lantern tour began in March and ended in May.",
+      "expect": "keep",
+      "from": "fact-verifier.test.ts, a month the source gives alone"
+    },
+    {
+      "source": "Corin Hale\nCorin Hale is a singer and fiddler from Halifax. Corin Hale has described herself as queer in several interviews. Her first album was recorded in a barn in 2015.",
+      "caption": "Corin Hale has described herself as queer in several interviews.",
+      "expect": "keep",
+      "artists": ["corin hale"],
+      "from": "content-standard.test.ts, a caption from the artist's own words (issue #262)"
+    },
+    {
+      "source": "Dana Reyes\nOpening to strong reviews, the show won four stage awards, including Best New Musical. Reyes said Glass Harbor took a week to write. Her song Paper Lanterns reached number two.",
+      "caption": "The song \"Paper Lanterns\" reached number two.",
+      "expect": "keep",
+      "track": "Glass Harbor",
+      "from": "fact-verifier.test.ts, on another work's article, a song the caption names"
+    },
+    {
+      "source": "Paper Lanterns\nFrom the people who made it: Ada Pell considered the song too slow, but Rui Moreno recalled thinking it was \"quite catchy\".\n\nRecording: The band signed with Tom Hale, who introduced them to manager Lena Voss. With this encouragement, the band completed some songs. Kit Arden, who was paid $3,000 for his work, said that he arranged the strings based on Moreno's demos.\n\"Paper Lanterns\" is a song by the trio Northlight, composed by series composer Ada Pell. Ivo Brandt recorded a hit version in October 1933.",
+      "caption": "With Tom Hale's encouragement, Northlight completed some songs.",
+      "expect": "keep",
+      "cites": 3,
+      "artists": ["northlight"],
+      "from": "fact-verifier.test.ts, cite the sentence: a name from the sentence before"
+    }
+  ]
+}

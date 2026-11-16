@@ -1,12 +1,15 @@
 import http from "http";
 import { AddressInfo } from "net";
-import { CONTENT_LIMIT, shareAddress, shareContent, shareTtl, SongFactSharer } from "./share-song-facts";
-import { Fact, SSLSong } from "./types";
+import { CONTENT_LIMIT, SHARE_TTL_SECONDS, shareAddress, shareContent, SongFactSharer } from "./share-song-facts";
+import { buildStatFacts } from "./stat-facts";
+import { Fact, SSLQueueItem, SSLSong } from "./types";
 
 const KEY = "made-up-key-12345";
 const song: SSLSong = { title: "Paper Lanterns", artist: "The Made Up Band", requestedBy: "viewer_name" };
 const fact = (text: string, source = "Wikipedia: Paper Lanterns"): Fact => ({ text, source, delaySeconds: 0, durationSeconds: 8, position: {} });
 const facts = [fact("It was recorded in one take."), fact("It came out in 1999.", "Wikidata")];
+const HEAD = 'Now playing: "Paper Lanterns" by The Made Up Band.';
+const NO_FACTS = `${HEAD} BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. Your own opinions are welcome, said as yours.`;
 
 /** A stand-in for the events API: records what it's sent and answers with `status`. */
 function standIn() {
@@ -39,39 +42,72 @@ const until = async (done: () => boolean) => {
 const settled = () => new Promise((r) => setTimeout(r, 40));
 
 describe("shareContent", () => {
-  it("says the song, its checked facts, and to add nothing", () => {
+  it("says the song, its checked facts and where they were checked, and to add no facts of its own", () => {
     expect(shareContent(song, facts)).toBe(
-      "Now playing: Paper Lanterns by The Made Up Band. Checked facts from Wikipedia, Wikidata and MusicBrainz: It was recorded in one take. It came out in 1999. Answer questions about this song only from these facts and add nothing."
+      `${HEAD} Facts from BubbleFacts, checked against Wikipedia and Wikidata: It was recorded in one take. It came out in 1999. State facts about this song only from these, add none, and credit BubbleFacts. Your own opinions are welcome, said as yours.`
     );
+  });
+
+  it("names only the sources its facts came from", () => {
+    expect(shareContent(song, [facts[0]])).toContain("checked against Wikipedia: It was");
+    expect(shareContent(song, [fact("It runs 3:41.", "MusicBrainz")])).toContain("checked against MusicBrainz: It runs");
+    expect(shareContent(song, [...facts, fact("It runs 3:41.", "MusicBrainz"), fact("A single from 1999.", "Wikipedia infobox: Paper Lanterns")])).toContain(
+      "checked against Wikipedia, Wikidata and MusicBrainz:"
+    );
+  });
+
+  it("says the song as soon as it starts, and that there are no facts to state yet", () => {
+    expect(shareContent(song, [])).toBe(NO_FACTS);
   });
 
   it("never sends who requested the song", () => {
     expect(shareContent(song, facts)).not.toContain("viewer_name");
+    // The song list's own line about the requester, as the pipeline writes it.
+    const entry: SSLQueueItem = { id: 1, songId: null, song: { title: song.title, artist: song.artist }, nonlistSong: null, note: null, streamerId: 1, createdAt: "", requests: [{ id: 1, name: "viewer_name" }] };
+    const lines = buildStatFacts(entry, { streamerName: "madeupchannel" });
+    expect(lines.join(" ")).toContain("viewer_name");
+    const fromList = lines.map((l) => fact(l, "Your song list"));
+    expect(shareContent(song, [...facts, ...fromList])).not.toContain("viewer_name");
+    expect(shareContent(song, fromList)).toBe(NO_FACTS);
   });
 
-  it("doesn't call the streamer's own facts checked", () => {
+  it("doesn't call the streamer's own facts checked, or credit them to BubbleFacts", () => {
     const text = shareContent(song, [facts[0], fact("Written on a train.", "Your facts for this song")]);
-    expect(text).toContain("It was recorded in one take. From the streamer: Written on a train. Answer");
+    expect(text).toContain("It was recorded in one take. From the streamer: Written on a train. State");
+    expect(shareContent(song, [fact("Written on a train.", "Your facts for this song")])).toBe(
+      `${HEAD} From the streamer: Written on a train. State facts about this song only from these, and add none. Your own opinions are welcome, said as yours.`
+    );
   });
 
-  it("has nothing to share without facts", () => {
-    expect(shareContent(song, [])).toBe("");
+  it("keeps an artist's Twitch About as theirs, not the streamer's", () => {
+    const text = shareContent(song, [fact("From their Twitch About: I write songs about trains.", "Twitch About: madeupartist")]);
+    expect(text).toBe(`${HEAD} From their Twitch About: I write songs about trains. State facts about this song only from these, and add none. Your own opinions are welcome, said as yours.`);
   });
 
   it("leaves out an unknown artist", () => {
-    expect(shareContent({ title: "Paper Lanterns", artist: "Unknown" }, facts)).toMatch(/^Now playing: Paper Lanterns\. Checked/);
+    expect(shareContent({ title: "Paper Lanterns", artist: "Unknown" }, facts)).toMatch(/^Now playing: "Paper Lanterns"\. Facts from/);
   });
 
   it("stays within the limit with whole facts", () => {
     const many = Array.from({ length: 12 }, (_, i) => fact(`Fact ${i} ${"x".repeat(280)}.`));
     const long = shareContent({ title: "T".repeat(500), artist: "A".repeat(500) }, many);
     expect(long.length).toBeLessThanOrEqual(CONTENT_LIMIT);
-    expect(long).toMatch(/add nothing\.$/);
+    expect(long).toMatch(/credit BubbleFacts\. Your own opinions are welcome, said as yours\.$/);
     expect(long.match(/Fact \d+ x{280}\./g)?.length).toBeGreaterThan(0);
+    const mixed = shareContent(song, [...Array.from({ length: 8 }, (_, i) => fact(`Checked ${i} ${"y".repeat(150)}.`, "Wikidata")), fact("Written on a train.", "Your custom facts")]);
+    expect(mixed.length).toBeLessThanOrEqual(CONTENT_LIMIT);
   });
 
-  it("keeps a title to one line", () => {
-    expect(shareContent({ title: "One\n\nTwo\u0007", artist: "Band" }, facts)).toMatch(/^Now playing: One Two by Band\./);
+  it("keeps a title to one line, in quotes", () => {
+    expect(shareContent({ title: "One\n\nTwo\u0007", artist: "Band" }, facts)).toMatch(/^Now playing: "One Two" by Band\./);
+    expect(shareContent({ title: 'Say "Hello"', artist: "Band" }, [])).toMatch(/^Now playing: "Say 'Hello'" by Band\./);
+  });
+
+  it("doesn't announce a track that isn't music, unless the streamer gave it facts", () => {
+    const ad: SSLSong = { title: "Moonbrew Cola Commercial", artist: "" };
+    expect(shareContent(ad, [])).toBe("");
+    expect(shareContent(ad, [fact("Our sponsor tonight.", "Your facts for this song")])).toContain('Now playing: "Moonbrew Cola Commercial".');
+    expect(shareContent({ title: " ", artist: "Band" }, facts)).toBe("");
   });
 });
 
@@ -93,38 +129,47 @@ describe("shareAddress", () => {
   ])("refuses %s", (url) => expect(shareAddress(url)).toBeNull());
 });
 
-describe("shareTtl", () => {
-  it("lasts about the song, with a default when its length isn't known", () => {
-    expect(shareTtl(200)).toBe(230);
-    expect(shareTtl(null)).toBe(420);
-    expect(shareTtl(100000)).toBe(3600);
-  });
-});
-
 describe("SongFactSharer", () => {
   let stand: ReturnType<typeof standIn>;
   const lines: string[] = [];
-  const sharer = () =>
-    new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log: (l) => lines.push(l) });
+  /** Every sharer a test starts, stopped when it ends: one left running would log into the next test. */
+  const started: SongFactSharer[] = [];
+  const track = (s: SongFactSharer) => (started.push(s), s);
+  const sharer = (more: { refreshMs?: number } = {}) =>
+    track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log: (l) => lines.push(l), ...more }));
 
   beforeEach(async () => {
     lines.length = 0;
     stand = standIn();
     await stand.ready;
   });
-  afterEach(() => stand.close());
+  afterEach(() => {
+    for (const s of started.splice(0)) s.stop();
+    return stand.close();
+  });
 
   it("sends one snapshot of the song to the events endpoint, with the key as a bearer token", async () => {
-    sharer().update(song, facts, 200);
+    sharer().update(song, facts);
     await until(() => stand.server.requests.length === 1);
     const [{ auth, body }] = stand.server.requests;
     expect(auth).toBe(`Bearer ${KEY}`);
     expect(body.eventType).toBe("INTEGRATION_STATE");
-    expect(body.data).toEqual({ channelName: "madeupchannel", sourceId: "bubblefacts", content: shareContent(song, facts), ttl: 230 });
+    expect(body.data).toEqual({ channelName: "madeupchannel", sourceId: "bubblefacts", content: shareContent(song, facts), ttl: SHARE_TTL_SECONDS });
+  });
+
+  it("shares the song when it starts, then its facts when they arrive", async () => {
+    const s = sharer();
+    s.update(song, []);
+    await until(() => stand.server.requests.length === 1);
+    expect(stand.server.requests[0].body.data.content).toBe(NO_FACTS);
+    s.update(song, facts);
+    await until(() => stand.server.requests.length === 2);
+    expect(stand.server.requests[1].body.data.content).toContain("It came out in 1999.");
   });
 
   it("sends only the latest of changes made close together, and nothing when they repeat", async () => {
     const s = sharer();
+    s.update(song, []);
     s.update(song, [facts[0]]);
     s.update(song, facts);
     await until(() => stand.server.requests.length === 1);
@@ -134,7 +179,16 @@ describe("SongFactSharer", () => {
     expect(stand.server.requests[0].body.data.content).toContain("1999");
   });
 
-  it("clears the snapshot when the song ends or its facts are gone", async () => {
+  it("takes a fact off again when it comes off the stream", async () => {
+    const s = sharer();
+    s.update(song, facts);
+    await until(() => stand.server.requests.length === 1);
+    s.update(song, [facts[1]]);
+    await until(() => stand.server.requests.length === 2);
+    expect(stand.server.requests[1].body.data.content).not.toContain("one take");
+  });
+
+  it("clears the snapshot when the song ends", async () => {
     const s = sharer();
     s.update(song, facts);
     await until(() => stand.server.requests.length === 1);
@@ -173,9 +227,41 @@ describe("SongFactSharer", () => {
     expect(lines).toEqual(["[Share] Song facts not shared: HTTP 500"]);
   });
 
+  it("tries again with each refresh after a failure, and shares once the other app answers", async () => {
+    stand.server.status = 500;
+    const s = sharer({ refreshMs: 15 });
+    s.update(song, facts);
+    await until(() => stand.server.requests.length >= 3);
+    expect(lines).toEqual(["[Share] Song facts not shared: HTTP 500"]);
+    stand.server.status = 200;
+    const failed = stand.server.requests.length;
+    await until(() => stand.server.requests.length > failed);
+    s.stop();
+    expect(stand.server.requests[failed].body.data.content).toBe(shareContent(song, facts));
+  });
+
+  it("says a refused event plainly", async () => {
+    stand.server.status = 422;
+    sharer().update(song, facts);
+    await until(() => lines.length === 1);
+    expect(lines[0]).toBe("[Share] Song facts not shared: the event was refused");
+  });
+
+  it("says nothing more once it's stopped, even when a request was on its way", async () => {
+    stand.server.delayMs = 60;
+    const s = sharer();
+    s.update(song, facts);
+    await until(() => stand.server.requests.length === 1);
+    s.stop();
+    // The connection goes away under the request that was still waiting for its answer.
+    await stand.close();
+    await settled();
+    expect(lines).toEqual([]);
+  });
+
   it("stops after the key is refused, until a restart", async () => {
     stand.server.status = 401;
-    const s = sharer();
+    const s = sharer({ refreshMs: 15 });
     s.update(song, facts);
     await until(() => lines.length === 1);
     s.update({ title: "Second Song", artist: "Band" }, facts);
@@ -186,12 +272,12 @@ describe("SongFactSharer", () => {
   });
 
   it("says a dead connection and a timeout quietly", async () => {
-    const dead = new SongFactSharer({ url: "http://127.0.0.1:9/v1/events", apiKey: KEY, channel: "c", settleMs: 1, log: (l) => lines.push(l) });
+    const dead = track(new SongFactSharer({ url: "http://127.0.0.1:9/v1/events", apiKey: KEY, channel: "c", settleMs: 1, log: (l) => lines.push(l) }));
     dead.update(song, facts);
     await until(() => lines.length === 1);
     expect(lines[0]).toBe("[Share] Song facts not shared: no connection");
     stand.server.delayMs = 400;
-    const slow = new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "c", settleMs: 1, timeoutMs: 20, log: (l) => lines.push(l) });
+    const slow = track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "c", settleMs: 1, timeoutMs: 20, log: (l) => lines.push(l) }));
     slow.update(song, facts);
     await until(() => lines.length === 2);
     expect(lines[1]).toBe("[Share] Song facts not shared: timed out");
@@ -206,24 +292,42 @@ describe("SongFactSharer", () => {
     expect(stand.server.requests).toHaveLength(1);
   });
 
-  it("sends a long song again before its snapshot runs out", async () => {
+  it("sends the song again every minute, well before it runs out, for an hour after it last changed", async () => {
     jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
-    const posts: string[] = [];
+    const posts: Array<{ data: { content: string; ttl?: number } }> = [];
     const realFetch = global.fetch;
     global.fetch = (async (_url: string, init: RequestInit) => {
-      posts.push(String(init.body));
+      posts.push(JSON.parse(String(init.body)));
       return { ok: true, status: 200 } as Response;
     }) as unknown as typeof fetch;
     try {
-      sharer().update(song, facts, 300);
+      const s = sharer();
+      s.update(song, []);
       await jest.advanceTimersByTimeAsync(5);
       expect(posts).toHaveLength(1);
-      await jest.advanceTimersByTimeAsync(299_000);
+      await jest.advanceTimersByTimeAsync(59_000);
       expect(posts).toHaveLength(1);
       await jest.advanceTimersByTimeAsync(2_000);
       expect(posts).toHaveLength(2);
+      // Each one lasts longer than two refreshes, so a single missed send doesn't drop the song.
+      expect(posts.every((p) => p.data.ttl === SHARE_TTL_SECONDS)).toBe(true);
+      expect(SHARE_TTL_SECONDS).toBeGreaterThan(120);
+      // A change starts the hour over, and its own refreshes.
+      s.update(song, facts);
+      await jest.advanceTimersByTimeAsync(5);
+      expect(posts).toHaveLength(3);
+      await jest.advanceTimersByTimeAsync(3_600_000);
+      const afterAnHour = posts.length;
+      expect(afterAnHour).toBeGreaterThanOrEqual(60);
+      expect(afterAnHour).toBeLessThanOrEqual(63);
       await jest.advanceTimersByTimeAsync(4 * 3_600_000);
-      expect(posts.length).toBeLessThanOrEqual(13);
+      expect(posts).toHaveLength(afterAnHour);
+      // The song ending clears it, and nothing is sent after that.
+      s.update(null, []);
+      await jest.advanceTimersByTimeAsync(5);
+      expect(posts[posts.length - 1].data).toEqual({ channelName: "madeupchannel", sourceId: "bubblefacts", content: "" });
+      await jest.advanceTimersByTimeAsync(3_600_000);
+      expect(posts).toHaveLength(afterAnHour + 1);
     } finally {
       global.fetch = realFetch;
       jest.useRealTimers();
