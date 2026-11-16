@@ -1,36 +1,23 @@
 import WebSocket from "ws";
 
-/**
- * Minimal reader for Centrifugo's unidirectional WebSocket endpoint. The
- * public StreamerSongList channels need no auth, so the whole protocol is:
- * connect with the channels as `subs`, read frames.
- *
- *   sent: {"subs":{"<channel>":{}}}            Centrifugo's connect request
- *   {}                                         ping (uni streams cannot reply)
- *   {"connect":{…,"subs":{"<channel>":{…}}}}   connected; `subs` lists what it subscribed
- *   {"channel":"…","pub":{"data":…,"offset":…}}  publication (also seen wrapped in "push")
- *   {"disconnect":{"code":…,"reason":"…"}}     server closing
- *
- * StreamerSongList's publications carry {"type":"queue_add","data":{…}} and
- * the like, on both channels.
- *
- * Centrifugo ignores fields it doesn't know: a request without `subs`
- * connects to no channel and never hears a publication. A message may hold
- * several frames, one per line.
- */
+// Minimal reader for Centrifugo's one-way WebSocket endpoint; StreamerSongList's channels need no auth
+// Frames, possibly several per message, one per line:
+//   sent: {"subs":{"<channel>":{}}}            connect request; unknown fields are ignored, so no `subs` means no channel
+//   {}                                         ping (one-way streams cannot reply)
+//   {"connect":{…,"subs":{"<channel>":{…}}}}   connected; `subs` lists what it subscribed
+//   {"channel":"…","pub":{"data":…,"offset":…}}  publication (also seen wrapped in "push"), data {"type":"queue_add","data":{…}}
+//   {"disconnect":{"code":…,"reason":"…"}}     server closing
 
-/** StreamerSongList's event envelope, as far as it is known: `type` is "" when a publication has none. */
+/** StreamerSongList's event envelope, as far as known; `type` is "" when a publication has none */
 export interface SSLEvent {
   type: string;
   data: unknown;
 }
 
-const MIN_RECONNECT_MS = 1_000;
-const MAX_RECONNECT_MS = 30_000;
-/** A connection that drops sooner than this hasn't earned a shorter wait: a flapping server is backed off from. */
-const STABLE_MS = 60_000;
-/** Centrifugo pings about every 25 seconds, so this long without any frame means the socket is dead. */
-const READ_TIMEOUT_MS = 90_000;
+const MIN_RECONNECT_MS = 1_000; // ms before the first reconnect, doubling each time
+const MAX_RECONNECT_MS = 30_000; // ms, longest wait between reconnects
+const STABLE_MS = 60_000; // ms a connection must hold before the wait resets, so a flapping server is backed off from
+const READ_TIMEOUT_MS = 90_000; // ms without any frame before the socket counts as dead; Centrifugo pings about every 25 s
 
 export interface StreamTiming {
   stableMs: number;
@@ -50,7 +37,7 @@ export class CentrifugoStream {
     private readonly url: string,
     private readonly channels: string[],
     private readonly onPublication: (channel: string, event: SSLEvent) => void,
-    /** Called on every (re)connect: anything published while disconnected was missed. */
+    /** Called on every (re)connect: anything published while disconnected was missed */
     private readonly onConnect: () => void = () => undefined,
     private readonly timing: StreamTiming = { stableMs: STABLE_MS, readTimeoutMs: READ_TIMEOUT_MS }
   ) {}
@@ -70,7 +57,7 @@ export class CentrifugoStream {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.clearConnectionTimers();
-    // Keep a no-op error listener: closing a socket that is still connecting emits one.
+    // Keep a no-op error listener: closing a socket that is still connecting emits one
     this.ws?.removeAllListeners().on("error", () => undefined);
     this.ws?.terminate();
     this.ws = null;
@@ -96,11 +83,11 @@ export class CentrifugoStream {
       console.log(`[Events] Disconnected (${code} ${reason.toString()}), reconnecting`);
       this.scheduleReconnect();
     });
-    // "close" always follows "error"; reconnection happens there.
+    // "close" always follows "error"; reconnection happens there
     ws.on("error", (err) => console.error("[Events] Socket error:", err.message));
   }
 
-  /** Drop a socket that has gone quiet (no frame, not even a ping): its close then starts the reconnect. */
+  /** Drops a socket gone quiet (not even a ping); its close starts the reconnect */
   private armWatchdog(ws: WebSocket): void {
     if (this.watchdog) clearTimeout(this.watchdog);
     this.watchdog = setTimeout(() => {
@@ -135,10 +122,10 @@ export class CentrifugoStream {
     if (!frame || !Object.keys(frame).length) return;
 
     if (frame.connect) {
-      // The wait shortens only once the connection has held for a while, not on every connect.
+      // The wait resets only once the connection has held, not on every connect
       if (this.stableTimer) clearTimeout(this.stableTimer);
       this.stableTimer = setTimeout(() => (this.reconnectDelayMs = MIN_RECONNECT_MS), this.timing.stableMs);
-      // Connected only counts with a channel subscribed: without one, no event ever comes.
+      // Connected only with a channel subscribed: without one, no event ever comes
       const subscribed = this.channels.filter((c) => frame.connect.subs?.[c]);
       this.connected = subscribed.length > 0;
       console.log(
@@ -154,8 +141,8 @@ export class CentrifugoStream {
       return;
     }
 
-    // This endpoint sends publications bare; Centrifugo's other protocols wrap them in "push".
-    // Every publication means "refetch", whatever its data: StreamerSongList's own pages don't read it either.
+    // Bare here; Centrifugo's other protocols wrap publications in "push"
+    // Any publication means "fetch again", whatever its data: StreamerSongList's own pages don't read it either
     const push = frame.push ?? frame;
     const pub = push?.pub;
     if (typeof push?.channel === "string" && pub && typeof pub === "object") {

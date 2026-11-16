@@ -95,7 +95,7 @@ import { artistNames, mentionsName, restatesRequest } from "./fact-verifier";
 import { hasNoArtist } from "./text";
 import { topic } from "./topic";
 
-/** Last edited long ago: an article read as it is (issue #242). */
+/** Last edited long ago: an article read as it is (#242) */
 const OLD_ENOUGH = [{ timestamp: "2020-01-01T00:00:00Z" }];
 
 describe("resolveGameAndTrack", () => {
@@ -194,7 +194,7 @@ describe("screenClaims", () => {
   });
 
   it("drops fabricated award claims", () => {
-    // A real failure: the model invented a Tokyo Game Award.
+    // Real failure: the model invented a Tokyo Game Award
     const r = screenClaims(
       ["This piece won Best Original Soundtrack at the 2016 Tokyo Game Awards."],
       NO_CONTEXT
@@ -282,9 +282,7 @@ describe("screenClaims", () => {
   });
 
   it("does not screen years or platforms when there is no reference", () => {
-    // Without a reference the prompt asks for general, well-known facts, which
-    // legitimately contain years and console names. Screening them here would
-    // reject everything and blank the overlay.
+    // Facts without a reference rightly hold years and consoles: screening them would blank the overlay
     const fact = "The NES sound chip had five channels, including a triangle wave.";
     expect(screenClaims([fact], NO_CONTEXT).kept).toEqual([fact]);
   });
@@ -309,14 +307,14 @@ describe("curatedFacts", () => {
     const all = topic.curatedFacts.length;
     const start = 1_000_000;
     const first = curatedFacts(2, start);
-    // Every other fact goes before either of these comes back.
+    // Every other fact goes before either of these comes back
     const rest = curatedFacts(all, start + 60_000);
     expect(rest).toHaveLength(all - 2);
     expect(rest).not.toEqual(expect.arrayContaining([first[0]]));
     expect(rest).not.toEqual(expect.arrayContaining([first[1]]));
-    // All shown within the hour: none, not a repeat.
+    // All shown within the hour: none, not a repeat
     expect(curatedFacts(3, start + 30 * 60_000)).toEqual([]);
-    // After their rest, the longest unused come back first.
+    // After their rest, the longest unused come back first
     expect(curatedFacts(5, start + CURATED_REST_MS).sort()).toEqual([...first].sort());
   });
 });
@@ -344,13 +342,13 @@ describe("isRelevantArticle", () => {
   });
 
   it("rejects a longer title that only shares the subject's last word", () => {
-    // A real failure: "The Midnight - Lost Boy" was grounded on a racing game.
+    // Real failure: "The Midnight - Lost Boy" was grounded on a racing game
     expect(isRelevantArticle("The Midnight", "Wangan Midnight")).toBe(false);
     expect(isRelevantArticle("The Midnight", "Wangan Midnight (2007 video game)")).toBe(false);
   });
 
   it("rejects a possessive title, which names another work", () => {
-    // From a live stream: "Michael Jackson - Whatever Happens" got facts about the This Is It album.
+    // From a live stream: "Michael Jackson - Whatever Happens" got facts about the This Is It album
     expect(isRelevantArticle("Michael Jackson", "Michael Jackson's This Is It (album)", true)).toBe(false);
   });
 
@@ -360,7 +358,7 @@ describe("isRelevantArticle", () => {
   });
 
   it("rejects the unrelated article Wikipedia returns for an original song", () => {
-    // A real failure: faithful facts about entirely the wrong work.
+    // Real failure: faithful facts about entirely the wrong work
     expect(isRelevantArticle("Jane Composer", "The Last of Us season 1")).toBe(false);
   });
 
@@ -370,8 +368,7 @@ describe("isRelevantArticle", () => {
 });
 
 describe("isRelevantArticle — franchise siblings and false friends", () => {
-  // Screening cannot catch these: the facts would match the article, and the
-  // article is the wrong one. So relevance has to reject them.
+  // Screening can't catch these (the facts match the wrong article): relevance must reject them
   const MUST_REJECT: Array<[string, string]> = [
     ["Final Fantasy VI", "Final Fantasy VII"],
     ["Dragon Quest II", "Dragon Quest III"],
@@ -381,8 +378,7 @@ describe("isRelevantArticle — franchise siblings and false friends", () => {
     ["Sonic the Hedgehog 2", "Sonic the Hedgehog 3"],
     ["Chrono Trigger", "Chrono Cross"],
     ["Ys", "System Shock"],
-    // Wikipedia's own parenthetical is the disambiguator; stripping it was
-    // what let these through.
+    // Wikipedia's own brackets tell these apart; stripping them let these through
     ["Journey", "Journey (band)"],
     ["Braid", "Braid (hairstyle)"],
     ["Celeste", "Celeste (band)"],
@@ -399,7 +395,7 @@ describe("isRelevantArticle — franchise siblings and false friends", () => {
     ["Ys VIII", "Ys VIII: Lacrimosa of Dana"],
     ["Ys VIII Lacrimosa of Dana", "Ys VIII: Lacrimosa of Dana"],
     ["Undertale", "Undertale"],
-    // The same numeral written the same way still matches.
+    // The same numeral written the same way still matches
     ["Final Fantasy VI", "Final Fantasy VI"],
   ];
 
@@ -412,7 +408,7 @@ describe("numerals written differently name different works", () => {
   it("never matches an arabic number to a roman numeral", () => {
     expect(isRelevantArticle("Rocket Robo 5", "Rocket Robo V (1994 video game)")).toBe(false);
     expect(isRelevantArticle("Rocket Robo V", "Rocket Robo 5")).toBe(false);
-    // "10" and "X" are both ten, and two different games.
+    // "10" and "X" are both ten, and two different games
     expect(isRelevantArticle("Rocket Robo 10", "Rocket Robo X (video game)")).toBe(false);
     expect(isRelevantArticle("Sky Quest 7", "Sky Quest VII")).toBe(false);
   });
@@ -448,14 +444,14 @@ describe("editionNotInTitle", () => {
   it("is null when the title has it, or the request names none", () => {
     expect(editionNotInTitle("Phantom Heist 5 Royal", "Phantom Heist 5 Royal")).toBeNull();
     expect(editionNotInTitle("Moon Garden", "Moon Garden (video game)")).toBeNull();
-    // A first word is the name, not an edition.
+    // A first word is the name, not an edition
     expect(editionNotInTitle("Golden Lantern", "Golden Lantern (video game)")).toBeNull();
     expect(editionNotInTitle("Golden Lantern", "Lantern")).toBeNull();
   });
 });
 
 describe("person-name screening", () => {
-  // Composer attribution is the most visible error this overlay can make.
+  // A wrong composer is the most visible error the overlay can make
   const CTX =
     "the game's music was composed by falcom sound team jdk. a piano arrangement album followed.";
 
@@ -487,8 +483,7 @@ describe("person-name screening", () => {
   });
 
   it("does not screen names when there is no reference to check against", () => {
-    // Ungrounded facts are hand-written curated ones; screening them here
-    // would reject correct content and blank the overlay.
+    // Facts without a reference, such as custom ones, pass: screening would reject them and blank the overlay
     const fact = "Nobuo Uematsu wrote the music for the first nine Final Fantasy games.";
     expect(screenClaims([fact], "").kept).toEqual([fact]);
   });
@@ -559,7 +554,7 @@ describe("screening edge cases", () => {
   const CTX = "ys viii was released in 2016 for playstation vita by nihon falcom.";
 
   it("screens every year in a line, not just the first", () => {
-    // "2016" corroborated the whole sentence and carried 2021 in with it.
+    // "2016" corroborated the whole sentence and carried 2021 in with it
     const r = screenClaims(["Ys VIII arrived in 2016 and was remastered in 2021."], CTX);
     expect(r.kept).toHaveLength(0);
     expect(r.rejected[0].reason).toMatch(/unsupported year 2021/);
@@ -622,9 +617,8 @@ describe("duplicate and length screening", () => {
 });
 
 describe("non-video-game repertoire", () => {
-  // The setlist is not only game music: pop, film and musical soundtracks,
-  // classical, and the streamer's own compositions all appear. A relevance guard
-  // tuned only for games rejects their articles outright.
+  // Song lists hold pop, film and musical scores, classical and the streamer's own pieces too:
+  // a relevance guard tuned only for games rejects their articles
   it("accepts a classical work's own article", () => {
     expect(isRelevantArticle("Clair de Lune", "Clair de Lune (Debussy)")).toBe(true);
     expect(isRelevantArticle("Suite bergamasque", "Suite bergamasque")).toBe(true);
@@ -647,7 +641,7 @@ describe("non-video-game repertoire", () => {
   it("admits a performer article only when the subject is a performer", () => {
     // "Journey" the game must not ground on "Journey (band)"...
     expect(isRelevantArticle("Journey", "Journey (band)", false)).toBe(false);
-    // ...but a song list entry whose subject IS the band legitimately does.
+    // ...but an entry whose subject is the band does
     expect(isRelevantArticle("Journey", "Journey (band)", true)).toBe(true);
   });
 });
@@ -671,9 +665,7 @@ describe("looksLikeArtistName", () => {
 
 describe("qualifierNamesAnotherArtist", () => {
   it("rejects a same-titled work by a different artist", () => {
-    // Live regression: "Clair de Lune" matched "Clair de Lune (Flight
-    // Facilities song)" — a 2012 electronic track, not Debussy — because the
-    // track name matched exactly. Titles collide across genres constantly.
+    // Seen live: "Clair de Lune" matched Flight Facilities' 2012 track on the exact title; titles collide across genres
     expect(
       qualifierNamesAnotherArtist("Clair de Lune (Flight Facilities song)", "Claude Debussy")
     ).toBe(true);
@@ -690,9 +682,9 @@ describe("qualifierNamesAnotherArtist", () => {
   });
 
   it("treats a bracket the requested title shares as part of the name", () => {
-    // Live: "Separate Ways (Worlds Apart)" by Journey fell through to the 2012 video game Journey.
+    // Seen live: "Separate Ways (Worlds Apart)" by Journey fell through to the 2012 game Journey
     expect(qualifierNamesAnotherArtist("Separate Ways (Worlds Apart)", "Journey", "Separate Ways (Worlds Apart)")).toBe(false);
-    // A bare subtitle is allowed only where the caller checks the article names the artist.
+    // A bare subtitle only where the caller checks the article names the artist
     expect(qualifierNamesAnotherArtist("Separate Ways (Worlds Apart)", "Journey", "Separate Ways", true)).toBe(false);
     expect(qualifierNamesAnotherArtist("Clair de Lune (Flight Facilities song)", "Claude Debussy", "Clair de Lune", true)).toBe(true);
   });
@@ -703,47 +695,38 @@ describe("qualifierNamesAnotherArtist", () => {
 });
 
 describe("isRelevantArticle — title collisions seen in real song lists", () => {
-  // Each case comes from real song-list entries.
+  // Each case from real song-list entries
   it("does not ground a numbered installment on the un-numbered original", () => {
-    // "To Zanarkand" by Final Fantasy X grounded on "Final Fantasy (video
-    // game)" — i.e. FF1. "Final Fantasy" is a prefix of "Final Fantasy X",
-    // so prefix matching alone accepted a truncation that dropped the
-    // installment. Same shape as the franchise-sibling bug, parent/child.
+    // "To Zanarkand" (Final Fantasy X) grounded on the first game: a prefix match dropped the installment number
     expect(isRelevantArticle("Final Fantasy X", "Final Fantasy (video game)")).toBe(false);
     expect(isRelevantArticle("Marvel vs Capcom 2", "Marvel vs. Capcom")).toBe(false);
   });
 
   it("still allows a series subject to match one of its installments", () => {
-    // The reverse direction is legitimate: the song list often names the
-    // series, and any installment's article is a fair reference.
+    // The reverse is fine: lists often name the series, and any installment's article is a fair reference
     expect(isRelevantArticle("Animal Crossing", "Animal Crossing: New Leaf")).toBe(true);
     expect(isRelevantArticle("Ys", "Ys I")).toBe(true);
   });
 
   it("does not follow a name into a different medium", () => {
-    // "Super Mario 64: Dire Dire Docks" grounded on "The Super Mario Galaxy
-    // Movie (soundtrack)" — the film, not the game.
+    // "Super Mario 64: Dire Dire Docks" grounded on "The Super Mario Galaxy Movie (soundtrack)"
     expect(
       isRelevantArticle("Super Mario", "The Super Mario Galaxy Movie (soundtrack)")
     ).toBe(false);
   });
 
   it("matches two-letter titles, which were being filtered out entirely", () => {
-    // significantTokens dropped tokens under three characters, so "Ys" — a
-    // whole series and core repertoire — reduced to an empty token list and
-    // could never match anything. Every Ys track in the set missed grounding.
+    // Words under three letters were dropped, so "Ys" matched nothing and every Ys track went ungrounded
     expect(isRelevantArticle("Ys", "Ys (series)")).toBe(true);
     expect(isRelevantArticle("Ys", "Ys II: The Final Chapter")).toBe(true);
-    // ...without becoming a substring free-for-all.
+    // ...without becoming a substring free-for-all
     expect(isRelevantArticle("Ys", "System Shock")).toBe(false);
   });
 });
 
 describe("resolveGameAndTrack — series in artist, game in title", () => {
   it("prefers the more specific game named in the title", () => {
-    // Live: artist "Super Mario" grounded a Super Mario 64 track on the
-    // Super Mario Galaxy soundtrack; artist "Animal Crossing" put a New
-    // Horizons track on New Leaf.
+    // Seen live: artist "Super Mario" put a Super Mario 64 track on Galaxy's soundtrack, a New Horizons track on New Leaf
     expect(
       resolveGameAndTrack({ title: "Super Mario 64: Dire Dire Docks", artist: "Super Mario" })
     ).toEqual({ game: "Super Mario 64", track: "Dire Dire Docks" });
@@ -772,7 +755,7 @@ describe("resolveGameAndTrack — series in artist, game in title", () => {
   });
 
   it("rejects a truncated title that isn't at a subtitle break", () => {
-    // A real failure: a drum cover of "Everybody Dance Now" got facts about a PlayStation game.
+    // Real failure: a drum cover of "Everybody Dance Now" got facts about a PlayStation game
     expect(isRelevantArticle("Everybody Dance Now", "Everybody Dance (video game)")).toBe(false);
     expect(isRelevantArticle("Ys VIII: Lacrimosa of Dana", "Ys VIII")).toBe(true);
   });
@@ -780,8 +763,7 @@ describe("resolveGameAndTrack — series in artist, game in title", () => {
 
 describe("grounding — stubs, arrangements and remakes", () => {
   it("does not read an arrangement marker as the game name", () => {
-    // "(Arr Arcana Shift)" was parsed as the game, so every Ys VIII
-    // arrangement grounded on the bare "Ys (series)" article instead.
+    // "(Arr Arcana Shift)" was read as the game, so every Ys VIII arrangement grounded on "Ys (series)"
     expect(
       splitGameAndTrack("Ys VIII Lacrimosa of Dana: Iclucian Dance (Arr Arcana Shift)").game
     ).toBe("Ys VIII Lacrimosa of Dana");
@@ -796,8 +778,7 @@ describe("grounding — stubs, arrangements and remakes", () => {
   });
 
   it("rejects an article for a work that has not been released yet", () => {
-    // "Song of Storms" grounded on the 2026 Ocarina REMAKE and the overlay
-    // announced an "upcoming" game under a 1998 track.
+    // "Song of Storms" grounded on the 2026 Ocarina remake: an "upcoming" game under a 1998 track
     const future = new Date().getFullYear() + 1;
     expect(
       isRelevantArticle(
@@ -944,7 +925,7 @@ describe("fetchGrounding", () => {
     await fetchGrounding({ title: "First Steps", artist: "Celeste" });
     const calls = fetchMock.mock.calls.length;
     expect(await fetchGrounding({ title: "Resurrections", artist: "Celeste" })).toMatch(/^Celeste/);
-    // One search for the track's own article, and nothing more: the game's is reused.
+    // One search for the track's own article only: the game's is reused
     expect(fetchMock.mock.calls.length).toBe(calls + 1);
     await fetchGrounding({ title: "Resurrections", artist: "Celeste" });
     expect(fetchMock.mock.calls.length).toBe(calls + 1);
@@ -961,7 +942,7 @@ describe("fetchGrounding", () => {
     mentions = { Megalovania: "a song from Undertale" };
     expect(await fetchGrounding({ title: "Megalovania", artist: "Undertale" })).toMatch(/^Megalovania\n/);
     expect(await fetchGrounding({ title: "Hopes and Dreams", artist: "Undertale" })).toMatch(/^Undertale\n/);
-    // An article with the track's name that isn't about music: Skyrim's "Dragonborn" expansion.
+    // An article with the track's name that isn't about music: Skyrim's "Dragonborn" expansion
     pages = { "Dragonborn Skyrim": ["Dragonborn"], "Skyrim video game": ["Skyrim"] };
     mentions = { Dragonborn: "an add-on for Skyrim" };
     expect(await fetchGrounding({ title: "Dragonborn", artist: "Skyrim" })).toMatch(/^Skyrim\n/);
@@ -977,8 +958,7 @@ describe("fetchGrounding", () => {
     expect(await fetchGrounding({ title: "Track One", artist: "The Tiny Game 2" })).toBe("");
     const calls = fetchMock.mock.calls.length;
     expect(await fetchGrounding({ title: "Track Two", artist: "The Tiny Game 2" })).toBe("");
-    // The search for Track Two's own article and the last resort, the song by its title with a credited name
-    // (two searches); the game isn't looked up again.
+    // Track Two's own article, then the song by title with a credited name (two searches); the game isn't looked up again
     expect(fetchMock.mock.calls.length).toBe(calls + 3);
   });
 
@@ -1003,10 +983,10 @@ describe("fetchGrounding", () => {
     pages = { "Celeste video game": ["Celeste (video game)"] };
     expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toMatch(/^Celeste/);
     blockArticle({ title: "First Steps", artist: "Celeste" }, "Celeste (video game)");
-    // Blocked even though it's cached, and only for that song.
+    // Blocked even though it's cached, and only for that song
     expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toBe("");
     expect(await fetchGrounding({ title: "Resurrections", artist: "Celeste" })).toMatch(/^Celeste/);
-    // Remembered after a restart.
+    // Remembered after a restart
     resetWrongFacts();
     clearGroundingCache();
     expect(await fetchGrounding({ title: "First Steps", artist: "Celeste" })).toBe("");
@@ -1097,7 +1077,7 @@ describe("a song list's notes in the title and the artist field", () => {
     expect(workFromTitle("Lantern Song (from Kiki's  Paper Harbor)")).toEqual({ track: "Lantern Song", work: "Kiki's Paper Harbor" });
     expect(workFromTitle("Lantern Song from Pirates of the Paper Harbor")).toEqual({ track: "Lantern Song", work: "Pirates of the Paper Harbor" });
     const read = readings({ title: "Lantern Song (from The Paper Harbor)", artist: "Wren Halloway & Ivo Marsh" });
-    // The song's own article under the work first; the song as listed after.
+    // The song's own article under the work first; the song as listed after
     expect(read.map((r) => [r.game, r.track, !!r.trackOnly])).toEqual([
       ["The Paper Harbor", "Lantern Song", true],
       ["Wren Halloway & Ivo Marsh", "Lantern Song (from The Paper Harbor)", false],
@@ -1135,7 +1115,7 @@ describe("artist names (peer review)", () => {
   it("keeps a whole credit and tries the lead artist", () => {
     expect(artistNames("Earth, Wind & Fire")).toEqual(["earth wind fire", "earth"]);
     expect(artistNames("Lil Nas X, Jack Harlow")).toEqual(["lil nas x jack harlow", "lil nas x"]);
-    // Written either way in articles: "Simon & Garfunkel".
+    // Written either way in articles: "Simon & Garfunkel"
     expect(artistNames("Simon and Garfunkel")).toEqual(["simon and garfunkel", "simon garfunkel"]);
   });
 
@@ -1304,10 +1284,10 @@ describe("a game's music article, and what it says about one track (issue #48)",
     const articles = { page: "Starfall", full: "Starfall is a 2019 game about ferries.", music: { page: "Music of Starfall", full: music } };
     const text = gameTrackText(articles, "Harbor at Dawn");
     expect(text.startsWith('Music of Starfall\nAbout this piece: "Harbor at Dawn" was the first piece')).toBe(true);
-    // The streamer marked the music article wrong for this song: the game's article serves.
+    // The streamer marked the music article wrong for this song: the game's article serves
     expect(gameTrackText(articles, "Harbor at Dawn", (t) => t !== "Music of Starfall").startsWith("Starfall\n")).toBe(true);
     expect(gameTrackText({ ...articles, music: null }, "Harbor at Dawn").startsWith("Starfall\n")).toBe(true);
-    // A series-wide music article is only for the tracks it names.
+    // A series-wide music article is only for the tracks it names
     const series = { ...articles, music: { ...articles.music, series: true } };
     expect(gameTrackText(series, "Harbor at Dawn").startsWith("Music of Starfall\n")).toBe(true);
     expect(gameTrackText(series, "Night Market").startsWith("Starfall\n")).toBe(true);
@@ -1375,7 +1355,7 @@ describe("other readings of a request (a song list's misses)", () => {
       ["Star Trek II: The Wrath of Khan", "Battle At The Mutara Nebula"],
       ["Star Trek series", "Star Trek II. The Wrath of Khan: Battle At The Mutara Nebula"],
     ]);
-    // A tag in brackets names the arrangement, never the work or a piece of it.
+    // A tag in brackets names the arrangement, never the work or a piece of it
     expect(readings({ title: "Star Trek: The Next Generation Theme [Legacy]", artist: "Star Trek TV" })[0]).toMatchObject({
       game: "Star Trek: The Next Generation",
       track: "Theme",
@@ -1392,7 +1372,7 @@ describe("other readings of a request (a song list's misses)", () => {
   });
 
   it("doesn't fall back to the franchise when the title names something else in brackets", () => {
-    // "Aquatic Ambiance" is from Donkey Kong Country, not Super Mario.
+    // "Aquatic Ambiance" is from Donkey Kong Country, not Super Mario
     expect(readings({ title: "Aquatic Ambiance (Donkey Kong Country)", artist: "Super Mario Franchise" })).toEqual([]);
   });
 
@@ -1403,12 +1383,12 @@ describe("other readings of a request (a song list's misses)", () => {
     ]);
     expect(readings({ title: "Passacaglia", artist: "Arr. Handel Halvorsen" })[1]).toMatchObject({ game: "Handel Halvorsen", trackOnly: false });
     const slash = readings({ title: "Sound of Silence", artist: "Simon and Garfunkel/Disturbed" });
-    // A name that isn't plainly a person's may be anything: only the song's own article is taken for it.
+    // A name that isn't plainly a person's may be anything: only the song's own article is taken for it
     expect(slash.slice(1)).toEqual([
       { game: "Simon and Garfunkel", track: "Sound of Silence", trackOnly: true },
       { game: "Disturbed", track: "Sound of Silence", trackOnly: true },
     ]);
-    // A person's name: the song's own article under every name first, then the person's, which must be a performer's.
+    // A person's name: the song's own article under every name first, then the person's, which must be a performer
     expect(readings({ title: "Nocturne Op. 9 No. 2", artist: "Frederic Chopin/Some Arranger" }).slice(1)).toEqual([
       { game: "Frederic Chopin", track: "Nocturne Op. 9 No. 2", trackOnly: true },
       { game: "Some Arranger", track: "Nocturne Op. 9 No. 2", trackOnly: true },
@@ -1449,9 +1429,9 @@ describe("Wikipedia's own spelling and names", () => {
     expect(isRespelling("Pirates of the Carribean", "Pirates of the Caribbean")).toBe(true);
     expect(isRespelling("Stein's Gate", "Steins;Gate")).toBe(true);
     expect(isRespelling("Pyotr Illyich Tchaikovsky", "Pyotr Ilyich Tchaikovsky")).toBe(true);
-    // Two words changed is another person.
+    // Two words changed is another person
     expect(isRespelling("Windy Harper", "Wendy Harmer")).toBe(false);
-    // So is another middle initial, though only one letter apart.
+    // So is another middle initial, though only one letter apart
     expect(isRespelling("Rafa F. Moreno", "Rafa J. Moreno")).toBe(false);
     expect(isRespelling("Rafa F Moreno", "Rafa J. Moreno")).toBe(false);
     expect(isRespelling("Rafa F. Morreno", "Rafa F. Moreno")).toBe(true);
@@ -1465,13 +1445,13 @@ describe("Wikipedia's own spelling and names", () => {
     expect(isSameWorkRedirect("Red Alert 3", "Command & Conquer: Red Alert 3")).toBe(true);
     expect(isSameWorkRedirect("Star Trek VII: Generations", "Star Trek Generations")).toBe(true);
     expect(isSameWorkRedirect("The Inkspots", "The Ink Spots")).toBe(true);
-    // One of several, a later installment, a list, an album, or something else altogether.
+    // One of several, a later installment, a list, an album, or something else altogether
     expect(isSameWorkRedirect("Johann Strauss", "Johann Strauss II")).toBe(false);
     expect(isSameWorkRedirect("Honkai Impact", "Honkai Impact 3rd")).toBe(false);
     expect(isSameWorkRedirect("Star Trek Movies", "List of Star Trek films")).toBe(false);
     expect(isSameWorkRedirect("Some Song", "Some Song (album)")).toBe(false);
     expect(isSameWorkRedirect("Kimi no Na wa", "Your Name")).toBe(false);
-    // A surname given a first name is one person of that name.
+    // A surname given a first name is one person of that name
     expect(isSameWorkRedirect("Poirot", "Hercule Poirot")).toBe(false);
     expect(isSameWorkRedirect("Ponce de León", "Juan Ponce de León")).toBe(false);
   });
@@ -1536,7 +1516,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Pirates of the Carribean": ["Pirates of the Caribbean: The Curse of the Black Pearl", "Pirates of the Caribbean"], "Pirates of the Caribbean": ["Pirates of the Caribbean (video game)", "Pirates of the Caribbean"] };
     suggestions = { "Pirates of the Carribean": "pirates of the caribbean" };
     extracts = { "Pirates of the Caribbean": `Pirates of the Caribbean is a Disney media franchise.${LONG}`, "Pirates of the Caribbean (video game)": `A video game.${LONG}` };
-    // The page the suggestion names, not the video game a search for it finds first.
+    // The page the suggestion names, not the video game a search for it finds first
     expect(await fetchGrounding({ title: "Davy Jones", artist: "Pirates of the Carribean" })).toMatch(/^Pirates of the Caribbean\n/);
   });
 
@@ -1545,7 +1525,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     suggestions = { "Windy Harper": "windy harmer" };
     extracts = { "Windy Harmer": `A comedian.${LONG}`, "Wendy Harmer": `A comedian.${LONG}` };
     expect(await fetchGrounding({ title: "Let's Make Toast", artist: "Windy Harper" })).toBe("");
-    // A suggestion for a name Wikipedia already has as written is ignored too.
+    // A suggestion for a name Wikipedia already has as written is ignored too
     hits = { Reverie: ["Reverie"] };
     suggestions = { Reverie: "reverse" };
     extracts = { Reverse: `Reverse.${LONG}` };
@@ -1555,7 +1535,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
   it("finds a traditional song by its title alone, and only an article about a song", async () => {
     hits = { "Greensleeves song": ["Greensleeves"], "Santa Lucia song": ["Santa Lucia"], "Santa Lucia": ["Santa Lucia"] };
     extracts = {
-      // Sections the usual ordering doesn't read: every section but the lists is used instead.
+      // Sections the usual ordering doesn't read: every section but the lists is used instead
       Greensleeves: `"Greensleeves" is a traditional English folk song.\n\n== Origin ==\n${LONG}\n\n== Form ==\n${LONG}\n\n== References ==\nA list.`,
       "Santa Lucia": `Santa Lucia is a town in Sicily.${LONG}`,
     };
@@ -1654,7 +1634,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
       "Phantom Heist 5 Royal": `Phantom Heist 5 Royal is a 2019 enhanced version of Phantom Heist 5.${LONG}`,
     };
     expect(await fetchGrounding({ title: "Last Night Song", artist: "Phantom Heist 5 Royal" })).toMatch(/^Phantom Heist 5 Royal\n/);
-    // With no edition article, the original's still serves the captions.
+    // With no edition article, the original's still serves the captions
     clearGroundingCache();
     hits = { "Phantom Heist 5 Royal video game": ["Phantom Heist 5"] };
     expect(await fetchGrounding({ title: "Last Night Song", artist: "Phantom Heist 5 Royal" })).toMatch(/^Phantom Heist 5\n/);
@@ -1671,7 +1651,7 @@ describe("fetchGrounding — other readings and Wikipedia's names", () => {
     hits = { "Baby Justin Bieber": ["Baby (Justin Bieber song)", "Justin Bieber"] };
     extracts = { "Baby (Justin Bieber song)": `"Baby" is a song by Justin Bieber.${LONG}`, "Justin Bieber": `Justin Bieber is a Canadian singer.${LONG}` };
     expect(await fetchGrounding({ title: "Baby(Justin Bieber)", artist: "Some Cover Band" })).toMatch(/^Baby \(Justin Bieber song\)\n/);
-    // No song article: never the original artist's own.
+    // No song article: never the original artist's own
     clearGroundingCache();
     hits = { "Baby Justin Bieber": ["Justin Bieber"], "Justin Bieber": ["Justin Bieber"] };
     expect(await fetchGrounding({ title: "Baby(Justin Bieber)", artist: "Some Cover Band" })).toBe("");
@@ -1695,7 +1675,7 @@ describe("glued and dashed version tags, credits of several names (a second song
     expect(dropVersionTags("What's the Use(NPR Tiny Desk)")).toBe("What's the Use");
     expect(dropVersionTags("The Real Folk Blues(2020 Performance)")).toBe("The Real Folk Blues");
     expect(dropVersionTags("Can You Feel the Love Tonight(Elton John Version 2)")).toBe("Can You Feel the Love Tonight");
-    // A name in brackets is kept: it may be the game, or part of the song's name.
+    // A name in brackets is kept: it may be the game, or part of the song's name
     expect(dropVersionTags("Song of Storms (Ocarina of Time)")).toBe("Song of Storms (Ocarina of Time)");
     expect(dropVersionTags("Forever(Part II.)")).toBe("Forever(Part II.)");
   });
@@ -1707,14 +1687,14 @@ describe("glued and dashed version tags, credits of several names (a second song
     expect(dropVersionTags("Bohemian Rhapsody - Remastered 2011")).toBe("Bohemian Rhapsody");
     expect(dropVersionTags("Let the Battles Begin - FFVII Remix")).toBe("Let the Battles Begin - FFVII");
     expect(dropVersionTags("Mystic Cave Zone - Sonic 2 Trap Remix 1")).toBe("Mystic Cave Zone - Sonic 2");
-    // "Act 2" and "Part 2" name a piece.
+    // "Act 2" and "Part 2" name a piece
     expect(dropVersionTags("Undertale - Act 2")).toBe("Undertale - Act 2");
   });
 
   it("drops a short tag after the artist", () => {
     expect(readings({ title: "Billie Jean", artist: "Michael Jackson - AB" })).toEqual([{ game: "Michael Jackson", track: "Billie Jean", trackOnly: false }]);
     expect(readings({ title: "Rivers in the Desert", artist: "Persona 5 - AB" })[0]).toMatchObject({ game: "Persona 5", track: "Rivers in the Desert" });
-    // Three capitals can be a name.
+    // Three capitals can be a name
     expect(readings({ title: "Black Swan", artist: "BTS" })).toEqual([{ game: "BTS", track: "Black Swan" }]);
   });
 
@@ -1727,7 +1707,7 @@ describe("glued and dashed version tags, credits of several names (a second song
     ]);
     expect(readings({ title: "Mia", artist: "Bad Bunny x Drake" }).slice(1, 3).map((r) => r.game)).toEqual(["Bad Bunny", "Drake"]);
     expect(readings({ title: "Before I Let Go", artist: "Maze ft. Frankie Beverly" })[1]).toEqual({ game: "Maze", track: "Before I Let Go", trackOnly: true });
-    // A capital X is part of a name.
+    // A capital X is part of a name
     expect(readings({ title: "Industry Baby", artist: "Lil Nas X" })).toHaveLength(1);
   });
 
@@ -1737,7 +1717,7 @@ describe("glued and dashed version tags, credits of several names (a second song
       { game: "Ocarina of Time", track: "Gerudo Valley", fromTitle: true },
       { game: "Gerudo Valley", track: "Ocarina of Time", fromTitle: true },
     ]);
-    // The usual reading already took the game from the title.
+    // The usual reading already took the game from the title
     expect(readings({ title: "Super Mario 64: Dire Dire Docks", artist: "Super Mario" })).toHaveLength(1);
   });
 
@@ -1777,7 +1757,7 @@ describe("glued and dashed version tags, credits of several names (a second song
   });
 });
 
-// Examples below are from the two 50-song fact checks of October 2026 (public works only).
+// Examples below from the two 50-song fact checks of October 2026 (public works only)
 describe("the article must fit the request", () => {
   it("needs an opening about a song, a performer or a work", () => {
     expect(opensAboutMusicOrWork("Jezebel () was the daughter of Ithobaal I of Tyre and the wife of Ahab, King of Israel, according to the Book of Kings of the Hebrew Bible (1 Kings 16). In the biblical narrative, Jezebel replaced Yahwism with Baal and Asherah worship.")).toBe(false);
@@ -1789,7 +1769,7 @@ describe("the article must fit the request", () => {
   });
 
   it("knows a classical piece by its form: a minuet, a mazurka, a work for piano", () => {
-    // A minuet's article named neither "composition" nor "piece", so it was skipped for a list page.
+    // A minuet's article named neither "composition" nor "piece", so it was skipped for a list page
     expect(opensAboutMusicOrWork("The Minuet in A minor, Op. 7, No. 3, is the third of the Seven Minuets by Robin Ashby. The set was published in 1801 as a work for solo piano.")).toBe(true);
     expect(opensAboutMusicOrWork("The Mazurka in F major is one of the late mazurkas by Robin Ashby.")).toBe(true);
     expect(opensAboutMusicOrWork("Harbor Lights Variations is a set of variations for string quartet by Robin Ashby.")).toBe(true);
@@ -1812,7 +1792,7 @@ describe("the article must fit the request", () => {
   it("asks the article to name the character whose theme it is, and the work in the artist's subtitle", () => {
     expect(requestNames({ title: "Killer (Yoshikage Kira's Theme)", artist: "JoJo's Bizarre Adventure" })).toEqual(["yoshikage kira"]);
     expect(requestNames({ title: "Main Theme", artist: "Star Wars: Rogue One" })).toEqual(["rogue one"]);
-    // A stage name in brackets: the game's article may never name it, and its facts were right.
+    // A stage name in brackets: the game's article may never name it, and its facts were right
     expect(requestNames({ title: "Kick The Rock! (Wild Canyon)", artist: "Sonic Adventure 2" })).toEqual([]);
     expect(requestNames({ title: "Don't Let The Sun Go Down On Me [Instrumental]", artist: "Elton John" })).toEqual([]);
   });
@@ -1822,7 +1802,7 @@ describe("the article must fit the request", () => {
     expect(articleMisfit({ title: "Main Theme", artist: "Star Wars: Rogue One" }, "Star Wars (1983 video game)\nreference")).toBe('never mentions "rogue one"');
     rememberArticle("Jezebel", "Jezebel () was the daughter of Ithobaal I of Tyre and the wife of Ahab, King of Israel.");
     expect(articleMisfit({ title: "Jezebel", artist: "Sade" }, "Jezebel\nreference")).toMatch(/doesn't open like/);
-    // For a person's piece a bracket is often a translation: "Under The Stars" is fine.
+    // For a person's piece a bracket is often a translation: "Under The Stars" is fine
     rememberArticle("Eugénie Rocherolle", "Eugénie Ricau Rocherolle was an American composer and pianist.");
     expect(articleMisfit({ title: "Debajo Las Estrellas (Under The Stars)", artist: "Eugénie Rocherolle" }, "Eugénie Rocherolle\nreference")).toBe("");
   });
@@ -1877,7 +1857,7 @@ describe("a big soundtrack article is cut to the track's part", () => {
     expect(part?.text).toMatch(/Shanghai Symphony/);
     expect(part?.text).not.toMatch(/London Philharmonic/);
     expect(part?.others).toEqual(["Mondstadt", "Fontaine"]);
-    // An article that doesn't call itself a soundtrack, or has no parts, is left alone (a track naming no part: below).
+    // Left alone: an article not calling itself a soundtrack, or with no parts (a track naming no part: below)
     expect(soundtrackPart(music, "Raiden Shogun: Awake From A Nightmare")).toBeNull();
     expect(soundtrackPart("Lead.\n== Development ==\nText.\n== Reception ==\nText.", "Lumière")).toBeNull();
   });
@@ -1920,7 +1900,7 @@ describe("cause, order and count words must be in the sentence retold", () => {
     expect(unsupportedConnective("Aira Yuuki performed in 5 of the 6 vocal tracks of the album.", violet)).toBe("5");
     const souvenirs = "Eugénie Rocherolle\nSouvenirs du château includes Une matinée au lavoir, La chapelle, Déjeuner dans la cour, Le donjon, and Le salon de musique.";
     expect(unsupportedConnective('"Souvenirs du château" includes three pieces.', souvenirs)).toBe("three");
-    // A number in a name is no count: "Expedition 33", "21 Savage".
+    // A number in a name is no count: "Expedition 33", "21 Savage"
     expect(unsupportedConnective("Testard scored Clair Obscur: Expedition 33.", "Music of Clair Obscur: Expedition 33\nTestard scored the game.")).toBeNull();
   });
 });
@@ -1954,14 +1934,14 @@ describe("a connective word inside a title is part of the name (#188)", () => {
     expect(unsupportedConnective("The theme was composed after the director died.", glow)).toBe("after");
     expect(unsupportedConnective("After Glow was composed after the director died.", glow)).toBe("after");
     expect(unsupportedConnective("After Glow was released because of the arcade boom.", glow)).toBe("because");
-    // A capital letter at the start of a sentence isn't a title.
+    // A capital letter at the start of a sentence isn't a title
     expect(unsupportedConnective("After Mira Okafor left Northwind, she wrote the theme.", glow)).toBe("After");
   });
 
   it("judges the joining word itself, with the title set aside (independent review)", () => {
     const theme = "After Glow (video game)\nThe theme of After Glow was composed by Mira Okafor after the director died.";
     expect(unsupportedConnective("The theme of After Glow was composed by Mira Okafor after the director died.", theme)).toBeNull();
-    // A one-word title doesn't blank the word everywhere.
+    // A one-word title doesn't blank the word everywhere
     const because = "Because (song)\nBecause is a 2001 song by Nightjar. The band was short of time and cut it to two minutes.";
     expect(unsupportedConnective("Because the band was short of time, they cut it to two minutes.", because, ["Because"])).not.toBeNull();
   });
@@ -2044,8 +2024,8 @@ describe("review: platform siblings and shared surnames", () => {
   });
 });
 
-// Second fact check: each case adapted from a real caption the checkers marked WRONG or MISLEADING,
-// with the true captions from the same tables that must stay.
+// Second fact check: each case adapted from a caption marked WRONG or MISLEADING, with the true
+// captions from the same tables that must stay
 describe("second fact check: words that change what the source says", () => {
   const dropped = (fact: string, ctx: string) => screenClaims([fact], ctx).rejected[0]?.reason ?? null;
 
@@ -2069,7 +2049,7 @@ describe("second fact check: words that change what the source says", () => {
     expect(unsupportedConnective("The track was originally titled \"Luna noua\".", "Dance of May\nThe track was intended to be titled \"Luna noua\", which is the origin of its chorus.")).toBeNull();
     const cover = "Begging You\nNordic duo Skylark recorded a version in 2007. Italian rock band Vespa performed a cover of the song in 2017.";
     expect(unsupportedConnective("Skylark's version was originally a cover of a song by an Italian rock band.", cover)).toBe("originally");
-    // "originally from" only says where someone comes from.
+    // "originally from" only says where someone comes from
     expect(unsupportedConnective("Coral Bloom was originally formed in Motobu, Okinawa.", "Coral Bloom\nCoral Bloom was a Japanese band from Motobu, Okinawa.")).toBeNull();
   });
 
@@ -2123,7 +2103,7 @@ describe("second fact check: a detail kept without what it belongs to", () => {
     const ctx = "Never Let Go\nIt was released in the United Kingdom on December 4, 1995, as the second single from their self-titled debut album. The album came out in 1996 in the US.";
     expect(lostQualifier("The Harbor Boys' debut album was released in the United Kingdom on December 4, 1995.", ctx)).toMatch(/another release/);
     expect(lostQualifier("\"Never Let Go\" was released in the United Kingdom on December 4, 1995.", ctx)).toBeNull();
-    // A year alone is no date to move: many releases share one.
+    // A year alone is no date to move: many releases share one
     expect(lostQualifier("Their debut album, Quiet Rooms, was released in 2004.", "Ohio Nights\nIt was the lead single from their debut album, Quiet Rooms, in 2004.")).toBeNull();
   });
 });
@@ -2156,7 +2136,7 @@ describe("second fact check: the statement told with another subject", () => {
     expect(screenClaims(["The musical won four stage awards, including Best New Musical."], ctx, opts).rejected[0]?.reason).toBe("doesn't say which musical");
     expect(screenClaims(["The song took a week to write, according to Glass Harbor's writer."], ctx, opts).kept).toHaveLength(1);
     expect(screenClaims(['The song "Paper Lanterns" reached number two.'], ctx, opts).kept).toHaveLength(1);
-    // On the track's own article "the song" is this one, small words aside.
+    // On the track's own article "the song" is this one, small words aside
     expect(screenClaims(["The song peaked at number two."], "Through the Fire and Flames\nThe song peaked at number two.", { track: "Through the Fire and the Flames" }).kept).toHaveLength(1);
   });
 
@@ -2181,7 +2161,7 @@ describe("second fact check: the statement told with another subject", () => {
     expect(part?.others).toEqual(["Windvale", "Stonehold", "Tidemark"]);
     const text = gameTrackText({ page: "Starfall", full: "Starfall is a 2020 game.", music: { page: "Music of Starfall", full: music } }, "Kaela: Radiant Dreams");
     expect(text).not.toMatch(/Windvale soundtrack|Ziegel/);
-    // A track the article does mention, or a composer's article with sections, is left alone.
+    // A track the article does mention, or a composer's article with sections, is left alone
     expect(soundtrackPart(`${music}\nKaela's theme is in the Stonehold section.`, "Kaela: Radiant Dreams")).toBeNull();
     expect(soundtrackPart("Ivo Marek was a composer.\n== Early life ==\nText.\n== Vienna ==\nText.\n== Later years ==\nText.", "Sonata in A, K. 331: i. Andante")).toBeNull();
   });
@@ -2205,7 +2185,7 @@ describe("third fact check: words put in someone's mouth", () => {
     expect(misattributedWords("Tia Rowe said the song came together in a day.", ctx)).toBeNull();
     const narrated = "Raftwork\nThe team was programmer Ole Dahl and artist Ana Berg. To fix it, they introduced the shark as a constant threat. According to Berg, the shark solved other problems too. When they later added islands, they found the shark also helped on reefs.";
     expect(misattributedWords("Ole Dahl described the shark as a constant threat to players.", narrated)).toBe("Dahl");
-    // A quote or finding running on from "According to Berg" is still Berg's.
+    // A quote or finding running on from "According to Berg" is still Berg's
     expect(misattributedWords("Berg said the shark helped on reefs.", narrated)).toBeNull();
   });
 
@@ -2335,7 +2315,7 @@ describe("unattributed speakers and dates (fourth fact check)", () => {
     const { kept, rejected } = screenClaims(["I had the whole thing written somewhere between an hour and two."], ref);
     expect(kept).toEqual([]);
     expect(rejected[0].reason).toBe("doesn't say who is speaking");
-    // A title that starts with "I" is no speaker.
+    // A title that starts with "I" is no speaker
     expect(screenClaims(["I Wanna Stay was the B-side of Glass Harbor in 1994."], "Glass Harbor\nI Wanna Stay was the B-side of Glass Harbor in 1994.").kept).toHaveLength(1);
   });
 
@@ -2414,7 +2394,7 @@ describe("cite the sentence (fourth fact check)", () => {
   });
 
   it("drops a name, number or year from another sentence", () => {
-    // Merged across sentences: the hit version was Brandt's, and Hale isn't in its sentence.
+    // Merged across sentences: the hit version was Brandt's, and Hale isn't in its sentence
     expect(screen(["6 | Tom Hale recorded a hit version of Paper Lanterns in October 1933."]).rejected[0].reason).toBe('"Tom" isn\'t in the sentence it cites');
     expect(screen(["3 | The band completed three songs with this encouragement."]).rejected[0].reason).toBe('"three" isn\'t in the sentence it cites');
   });
@@ -2425,14 +2405,14 @@ describe("cite the sentence (fourth fact check)", () => {
   });
 
   it("drops a caption that gives the sentence's doing to someone it only mentions", () => {
-    // The fee was Arden's; Moreno only made the demos.
+    // The fee was Arden's; Moreno only made the demos
     expect(screen(["4 | Moreno was paid $3,000 for his work on the strings."]).rejected[0].reason).toBe("the sentence it cites is about Kit Arden");
-    // The introduction was Hale's.
+    // The introduction was Hale's
     expect(screen(["2 | Lena Voss introduced the band to manager Tom Hale."]).rejected[0].reason).toBe("the sentence it cites is about Tom Hale");
   });
 
   it("reads a number one off from the line it clearly retells as that line", () => {
-    // Sentence 5 cited for sentence 6: the model joined two sentences earlier and counts one short.
+    // Cites 5 for sentence 6: the model joined two earlier sentences and counts one short
     const { kept, sources } = screen(["5 | Ivo Brandt recorded a hit version of Paper Lanterns in October 1933."]);
     expect(kept).toHaveLength(1);
     expect(sources?.get(kept[0])).toBe(sentences[5]);
@@ -2443,7 +2423,7 @@ describe("cite the sentence (fourth fact check)", () => {
     const cited = (line: string) => screenClaims([line], ref, { cited: true });
     expect(cited("1 | Dana Reyes recorded the song in Leeds.").kept).toHaveLength(1);
     expect(cited("2 | Ivo Brandt took the song up in his concerts in 1909.").kept).toHaveLength(1);
-    // A surname in the sentence and the full name elsewhere in the reference.
+    // A surname in the sentence and the full name elsewhere in the reference
     expect(screenClaims(["2 | Dana Reyes took it up in her concerts."], "Night Song\nDana Reyes wrote it. Reyes took it up in her concerts.", { cited: true }).kept).toHaveLength(1);
   });
 
@@ -2464,7 +2444,7 @@ describe("true captions the screen dropped (#206, #207)", () => {
     expect(unsupportedDay("The EP came out again on July 9.", ref)).toBeNull();
     expect(unsupportedDay("The EP came out on June 4, 2001.", ref)).toBe("June 4");
     expect(unsupportedDay("The EP came out on June 5.", "Nightjar\nShows ran on June 3, 4, and 5.")).toBeNull();
-    // A comma alone isn't a list of days.
+    // A comma alone isn't a list of days
     expect(unsupportedDay("On July 4, 10,000 fans came.", "Nightjar\nOn July 4, 10,000 fans came to the show.")).toBeNull();
     expect(unsupportedDay("The band played on June 20.", "Nightjar\nOn June 3, 20 people heard the band.")).toBe("June 20");
   });
@@ -2474,19 +2454,19 @@ describe("true captions the screen dropped (#206, #207)", () => {
     const reasons = (fact: string) => screenClaims([fact], ref, { track: "My Glass Harbor" }).rejected.map((r) => r.reason);
     expect(reasons("My glass harbor was released as a single in 2019.")).not.toContain("doesn't say who is speaking");
     expect(reasons("My heart was in it from the first take.")).toContain("doesn't say who is speaking");
-    // The whole title, not just its first words.
+    // The whole title, not just its first words
     const longer = "My Glass Harbor Lights\nMy Glass Harbor Lights is a 2019 song by Dana Reyes.";
     expect(screenClaims(["My glass was broken when we finished it."], longer).rejected.map((r) => r.reason)).toContain("doesn't say who is speaking");
   });
 
   it("still checks who is speaking when a one-word title is an opener (#230)", () => {
     const reasons = (fact: string, title: string, ref: string) => screenClaims([fact], ref, { track: title }).rejected.map((r) => r.reason);
-    // Songs titled "I" and "We": the caption's "I" and "We" are someone's own words, not the title.
+    // Songs titled "I" and "We": the caption's "I" and "We" are someone's own words, not the title
     const i = "I (Dana Reyes song)\n\"I\" is a 2019 song by Dana Reyes. Reyes said: I wrote the whole song in a single night.";
     expect(reasons("I wrote the whole song in a single night.", "I", i)).toContain("doesn't say who is speaking");
     const we = "We (Pale Orchard song)\n\"We\" is a 2015 song by Pale Orchard. We recorded the song live in one take, the band said.";
     expect(reasons("We recorded the song live in one take.", "We", we)).toContain("doesn't say who is speaking");
-    // A one-word title that isn't an opener still leads its caption, whatever case the list wrote it in.
+    // A one-word title that isn't an opener still leads its caption, in whatever case the list wrote it
     const hurt = "Lanternfall\nLanternfall is a 2019 song by Dana Reyes. It was released as a single in 2019.";
     expect(reasons("Lanternfall was released as a single in 2019.", "lanternfall", hurt)).not.toContain("doesn't say who is speaking");
   });
@@ -2569,7 +2549,7 @@ describe("a bubble names what it's about", () => {
     const own = "Glass Harbor\nGlass Harbor is a song written in 1984 by Ada Penn. Its composer, Ada Penn, wrote it for her brother. This theme draws on old harbor songs.";
     expect(screenClaims(["The song was written in 1984."], own).kept).toHaveLength(1);
     expect(screenClaims(["Its composer, Ada Penn, wrote it for her brother."], own).kept).toHaveLength(1);
-    // On the song's own article, "this theme" is the requested one.
+    // On the song's own article, "this theme" is the requested one
     expect(screenClaims(["This theme draws on old harbor songs."], own).kept).toHaveLength(1);
     expect(reasons("Ada Penn's symphonies are spread evenly through her career.")).toEqual([]);
     expect(unresolvedPronoun("Ada Penn wrote it for her brother.")).toBeNull();

@@ -4,10 +4,10 @@ import os from "os";
 import path from "path";
 import { ChecksumMismatch, diskNeeded, downloadModel, MODEL, MODEL_HIGH, modelFor, modelPath, modelReady, Progress } from "./model";
 
-// The real descriptors, before the stand-ins below replace their sizes.
+// The real descriptors, before the stand-ins below replace their sizes
 const real = { standard: { ...MODEL }, high: { ...MODEL_HIGH } };
 
-// Small stand-ins for the 2 GB and 5 GB files.
+// Small stand-ins for the 2 GB and 5 GB files
 const data = crypto.randomBytes(300_000);
 Object.assign(MODEL, { bytes: data.length, sha256: crypto.createHash("sha256").update(data).digest("hex") });
 const highData = crypto.randomBytes(400_000);

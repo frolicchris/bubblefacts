@@ -69,7 +69,7 @@ describe("the aired facts record", () => {
     const shown = new ShownLog(aired);
     const batch = [fact("One."), fact("Two.")];
     shown.log(song, batch);
-    // A second overlay, or one catching up, gets the same batch.
+    // A second overlay, or one catching up, gets the same batch
     shown.log(song, batch);
     shown.log(song, [fact("Two."), fact("Three.")]);
     expect(aired.list().map((a) => a.text)).toEqual(["One.", "Two.", "Three."]);

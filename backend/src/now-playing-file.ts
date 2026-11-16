@@ -7,60 +7,37 @@ import { SSLQueueItem, SSLSong } from "./types";
 import { parseVideoTitle } from "./youtube-title";
 import { settleTitleOrder } from "./musicbrainz";
 
-/**
- * A text file a now-playing app keeps up to date with the song on now
- * (SONG_SOURCE=nowplaying): Streamling, Nightbot, or any app that writes one line.
- * Polled, because file watching is unreliable across folders that sync or
- * sit on other drives, and a 2-second look at one small file costs nothing.
- *
- * The file is the only word on what's playing, so the rules lean toward
- * showing nothing: an empty or missing file, a line with no words, or a file
- * nobody has rewritten for STALE_AFTER_MS (left over from an earlier stream,
- * or a player that stopped without clearing it) all mean no song.
- */
+// The song on now from a text file an app keeps up to date (SONG_SOURCE=nowplaying): Streamling, Nightbot, any one-line writer
+// Polled, not watched; the file is the only word, so doubt means no song (ARCHITECTURE.md: Song sources and YouTube titles)
 
 export type NowPlayingFormat = "artist-title" | "title" | "youtube-title";
 
-const POLL_MS = 2000;
-/** Longer than nearly any song: a line older than this is left over, not playing. */
-export const STALE_AFTER_MS = 15 * 60_000;
-/** One song's line is short; a larger file is read only this far. */
-const MAX_BYTES = 4096;
+const POLL_MS = 2000; // ms between checks
+export const STALE_AFTER_MS = 15 * 60_000; // ms unchanged before the line counts as left over; longer than nearly any song
+const MAX_BYTES = 4096; // bytes read from the start of the file; one line is short
 
 export interface NowPlayingLine {
   title: string;
   artist: string;
 }
 
-/** The file's bytes as text: UTF-8, or UTF-16 with its byte order mark, as some Windows apps write. */
+/** The file's bytes as text: UTF-8, or UTF-16 with a byte order mark (some Windows apps) */
 export function decodeNowPlaying(bytes: Buffer): string {
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.subarray(2).toString("utf16le");
   return bytes.toString("utf8").replace(/^﻿/, "");
 }
 
-/**
- * A requester a now-playing app may add after a YouTube title ("... - Requested
- * by dana_k", "(added by dana_k)", "| requester: dana_k"). Only an explicit
- * "requested/added/queued/submitted/suggested by" or "requester:" at the end
- * counts: the format of the line is Nightbot's to customize, so nothing else
- * is guessed. The line has had its runs of spaces collapsed, so single spaces will do.
- */
+// A requester after a YouTube title ("... - Requested by dana_k", "| requester: dana_k"): only these explicit
+// words at the end, as the line is Nightbot's to customize. Spaces are already collapsed, so single ones do
 const REQUESTER_TAIL = / ?(?:[-–—|•·~] |[(\[{] ?)?(?:\b(?:request(?:ed)?|added|queued|submitted|suggested) by\b|\brequester ?:)[^)\]}]*[)\]}]?$/i;
 
-/**
- * The song in the file's first non-empty line, or null for none. "artist-title"
- * splits at the first spaced dash, so a dash later belongs to the title
- * ("Artist - Song - Part 2"); a line without one is all title. "youtube-title"
- * reads the line as a YouTube video's title ("Artist - Song (Official Video)")
- * the way StreamElements requests are read. A line with no letters or digits
- * (" - " from an app's template with nothing playing) is no song.
- */
+/** The song in the first non-empty line, or null; "artist-title" splits at the first spaced dash */
 export function parseNowPlaying(text: string, format: NowPlayingFormat): NowPlayingLine | null {
   const read = readNowPlaying(text, format);
   return read && { title: read.title, artist: read.artist };
 }
 
-/** `parseNowPlaying`, saying too when a YouTube title's order is unsure (see `settleTitleOrder`). */
+/** `parseNowPlaying`, also saying when a YouTube title's order is unsure (see `settleTitleOrder`) */
 function readNowPlaying(text: string, format: NowPlayingFormat): (NowPlayingLine & { orderUnsure?: boolean }) | null {
   const line = text
     .split(/\r?\n|\r/)
@@ -82,11 +59,7 @@ function readNowPlaying(text: string, format: NowPlayingFormat): (NowPlayingLine
   return { title: line, artist: "Unknown" };
 }
 
-/**
- * The most recently changed .txt file in a folder, or null for a missing or empty
- * folder. Looked up on every check, so a new file takes over as soon as the app
- * starts writing it; the folder holds a handful of files, so this stays cheap.
- */
+/** The most recently changed .txt in a folder, or null; looked up every check, so a new file takes over at once */
 export async function newestTextFile(folder: string): Promise<string | null> {
   let names: string[];
   try {
@@ -103,7 +76,7 @@ export async function newestTextFile(folder: string): Promise<string | null> {
       const stat = await fs.promises.stat(file);
       if (stat.isFile() && (!best || stat.mtimeMs > best.mtime)) best = { file, mtime: stat.mtimeMs };
     } catch {
-      // Removed between the listing and now: it isn't a candidate.
+      // Removed since the listing: not a candidate
     }
   }
   return best?.file ?? null;
@@ -111,24 +84,24 @@ export async function newestTextFile(folder: string): Promise<string | null> {
 
 export interface NowPlayingOptions {
   file?: string;
-  /** Follow the newest .txt in this folder instead of one file. */
+  /** Follow the newest .txt in this folder instead of one file */
   folder?: string;
   format?: NowPlayingFormat;
-  /** Tests only: a shorter wait between checks. */
+  /** Tests only: ms between checks */
   pollMs?: number;
 }
 
 export class NowPlayingFileSource implements SongSource {
   readonly name: string;
   private readonly file: string;
-  /** Set when the newest .txt in a folder is the song (the Nightbot preset); `file` is empty then. */
+  /** Set when the newest .txt in a folder is the song (Nightbot preset); `file` is empty then */
   private readonly folder: string;
   private readonly format: NowPlayingFormat;
   private readonly pollMs: number;
   private currentSong: SSLQueueItem | null = null;
-  /** The line being followed (null: no song). */
+  /** The line being followed (null: no song) */
   private currentKey: string | null = null;
-  /** What the last check read, which the next one must agree with; undefined before the first. */
+  /** What the last check read, for the next to agree with; undefined before the first */
   private candidate: string | null | undefined = undefined;
   private onSongChange: ((current: SSLQueueItem | null) => void) | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -136,7 +109,7 @@ export class NowPlayingFileSource implements SongSource {
   private lastSuccessfulFetchAt: number | null = null;
   private lastPollAttemptAt: number | null = null;
   private stopped = false;
-  /** The last state logged ("missing", "stale", an error), so a quiet file isn't logged every 2 seconds. */
+  /** Last state logged ("missing", "stale", an error), so a quiet file isn't logged every check */
   private lastNote = "";
 
   constructor(options: NowPlayingOptions = {}) {
@@ -167,17 +140,17 @@ export class NowPlayingFileSource implements SongSource {
     return this.pollMs;
   }
 
-  /** Polling only. */
+  /** Polling only */
   isEventStreamConnected(): boolean {
     return false;
   }
 
-  /** There's no token to turn down. */
+  /** No token to turn down */
   authRejected(): boolean {
     return false;
   }
 
-  /** A line with no artist is marked, so its artist may be looked up by the title alone. */
+  /** A line with no artist is marked, so its artist may be looked up by title alone */
   toSong(item: SSLQueueItem): SSLSong {
     const song = toSong(item);
     return /^unknown$/i.test(song.artist) ? { ...song, titleOnly: true } : song;
@@ -189,7 +162,7 @@ export class NowPlayingFileSource implements SongSource {
 
   async connect(): Promise<void> {
     this.stopped = false;
-    // The file name only: the full path holds the computer's user name, and logs can end up on stream.
+    // File name only: the path holds the computer's user name, and logs can end up on stream
     const what = this.folder ? `the newest .txt in "${path.basename(this.folder)}"` : `"${path.basename(this.file)}"`;
     const how = { title: "title only", "artist-title": "Artist - Title", "youtube-title": "YouTube title" }[this.format];
     console.log(`[NowPlaying] Reading ${what} every ${this.pollMs / 1000} s (${how})`);
@@ -203,11 +176,7 @@ export class NowPlayingFileSource implements SongSource {
     this.pollTimer = null;
   }
 
-  /**
-   * The song as the queue entry the fact pipeline reads. A file says nothing
-   * about who asked or how long the song is, so, as with a StreamElements
-   * request without them, those fields stay empty and no facts use them.
-   */
+  /** The song as a queue entry; no requester or length, so no facts use them */
   static toEntry(line: NowPlayingLine): SSLQueueItem {
     return {
       id: 0,
@@ -221,7 +190,7 @@ export class NowPlayingFileSource implements SongSource {
     };
   }
 
-  /** One look at the file. Public so tests can step through without waiting on the timer. */
+  /** One look at the file; public so tests can step without the timer */
   checkNow(): Promise<void> {
     if (this.inFlight) return this.inFlight;
     this.inFlight = (async () => {
@@ -230,7 +199,7 @@ export class NowPlayingFileSource implements SongSource {
         key = await this.readLine();
         this.lastSuccessfulFetchAt = Date.now();
       } catch (err) {
-        // An unreadable file can't say a song is still on, so it ends the song too.
+        // An unreadable file can't say a song is still on, so it ends the song too
         const message = err instanceof Error ? err.message : String(err);
         this.note(`error: ${message}`, () => console.error(`[NowPlaying] Can't read the file: ${message}`));
         key = null;
@@ -242,13 +211,13 @@ export class NowPlayingFileSource implements SongSource {
     return this.inFlight;
   }
 
-  /** The cleaned first line, or null when the file says nothing is playing. */
+  /** The cleaned first line, or null when nothing is playing */
   private async readLine(): Promise<string | null> {
     let file = this.file;
     if (this.folder) {
       const newest = await newestTextFile(this.folder);
       if (!newest) {
-        // No folder yet (the app may not be installed or run), or nothing written in it. Checked fine, just no song.
+        // No folder yet (app not installed or run), or nothing in it: checked fine, just no song
         this.note("missing", () => console.warn(`[NowPlaying] No .txt file in "${path.basename(this.folder)}" yet; no song until there is`));
         return null;
       }
@@ -260,7 +229,7 @@ export class NowPlayingFileSource implements SongSource {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code !== "ENOENT" && code !== "ENOTDIR") throw err;
-      // Not written yet: the app may not have started. Checked fine, just no song.
+      // Not written yet (app not started): checked fine, just no song
       this.note("missing", () => console.warn(`[NowPlaying] "${path.basename(file)}" isn't there yet; no song until it is`));
       return null;
     }
@@ -279,18 +248,13 @@ export class NowPlayingFileSource implements SongSource {
       await handle.close();
     }
     this.note("", () => undefined);
-    // "X - Y" with no channel to go by: MusicBrainz may say which side is the artist (cached, so the next check agrees).
+    // "X - Y" with no channel: MusicBrainz may say which side is the artist (cached, so the next check agrees)
     const read = readNowPlaying(decodeNowPlaying(bytes), this.format);
     const line = read && (await settleTitleOrder(read));
     return line && `${line.artist}\0${line.title}`;
   }
 
-  /**
-   * A new reading counts once two checks in a row agree: an app rewriting the
-   * file can leave it empty or half-written for a moment, and that blink
-   * mustn't restart the bubbles. The same line again is the same song, even if
-   * the app rewrote the file, so a song played twice in a row shows once.
-   */
+  /** A reading counts once two checks agree (a mid-rewrite blink mustn't restart bubbles); the same line is the same song */
   private apply(key: string | null): void {
     if (key !== this.candidate) {
       this.candidate = key;
@@ -308,7 +272,7 @@ export class NowPlayingFileSource implements SongSource {
     this.onSongChange?.(entry);
   }
 
-  /** Logs a change of state once, not on every check. */
+  /** Logs a change of state once, not every check */
   private note(state: string, log: () => void): void {
     if (state === this.lastNote) return;
     this.lastNote = state;

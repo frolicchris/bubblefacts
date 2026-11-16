@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
 
-// Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls).
+// Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls)
 const LONG_BODY =
   "Development: After the tour ended, the band spent the following winter rewriting the bridge, moving the chorus, changing the key and trying a dozen tempos before the label finally agreed to the version heard on the record.";
 
@@ -89,7 +89,7 @@ describe("rankFacts: safety first, then fun", () => {
     expect(shown.map((c) => c.text)).not.toContain("The song is about a lighthouse.");
     expect(shown).toHaveLength(3);
     expect(log).toHaveBeenCalledWith("[Screen] DROP (risky source: reporting verb)");
-    // The reason only, never the caption's words (issue #262).
+    // The reason only, never the caption's words (#262)
     expect(JSON.stringify(log.mock.calls)).not.toContain("lighthouse");
   });
 
@@ -100,7 +100,7 @@ describe("rankFacts: safety first, then fun", () => {
       caption("The song was recorded in a barn.", "The song was mostly recorded in a barn.", true),
       caption("The chorus was rewritten.", LONG_BODY, false),
     ]);
-    // A reporting verb, a hedge lost and heavy compression (3 flags) stay out; one long body sentence (2) comes back.
+    // Reporting verb, lost hedge, heavy compression (3 flags) stay out; one long body sentence (2) comes back
     expect(shown.map((c) => c.text)).toEqual(["Lantern Hill came out in 2004.", "The song was recorded in a barn.", "The chorus was rewritten."]);
     expect(shown.slice(1).every((c) => c.refill)).toBe(true);
   });
@@ -184,7 +184,7 @@ describe("another song named on the artist's article (namesOtherSong)", () => {
     expect(shown).toEqual(expect.arrayContaining([own.text, artistFact.text, otherA.text]));
     expect(shown).not.toContain(otherB.text);
     expect(shown[shown.length - 1]).toBe(otherA.text);
-    // Not the artist's article: untouched.
+    // Not the artist's article: untouched
     expect(rankFacts(list, { title: "Velvet Harbor" })).toHaveLength(4);
     expect(rankFacts(list, { artistArticle: true, title: "Velvet Harbor" }).map((c) => c.text)[0]).not.toBe(otherA.text);
   });
@@ -202,13 +202,13 @@ describe("the Facts per song setting", () => {
 
 describe("captions about the music before the game around it (#189)", () => {
   it("tells the work's own business from its music", () => {
-    // Made-up game "Starfall Saga" and its track "Ember Road".
+    // Made-up game "Starfall Saga" and its track "Ember Road"
     expect(aboutTheMusic("The English voice cast of Starfall Saga was chosen in 1998.")).toBe(false);
     expect(aboutTheMusic("Starfall Saga was later ported to two handheld consoles.")).toBe(false);
     expect(aboutTheMusic("The design document for Starfall Saga is dated March 1995.")).toBe(false);
     expect(aboutTheMusic("Ember Road was composed by Mara Quill for Starfall Saga.")).toBe(true);
     expect(aboutTheMusic("The soundtrack of Starfall Saga was recorded with a live string quartet.")).toBe(true);
-    // Not about a work at all: nothing to hold back.
+    // Not about a work at all: nothing to hold back
     expect(aboutTheMusic("Mara Quill grew up in a small fishing town.")).toBe(true);
   });
 

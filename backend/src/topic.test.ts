@@ -26,12 +26,12 @@ describe("loadTopics", () => {
   });
 
   it("accepts a small pool, which the app lets a streamer choose", () => {
-    // Throwing here stopped the server when only "Piano" (4 examples) was checked.
+    // Throwing here stopped the server when only "Piano" (4 examples) was checked
     expect(loadTopics("piano").curatedFacts).toHaveLength(4);
   });
 
   it("allows no custom facts at all", () => {
-    // Issue #18: without example packs or the streamer's own facts, a song with no source shows nothing.
+    // No example packs or own facts: a song with no source shows nothing (#18)
     expect(loadTopics("")).toEqual({ curatedFacts: [], originalsFacts: [], taggedFacts: [] });
     expect(loadTopics("none")).toEqual({ curatedFacts: [], originalsFacts: [], taggedFacts: [] });
   });
@@ -52,7 +52,7 @@ describe("loadTopics", () => {
       expect(loadTopics("my-facts,film").curatedFacts).toContain("Six.");
       expect(loadTopics("classical").curatedFacts.length).toBeGreaterThan(0);
       expect(() => loadTopics("nope")).toThrow(/my-facts/);
-      // "[Song] fact" lines are only for that song: they leave the any-song pool.
+      // "[Song] fact" lines are only for that song: they leave the any-song pool
       fs.writeFileSync(path.join(dir, "my-facts.json"), JSON.stringify({ id: "my-facts", name: "Mine", curatedFacts: ["One.", " [Song of Storms]  It plays in a windmill. "] }));
       expect(loadTopics("my-facts")).toMatchObject({ curatedFacts: ["One."], taggedFacts: [{ tag: "Song of Storms", text: "It plays in a windmill." }] });
     } finally {

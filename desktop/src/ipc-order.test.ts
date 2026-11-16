@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-// Every message from the window goes through handle(), which checks the request is from the app's own window (#174).
+// Every window message goes through handle(), which checks it's from the app's own window (#174)
 it("registers no IPC handler except through handle()", () => {
   const source = fs.readFileSync(path.join(__dirname, "main.ts"), "utf8");
   expect(source.match(/ipcMain\.handle\(/g)).toHaveLength(1);
@@ -11,7 +11,7 @@ it("registers no IPC handler except through handle()", () => {
   expect(source.slice(helper, source.indexOf("\n}\n", helper))).toContain("fromOurPage(e)");
 });
 
-// The file picker opens a dialog and hands back a path, so it must be one of the checked handlers and reachable only through the preload bridge.
+// Opens a dialog and returns a path: must be a checked handler, reachable only through the preload bridge
 it("registers the now playing file picker behind the own-window check", () => {
   const main = fs.readFileSync(path.join(__dirname, "main.ts"), "utf8");
   expect(main).toContain('handle("choose-now-playing-file"');
@@ -20,7 +20,7 @@ it("registers the now playing file picker behind the own-window check", () => {
   expect(preload).toContain('ipcRenderer.invoke("choose-now-playing-file")');
 });
 
-// Features register their own messages through main.ts's handle(), passed in, so main.ts doesn't grow with each.
+// Register their own messages through main.ts's handle(), passed in, so main.ts doesn't grow with each
 const SELF_REGISTERING = ["preparing.ts"];
 
 it("lets a feature's own file register messages only through the handle() main.ts passes it", () => {
@@ -32,7 +32,7 @@ it("lets a feature's own file register messages only through the handle() main.t
   }
 });
 
-// A channel renamed on one side only would make a button do nothing, with no error until someone clicks it.
+// A channel renamed on one side only makes a button silently do nothing
 it("has a handler in main.ts (or a file it wires in) for every channel the preload bridge uses", () => {
   const main = [fs.readFileSync(path.join(__dirname, "main.ts"), "utf8"), ...SELF_REGISTERING.map((f) => fs.readFileSync(path.join(__dirname, f), "utf8"))].join("\n");
   const preload = fs.readFileSync(path.join(__dirname, "preload.ts"), "utf8");

@@ -2,46 +2,26 @@ import { isNotMusic } from "./not-music";
 import { namesRequester } from "./stat-facts";
 import { Fact, SSLSong } from "./types";
 
-/**
- * "Share song facts with other apps": hands the song on now and its facts to
- * the address the streamer set, as context that app may use when chat asks
- * about the song. Off unless the streamer turns it on with their own address
- * and key. It sits beside the overlay, never in
- * front of it: `update` returns at once, a failure is logged by reason only,
- * and it's tried again with the next change or refresh. The key is never logged.
- *
- * The song goes out as soon as it starts, saying it has no checked facts yet,
- * and again as its facts arrive or are taken off. Only the song and its facts
- * are sent, never who requested it. See "Sharing song facts with other apps"
- * in docs/ARCHITECTURE.md.
- */
+// "Share song facts with other apps" (off by default): the song on now, as it starts, then its facts, never its
+// requester, go to the streamer's address as context for chat answers (ARCHITECTURE.md). Beside the overlay, never
+// in front: `update` returns at once, a failure logs its reason only and waits for the next change or refresh,
+// the key is never logged
 
-/** The longest `data.content` that is sent. */
-export const CONTENT_LIMIT = 1000;
-/** Names this app's snapshot, so each update replaces only it. */
-export const SOURCE_ID = "bubblefacts";
-/**
- * Seconds a snapshot lasts unless it's sent again. Short on purpose: if this app stops for any
- * reason (quit, a crash, the computer asleep), the other app forgets the song by itself.
- */
-export const SHARE_TTL_SECONDS = 150;
-/**
- * How often the song on now is sent again: well inside the lifetime, so one missed send doesn't
- * drop it, and an app that started late or started over has the song within a minute.
- */
-const REFRESH_MS = 60_000;
-/** Sent again for this long after the last change: a song left on the queue doesn't send all night. */
-const REFRESH_FOR_MS = 60 * 60 * 1000;
-/** Lets the changes around a new song land as one request. */
-const SETTLE_MS = 400;
-const TIMEOUT_MS = 5000;
-const NAME_LIMIT = 150;
+export const CONTENT_LIMIT = 1000; // characters of `data.content`, at most
+export const SOURCE_ID = "bubblefacts"; // names this app's snapshot, so each update replaces only it
+export const SHARE_TTL_SECONDS = 150; // seconds a snapshot lasts unsent; short so the other app forgets the song if this one stops (quit, crash, asleep)
 
-/** The sources whose facts were checked against them, by how each fact's `source` starts. */
+const REFRESH_MS = 60_000; // ms between resends: well inside the lifetime, and a late-started app has the song within a minute
+const REFRESH_FOR_MS = 60 * 60 * 1000; // ms of resending after the last change, so a song left on the queue doesn't send all night
+const SETTLE_MS = 400; // ms for the changes around a new song to land as one request
+const TIMEOUT_MS = 5000; // ms per request
+const NAME_LIMIT = 150; // characters of a title or artist
+
+// Sources facts were checked against, by how each fact's `source` starts
 const CHECKED_SOURCES = ["Wikipedia", "Wikidata", "MusicBrainz"] as const;
 const TWITCH_ABOUT = "Twitch About: ";
 const INTRO_STREAMER = "From the streamer:";
-/** Facts only from what is given; an opinion of the other app's own is fine, as long as it reads as one. */
+// Facts only from what's given; the other app's own opinion is fine if it reads as one
 const OPINIONS = "Your own opinions are welcome, said as yours.";
 const CLOSING = `State facts about this song only from these, and add none. ${OPINIONS}`;
 const CLOSING_CREDIT = `State facts about this song only from these, add none, and credit BubbleFacts. ${OPINIONS}`;
@@ -49,10 +29,10 @@ const NO_FACTS = `BubbleFacts has no checked facts for this song right now. Say 
 
 const listOf = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(""));
 const introChecked = (sources: string[]) => `Facts from BubbleFacts, checked against ${listOf(sources)}:`;
-/** Room is kept for the longest lead-in, so the one used can name just the sources of the facts that fit. */
+// Room for the longest lead-in, so the one used can name just the sources of the facts that fit
 const INTRO_CHECKED_ROOM = introChecked([...CHECKED_SOURCES]).length;
 
-/** https, or plain http on this computer only, with no sign-in in the address. The address, or null. */
+/** The address if https, or http on this computer only, with no sign-in in it; else null */
 export function shareAddress(text: string): string | null {
   try {
     const url = new URL(text.trim());
@@ -64,25 +44,24 @@ export function shareAddress(text: string): string | null {
   }
 }
 
-/** Titles can come from viewers' requests: one line, no control characters, and a fair length. */
+// Titles can come from viewers' requests: one line, no control characters, a fair length
 const oneLine = (text: string, limit: number) => text.replace(/[\p{Cc}\s]+/gu, " ").trim().slice(0, limit).trim();
 
 const checkedSource = (fact: Fact) => CHECKED_SOURCES.find((s) => new RegExp(`^${s}\\b`).test(fact.source ?? ""));
-/** The artist's own words from their Twitch About: neither checked nor the streamer's. Its text says where it's from. */
+// The artist's own words from their Twitch About: neither checked nor the streamer's; its text says where it's from
 const fromTwitchAbout = (fact: Fact) => (fact.source ?? "").startsWith(TWITCH_ABOUT);
 
 /**
- * The text for a song: what's playing, then its facts (whole facts only), or that it has none
- * yet. "" when there's nothing to share: no song title, or a track that isn't music (a
- * commercial, a jingle) with no facts of its own, which the overlay doesn't announce either.
+ * What's playing, then its facts (whole only) or that it has none yet. "" with no title, or for a
+ * track that isn't music (a commercial, a jingle) with no facts, which the overlay skips too
  */
 export function shareContent(song: SSLSong, facts: Fact[]): string {
-  // In quotes, so a title is read as a title: "Stand by Me" by Some Singer.
+  // Quoted, so a title reads as one: "Stand by Me" by Some Singer
   const title = oneLine(song.title, NAME_LIMIT).replace(/"/g, "'");
   const artist = oneLine(song.artist, NAME_LIMIT);
   const known = artist && artist !== "Unknown";
   const head = `Now playing: "${title}"${known ? ` by ${artist}` : ""}.`;
-  // Who asked for the song stays on the overlay: the entry fact that names them is never sent.
+  // Who asked for the song stays on the overlay: the entry fact naming them is never sent
   const shared = facts.filter((f) => !namesRequester(f.text));
   if (!title || (!shared.length && isNotMusic(song))) return "";
 
@@ -116,7 +95,7 @@ export interface ShareOptions {
   url: string;
   apiKey: string;
   channel: string;
-  /** Shorter in tests. */
+  /** Shorter in tests */
   settleMs?: number;
   refreshMs?: number;
   timeoutMs?: number;
@@ -125,7 +104,7 @@ export interface ShareOptions {
 
 export class SongFactSharer {
   private wanted = "";
-  /** What the other app holds as far as this app knows. */
+  /** What the other app holds, as far as this app knows */
   private held = "";
   private sending = false;
   private settle: NodeJS.Timeout | null = null;
@@ -137,7 +116,7 @@ export class SongFactSharer {
 
   constructor(private readonly options: ShareOptions) {}
 
-  /** The song on now and its facts (none yet is fine), or null when nothing is. Returns at once. */
+  /** The song on now and its facts (none yet is fine), or null when nothing is; returns at once */
   update(song: SSLSong | null, facts: Fact[]): void {
     if (this.refused) return;
     const content = song ? shareContent(song, facts) : "";
@@ -150,7 +129,7 @@ export class SongFactSharer {
     this.settle.unref?.();
   }
 
-  /** Nothing more is sent or said: a request already on its way ends quietly. */
+  /** Nothing more is sent or said; a request on its way ends quietly */
   stop(): void {
     this.stopped = true;
     this.refused = true;
@@ -177,12 +156,12 @@ export class SongFactSharer {
       this.lastProblem = "";
     }
     if (this.refused) return;
-    // It changed while that was on its way.
+    // It changed while that was on its way
     if (this.wanted !== content) return void this.send();
     if (content) this.scheduleRefresh();
   }
 
-  /** The same snapshot again before it runs out, whether or not the last send got through. */
+  /** The same snapshot again before it runs out, whether or not the last send got through */
   private scheduleRefresh(): void {
     const wait = this.options.refreshMs ?? REFRESH_MS;
     if (Date.now() + wait > this.refreshUntil) return;
@@ -191,7 +170,7 @@ export class SongFactSharer {
     this.refresh.unref?.();
   }
 
-  /** The reason it failed, or "". Empty content clears this app's snapshot. */
+  /** The reason it failed, or ""; empty content clears this app's snapshot */
   private async post(content: string): Promise<string> {
     const data = { channelName: this.options.channel, sourceId: SOURCE_ID, content, ...(content ? { ttl: SHARE_TTL_SECONDS } : {}) };
     try {
@@ -199,12 +178,12 @@ export class SongFactSharer {
         method: "POST",
         headers: { Authorization: `Bearer ${this.options.apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ eventType: "INTEGRATION_STATE", data }),
-        // Never to another address than the one the streamer set.
+        // Only ever the address the streamer set
         redirect: "error",
         signal: AbortSignal.timeout(this.options.timeoutMs ?? TIMEOUT_MS),
       });
       if (res.status === 401 || res.status === 403) {
-        // It won't get better until the key or channel changes, and that restarts the server.
+        // Stays refused until the key or channel changes, which restarts the server
         this.refused = true;
         return "the key or channel was refused";
       }

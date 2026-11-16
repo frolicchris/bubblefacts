@@ -72,7 +72,7 @@ describe("newerRelease", () => {
   it("offers Stable only full releases", async () => {
     await expect(offered("2.0.0", "stable", ["v2.1.0-beta.1", true], ["v2.0.0"])).resolves.toBeNull();
     await expect(offered("2.0.0", "stable", ["v2.1.0-beta.2", true], ["v2.0.1"], ["v2.1.0-beta.1", true])).resolves.toBe("2.0.1");
-    // A tag with a "-" counts as a prerelease even when GitHub wasn't told.
+    // A tag with a "-" counts as a prerelease even when GitHub wasn't told
     await expect(offered("2.0.0", "stable", ["v2.1.0-rc.1", false])).resolves.toBeNull();
   });
 
@@ -118,13 +118,13 @@ describe("testStreamElements", () => {
     mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
     await expect(testStreamElements("jane", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/can't reach StreamElements/), detail: expect.stringMatching(/fetch failed/) });
 
-    // A server error: the status goes to the log, not the window.
+    // Server error: the status goes to the log, not the window
     mockFetch.mockResolvedValueOnce(res(503));
     const r = await testStreamElements("jane", "jwt");
     expect(r).toMatchObject({ ok: false, detail: "HTTP 503" });
     expect(!r.ok && r.reason).not.toMatch(/503/);
 
-    // An answer that isn't JSON.
+    // An answer that isn't JSON
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => JSON.parse("<html>") });
     await expect(testStreamElements("jane", "jwt")).resolves.toMatchObject({ reason: expect.stringMatching(/StreamElements sent an answer BubbleFacts can't read/) });
   });

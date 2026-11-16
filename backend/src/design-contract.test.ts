@@ -34,7 +34,7 @@ describe("--bf-icon", () => {
       const block = new RegExp(`:where\\(html\\[data-style="${style}"\\]\\) \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
       const icon = /--bf-icon:\s*"\\([0-9A-F]{4})"/.exec(block)?.[1];
       expect(icon).toBeDefined();
-      // Plain symbols only: music notes, geometric shapes and dingbats, which take the text color.
+      // Plain symbols that take the text color: music notes, shapes, dingbats
       expect(parseInt(icon ?? "0", 16)).toBeGreaterThanOrEqual(0x2190);
       expect(parseInt(icon ?? "0", 16)).toBeLessThan(0x2800);
     }

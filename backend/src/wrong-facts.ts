@@ -5,40 +5,28 @@ import { config } from "./config";
 import { withoutArtistNote } from "./text";
 import { SSLSong } from "./types";
 
-/**
- * Articles the streamer marked wrong, per song. When a fact is wrong, the
- * usual cause is the wrong Wikipedia article ("The Midnight" grounded on a
- * racing game), so the article is never used for that song again. Kept in a
- * small JSON file so it survives restarts.
- */
+// Sources marked Wrong, per song, in wrong-facts.json: the usual cause is the wrong article
+// ("The Midnight" grounded on a racing game), so it's never used for that song again (ARCHITECTURE.md: Wrong and Undo)
 
 type Store = Record<string, string[]>;
 
 const file = () => path.join(config.dataDir, "wrong-facts.json");
 let store: Store | null = null;
 
-/**
- * One song, for caches and Wrong marks: its StreamerSongList song ID or
- * YouTube video ID when it has one (so a renamed entry stays the same song),
- * otherwise artist and title. A note after the artist's name ("Some Band (note)")
- * isn't part of it (issue #262), so the song looked up and the song as listed are one.
- */
+/** One song for caches and Wrong marks: list song ID or video ID (renames stay one song), else artist and title without a note (#262) */
 export function songKey(song: SSLSong): string {
   if (song.songId) return `ssl:${song.songId}`;
   if (song.videoId) return `yt:${song.videoId}`;
   return `${withoutArtistNote(song.artist ?? "")}:::${song.title}`.toLowerCase();
 }
 
-/**
- * A key saved before notes were left out of `songKey` ("some band (note):::song"), as
- * `songKey` writes it now. The file isn't rewritten: an older version reads it as before.
- */
+/** A key saved with a note ("some band (note):::song") as `songKey` writes it now; the file isn't rewritten, for older versions */
 function currentKey(saved: string): string {
   const at = saved.indexOf(":::");
   return saved.startsWith("ssl:") || saved.startsWith("yt:") || at < 0 ? saved : `${withoutArtistNote(saved.slice(0, at))}:::${saved.slice(at + 3)}`;
 }
 
-/** Every saved key that means this song: its own, and any saved with a note. */
+/** Every saved key that means this song: its own, and any saved with a note */
 const keysFor = (s: Store, key: string) => Object.keys(s).filter((k) => k === key || currentKey(k) === key);
 
 function load(): Store {
@@ -71,7 +59,7 @@ function save(s: Store): void {
     fs.mkdirSync(config.dataDir, { recursive: true });
     writeFileAtomic(file(), JSON.stringify(s, null, 2) + "\n");
   } catch (err) {
-    // Still in effect for this session; only the restart memory is lost.
+    // Still in effect for this session; only the restart memory is lost
     console.warn(`[WrongFacts] Could not save ${file()}: ${err instanceof Error ? err.message : err}`);
   }
 }
@@ -87,7 +75,7 @@ export function unblockArticle(song: SSLSong, article: string): void {
   save(s);
 }
 
-/** For tests. */
+/** For tests */
 export function resetWrongFacts(): void {
   store = null;
 }

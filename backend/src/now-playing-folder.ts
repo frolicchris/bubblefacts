@@ -3,13 +3,8 @@ import os from "os";
 import path from "path";
 
 /**
- * Where a now-playing preset's folder is, given its path inside Documents. Apps write to Documents, which on Windows is often
- * redirected into OneDrive, so the usual place is looked at first ("~/Documents/<folder>"), then
- * the same folder in each OneDrive the computer names (OneDrive, OneDriveConsumer,
- * OneDriveCommercial). When none of them exists yet, the usual place is returned, so a log line
- * and a "no song yet" still name a folder that makes sense.
- *
- * desktop/src/now-playing-folder.ts holds the same rule for the app's picker text; keep them alike.
+ * A preset's folder from its path inside Documents: the usual place, then each OneDrive (Windows often moves Documents there)
+ * None yet: the usual place, so logs still name a sensible folder. Keep alike with desktop/src/now-playing-folder.ts
  */
 export function presetFolder(
   folder: readonly string[],
@@ -23,7 +18,7 @@ export function presetFolder(
     }
   }
 ): string {
-  // The desktop app passes the Documents folder the system names, which follows a redirect the home path doesn't.
+  // From the app: the system's Documents folder, which follows a redirect the home path doesn't
   const documents = env.BUBBLEFACTS_DOCUMENTS_DIR?.trim() || path.join(home, "Documents");
   const usual = path.join(documents, ...folder);
   const drives = [env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial].map((d) => d?.trim()).filter((d): d is string => !!d);

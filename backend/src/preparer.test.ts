@@ -69,7 +69,7 @@ describe("Preparer (issue #293)", () => {
     const { p, prepared } = preparer({
       targets: () => (read ? list : history),
       listRead: () => read,
-      // The list arrives while it waits.
+      // The list arrives while it waits
       sleep: async () => void (read = true),
     });
     p.start();
@@ -83,7 +83,7 @@ describe("Preparer (issue #293)", () => {
     const { p, prepared, deps } = preparer({
       prepare: jest.fn(async (song: SSLSong) => {
         prepared.push(song.title);
-        // The second song never finishes on its own: only the stop ends it.
+        // The second song never finishes on its own: only the stop ends it
         if (prepared.length === 2) await new Promise<void>((r) => (release = r));
         return found(song);
       }),
@@ -95,7 +95,7 @@ describe("Preparer (issue #293)", () => {
     expect(p.running).toBe(false);
     expect(Object.keys(store.all())).toEqual(["ssl:2"]);
     release();
-    // Next time: the ones not done, the one cut short included.
+    // Next time: the ones not done, the one cut short included
     (deps.prepare as jest.Mock).mockImplementation(async (song: SSLSong) => {
       prepared.push(song.title);
       return found(song);
@@ -156,7 +156,7 @@ describe("Preparer (issue #293)", () => {
     const { p, deps, prepared } = preparer({ streamModel: () => "high.gguf" });
     p.start();
     await p.stopped();
-    // First pass: every song by the Standard model, then each again by Larger AI, most requested first.
+    // First pass: every song by the Standard model, then each again by Larger AI, most requested first
     expect(prepared).toEqual(["Tin Roof", "Low Tide", "Harbor Lights", "Tin Roof", "Low Tide", "Harbor Lights"]);
     const calls = (deps.prepare as jest.Mock).mock.calls;
     expect(calls.slice(0, 3).every((c) => !c[2].streamModel)).toBe(true);
@@ -201,7 +201,7 @@ describe("Preparer (issue #293)", () => {
     });
     again.p.start();
     await again.p.stopped();
-    // Tin Roof's check failed: still due next time, after a wait. The other two were checked, a gap apart.
+    // Tin Roof's check failed: due again after a wait; the other two were checked, a gap apart
     expect(store.saved("ssl:2")!.checkedAt).toBe(weekAgo);
     expect(Date.parse(store.saved("ssl:1")!.checkedAt)).toBeGreaterThan(Date.parse(weekAgo));
     expect(Date.parse(store.saved("ssl:3")!.checkedAt)).toBeGreaterThan(Date.parse(weekAgo));
@@ -280,9 +280,9 @@ describe("coverage (issue #294)", () => {
   it("gives no finish date before it knows the pace, then hours, then a date from the time spent preparing each day", () => {
     expect(coverage(songs, store, now).finish).toBeNull();
     for (let i = 0; i < 3; i++) store.addPace(60_000, 0, "2026-11-02");
-    // Five songs left at a minute each, with no days measured yet: hours, at least one.
+    // Five one-minute songs left, no days measured yet: hours, at least one
     expect(coverage(songs, store, now).finish).toEqual({ hours: 1 });
-    // Five minutes of work a day on earlier days: five songs take a day.
+    // Five minutes of work a day before: five songs take a day
     store.addPace(0, 5 * 60_000, "2026-10-31");
     store.addPace(0, 5 * 60_000, "2026-11-01");
     const finish = coverage(songs, store, now).finish as { at: string };

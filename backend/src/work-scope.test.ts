@@ -15,7 +15,7 @@ import {
   withoutSentences,
 } from "./fact-verifier";
 
-// Made-up games, albums, films, people and songs.
+// Made-up games, albums, films, people and songs
 const WIKITEXT = [
   "{{Infobox video game|title=Comet Runner}}",
   "'''''Comet Runner''''', known in Japan as '''''Hoshi Hashiri''''', is a 1991 platform game developed by Vell Soft.<ref>{{cite web|title=x}}</ref> It was scored by Rio Tanabe.",

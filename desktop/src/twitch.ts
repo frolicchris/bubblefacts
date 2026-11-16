@@ -1,16 +1,10 @@
-/**
- * Connect Twitch (optional): lets BubbleFacts read another music content creator's public
- * About text, for their originals (issue #47). Twitch's device code sign-in,
- * the flow for apps that can't keep a secret: Twitch's page opens with a short
- * code filled in, which the streamer checks against the app's and authorizes. No scopes: a channel's description is public, and any
- * sign-in may read it. Access tokens last 4 hours; for this kind of app each
- * refresh token works once, and lapses after 30 days unused.
- */
+// Connect Twitch (optional, #47): device code sign-in to read a music content creator's public About
+// No secret, no scopes; tokens last 4 hours, a refresh token works once (DESKTOP-APP.md: Twitch)
 
 import { setTimeout as sleep } from "timers/promises";
 import { cantReach, errorDetail, plainError, plainWithDetail } from "./plain-errors";
 
-/** Public client ID from dev.twitch.tv (client type Public). Not a secret. */
+// Public client ID from dev.twitch.tv (client type Public), not a secret
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pkg = require("../../package.json") as { bubblefacts?: { twitchClientId?: string } };
 export const TWITCH_CLIENT_ID = process.env.BUBBLEFACTS_TWITCH_CLIENT_ID || pkg.bubblefacts?.twitchClientId || "";
@@ -20,22 +14,22 @@ const HELIX = "https://api.twitch.tv/helix";
 export interface TwitchSignIn {
   accessToken: string;
   refreshToken: string;
-  /** Milliseconds since 1970. */
+  /** ms since 1970 */
   expiresAt: number;
   login: string;
 }
 
-/** Twitch won't renew the sign-in: the streamer connects again. */
+/** Twitch won't renew the sign-in: the streamer connects again */
 export class TwitchSignInExpired extends Error {}
-/** Twitch turned this access token down; a renewal may fix it. */
+/** Twitch turned this access token down; a renewal may fix it */
 class TwitchUnauthorized extends Error {}
 
 export interface DeviceCode {
   deviceCode: string;
   userCode: string;
-  /** The page to approve on, with the code already in it. */
+  /** Approval page, code already filled in */
   verificationUri: string;
-  /** Seconds between checks, as Twitch asks. */
+  /** Seconds between checks, as Twitch asks */
   interval: number;
   expiresAt: number;
 }
@@ -43,7 +37,7 @@ export interface DeviceCode {
 const ENDED = "Your Twitch connection ended. Connect Twitch again in Settings.";
 const RAN_OUT = "That code ran out. Click Connect Twitch to get a new one.";
 
-/** One request to Twitch, with plain-words errors for the streamer. */
+/** One request to Twitch, with plain-words errors */
 async function call(url: string, init: RequestInit, timeoutMs = 15_000, cancel?: AbortSignal): Promise<Response> {
   const timeout = AbortSignal.timeout(timeoutMs);
   try {
@@ -60,7 +54,7 @@ const post = (fields: Record<string, string>) => ({
 });
 const failed = (res: Response) => plainWithDetail("Twitch isn't answering right now. Try again in a minute.", `HTTP ${res.status}`);
 
-/** The tokens in a successful answer, checked before anything is saved. */
+/** The tokens in a successful answer, checked before anything is saved */
 async function tokens(res: Response): Promise<Omit<TwitchSignIn, "login">> {
   const b = (await res.json().catch(() => ({}))) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof b.access_token !== "string" || typeof b.refresh_token !== "string") throw new Error("Twitch sent an answer BubbleFacts can't read. Try again.");
@@ -81,7 +75,7 @@ export async function startDeviceCode(): Promise<DeviceCode> {
   };
 }
 
-/** Wait for the streamer to approve the code on Twitch. */
+/** Wait for the streamer to approve the code on Twitch */
 export async function finishDeviceCode(code: DeviceCode, signal?: AbortSignal): Promise<TwitchSignIn> {
   let interval = code.interval;
   while (Date.now() < code.expiresAt) {
@@ -104,7 +98,7 @@ export async function finishDeviceCode(code: DeviceCode, signal?: AbortSignal): 
   throw new Error(RAN_OUT);
 }
 
-/** Which Twitch account this is, for "Connected as …". Asked once, when connecting. */
+/** The account's login, for "Connected as …"; asked once, when connecting */
 async function loginOf(accessToken: string): Promise<string> {
   const res = await call(`${ID}/validate`, { headers: { Authorization: `OAuth ${accessToken}` } }).catch(() => null);
   return res?.ok ? (((await res.json()) as { login?: string }).login ?? "") : "";
@@ -117,7 +111,7 @@ export async function refreshTwitch(refreshToken: string): Promise<Omit<TwitchSi
   return tokens(res);
 }
 
-/** Twitch forgets the sign-in too. Best effort, and quick: the app forgets it either way. */
+/** Twitch forgets the sign-in too; best effort and quick, as the app forgets it either way */
 export async function revokeTwitch(accessToken: string): Promise<void> {
   if (accessToken) await call(`${ID}/revoke`, post({ client_id: TWITCH_CLIENT_ID, token: accessToken }), 5_000).catch(() => undefined);
 }
@@ -137,19 +131,17 @@ export async function getChannel(login: string, accessToken: string): Promise<Tw
 }
 
 /**
- * The streamer's Twitch connection: connecting with a code, renewing and
- * disconnecting, one at a time. `saved` reads the stored sign-in; `save`
- * stores one (null clears it). Newer always wins: work still running for an
- * older sign-in never saves over a Disconnect or a new connection.
+ * The Twitch connection: connect, renew, disconnect, one at a time. `save(null)` clears it.
+ * Newer wins: work for an older sign-in never saves over a Disconnect or a new connection
  */
 export class TwitchSession {
   private connecting: AbortController | null = null;
   private renewing: Promise<string> | null = null;
-  /** The code to show while waiting for approval. */
+  /** Code to show while waiting for approval */
   userCode = "";
   error = "";
 
-  /** `log`: where the technical side of a failed connection goes. */
+  /** `log`: where a failed connection's technical detail goes */
   constructor(
     private readonly saved: () => TwitchSignIn | null,
     private readonly save: (t: TwitchSignIn | null) => void,
@@ -161,7 +153,7 @@ export class TwitchSession {
     this.error = plainError(err, { service: "Twitch" });
   }
 
-  /** Start connecting; `onDone` runs once it's settled, approved or not. */
+  /** Start connecting; `onDone` runs once settled, approved or not */
   async connect(openPage: (url: string) => void, onDone: () => void): Promise<void> {
     this.connecting?.abort();
     const mine = new AbortController();
@@ -193,12 +185,12 @@ export class TwitchSession {
     const was = this.saved();
     this.save(null);
     if (!was) return;
-    // A token that has run out can't be revoked: renew it once so Twitch forgets the live one.
+    // An expired token can't be revoked: renew once so Twitch forgets the live one
     const live = was.expiresAt > Date.now() ? was.accessToken : await refreshTwitch(was.refreshToken).then((t) => t.accessToken, () => "");
     await revokeTwitch(live);
   }
 
-  /** A live access token: renewed when it's about to run out, or when `force`d. One renewal at a time. */
+  /** A live access token, renewed near expiry or when `force`d; one renewal at a time */
   token(force = false): Promise<string> {
     const s = this.saved();
     if (!s) return Promise.reject(new TwitchSignInExpired("Connect Twitch in Settings first."));
@@ -217,7 +209,7 @@ export class TwitchSession {
     return this.renewing;
   }
 
-  /** Run a request with a live token. A token Twitch turns down early (revoked, say) gets one renewal. */
+  /** Run a request with a live token; one turned down early (revoked, say) gets one renewal */
   async withToken<T>(request: (accessToken: string) => Promise<T>): Promise<T> {
     try {
       return await request(await this.token());
@@ -228,13 +220,10 @@ export class TwitchSession {
   }
 }
 
-/** A Twitch login is 4 to 25 letters, digits or underscores. */
+// A Twitch login: 4 to 25 letters, digits or underscores
 const LOGIN = /^[a-z0-9_]{4,25}$/i;
 
-/**
- * The Twitch channel a song's artist or link points to: "Jane (@janeplayskeys)",
- * "@janeplayskeys", or a link like twitch.tv/janeplayskeys. Empty when neither does.
- */
+/** The channel an artist or link names: "Jane (@janeplayskeys)", "@janeplayskeys", twitch.tv/janeplayskeys; else "" */
 export function twitchLoginFrom(artist: string, link: string): string {
   const fromLink = /(?:^|\/\/|\.)twitch\.tv\/([A-Za-z0-9_]+)/i.exec(link.trim())?.[1] ?? "";
   if (LOGIN.test(fromLink)) return fromLink.toLowerCase();
@@ -242,13 +231,12 @@ export function twitchLoginFrom(artist: string, link: string): string {
   return LOGIN.test(fromArtist) ? fromArtist.toLowerCase() : "";
 }
 
-/** About 160 characters fit in a bubble: the fact checker's MAX_FACT_CHARS in backend/src/fact-limits.ts. */
+/** Characters in a bubble: MAX_FACT_CHARS in backend/src/fact-limits.ts */
 export const BUBBLE_CHARS = 160;
 
 /**
- * Their About text as fact boxes for the streamer to review: whole sentences,
- * each short enough for a bubble, at most three. Empty when there's nothing.
- * `chars`: less than a whole bubble, when a credit goes in front.
+ * An About text as up to three fact boxes of whole sentences, each fitting a bubble
+ * `chars`: less than a bubble when a credit goes in front
  */
 export function factsFromAbout(description: string, chars = BUBBLE_CHARS): string[] {
   const text = description.replace(/\s+/g, " ").trim();
@@ -273,9 +261,8 @@ export interface AboutAnswer {
 }
 
 /**
- * The fact server's question about a channel (its twitch-about.ts), answered here because the
- * sign-in stays in the app. "off" with nothing asked of Twitch until `allowed`. A channel with an
- * empty About is "none", and anything that goes wrong is "failed": a song's facts never wait on it.
+ * Answers the server's twitch-about.ts question here, as the sign-in stays in the app. "off" asks
+ * Twitch nothing; an empty About is "none"; any error is "failed", so facts never wait on it
  */
 export async function answerAbout(login: string, chars: number, allowed: boolean, read: (login: string) => Promise<TwitchChannel | null>): Promise<AboutAnswer> {
   if (!allowed) return { type: "twitch-about", login, state: "off" };

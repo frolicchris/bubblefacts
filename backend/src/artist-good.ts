@@ -5,19 +5,10 @@ import { escapeRe } from "./text";
 import { setCapped } from "./capped-map";
 import { artistGoodFromEntity, artistGoodLabels, diedOf, sureArtist } from "./wikidata";
 
-/**
- * The good an artist has done, from their own Wikipedia article: charity and benefit shows,
- * teaching, mentoring, preserving and sharing music, roles for a cause, honors.
- *
- * No AI writes these. A sentence is shown only if it has the shape of a checkable act (`ACTS`):
- * an allow-list, because block-lists leak ("X supported Y" names a side on any subject). It is
- * shown as the article wrote it, only with a leading "He", "She", "They" or "The band" replaced by
- * the artist's name. A thing named for them ("A statue of her ...") counts in an honors section.
- * A movement counts by its name and the artist's part in it, or from Wikidata's statement: an
- * article's description of one is a characterization. `neutral-wording.ts` applies its lists on top.
- */
+// The good an artist did, from their own Wikipedia article: a sentence as written, no AI, only
+// in the shape of a checkable act (ACTS) (ARCHITECTURE.md: Facts about the good an artist does)
 
-/** A verb only counts in the shape of a checkable act: a verb, then what the sentence must also name. */
+// What an act's sentence must name beside its verb (ACTS)
 const ORG = /\b(foundations?|funds?|charit\w+|trusts?|non-?profits?|scholarships?|schools?|academ\w+|institutes?|programs?|record labels?|labels?|studios?|festivals?|organi[sz]ations?|cent(?:er|re)s?|camps?|archives?|librar\w+|unions?|guilds?|associations?)\b/i;
 const BENEFIT = /\b(charit\w+|benefit|telethons?|fundrais\w+|relief|Live Aid|Live 8|Farm Aid|Red Cross|UNICEF)\b/i;
 const ROLE = /\b(ambassador|patron|envoy|trustee|board member|chair(?:man|woman|person)?|(?:president|treasurer|secretary) of .*\b(?:union|guild|federation|association|society))\b/i;
@@ -25,19 +16,11 @@ const HONOR = /\b(Hall of Fame|Medal|Order of|Knight\w*|Dame|Kennedy Center|Priz
 const SCHOOL = /\b(conservator\w+|universit\w+|colleges?|schools?|academ\w+)\b/i;
 const PRESERVED = /\b(traditional (?:songs?|music|tunes?)|folk songs|field recordings|endangered languages?|archives?|archival|recordings)\b/i;
 const NEW_ARTISTS = /\b(young|emerging|new|newer|up-and-coming) (?:musicians|artists|composers|bands)\b/i;
-/**
- * A movement in music or the arts, by its name: "Tropica, a musical movement", "the Tropica art movement".
- * Never a description ("a consciousness movement"), and never a movement in general: "took part in"
- * a political one states a side, and no list can name them all.
- */
+// A named music or arts movement ("Tropica, a musical movement"), never a described or political one
 const NAMED_MOVEMENT = /(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)*(?:,\s+an?(?:\s+[\p{L}-]+){0,2})?\s+(?:music|musical|art|artistic|cultural|literary|dance|film)\s+movement\b/u;
 const SHARED = /\b(free downloads?|for free|pay-what-you-want|Creative Commons|open[- ]licen[sc]\w+|stems)\b/i;
 
-/**
- * Every act a sentence may tell (`inSection`: only in a section about such things, where a
- * concert or an honor is one of them). The rest fails by not matching: "supported", "opposed",
- * "backed", "lobbied", "campaigned", "is involved in" say where someone stands, not what they did.
- */
+// Every act a sentence may tell (inSection: only in a good-deeds section); "supported" and the like fail by not matching
 const ACTS: Array<{ verb: string; needs: RegExp; inSection?: boolean }> = [
   { verb: String.raw`(?:co-?)?found(?:ed|s)|establish(?:ed|es)|set up|launch(?:ed|es)|start(?:ed|s)|creat(?:ed|es)`, needs: ORG },
   { verb: String.raw`(?:co-?)?found(?:ed|s)|helped\s+(?:to\s+)?(?:found|lead|start|develop|create)|led|leads|t(?:ook|akes)\s+part\s+in|an?\s+(?:co-?)?founder\s+of`, needs: NAMED_MOVEMENT },
@@ -57,40 +40,37 @@ const ACTS: Array<{ verb: string; needs: RegExp; inSection?: boolean }> = [
 ];
 const AUX = String.raw`(?:(?:also|later|then|has|have|had|was|were|been|subsequently)\s+)*`;
 const ACT_RES = ACTS.map((a) => ({ ...a, re: new RegExp(String.raw`^${AUX}(?:${a.verb})\b`, "i") }));
-/** Sections where a plain concert or an honor is part of the good. */
+// Sections where a plain concert or an honor counts
 const GOOD_HEADING = /\b(philanthrop\w*|charit\w*|humanitarian\w*|benefits?|fundrais\w*|relief|foundations?|community|youth|outreach|legacy|impact|honou?rs?|awards?|accolades?|achievements?|tributes?|recognition|commemorat\w*)\b/i;
-/** Sections about politics: left out with their subsections, whatever else the heading says. */
+// Politics: left out with subsections, whatever else the heading says
 const POLITICS_HEADING = /\b(politic\w*|elections?|views|beliefs|opinions|campaigns?)\b/i;
 
-/**
- * What keeps a sentence out: someone's report or plan rather than an act, a nomination, a vague
- * line, and words pointing at a sentence around it. What may not be said at all is `neutralBreach`.
- */
+// Out: a report or plan, not an act; a nomination; a vague line; a pointer to another sentence
 const NOT_A_PLAIN_DEED =
   /\b(said|says|stated|according|rumou?red|would|will|plans?|planned|planning|announced|intends?|hopes?|this|these|those|that year|same year|following year|next year|previous year|the album|the song|the tour|the single|the film|which|former|failed|unsuccessful|despite|however|critics?|criticized|criticised|nominat\w+|various|as well|the (?:project|fee|program|programme|event|organi[sz]ation|charity|foundation)|(?:his|her|their) efforts)\b|["“”:;]|\.\.\./i;
 
-/** Something named for or showing the artist: "A statue of her stands in ...", "Asteroid 1234 was named after him". */
+// Named for or showing the artist: "A statue of her stands in ...", "Asteroid 1234 was named after him"
 const NAMED_THING =
   String.raw`(?:statues?|bronze|monument|street|road|avenue|boulevard|square|plaza|park|bridge|asteroid|minor planet|crater|species|genus|postage stamps?|stamps?|mural|plaque)`;
 const TRIBUTE = String.raw`(?:named (?:after|for|in honou?r of)|in honou?r of|honou?ring|of|depicting|commemorating|featuring)`;
 
-/** A date in front of the subject: "In 2005, ", "Since the 1990s, ". */
+// A leading date: "In 2005, ", "Since the 1990s, "
 const DATED = String.raw`(?:(?:In|Since|By|During|From)\s+(?:the\s+)?(?:(?:early|mid|late)\s+)?\d{4}s?,?\s+)?`;
 
-/** A heading line: its level and words. */
+/** A heading line: its level and words */
 function heading(line: string): { level: number; text: string } | null {
   const m = /^(==+)\s*(.+?)\s*==+\s*$/.exec(line.trim());
   return m ? { level: m[1].length, text: m[2] } : null;
 }
 
-/** A sentence too long for a bubble, without a closing clause that only adds to it. Dropping one can't overstate the act. */
+/** Too long for a bubble: cut a closing clause that only adds (can't overstate the act) */
 function shortened(text: string): string {
   if (text.length <= MAX_FACT_CHARS) return text;
   const cut = /^(.{30,}?)(?:,\s(?:originally|which|who|including|with|as part of|in order to|to)|\s(?:that|which))\s/.exec(text);
   return cut && cut[1].length < MAX_FACT_CHARS ? `${cut[1]}.` : text;
 }
 
-/** A sentence whose subject is a thing named for the artist, with its pronoun made the name. */
+/** A thing named for the artist as subject, its pronoun made the name */
 function tribute(sentence: string, name: string, pronounOk: boolean): string | null {
   const who = String.raw`(?:(${escapeRe(name)})|(him|her|them))`;
   const m = new RegExp(String.raw`^(?:${DATED})(?:A|An|The|Asteroid|Minor planet)?\b.{0,70}?\b${NAMED_THING}\b.{0,50}?\b${TRIBUTE}\s+${who}\b`, "isu").exec(sentence.trim());
@@ -99,7 +79,7 @@ function tribute(sentence: string, name: string, pronounOk: boolean): string | n
   return text.length <= MAX_FACT_CHARS ? text : null;
 }
 
-/** The sentence with its subject as the artist's name, or null when it isn't plainly about the artist doing good. */
+/** The sentence with the artist's name as subject, or null when not plainly the artist doing good */
 function deed(sentence: string, name: string, pronounOk: boolean, surname: string, inSection: boolean): string | null {
   const named = [name, surname].filter(Boolean).map(escapeRe).join("|");
   const m = new RegExp(String.raw`^(${DATED})(?:(${named})|(He|She|They|The band|The group|The duo|The trio))(\s.*)$`, "isu").exec(sentence.trim());
@@ -107,7 +87,7 @@ function deed(sentence: string, name: string, pronounOk: boolean, surname: strin
   const [, date, , pronoun, rest] = m;
   if (pronoun && !pronounOk) return null;
   const tail = rest.trimStart();
-  // "Some Name Archives holds ...": a name, not the artist doing something.
+  // "Some Name Archives holds ...": a name, not the artist doing something
   if (!/^\p{Ll}/u.test(tail)) return null;
   if (!ACT_RES.some((a) => a.re.test(tail) && a.needs.test(tail) && (inSection || !a.inSection))) return null;
   if (NOT_A_PLAIN_DEED.test(sentence)) return null;
@@ -115,19 +95,14 @@ function deed(sentence: string, name: string, pronounOk: boolean, surname: strin
   return text.length >= 30 && text.length <= MAX_FACT_CHARS ? text : null;
 }
 
-/**
- * Sentences of an artist's article (as `wikiExtract` gives it, already within the content standard)
- * telling the good they did, in article order. `name`: what the article calls them. A pronoun
- * counts only at the start of a paragraph or right after a sentence about the artist: anyone else
- * could be its "he" further on.
- */
+/** Good-deed sentences of an artist's article (wikiExtract text), in order; `name`: what it calls them */
 export function goodSentences(full: string, name: string): string[] {
   const parts = name.trim().split(/\s+/);
   const surname = parts.length > 1 && !/^the$/i.test(parts[0]) ? (parts[parts.length - 1] as string) : "";
   const about = new RegExp(String.raw`^${DATED}(?:${escapeRe(name)}|${surname ? `${escapeRe(surname)}|` : ""}He|She|They|The band|The group)\s`, "iu");
   const out: string[] = [];
   const open: Array<{ level: number; good: boolean; politics: boolean }> = [];
-  // The article's first sentence is about its subject, however fully it spells their name.
+  // The first sentence is about the subject, however fully it spells the name
   let opening = true;
   for (const line of full.split("\n")) {
     const h = heading(line);
@@ -152,12 +127,12 @@ export function goodSentences(full: string, name: string): string[] {
 
 const HONOR_FACT = /\b(inducted|received|awarded|honou?red|made an?|presented with|given)\b/;
 
-/** Acts first, then at most `maxHonors` honors: halls of fame run long, and the rest of what an artist did gets its turn. */
+/** Acts first, then at most `maxHonors` honors: halls of fame run long */
 export function actsFirst<T extends { text: string }>(facts: T[], maxHonors: number): T[] {
   return [...facts.filter((f) => !HONOR_FACT.test(f.text)), ...facts.filter((f) => HONOR_FACT.test(f.text)).slice(0, maxHonors)];
 }
 
-/** One fact, and the English article it comes from ("" for Wikidata). */
+/** A fact and its English article ("" for Wikidata) */
 export interface GoodFact {
   text: string;
   page: string;
@@ -165,8 +140,7 @@ export interface GoodFact {
 
 const NEGATIVE_TTL_MS = 30 * 60 * 1000;
 const MAX_ARTISTS = 200;
-/** Enough to take turns over a stream without one artist's list growing long. */
-const MAX_FACTS = 10;
+const MAX_FACTS = 10; // per artist: enough to take turns over a stream
 const MAX_HONORS = 3;
 const goodCache = new Map<string, { facts: GoodFact[]; at: number }>();
 
@@ -174,11 +148,7 @@ export function clearArtistGoodCache(): void {
   goodCache.clear();
 }
 
-/**
- * The facts about the good a surely matched artist did: from their article's sections first,
- * then Wikidata, all within the content standard and away from partisan politics. `page`: the
- * surely matched article; `names`: the request's artist. [] when the artist isn't sure. Never throws.
- */
+/** Good-deed facts for the surely matched article's artist, article first, then Wikidata; [] when unsure. Never throws */
 export async function artistGoodFacts(page: string, names: string[]): Promise<GoodFact[]> {
   try {
     const artist = await sureArtist(page, names);
@@ -188,10 +158,10 @@ export async function artistGoodFacts(page: string, names: string[]): Promise<Go
     const name = artist.entity.labels?.en?.value ?? artist.entity.labels?.mul?.value ?? "";
     const full = articleText(artist.page) || (await wikiExtract(artist.page)) || "";
     const fromWikidata = artistGoodFromEntity(artist.entity, await artistGoodLabels(artist.entity));
-    // A cause named after a people or a faith counts too, even where its capitals read as a name.
+    // A cause named after a people or a faith counts too, even where its capitals read as a name
     const safe = (text: string) => !standardBreach(text, [name, ...names]) && !namesIdentity(text, [name, ...names]) && !neutralBreach(text, [name, ...names], !diedOf(artist.entity));
     const sentences = goodSentences(full, name).filter(safe);
-    // A statement a sentence already tells, with its date, is left to the sentence.
+    // A statement a sentence already tells, with its date, is left to the sentence
     const told = (text: string) => sentences.some((s) => s.includes(text.replace(/^.*? (?:the|an?) (?=\p{Lu})/u, "").replace(/\.$/, "")));
     const statements = fromWikidata.filter((text) => safe(text) && !told(text));
     const facts = actsFirst([...sentences.map((text) => ({ text, page: artist.page })), ...statements.map((text) => ({ text, page: "" }))], MAX_HONORS).slice(0, MAX_FACTS);

@@ -6,11 +6,11 @@ describe("the Linux autostart file", () => {
   });
 
   it("escapes the characters the spec reserves inside quotes, then the string's own backslash", () => {
-    // A quote: \" in the argument, written \\" in the file.
+    // A quote: \" in the argument, written \\" in the file
     expect(quoteExecArg('/home/jane/My "Live" Apps/bf')).toBe('"/home/jane/My \\\\"Live\\\\" Apps/bf"');
     expect(quoteExecArg("/home/jane/$HOME/bf")).toBe('"/home/jane/\\\\$HOME/bf"');
     expect(quoteExecArg("/home/jane/`id`/bf")).toBe('"/home/jane/\\\\`id\\\\`/bf"');
-    // A backslash: \\ in the argument, four in the file.
+    // A backslash: \\ in the argument, four in the file
     expect(quoteExecArg("/home/jane/a\\b/bf")).toBe('"/home/jane/a\\\\\\\\b/bf"');
   });
 

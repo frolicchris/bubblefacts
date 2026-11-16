@@ -5,19 +5,19 @@ jest.mock("./config", () => ({
 import { clearGroundingCache, fetchGrounding as lookup, isNonMusicWork, leadNamesPerformer, listedTracks, themeOf, articleText } from "./fact-verifier";
 import { referenceDecision } from "./work-resolver";
 
-// MATCH=scored is the default; the "rules match" test project runs these again with MATCH=rules. The score may hold an article back, never add one.
+// MATCH=scored by default; the "rules match" test project reruns these with MATCH=rules (the score may hold an article back, never add one)
 const scored = process.env.MATCH !== "rules";
 const fetchGrounding = async (...a: Parameters<typeof lookup>) => {
   const text = await lookup(...a);
   return scored && text && referenceDecision(a[0], text, a[0], articleText(text.split("\n")[0])).decision === "abstain" ? "" : text;
 };
 
-// Made-up bands, songs, films and games.
+// Made-up bands, songs, films and games
 describe("a performer's name shared with a film or a book", () => {
   let hits: Record<string, string[]>;
   let descriptions: Record<string, string>;
   let extracts: Record<string, string>;
-  // Titles that redirect, titles a plain title lookup finds, and wikitext, by page.
+  // Titles that redirect, titles a plain title lookup finds, and wikitext, by page
   let redirects: Record<string, string>;
   let existing: string[];
   let wikitexts: Record<string, string>;
@@ -27,7 +27,7 @@ describe("a performer's name shared with a film or a book", () => {
     const p = new URL(url).searchParams;
     const term = p.get("srsearch");
     const names = (p.get("titles") ?? "").split("|");
-    // Wikidata: an item for each page in `humans`, a person's.
+    // Wikidata: an item for each page in `humans`, a person's
     if (new URL(url).hostname === "www.wikidata.org") {
       const human = p.get("titles") && humans.includes(p.get("titles")!);
       const body = { entities: human ? { Q1: { id: "Q1", claims: { P31: [{ mainsnak: { datavalue: { value: { id: "Q5" } } } }] } } } : {} };
@@ -161,8 +161,8 @@ describe("a performer's name shared with a film or a book", () => {
   });
 
   it("takes a performer's article under a longer name, which no installment check reads", async () => {
-    // The search finds a philosopher. Wikipedia's "Quillon (musician)" is "Aurelio Quillon", whose
-    // first sentence breaks the identity list and is left out.
+    // The search finds a philosopher; "Quillon (musician)" is "Aurelio Quillon", whose first
+    // sentence breaks the identity list and is left out
     hits = { Quillon: ["Quillon"] };
     extracts = {
       Quillon: `Quillon was a French writer and philosopher of the Enlightenment.${LONG}`,

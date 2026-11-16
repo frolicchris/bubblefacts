@@ -2,14 +2,10 @@ import fs from "fs";
 import path from "path";
 
 /**
- * Write a file so a crash or power cut mid-write leaves the old file or the
- * new one, never half of one: the data goes to a temporary file beside it,
- * which then replaces it in one step. A half-written session.json used to
- * fail to load, and the bubbles replayed after a restart.
- *
- * `mode` sets the permissions; without it an existing file keeps its own.
- * The desktop app has its own copy (desktop/src/atomic-write.ts): the two
- * are compiled separately.
+ * Write via a temp file and one rename: a crash leaves the old file or the new, never half
+ * (a half-written session.json once replayed the bubbles after a restart). `mode`: the
+ * permissions; without it an existing file keeps its own
+ * The desktop app has its own copy (desktop/src/atomic-write.ts): the two are compiled separately
  */
 export function writeFileAtomic(file: string, data: string, options: { mode?: number } = {}): void {
   let mode = options.mode;
@@ -17,14 +13,14 @@ export function writeFileAtomic(file: string, data: string, options: { mode?: nu
     try {
       mode = fs.statSync(file).mode & 0o777;
     } catch {
-      // A new file: the usual permissions.
+      // A new file: default permissions
     }
   }
   const temp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);
   try {
     const fd = fs.openSync(temp, "wx", mode ?? 0o666);
     try {
-      // Opening applies the umask; this sets exactly the mode asked for or kept.
+      // Opening applies the umask; set exactly the mode asked for or kept
       if (mode !== undefined && process.platform !== "win32") fs.fchmodSync(fd, mode);
       fs.writeFileSync(fd, data);
       fs.fsyncSync(fd);
@@ -38,7 +34,7 @@ export function writeFileAtomic(file: string, data: string, options: { mode?: nu
   }
 }
 
-/** On Windows a virus scanner or indexer can hold the old file for a moment: try again briefly. */
+/** Windows: a virus scanner or indexer may hold the old file a moment, so retry briefly */
 function renameOver(from: string, to: string): void {
   for (let attempt = 0; ; attempt++) {
     try {

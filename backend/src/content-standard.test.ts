@@ -12,7 +12,7 @@ import { IDENTITY_REASON, isPrivateHeading, isStandardReason, selfDescribes, sen
 import { STABLE_AGE_MS, clearGroundingCache, fetchGrounding, screenClaims, wikiExtract } from "./fact-verifier";
 import { htmlToText } from "./wiki-html";
 
-// Every person, band and song here is made up.
+// Every person, band and song here is made up
 
 describe("the content standard's word lists (issue #242)", () => {
   const cases: Array<[string, string]> = [
@@ -75,14 +75,14 @@ describe("the content standard's word lists (issue #242)", () => {
   });
 
   it("reads a listed word inside a name or a title as the name", () => {
-    // A band, a game's level and a quoted song title.
+    // A band, a game's level and a quoted song title
     expect(standardBreach("The Crime Lords recorded it in two days.")).toBeNull();
     expect(standardBreach("The theme plays in the Fatal Harbor stage.")).toBeNull();
     expect(standardBreach('Her cover of "Heroin" opened the set.')).toBeNull();
-    // The song's own title, even where it opens a sentence.
+    // The song's own title, even where it opens a sentence
     expect(standardBreach("Velvet Felony was recorded in 1991.", ["Velvet Felony"])).toBeNull();
     expect(withinStandard("Velvet Felony is a 1991 song by the Marlowe Sisters.", "Velvet Felony (song)").dropped).toBe(0);
-    // An all-capitals word is the word itself.
+    // An all-capitals word is the word itself
     expect(standardBreach("The lyrics were said to be about LSD.")).not.toBeNull();
   });
 
@@ -377,7 +377,7 @@ describe("only article versions at least 72 hours old (issue #242)", () => {
     });
     try {
       expect(await fetchGrounding({ title: "Glass Orchard", artist: "Mara Quillon" })).toBe("");
-      // The artist's article was found and fits, but isn't used this time.
+      // The artist's article was found and fits, but isn't used this time
       expect(asked.some((p) => p.get("titles") === "Mara Quillon")).toBe(true);
     } finally {
       fetchMock.mockImplementation(defaultFetch);

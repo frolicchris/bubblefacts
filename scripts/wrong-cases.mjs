@@ -1,22 +1,11 @@
-// Replays the captions a streamer pressed Wrong on as test cases: would
-// BubbleFacts still show each one today?
-//
+// Replays the captions a streamer pressed Wrong on: would BubbleFacts still show each one today?
 //   npm run build
 //   node scripts/wrong-cases.mjs [WRONG_LOG] [--pace MS]
-//
-// WRONG_LOG is the `wrong-log.jsonl` in the app's data folder (one JSON line
-// per Wrong press; the default is $BUBBLEFACTS_DATA_DIR/wrong-log.jsonl). For
-// each line the song is looked up again, with no Wrong blocks, and the caption
-// is screened against the article found now. A line passes when
-//   - the lookup finds a different article than the one blocked (or none), or
-//   - the same article is found but the screening now drops the caption.
-// A line that fails ("STILL SHOWS") is a fact-checking gap worth fixing. Lines
-// whose caption didn't come from a Wikipedia article are skipped. Needs the
-// internet for the lookups (Wikipedia); offline, every line reports "no
-// article found", which says nothing about the screening. The track is left
-// out of the screening, so a caption that only a track-aware check would drop
-// can still show here. The log is private: don't commit it or paste it into
-// an issue. Exits 1 when any caption still shows.
+// WRONG_LOG: the app's `wrong-log.jsonl` (default $BUBBLEFACTS_DATA_DIR/wrong-log.jsonl); private, never commit or post it
+// Each song is looked up fresh, no Wrong blocks. Passes when another article (or none) is found, or the same
+// one now screens the caption out; "STILL SHOWS" is a fact-checking gap, and exits 1. Non-article captions skipped
+// Needs Wikipedia: offline every line is "no article found", which says nothing about the screening
+// The track is left out of screening, so a caption only a track-aware check drops can still show
 
 import fs from "fs";
 import os from "os";
@@ -31,11 +20,11 @@ if (!fs.existsSync(logFile) || fs.statSync(logFile).isDirectory()) {
   process.exit(2);
 }
 
-// The fact server reads these at import; nothing here connects to a song list.
+// The fact server reads these at import; nothing here connects to a song list
 process.env.SSL_ACCESS_TOKEN ??= "unused";
 process.env.SSL_STREAMER_NAME ??= "unused";
 process.env.AI_PROVIDER ??= "none";
-// An empty data folder, so no earlier Wrong block hides the lookup the song would get fresh.
+// An empty data folder, so no earlier Wrong block hides the fresh lookup
 process.env.BUBBLEFACTS_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-wrong-cases-"));
 
 const dist = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../dist/backend");
@@ -48,7 +37,7 @@ for (const text of fs.readFileSync(logFile, "utf8").split("\n")) {
     const c = JSON.parse(text);
     if (c?.song?.title && typeof c.caption === "string") cases.push(c);
   } catch {
-    // A blank or cut-short line.
+    // A blank or cut-short line
   }
 }
 
@@ -68,7 +57,7 @@ for (const [i, c] of cases.entries()) {
   try {
     context = await verifier.fetchGrounding(song);
   } catch {
-    // Treated as no article.
+    // Treated as no article
   }
   console.log = real.log;
   console.warn = real.warn;

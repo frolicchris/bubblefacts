@@ -1,24 +1,15 @@
 /* BubbleFacts
  *
- * Sizing: everything scales with the height of the Browser source, so the
- * bubbles look the same on a 720p, 1080p or 4K canvas: the text is 24px at
- * 1080p. To make everything bigger, raise --bf-scale (the app's "Bubble size"
- * setting does this, live). Set with zero specificity (:where), so a size in
- * OBS's Custom CSS box still wins.
- *
- * OBS renders browser sources without GPU acceleration, so animate only
- * transform and opacity.
- *
- * The look: the --bf-* colors, font and corners below are the Classic Style.
- * The app's Style setting switches them with data-style on <html>, live
- * (issue #177). They're set with zero specificity (:where), so anything in
- * OBS's Custom CSS box still wins, whether it sets these properties or styles
- * .popup-bubble and .song-toast directly. A Style only sets --bf-* properties:
- * never a size, an animation or the text itself.
+ * Size: everything scales with the source's height (24px text at 1080p). Bigger: raise
+ * --bf-scale (the app's Bubble size does this, live).
+ * OBS draws browser sources without the graphics card: animate only transform and opacity.
+ * Look: the --bf-* colors, font and corners below are Classic; the Style setting swaps them
+ * via data-style on <html> (#177). A Style sets only --bf-*, never size, animation or text.
+ * Everything is set with zero specificity (:where), so OBS's Custom CSS box always wins.
  */
 :where(html) {
   --bf-scale: 1;
-  /* The vertical overlay's own Bubble size, set apart so both overlays can run at once. */
+  /* The vertical overlay's own size, so both overlays can run at once */
   --bf-vertical-scale: 1;
 }
 
@@ -39,7 +30,7 @@
   --bf-bg-1: rgba(10, 10, 60, 0.94);
   --bf-bg-2: rgba(20, 20, 90, 0.94);
   --bf-text: #f2f2f2;
-  /* Heavier shadow: larger text sits over more varied video content. */
+  /* Heavier shadow: larger text sits over busier video */
   --bf-text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
   --bf-accent: #5b6ee1;
   --bf-border-width: 3px;
@@ -60,7 +51,7 @@
   --bf-live-learn: #ffd700;
 }
 
-/* Light: a white card with dark text, for bright scenes. */
+/* Light: a white card with dark text, for bright scenes */
 :where(html[data-style="light"]) {
   --bf-radius: 14px;
   --bf-icon: "\266A";
@@ -83,7 +74,7 @@
   --bf-live-learn: #7a5200;
 }
 
-/* Minimal: plain see-through black, with no border, cursor or sparkles. */
+/* Minimal: plain see-through black, no border, cursor or sparkles */
 :where(html[data-style="minimal"]) {
   --bf-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --bf-weight: 500;
@@ -111,8 +102,8 @@
   --bf-live-learn: #ffd700;
 }
 
-/* Retro: an 8-bit game's text box. Black, a thick white frame, square corners, a fixed-width font.
-   System fonts only: the overlay never loads a font from the internet. */
+/* Retro: an 8-bit text box, thick white frame, square corners, fixed-width font.
+   System fonts only: the overlay never loads a font from the internet */
 :where(html[data-style="retro"]) {
   --bf-font: 'Lucida Console', Menlo, Monaco, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace;
   --bf-icon: "\25BA";
@@ -140,9 +131,8 @@
   --bf-live-learn: #f8d878;
 }
 
-/* High contrast: white on solid black in a thick yellow frame, for viewers with low vision or on
-   small screens. Every text is at least 7:1 (WCAG AAA), and nothing is see-through, so busy video
-   behind a bubble can't wash it out. No shadows, glows or sparkles to blur the letters. */
+/* High contrast: white on solid black, thick yellow frame, for low vision and small screens.
+   All text at least 7:1 (WCAG AAA); nothing see-through, no shadows, glows or sparkles */
 :where(html[data-style="high-contrast"]) {
   --bf-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --bf-weight: 700;
@@ -171,8 +161,8 @@
   --bf-live-learn: #ffe600;
 }
 
-/* The Icon setting: one plain character under any Style, or the rotation back. After the Styles
-   above, so it wins over a Style's own icon; still no specificity, so Custom CSS wins over both. */
+/* The Icon setting: one plain character under any Style, or the rotation back. After the Styles,
+   so it beats a Style's own icon; still no specificity, so Custom CSS beats both */
 :where(html[data-icon="notes"]) { --bf-icon: initial; }
 :where(html[data-icon="heart"]) { --bf-icon: "\2665\FE0E"; }
 :where(html[data-icon="star"]) { --bf-icon: "\2726"; }
@@ -204,15 +194,12 @@ html, body {
   z-index: 1000;
 }
 
-/* ============================================================
-   VIDEO GAME DIALOG BOX — RPG text bubble style
-   Inspired by classic SNES/PS1 RPG dialog boxes
-   ============================================================ */
+/* === The bubble: a classic SNES/PS1 RPG dialog box === */
 .popup-bubble {
   position: absolute;
   max-width: var(--bubble-max-width);
   min-width: var(--bubble-min-width);
-  /* Padding scales with the font so the icon gutter stays proportional. */
+  /* Padding scales with the font, so the icon gutter stays in proportion */
   padding: 0.85em 1.05em 0.85em 2.6em;
   /* The Style's background, a gentle diagonal gradient */
   background: linear-gradient(
@@ -221,7 +208,7 @@ html, body {
     var(--bf-bg-2) 50%,
     var(--bf-bg-1) 100%
   );
-  /* Double border — outer glow + inner pixel border */
+  /* Double border: outer glow, inner pixel border */
   border: var(--bf-border-width) solid var(--bf-accent);
   border-radius: var(--bf-radius);
   outline: var(--bf-outline-width) solid var(--bf-outline);
@@ -236,14 +223,13 @@ html, body {
   text-shadow: var(--bf-text-shadow);
   z-index: 1001;
 
-  /* Start hidden for animation */
+  /* Hidden until the pop-in */
   opacity: 0;
   transform: scale(0);
   transform-origin: bottom center;
 }
 
-/* A spot with no left or right (Top center, Bottom center): centered, whatever the
-   bubble's length. Layout only; transform stays free for the animations. */
+/* Top or Bottom center: centered at any length. Layout only; transform stays free for animations */
 .popup-bubble.centered {
   left: 0;
   right: 0;
@@ -251,9 +237,8 @@ html, body {
   margin: 0 auto;
 }
 
-/* Icon, left side. The overlay script rotates it per bubble, unless a look sets --bf-icon
-   (a character such as "\266B", or url(...)), which then replaces the rotation. Classic keeps
-   the rotation; the other Styles use one plain character that takes the Style's text color. */
+/* Icon, left side: the script rotates it per bubble unless --bf-icon is set ("\266B" or url(...)).
+   Classic rotates; other Styles use one plain character in their text color */
 .popup-bubble::before {
   content: var(--bf-icon, var(--bubble-icon, '\266A'));
   position: absolute;
@@ -283,9 +268,7 @@ html, body {
   50% { opacity: 0; }
 }
 
-/* ============================================================
-   ANIMATIONS — using only transform + opacity for OBS perf
-   ============================================================ */
+/* === Animations: transform and opacity only, for OBS === */
 
 /* Pop-in: quick scale with a "level up" bounce feel */
 @keyframes popIn {
@@ -345,9 +328,7 @@ html, body {
              gameFloat 2.5s ease-in-out 0.5s infinite;
 }
 
-/* ============================================================
-   SPARKLES — three 2px squares that blink around each bubble
-   ============================================================ */
+/* === Sparkles: three 2px squares blinking around each bubble === */
 .popup-bubble .sparkle {
   position: absolute;
   width: 2px;
@@ -380,10 +361,7 @@ html, body {
   50% { opacity: 1; transform: scale(1.5); }
 }
 
-/* ============================================================
-   SONG TOAST — "NOW PLAYING" bar (bottom of screen)
-   Styled like an achievement notification / XP bar
-   ============================================================ */
+/* === Now Playing bar, bottom of the screen, like an achievement notification === */
 .song-toast {
   position: absolute;
   bottom: 60px;
@@ -403,7 +381,7 @@ html, body {
   font-size: var(--toast-font-size);
   font-weight: 700;
   letter-spacing: var(--bf-toast-letter-spacing);
-  /* Wrap long titles; nowrap on a centered element clips both ends. */
+  /* Wrap long titles: nowrap on a centered element clips both ends */
   max-width: 80vw;
   white-space: normal;
   text-align: center;
@@ -429,9 +407,8 @@ html, body {
   opacity: 1;
 }
 
-/* Live Learn: off-list request, no facts follow. A gold border (the Style's own gold), the same
-   background, persistent until the next song. No new animation. The label says LIVE LEARN,
-   so color is never the only sign. */
+/* Live Learn (off-list request, no facts): the Style's gold border, up until the next song.
+   The label says LIVE LEARN, so color is never the only sign */
 .song-toast.live-learn {
   border-color: var(--bf-live-learn);
 }
@@ -473,40 +450,32 @@ html, body {
   opacity: 0;
 }
 
-/* ============================================================
-   VERTICAL — BubbleFacts Vertical.html, a 1080x1920 source for
-   Twitch Dual Format, TikTok, YouTube Shorts and Instagram Live (issue #175)
-   ============================================================
-   Phone apps draw their own top bar, live chat and buttons over the
-   picture. Everything here stays inside the area all three leave clear:
-   14% from the top, 38% from the bottom, 6% from the left and 12% from
-   the right (VERTICAL_SAFE in backend/src/fact-generator.ts).
-   Sizes follow the source's width: the text is 40px on a 1080-wide
-   canvas, about 17px on a phone screen. */
+/* === Vertical: BubbleFacts Vertical.html, 1080x1920, for Twitch Dual Format, TikTok,
+   YouTube Shorts and Instagram Live (#175) ===
+   Stays clear of the phone apps' own bar, chat and buttons: 14% top, 38% bottom, 6% left,
+   12% right (VERTICAL_SAFE in fact-generator.ts). Sizes follow the width: 40px text at 1080 */
 html[data-layout="vertical"] {
   --fact-font-size: calc(3.7vw * var(--bf-vertical-scale));
   --toast-font-size: calc(3.2vw * var(--bf-vertical-scale));
-  /* The width of the safe area, whatever the bubble size: bigger text wraps instead. */
+  /* The safe area's width at any size: bigger text wraps instead */
   --bubble-max-width: 82vw;
   --bubble-min-width: 50vw;
 }
 
-/* A tighter box than landscape, so a 160-character fact at Larger stays between the top line
-   and Now Playing, even under a three-line title. */
+/* Tighter than landscape: a 160-character fact at Larger fits above a three-line Now Playing */
 html[data-layout="vertical"] .popup-bubble {
   padding: 0.6em 0.8em 0.6em 2.15em;
   line-height: 1.35;
 }
 
-/* Centered between the safe side margins: the buttons on the right are wider than the left margin. */
+/* Centered between the safe margins: the right-side buttons are wider than the left margin */
 html[data-layout="vertical"] .popup-bubble.centered {
   left: 6%;
   right: 12%;
 }
 
-/* On the chat line, centered between the safe side margins. Layout only: it fades with opacity.
-   At most three lines, so a bubble placed just above it (VERTICAL_NOW_PLAYING_CLEARANCE) never
-   overlaps it: a very long title ends in "...". */
+/* On the chat line, between the safe margins. At most three lines (a long title ends in "..."),
+   so a bubble just above it (VERTICAL_NOW_PLAYING_CLEARANCE) never overlaps */
 html[data-layout="vertical"] .song-toast {
   bottom: 39%;
   left: 6%;
@@ -518,12 +487,12 @@ html[data-layout="vertical"] .song-toast {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
-  /* Clipped at the text, not the padding, so no part of a fourth line shows. */
+  /* Clipped at the text, not the padding, so no sliver of a fourth line shows */
   overflow: clip;
   overflow-clip-margin: content-box;
 }
 
-/* Shown only when the vertical overlay's source is wider than tall: a setup slip, not a stream state. */
+/* Only when the vertical source is wider than tall: a setup slip */
 .size-note {
   position: absolute;
   top: 8%;
@@ -540,10 +509,7 @@ html[data-layout="vertical"] .song-toast {
   z-index: 1003;
 }
 
-/* ============================================================
-   REDUCED MOTION: no float, sparkle or endless blink.
-   The pop in and out stay (opacity and transform only) so bubbles still appear and leave.
-   ============================================================ */
+/* === Reduced motion: no float, sparkle or endless blink. Pop in and out stay, so bubbles still come and go === */
 @media (prefers-reduced-motion: reduce) {
   .popup-bubble::after {
     animation: none;

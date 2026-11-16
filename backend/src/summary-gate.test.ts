@@ -4,11 +4,11 @@ jest.mock("./config", () => ({
 
 import { PageSummary, USER_AGENT, clearGroundingCache, describedKind, pageSummary, summaryGate, summaryMismatch } from "./fact-verifier";
 
-// Made-up songs, bands and pages throughout.
+// Made-up songs, bands and pages throughout
 const ref = (page: string, ...text: string[]) => `${page}\n${text.join(" ")}`;
 const summary = (description: string, type = "standard", extract = "", title = ""): PageSummary => ({ title, type, description, extract });
 
-/** Wikipedia's summary endpoint, answering from a table of titles; every other title is a 404. */
+/** Wikipedia's summary endpoint from a table of titles; any other title is a 404 */
 function serveSummaries(pages: Record<string, { type?: string; description: string; extract?: string }>) {
   return jest.spyOn(global, "fetch").mockImplementation(async (input) => {
     const url = String(input);
@@ -60,7 +60,7 @@ describe("summaryMismatch: what Wikipedia's summary says about the found article
   it("is unsure of a game's article for a band's song it never names", () => {
     const text = ref("Owl Quest", "Owl Quest is a 2015 video game. Its music was composed by Mara Quill.");
     expect(summaryMismatch(summary("2015 video game"), song, text)).toMatch(/another work that never names the song/);
-    // Naming the song, the game may well be where it is from.
+    // Naming the song, the game may well be where it is from
     const naming = ref("Owl Quest", "Owl Quest is a 2015 video game. Its theme is Lantern Hill by the Marmalade Owls.");
     expect(summaryMismatch(summary("2015 video game"), song, naming)).toBe("");
   });
@@ -78,12 +78,12 @@ describe("summaryMismatch: what Wikipedia's summary says about the found article
 
 describe("summaryMismatch: a short artist name that found something else (made-up acts)", () => {
   it("is unsure of a page named like the artist that isn't about a performer", () => {
-    // "Vx409" the DJ, "VX-409" a fictional robot.
+    // "Vx409" the DJ, "VX-409" a fictional robot
     const robot = ref("VX-409", "VX-409 is a fictional robot in a film series.");
     expect(summaryMismatch(summary("Fictional robot in a film franchise"), { title: "The Man Inside", artist: "Vx409" }, robot)).toMatch(
       /not a performer of that name/
     );
-    // Words in another order, and a process that shares the name.
+    // Words in another order, and a process that shares the name
     const set = ref("Tau-system", "A tau-system is a family of sets.");
     expect(summaryMismatch(summary("Family of sets closed under intersection"), { title: "Oldtown", artist: "System-Tau" }, set)).toMatch(/not a performer/);
     const process = ref("Gritblasting", "Gritblasting is a way of cleaning a surface.");

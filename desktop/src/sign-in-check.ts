@@ -1,33 +1,17 @@
 import { CLIENT_ID } from "./signin";
 
-/**
- * Asking StreamerSongList whether the app's sign-in still holds (issue #182),
- * so "StreamerSongList is down or slow" can be told from "your sign-in
- * expired" without waiting for a queue request to fail.
- *
- * GET https://id.streamersonglist.com/oauth2/validate, announced in
- * StreamerSongList's 2026-09-22 changelog ("For integrators"). Its response
- * couldn't be checked from where this was written (see docs/ARCHITECTURE.md,
- * "Checking the sign-in"), so it is read defensively: only a plain 401 means
- * expired, a 200 with a JSON object means the sign-in holds, and anything
- * else (no answer, a timeout, 5xx, another shape) means "can't tell", which
- * changes nothing. Only the app's own sign-in is checked: a pasted Streamer or
- * User token was never issued by id.streamersonglist.com.
- */
+// Asks StreamerSongList whether the app's own sign-in holds (#182), telling "down or slow" from "expired"
+// Unconfirmed response, read defensively: only 401 is expired (ARCHITECTURE.md: Checking the sign-in)
 
 export const VALIDATE_URL = "https://id.streamersonglist.com/oauth2/validate";
-/** Long enough for a slow answer, short enough that a hung one doesn't hold anything up. */
+// ms: long enough for a slow answer, short enough that a hung one holds nothing up
 const VALIDATE_TIMEOUT_MS = 10_000;
-/**
- * At most one check this often for a failing queue. StreamerSongList's rate
- * limits mostly enforce sensible use, so the app asks rarely: at start, after
- * each refresh, and when the queue keeps failing, once per this long.
- */
+/** ms between checks for a failing queue; rare, as StreamerSongList's rate limits police sensible use */
 export const RECHECK_MS = 5 * 60_000;
 
 export type TokenCheck = "valid" | "expired" | "unknown";
 
-/** What StreamerSongList says about an access token. Never logs or returns the token. */
+/** What StreamerSongList says about an access token; never logs or returns it */
 export async function validateToken(accessToken: string, fetchImpl: typeof fetch = fetch): Promise<TokenCheck> {
   let res: Response;
   try {
@@ -44,27 +28,22 @@ export async function validateToken(accessToken: string, fetchImpl: typeof fetch
   return body !== null && typeof body === "object" && !Array.isArray(body) ? "valid" : "unknown";
 }
 
-/** Why a check is asked for. */
+/** Why a check is asked for */
 export type CheckReason = "start" | "refresh" | "queue";
 
 export interface SignInCheckDeps {
   validate: (token: string) => Promise<TokenCheck>;
-  /** Swap the refresh token for a new access token; the refresh shows the "sign in again" notice when that fails for good. */
+  /** Swap the refresh token for a new access token; shows "sign in again" when that fails for good */
   refresh: () => Promise<void>;
   log: (line: string) => void;
-  /** StreamerSongList is down or slow, but the sign-in holds (true), or that's no longer known (false). */
+  /** true: StreamerSongList is down or slow but the sign-in holds; false: no longer known */
   songListDown: (down: boolean) => void;
   now?: () => number;
 }
 
 /**
- * When to ask, and what an answer leads to. A 401 for the access token is
- * fixed by a refresh, not by asking the musician: the refresh token may still
- * be good (a computer that slept past the hour, say). When the refresh token
- * is gone too, the refresh itself shows "Sign in to StreamerSongList again".
- * A 401 again right after a refresh means the endpoint isn't telling this
- * app's tokens apart: it's not asked again this session, and the queue
- * decides, as before.
+ * When to ask and what an answer leads to. Expired means refresh first (the refresh token may still be good);
+ * expired right after a refresh means the endpoint can't tell our tokens apart: stop asking this session
  */
 export class SignInCheck {
   private lastQueueCheck = 0;
@@ -74,7 +53,7 @@ export class SignInCheck {
 
   constructor(private readonly deps: SignInCheckDeps) {}
 
-  /** Checks `token`; queue checks at most once per RECHECK_MS for the same token, one at a time. */
+  /** Checks `token`; queue checks at most once per RECHECK_MS per token, one at a time */
   check(reason: CheckReason, token: string): Promise<void> {
     if (!this.trusted || !token) return Promise.resolve();
     const now = (this.deps.now ?? Date.now)();

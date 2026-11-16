@@ -21,7 +21,7 @@ describe("pickSong", () => {
   });
 
   it("never takes a same-named song by someone else, or a film", () => {
-    // "The Midnight - Lost Boy": Wikidata only has Ruth B's song.
+    // "The Midnight - Lost Boy": Wikidata only has Ruth B's song
     expect(pickSong(lostBoy, "Lost Boy", "The Midnight")).toBeNull();
   });
 });
@@ -150,7 +150,7 @@ describe("wikidataFacts for a Han-only title (#183)", () => {
     global.fetch = realFetch;
   });
 
-  /** A fake Wikidata: searches answer by language, entity lookups answer with a small song item. */
+  /** Fake Wikidata: searches answer by language, entity lookups with a small song item */
   function fakeWikidata(byLanguage: Record<string, unknown[]>) {
     const languages: string[] = [];
     global.fetch = jest.fn(async (url: string | URL | Request) => {
@@ -242,16 +242,16 @@ describe("more data facts (#256)", () => {
   });
 
   it("skips a neighbor that isn't described as a single, a missing one and one with the song's own name", () => {
-    // An earlier song a single covers is not "the single before".
+    // An earlier song a single covers is not "the single before"
     expect(factsFromEntity(song({ P155: [{ id: "Q32" }] }), L, t)).toEqual([]);
     expect(factsFromEntity(song({ P155: [{ id: "Q999" }], P156: [{ id: "Q31" }] }), L, t)).toEqual([]);
     expect(factsFromEntity(song({ P155: [{ id: "Q32" }, { id: "Q24" }] }), L, t)).toEqual([]); // two, so unclear which
   });
 
   it("skips two neighbors on one side, and a neighbor released on the wrong side of the song", () => {
-    // Two "follows" means two series (a duet): which one is meant is unknown.
+    // Two "follows" means two series (a duet): which one is meant is unknown
     expect(factsFromEntity(song({ P155: [{ id: "Q24" }, { id: "Q25" }] }), L, t)).toEqual([]);
-    // "Followed by" a single from 1981 when the song is from 1990, and the reverse.
+    // "Followed by" a single from 1981 when the song is from 1990, and the reverse
     expect(factsFromEntity(song({ P156: [{ id: "Q24" }] }), L, t)).toEqual([]);
     expect(factsFromEntity(song({ P155: [{ id: "Q25" }] }), L, t)).toEqual([]);
   });
@@ -409,7 +409,7 @@ describe("the matched article's own item (#256)", () => {
   });
 
   it("leaves out a year the description contradicts, and a part that isn't a release", () => {
-    // The song first came out in 1999; the item is the band's 2004 single of it.
+    // The song first came out in 1999; the item is the band's 2004 single of it
     const item = single({ P577: [day("+1999-03-01T00:00:00Z")], P361: ids("Q25"), P136: ids("Q23") });
     expect(facts(articleItemFrom(item, labels, ["velvet lark"]))).toEqual(['The genres of "Harbor Lights" include dream pop.']);
   });
@@ -439,7 +439,7 @@ describe("the matched article's own item (#256)", () => {
     const year = (y: string) => ({ time: `+${y}-00-00T00:00:00Z`, precision: 9 });
     const singer = entity("Mara Quill", "Canadian singer", { P31: ids("Q5"), P569: [year("1984"), year("1983")], P19: ids("Q10") });
     expect(facts(articleItemFrom(singer, L, ["mara quill"]))).toEqual(["Mara Quill was born in Harborview."]);
-    // Formed in 1969, and Wikidata's "inception" is the 1992 reunion.
+    // Formed in 1969, and Wikidata's "inception" is the 1992 reunion
     const band = entity("Velvet Lark", "American rock band", { P31: ids("Q5741069"), P571: [year("1992")], P2031: [year("1969")], P740: ids("Q30") });
     expect(facts(articleItemFrom(band, L, ["velvet lark"]))).toEqual(["Velvet Lark formed in the United States."]);
     band.claims.P2031 = [claim(year("1992"))];
@@ -483,7 +483,7 @@ describe("the matched article's own item (#256)", () => {
       expect(await articleItem("Harbor Lights (Velvet Lark song)", ["velvet lark"])).toEqual({ kind: "song", title: "Harbor Lights", year: "2004", partOf: null, genres: ["dream pop"] });
       await articleItem("Harbor Lights (Velvet Lark song)", ["velvet lark"]);
       log.mockRestore();
-      // The item, its labels, and the article's infobox to check the year against.
+      // The item, its labels, and the article's infobox to check the year against
       expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get("titles")).toBe("Harbor Lights (Velvet Lark song)");
     });
@@ -514,7 +514,7 @@ describe("the matched article's own item (#256)", () => {
       const found = await articleItem("Harbor Lights (Velvet Lark song, 1999)", ["velvet lark"]);
       log.mockRestore();
       expect(found).toEqual({ kind: "song", title: "Harbor Lights", year: null, partOf: null, genres: ["dream pop"], knownBy: "1998" });
-      // No year is shown, but a later one from MusicBrainz (a re-recording) still goes.
+      // No year shown, but a later MusicBrainz one (a re-recording) is still dropped
       expect(found?.kind === "song" && songItemFacts(found, { year: "2003" }).dropYear).toBe(true);
       expect(found?.kind === "song" && songItemFacts(found, { year: "1998" }).dropYear).toBe(false);
     });
@@ -605,7 +605,7 @@ describe("a song item checked against its article's infobox (#256)", () => {
   });
 
   it("says who wrote it, not who wrote what, when only the infobox's names back the item", () => {
-    // The item names the composer among the lyricists too; the infobox lists writers, not roles.
+    // The item names the composer among the lyricists too; the infobox lists writers, not roles
     const song = item({ P86: [{ id: "Q12" }], P676: [{ id: "Q13" }, { id: "Q12" }] });
     expect(factsFromEntity(song, L, t, box("| writer = Sam Roe, Jane Doe"))).toEqual(['"Harbor Lights" was written by Jane Doe and Sam Roe.']);
   });
@@ -631,7 +631,7 @@ describe("a song item checked against its article's infobox (#256)", () => {
     const after = '"Harbor Lights" came after the single "Opening Night".';
     const before = '"Harbor Lights" was followed by the single "Closing Night".';
     expect(factsFromEntity(song, labels, t, box("| prev_title = [[Opening Night (song)|Opening Night]]\n| next_title = \"[[Closing Night]]\""))).toEqual([after, before]);
-    // Another single on either side, and none named.
+    // Another single on either side, and none named
     expect(factsFromEntity(song, labels, t, box("| prev_title = [[Early Light]]\n| next_title = [[Closing Night]]"))).toEqual([before]);
     expect(factsFromEntity(song, labels, t, box("| prev_title = [[Opening Night]]\n| next_title = [[Late Tide]]"))).toEqual([after]);
     expect(factsFromEntity(song, labels, t, box("| genre = pop"))).toEqual([]);
@@ -650,7 +650,7 @@ describe("a song item checked against its article's infobox (#256)", () => {
     const song = item({ P577: [{ time: "+1987-00-00T00:00:00Z" }] }, "song by Velvet Lark");
     expect(factsFromEntity(song, L, t, box("| released = 1987"), "1986")).toEqual([]);
     expect(factsFromEntity(song, L, t, box("| released = 1987"), "1987")).toEqual(['"Harbor Lights" came out in 1987.']);
-    // MusicBrainz's year after the album's goes too.
+    // MusicBrainz's year after the album's goes too
     const fromItem = { title: t, year: null, partOf: null, genres: ["dream pop"], albumYear: "1972" };
     expect(songItemFacts(fromItem, { year: "1973" }).dropYear).toBe(true);
     expect(songItemFacts(fromItem, { year: "1972" }).dropYear).toBe(false);

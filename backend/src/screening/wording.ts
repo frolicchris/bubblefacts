@@ -5,17 +5,11 @@ import { bodySentences, lineSentences, MONTHS, retoldSentences, share } from "./
 import { speakers } from "./attribution";
 import { capitalsOf } from "./frames";
 
-/**
- * Wording a caption turns round: merged clauses, dropped hedges, misplaced
- * years, wrong owners and reversed roles.
- */
+// Wording a caption turns round: merged clauses, dropped hedges, misplaced years, wrong owners, reversed roles
 
 /**
- * Who did something told the wrong way round: "Bruno Vale compared his vocals to Sam
- * Ortiz" retelling "He compared Vale's vocals to Sam Ortiz", and "the sequel is
- * being worked on by Rob Lane" retelling "Rob Lane confirmed the sequel is being
- * worked on", and an event swapped for the one the sentence has: "at the Brit Awards"
- * retelling "at the Mercury Prize". Returns the name, or null.
+ * Doer turned round, or the name: "Vale compared" for "compared Vale's vocals"; "worked on by Rob Lane"
+ * for "Rob Lane confirmed it is worked on"; "at the Brit Awards" for "at the Mercury Prize"
  */
 export function turnedRound(fact: string, context: string): string | null {
   const retold = retoldSentences(fact, context);
@@ -23,13 +17,13 @@ export function turnedRound(fact: string, context: string): string | null {
   const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(\p{Ll}+ed)\b/u.exec(fact);
   if (lead) {
     const name = lead[1].split(/\s+/).pop() as string;
-    // "was developed by Rare" and "Rare developed" say the same.
+    // "was developed by Rare" = "Rare developed"
     const passive = new RegExp(`\\b(?:was|were|is|are|been|being|be)\\s+(?:\\p{Ll}+\\s+)?${escapeRe(lead[2])}\\b|\\b${escapeRe(lead[2])}\\s+by\\b`, "u");
     const after = new RegExp(`\\b${escapeRe(lead[2])}\\b[^,;]*\\b${escapeRe(name)}['’]s?\\s`, "u");
     const before = new RegExp(`\\b${escapeRe(name)}\\b[^,;]*\\b${escapeRe(lead[2])}\\b`, "u");
     if (retold.every((s) => after.test(s) && !before.test(s) && !passive.test(s))) return name;
   }
-  // "at the Brit Awards" retelling "at the Mercury Prize": both are in the article, but only one here.
+  // Both events may be in the article, but only one in this sentence
   const at = /\bat the ((?:\p{Lu}[\p{L}'’-]*\s?){1,4})/u.exec(fact);
   const sAt = retold.map((s) => /\bat the ((?:\p{Lu}[\p{L}'’-]*\s?){1,4})/u.exec(s));
   if (at && sAt.every(Boolean) && !capitalsOf(at[1]).some((w) => retold.some((s) => hasWord(w, s)))) return at[1].trim();
@@ -41,15 +35,12 @@ export function turnedRound(fact: string, context: string): string | null {
   return null;
 }
 
-/** Where a sentence stops one statement and starts another. */
+// Where one statement of a sentence ends and another starts
 const CLAUSE_BREAK = /,\s+(?=(?:who|whom|whose|which|while|whereas|but|although|though|after|before)\b)|;\s+/;
 
 /**
- * Two statements of one sentence told as one, where every word is in the source: "formed
- * a songwriting team in 1976" from "It was formed in 1976 by Ann and Bo, who formed a
- * songwriting team". The caption's words sit mostly in one clause, and a year or a name it
- * joins to them sits only in another.
- * Returns the stray year or name, or null.
+ * Year or name joined on from another clause, or null: "formed a songwriting team in 1976" from
+ * "It was formed in 1976 by Ann and Bo, who formed a songwriting team"
  */
 export function mergedClauses(fact: string, context: string): string | null {
   const retold = retoldSentences(fact, context);
@@ -57,11 +48,10 @@ export function mergedClauses(fact: string, context: string): string | null {
   const clauses = retold[0].split(CLAUSE_BREAK).map((c) => c.trim()).filter(Boolean);
   if (clauses.length < 2) return null;
   const years = fact.match(YEAR) ?? [];
-  // Names joined on with "with": the subject of a caption is usually who the sentence is about.
+  // Only "with" names: a caption's subject is usually the sentence's
   const names = [...fact.matchAll(/\bwith ((?:\p{Lu}[\p{L}'’-]+\s?)+)/gu)].flatMap((m) => m[1].trim().split(/\s+/)).filter((n) => hasWord(n, retold[0]));
   const anchors = [...years, ...names];
   if (!anchors.length) return null;
-  // What the caption says of them, without its names and years.
   const rest = fact.replace(YEAR, " ").replace(/\b\p{Lu}[\p{L}'’-]+/gu, " ");
   const scored = clauses.map((c, i) => ({ c, i, share: share(rest, c) })).sort((a, b) => b.share - a.share);
   if (scored[0].share < 0.5 || scored[0].share - scored[1].share < 0.2) return null;
@@ -69,20 +59,16 @@ export function mergedClauses(fact: string, context: string): string | null {
   for (const a of anchors) {
     if (hasWord(a, main.c)) continue;
     const at = clauses.findIndex((c) => hasWord(a, c));
-    // A name in an earlier clause is usually who the later one is about; a year never is.
+    // An earlier clause's name is usually the later one's subject; a year never is
     if (at >= 0 && (/^\d{4}$/.test(a) || at > main.i)) return a;
   }
   return null;
 }
 
-/** A heading for what isn't this recording: another performer's version, the single's B-sides. */
+// Section about another recording: another performer's version, B-sides
 const OTHER_RECORDING_HEADING = /^(?:[^:\n]{2,40}\s(?:version|cover|rendition|remix)|cover versions?|other versions?|b-sides?|remixes)$/i;
 
-/**
- * A caption from a section about another recording: `"Allemande" was played live` under
- * "B-sides", or "It was the second single from their LP" under "Nightjar version". The
- * sentence's "it" is that other recording, and the caption doesn't say so. Returns the heading, or null.
- */
+/** Heading of another recording's section the caption retells unsaid ("It was..." under "Nightjar version"), or null */
 export function otherRecordingSection(fact: string, context: string, artists: string[] = []): string | null {
   const retold = retoldSentences(fact, context);
   if (!retold.length) return null;
@@ -96,34 +82,22 @@ export function otherRecordingSection(fact: string, context: string, artists: st
   return seen[0] ?? null;
 }
 
-/** Words that keep a statement uncertain. */
 const HEDGE =
   /\b(?:may|might|could) have\b|\b(?:possibly|arguably|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b|\b(?:is|are|was|were) credited with\b|\bin part\b|\b(?:partly|partially)\b/i;
 
-/**
- * A hedge the caption drops: "General Ardent suggested the symphony" when the
- * source says it "may have been suggested by General Ardent", or "The song is
- * inspired by a bus driver" for "was reportedly inspired". Every sentence the
- * caption retells hedges, and the caption doesn't. Returns the hedge, or null.
- */
+/** Hedge in every retold sentence that the caption drops ("Ardent suggested" for "may have been suggested by Ardent"), or null */
 export function droppedHedge(fact: string, context: string): string | null {
   if (HEDGE.test(fact) || /\baccording to\b/i.test(fact)) return null;
   const retold = retoldSentences(fact, context);
-  // "Rowe called it "perhaps the first masterpiece"": a hedge inside a quote is the speaker's.
+  // A hedge inside a quote is the speaker's ("called it "perhaps the first masterpiece"")
   const unquoted = retold.map((s) => s.replace(/["“][^"”]*["”]/g, ""));
   if (!unquoted.length || !unquoted.every((s) => HEDGE.test(s))) return null;
   return HEDGE.exec(unquoted[0])?.[0] ?? null;
 }
 
 /**
- * A year the sentence the caption retells doesn't place there: "demanded an
- * encore a week after its premiere in 1805" retelling "In 1807, after a
- * concert in Leipzig, the public demanded it again", or "performed it at the
- * 1990 halftime show" retelling "He performed it at that year's ceremony and
- * the halftime show", with 2000 in the sentence before. The year must be in
- * the retold sentence (in the clause the caption retells, when a semicolon
- * splits it), in another sentence the caption draws on, or in the one just
- * before or after. Returns the year, or null.
+ * Year not in the retold sentence (its clause, if split by a semicolon), a related one, or the one
+ * before or after, or null: "at the 1990 halftime show" for "at that year's ceremony", 2000 before
  */
 export function misplacedYear(fact: string, context: string): string | null {
   const years = fact.match(YEAR) ?? [];
@@ -134,12 +108,11 @@ export function misplacedYear(fact: string, context: string): string | null {
   if (best < 0.25) return null;
   const retold = scored.filter((x) => x.share >= best - 0.1);
   const related = scored.filter((x) => x.share >= 0.3).map((x) => x.s);
-  // The sentence before ("In 2000, ... at that year's ceremony") or after ("... by Nazareth. Written in 1909, ...").
   const before = retold.flatMap((x) => [sentences[x.i - 1] ?? "", sentences[x.i + 1] ?? ""]);
   const withoutYears = fact.replace(YEAR, "");
   for (const y of years) {
     if (![...retold.map((x) => x.s), ...related, ...before].some((s) => hasWord(y, s))) return y;
-    // "In 2011, it was the biggest hit since 1985; the song gained airplay": the year is the other clause's.
+    // "In 2011, its biggest hit since 1985; the song gained airplay": the years are the other clause's
     const holders = retold.filter((x) => hasWord(y, x.s));
     if (holders.length && holders.every((x) => {
       const clauses = x.s.replace(/\s*\([^)]*;[^)]*\)/g, "").split(/;\s*/);
@@ -151,21 +124,10 @@ export function misplacedYear(fact: string, context: string): string | null {
   return null;
 }
 
-/**
- * A detail the source gives the song's video, single or album, told of
- * another of the three:
- *
- *   video   "The song was inspired by X" retelling "The music video was inspired by X".
- *   sales   "Her debut album sold over 500,000 copies" when every sentence with
- *           500,000 is about the single.
- *   radio   "charted at number 12 in August 2003" retelling "released to radio
- *           on August 12, 2003 and charted at number 12".
- *
- * Returns what the detail belongs to, or null.
- */
+/** Whose detail it really is, or null: the video's told of the song, the single's sales of the album, a radio date as a peak's */
 export function wrongOwner(fact: string, context: string): string | null {
   const retold = retoldSentences(fact, context);
-  // The video is the retold sentence's subject: "The music video for X was inspired by", "Its video was shot".
+  // Video as the retold sentence's subject: "The music video for X was...", "Its video was shot"
   const videoFirst = /^(?:[^,]{0,40},\s*)?(?:the|its|their|his|her|an?)\s+(?:(?:official|music|lyric|accompanying|original)\s+)*videos?\b(?!\s*games?\b)/i;
   if (retold.length && !ABOUT_THE_VIDEO.test(fact) && retold.every((s) => videoFirst.test(s))) return "the music video";
   const figure = /\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\s+million\b/.exec(fact);
@@ -185,21 +147,12 @@ export function wrongOwner(fact: string, context: string): string | null {
   return null;
 }
 
-/**
- * "an exception to his love of atmospheric music" when the source says only
- * "He noted that the series was an exception", after a sentence about what
- * he dislikes: the caption supplies what the exception is to, and a small
- * model gets it backwards. Kept when a retold sentence says "exception to".
- */
+/** "An exception to X" with no "exception to" in the source: the caption supplied X, and small models get it backwards */
 export function suppliedException(fact: string, context: string): boolean {
   return /\bexception to\b/i.test(fact) && !retoldSentences(fact, context).some((s) => /\bexception to\b/i.test(s));
 }
 
-/**
- * "Kai Moreno's voice actor" when the source says "Juno's voice actor Kai
- * Moreno": the role word followed by the caption's possessor makes that
- * person the one in the role. Returns the role, or null.
- */
+/** Role turned round, or null: "Kai Moreno's voice actor" for "Juno's voice actor Kai Moreno" */
 export function reversedRole(fact: string, context: string): string | null {
   for (const m of fact.matchAll(/((?:Mc)?\p{Lu}[\p{L}.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}.-]*){0,3})['’]s?\s+((?:voice actor|voice actress|producer|manager|singer|drummer|guitarist|bassist|keyboardist|pianist|composer|lyricist|wife|husband|brother|sister|son|daughter|father|mother))\b/gu)) {
     const who = m[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase())).join("\\s+");

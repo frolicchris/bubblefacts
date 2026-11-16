@@ -23,21 +23,21 @@ describe("telling when the stream goes live", () => {
 
   it("counts only a change to streaming, however many overlays report it", () => {
     const obs = new ObsStreaming();
-    // Not streaming yet: two overlays connect before going live.
+    // Not streaming yet: two overlays connect before going live
     expect([obs.report(false, MAIN), obs.report(false, VERTICAL)]).toEqual([false, false]);
-    // Live: the first report is the stream going live, the second overlay's and a reload's are not.
+    // Live: the first report is the stream going live, the second overlay's and a reload's are not
     expect([obs.report(true, MAIN), obs.report(true, VERTICAL), obs.report(true, 4)]).toEqual([true, false, false]);
-    // Stopped, then live again: another stream.
+    // Stopped, then live again: another stream
     expect([obs.report(false, MAIN), obs.report(true, MAIN)]).toEqual([false, true]);
   });
 
   it("takes a stream already live when the app starts as going live, unless the session says it was", () => {
     expect(new ObsStreaming().report(true, MAIN)).toBe(true);
-    // A restart in the middle of a stream: the first overlay to reconnect isn't the stream going live.
+    // A restart mid-stream: the first overlay to reconnect isn't the stream going live
     const restarted = new ObsStreaming(true);
     expect(restarted.state).toBe(true);
     expect(restarted.report(true, MAIN)).toBe(false);
-    // The stream ended while the app was closed: the overlay's "not streaming" is believed, and the next start counts.
+    // Stream ended while the app was closed: "not streaming" is believed, the next start counts
     const ended = new ObsStreaming(true);
     expect([ended.report(false, MAIN), ended.report(true, MAIN)]).toEqual([false, true]);
   });
@@ -45,12 +45,12 @@ describe("telling when the stream goes live", () => {
   it("ignores \"not streaming\" from an overlay that never said it was live, while another is", () => {
     const obs = new ObsStreaming();
     expect(obs.report(true, MAIN)).toBe(true);
-    // A second copy of OBS that only records: its overlay says not streaming.
+    // A second copy of OBS that only records: its overlay says not streaming
     obs.report(false, RECORDER);
     expect(obs.state).toBe(true);
-    // The live overlay reloads (a new connection): not another stream.
+    // The live overlay reloads (a new connection): not another stream
     expect(obs.report(true, 5)).toBe(false);
-    // The live stream stops: that counts.
+    // The live stream stops: that counts
     obs.report(false, MAIN);
     expect(obs.state).toBe(false);
     expect(obs.report(true, MAIN)).toBe(true);
@@ -59,12 +59,12 @@ describe("telling when the stream goes live", () => {
   it("believes \"not streaming\" once the live overlay has gone, so the next stream counts", () => {
     const obs = new ObsStreaming();
     obs.report(true, MAIN);
-    // OBS closes while live, then opens again, not streaming yet.
+    // OBS closes while live, then opens again, not streaming yet
     obs.forget(MAIN);
     expect(obs.report(false, 6)).toBe(false);
     expect(obs.state).toBe(false);
     expect(obs.report(true, 6)).toBe(true);
-    // A reload of the only live overlay: gone, then back, still live, so not another stream.
+    // A reload of the only live overlay: gone, then back, still live, so not another stream
     obs.forget(6);
     expect(obs.report(true, 7)).toBe(false);
   });

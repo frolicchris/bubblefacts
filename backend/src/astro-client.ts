@@ -1,29 +1,23 @@
 import { randomUUID } from "crypto";
 import WebSocket from "ws";
 
-/**
- * Minimal reader for StreamElements' realtime service, "Astro". The whole
- * protocol used here:
- *
- *   server  {"type":"welcome", ...}
- *   client  {"type":"subscribe","nonce":"…","data":{"topic","room","token","token_type":"jwt"}}
- *   server  {"type":"response","nonce":"…","data":{"message":"…"}}          subscribed
- *   server  {"type":"response","nonce":"…","error":"…","data":{"message"}}  refused
- *   server  {"type":"message","topic":"…","room":"…","data":{"event":"…","payload":{…}}}
- *   server  {"type":"reconnect"}                                               please reconnect
- *
- * The server's pings are WebSocket ping frames, which the ws library answers.
- */
+// Minimal reader for StreamElements' realtime service, Astro; the whole protocol used:
+//   server  {"type":"welcome", ...}
+//   client  {"type":"subscribe","nonce":"…","data":{"topic","room","token","token_type":"jwt"}}
+//   server  {"type":"response","nonce":"…","data":{"message":"…"}}          subscribed
+//   server  {"type":"response","nonce":"…","error":"…","data":{"message"}}  refused
+//   server  {"type":"message","topic":"…","room":"…","data":{"event":"…","payload":{…}}}
+//   server  {"type":"reconnect"}                                               please reconnect
+// Pings are WebSocket ping frames, which the ws library answers
 
 export interface AstroEvent {
   topic: string;
   event: string;
 }
 
-const MIN_RECONNECT_MS = 1_000;
-const MAX_RECONNECT_MS = 60_000;
-/** Subscribe anyway if the welcome never comes. */
-const WELCOME_WAIT_MS = 5_000;
+const MIN_RECONNECT_MS = 1_000; // ms before the first reconnect, doubling each time
+const MAX_RECONNECT_MS = 60_000; // ms, longest wait between reconnects
+const WELCOME_WAIT_MS = 5_000; // ms to wait for the welcome before subscribing anyway
 
 export class AstroStream {
   private ws: WebSocket | null = null;
@@ -33,7 +27,7 @@ export class AstroStream {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private welcomeTimer: ReturnType<typeof setTimeout> | null = null;
   private nonce = "";
-  /** Astro refused the token on the last subscribe. */
+  /** Astro refused the token on the last subscribe */
   private rejected = false;
 
   constructor(
@@ -42,7 +36,7 @@ export class AstroStream {
     private readonly room: string,
     private readonly token: () => string,
     private readonly onMessage: (event: AstroEvent) => void,
-    /** Called on every successful (re)subscribe: anything sent while disconnected was missed. */
+    /** Called on every successful (re)subscribe: anything sent while disconnected was missed */
     private readonly onConnect: () => void = () => undefined
   ) {}
 
@@ -60,7 +54,7 @@ export class AstroStream {
     this.subscribed = false;
     for (const t of [this.reconnectTimer, this.welcomeTimer]) if (t) clearTimeout(t);
     this.reconnectTimer = this.welcomeTimer = null;
-    // Keep a no-op error listener: closing a socket that is still connecting emits one.
+    // Keep a no-op error listener: closing a socket that is still connecting emits one
     this.ws?.removeAllListeners().on("error", () => undefined);
     this.ws?.terminate();
     this.ws = null;
@@ -84,7 +78,7 @@ export class AstroStream {
       console.log(`[Events] StreamElements disconnected (${code} ${reason.toString()}), reconnecting`);
       this.scheduleReconnect();
     });
-    // "close" always follows "error"; reconnection happens there.
+    // "close" always follows "error"; reconnection happens there
     ws.on("error", (err) => console.error("[Events] StreamElements socket error:", err.message));
   }
 
@@ -104,7 +98,7 @@ export class AstroStream {
 
   private scheduleReconnect(): void {
     if (this.stopped || this.reconnectTimer) return;
-    // A refused token won't start working on its own; don't hammer the service with it.
+    // A refused token won't start working on its own: don't hammer the service with it
     const delay = this.rejected ? MAX_RECONNECT_MS : this.reconnectDelayMs;
     this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_RECONNECT_MS);
     this.reconnectTimer = setTimeout(() => {
