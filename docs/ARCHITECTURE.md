@@ -463,9 +463,13 @@ sign-ins and the built-in AI. Its design decisions are in
    the song go before the AI's captions, and so they do when the article is
    surely the song's own. When the article may be about another
    work, they are all that is shown (see "Is it the requested work?").
-9. **Twitch About.** With no article and nothing from the databases, a song
-   by an artist named exactly like a Twitch channel can get up to two bubbles
-   from that channel's public About (`twitch-about.ts`). It needs Twitch
+9. **Twitch About.** A song can get up to two bubbles from a Twitch
+   channel's public About (`twitch-about.ts`) in two cases. With no article
+   and nothing from the databases, a song by an artist named exactly like a
+   channel gets that channel's. A song credited to a handle (`@name`,
+   `Name (@name)`) gets that channel's: the handle is the login, Wikipedia and
+   the databases stay skipped, and the name rules below don't apply. A
+   placeholder request is never looked up. Both need Twitch
    connected and **Check Twitch for artists no source knows** checked (on by
    default). The words are the About's, cut by `factsFromAbout` as for **Fill
    from their Twitch About**, never rewritten, after "From their Twitch About: "
@@ -473,8 +477,8 @@ sign-ins and the built-in AI. Its design decisions are in
    "Twitch About: <name>", and Wrong blocks that channel for that song, like an
    article.
 
-   A stranger with the same name is the risk, so it abstains on any doubt. The
-   artist must be one name that could be a login: no spaces (they are never
+   For a name match, a stranger with the same name is the risk, so it abstains
+   on any doubt. The artist must be one name that could be a login: no spaces (they are never
    removed: "Blue Moon" isn't the channel bluemoon), so no "A & B" or "A feat.
    B"; five characters or more; not on a short list of common words. A guessed
    artist doesn't count, nor does a song with an article, its own facts or
@@ -1178,7 +1182,8 @@ artist field. `resolveGameAndTrack` is the one place that handles this. If
 every song suddenly gets generic facts, check it first.
 
 An artist that is a streamer's handle (`@name`, `Name (@name)`) is another
-music content creator's piece: nothing is looked up, and the streamer's own facts are used.
+music content creator's piece: only their Twitch About is looked up (see
+step 9), and without one the streamer's own facts are used.
 
 ### How do I see what a stream showed?
 
