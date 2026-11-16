@@ -185,6 +185,13 @@ A release candidate (`2.0.0-rc.1`) means "this is 2.0.0 unless testing finds
 a blocker." These rules follow the practice of projects such as Python,
 GNOME, Mozilla and VS Code, sized for one maintainer.
 
+**How many releases.** A beta goes out when there is something new for
+testers to try, about one a week at most; a beta that broke something is
+fixed with the next one at once. Anything else that needs trying is a test
+build (Actions → Release → Run workflow), which costs no version, notes or
+announcement. Keep a feature release small enough that its freeze, from the
+first release candidate to the final release, lasts about a week.
+
 **Freezes, from the first release candidate (rc.1):** (planned from beta.12; testers' requests added a beta.13 and a few features after it, so the freeze took effect with rc.1)
 
 - **Features:** nothing new. Only fixes, docs and tests.
@@ -211,17 +218,29 @@ merges.
 **Testing each release candidate:**
 
 1. The release checklist above, on every system.
-1. A fact check of two testers' whole song lists, of different kinds of
-   music (with their permission): `npm run build`, then
-   `node scripts/check-song-list.mjs LIST.json OUT_DIR --facts 50`. It
-   records the Wikipedia article every song gets and flags ones that look
-   wrong, and writes facts for a random 50 songs, each checked against its
-   own source. **The bar: under 5% of the facts that come from a source are
-   wrong or misleading, on each list, with no new kind of mistake.** (A
-   small AI never reaches zero; Wrong and Hands-free Wrong catch the rest.)
-   For 2.0.0 this bar moved to 2.1.0 (#172): Standard ships as measured,
-   and its rate is in the known issues (#36).
-   Keep the lists and results out of the repository.
+1. The fact check. **The goal: under 5% of the facts that come from a
+   source are wrong or misleading, with no new kind of mistake.** (A small
+   AI never reaches zero; Wrong and Hands-free Wrong catch the rest.) Three
+   checks, each for its own question:
+   - **Cases, on every pull request.** The labeled examples in
+     `backend/src/fixtures/` that the tests read: exact, free, no AI. They
+     show whether a change broke something that was right.
+   - **Before and after, for each fact-quality change.** The old code and
+     the new on songs already measured, counting the facts that changed.
+     This decides whether a change merges
+     ([CONTRIBUTING.md](../.github/CONTRIBUTING.md), "How a change moves").
+     A song list that has guided a change is only good for this.
+   - **The stated rate, once per release, on the release candidate's
+     code.** A fresh set of 80 songs that has guided no change: `npm run
+     build`, then `node scripts/check-song-list.mjs LIST.json OUT_DIR`
+     writes the facts, and each is judged right, wrong or misleading
+     against its own source. One set is about 310 facts, which can't show a
+     rate under 5% by itself (its range is about 3 points either way), so
+     sets on the same code are pooled until the rule in #199 decides.
+
+   The release notes and the known issues (#36) state the measured rate and
+   its range. A single set moving up or down is not a trend. Keep the lists
+   and results out of the repository.
 2. A hands-on pass on real computers: Mac and Windows by a tester each. Linux
    relies on the smoke test unless a tester has it; say so in the notes.
 3. Every bug fixed since the last beta, checked again.
@@ -232,16 +251,19 @@ merges.
 **Making the final release:** 2.0.0 is the last release candidate's code with
 only the version number changed.
 
-**rc.2 is the last release candidate for 2.0.0.** So everything it needs is
-proven before it's tagged, on a test build of the exact commit: the fact check
-on both lists (measured and stated, see #172), every fix since rc.1 checked
-again, the in-app update from rc.1, and a tester streaming the test build. No
-release blocker may be open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
-change; anything else found goes to the 2.0.1 milestone. Before tagging it, go or no-go:
+**Plan on one release candidate.** So everything it needs is proven before
+it's tagged, on a test build of the exact commit: the fact check, every fix
+since the last beta checked again, the in-app update from the last beta, and a
+tester streaming the test build. No release blocker may be open when it's cut.
+A second release candidate is only for a release blocker. After the last one,
+nothing merges to `main` but the version change; anything else found goes to
+the next milestone. (2.0.0 did this with rc.2.) Before tagging the final
+release, go or no-go:
 
 - [ ] No open release blockers.
-- [ ] The fact check of the last release candidate met the under-5% bar
-      (for 2.0.0: measured and stated in the known issues, #172).
+- [ ] The fact check of the last release candidate found no new kind of
+      mistake, and its rate and range are in the release notes and the known
+      issues (#36).
 - [ ] The last release candidate was out at least three days, and testers
       streamed with it.
 - [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than

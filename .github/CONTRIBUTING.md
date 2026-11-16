@@ -82,6 +82,46 @@ npm run build       # compile the server to dist/
 
 The server always runs compiled; there's no development transpiler on purpose.
 
+## How a change moves
+
+One plan, a few things open at a time, small steps. These rules bind the
+maintainer and the AI sessions he directs as much as anyone else.
+
+1. **The plan is the milestone.** Work starts from an issue in the current
+   [milestone](https://github.com/frolicchris/bubblefacts/milestones). An idea
+   that isn't there becomes an issue first, or waits. There is no second list.
+2. **Three pull requests open at most**, drafts included (a release's version
+   change doesn't count). Merge or close one before opening a fourth. A draft
+   that has had conflicts for a week is closed, with a note on its issue saying
+   what was learned and which branch holds the work.
+3. **One kind of change per pull request.** Say which in the pull request:
+
+   | Kind | Done when |
+   | --- | --- |
+   | Fix | A test fails without it. |
+   | Feature | Its issue was agreed first. Tests cover it, and the docs and settings are updated. |
+   | Fact quality: how facts are found, written or screened | As a fix or a feature, and also: the wrong fact behind it is a labeled case in `backend/src/fixtures/`, and the pull request says how many facts changed on songs already measured (how many it fixed, how many it broke). It merges when it fixes more than it breaks, or breaks nothing and adds true facts, with no new kind of mistake either way. |
+   | Structure: moving or renaming code | Nothing behaves differently, and no test changes except to follow a move. Never mixed with another kind. |
+
+4. **During a release freeze** (from the first release candidate to the final
+   release, see [docs/RELEASING.md](../docs/RELEASING.md)), `main` takes fixes
+   for release blockers, docs and tests. Work for the next version isn't
+   opened as a draft to wait; the time goes to tests, cases and measuring.
+5. **A rewrite across the whole repository** (formatting, comments, a rename
+   in many files) lands in one sitting right after a release, while nothing
+   else is open, or not at all.
+
+When the change is to the fact pipeline (`backend/src/grounding/`,
+`backend/src/screening/`, `fact-generator.ts` and the files they use):
+
+- One file owns one decision from [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
+  A change that needs two sections of that doc is two pull requests.
+- A limit that dropped a true caption gets a named constant, with the example
+  beside it.
+- No new true/false parameters. The next time such a function is touched, it
+  takes an object with named fields.
+- Caches don't leak between tests: pass the cache in, or clear it in setup.
+
 ## Working on the desktop app
 
 The app is Electron. It starts the same server as the command-line version and
