@@ -15,6 +15,11 @@ const MAX_NOTE_CHARS = 120;
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
+/** How the line that names who asked for the song starts. */
+const REQUESTED_BY = "Requested by ";
+/** Whether a fact names who asked for the song: the one entry fact about a viewer, so it stays on the overlay (share-song-facts.ts). */
+export const namesRequester = (fact: string): boolean => fact.startsWith(REQUESTED_BY);
+
 /**
  * Credited to the streamer: the artist field is one of their names, or
  * contains "@name". A bare name inside a longer credit doesn't count;
@@ -108,10 +113,10 @@ export function buildStatFacts(
 
   const requesters = (entry.requests ?? []).map((r) => r?.name?.trim()).filter((n): n is string => Boolean(n));
   if (requesters.length === 1) {
-    facts.push(`Requested by ${requesters[0]}.`);
+    facts.push(`${REQUESTED_BY}${requesters[0]}.`);
   } else if (requesters.length > 1) {
     const others = requesters.length - 1;
-    facts.push(`Requested by ${requesters[0]} and ${others} ${plural(others, "other", "others")}.`);
+    facts.push(`${REQUESTED_BY}${requesters[0]} and ${others} ${plural(others, "other", "others")}.`);
   }
 
   return facts;

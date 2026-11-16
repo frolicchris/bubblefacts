@@ -75,7 +75,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/artist-good.ts`, `neutral-wording.ts` | Facts about the good an artist does, and the neutral-wording rules on top of them. |
 | `backend/src/not-music.ts` | Spots commercials, station idents and jingles. |
 | `backend/src/listening.ts` | The dashboard's "Hearing your queue live" and "Facts took" lines. |
-| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
+| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream, then its facts, to the address the streamer set, beside the overlay flow, never in front of it (see [Sharing song facts with other apps](#sharing-song-facts-with-other-apps)). |
 | `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `backend/src/atomic-write.ts`, `capped-map.ts`, `log-timestamps.ts`, `text.ts`, `types.ts` | Crash-safe file writes, session caches that can't grow for ever, a time on every log line, small text helpers, and the shared song and fact shapes. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
@@ -1897,6 +1897,48 @@ priority, so the thread limit does most of the work there.
 memory is taken when it loads, and fewer threads don't free any. It is there
 so a report from a slow stream shows whether the computer was short of
 memory.
+
+### Sharing song facts with other apps
+
+`share-song-facts.ts` (off until the streamer turns it on) tells one other
+app, at an address and with a key the streamer enters, what is on stream, so
+an app that takes context can answer chat's questions about the song from the
+same facts the bubbles show. It is one documented door any app can use (the
+request is in [CONFIG.md](CONFIG.md#sharing-song-facts-with-other-apps)), not
+an integration with one product.
+
+- **The song first, then its facts.** A snapshot goes out when the song
+  starts, saying there are no checked facts yet and not to make any up. It is
+  replaced as facts arrive, and again when one comes off with **Wrong** or a
+  switch. Without the first one the other app knew nothing about a song until
+  its facts were written, and never about a song with none.
+- **It says where each fact is from.** Facts from Wikipedia, Wikidata and
+  MusicBrainz are named as checked against the sources they came from, with
+  BubbleFacts credited. The streamer's own are "From the streamer", and an
+  artist's Twitch About keeps its own lead-in. The text asks the other app to
+  state facts only from these and add none, and says its own opinions are
+  welcome when said as its own: it may change how a fact
+  sounds, never what it says.
+- **Never who asked for the song.** The song list's "Requested by ..." line is
+  about a viewer, so it stays on the overlay (`namesRequester`), and the
+  song's `requestedBy` is never read.
+- **A commercial or jingle isn't announced** (`isNotMusic`), as on the
+  overlay, unless the streamer gave it facts.
+- **Short-lived, and sent again every minute.** Each snapshot lasts 150
+  seconds, and the current one is sent again every 60, for up to an hour
+  after the last change (a song left on the queue doesn't send all night). So
+  an app that started late, or started over and lost what it was told, has
+  the song within a minute; one missed send doesn't drop it; and when
+  BubbleFacts quits, crashes or the computer sleeps, the other app forgets
+  the song by itself. The server sends no goodbye when it's stopped: the app
+  restarts it by ending it and starting the next one at once, and a server
+  that stayed to send one would still hold the port.
+- **Beside the overlay, never in front of it.** `update` returns at once. A
+  request has 5 seconds and never follows a redirect, so the key stays with
+  the address the streamer set. A failure is logged once, by reason, without
+  the key or the song, and tried again with the next change or refresh; a
+  refused key stops sharing until the settings change. It only gives context:
+  nothing asks the other app to speak, so it can't talk over the music.
 
 ### The app's control routes
 

@@ -230,15 +230,17 @@ stay stable, and `frontend/obs/design-preview.html` shows a look without the app
 
 ## Sharing song facts with other apps
 
-Off by default. When all three settings below are set, each song and its facts go to that address as context the other app may use to answer questions. Nothing else is sent, and paused bubbles aren't shared. Failures are logged by reason only.
+Off by default. When all three settings below are set, the song on stream goes to that address as soon as it starts, and its facts as they're found, as context the other app may use to answer questions. A fact taken off the stream is taken out there too. Nothing else is sent, never who requested the song, and paused bubbles aren't shared. Failures are logged by reason only.
 
 Each request is a POST with `Authorization: Bearer <key>` and a JSON body:
 
 ```json
-{"eventType": "INTEGRATION_STATE", "data": {"channelName": "yourchannel", "sourceId": "bubblefacts", "content": "Now playing: ...", "ttl": 420}}
+{"eventType": "INTEGRATION_STATE", "data": {"channelName": "yourchannel", "sourceId": "bubblefacts", "content": "Now playing: ...", "ttl": 150}}
 ```
 
-`ttl` is in seconds. Empty `content`, with no `ttl`, clears what was sent.
+`content` is at most 1,000 characters. `ttl` is in seconds. While a song is on, the same request is sent again every minute, for up to an hour after the song or its facts last changed, so the other app forgets the song by itself within a few minutes if BubbleFacts stops. Empty `content`, with no `ttl`, clears what was sent: when the song ends, or bubbles are paused. Nothing in a request asks the other app to speak.
+
+Building an app that takes these requests? [INTEGRATING.md](INTEGRATING.md) is the how-to.
 
 | Setting | Default | What it does |
 |---|---|---|
