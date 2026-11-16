@@ -240,6 +240,8 @@ Each request is a POST with `Authorization: Bearer <key>` and a JSON body:
 
 `content` is at most 1,000 characters. `ttl` is in seconds. While a song is on, the same request is sent again every minute, for up to an hour after the song or its facts last changed, so the other app forgets the song by itself within a few minutes if BubbleFacts stops. Empty `content`, with no `ttl`, clears what was sent: when the song ends, or bubbles are paused. Nothing in a request asks the other app to speak.
 
+Building an app that takes these requests? [INTEGRATING.md](INTEGRATING.md) is the how-to.
+
 | Setting | Default | What it does |
 |---|---|---|
 | `SHARE_FACTS_URL` | (none) | Where facts go. Must be `https`, or `http` on this computer only. |
