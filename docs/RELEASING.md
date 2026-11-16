@@ -140,7 +140,9 @@ reads.
    `desktop/renderer/whats-new.json` has that version's two to four
    highlights (plain words, like the changelog's top lines), added before
    tagging. The app shows them once on the dashboard after the update; a
-   version without an entry shows nothing.
+   version without an entry shows nothing. `npm run check` fails on the
+   version's pull request if any file still has the old version or the
+   highlights are missing.
 2. The Release workflow passed for every system, and the draft has every
    installer, full and Lite (`-lite` in the name), `SHA256SUMS.txt`,
    `bubblefacts.zip` and `bubblefacts-sbom.spdx.json`.

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { addChangelogStub, bumpBetaForm, bumpBugForm, bumpOverlay, bumpSiteAssets, changelogId, checkVersion } from "./bump-version.mjs";
+import { addChangelogStub, bumpBetaForm, bumpBugForm, bumpOverlay, bumpSiteAssets, changelogId, checkVersion, versionEdits } from "./bump-version.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -79,4 +79,18 @@ test("stamps the version on every page's stylesheet and script links", () => {
     const html = read(`site/${file}`);
     assert.match(html, /assets\/site\.css\?v=/, `${file} links its stylesheet without a version`);
   }
+});
+
+// Release tags can't be moved, so a version left behind in one file costs a whole new version. Checked
+// here, on the pull request that sets the version, instead of by eye before the tag.
+test("every file a release needs has package.json's version", () => {
+  const { version } = JSON.parse(read("package.json"));
+  const lock = JSON.parse(read("package-lock.json"));
+  assert.equal(lock.version, version, "package-lock.json has another version: run npm run bump");
+  assert.equal(lock.packages[""].version, version, "package-lock.json has another version: run npm run bump");
+  for (const [file, change] of versionEdits(root, version)) {
+    assert.equal(change(read(file)), read(file), `${file} doesn't have ${version}: run npm run bump -- ${version}`);
+  }
+  const highlights = JSON.parse(read("desktop/renderer/whats-new.json"));
+  assert.ok(Array.isArray(highlights[version]) && highlights[version].length > 0, `desktop/renderer/whats-new.json has no highlights for ${version}`);
 });
