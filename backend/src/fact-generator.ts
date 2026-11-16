@@ -26,6 +26,7 @@ import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForAr
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
+import { templateThinks } from "./thinking";
 
 // Song -> timed fact bubbles: the streamer's own, data facts, or AI captions retold from an article
 // and screened. No article: data, a Twitch About, else entry facts + topic packs (ARCHITECTURE.md: The life of one song)
@@ -568,8 +569,9 @@ async function askOllama(prompt: string): Promise<[string, string]> {
 // node-llama-cpp is ESM: tsc would turn a plain import() into a failing require()
 const importModule = new Function("specifier", "return import(specifier)") as (s: string) => Promise<any>;
 
-// Loaded once (takes seconds), one reusable chat session
-type Loaded = { session: any; dispose?: () => Promise<void> };
+/** A loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
+/** `thinks`: a thinking model, answered with reasoning off (see `thinking.ts`). Unset in tests. */
+type Loaded = { session: any; thinks?: boolean; dispose?: () => Promise<void> };
 let builtin: Promise<Loaded> | undefined;
 // Prep model, when not the stream's (config.prepareModelPath)
 let prepBuiltin: Promise<Loaded> | undefined;
@@ -577,7 +579,7 @@ let llamaRuntime: Promise<any> | undefined;
 
 // On the one shared runtime. `stream`: sets builtinInfo and starts the CPU watch (#314); the prep model (#296) doesn't
 async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
-  const { getLlama, LlamaChatSession } = await importModule("node-llama-cpp");
+  const { getLlama, LlamaChatSession, JinjaTemplateChatWrapper } = await importModule("node-llama-cpp");
   // Shipped binaries only: never compile llama.cpp on a musician's computer
   const runtime = (llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) }));
   // Drop only a runtime that failed; a failed model load keeps it, so the CPU watch still governs both
@@ -587,14 +589,22 @@ async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded
   });
   const model = await llama.loadModel({ modelPath });
   const context = await model.createContext({ contextSize: 4096 });
-  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: SYSTEM_PROMPT });
-  console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"})`);
+  const template = model.fileInfo?.metadata?.tokenizer?.chat_template;
+  const thinks = templateThinks(template);
+  const session = new LlamaChatSession({
+    contextSequence: context.getSequence(),
+    systemPrompt: SYSTEM_PROMPT,
+    // A thinking model answers through its own template with reasoning switched off (issue #198).
+    ...(thinks ? { chatWrapper: new JinjaTemplateChatWrapper({ template, reasoning: false }) } : {}),
+  });
+  console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"}${thinks ? ", thinking off" : ""})`);
   if (stream) {
     builtinInfo.gpu = llama.gpu || "cpu";
     watchCpu(llama, context.idealThreads as number);
   }
   return {
     session,
+    thinks,
     dispose: async () => {
       await context.dispose();
       await model.dispose();
@@ -742,7 +752,7 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
   const run = async () => {
     if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
     const loadStarted = Date.now();
-    const { session } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
+    const { session, thinks } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
     // Loading the model (a first load, or after a switch) says nothing about how fast the computer writes facts:
     // the wait viewers are timed on starts after it, and a song that changed meanwhile isn't written for.
     const loadedMs = Date.now() - loadStarted;
@@ -756,6 +766,8 @@ function askBuiltin(prompt: string, key: string | null = null): Promise<string> 
       const text = (await session.prompt(prompt, {
         temperature: config.temperature,
         maxTokens: MAX_TOKENS,
+        // No token goes to thinking: the 512 are for captions (issue #198). Only set for a thinking model.
+        ...(thinks ? { budgets: { thoughtTokens: 0 } } : {}),
         signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal, ...(prep ? [prep.signal] : [])]),
         stopOnAbortSignal: true,
       })) as string;
@@ -1097,12 +1109,14 @@ async function liveLearnFacts(song: SSLSong, want: number, asked: SSLSong): Prom
 
 // Artist named exactly like a Twitch channel: a line or two of its About. Null on any doubt; never throws
 async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Promise<Generated | null> {
-  // Never on a guessed artist
-  const login = song.artistFromTitle || song.artistUncertain ? "" : loginForArtist(song.artist ?? "");
+  // A guessed artist is no name to match a stranger's channel on.
+  // A credit "Jane (@janeplayskeys)" names the channel outright; any other artist is only a guess at one.
+  const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1]?.toLowerCase();
+  const login = song.artistFromTitle || song.artistUncertain ? "" : handle ?? loginForArtist(song.artist ?? "");
   if (!login || taggedFactsFor(song).length) return null;
   try {
-    // No AI: the article hasn't been sought yet; a song with one never gets an About
-    if (config.aiProvider === "none" && (await findReference(song)).context) return null;
+    // Without an AI nothing has looked for the article yet, and a song with one is never looked up here.
+    if (!handle && config.aiProvider === "none" && (await findReference(song)).context) return null;
     const about = await twitchAbout(login);
     if (!about) return null;
     const label = `${SOURCE.twitchAbout}${about.name}`;
@@ -1111,7 +1125,7 @@ async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Pr
     const fit = onStandard(about.facts, names).filter((f) => !notForStream(f) && !aboutIsChannelTalk(f) && !loadedCaption(f, names, true));
     const shown = fit.map((f) => `${ABOUT_CREDIT}${f}`).filter((f) => !recentList().includes(f) && !restatesRequest(f, song)).slice(0, Math.min(want, MAX_ABOUT_FACTS));
     if (!shown.length) return null;
-    console.log(`[FactGen] "${song.title}": ${shown.length} from the Twitch About of the channel named like its artist`);
+    console.log(`[FactGen] "${song.title}": ${shown.length} from the Twitch About of the channel named like (or tagged on) its artist`);
     remember(shown);
     record(asked, "twitchAbout", shown.length);
     return { facts: toFacts(song, shown, () => label), ttlMs: Infinity };
@@ -1177,7 +1191,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   let read = song;
   // Another music content creator's piece: no encyclopedia knows it
   const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1];
-  if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): not looked up`);
+  if (handle) console.log(`[FactGen] "${song.title}" is credited to a streamer (@${handle}): only their Twitch About is looked up`);
   // "Off-List YouTube Request < 5 Min (Free)": a queue slot; its "article" would be YouTube's
   const placeholder = isPlaceholderRequest(song);
   if (placeholder) console.log(`[FactGen] "${song.title}" is a request placeholder, not a song: not looked up`);
@@ -1201,7 +1215,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
       return { facts: toFacts(song, shownData, (t) => structuredLabel.get(t)), ttlMs: Infinity };
     }
     // `data`, not `shownData`: facts shown before still mean the databases know the song
-    const fromTwitch = lookup && !data.length ? await twitchAboutFacts(song, want, asked) : null;
+    // A handle credit is the channel itself: its About is tried although the databases were skipped.
+    const aboutLookup = (lookup && !data.length) || (!!handle && config.factVerification && !placeholder);
+    const fromTwitch = aboutLookup ? await twitchAboutFacts(song, want, asked) : null;
     if (fromTwitch) return fromTwitch;
     if (sourcedOnly) return none;
     const lines = entryFacts(entry, want);
