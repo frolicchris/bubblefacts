@@ -1,4 +1,4 @@
-import { MAX_FACT_CHARS } from "./fact-verifier";
+import { MAX_FACT_CHARS } from "./fact-limits";
 
 /**
  * Basic facts from Wikidata and MusicBrainz, told in as few bubbles as fit.

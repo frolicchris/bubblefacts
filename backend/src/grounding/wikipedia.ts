@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
 import { config } from "../config";
+import { MIN_CONTEXT_CHARS } from "../fact-limits";
 import { withinStandard } from "../content-standard";
 import { htmlToText } from "../wiki-html";
 import { foldSymbols, mentionsName, normalizeTitle } from "./titles";
@@ -447,3 +448,16 @@ export function rememberArticle(page: string, full: string): void {
  * video's plot or look is what viewers are already watching (issue #20).
  */
 export const OPINION = /\b(considered (?:one|to be|as|by|a|an|among|the (?:best|greatest|finest|most|top))|(?:among|some of) the (?:best|greatest|finest|most)|instantly recognizable|regarded|praised|acclaimed|hailed|lauded|critics?|critically|masterpiece|greatest|iconic|beloved|celebrated|described as|one of the (best|finest|most))\b/i;
+
+/** Any section that isn't a list of tracks, credits or references. */
+export const NOT_A_LIST = /^(?!.*(track listing|personnel|credits|chart|certification|reference|external|see also|notes)).+$/i;
+
+/**
+ * The song's own article, read for a reference. When its sections have names
+ * the usual ordering doesn't look for ("Origin", "Form"), it would keep little
+ * more than the lead: then every section but the lists is read instead.
+ */
+export function ownArticleExtract(full: string, budget: number, names: string[]): string {
+  const extract = orderExtract(full, budget, names);
+  return extract.length >= MIN_CONTEXT_CHARS ? extract : orderExtract(full, budget, names, true, NOT_A_LIST);
+}

@@ -87,6 +87,11 @@ Now playing file ─┘ reads the file   │
 Each file stays under about 30 KB, so a change to one check reads one file.
 Imports only point up this list: a file uses the ones above it, never one below
 (`grounding/` reaches into `screening/` for its name and sentence helpers).
+The files they depend on (`wikidata.ts`, `musicbrainz.ts`, `infobox.ts`,
+`data-facts.ts`) import each name from the file that owns it, not from
+`fact-verifier.ts`. `backend/src/import-graph.test.ts` fails if any files
+import each other in a circle, or if `grounding/` or `screening/` imports the
+server, a song source or anything that shows or shares a fact.
 
 | File | Job |
 |---|---|
