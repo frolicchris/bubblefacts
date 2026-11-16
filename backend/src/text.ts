@@ -81,3 +81,14 @@ export const foldCase = (s: string): string => s.normalize("NFD").replace(/\p{M}
 
 /** Identity for the streamer's records: words count, bracketed versions too, unlike Wikipedia's normalization; not case, accents or punctuation */
 export const songIdentity = (s: string): string => foldCase(s).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/** Letters to add, drop or change to turn one string into the other */
+export function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}

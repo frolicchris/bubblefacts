@@ -12,6 +12,10 @@ const MAX_NOTE_CHARS = 120; // characters of the streamer's note shown
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
+const REQUESTED_BY = "Requested by "; // how the line naming who asked for the song starts
+/** Whether a fact names who asked for the song: the one entry fact about a viewer, kept on the overlay only (share-song-facts.ts) */
+export const namesRequester = (fact: string): boolean => fact.startsWith(REQUESTED_BY);
+
 /** The artist field is one of the streamer's names or holds "@name"; streamer "Joe" doesn't own "Joe Hisaishi" */
 export function creditedToStreamer(entry: SSLQueueItem | null, names: string[]): boolean {
   const artist = (entry?.song?.artist ?? "").trim().toLowerCase();
@@ -86,10 +90,10 @@ export function buildStatFacts(
 
   const requesters = (entry.requests ?? []).map((r) => r?.name?.trim()).filter((n): n is string => Boolean(n));
   if (requesters.length === 1) {
-    facts.push(`Requested by ${requesters[0]}.`);
+    facts.push(`${REQUESTED_BY}${requesters[0]}.`);
   } else if (requesters.length > 1) {
     const others = requesters.length - 1;
-    facts.push(`Requested by ${requesters[0]} and ${others} ${plural(others, "other", "others")}.`);
+    facts.push(`${REQUESTED_BY}${requesters[0]} and ${others} ${plural(others, "other", "others")}.`);
   }
 
   return facts;

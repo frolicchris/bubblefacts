@@ -5,11 +5,11 @@ import { creditsSong } from "../musicbrainz";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { artistNames, mentionsName, normalizeTitle } from "./titles";
 import { isRelevantArticle, looksLikeArtistName, qualifierNamesAnotherArtist } from "./relevance";
-import { wikiExtract, wikiGet, wikiResolveTitles, wikiSearch } from "./wikipedia";
+import { ownArticleExtract, wikiExtract, wikiGet, wikiResolveTitles, wikiSearch } from "./wikipedia";
 import { wikitextOf } from "./work-scope";
 import { openingSays, writingText } from "./covers";
 import { GENERIC_TRACK, isMusicArticleFor, namesPiece } from "./summary";
-import { ownArticleExtract, type Reading } from "./readings";
+import type { Reading } from "./readings";
 import { isNonMusicWork, isPerformerArticle, NON_MUSIC_WORK, PERFORMER_WORDS } from "./work-match";
 import { companionLine } from "./companion";
 

@@ -100,27 +100,32 @@ export function addChangelogStub(html, version, date) {
   return html.slice(0, at) + stub + html.slice(at);
 }
 
+/** Each file besides package.json and its lock carrying the version, with a release's change. Tests run them on the current version: any change means a release would ship an old version somewhere */
+export function versionEdits(root, version, date = new Date()) {
+  const pages = fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html")).sort();
+  return [
+    ["frontend/obs/obs-overlay.js", (t) => bumpOverlay(t, version)],
+    [".github/ISSUE_TEMPLATE/beta_test.yml", (t) => bumpBetaForm(t, version)],
+    [".github/ISSUE_TEMPLATE/bug_report.yml", (t) => bumpBugForm(t, version)],
+    ["site/changelog.html", (t) => addChangelogStub(t, version, date)],
+    ...pages.map((page) => [`site/${page}`, (t) => bumpSiteAssets(t, version)]),
+  ];
+}
+
 function main() {
   const version = checkVersion(process.argv[2]);
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const edit = (file, change) => {
+  // Also updates package-lock.json; --allow-same-version lets a second run pass
+  execFileSync("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: root, stdio: "ignore", shell: process.platform === "win32" });
+  console.log(`set ${version}  package.json, package-lock.json`);
+  for (const [file, change] of versionEdits(root, version)) {
     const full = path.join(root, file);
     const before = fs.readFileSync(full, "utf8");
     const after = change(before);
     if (after !== before) fs.writeFileSync(full, after);
     console.log(`${after !== before ? "updated" : "already done"}  ${file}`);
-  };
-  // Also updates package-lock.json; --allow-same-version lets a second run pass
-  execFileSync("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: root, stdio: "ignore", shell: process.platform === "win32" });
-  console.log(`set ${version}  package.json, package-lock.json`);
-  edit("frontend/obs/obs-overlay.js", (t) => bumpOverlay(t, version));
-  edit(".github/ISSUE_TEMPLATE/beta_test.yml", (t) => bumpBetaForm(t, version));
-  edit(".github/ISSUE_TEMPLATE/bug_report.yml", (t) => bumpBugForm(t, version));
-  edit("site/changelog.html", (t) => addChangelogStub(t, version, new Date()));
-  for (const page of fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html")).sort()) {
-    edit(`site/${page}`, (t) => bumpSiteAssets(t, version));
   }
-  console.log("Next: fill in the FILL IN lines in site/changelog.html, then run npm run check.");
+  console.log("Next: fill in the FILL IN lines in site/changelog.html, add this version's highlights to desktop/renderer/whats-new.json, then run npm run check.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -1,4 +1,6 @@
-import { artistNames, loadWikitext, mentionsName, namesLoosely, normalizeTitle, wikitextOf } from "./fact-verifier";
+import { namesLoosely } from "./grounding/relevance";
+import { artistNames, mentionsName, normalizeTitle } from "./grounding/titles";
+import { loadWikitext, wikitextOf } from "./grounding/work-scope";
 import { COMMENT, removeAll, withoutRefsAndComments } from "./text";
 
 // Facts from the article's infobox: a fixed sentence filled from one field, no AI, so wrong

@@ -76,7 +76,7 @@ export const PROBLEM_REPORT_AIRED = 10;
 
 const osName = () => ({ darwin: "macOS", win32: "Windows" } as Record<string, string>)[process.platform] ?? "Linux";
 const aiName = (ai: string) =>
-  ({ builtin: "Built into the app", none: "No AI (BubbleFacts Lite)", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama on my computer" } as Record<string, string>)[ai] ??
+  ({ builtin: "Built into the app", none: "No AI", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama on my computer" } as Record<string, string>)[ai] ??
   "Other or not sure";
 
 /** GitHub problem report address; `version` is the label with the build: "2.0.0-beta.12 test build (c4ee826)" (build.ts) */

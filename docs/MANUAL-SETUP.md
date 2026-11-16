@@ -73,7 +73,7 @@ You'll need:
 |---|---|---|
 | **OBS Studio** 28 or newer | Shows the overlay on your stream | [obsproject.com/download](https://obsproject.com/download) |
 | **A StreamerSongList account** | The overlay reads your request queue from it. (Use StreamElements, or a text file your music app writes, instead? See [CONFIG.md](CONFIG.md#your-streamelements-account).) | [streamersonglist.com](https://streamersonglist.com) |
-| **Node.js** 20 or newer | Runs the overlay's small server on your computer | [nodejs.org/en/download](https://nodejs.org/en/download), the "LTS" version |
+| **Node.js** 22 or newer | Runs the overlay's small server on your computer | [nodejs.org/en/download](https://nodejs.org/en/download), the "LTS" version |
 | **An AI model** | Rewrites Wikipedia text into captions | See [step 3](#3-choose-where-the-ai-runs) |
 
 All the download links are also in [Quick links](#quick-links).

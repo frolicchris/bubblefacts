@@ -230,15 +230,17 @@ stay stable, and `frontend/obs/design-preview.html` shows a look without the app
 
 ## Sharing song facts with other apps
 
-Off by default. When all three settings below are set, each song and its facts go to that address as context the other app may use to answer questions. Nothing else is sent, and paused bubbles aren't shared. Failures are logged by reason only.
+Off by default. When all three settings below are set, the song on stream goes to that address as soon as it starts, and its facts as they're found, as context the other app may use to answer questions. A fact taken off the stream is taken out there too. Nothing else is sent, never who requested the song, and paused bubbles aren't shared. Failures are logged by reason only.
 
 Each request is a POST with `Authorization: Bearer <key>` and a JSON body:
 
 ```json
-{"eventType": "INTEGRATION_STATE", "data": {"channelName": "yourchannel", "sourceId": "bubblefacts", "content": "Now playing: ...", "ttl": 420}}
+{"eventType": "INTEGRATION_STATE", "data": {"channelName": "yourchannel", "sourceId": "bubblefacts", "content": "Now playing: ...", "ttl": 150}}
 ```
 
-`ttl` is in seconds. Empty `content`, with no `ttl`, clears what was sent.
+`content` is at most 1,000 characters. `ttl` is in seconds. While a song is on, the same request is sent again every minute, for up to an hour after the song or its facts last changed, so the other app forgets the song by itself within a few minutes if BubbleFacts stops. Empty `content`, with no `ttl`, clears what was sent: when the song ends, or bubbles are paused. Nothing in a request asks the other app to speak.
+
+Building an app that takes these requests? [INTEGRATING.md](INTEGRATING.md) is the how-to.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -272,7 +274,7 @@ need them with a `.env` file.
 
 | Setting | What it does |
 |---|---|
-| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **Larger AI** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` uses no AI: songs get Wikidata, MusicBrainz and your own facts. The app uses it while the model downloads, if the built-in AI can't run, and in BubbleFacts Lite, where choosing the built-in AI means no AI. |
+| `AI_PROVIDER=builtin`, `MODEL_PATH`, `LLAMA_GPU` | Run the app's built-in AI from the downloaded model file: Llama 3.2 3B for **Standard**, Llama 3.1 8B for **Larger AI** (Settings, Advanced). While a switch downloads the new one, `MODEL_PATH` stays on the one already there. `LLAMA_GPU=off` uses the processor only. `AI_PROVIDER=none` uses no AI: songs get Wikidata, MusicBrainz and your own facts. The app uses it while the model downloads and if the built-in AI can't run. |
 | `PREPARE_MODEL_PATH` | With **Larger AI** chosen and the Standard model downloaded too: the Standard model writes the first pass of **Prepare my songs**, being faster. Songs it wrote are written again by Larger AI once every song has its first pass. |
 | `SSL_CLIENT_ID`, `SSL_STREAMER_ID` | Sent with the app's StreamerSongList sign-in: the app's client ID, and the channel's ID so it's found without its name. |
 | `BUBBLEFACTS_TOPICS_DIR` | A folder of your own packs, checked before the examples in `topics`. |

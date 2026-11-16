@@ -2,6 +2,16 @@
 
 <!-- A sentence or two. Link the issue if there is one. -->
 
+## Kind of change
+
+<!-- Check one. What each needs is in .github/CONTRIBUTING.md, "How a change moves". -->
+
+- [ ] Fix
+- [ ] Feature
+- [ ] Fact quality (how facts are found, written or screened). On songs already measured it fixed __ facts and broke __.
+- [ ] Structure (moving or renaming code; nothing behaves differently)
+- [ ] Docs, tests or tooling only
+
 ## How this was made
 
 <!-- Check one. Either is welcome; see docs/AI_DISCLOSURE.md. -->

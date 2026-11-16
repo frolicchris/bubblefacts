@@ -1,4 +1,5 @@
-import { foldSymbols, normalizeTitle } from "./titles";
+import { editDistance } from "../text";
+import { foldSymbols, mentionsName, normalizeTitle } from "./titles";
 
 // Whether an article is about the requested song (title and artist matching), and shared name helpers
 
@@ -196,3 +197,35 @@ export function initialsDiffer(a: string, b: string): boolean {
 
 // "Qumu Corporation", "Some Records", "Some Studios Inc."
 export const COMPANY = /\s(?:corporation|corp\.?|inc\.?|incorporated|company|co\.|ltd\.?|limited|llc|plc|gmbh|records|studios|entertainment|holdings)$/i;
+
+/** Whether normalized text names one of these, even a letter or two off ("Colbie Cailat") */
+export function namesLoosely(text: string, names: string[]): boolean {
+  if (mentionsName(text, names)) return true;
+  const words = text.split(" ");
+  return names.some((name) => {
+    const want = name.replace(/ /g, "");
+    const n = name.split(" ").length;
+    if (want.length < 5) return false;
+    for (let size = Math.max(1, n - 1); size <= n + 1; size++) {
+      for (let i = 0; i + size <= words.length; i++) {
+        const got = words.slice(i, i + size).join("");
+        if (initialsDiffer(words.slice(i, i + size).join(" "), name)) continue;
+        if (Math.abs(got.length - want.length) <= 2 && editDistance(got, want) <= Math.max(1, Math.floor(want.length * 0.15))) return true;
+      }
+    }
+    return false;
+  });
+}
+
+/** Whether a name is a title's initials, number kept ("FF7"). Only for Wikipedia's own redirects, never a guess */
+export function isInitials(short: string, long: string): boolean {
+  const s = normalizeTitle(short).replace(/ /g, "");
+  if (s.length < 2 || /\s/.test(short.trim())) return false;
+  const words = normalizeTitle(long).split(" ").filter(Boolean);
+  const forms = (keep: (w: string) => boolean) => {
+    const kept = words.filter(keep);
+    const num = (w: string) => /^\d+$/.test(w) || w in ROMAN;
+    return [kept.map((w) => (num(w) ? w : w[0])).join(""), kept.map((w) => (num(w) ? (ROMAN[w] ?? w) : w[0])).join("")];
+  };
+  return [...forms(() => true), ...forms((w) => !STOPWORDS.has(w))].includes(s);
+}

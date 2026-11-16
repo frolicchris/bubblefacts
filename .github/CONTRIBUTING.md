@@ -25,6 +25,15 @@ invented one of the same shape. Add the title even if you can't fix
 the rule yourself. [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md#song-sources-and-youtube-titles)
 explains how titles are read.
 
+## Captions that should have been dropped
+
+A caption that said something its source didn't, or a true one that was
+dropped, belongs in `backend/src/fixtures/captions.json`: the source
+sentences, the caption, `keep` or `drop` with the reason, and where it came
+from, with made-up names. The tests read every row, so a fix can't quietly
+break an older caption, and every reason a caption can be dropped for must
+have a row. Can't fix the rule yourself? Add the row with `"known": "miss"`.
+
 ## Topic packs are examples
 
 The packs in `topics/` are examples that show the format and make the overlay
@@ -44,7 +53,7 @@ change.
    StreamElements, YouTube titles, Wikipedia, Wikidata, MusicBrainz, **Wrong**)
    and why it works the way it does. Most of the unusual choices exist because
    of something that went wrong on a live stream.
-2. Install [Node.js](https://nodejs.org/en/download) 20 or newer and
+2. Install [Node.js](https://nodejs.org/en/download) 22 or newer and
    [ShellCheck](https://www.shellcheck.net), then run `npm ci`. It installs
    Electron and the built-in AI's native parts too (several hundred MB).
    Changing only the server or the overlay? `ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci`
@@ -76,11 +85,51 @@ npm run check       # typecheck, lint, tests, and the build plus script tests; a
 npm run typecheck   # TypeScript in strict mode, the server and the desktop app, tests included
 npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts
 npm test            # jest, a few seconds: the server and the desktop app
-npm run test:scripts # builds, then the release and Lite scripts' own tests
+npm run test:scripts # builds, then the release scripts' own tests
 npm run build       # compile the server to dist/
 ```
 
 The server always runs compiled; there's no development transpiler on purpose.
+
+## How a change moves
+
+One plan, a few things open at a time, small steps. These rules bind the
+maintainer and the AI sessions he directs as much as anyone else.
+
+1. **The plan is the milestone.** Work starts from an issue in the current
+   [milestone](https://github.com/frolicchris/bubblefacts/milestones). An idea
+   that isn't there becomes an issue first, or waits. There is no second list.
+2. **Three pull requests open at most**, drafts included (a release's version
+   change doesn't count). Merge or close one before opening a fourth. A draft
+   that has had conflicts for a week is closed, with a note on its issue saying
+   what was learned and which branch holds the work.
+3. **One kind of change per pull request.** Say which in the pull request:
+
+   | Kind | Done when |
+   | --- | --- |
+   | Fix | A test fails without it. |
+   | Feature | Its issue was agreed first. Tests cover it, and the docs and settings are updated. |
+   | Fact quality: how facts are found, written or screened | As a fix or a feature, and also: the wrong fact behind it is a labeled case in `backend/src/fixtures/`, and the pull request says how many facts changed on songs already measured (how many it fixed, how many it broke). It merges when it fixes more than it breaks, or breaks nothing and adds true facts, with no new kind of mistake either way. |
+   | Structure: moving or renaming code | Nothing behaves differently, and no test changes except to follow a move. Never mixed with another kind. |
+
+4. **During a release freeze** (from the first release candidate to the final
+   release, see [docs/RELEASING.md](../docs/RELEASING.md)), `main` takes fixes
+   for release blockers, docs and tests. Work for the next version isn't
+   opened as a draft to wait; the time goes to tests, cases and measuring.
+5. **A rewrite across the whole repository** (formatting, comments, a rename
+   in many files) lands in one sitting right after a release, while nothing
+   else is open, or not at all.
+
+When the change is to the fact pipeline (`backend/src/grounding/`,
+`backend/src/screening/`, `fact-generator.ts` and the files they use):
+
+- One file owns one decision from [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
+  A change that needs two sections of that doc is two pull requests.
+- A limit that dropped a true caption gets a named constant, with the example
+  beside it.
+- No new true/false parameters. The next time such a function is touched, it
+  takes an object with named fields.
+- Caches don't leak between tests: pass the cache in, or clear it in setup.
 
 ## Working on the desktop app
 
@@ -97,10 +146,7 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
    uses Electron's, so use Ollama while developing on Linux: quit the app, set
    `"ai": "ollama"` in its `settings.json`, and open it again (Settings shows
    the choice only once it's set).
-4. `npm run dist` builds installers for your own system into `release/`, and
-   `npm run dist:lite` builds BubbleFacts Lite (no AI engine) into
-   `release-lite/`. To see Lite's screens without building it, run
-   `BUBBLEFACTS_EDITION=lite npm run app`.
+4. `npm run dist` builds installers for your own system into `release/`.
 5. Put a new feature in its own file in `desktop/src/`, with its tests beside
    it; `main.ts` only wires the app together. If the window needs to talk to
    the feature, export a `registerSomething({ handle, … })` that registers its
@@ -117,7 +163,7 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 ```
 
 **Test builds for every system:** on GitHub, go to **Actions → Release → Run
-workflow**. The installers appear as downloadable artifacts on the run, two for each system: the full app, and Lite (`-lite` in the name). This
+workflow**. The installers appear as downloadable artifacts on the run, one for each system. This
 works in forks too. A test build says so at the bottom of its window, with
 the commit it was built from, for example `2.0.0-rc.1 test build (c4ee826)`;
 a build from your own computer says `(dev)`.

@@ -1,4 +1,4 @@
-import { MAX_FACT_CHARS } from "./fact-verifier";
+import { MAX_FACT_CHARS } from "./fact-limits";
 
 // Wikidata and MusicBrainz facts in as few bubbles as fit: on a busy PC they may be all a viewer sees
 // Values placed as the source gives them, no AI (ARCHITECTURE.md: Where structured facts come from)

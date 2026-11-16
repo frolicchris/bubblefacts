@@ -124,9 +124,9 @@ const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFacts
   ? new SongFactSharer({ url: config.shareFactsUrl, apiKey: config.shareFactsKey, channel: config.shareFactsChannel })
   : null;
 
-/** Gives the sharer what's on stream now: nothing while paused, and without facts taken off */
+/** Gives the sharer what's on stream now: the song as it starts, then its facts; nothing while paused, and without facts taken off */
 function shareNow(): void {
-  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], songList.getCurrentSong()?.song?.durationSeconds);
+  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? []);
 }
 
 /** `credit`: goes to the overlay ahead of a facts_ready batch, never into the song's record */

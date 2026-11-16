@@ -14,16 +14,8 @@ export function buildInfo(pkg: { bubblefacts?: { build?: { commit?: unknown; kin
   return { commit, kind: b?.kind === "release" ? "release" : "test" };
 }
 
-/** Which installer: "full", or "lite" (no AI engine; retired, being removed) */
-export type Edition = "full" | "lite";
-
-export function editionOf(pkg: { bubblefacts?: { edition?: unknown } }): Edition {
-  return pkg.bubblefacts?.edition === "lite" ? "lite" : "full";
-}
-
-/** "2.0.0-beta.12 (c4ee826)", "2.0.0-beta.12 test build (c4ee826)", "2.0.0-beta.12 (dev)"; Lite adds "Lite" after the version */
-export function versionLabel(version: string, build: BuildInfo, edition: Edition = "full"): string {
-  const named = edition === "lite" ? `${version} Lite` : version;
-  if (build.kind === "dev") return `${named} (dev)`;
-  return `${named}${build.kind === "test" ? " test build" : ""} (${build.commit})`;
+/** "2.0.0-beta.12 (c4ee826)", "2.0.0-beta.12 test build (c4ee826)" or "2.0.0-beta.12 (dev)" */
+export function versionLabel(version: string, build: BuildInfo): string {
+  if (build.kind === "dev") return `${version} (dev)`;
+  return `${version}${build.kind === "test" ? " test build" : ""} (${build.commit})`;
 }

@@ -1,14 +1,12 @@
 // Smoke test for an INSTALLED BubbleFacts, run with the app's own runtime:
-//   ELECTRON_RUN_AS_NODE=1 <path to BubbleFacts executable> scripts/smoke-packaged.mjs <resources dir> [model.gguf | --lite]
-// Starts the packaged server as the app does, then (given a model) loads the built-in AI; --lite checks for no AI engine
+//   ELECTRON_RUN_AS_NODE=1 <path to BubbleFacts executable> scripts/smoke-packaged.mjs <resources dir> [model.gguf]
+// Starts the packaged server as the app does, then (given a model) loads the built-in AI
 // Covers what unit tests can't: installed files, native AI binaries, the system's own libraries
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const [resources, second] = process.argv.slice(2);
-const lite = second === "--lite";
-const modelPath = lite ? undefined : second;
+const [resources, modelPath] = process.argv.slice(2);
 // app.asar on Windows and macOS; a plain folder on Linux, whose server runs under Node.js
 const appDir = fs.existsSync(path.join(resources, "app.asar")) ? "app.asar" : "app";
 const server = path.join(resources, appDir, "dist", "backend", "server.js");
@@ -75,34 +73,6 @@ const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.t
   if (!script.includes('location.hostname === "absolute"')) fail("the overlay lacks the OBS Local-file fix");
   console.log("PASS: server starts, answers /health and serves the overlay (with the Local-file fix)");
   await s.stop();
-}
-
-// 1b. The right edition: Lite says so and has no AI engine anywhere; the full app isn't a renamed Lite
-{
-  const pkg = JSON.parse(fs.readFileSync(path.join(resources, appDir, "package.json"), "utf8"));
-  const edition = pkg.bubblefacts?.edition === "lite" ? "lite" : "full";
-  if (edition !== (lite ? "lite" : "full")) fail(`expected the ${lite ? "Lite" : "full"} app, but its package.json says ${edition}`);
-  if (lite) {
-    if (pkg.dependencies?.["node-llama-cpp"]) fail("Lite's package.json still lists node-llama-cpp");
-    const found = [];
-    const walk = (dir) => {
-      let entries = [];
-      try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const e of entries) {
-        const p = path.join(dir, e.name);
-        if (/llama|ggml/i.test(e.name)) found.push(p);
-        // app.asar: a file to the system, a folder to Electron's runtime; both searched
-        else if (e.isDirectory() || e.name.endsWith(".asar")) walk(p);
-      }
-    };
-    walk(resources);
-    if (found.length) fail(`Lite has AI engine files:\n${found.slice(0, 20).join("\n")}`);
-    console.log("PASS: Lite says it's Lite and has no AI engine files");
-  }
 }
 
 // 2. The built-in AI loads. "auto" (GPU if any) failing only warns on Windows and Linux, where the app

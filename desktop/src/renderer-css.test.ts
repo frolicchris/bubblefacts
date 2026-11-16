@@ -102,12 +102,13 @@ describe("Settings", () => {
     for (const name of ["groqKey", "anthropicKey", "ollamaUrl", "ollamaModel"]) expect(keys).toContain(`name="${name}"`);
     const js = read("app.js");
     expect(js).toContain('const otherAi = s.ai !== "builtin";\n    $("#s-other-ai").hidden = !otherAi;\n    $("#s-other-ai-keys").hidden = !otherAi;');
-    // Nothing points people to them, in either edition
+    // Nothing points people to them: no Switch to Groq, no fine print offering them
     expect(js).not.toContain("Switch to Groq");
     expect(html).not.toMatch(/Online AI and Larger AI|choose an online AI or your own Ollama/);
     expect(html).not.toMatch(/choose (one|another AI|Anthropic|Groq|Ollama|an online AI) under Advanced/i);
-    // Lite is retired: its last release says so
-    expect(js).toContain('if (isLite()) add("warn", "BubbleFacts Lite is retired, and this is its last update.');
+    // Lite is gone: no edition switching, no Lite screens or notice
+    expect(js).not.toMatch(/isLite|showEdition|BubbleFacts Lite/);
+    expect(html).not.toMatch(/data-edition|BubbleFacts Lite/);
     expect(settings).toContain("Larger AI is under Advanced.");
     // Saving refills the form from what's saved, which hides the choice after switching back
     const save = js.slice(js.indexOf("async function saveSettingsForm"), js.indexOf("\n  }", js.indexOf("async function saveSettingsForm")));

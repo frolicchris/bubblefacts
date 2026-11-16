@@ -9,8 +9,8 @@ export const CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and Mu
 // Another AI writes (an online service or the streamer's Ollama): only facts a viewer can check, within
 // MAX_FACT_CHARS (ARCHITECTURE.md: The credit bubble). Wikidata and MusicBrainz (CC0) need no credit
 export const OTHER_AI_CREDIT_TEXT = "Some facts are adapted from Wikipedia (CC BY-SA 4.0) by an AI the streamer chose. Not verified by BubbleFacts; may be wrong. bubblefacts.frolic.org/credits.html";
-// No AI writes (`AI_PROVIDER=none`): Wikipedia keeps its credit, since some facts are still
-// sentences taken from an article (`artistGoodFacts`)
+// No AI writes (`AI_PROVIDER=none`: the app while its AI downloads or can't run, the command line):
+// Wikipedia keeps its credit, since some facts are still sentences from an article (`artistGoodFacts`)
 export const NO_AI_CREDIT_TEXT = "Facts from Wikipedia (CC BY-SA 4.0), Wikidata and MusicBrainz. Spot a mistake? Let the streamer know. · BubbleFacts";
 const OTHER_AIS: ReadonlySet<string> = new Set(["openai", "anthropic", "ollama"]);
 /** The credit for the AI that writes the facts (`AI_PROVIDER`), or for no AI */
