@@ -24,8 +24,10 @@ export function installOverlay(sourceDir: string, targetDir: string, port: numbe
   fs.mkdirSync(targetDir, { recursive: true });
   const copy = (from: string, to: string, edit = (text: string) => text) =>
     fs.writeFileSync(path.join(targetDir, to), edit(fs.readFileSync(path.join(sourceDir, from), "utf8")));
-  copy("obs-overlay.html", OVERLAY_FILE);
-  copy("obs-overlay-vertical.html", VERTICAL_OVERLAY_FILE);
+  // OBS keeps a Browser source's script and styles; a new query on each write makes a reload of the source take the new ones.
+  const fresh = (text: string) => text.replace(/(src|href)="(obs-overlay\.(?:js|css))"/g, `$1="$2?v=${Date.now()}"`);
+  copy("obs-overlay.html", OVERLAY_FILE, fresh);
+  copy("obs-overlay-vertical.html", VERTICAL_OVERLAY_FILE, fresh);
   copy("obs-overlay.css", "obs-overlay.css", (text) =>
     text.replace(/--bf-scale: [\d.]+;/, `--bf-scale: ${scale};`).replace(/--bf-vertical-scale: [\d.]+;/, `--bf-vertical-scale: ${verticalScale};`)
   );

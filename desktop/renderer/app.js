@@ -1156,10 +1156,7 @@
         fillSettings();
       });
     } else if (state.builtinFailed && state.settings.ai === "builtin") {
-      add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts. Switching to Groq is free and takes a minute.", "Switch to Groq", () => {
-        show("settings");
-        $("#s-advanced").open = true;
-      });
+      add("warn", "The built-in AI can't run on this computer. For now, songs get facts from music databases and your own facts.", null);
     }
     if (state.secretsUnprotected) add("warn", "This computer has no keychain (on Linux: GNOME Keyring or KWallet), so your token is saved without real encryption. Anyone who can open your files could read it.", null);
     return notices;
@@ -1291,11 +1288,17 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
-    // Someone already using an online AI, Larger AI or the example packs finds them open.
-    $("#s-advanced").open = form.elements.ai.value !== "builtin" || (!isLite() && form.elements.aiQuality.value === "high");
+    // Someone already using an online AI or Larger AI finds them open.
+    $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
+    // Other AIs are a legacy choice (leaving in 3.0): only someone whose saved choice is one sees them.
+    const otherAi = s.ai !== "builtin";
+    $("#s-other-ai").hidden = !otherAi;
+    $("#s-other-ai-keys").hidden = !otherAi;
+    $("#s-quality-box").classList.toggle("indent", otherAi);
     renderQuality();
+    renderAiWarning();
     renderSongFactsList();
     renderTimingHint();
     renderTwitch();
@@ -1303,19 +1306,10 @@
     renderDraftNote();
   }
 
-  /**
-   * BubbleFacts Lite has no built-in AI. Elements marked data-edition="full" or "lite" show only in that
-   * edition; Lite's own choice under "Who writes the facts" reads "No AI" (the same "builtin" setting).
-   */
-  const isLite = () => state.edition === "lite";
-  function showEdition() {
-    for (const el of $$("[data-edition]")) el.hidden = el.dataset.edition !== (isLite() ? "lite" : "full");
-  }
-
   /** Larger AI is a choice under "On this computer", with a warning (never a block) where it may struggle. */
   const GB = 1024 ** 3;
   function renderQuality() {
-    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin" || isLite();
+    $("#s-quality-box").hidden = form.elements.ai.value !== "builtin";
     const reasons = [];
     // A computer sold with 16 GB reports a little less, as some is set aside for the system.
     if (state.totalMemory && state.totalMemory < 15 * GB) {
@@ -1330,6 +1324,22 @@
     warning.hidden = !warn;
   }
   for (const el of form.querySelectorAll('input[name="ai"], input[name="aiQuality"]')) el.addEventListener("change", renderQuality);
+
+  /**
+   * Another AI is a choice, with a warning the moment it's picked (never a block). BubbleFacts
+   * doesn't control or test Groq, Anthropic or an Ollama model, so it vouches for nothing they write:
+   * the warning claims no checks, only that it can't vouch for them.
+   */
+  const OTHER_AI = { groq: "Groq", anthropic: "Anthropic", ollama: "your Ollama model" };
+  function renderAiWarning() {
+    const who = OTHER_AI[form.elements.ai.value];
+    const warning = $("#s-ai-warning");
+    warning.textContent = who
+      ? `! BubbleFacts doesn't control or test ${who}, so it can't vouch for its facts, and they may be wrong more often. Press Wrong on any fact that's off, and switch back any time.`
+      : "";
+    warning.hidden = !who;
+  }
+  for (const el of form.querySelectorAll('input[name="ai"]')) el.addEventListener("change", renderAiWarning);
 
   /** Hands-free Wrong: the keys as this computer names them, and a key another app already has. */
   function renderWrongKey() {
@@ -1586,7 +1596,6 @@
       // Painted first: the app stops answering while the Mac's prompt is up.
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
-    showEdition();
     // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;

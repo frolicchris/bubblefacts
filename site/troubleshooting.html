@@ -26,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.2.0-beta.4">
-  <script src="assets/site.js?v=2.2.0-beta.4" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.2.0">
+  <script src="assets/site.js?v=2.2.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -71,7 +71,7 @@
               </tr>
               <tr>
                 <th scope="row">On Linux, BubbleFacts stays on "Getting BubbleFacts ready"</th>
-                <td>A bug in versions 2.0.0 to 2.1.0 of BubbleFacts (not Lite) on Linux</td>
+                <td>A bug in versions 2.0.0 to 2.1.0 of BubbleFacts on Linux</td>
                 <td>Download 2.1.1 or newer from the <a href="download.html">download page</a> and install it over the old one. Your settings are kept.</td>
               </tr>
               <tr>
@@ -142,7 +142,7 @@
               <tr>
                 <th scope="row">The app says "The AI download paused"</th>
                 <td>Not enough disk space, the connection dropped, or the file didn't match the one BubbleFacts expects</td>
-                <td>If the connection dropped, the app tries again on its own. If you're low on space, free up at least 4 GB. If the file didn't match, click <span class="ui">Try again</span> later; if it keeps happening, <a href="https://discord.gg/3YS3eWkWrW">ask in #help on the Discord</a>. Or choose <span class="ui">Online, with Groq (free key)</span> for now (see <a href="guide.html#ai">Optional: use an online AI instead</a>).</td>
+                <td>If the connection dropped, the app tries again on its own. If you're low on space, free up at least 4 GB. If the file didn't match, click <span class="ui">Try again</span> later; if it keeps happening, <a href="https://discord.gg/3YS3eWkWrW">ask in #help on the Discord</a>.</td>
               </tr>
               <tr>
                 <th scope="row">No facts about the song, or none at all</th>
@@ -162,17 +162,12 @@
               <tr>
                 <th scope="row">Bubbles come late, and the dashboard says "Facts took" a long time</th>
                 <td>The built-in AI is sharing your computer with the stream</td>
-                <td>Turn on <a href="guide.html#prepare">Prepare my songs</a> in <span class="ui">Settings</span>, so facts are written while you're not streaming and show as soon as a song starts. Or choose <span class="ui">Online, with Groq (free key)</span> under <span class="ui">Advanced</span>.</td>
+                <td>Turn on <a href="guide.html#prepare">Prepare my songs</a> in <span class="ui">Settings</span>, so facts are written while you're not streaming and show as soon as a song starts.</td>
               </tr>
               <tr>
                 <th scope="row"><span class="ui">Your songs</span> says "Waiting"</th>
                 <td>Prepare my songs works only while OBS is closed, your computer is plugged in, and the AI on this computer is chosen and ready</td>
                 <td>Do what the line says: close OBS, or plug your computer in. "BubbleFacts is on your stream in OBS" with OBS closed means a browser tab from <span class="ui">Test in your browser</span> is still open: close it. "BubbleFacts can't tell right now whether OBS is open" means it couldn't read the list of running programs; it checks again by itself, so just wait. The same goes for "can't tell right now whether this computer is plugged in". With an online AI chosen, songs aren't prepared.</td>
-              </tr>
-              <tr>
-                <th scope="row">BubbleFacts Lite gives few songs facts</th>
-                <td>Lite has no AI, so only songs the music databases know get facts</td>
-                <td>That's expected. To get more, choose an online AI or your own Ollama in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, or install the full BubbleFacts (see <a href="requirements.html#lite">BubbleFacts Lite</a>).</td>
               </tr>
               <tr>
                 <th scope="row">Bubbles cover your camera, or jump around the screen</th>
@@ -212,12 +207,12 @@
               <tr>
                 <th scope="row">Your stream stutters when a song starts</th>
                 <td>The built-in AI is sharing your computer with OBS</td>
-                <td>BubbleFacts already slows its AI down while a game or OBS keeps the processor nearly full. If it still stutters, turn on <a href="guide.html#prepare">Prepare my songs</a>, or choose <span class="ui">Online, with Groq (free key)</span> in <span class="ui">Settings</span>, under <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span> (see <a href="guide.html#ai">Optional: use an online AI instead</a>). It's free and does the work online.</td>
+                <td>BubbleFacts already slows its AI down while a game or OBS keeps the processor nearly full. If it still stutters, turn on <a href="guide.html#prepare">Prepare my songs</a>, so facts are written while you're not streaming.</td>
               </tr>
               <tr>
                 <th scope="row">The app says the built-in AI can't run on this computer</th>
                 <td>The processor or graphics can't run it, even in processor-only mode</td>
-                <td>Click <span class="ui">Switch to Groq</span> in the app's message. It's free. See the <a href="requirements.html#fallback">system requirements</a>.</td>
+                <td>Nothing to do on stream: songs still get facts from music databases and your own facts. See the <a href="requirements.html#fallback">system requirements</a>.</td>
               </tr>
               <tr>
                 <th scope="row">A new version has a problem and you want the one before</th>
@@ -227,7 +222,7 @@
               <tr>
                 <th scope="row">You're moving to a new computer</th>
                 <td>Your settings and facts are on the old one</td>
-                <td>On the old computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, and click <span class="ui">Back up…</span>. Install BubbleFacts on the new one, sign in, then use <span class="ui">Restore…</span> in the same place and pick that file. Your sign-in and keys aren't in the backup, so you sign in again. If you used an online AI, choose it again in <span class="ui">Settings</span>. If you used <span class="ui">Prepare my songs</span>, turn it on again there: it prepares your songs again on the new computer.</td>
+                <td>On the old computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, and click <span class="ui">Back up…</span>. Install BubbleFacts on the new one, sign in, then use <span class="ui">Restore…</span> in the same place and pick that file. Your sign-in and keys aren't in the backup, so you sign in again. The new computer starts on BubbleFacts' own AI: online AIs and Ollama aren't offered any more. If you used <span class="ui">Prepare my songs</span>, turn it on again there: it prepares your songs again on the new computer.</td>
               </tr>
             </tbody>
           </table>

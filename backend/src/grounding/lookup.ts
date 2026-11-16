@@ -8,12 +8,12 @@ import { clearClassicalCache, placeOrTeam } from "../wikidata";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { artistNames, type ClassicalTitle, mentionsName, normalizeTitle } from "./titles";
 import { editionNotInTitle, isRelevantArticle, looksLikeArtistName, NOT_A_PERFORMER, PERFORMER_LEAD, qualifierNamesAnotherArtist, qualifierOf, significantTokens } from "./relevance";
-import { olderVersionFailures, orderExtract, RateLimited, searchTerms, wikiExtract, wikiResolveTitles, wikiSearch } from "./wikipedia";
+import { olderVersionFailures, orderExtract, ownArticleExtract, RateLimited, searchTerms, wikiExtract, wikiResolveTitles, wikiSearch } from "./wikipedia";
 import { seriesFilter, withoutSentences } from "./sections";
 import { otherWorkScope, wikitextCache, workScopeCache } from "./work-scope";
 import { gameArticles, type GameArticles, isCoverOf, isPieceArticle, isPlaceholderRequest, openingSays, originalsRecord, otherVersionsRecord, writingText } from "./covers";
 import { findMusicArticle, GAME_LEAD, gameInsteadOfScreen, gameTrackText, GENERIC_TRACK, isScreenPage, isSeriesWide, MAX_GAME_ARTICLES, namesPiece, noOwnArticle, oneOfSeveral, seriesScope, summaries } from "./summary";
-import { type Grounded, groundingCache, groundSongAlone, lookupForm, MAX_GROUNDING, ownArticleExtract, type Reading, readings, seriesPage, wikipediaName, wikipediaNames } from "./readings";
+import { type Grounded, groundingCache, groundSongAlone, lookupForm, MAX_GROUNDING, type Reading, readings, seriesPage, wikipediaName, wikipediaNames } from "./readings";
 import { classicalPages, isPerformerArticle, isWorkArticle, linkedPages } from "./work-match";
 import { classicalAsk, classicalGrounding, notForAPiece } from "./classical-works";
 import { cachedGrounding, companionCache, companionLine } from "./companion";
@@ -98,7 +98,27 @@ async function findGrounding(song: SSLSong, skip: ReadonlySet<string>): Promise<
   const linked = config.mbLink && !isPlaceholderRequest(song) && !hasNoArtist(song.artist) ? await linkedGrounding(song, usable) : "";
   if (linked) linkedPages.add(linked.split("\n")[0]);
   // Still nothing for "Some Name Theme": the article of what the theme is named for, gated.
-  return linked || (isPlaceholderRequest(song) ? "" : await themeGrounding(song, usable));
+  if (linked) return linked;
+  if (isPlaceholderRequest(song)) return "";
+  const theme = await themeGrounding(song, usable);
+  return theme || (await creditedSong(song, usable));
+}
+
+/**
+ * A list's credits aren't always the performer: a person before a colon ("Don Henley: Hotel California"),
+ * a song's writers, a second name. When every reading by artist missed, the song's own article under its
+ * exact title still fits if it names one of the credited people anywhere.
+ */
+async function creditedSong(song: SSLSong, usable: (title: string) => boolean): Promise<string> {
+  if (song.performer || song.artistUncertain || hasNoArtist(song.artist)) return "";
+  const own = lookupForm(song) ?? song;
+  const colon = /^(.+?):\s+([^:]+)$/.exec(own.title.trim());
+  const credit = colon && looksLikeArtistName(colon[1].trim()) ? colon[1].trim() : "";
+  const title = credit ? colon![2].trim() : own.title.trim();
+  const credits = [...new Set([...artistNames(own.artist ?? ""), ...(credit ? artistNames(credit) : [])].filter(Boolean))];
+  if (!title || !credits.length) return "";
+  const found = await groundSongAlone(song, title, usable, credits);
+  return found.text;
 }
 
 /** What to search Wikipedia for, in order, for one reading of the request. */

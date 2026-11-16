@@ -4,10 +4,10 @@ import { isPersonPage } from "../wikidata";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { dropVersionTags, normalizeTitle } from "./titles";
 import { significantTokens, withoutQualifier } from "./relevance";
-import { wikiExtract, wikiResolveTitles } from "./wikipedia";
+import { ownArticleExtract, wikiExtract, wikiResolveTitles } from "./wikipedia";
 import { writingText } from "./covers";
 import { GENERIC_TRACK } from "./summary";
-import { NEGATIVE_TTL_MS, ownArticleExtract } from "./readings";
+import { NEGATIVE_TTL_MS } from "./readings";
 import { isPerformerArticle } from "./work-match";
 import { performerPages } from "./performer-name";
 

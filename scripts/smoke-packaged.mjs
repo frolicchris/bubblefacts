@@ -1,18 +1,14 @@
 // Smoke test for an INSTALLED BubbleFacts, run with the app's own runtime:
-//   ELECTRON_RUN_AS_NODE=1 <path to BubbleFacts executable> scripts/smoke-packaged.mjs <resources dir> [model.gguf | --lite]
+//   ELECTRON_RUN_AS_NODE=1 <path to BubbleFacts executable> scripts/smoke-packaged.mjs <resources dir> [model.gguf]
 // Starts the packaged fact server the way the app does, checks it answers and
 // serves the overlay, then (given a model) checks the built-in AI loads on
 // the processor. This is the path the unit tests can't reach: the installed
 // files, the native AI binaries and the operating system's own libraries.
-// With --lite, for BubbleFacts Lite: checks instead that it says it's Lite and
-// that the AI engine isn't in it at all.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const [resources, second] = process.argv.slice(2);
-const lite = second === "--lite";
-const modelPath = lite ? undefined : second;
+const [resources, modelPath] = process.argv.slice(2);
 // Packed into app.asar on Windows and macOS; a plain folder on Linux, whose server runs under Node.js.
 const appDir = fs.existsSync(path.join(resources, "app.asar")) ? "app.asar" : "app";
 const server = path.join(resources, appDir, "dist", "backend", "server.js");
@@ -79,35 +75,6 @@ const get = (p) => fetch(`http://127.0.0.1:${PORT}${p}`, { signal: AbortSignal.t
   if (!script.includes('location.hostname === "absolute"')) fail("the overlay lacks the OBS Local-file fix");
   console.log("PASS: server starts, answers /health and serves the overlay (with the Local-file fix)");
   await s.stop();
-}
-
-// 1b. The edition is the one being tested: Lite says it's Lite and has no AI engine anywhere in it,
-// and the full app isn't a Lite build that got its name.
-{
-  const pkg = JSON.parse(fs.readFileSync(path.join(resources, appDir, "package.json"), "utf8"));
-  const edition = pkg.bubblefacts?.edition === "lite" ? "lite" : "full";
-  if (edition !== (lite ? "lite" : "full")) fail(`expected the ${lite ? "Lite" : "full"} app, but its package.json says ${edition}`);
-  if (lite) {
-    if (pkg.dependencies?.["node-llama-cpp"]) fail("Lite's package.json still lists node-llama-cpp");
-    const found = [];
-    const walk = (dir) => {
-      let entries = [];
-      try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const e of entries) {
-        const p = path.join(dir, e.name);
-        if (/llama|ggml/i.test(e.name)) found.push(p);
-        // app.asar is a file to the system, and a folder to Electron's runtime: both are searched.
-        else if (e.isDirectory() || e.name.endsWith(".asar")) walk(p);
-      }
-    };
-    walk(resources);
-    if (found.length) fail(`Lite has AI engine files:\n${found.slice(0, 20).join("\n")}`);
-    console.log("PASS: Lite says it's Lite and has no AI engine files");
-  }
 }
 
 // 2. The built-in AI's native files load on this system. The app first starts

@@ -58,7 +58,7 @@ export interface Progress {
  */
 export class ChecksumMismatch extends Error {
   constructor() {
-    super("The file didn't match the one BubbleFacts expects, so it was deleted. Click Try again, or choose the free online option in Settings.");
+    super("The file didn't match the one BubbleFacts expects, so it was deleted. Click Try again later. Until then, songs get facts from music databases and your own facts.");
   }
 }
 

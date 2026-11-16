@@ -5,7 +5,7 @@ import { anotherArtist } from "../musicbrainz";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack } from "./titles";
 import { qualifierOf, significantTokens, withoutQualifier } from "./relevance";
-import { brokenBySplit, MAX_ARTICLE_TEXTS, MUSIC_HEADING, orderExtract, RateLimited, USER_AGENT, wikiExtract, wikiSearch, withoutVideoSections } from "./wikipedia";
+import { brokenBySplit, MAX_ARTICLE_TEXTS, MUSIC_HEADING, NOT_A_LIST, orderExtract, RateLimited, USER_AGENT, wikiExtract, wikiSearch, withoutVideoSections } from "./wikipedia";
 import { sectionExtract, sectionSelection, sectionSentences, seriesFilter, SKIP_HEADING } from "./sections";
 import { articleText, type GameArticles, selectedText } from "./covers";
 
@@ -144,6 +144,9 @@ export function wrongActPage(summary: PageSummary, page: string, kind: Described
   const same = wanted.some((w) => w.join(" ") === base.join(" "));
   const inside = !same && wanted.some((w) => w.length < base.length && w.every((t) => base.includes(t)));
   if (!(same && kind !== "person") && !(inside && kind === "person")) return "";
+  // A game's soundtrack: the artist field is the game, and the game's own article is the right one
+  // even when it never names the track ("Turtle Village" in "Golden Axe", 2026-11-08).
+  if (same && kind === "game" && artists[0] && nameWords(artists[0]).join(" ") === base.join(" ")) return "";
   const full = articleText(page) || grounding.slice(page.length + 1);
   if (namesPiece(full, piece)) return "";
   const described = `Wikipedia describes "${page}" as "${summary.description}"`;
@@ -443,8 +446,6 @@ export function otherParts(text: string, track: string): string[] {
   return full ? (soundtrackPart(full, track)?.others ?? []) : [];
 }
 
-/** Any section that isn't a list of tracks, credits or references. */
-export const NOT_A_LIST = /^(?!.*(track listing|personnel|credits|chart|certification|reference|external|see also|notes)).+$/i;
 /** In a music article, how the music was made comes before the lists of albums and releases. */
 const MAKING_OF_MUSIC = /creation|development|concept|influence|composition|writing|recording|background|overview|production|style|themes/i;
 

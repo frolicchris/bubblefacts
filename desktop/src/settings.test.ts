@@ -363,17 +363,12 @@ describe("toServerEnv", () => {
     expect(env).toMatchObject({ AI_PROVIDER: "builtin", MODEL_PATH: path.join("/models", "Llama-3.2-3B-Instruct-Q4_K_M.gguf"), LLAMA_GPU: "off" });
   });
 
-  it("runs Lite's own choice with no AI, and keeps the online AIs and Ollama", () => {
-    const lite = { ...paths, edition: "lite" as const };
-    const own = toServerEnv({ ...DEFAULTS, ai: "builtin", aiQuality: "high" }, lite);
-    expect(own.AI_PROVIDER).toBe("none");
-    expect(own).not.toHaveProperty("MODEL_PATH");
-    expect(own).not.toHaveProperty("LLAMA_GPU");
-    expect(toServerEnv({ ...DEFAULTS, ai: "groq", groqKey: "k" }, lite)).toMatchObject({ AI_PROVIDER: "openai", OPENAI_API_KEY: "k" });
-    expect(toServerEnv({ ...DEFAULTS, ai: "ollama" }, lite).AI_PROVIDER).toBe("ollama");
-    expect(toServerEnv({ ...DEFAULTS, ai: "anthropic", anthropicKey: "k" }, lite).AI_PROVIDER).toBe("anthropic");
-    // The same saved choice is the built-in AI again after installing the full app.
-    expect(toServerEnv({ ...DEFAULTS, ai: "builtin" }, { ...paths, edition: "full" }).AI_PROVIDER).toBe("builtin");
+  it("keeps the legacy online AIs and Ollama for anyone who chose one", () => {
+    expect(toServerEnv({ ...DEFAULTS, ai: "groq", groqKey: "k" }, paths)).toMatchObject({ AI_PROVIDER: "openai", OPENAI_API_KEY: "k" });
+    expect(toServerEnv({ ...DEFAULTS, ai: "ollama" }, paths).AI_PROVIDER).toBe("ollama");
+    expect(toServerEnv({ ...DEFAULTS, ai: "anthropic", anthropicKey: "k" }, paths).AI_PROVIDER).toBe("anthropic");
+    // A former Lite user's saved "builtin" is the built-in AI once they install the full app.
+    expect(toServerEnv({ ...DEFAULTS, ai: "builtin" }, paths).AI_PROVIDER).toBe("builtin");
   });
 
   it("points the built-in AI at the model for the chosen quality", () => {

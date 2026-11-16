@@ -26,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.2.0-beta.4">
-  <script src="assets/site.js?v=2.2.0-beta.4" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.2.0">
+  <script src="assets/site.js?v=2.2.0" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -65,7 +65,7 @@
             <li><a href="#streaming">While you stream</a></li>
             <li><a href="#make-it-yours">Make it yours (any time)</a></li>
           </ul>
-          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#song-list-file">Follow a now playing file</a>, <a href="#custom-facts">Custom facts</a>, <a href="#bubble-style">How bubbles look</a>, <a href="#prepare">Prepare my songs</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Optional: use an online AI instead</a>.</p>
+          <p style="margin-top:0.75rem">Also on this page: <a href="#song-list-se">Use StreamElements instead</a>, <a href="#song-list-file">Follow a now playing file</a>, <a href="#custom-facts">Custom facts</a>, <a href="#bubble-style">How bubbles look</a>, <a href="#prepare">Prepare my songs</a>, <a href="#wrong-fact">If a fact is wrong</a> and <a href="#ai">Who writes the facts</a>.</p>
           <p>Stuck? See <a href="troubleshooting.html">Troubleshooting</a>.</p>
         </nav>
 
@@ -184,7 +184,6 @@
             <div class="note">
               <p class="note-title">BubbleFacts gets ready in the background</p>
               <p>While you set up, BubbleFacts downloads its built-in AI, once (about 2 GB). You don't wait for it: until it's ready, songs get facts from music databases and your own facts. The dashboard shows how far along it is.</p>
-              <p>Using BubbleFacts Lite? It has no AI, so there's nothing to download: songs get facts from music databases, your song list and your own facts.</p>
             </div>
           </div>
         </div>
@@ -369,7 +368,7 @@
               <li>Another music content creator's song? Once the artist ends with their @name (like "Jane (@janeplayskeys)") or their link is their Twitch page, click <span class="ui">Fill from their Twitch About</span> to add the text from their channel's About, then check it and edit it. The first time, connect Twitch in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>: Twitch opens with a code already filled in. Check it matches the one BubbleFacts shows, then click <span class="ui">Authorize</span>.</li>
               <li>Type your facts, one per box (<span class="ui">Add another fact</span> gives you another box), and click <span class="ui">Save and show</span>. About 160 characters fit in a bubble. A fact can be up to 300 characters, and a song can have up to 20 facts; the editor shows a count as you get close.</li>
             </ol>
-            <p id="twitch-about">With Twitch connected, you often won't need to. When no source knows a song and its artist is one name that exactly matches a Twitch channel, BubbleFacts shows a line or two from that channel's About, starting "From their Twitch About:". If it found the wrong channel, click <span class="ui">Wrong</span>. To turn this off, uncheck <span class="ui">Check Twitch for artists no source knows</span> in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>.</p>
+            <p id="twitch-about">With Twitch connected, you often won't need to. BubbleFacts shows a line or two from a Twitch channel's About, starting "From their Twitch About:", in two cases: the artist ends with an @name, which names the channel, or no source knows the song and its artist is one name that exactly matches a channel. A song with facts you added keeps yours instead. If it found the wrong channel, click <span class="ui">Wrong</span>. To turn this off, uncheck <span class="ui">Check Twitch for artists no source knows</span> in <span class="ui">Settings</span>, under <span class="ui">You and your music</span>.</p>
             <p id="no-facts">Want no facts at all for a song, or for everything by one artist? Check <span class="ui">No facts for this song</span> or <span class="ui">No facts for this artist</span> in the same place, or click them under <span class="ui">Earlier songs</span> after the song. BubbleFacts then looks nothing up for it, and only your own facts show.</p>
             <p id="not-music">Playing commercials, station IDs or jingles between songs? BubbleFacts skips a track with no bubbles when its title says what it is, like "Moonbrew Cola (Commercial)", "(Jingle)" or "Station ID", or when its artist is "Commercials". A track without those words looks like any song, so add one to its title in your music player, or use the switches above.</p>
             <p>Every song you've done this for is listed in <span class="ui">Settings</span>, under <span class="ui">Songs with their own facts</span>, with <span class="ui">Edit</span> and <span class="ui">Remove</span>.</p>
@@ -379,7 +378,7 @@
             <ul>
               <li><strong>Bubbles covering your camera or keyboard?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Where bubbles appear</span> to the top, bottom, left or right. To have every bubble show in the same place, choose one spot, like <span class="ui">Top right</span> or <span class="ui">Bottom center</span>: each new bubble replaces the last one there. For anything finer, resize and move the BubbleFacts source in OBS.</li>
               <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>. The new size shows on stream as soon as you save.</li>
-              <li><strong>Want viewers to know where the facts come from?</strong> <span class="ui">Now and then, show where the facts come from</span> is on to start with. It adds one extra bubble when the first song's facts start, then about every 5 songs, for viewers who join later. To hide it, uncheck it in <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>.</li>
+              <li><strong>Want viewers to know where the facts come from?</strong> <span class="ui">Now and then, show where the facts come from</span> is on to start with. It adds one extra bubble when the first song's facts start, then about every 5 songs, for viewers who join later. To show it less often, uncheck it in <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>. It still shows when you click <span class="ui">Start Streaming</span> in OBS, and again after 20 minutes without facts, so your viewers know where the facts come from and that they can be wrong. Songs you play before you go live don't use it up.</li>
               <li><strong>More facts per song?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Facts per song</span>. BubbleFacts finds up to 4 facts for a song, so a higher number only adds bubbles when you've <a href="#song-facts">written your own</a>. Your own facts can go past 4, up to the number you set.</li>
               <li><strong>Already show the song yourself?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, turn off <span class="ui">Show a Now Playing bubble when a song starts</span>. Fact bubbles stay.</li>
             </ul>
@@ -402,16 +401,16 @@
             <p>It starts with the songs your viewers request most. It works only while OBS is closed and your computer is plugged in, and stops the moment you open OBS, keeping everything it has done. Next time your computer is free, it carries on where it stopped.</p>
             <p>It prepares every song on your StreamerSongList list, and every song that has played on your stream, so requests from StreamElements, Streamling or Nightbot get ready too after you've played them once.</p>
             <p>To see how far it has come, click <span class="ui">Your songs</span> at the top of the BubbleFacts window. It says how many songs are ready and about when the rest will be, for example "1,240 of 5,000 songs ready. The rest by about Thursday.", worked out from how fast your computer has been going. It also shows how much of what your viewers request is ready, and the songs no source knows anything about. It's just information: there's nothing to check or approve.</p>
-            <p>It uses the AI on this computer (the built-in AI, or Ollama), never an online AI, so BubbleFacts Lite doesn't have it. The facts, and the list of songs played on your stream, stay on this computer. A fact you mark <span class="ui">Wrong</span> never shows again, prepared or not.</p>
+            <p>It uses the AI on this computer, never an online AI. The facts, and the list of songs played on your stream, stay on this computer. A fact you mark <span class="ui">Wrong</span> never shows again, prepared or not.</p>
 
             <h3 id="share-facts">Share song facts with other apps</h3>
-            <p>An app that takes song context can use the song's facts to answer chat's questions.</p>
+            <p>An app that takes song context can tell chat which song is on, and use its facts to answer questions. BubbleFacts shares the song the moment it starts, and its facts as soon as they're found.</p>
             <ol>
               <li>Get the web address and an API key from the other app.</li>
               <li>In BubbleFacts, open <span class="ui">Settings</span> and turn on <span class="ui">Share song facts with other apps</span>.</li>
               <li>Enter the address and your channel name, paste the key, click <span class="ui">Test connection</span>, then save.</li>
             </ol>
-            <p>Only the song and its facts are sent, and it's off until you turn it on. Pausing bubbles pauses sharing too. See the <a href="privacy.html">privacy page</a>.</p>
+            <p>Only the song and its facts are sent, never who requested it, and it's off until you turn it on. Pausing bubbles pauses sharing too, and if you close BubbleFacts the other app forgets the song within a few minutes. See the <a href="privacy.html">privacy page</a>.</p>
             <h3 id="backups">Your facts are backed up</h3>
             <ul>
               <li><strong>Your facts are backed up for you.</strong> BubbleFacts saves a copy of your settings and facts whenever they change, without your sign-in, your keys, which AI writes your facts, or the facts <a href="#prepare">Prepare my songs</a> wrote. To move to a new computer, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, click <span class="ui">Back up…</span>, and use <span class="ui">Restore…</span> on the new one.</li>
@@ -423,46 +422,19 @@
 
     <section class="section" aria-labelledby="ai">
       <div class="wrap narrow">
-        <h2 id="ai">Optional: use an online AI instead</h2>
-        <p>You don't need to choose an AI: by default, the facts are written on your own computer. On an older computer, or one that's already busy while you stream, an online service can write them instead.</p>
-        <p>In the app, open <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span>. You can switch back any time.</p>
-        <p>In BubbleFacts Lite, the first choice reads <span class="ui">No AI: music databases and your own facts</span>. Choose an online AI or your own Ollama here to get facts for more songs.</p>
-        <div class="table-wrap">
-          <table>
-            <caption class="visually-hidden">Who writes the facts</caption>
-            <thead>
-              <tr><th scope="col">Option</th><th scope="col">Cost</th><th scope="col">What you need</th></tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">On this computer (free)<br><span style="font-weight:400;color:var(--gold)">(the default)</span></th>
-                <td>Free</td>
-                <td>Nothing. BubbleFacts gets it ready on its own (a one-time download of about 2 GB). No account or key.</td>
-              </tr>
-              <tr>
-                <th scope="row">Online, with Groq (free key)</th>
-                <td>Free, with a daily limit</td>
-                <td>A free Groq account and an API key from <a href="https://console.groq.com/keys">console.groq.com/keys</a>. Good for older computers, or if yours is already busy while you stream.</td>
-              </tr>
-              <tr>
-                <th scope="row">Online, with Anthropic</th>
-                <td>Paid, but cheap: a fraction of a cent per song</td>
-                <td>An Anthropic account and an API key from <a href="https://platform.claude.com/settings/keys">platform.claude.com/settings/keys</a>.</td>
-              </tr>
-              <tr>
-                <th scope="row">My own Ollama (advanced)</th>
-                <td>Free</td>
-                <td>For people who already use <a href="https://ollama.com">Ollama</a>, installed with its normal installer from ollama.com. Point BubbleFacts at it. The app downloads the Ollama model for you the first time.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h2 id="ai">Who writes the facts</h2>
+        <p>The facts are written by the built-in AI on your own computer. There's nothing to choose: BubbleFacts gets it ready on its own (a one-time download of about 2 GB), with no account or key.</p>
+        <p>Online AIs (Groq and Anthropic) and your own Ollama are a legacy choice, kept only for anyone who already chose one, and leaving BubbleFacts in 3.0. If you use one, you'll find it in <span class="ui">Settings</span>, then <span class="ui">Advanced</span>, then <span class="ui">Who writes the facts</span>. Two things to know:</p>
+        <ul>
+          <li>Your viewers see a bubble saying some facts are adapted from Wikipedia by an AI you chose, aren't verified by BubbleFacts, and may be wrong, at least once a stream. It points to <a href="credits.html#other-ai">the full disclaimer</a>. It shows even with <span class="ui">Now and then, show where the facts come from</span> unchecked.</li>
+          <li>BubbleFacts tests its accuracy before each release with its own built-in AI only. It doesn't control or test any other AI, so it can't vouch for those facts, and they may be wrong more often. Press <span class="ui">Wrong</span> on any fact that's off.</li>
+        </ul>
+        <p>If you switch back to the built-in AI and save, the other choices go away.</p>
         <h3 id="high-quality">Larger AI: a bigger AI, on a strong computer</h3>
         <p>Under <span class="ui">On this computer</span>, you can choose <span class="ui">Standard</span> (the default) or <span class="ui">Larger AI</span>. Stay on Standard for now: in our latest fact check, Larger AI made more mistakes, and it's a bigger download that needs a stronger computer. See <a href="requirements.html#high-quality">the requirements</a>.</p>
-        <p>An <strong>API key</strong> is a long password that lets the app use an online service for you. Copy it from the service's website and paste it into BubbleFacts. It's stored encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
         <div class="note">
           <p class="note-title">If the built-in AI can't run on your computer</p>
-          <p>This can happen on older processors. On Windows and Linux, the app tries a simpler, processor-only mode on its own. If that doesn't work either, it tells you, and its <span class="ui">Switch to Groq</span> button opens Settings so you can choose <span class="ui">Online, with Groq (free key)</span>. If you chose Larger AI, it offers <span class="ui">Use Standard</span> instead, which needs about half the memory.</p>
+          <p>This can happen on older processors. On Windows and Linux, the app tries a simpler, processor-only mode on its own. If that doesn't work either, it tells you, and songs get facts from music databases and your own facts. If you chose Larger AI, it offers <span class="ui">Use Standard</span> instead, which needs about half the memory.</p>
         </div>
       </div>
     </section>

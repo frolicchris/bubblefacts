@@ -20,6 +20,10 @@ export interface Session {
   earlier?: Array<{ song: SSLSong; facts: Fact[] }>;
   /** Songs with facts since the credit bubble last went out (credit.ts). Absent before it first has. */
   creditSince?: number;
+  /** What that credit said: one for another AI (credit.ts) doesn't carry over to the built-in one, or back. */
+  creditText?: string;
+  /** Whether OBS was streaming (obs-streaming.ts), so a restart mid-stream isn't a stream going live. */
+  obsStreaming?: boolean;
 }
 
 /** A restart this long after the facts went out starts the song afresh: it's another day's stream. */
@@ -46,7 +50,9 @@ export function loadSession(now = Date.now()): Session | null {
       && typeof s.savedAt === "number" && typeof s.shownAt === "number"
       && s.facts.every((f) => typeof f?.text === "string" && typeof f.delaySeconds === "number")
       && s.recent.every((r) => typeof r === "string")
-      && (s.creditSince === undefined || (Number.isInteger(s.creditSince) && s.creditSince >= 0));
+      && (s.creditSince === undefined || (Number.isInteger(s.creditSince) && s.creditSince >= 0))
+      && (s.creditText === undefined || typeof s.creditText === "string")
+      && (s.obsStreaming === undefined || typeof s.obsStreaming === "boolean");
     return ok && now - s.savedAt < REMEMBER_FOR_MS && now >= s.savedAt ? s : null;
   } catch {
     return null;

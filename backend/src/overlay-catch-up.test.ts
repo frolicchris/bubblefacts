@@ -23,11 +23,18 @@ jest.mock("http", () => {
 });
 jest.mock("./config", () => {
   // Made-up settings: nothing here reaches StreamerSongList or an AI.
-  Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none" });
+  Object.assign(process.env, { SONG_SOURCE: "streamersonglist", SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "none", BUBBLEFACTS_HEARTBEAT_MS: "150", BUBBLEFACTS_DRAW_GRACE_MS: "150" });
   const actual = jest.requireActual("./config");
   return { ...actual, config: { ...actual.config, port: 0, host: "127.0.0.1", songSource: "streamersonglist", creditBubble: false } };
 });
 jest.mock("./local-only", () => ({ allowedHost: () => true, allowedOrigin: () => true }));
+// The credit bubble goes out once each stream even switched off (credit.test.ts). It stays out of the
+// batches here until the last tests, which check it on the real server.
+const mockCredit = { real: false };
+jest.mock("./credit", () => {
+  const actual = jest.requireActual("./credit");
+  return { ...actual, planCredit: (...args: Parameters<typeof actual.planCredit>) => (mockCredit.real ? actual.planCredit(...args) : { facts: args[1] }) };
+});
 
 const mockSource: { current: SSLQueueItem | null; onChange: (c: SSLQueueItem | null) => void } = { current: null, onChange: () => {} };
 jest.mock("./songlist-client", () => ({
@@ -300,5 +307,119 @@ describe("the aired facts record, for the app's reports", () => {
   it("is only for the app", async () => {
     const res = await fetch(`http://127.0.0.1:${port}/control/aired`, { method: "POST" });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("the credit bubble with its switch off", () => {
+  beforeAll(() => { mockCredit.real = true; });
+  afterAll(() => { mockCredit.real = false; });
+
+  it("still goes out before the stream's first facts, then not again until another stream", async () => {
+    // These tests run with AI_PROVIDER=none, so the credit is the one that says no AI retold anything.
+    const { NO_AI_CREDIT_TEXT: CREDIT_TEXT, STREAM_BREAK_MS } = jest.requireActual<typeof import("./credit")>("./credit");
+    const screen = await overlay();
+    const firstFacts = () => screen.messages.filter((m) => m.type === "facts_ready").map((m) => texts(m.facts ?? []));
+    await play([fact("One.", 0)]);
+    now += 3 * 60_000;
+    await play([fact("Two.", 0)]);
+    await until(() => firstFacts().length === 2);
+    expect(firstFacts()).toEqual([[CREDIT_TEXT, "One."], ["Two."]]);
+    // No facts on stream for a break: the next ones start another stream, and the credit goes first again.
+    now += STREAM_BREAK_MS;
+    await play([fact("Three.", 0)]);
+    await until(() => firstFacts().length === 3);
+    expect(firstFacts()[2]).toEqual([CREDIT_TEXT, "Three."]);
+    // What a restart reads back: the count and the wording it counted, so a restart doesn't credit again.
+    const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
+    expect(loadSession(now)).toMatchObject({ creditSince: 0, creditText: CREDIT_TEXT });
+  });
+
+  it("goes out at once when OBS says the stream went live, and the song's later bubbles make room", async () => {
+    const { NO_AI_CREDIT_TEXT, creditLead } = jest.requireActual<typeof import("./credit")>("./credit");
+    const isCredit = (m: FactsPayload) => m.type === "facts_ready" && m.keep === true && m.facts?.[0]?.text === NO_AI_CREDIT_TEXT;
+    const credits = (o: { messages: FactsPayload[] }) => o.messages.filter(isCredit).map((m) => texts(m.facts ?? []));
+    const streaming = (o: { ws: WebSocket }, on: boolean) => o.ws.send(JSON.stringify({ type: "obs_streaming", streaming: on }));
+    const [main, vertical] = [await overlay(), await overlay()];
+    // A soundcheck: the song's facts go out with OBS open, before going live, and the credit isn't due.
+    now += 60_000;
+    await play([fact("Soundcheck.", 0)]);
+    const later = { ...fact("Later.", 30), position: { top: "60%", left: "10%" } };
+    await play([fact("Warm-up.", 0), later]);
+    await until(() => main.messages.filter((m) => m.type === "facts_ready").length === 2);
+    streaming(main, false);
+    await settle();
+    expect(credits(main)).toEqual([]);
+    // Live: the credit goes to every overlay at once, on top of the song, whose facts aren't sent again.
+    const before = main.messages.length;
+    streaming(main, true);
+    await until(() => credits(main).length === 1 && credits(vertical).length === 1);
+    // `keep`: the bubble on screen stays. The credit takes the next bubble's spot, and that bubble
+    // moves later by the credit's time, so in a one-spot area the next bubble can't replace it early.
+    const batch = main.messages.slice(before);
+    expect(batch).toHaveLength(1);
+    const [credit, moved] = batch[0].facts!;
+    expect([credit.text, moved.text]).toEqual([NO_AI_CREDIT_TEXT, "Later."]);
+    expect(credit.position).toEqual(later.position);
+    expect(moved.delaySeconds).toBe(30 + creditLead(credit));
+    // What a restart reads back: OBS is live, so the first overlay to reconnect isn't a new stream.
+    const { loadSession } = jest.requireActual<typeof import("./session")>("./session");
+    expect(loadSession(now)).toMatchObject({ obsStreaming: true });
+    // An overlay that connects now gets the same schedule from the record, without the credit.
+    const late = await overlay();
+    expect((await late.batch()).find((f) => f.text === "Later.")!.delaySeconds).toBe(30 + creditLead(credit));
+    // The other overlay and a reload say the same: not another stream.
+    streaming(vertical, true);
+    streaming(main, true);
+    await settle();
+    expect(credits(main)).toHaveLength(1);
+    // Stopped, then live again: another stream, another credit.
+    streaming(main, false);
+    streaming(main, true);
+    await until(() => credits(main).length === 2);
+  });
+
+  it("goes with the next song's facts when the stream goes live between songs", async () => {
+    const { NO_AI_CREDIT_TEXT } = jest.requireActual<typeof import("./credit")>("./credit");
+    const screen = await overlay();
+    screen.ws.send(JSON.stringify({ type: "obs_streaming", streaming: false }));
+    await settle();
+    screen.ws.send(JSON.stringify({ type: "obs_streaming", streaming: true }));
+    await settle();
+    expect(screen.messages.some((m) => (m.type as string) === "credit")).toBe(false);
+    await play([fact("First live.", 0)]);
+    await until(() => screen.messages.some((m) => m.type === "facts_ready"));
+    expect(texts(screen.messages.find((m) => m.type === "facts_ready")!.facts!)).toEqual([NO_AI_CREDIT_TEXT, "First live."]);
+  });
+});
+
+describe("an overlay whose connection died without closing", () => {
+  it("is dropped after the heartbeat, while one that answers stays", async () => {
+    const live = await overlay();
+    // A connection that never answers a ping, like OBS killed or a network that went away.
+    const dead = new WebSocket(`ws://127.0.0.1:${port}/ws`, { autoPong: false });
+    sockets.push(dead);
+    await new Promise((r) => dead.once("open", r));
+    const closed = new Promise<void>((r) => dead.once("close", () => r()));
+    await closed;
+    expect(live.ws.readyState).toBe(WebSocket.OPEN);
+    // It can reconnect, and is caught up again.
+    const again = await overlay();
+    expect(again.ws.readyState).toBe(WebSocket.OPEN);
+  });
+});
+
+describe("an overlay that is connected but draws nothing", () => {
+  it("is named in the log when a batch was sent and it never said it drew a bubble", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const quiet = await overlay();
+    const drawing = await overlay();
+    await play([fact("A bubble", 0)]);
+    await drawing.batch();
+    drawing.ws.send(JSON.stringify({ type: "drew" }));
+    await until(() => warn.mock.calls.some((c) => /drew none/.test(String(c[0]))));
+    const said = warn.mock.calls.map((c) => String(c[0])).find((m) => /drew none/.test(m))!;
+    expect(said).toMatch(/1 of \d+ overlays/);
+    quiet.ws.terminate();
+    warn.mockRestore();
   });
 });

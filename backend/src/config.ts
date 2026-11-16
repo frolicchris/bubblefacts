@@ -130,7 +130,8 @@ export const config = {
   verticalArea: oneOf("VERTICAL_AREA", ["top", "above-chat"] as const, "top"),
   // The NOW PLAYING bubble on a song change. Off for streamers whose own overlay already shows the song.
   nowPlaying: oneOf("NOW_PLAYING", ["on", "off"] as const, "on") === "on",
-  // One credit bubble before the first song's facts and about every 5 songs with facts (issue #278).
+  // One credit bubble before the first song's facts of each stream, and about every 5 songs with
+  // facts after it (issue #278). Off stops the repeats only: every stream still shows the first.
   creditBubble: oneOf("CREDIT_BUBBLE", ["on", "off"] as const, "on") === "on",
   liveLearnBanner: oneOf("LIVE_LEARN_BANNER", ["on", "off"] as const, "on") === "on",
   // The bubbles' look (issue #177): a built-in Style, and optionally the streamer's own accent and background.
