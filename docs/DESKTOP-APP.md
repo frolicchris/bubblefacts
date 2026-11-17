@@ -69,6 +69,13 @@ A third song source, **Now playing file**, for musicians and DJs whose music app
 - A line with a title and no artist gets one only when MusicBrainz knows a single artist with a recording of that exact title; common titles stay without one. Such a song shows basic facts from the databases, no AI captions ([ARCHITECTURE.md](ARCHITECTURE.md#song-sources-and-youtube-titles)).
 - The file's rules (an empty, missing or stale file means no song) are in [CONFIG.md](CONFIG.md#a-now-playing-file).
 
+## If something goes wrong
+
+**Bubbles stopped showing after a new look.** The Custom CSS in OBS is hiding
+them. In OBS, open the BubbleFacts source's properties, empty the **Custom CSS**
+box and click **OK**. The look from **Style** comes back. (The full table is in
+the app's **Help and troubleshooting** and [on the site](https://bubblefacts.frolic.org/troubleshooting.html).)
+
 ## What stays the same
 
 The fact pipeline (grounding, screening, topic packs), the overlay page, and the

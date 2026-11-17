@@ -185,11 +185,11 @@ first release candidate to the final release, lasts about a week.
   ships; restore its Electron-only rule then (`.github/dependabot.yml`).
 
 **What may change during the release candidates:** only a low-risk fix for a
-release blocker. Anything else waits for 2.0.1. To make an exception, write
+release blocker. Anything else waits for the next maintenance release. To make an exception, write
 the reason in the pull request.
 
-**Release blockers** carry the `release blocker` label and the 2.0.0
-milestone. A blocker is anything that puts wrong or unsafe words on stream,
+**Release blockers** carry the `release blocker` label and the milestone
+of the release being prepared. A blocker is anything that puts wrong or unsafe words on stream,
 stops bubbles mid-stream, loses a streamer's settings or facts, breaks
 setup, sign-in or the in-app update, or a security problem. There must be
 none open to make a release candidate, and none to make the final release.
@@ -231,8 +231,8 @@ merges.
    settings and facts kept.
 5. At least one tester streams with it, twice, with no new blocker.
 
-**Making the final release:** 2.0.0 is the last release candidate's code with
-only the version number changed.
+**Making the final release:** the final version (2.3.0, say) is the last
+release candidate's code with only the version number changed.
 
 **Plan on one release candidate.** So everything it needs is proven before
 it's tagged, on a test build of the exact commit: the fact check, every fix
@@ -249,22 +249,21 @@ release, go or no-go:
       issues (#36).
 - [ ] The last release candidate was out at least three days, and testers
       streamed with it.
-- [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than
-      any `rc` or `beta`).
+- [ ] The update from it to the final version works (the app treats it as
+      newer than any `rc` or `beta`).
 - [ ] Release notes, changelog, guide and known issues are current.
 - [ ] Signing is decided: signed, or the first-launch steps are on the
       download page.
-- [ ] `desktop/renderer/whats-new.json` has 2.0.0's highlights.
+- [ ] `desktop/renderer/whats-new.json` has the release's highlights.
 
-**The website on release day:** it switches to stable wording by itself as
-soon as 2.0.0 is published (the download page then says "Newest version"
-instead of "2.0 beta"). The one edit is for visitors without JavaScript:
-flip the site default in `site/assets/site.css` and upload it (done in
-2.0.0; see `site/README.md`, "Since version 2.0.0").
+**The website on release day:** it already shows stable wording (the site
+default since 2.0.0; see `site/README.md`, "Since version 2.0.0"), and the
+download page reads GitHub for the newest version. Add the changelog entry
+and upload the changed `site/` files.
 
-**If 2.0.0 has a serious problem:** releases are immutable and version tags
-are locked, so the way back is forward: fix it on `main` and release 2.0.1
-the same way, as soon as possible. Serious means a release blocker as
+**If a stable release has a serious problem:** releases are immutable and version tags
+are locked, so the way back is forward: fix it on `main` and release the next
+patch version the same way, as soon as possible. Serious means a release blocker as
 defined above. Publish the post in Discussions (Announcements) and Discord
 (`announce.yml` does both: write the title and body, then run it from
 Actions > Announce) with what happened and what to do meanwhile; if the in-app update itself is broken, the post links the
@@ -284,8 +283,8 @@ go/no-go list above,
 
 A new feature release (x.y.0) reaches Beta-channel users at once and
 Stable-channel users three days later, so problems show up with testers
-first. Maintenance releases (below) reach both at once. Plan a 2.0.1
-about a week after 2.0.0 for what they find.
+first. Maintenance releases (below) reach both at once. Plan a maintenance release
+about a week after each feature release for what testers find.
 
 ## Maintenance releases
 
