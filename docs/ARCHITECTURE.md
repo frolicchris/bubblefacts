@@ -311,7 +311,10 @@ sign-ins and the built-in AI. Its design decisions are in
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
-   assistant" prompt, which Ollama never sends). Its instructions are laid out as CROSS (Context,
+   assistant" prompt, which Ollama never sends). The built-in model isn't
+   told today's date either (`builtin-chat.ts`): node-llama-cpp's Llama
+   templates add it unless told not to, and with it the same song could get
+   different captions on another day (issue #431). Its instructions are laid out as CROSS (Context,
    Role, Objective, Source, Scope); `PROMPT_STYLE=rules` uses the older
    numbered list.
    Before the reference, the CROSS prompt shows worked examples with made-up

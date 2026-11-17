@@ -26,6 +26,7 @@ import { ABOUT_CREDIT, aboutIsChannelTalk, aboutIsMusicChannel, canAskAbout, for
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
+import { NO_TODAY_DATE } from "./builtin-chat";
 import { templateThinks } from "./thinking";
 
 // Song -> timed fact bubbles: the streamer's own, data facts, or AI captions retold from an article
@@ -579,7 +580,7 @@ let llamaRuntime: Promise<any> | undefined;
 
 // On the one shared runtime. `stream`: sets builtinInfo and starts the CPU watch (#314); the prep model (#296) doesn't
 async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
-  const { getLlama, LlamaChatSession, JinjaTemplateChatWrapper } = await importModule("node-llama-cpp");
+  const { getLlama, LlamaChatSession, JinjaTemplateChatWrapper, resolveChatWrapper } = await importModule("node-llama-cpp");
   // Shipped binaries only: never compile llama.cpp on a musician's computer
   const runtime = (llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) }));
   // Drop only a runtime that failed; a failed model load keeps it, so the CPU watch still governs both
@@ -595,7 +596,8 @@ async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded
     contextSequence: context.getSequence(),
     systemPrompt: SYSTEM_PROMPT,
     // A thinking model answers through its own template with reasoning switched off (issue #198).
-    ...(thinks ? { chatWrapper: new JinjaTemplateChatWrapper({ template, reasoning: false }) } : {}),
+    // Any other gets the template the library would pick, without today's date (issue #431, builtin-chat.ts).
+    chatWrapper: thinks ? new JinjaTemplateChatWrapper({ template, reasoning: false }) : resolveChatWrapper(model, { customWrapperSettings: NO_TODAY_DATE }),
   });
   console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"}${thinks ? ", thinking off" : ""})`);
   if (stream) {
