@@ -1,4 +1,4 @@
-import { STALE_MINUTES_DEFAULT, STALE_NOTICE, staleAfterMs, staleMinutes, StaleSongWatch } from "./stale-song";
+import { carriedOnForMs, STALE_MINUTES_DEFAULT, STALE_NOTICE, staleAfterMs, staleMinutes, StaleSongWatch } from "./stale-song";
 
 const MINUTE = 60 * 1000;
 const STALE_AFTER_MS = STALE_MINUTES_DEFAULT * MINUTE;
@@ -91,6 +91,66 @@ describe("StaleSongWatch", () => {
     expect(watch.stale).toBe(true);
   });
 
+  it("doesn't count time paused: a song lined up, paused over and then played is still current", () => {
+    const stale: string[] = [];
+    const watch = new StaleSongWatch((e) => stale.push(e.song.title));
+    watch.follow(entry("Paper Lanterns"));
+    jest.advanceTimersByTime(60 * 1000);
+    watch.pause();
+    jest.advanceTimersByTime(STALE_AFTER_MS * 3);
+    expect(watch.stale).toBe(false);
+    expect(watch.onForMs()).toBe(60 * 1000);
+    expect(watch.resume()).toBe(false);
+    jest.advanceTimersByTime(STALE_AFTER_MS - 60 * 1000 - 1);
+    expect(watch.stale).toBe(false);
+    jest.advanceTimersByTime(1);
+    expect(watch.stale).toBe(true);
+    expect(stale).toEqual(["Paper Lanterns"]);
+  });
+
+  it("starts the clock at Resume for a song that came on while paused", () => {
+    const watch = new StaleSongWatch(() => {});
+    watch.pause();
+    watch.follow(entry("Paper Lanterns"));
+    jest.advanceTimersByTime(STALE_AFTER_MS * 2);
+    expect(watch.stale).toBe(false);
+    watch.resume();
+    jest.advanceTimersByTime(STALE_AFTER_MS);
+    expect(watch.stale).toBe(true);
+  });
+
+  it("takes a stale song as current again on Resume, timed afresh, and says so once", () => {
+    const stale: string[] = [];
+    const watch = new StaleSongWatch((e) => stale.push(e.song.title));
+    watch.follow(entry("Paper Lanterns"));
+    jest.advanceTimersByTime(STALE_AFTER_MS);
+    expect(watch.stale).toBe(true);
+    watch.pause();
+    jest.advanceTimersByTime(STALE_AFTER_MS);
+    expect(watch.stale).toBe(true);
+    expect(watch.resume()).toBe(true);
+    expect(watch.stale).toBe(false);
+    expect(watch.resume()).toBe(false);
+    jest.advanceTimersByTime(STALE_AFTER_MS - 1);
+    expect(watch.stale).toBe(false);
+    jest.advanceTimersByTime(1);
+    expect(stale).toEqual(["Paper Lanterns", "Paper Lanterns"]);
+  });
+
+  it("keeps the clock of a song that was on before a restart, stale at once when its time is up", () => {
+    const stale: string[] = [];
+    const watch = new StaleSongWatch((e) => stale.push(e.song.title));
+    watch.follow(entry("Paper Lanterns"), { onForMs: STALE_AFTER_MS - 1000 });
+    expect(watch.stale).toBe(false);
+    jest.advanceTimersByTime(1000);
+    expect(watch.stale).toBe(true);
+    watch.follow(entry("Second Song"), { onForMs: STALE_AFTER_MS + 5000 });
+    expect(watch.stale).toBe(true);
+    expect(stale).toEqual(["Paper Lanterns", "Second Song"]);
+    watch.follow(entry("Third Song"));
+    expect(watch.stale).toBe(false);
+  });
+
   it("never calls an empty list stale, and forgets the song that left", () => {
     const stale: string[] = [];
     const watch = new StaleSongWatch((e) => stale.push(e.song.title));
@@ -99,5 +159,21 @@ describe("StaleSongWatch", () => {
     jest.advanceTimersByTime(STALE_AFTER_MS * 2);
     expect(watch.stale).toBe(false);
     expect(stale).toEqual([]);
+  });
+});
+
+describe("carriedOnForMs: a song's clock across a restart", () => {
+  const now = 1_800_000_000_000;
+
+  it("carries how long the song has been on", () => {
+    expect(carriedOnForMs(now - 4 * MINUTE, STALE_AFTER_MS, now)).toBe(4 * MINUTE);
+    expect(carriedOnForMs(now - 25 * MINUTE, STALE_AFTER_MS, now)).toBe(25 * MINUTE);
+  });
+
+  it("starts afresh when that isn't known, or the song is so far past its time that it's likely a new play", () => {
+    expect(carriedOnForMs(undefined, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs(NaN, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs(now + 1000, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs(now - 31 * MINUTE, STALE_AFTER_MS, now)).toBe(0);
   });
 });

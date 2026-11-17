@@ -28,36 +28,5 @@ describe("preparing songs in the server (issues #293 and #295)", () => {
   });
 });
 
-describe("a song list that wasn't advanced (issue #451)", () => {
-  it("follows every song change, so a stale song clears by itself on the next one", () => {
-    const change = SOURCE.slice(SOURCE.indexOf("async function onSongChange("));
-    expect(change.slice(0, change.indexOf("if (!current)"))).toContain("staleSong.follow(current);");
-  });
-
-  it("sends a stale song's bubbles to no overlay, and tells the sharer", () => {
-    expect(SOURCE).toContain('if ((paused || staleSong.stale) && payload.type !== "clear") return;');
-    expect(SOURCE).toContain("if (!current || paused || staleSong.stale) return;");
-    expect(SOURCE).toContain("if (paused || staleSong.stale) return null;");
-    expect(SOURCE).toMatch(/sharer\?\.update\([^\n]*stale: staleSong\.stale/);
-  });
-});
-
-describe("sharing the next song in the queue (issue #448)", () => {
-  it("hands the sharer the next song's title and artist only, never the entry or who requested it", () => {
-    const name = SOURCE.slice(SOURCE.indexOf("function nextSongName("), SOURCE.indexOf("// The list nobody advanced"));
-    expect(name).toContain("const { title, artist } = songList.toSong(entry);");
-    expect(name).toContain("return { title, artist };");
-    expect(name).not.toMatch(/requestedBy|requests|note/);
-    expect(SOURCE).toMatch(/sharer\?\.update\([^\n]*next: nextSongName\(\)/);
-  });
-
-  it("tells a source without a queue (not known) from a queue with nothing waiting", () => {
-    const name = SOURCE.slice(SOURCE.indexOf("function nextSongName("), SOURCE.indexOf("// The list nobody advanced"));
-    expect(name).toContain("if (!songList.getNextSong) return undefined;");
-    expect(name).toContain("if (!entry) return null;");
-  });
-
-  it("shares again when only the queue behind the current song changes", () => {
-    expect(SOURCE).toContain("songList.onNextSongChange?.(() => shareNow());");
-  });
-});
+// The stale song list (#451) and the next song (#448) are tested by behavior: stale-song.test.ts,
+// share-song-facts.test.ts (nextSongToShare) and, on the running server, scripts/server-stale.test.mjs

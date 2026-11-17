@@ -1,6 +1,6 @@
 import http from "http";
 import { AddressInfo } from "net";
-import { CONTENT_LIMIT, NEXT_EMPTY, NEXT_UNKNOWN, SHARE_TTL_SECONDS, shareAddress, shareContent, SongFactSharer } from "./share-song-facts";
+import { CONTENT_LIMIT, NEXT_EMPTY, NEXT_UNKNOWN, nextSongToShare, SHARE_TTL_SECONDS, shareAddress, shareContent, SongFactSharer } from "./share-song-facts";
 import { buildStatFacts } from "./stat-facts";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 
@@ -111,6 +111,34 @@ describe("shareContent", () => {
     it("says the same for an untitled entry or a commercial", () => {
       expect(shareContent(song, facts, { next: { title: " ", artist: "Someone Else" } })).toBe(shareContent(song, facts));
       expect(shareContent(song, facts, { next: { title: "Station Ident", artist: "Commercial" } })).toBe(shareContent(song, facts));
+    });
+
+    describe("what the server hands over (nextSongToShare)", () => {
+      const queued = (more: Partial<SSLQueueItem> = {}): SSLQueueItem => ({ id: 2, songId: 7, song: { title: "Second Song", artist: "Someone Else" }, nonlistSong: null, note: "for next_viewer_name", streamerId: 1, createdAt: "", requests: [{ id: 1, name: "next_viewer_name" }], ...more });
+      // As a song source maps an entry: the requester rides along, and an off-list title is the one typed
+      const toSong = (e: SSLQueueItem): SSLSong => ({ title: e.nonlistTitle || e.nonlistSong || e.song.title, artist: e.nonlistArtist || e.song.artist, requestedBy: e.requests?.[0]?.name });
+      const source = (entry: SSLQueueItem | null) => ({ getNextSong: () => entry, toSong });
+
+      it("hands over a listed song's title and artist, and nothing else of the entry", () => {
+        expect(toSong(queued()).requestedBy).toBe("next_viewer_name");
+        expect(nextSongToShare(source(queued()))).toEqual({ title: "Second Song", artist: "Someone Else" });
+      });
+
+      it("is null with no song waiting, and not known for a source without a queue", () => {
+        expect(nextSongToShare(source(null))).toBeNull();
+        expect(nextSongToShare({ toSong })).toBeUndefined();
+        expect(shareContent(song, [], { next: nextSongToShare({ toSong }) })).toBe(NO_FACTS);
+      });
+
+      it("doesn't name an off-list request a viewer typed: the next song is not known until the streamer plays it", () => {
+        for (const typed of [{ nonlistSong: "Viewer Typed This - Anything At All" }, { nonlistTitle: "Viewer Typed This", nonlistArtist: "Anything At All" }]) {
+          const next = nextSongToShare(source(queued({ songId: null, song: { title: "", artist: "" }, ...typed })));
+          expect(next).toBeUndefined();
+          const content = shareContent(song, facts, { next });
+          expect(content).toContain(NEXT_UNKNOWN);
+          expect(content).not.toContain("Viewer Typed This");
+        }
+      });
     });
 
     it("always says one thing about the next song, under the same label", () => {
@@ -318,6 +346,21 @@ describe("SongFactSharer", () => {
     expect(lines).toEqual([]);
     // Cleared, yet Settings still says what went last
     expect(s.lastShared).toMatchObject({ title: "Paper Lanterns" });
+  });
+
+  it("doesn't call a song freshly shared when the other app was only told it may be over (#452)", async () => {
+    const s = sharer({ refreshMs: 15 });
+    s.update(song, facts);
+    await until(() => said.length === 1);
+    s.update(song, facts, { stale: true });
+    await until(() => said.length === 2);
+    const told = s.lastShared!.at;
+    const sent = stand.server.requests.length;
+    // The note is sent again every minute like any snapshot; "Last shared" stays at the song's last real share
+    await until(() => stand.server.requests.length >= sent + 3);
+    expect(s.lastShared).toEqual({ title: "Paper Lanterns", at: told });
+    s.update({ title: "Second Song", artist: "Someone Else" }, []);
+    await until(() => s.lastShared?.title === "Second Song");
   });
 
   it("logs nothing for a send that failed, and the song once it gets through (#452)", async () => {

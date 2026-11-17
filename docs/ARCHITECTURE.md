@@ -1946,7 +1946,9 @@ an integration with one product.
   (`nextSongName` in server.ts), never the entry, so who requested it can't
   go out; its facts are sent when it starts, as for any song. A source
   without a queue (no `getNextSong`), a commercial and a stale list all read
-  as not known. A change behind the current song (`onNextSongChange`) sends the
+  as not known. So does an off-list request (`nextSongToShare`): its title
+  was typed by a viewer, and reaches another app only once the streamer
+  plays it. A change behind the current song (`onNextSongChange`) sends the
   snapshot again.
 - **A commercial or jingle isn't announced** (`isNotMusic`), as on the
   overlay, unless the streamer gave it facts.
@@ -1963,7 +1965,12 @@ an integration with one product.
   carries no facts. `/health` has the notice in `songStale`, which the app
   shows on the Songs light and the banner (both read out by screen readers).
   The next song change starts over, with nothing to click, and the notice
-  names no time. A long medley loses only what comes after the limit: by
+  names no time. Time paused doesn't count (a streamer may line a song up,
+  pause and talk before playing it), and Resume on a stale song takes it as
+  playing again: it starts like a new song, timed from then. A restart (a
+  settings save, the watchdog) keeps the song's clock: `session.json` holds
+  when it came on (`onSince`), unless that is more than 20 minutes past its
+  time, which reads as a new play. A long medley loses only what comes after the limit: by
   then its bubbles have shown.
 - **Short-lived, and sent again every minute.** Each snapshot lasts 150
   seconds, and the current one is sent again every 60, for up to an hour
@@ -1986,8 +1993,9 @@ an integration with one product.
   the song and how many facts (`[Share] Shared "Title": 3 facts`), never
   the key or the address; the one-minute resend of the same snapshot adds no
   line. `/health` carries the last song taken and when (`lastShared`), which
-  Settings shows as "Last shared: Title, 7:42 PM". That line is not a live
-  region: it would speak every minute.
+  Settings shows as "Last shared: Title, 7:42 PM". The note that a song
+  may be over doesn't count as sharing the song, so the line keeps the last
+  real share. It is not a live region: it would speak every minute.
 
 ### The app's control routes
 

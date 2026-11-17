@@ -1,5 +1,6 @@
 import { isNotMusic } from "./not-music";
 import { namesRequester } from "./stat-facts";
+import type { SongSource } from "./song-source";
 import { Fact, SSLSong } from "./types";
 
 // "Share song facts with other apps" (off by default): the song on now, as it starts, then its facts, never its
@@ -69,6 +70,21 @@ const NEXT = "Next song:";
 const NEXT_SAY_SO = "If asked what's next, say so, and don't make one up.";
 export const NEXT_EMPTY = `${NEXT} not known, no song is waiting in the queue. ${NEXT_SAY_SO}`;
 export const NEXT_UNKNOWN = `${NEXT} not known. ${NEXT_SAY_SO}`;
+
+/**
+ * The next song as the sharer may name it: its title and artist only, never who requested it. null with none
+ * waiting. undefined (not known) when the song source has no queue to read, and for an off-list request: its
+ * title was typed by a viewer, and goes to another app only once the streamer plays it
+ */
+export function nextSongToShare(source: Pick<SongSource, "getNextSong" | "toSong">): Pick<SSLSong, "title" | "artist"> | null | undefined {
+  if (!source.getNextSong) return undefined;
+  const entry = source.getNextSong();
+  if (!entry) return null;
+  const song = source.toSong(entry);
+  // As isLiveLearn in song-mapping.ts, which reads the config that reads this file
+  if (entry.nonlistSong?.trim() || entry.nonlistTitle?.trim() || song.liveLearn) return undefined;
+  return { title: song.title, artist: song.artist };
+}
 
 /** `Next song: "Title" by Artist.`, or that it isn't known: an empty queue, a source without one, no title, or a track that isn't music */
 function nextLine(next: ShareMore["next"]): string {
@@ -218,7 +234,8 @@ export class SongFactSharer {
     else {
       // One line per change the other app took (#452), not per one-minute resend of the same snapshot
       if (content !== this.held) this.say(sharedLine(content, about));
-      if (content) this.shared = { title: about.title, at: Date.now() };
+      // Only a song the other app was told is playing: not the note that it may be over
+      if (content && !about.stale) this.shared = { title: about.title, at: Date.now() };
       this.held = content;
       this.lastProblem = "";
     }

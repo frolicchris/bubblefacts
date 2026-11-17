@@ -186,7 +186,7 @@ hours is read as it was before. See
 |---|---|---|
 | `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. With `SOURCE_RISK=on` (the default), facts from Wikipedia, Wikidata or MusicBrainz stop at four. Songs with short articles may get fewer. |
 | `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. From 3 to 300. |
-| `STALE_SONG_MINUTES` | `10` | Minutes one song may stay on your song list before BubbleFacts takes it as over: its bubbles stop, and an app you share with is told the song may have changed. Both start again with the next song. From 5 to 60; any other value means 10. A track whose length is known (StreamElements) gets at least twice its length plus 2 minutes. In the app: **Settings**, **Bubbles**, **Take a song as over after (minutes)**. |
+| `STALE_SONG_MINUTES` | `10` | Minutes one song may stay on your song list before BubbleFacts takes it as over: its bubbles stop, and an app you share with is told the song may have changed. Both start again with the next song, or when you resume paused bubbles; time paused doesn't count. From 5 to 60; any other value means 10. A track whose length is known (StreamElements) gets at least twice its length plus 2 minutes. In the app: **Settings**, **Bubbles**, **Take a song as over after (minutes)**. |
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up, from 2 to 120. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
 `BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
@@ -304,6 +304,7 @@ eight are read by the fact checker and are `on` unless set to `off`.
 | `COVER_SCOPE` | `on` | `off` reads a covered song's article in full, instead of leaving out the original recording's release, charts and sales, which aren't the cover's. |
 | `SCOPE_REPAIR` | `on` | `off` shows captions as written, without putting back a scope the AI dropped from its sentence, like "in Japan" or "the arcade version". |
 | `QUALIFIER_REPAIR` | `on` | `off` shows captions without putting back a qualifier the AI dropped, like "about", "usually" or a release's region. |
+| `STALE_SONG_TEST_MS` | *unset* | For tests: the time a song may stay on the list, in milliseconds, in place of `STALE_SONG_MINUTES`. |
 | `NODE_ENV` | *unset* | `test` (set by the test runner) skips writing `songs.log` and shortens the waits between MusicBrainz lookups. |
 
 `PROMPT_STYLE`, `CITE_SENTENCES` and `WIKIPEDIA_CONTACT` are also read

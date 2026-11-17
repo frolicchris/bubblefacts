@@ -21,8 +21,8 @@ import { ShownLog } from "./shown-log";
 import { AiredFacts } from "./aired-facts";
 import { creditLead, creditText, planCredit, restoredCredit } from "./credit";
 import { ObsStreaming, isDrewMessage, parseOverlayMessage, watchForStatus } from "./obs-streaming";
-import { SongFactSharer } from "./share-song-facts";
-import { STALE_NOTICE, staleAfterMs, StaleSongWatch } from "./stale-song";
+import { nextSongToShare, SongFactSharer } from "./share-song-facts";
+import { carriedOnForMs, STALE_NOTICE, staleAfterMs, StaleSongWatch } from "./stale-song";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
 import { playHistory } from "./play-history";
@@ -127,20 +127,11 @@ const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFacts
 
 /** Gives the sharer what's on stream now: the song as it starts, then its facts; nothing while paused, and without facts taken off */
 function shareNow(): void {
-  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], { stale: staleSong.stale, next: nextSongName() });
+  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], { stale: staleSong.stale, next: nextSongToShare(songList) });
 }
 
-/**
- * The next song in the queue for the sharer (#448): its title and artist only, never who requested it. null with
- * none waiting; undefined when the song source has no queue to read, so the sharer says the next song isn't known
- */
-function nextSongName(): { title: string; artist: string } | null | undefined {
-  if (!songList.getNextSong) return undefined;
-  const entry = songList.getNextSong();
-  if (!entry) return null;
-  const { title, artist } = songList.toSong(entry);
-  return { title, artist };
-}
+/** How long this entry may be on the list before it's taken as over: the streamer's minutes (stale-song.ts) */
+const staleLimitMs = (entry: SSLQueueItem) => config.staleSongTestMs || staleAfterMs(entry, config.staleSongMinutes);
 
 // The list nobody advanced (#451): past the time a song plausibly lasts, its bubbles stop and the sharer says
 // the song may have changed. The next song change starts over, with nothing to click
@@ -148,7 +139,9 @@ const staleSong = new StaleSongWatch((entry) => {
   console.log(`[Server] "${songList.displayTitle(entry)}" has been on the list longer than a song lasts: no more bubbles or shared facts for it until the song changes`);
   for (const ws of clients.keys()) send(ws, { type: "clear" });
   shareNow();
-}, (entry) => staleAfterMs(entry, config.staleSongMinutes));
+}, staleLimitMs);
+// Started paused (a restart while paused): the clock waits for Resume
+if (paused) staleSong.pause();
 
 /** `credit`: goes to the overlay ahead of a facts_ready batch, never into the song's record */
 function broadcast(payload: FactsPayload, credit?: Fact): void {
@@ -263,7 +256,7 @@ function resendRemaining(song: SSLSong, record: Fact[], first?: Fact): Fact[] | 
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}), ...(obsStreaming.state !== undefined ? { obsStreaming: obsStreaming.state } : {}) });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, onSince: Date.now() - staleSong.onForMs(), recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}), ...(obsStreaming.state !== undefined ? { obsStreaming: obsStreaming.state } : {}) });
 }
 
 
@@ -407,7 +400,9 @@ function newSong(song: SSLSong): FactsPayload {
 
 async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const token = ++generation;
-  staleSong.follow(current);
+  // The song that was on before a restart keeps its clock, so a stale one doesn't share again for a full limit
+  const sameAsBefore = current && restored && sameRequest(restored.song, songList.toSong(current));
+  staleSong.follow(current, { onForMs: current && sameAsBefore ? carriedOnForMs(restored?.onSince, staleLimitMs(current)) : 0 });
   if (!current) {
     setCurrentSong(null);
     broadcast({ type: "clear" });
@@ -522,12 +517,15 @@ control.post("/pause", (req, res) => {
     console.log(`[Server] Bubbles ${paused ? "paused" : "resumed"}`);
     if (paused) {
       pausedAt = Date.now();
+      // Time paused doesn't count toward a stale song: the streamer may pause, talk, then play it
+      staleSong.pause();
       for (const ws of clients.keys()) send(ws, { type: "clear" });
-    } else if (staleSong.stale) {
-      // Nothing to resume: the song on the list may be over, and the next one starts as usual
-    } else if (!resumeSameSong()) {
+    } else if (staleSong.resume() || !resumeSameSong()) {
+      // Resume on a song that went stale says it's on after all: it starts again like a new song
       onSongChange(songList.getCurrentSong()).catch((err) => console.error("[Server] Song change failed:", err));
     }
+    // The clock as it stands, for a restart
+    if (lastSent.song && lastSent.ready) remember(lastSent.song, lastSent.facts ?? []);
     shareNow();
   }
   res.json({ paused });

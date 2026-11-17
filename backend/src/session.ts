@@ -20,6 +20,8 @@ export interface Session {
   creditText?: string;
   /** Whether OBS was streaming, so a restart mid-stream isn't a stream going live */
   obsStreaming?: boolean;
+  /** When the song list first showed this song, time paused left out (stale-song.ts): a restart keeps its clock */
+  onSince?: number;
 }
 
 export const RESUME_WITHIN_MS = 20 * 60_000; // ms after the facts went out; a later restart starts the song afresh
@@ -46,7 +48,8 @@ export function loadSession(now = Date.now()): Session | null {
       && s.recent.every((r) => typeof r === "string")
       && (s.creditSince === undefined || (Number.isInteger(s.creditSince) && s.creditSince >= 0))
       && (s.creditText === undefined || typeof s.creditText === "string")
-      && (s.obsStreaming === undefined || typeof s.obsStreaming === "boolean");
+      && (s.obsStreaming === undefined || typeof s.obsStreaming === "boolean")
+      && (s.onSince === undefined || typeof s.onSince === "number");
     return ok && now - s.savedAt < REMEMBER_FOR_MS && now >= s.savedAt ? s : null;
   } catch {
     return null;

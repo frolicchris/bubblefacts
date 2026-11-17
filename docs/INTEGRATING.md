@@ -43,7 +43,7 @@ What the text can hold:
   |---|---|
   | The streamer's queue has a song waiting | `Next song: "Second Song" by Someone Else.` |
   | The queue has none waiting | `Next song: not known, no song is waiting in the queue. If asked what's next, say so, and don't make one up.` |
-  | The streamer's song source has no queue BubbleFacts can read (StreamElements, a now playing file) | `Next song: not known. If asked what's next, say so, and don't make one up.` |
+  | The streamer's song source has no queue BubbleFacts can read (StreamElements, a now playing file), or the next request isn't a song from the streamer's own list | `Next song: not known. If asked what's next, say so, and don't make one up.` |
 
   Only the name is given, never who asked for it; its facts come when it
   starts. When it's not known, say that. Don't name a song from memory or

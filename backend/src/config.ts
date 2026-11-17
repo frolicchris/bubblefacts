@@ -173,6 +173,8 @@ export const config = {
   shareFactsChannel: process.env.SHARE_FACTS_CHANNEL || "",
   // Minutes one song may stay on the list before it's taken as over (#451); a bad value means the default
   staleSongMinutes: staleMinutes(process.env.STALE_SONG_MINUTES),
+  // Developer switch: the limit in ms instead, so a test doesn't wait minutes (0: unset)
+  staleSongTestMs: intEnv("STALE_SONG_TEST_MS", 0, 0, 3_600_000),
 
   // --- AI ---
   aiProvider,
