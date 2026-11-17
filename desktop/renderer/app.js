@@ -7,6 +7,9 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
   let state = null;
+  /** The fact Wrong last marked, for the note's Undo and Report it. Kept apart from `state`,
+      which the app replaces whole on every refresh (#430) */
+  let lastWrong = null;
   /** What On stream now last showed, so it redraws only on change */
   let lastRecent = "";
   /** The song the "Add facts" editor was opened on */
@@ -597,7 +600,7 @@
         return;
       }
       // The song itself goes along, so Undo can't land on whatever plays next
-      state.wrong = { song: label || "", text: f.text, article: result.article, songId: songObj };
+      lastWrong = { song: label || "", text: f.text, article: result.article, songId: songObj };
       wrongNote(result, f.text, songObj, result.live ? "Removed." : "Marked wrong.");
       li.remove();
     });
@@ -693,7 +696,7 @@
   function showWrongNote(text, undoable, edit = null) {
     $("#wrong-note-text").textContent = text;
     $("#wrong-undo").hidden = !undoable;
-    $("#wrong-report").hidden = !state.wrong;
+    $("#wrong-report").hidden = !lastWrong;
     wrongEdit = edit;
     $("#wrong-edit").hidden = !edit;
     $("#wrong-note").hidden = false;
@@ -704,7 +707,7 @@
   function wrongNote(result, text, song, start) {
     if (result.own === "song") {
       // Their own fact: no source to report, nothing to undo
-      state.wrong = null;
+      lastWrong = null;
       showWrongNote(`${start} It's one of your own facts for this song, so it shows again the next time the song plays until you change it.`, null, async () => {
         const got = (await api.getSongFacts(song)) || {};
         show("dashboard");
@@ -713,7 +716,7 @@
       return;
     }
     if (result.own === "custom") {
-      state.wrong = null;
+      lastWrong = null;
       showWrongNote(`${start} It's one of your own custom facts, so it can show again until you change it in Settings.`, null, () => editCustomFact(text));
       return;
     }
@@ -1041,15 +1044,15 @@
       $("#song-facts-result").textContent = (result && result.error) || "Couldn't save. Try again in a moment.";
     }
   });
-  $("#wrong-report").addEventListener("click", () => state.wrong && api.reportFact(state.wrong.song, state.wrong.text));
+  $("#wrong-report").addEventListener("click", () => lastWrong && api.reportFact(lastWrong.song, lastWrong.text));
   $("#wrong-undo").addEventListener("click", async () => {
-    if (!state.wrong || !state.wrong.article) return;
-    const result = await api.unwrongFact(state.wrong.article, state.wrong.songId);
+    if (!lastWrong || !lastWrong.article) return;
+    const result = await api.unwrongFact(lastWrong.article, lastWrong.songId);
     showWrongNote(
       result && result.restored
-        ? `Undone. BubbleFacts may use that source for "${state.wrong.song}" again; the fact stays off for now.`
+        ? `Undone. BubbleFacts may use that source for "${lastWrong.song}" again; the fact stays off for now.`
         : "Couldn't undo that. Try again in a moment.",
-      result && result.restored ? null : state.wrong.article
+      result && result.restored ? null : lastWrong.article
     );
   });
   $("#pause-toggle").addEventListener("click", () => api.setPaused(!state.paused));
@@ -1532,12 +1535,12 @@
         "already-marked": "The last bubble is already marked, so nothing more was marked.",
       };
       // Report and Undo belong to a marked fact, and this press marked none
-      state.wrong = null;
+      lastWrong = null;
       showWrongNote(`Hands-free Wrong: ${why[r.reason] || "BubbleFacts isn't running right now, so nothing was marked."}`, null);
       return;
     }
     const label = r.song.title + (r.song.artist && !/^unknown$/i.test(r.song.artist) ? " — " + r.song.artist : "");
-    state.wrong = { song: label, text: r.text, article: r.article, songId: r.song };
+    lastWrong = { song: label, text: r.text, article: r.article, songId: r.song };
     wrongNote(r, r.text, r.song, `Removed with hands-free Wrong: “${r.text}”`);
     lastRecent = "";
     void refreshRecent();
