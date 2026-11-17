@@ -1,0 +1,45 @@
+name: Retry cancelled jobs
+
+# GitHub sometimes cancels a Mac job that no runner picked up (2026-11-16), and
+# ci-ok counts a cancelled job as a failure. When a Check or Smoke test run
+# ends in failure and some job was cancelled before any step ran, this reruns
+# the failed jobs, at most twice. A job whose step ran and failed is never
+# retried, and neither is a run that a newer push cancelled (its conclusion is
+# "cancelled", not "failure"). Runs no repository code and uses no third-party actions.
+
+on:
+  workflow_run:
+    workflows: [Check, Smoke test]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  retry:
+    # Runs 1 and 2 are retried; run 3 is the last.
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 3
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # rerun failed jobs
+    steps:
+      - name: Rerun failed jobs if one was cancelled before it started
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          set -euo pipefail
+          # Cancelled jobs with no step that succeeded or failed never started.
+          never_started=$(gh api "repos/${GH_REPO}/actions/runs/${RUN_ID}/attempts/${ATTEMPT}/jobs" --paginate \
+            --jq '[.jobs[] | select(.conclusion == "cancelled") | select(([.steps[]? | select(.conclusion == "success" or .conclusion == "failure")] | length) == 0)] | length' \
+            | awk '{ n += $1 } END { print n + 0 }')
+          # Any job that really failed (a step ran and failed) means this is not a runner problem.
+          real_failures=$(gh api "repos/${GH_REPO}/actions/runs/${RUN_ID}/attempts/${ATTEMPT}/jobs" --paginate \
+            --jq '[.jobs[] | select(.conclusion == "failure") | select(.name != "ci-ok") | select([.steps[]? | select(.conclusion == "failure")] | length > 0)] | length' \
+            | awk '{ n += $1 } END { print n + 0 }')
+          echo "never started: ${never_started}, really failed: ${real_failures}"
+          if [ "${never_started}" -gt 0 ] && [ "${real_failures}" -eq 0 ]; then
+            gh run rerun "${RUN_ID}" --failed
+          fi

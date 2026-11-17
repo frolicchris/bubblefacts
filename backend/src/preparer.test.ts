@@ -143,13 +143,14 @@ describe("Preparer (issue #293)", () => {
     const weekAgo = new Date(Date.now() - CHECK_EVERY_MS - 1000).toISOString();
     store.put("ssl:1", { ...store.saved("ssl:1")!, preparedAt: old, checkedAt: old });
     store.put("ssl:2", { ...store.saved("ssl:2")!, checkedAt: weekAgo });
-    store.put("ssl:3", { ...store.saved("ssl:3")!, checkedAt: weekAgo });
+    // preparedAt is pinned a week back too, so the new checkedAt can never share its millisecond (issue #453)
+    store.put("ssl:3", { ...store.saved("ssl:3")!, preparedAt: weekAgo, checkedAt: weekAgo });
     (deps.revisionOf as jest.Mock).mockImplementation(async (page: string) => (page === "Tin Roof (song)" ? 11 : 10));
     p.start();
     await p.stopped();
     expect(prepared.slice(3)).toEqual(["Harbor Lights", "Tin Roof"]);
     expect(Date.parse(store.saved("ssl:3")!.checkedAt)).toBeGreaterThan(Date.parse(weekAgo));
-    expect(store.saved("ssl:3")!.preparedAt).not.toBe(store.saved("ssl:3")!.checkedAt);
+    expect(store.saved("ssl:3")!.preparedAt).toBe(weekAgo);
   });
 
   it("writes again with the model on stream, last, the songs the faster model prepared (issue #296)", async () => {

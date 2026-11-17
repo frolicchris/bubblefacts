@@ -141,6 +141,7 @@ jobs:
           EXTRA: ${{ steps.signing.outputs.extra }}
           ARGS: ${{ matrix.args }}
         run: |
+          # shellcheck disable=SC2086 # $ARGS and $EXTRA are split into words on purpose
           # $ARGS and $EXTRA are split into words on purpose.
           if [ -n "$EXTRA" ]; then
             npm run dist -- $ARGS $EXTRA "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
@@ -222,7 +223,9 @@ jobs:
         run: npm sbom --sbom-format spdx --omit dev --package-lock-only > files/bubblefacts-sbom.spdx.json
       - name: Checksums
         working-directory: files
-        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: |
+          # shellcheck disable=SC2035 # the names must stay bare: the website's download checker reads this list
+          sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       # The in-app updater installs only if this signature checks out against the public key built into
       # the app (UPDATE_PUBLIC_KEY in desktop/src/updater.ts). See "Update signing key" in docs/RELEASING.md.
       - name: Sign the checksums
@@ -258,4 +261,5 @@ jobs:
             echo "### SHA-256 checksums"; echo '```'; cat files/SHA256SUMS.txt; echo '```'; } > notes.md
           flags="--draft --generate-notes --notes-file notes.md --title ${GITHUB_REF_NAME#v}"
           case "$GITHUB_REF_NAME" in *-*) flags="$flags --prerelease" ;; esac
+          # shellcheck disable=SC2086 # $flags is split into words on purpose
           gh release create "$GITHUB_REF_NAME" files/* --repo "$GITHUB_REPOSITORY" $flags
