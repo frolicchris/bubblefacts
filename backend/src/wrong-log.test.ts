@@ -40,6 +40,27 @@ describe("the Wrong log", () => {
     ]);
   });
 
+  it("keeps the sentence the caption was written from, when the fact has one (#432)", () => {
+    markWrong(song, "It was recorded in a harbor.", "Wikipedia: Harbor Game", "The piece was recorded in a harbor.");
+    markWrong(song, "It has four movements.", "Wikipedia: Harbor Game");
+    expect(lines().map((l) => l.evidence)).toEqual(["The piece was recorded in a harbor.", undefined]);
+    expect(Object.keys(lines()[0])).toEqual(["song", "caption", "source", "article", "evidence", "appVersion", "date"]);
+  });
+
+  it("the Wrong button and hands-free Wrong hand the fact's sentence over (#432)", () => {
+    const server = fs.readFileSync(path.join(__dirname, "server.ts"), "utf8");
+    expect(server).toContain("markWrong(song, text, fact.source, fact.evidence)");
+  });
+
+  it("adds to a log written before the sentence was kept, leaving its lines as they were (#432)", () => {
+    const old = JSON.stringify({ song: { title: "Old Song", artist: "Test Quartet" }, caption: "An old caption.", source: null, article: null, appVersion: "2.2.0", date: "2026-01-01T00:00:00.000Z" });
+    fs.writeFileSync(file, old + "\n");
+    logWrong(song, "A caption.", "Wikipedia: Harbor Game", "Harbor Game", "A sentence.");
+    const text = fs.readFileSync(file, "utf8").split("\n");
+    expect(text[0]).toBe(old);
+    expect(JSON.parse(text[1]).evidence).toBe("A sentence.");
+  });
+
   it("leaves out a note after the artist's name (issue #262)", () => {
     logWrong({ title: "Moonlit Harbor", artist: "Test Quartet (note words)" }, "A caption.", "Wikipedia: Harbor Game", "Harbor Game");
     expect(lines()[0].song).toEqual({ title: "Moonlit Harbor", artist: "Test Quartet" });

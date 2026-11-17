@@ -1768,8 +1768,11 @@ export function ownFactKind(label: string | undefined): "song" | "custom" | null
   return label === SOURCE.yours ? "song" : label === SOURCE.custom ? "custom" : null;
 }
 
-/** Blocks a wrong fact's source (by label: survives a restart) and forgets the song's facts; returns the source or null */
-export function markWrong(song: SSLSong, text: string, label?: string): string | null {
+/**
+ * Blocks a wrong fact's source (by label: survives a restart) and forgets the song's facts; returns the source or null.
+ * `evidence`, the sentence the fact was written from, goes in the Wrong log only
+ */
+export function markWrong(song: SSLSong, text: string, label?: string, evidence?: string): string | null {
   const key = songKey(song);
   const fromLabel = blockFor(label);
   const source = fromLabel !== undefined ? fromLabel : structuredShown.get(key)?.has(text) ? STRUCTURED : (sources.get(key) ?? null);
@@ -1786,7 +1789,7 @@ export function markWrong(song: SSLSong, text: string, label?: string): string |
   factCache.delete(key);
   sources.delete(key);
   structuredShown.delete(key);
-  if (!ownFactKind(label)) logWrong(song, text, label, source); // private test case for scripts/wrong-cases.mjs
+  if (!ownFactKind(label)) logWrong(song, text, label, source, evidence); // private test case for scripts/wrong-cases.mjs
   console.log(`[WrongFact] "${song.title}": ${source ? `won't use ${source === STRUCTURED ? source : `"${source}"`} again` : "not from a lookup"}`);
   return source;
 }
