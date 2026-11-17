@@ -1937,6 +1937,18 @@ an integration with one product.
   song's `requestedBy` is never read.
 - **A commercial or jingle isn't announced** (`isNotMusic`), as on the
   overlay, unless the streamer gave it facts.
+- **Not a song the list forgot.** A streamer's hands are on the instrument,
+  so the list can show a song that ended minutes ago (seen on three streams
+  in November 2026, #451). `stale-song.ts` times each entry: past 10 minutes
+  (`STALE_AFTER_MS`), or twice its length plus 2 minutes when the source
+  knows the length, the server is not sure what is playing. Overlays are
+  cleared and get nothing more for that entry, and the snapshot is replaced
+  by one that names the last song listed, says the song may have changed and
+  carries no facts. `/health` has the notice in `songStale`, which the app
+  shows on the Songs light and the banner (both read out by screen readers).
+  The next song change starts over. There is no setting and nothing to
+  click. A long medley loses only what comes after the limit: by then its
+  bubbles have shown.
 - **Short-lived, and sent again every minute.** Each snapshot lasts 150
   seconds, and the current one is sent again every 60, for up to an hour
   after the last change (a song left on the queue doesn't send all night). So

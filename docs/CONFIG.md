@@ -230,7 +230,7 @@ stay stable, and `frontend/obs/design-preview.html` shows a look without the app
 
 ## Sharing song facts with other apps
 
-Off by default. When all three settings below are set, the song on stream goes to that address as soon as it starts, and its facts as they're found, as context the other app may use to answer questions. A fact taken off the stream is taken out there too. Nothing else is sent, never who requested the song, and paused bubbles aren't shared. Failures are logged by reason only.
+Off by default. When all three settings below are set, the song on stream goes to that address as soon as it starts, and its facts as they're found, as context the other app may use to answer questions. A fact taken off the stream is taken out there too. Nothing else is sent, never who requested the song, and paused bubbles aren't shared. When the song list has shown the same song for more than 10 minutes (or twice the track's length plus 2 minutes, when the source knows it), the facts are replaced by a note that the song may have changed, until the next song starts. Failures are logged by reason only.
 
 Each request is a POST with `Authorization: Bearer <key>` and a JSON body:
 

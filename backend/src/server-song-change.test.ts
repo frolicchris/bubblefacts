@@ -27,3 +27,17 @@ describe("preparing songs in the server (issues #293 and #295)", () => {
     expect(route.slice(0, route.indexOf("});"))).toMatch(/cantPrepare\(\)[\s\S]*!refused\) preparer\.start\(\);[\s\S]*else preparer\.stop\(\);/);
   });
 });
+
+describe("a song list that wasn't advanced (issue #451)", () => {
+  it("follows every song change, so a stale song clears by itself on the next one", () => {
+    const change = SOURCE.slice(SOURCE.indexOf("async function onSongChange("));
+    expect(change.slice(0, change.indexOf("if (!current)"))).toContain("staleSong.follow(current);");
+  });
+
+  it("sends a stale song's bubbles to no overlay, and tells the sharer", () => {
+    expect(SOURCE).toContain('if ((paused || staleSong.stale) && payload.type !== "clear") return;');
+    expect(SOURCE).toContain("if (!current || paused || staleSong.stale) return;");
+    expect(SOURCE).toContain("if (paused || staleSong.stale) return null;");
+    expect(SOURCE).toMatch(/sharer\?\.update\([^\n]*stale: staleSong\.stale/);
+  });
+});

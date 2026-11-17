@@ -456,6 +456,8 @@
     // Songs
     if (!h) setStatusLight("light-songlist", "", "Starting");
     else if (rejected) setStatusLight("light-songlist", "bad", onStreamElements() ? "Paste a new token in Settings" : "Sign in again");
+    // The list wasn't advanced (#451): a warning light is read out once, and clears by itself on the next song
+    else if (h.status === "ok" && h.songStale) setStatusLight("light-songlist", "warn", "Song may have changed");
     else if (h.status === "ok" && h.lastQueueFetchAgeMs !== null) {
       setStatusLight("light-songlist", "ok", h.currentSong
         ? (onFile() ? "Following your file" : onStreamElements() ? "Following your song requests" : "Following your queue")
@@ -515,6 +517,7 @@
         ? "StreamerSongList isn't answering right now. Your sign-in is fine, so there's nothing to do: BubbleFacts keeps trying."
         : status.message + ".";
     }
+    else if (status.state === "running" && h.songStale) { title = "Waiting for your next song"; detail = h.songStale; }
     // Twitch About facts stopped: shown only after a connection ended by itself, gone once connected again
     else if (status.state === "running" && state.twitch?.ended && !state.settings.twitchConnected) {
       title = "Your Twitch connection ended";

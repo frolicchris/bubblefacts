@@ -25,6 +25,8 @@ const INTRO_STREAMER = "From the streamer:";
 const OPINIONS = "Your own opinions are welcome, said as yours.";
 const CLOSING = `State facts about this song only from these, and add none. ${OPINIONS}`;
 const CLOSING_CREDIT = `State facts about this song only from these, add none, and credit BubbleFacts. ${OPINIONS}`;
+/** The list has shown this song longer than a song lasts (stale-song.ts): the last song known, and no facts about it */
+const staleText = (named: string) => `BubbleFacts isn't sure what's playing right now. The song list still shows ${named}, but it has been on so long that the song may have changed. If asked what's playing, say you're not sure, and state no facts about that song.`;
 const NO_FACTS = `BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. ${OPINIONS}`;
 
 const listOf = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(""));
@@ -51,19 +53,26 @@ const checkedSource = (fact: Fact) => CHECKED_SOURCES.find((s) => new RegExp(`^$
 // The artist's own words from their Twitch About: neither checked nor the streamer's; its text says where it's from
 const fromTwitchAbout = (fact: Fact) => (fact.source ?? "").startsWith(TWITCH_ABOUT);
 
+export interface ShareMore {
+  /** The song list hasn't moved in longer than a song lasts: say so, and share no facts for it */
+  stale?: boolean;
+}
+
 /**
  * What's playing, then its facts (whole only) or that it has none yet. "" with no title, or for a
  * track that isn't music (a commercial, a jingle) with no facts, which the overlay skips too
  */
-export function shareContent(song: SSLSong, facts: Fact[]): string {
+export function shareContent(song: SSLSong, facts: Fact[], more: ShareMore = {}): string {
   // Quoted, so a title reads as one: "Stand by Me" by Some Singer
   const title = oneLine(song.title, NAME_LIMIT).replace(/"/g, "'");
   const artist = oneLine(song.artist, NAME_LIMIT);
   const known = artist && artist !== "Unknown";
-  const head = `Now playing: "${title}"${known ? ` by ${artist}` : ""}.`;
+  const named = `"${title}"${known ? ` by ${artist}` : ""}`;
+  const head = `Now playing: ${named}.`;
   // Who asked for the song stays on the overlay: the entry fact naming them is never sent
   const shared = facts.filter((f) => !namesRequester(f.text));
   if (!title || (!shared.length && isNotMusic(song))) return "";
+  if (more.stale) return staleText(named);
 
   let room = CONTENT_LIMIT - head.length - 1 - CLOSING_CREDIT.length;
   const take = (list: Fact[], introRoom: number): string[] => {
@@ -117,9 +126,9 @@ export class SongFactSharer {
   constructor(private readonly options: ShareOptions) {}
 
   /** The song on now and its facts (none yet is fine), or null when nothing is; returns at once */
-  update(song: SSLSong | null, facts: Fact[]): void {
+  update(song: SSLSong | null, facts: Fact[], more: ShareMore = {}): void {
     if (this.refused) return;
-    const content = song ? shareContent(song, facts) : "";
+    const content = song ? shareContent(song, facts, more) : "";
     if (content === this.wanted) return;
     this.wanted = content;
     if (content) this.refreshUntil = Date.now() + REFRESH_FOR_MS;

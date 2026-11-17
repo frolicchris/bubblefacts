@@ -60,6 +60,17 @@ describe("shareContent", () => {
     expect(shareContent(song, [])).toBe(NO_FACTS);
   });
 
+  it("says the song may have changed once the list has gone stale, and shares none of its facts (#451)", () => {
+    const stale = shareContent(song, facts, { stale: true });
+    expect(stale).toContain("isn't sure what's playing");
+    expect(stale).toContain('still shows "Paper Lanterns" by The Made Up Band');
+    expect(stale).toContain("the song may have changed");
+    expect(stale).not.toContain("Now playing");
+    expect(stale).not.toContain("one take");
+    expect(stale).not.toContain("viewer_name");
+    expect(shareContent({ title: "Station Ident", artist: "Commercial" }, [], { stale: true })).toBe(shareContent({ title: "Station Ident", artist: "Commercial" }, []));
+  });
+
   it("never sends who requested the song", () => {
     expect(shareContent(song, facts)).not.toContain("viewer_name");
     // The song list's own line about the requester, as the pipeline writes it.
@@ -195,6 +206,18 @@ describe("SongFactSharer", () => {
     s.update(null, []);
     await until(() => stand.server.requests.length === 2);
     expect(stand.server.requests[1].body.data).toEqual({ channelName: "madeupchannel", sourceId: "bubblefacts", content: "" });
+  });
+
+  it("replaces a stale song's facts with a note that it may have changed, then shares the next song as usual (#451)", async () => {
+    const s = sharer();
+    s.update(song, facts);
+    await until(() => stand.server.requests.length === 1);
+    s.update(song, facts, { stale: true });
+    await until(() => stand.server.requests.length === 2);
+    expect(stand.server.requests[1].body.data).toMatchObject({ content: shareContent(song, facts, { stale: true }), ttl: SHARE_TTL_SECONDS });
+    s.update({ title: "Second Song", artist: "Someone Else" }, []);
+    await until(() => stand.server.requests.length === 3);
+    expect(stand.server.requests[2].body.data.content).toContain('Now playing: "Second Song" by Someone Else.');
   });
 
   it("sends nothing when there was never anything to share", async () => {

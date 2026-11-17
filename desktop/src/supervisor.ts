@@ -17,6 +17,8 @@ export interface Health {
   songSource?: string;
   currentSong: string | null;
   eventsConnected: boolean;
+  /** Set while the list has shown one song longer than a song lasts: the notice to show (stale-song.ts); older servers leave it out */
+  songStale?: string;
   /** How songs arrive, under the Songs light ("Hearing your queue live"); older servers leave it out */
   listening?: string;
   obsClients: number;

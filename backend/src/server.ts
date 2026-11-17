@@ -22,6 +22,7 @@ import { AiredFacts } from "./aired-facts";
 import { creditLead, creditText, planCredit, restoredCredit } from "./credit";
 import { ObsStreaming, isDrewMessage, parseOverlayMessage, watchForStatus } from "./obs-streaming";
 import { SongFactSharer } from "./share-song-facts";
+import { STALE_NOTICE, StaleSongWatch } from "./stale-song";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
 import { playHistory } from "./play-history";
@@ -126,8 +127,16 @@ const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFacts
 
 /** Gives the sharer what's on stream now: the song as it starts, then its facts; nothing while paused, and without facts taken off */
 function shareNow(): void {
-  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? []);
+  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], { stale: staleSong.stale });
 }
+
+// The list nobody advanced (#451): past the time a song plausibly lasts, its bubbles stop and the sharer says
+// the song may have changed. The next song change starts over, with nothing to click
+const staleSong = new StaleSongWatch((entry) => {
+  console.log(`[Server] "${songList.displayTitle(entry)}" has been on the list longer than a song lasts: no more bubbles or shared facts for it until the song changes`);
+  for (const ws of clients.keys()) send(ws, { type: "clear" });
+  shareNow();
+});
 
 /** `credit`: goes to the overlay ahead of a facts_ready batch, never into the song's record */
 function broadcast(payload: FactsPayload, credit?: Fact): void {
@@ -147,7 +156,7 @@ function broadcast(payload: FactsPayload, credit?: Fact): void {
   // A new play starts a new record, even of the same song; a quiet one (resuming) carries on
   if (payload.type === "new_song" && !payload.quiet) shown.newPlay();
   shareNow();
-  if (paused && payload.type !== "clear") return;
+  if ((paused || staleSong.stale) && payload.type !== "clear") return;
   const sent: FactsPayload = credit && payload.type === "facts_ready" ? { ...payload, facts: [credit, ...(payload.facts ?? [])] } : payload;
   for (const ws of clients.keys()) send(ws, sent);
   if (payload.type === "facts_ready" && payload.song && clients.size) {
@@ -235,7 +244,7 @@ function resendRemaining(song: SSLSong, record: Fact[], first?: Fact): Fact[] | 
   lastSent = { song, facts: record, ready: true };
   shareNow();
   remember(song, record);
-  if (paused) return null;
+  if (paused || staleSong.stale) return null;
   const remaining = remainingFacts(record, factsShownAt);
   for (const ws of clients.keys()) send(ws, { type: "facts_ready", song, facts: first ? [first, ...remaining] : remaining, keep: true });
   return remaining;
@@ -341,7 +350,7 @@ wss.on("connection", (ws, req) => {
 
   // Catch a reconnecting overlay up on the current song
   const current = songList.getCurrentSong();
-  if (!current || paused) return;
+  if (!current || paused || staleSong.stale) return;
   const song = songList.toSong(current);
   const token = generation;
   // Facts out: join from the song's record, on the others' schedule and with no second banner, so a
@@ -386,6 +395,7 @@ function newSong(song: SSLSong): FactsPayload {
 
 async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const token = ++generation;
+  staleSong.follow(current);
   if (!current) {
     setCurrentSong(null);
     broadcast({ type: "clear" });
@@ -501,6 +511,8 @@ control.post("/pause", (req, res) => {
     if (paused) {
       pausedAt = Date.now();
       for (const ws of clients.keys()) send(ws, { type: "clear" });
+    } else if (staleSong.stale) {
+      // Nothing to resume: the song on the list may be over, and the next one starts as usual
     } else if (!resumeSameSong()) {
       onSongChange(songList.getCurrentSong()).catch((err) => console.error("[Server] Song change failed:", err));
     }
@@ -781,6 +793,8 @@ app.get("/health", (_req, res) => {
     aiProvider: config.aiProvider,
     topic: config.topic,
     currentSong: current ? songList.displayTitle(current) : null,
+    // The list has shown this song longer than a song lasts (stale-song.ts): the dashboard's words, or none
+    songStale: staleSong.stale ? STALE_NOTICE : undefined,
     lastQueueFetchAgeMs: queueAgeMs,
     // For the app's watchdog: failing fetches (an outage) keep this small; only a stuck poll loop grows it
     lastPollAttemptAgeMs: songList.lastPollAttemptAgeMs?.() ?? null,
