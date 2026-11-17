@@ -14,7 +14,7 @@
     "app": "npm run build && npm run build:desktop && electron .",
     "dist": "npm run build && npm run build:desktop && electron-builder --publish never",
     "bump": "node scripts/bump-version.mjs",
-    "test:scripts": "npm run build && node --test scripts/bump-version.test.mjs scripts/dist-exports.test.mjs scripts/fact-line.test.mjs scripts/server-stale.test.mjs scripts/builtin-chat.test.mjs"
+    "test:scripts": "npm run build && node --test \"scripts/*.test.mjs\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",
