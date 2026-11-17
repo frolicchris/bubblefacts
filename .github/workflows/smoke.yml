@@ -88,7 +88,8 @@ jobs:
           key: model-${{ env.MODEL_SHA256 }}
       - name: Download the AI model
         run: |
-          [ -f model.gguf ] || curl -sSL -o model.gguf "$MODEL_URL"
+          # The download is 2 GB and sometimes drops (2026-11-17): try again before failing the smoke test.
+          [ -f model.gguf ] || curl -fsSL --retry 4 --retry-all-errors --retry-delay 10 -o model.gguf "$MODEL_URL"
           # Git Bash on Windows has sha256sum; macOS has shasum.
           if command -v sha256sum >/dev/null; then echo "$MODEL_SHA256  model.gguf" | sha256sum -c -; else echo "$MODEL_SHA256  model.gguf" | shasum -a 256 -c -; fi
       - name: Keep the AI model for the next run
