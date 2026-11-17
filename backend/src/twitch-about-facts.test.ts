@@ -206,6 +206,23 @@ describe("A song credited to a Twitch handle", () => {
     expect((await generateFacts(s)).some((f) => f.source === fact.source)).toBe(false);
   });
 
+  // #450: "@marlowkeys" may be Marlow's Instagram name, and the Twitch channel by that name a stranger's
+  it("shows nothing when the channel by that name isn't a music channel", async () => {
+    const stranger = ["Speedrunner from Ohio.", "Mostly platformers and kart racers."];
+    answer = (login) => ({ type: "twitch-about", login, state: "found", name: "MarlowKeys", facts: stranger, category: "Retro" });
+    expect((await generateFacts(credited("Rain Loop"))).some((f) => f.source?.startsWith(SOURCE.twitchAbout))).toBe(false);
+    // An About that never mentions music, on a channel that streams in Music, is the creator's
+    answer = (login) => ({ type: "twitch-about", login, state: "found", name: "MarlowKeys", facts: ["Marlow toured Portugal for ten years before settling down."], category: "Music" });
+    forgetAbouts();
+    clearFactCache();
+    expect((await generateFacts(credited("Fog Loop"))).map((f) => f.text)).toEqual([`${ABOUT_CREDIT}Marlow toured Portugal for ten years before settling down.`]);
+  });
+
+  it("never asks about a handle that is short or a common word", async () => {
+    for (const artist of ["Jane (@jane)", "@phoenix", "Kit (@kit)"]) await generateFacts(credited("Rain Loop", artist));
+    expect(asked).toEqual([]);
+  });
+
   it("drops channel talk, and skips a placeholder request", async () => {
     answer = (login) => ({ type: "twitch-about", login, state: "found", name: "MarlowKeys", facts: ["Follow for new loops every week!"] });
     expect((await generateFacts(credited("Rain Loop"))).some((f) => f.source?.startsWith(SOURCE.twitchAbout))).toBe(false);

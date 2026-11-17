@@ -2,7 +2,7 @@ process.env.BUBBLEFACTS_TWITCH_CLIENT_ID = "test-client";
 
 import fs from "fs";
 import path from "path";
-import { answerAbout, BUBBLE_CHARS, factsFromAbout, finishDeviceCode, getChannel, refreshTwitch, startDeviceCode, TwitchSession, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
+import { answerAbout, BUBBLE_CHARS, factsFromAbout, finishDeviceCode, getCategory, getChannel, refreshTwitch, startDeviceCode, TwitchSession, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -25,7 +25,7 @@ describe("twitchLoginFrom", () => {
 });
 
 describe("answerAbout", () => {
-  const channel = { login: "marlowkeys", displayName: "MarlowKeys", description: "Marlow writes piano loops." };
+  const channel = { id: "101", login: "marlowkeys", displayName: "MarlowKeys", description: "Marlow writes piano loops." };
 
   it("asks Twitch nothing until connected and checked", async () => {
     const read = jest.fn();
@@ -35,7 +35,8 @@ describe("answerAbout", () => {
 
   it("answers with the channel's name and its About, cut to the room left", async () => {
     const answer = await answerAbout("marlowkeys", 20, true, async () => channel);
-    expect(answer).toMatchObject({ state: "found", name: "MarlowKeys" });
+    expect(answer).toMatchObject({ state: "found", name: "MarlowKeys", category: "" });
+    expect(await answerAbout("marlowkeys", 135, true, async () => ({ ...channel, category: "Music" }))).toMatchObject({ category: "Music" });
     expect((answer.facts as string[])[0].length).toBeLessThanOrEqual(20);
   });
 
@@ -116,11 +117,23 @@ describe("renewing and reading a channel", () => {
   });
 
   it("reads a channel's About with the app's client ID", async () => {
-    mockFetch.mockResolvedValueOnce(json(200, { data: [{ login: "janeplayskeys", display_name: "JanePlaysKeys", description: "Pianist." }] }));
-    await expect(getChannel("janeplayskeys", "at")).resolves.toEqual({ login: "janeplayskeys", displayName: "JanePlaysKeys", description: "Pianist." });
+    mockFetch.mockResolvedValueOnce(json(200, { data: [{ id: "101", login: "janeplayskeys", display_name: "JanePlaysKeys", description: "Pianist." }] }));
+    await expect(getChannel("janeplayskeys", "at")).resolves.toEqual({ id: "101", login: "janeplayskeys", displayName: "JanePlaysKeys", description: "Pianist." });
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toContain("users?login=janeplayskeys");
     expect(init.headers).toMatchObject({ Authorization: "Bearer at", "Client-Id": "test-client" });
+  });
+
+  it("reads the category a channel last streamed in, and any trouble is only \"unknown\"", async () => {
+    mockFetch.mockResolvedValueOnce(json(200, { data: [{ broadcaster_id: "101", game_name: "Music" }] }));
+    await expect(getCategory("101", "at")).resolves.toBe("Music");
+    expect(mockFetch.mock.calls[0][0]).toContain("channels?broadcaster_id=101");
+    mockFetch.mockResolvedValueOnce(json(500, {}));
+    await expect(getCategory("101", "at")).resolves.toBe("");
+    mockFetch.mockRejectedValueOnce(new Error("offline"));
+    await expect(getCategory("101", "at")).resolves.toBe("");
+    mockFetch.mockResolvedValueOnce(json(401, {}));
+    await expect(getCategory("101", "at")).rejects.toThrow("Connect Twitch again");
   });
 
   it("returns nothing for a channel that doesn't exist", async () => {

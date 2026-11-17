@@ -117,17 +117,29 @@ export async function revokeTwitch(accessToken: string): Promise<void> {
 }
 
 export interface TwitchChannel {
+  id: string;
   login: string;
   displayName: string;
   description: string;
+  /** The category last streamed in, when it was asked for (`getCategory`) */
+  category?: string;
 }
 
 export async function getChannel(login: string, accessToken: string): Promise<TwitchChannel | null> {
   const res = await call(`${HELIX}/users?login=${encodeURIComponent(login)}`, { headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": TWITCH_CLIENT_ID } });
   if (res.status === 401) throw new TwitchUnauthorized(ENDED);
   if (!res.ok) throw failed(res);
-  const u = ((await res.json()) as { data?: Array<{ login: string; display_name: string; description: string }> }).data?.[0];
-  return u ? { login: u.login, displayName: u.display_name, description: u.description ?? "" } : null;
+  const u = ((await res.json()) as { data?: Array<{ id: string; login: string; display_name: string; description: string }> }).data?.[0];
+  return u ? { id: u.id, login: u.login, displayName: u.display_name, description: u.description ?? "" } : null;
+}
+
+/** The category a channel last streamed in, like "Music"; "" when Twitch doesn't say. One sign of a music channel (#450) */
+export async function getCategory(channelId: string, accessToken: string): Promise<string> {
+  // Any trouble but a refused token is "unknown": the About is still read, and the server abstains on what it lacks
+  const res = await call(`${HELIX}/channels?broadcaster_id=${encodeURIComponent(channelId)}`, { headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": TWITCH_CLIENT_ID } }).catch(() => null);
+  if (res?.status === 401) throw new TwitchUnauthorized(ENDED);
+  if (!res?.ok) return "";
+  return ((await res.json()) as { data?: Array<{ game_name?: string }> }).data?.[0]?.game_name ?? "";
 }
 
 /**
@@ -258,6 +270,7 @@ export interface AboutAnswer {
   state: "found" | "none" | "failed" | "off";
   name?: string;
   facts?: string[];
+  category?: string;
 }
 
 /**
@@ -270,7 +283,7 @@ export async function answerAbout(login: string, chars: number, allowed: boolean
   try {
     const channel = await read(login);
     const facts = channel ? factsFromAbout(channel.description, chars) : [];
-    return channel && facts.length ? { type: "twitch-about", login, state: "found", name: channel.displayName, facts } : { type: "twitch-about", login, state: "none" };
+    return channel && facts.length ? { type: "twitch-about", login, state: "found", name: channel.displayName, facts, category: channel.category ?? "" } : { type: "twitch-about", login, state: "none" };
   } catch {
     return { type: "twitch-about", login, state: "failed" };
   }

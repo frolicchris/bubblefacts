@@ -25,6 +25,11 @@ const COMMON_WORDS = new Set([
 // Sentences about the channel rather than the person: not facts for a song
 const CHANNEL_TALK = /\b(?:follow|subscribe|subs?|donat\w*|tips?|discord|schedule|inquir\w*|enquir\w*|welcome|sponsor\w*|merch)\b/i;
 
+// Twitch's categories for playing music: the one a channel last streamed in
+const MUSIC_CATEGORIES = new Set(["music", "djs"]);
+// An About that speaks of making music, for a music channel last seen in another category
+const MUSIC_TALK = /\b(?:music\w*|songs?|songwriter|sing(?:s|er|ing)?|vocal\w*|compos\w+|pian\w+|guitar\w*|violin\w*|cell(?:o|ist)|sax\w*|drum\w*|bassist|flut\w+|trumpet\w*|synth\w*|instruments?|djs?|producer|remix\w*|albums?|vgm|jazz|orchestra\w*)\b/i;
+
 export const aboutIsChannelTalk = (text: string): boolean => CHANNEL_TALK.test(text);
 
 /** The login to try for an artist, or "" unless the artist is a single, unusual name */
@@ -35,10 +40,25 @@ export function loginForArtist(artist: string): string {
   return COMMON_WORDS.has(login) ? "" : login;
 }
 
+/**
+ * The login for a credited handle ("Jane (@janeplayskeys)"), or "". An @name may be the creator's handle on another
+ * site, so it passes the same rules as a name: "@jane" (short) and "@phoenix" (a word) could be anyone's channel (#450)
+ */
+export const loginForHandle = (handle: string): string => loginForArtist(handle);
+
 export interface TwitchAbout {
   name: string;
   facts: string[];
+  /** The category the channel last streamed in, "" when unknown */
+  category: string;
 }
+
+/**
+ * The second sign a credited handle is the creator's own Twitch channel: it streams music, or its About speaks of
+ * making it. A channel by that name about anything else is likely a stranger, as with an Instagram handle (#450)
+ */
+export const aboutIsMusicChannel = (about: TwitchAbout): boolean =>
+  MUSIC_CATEGORIES.has(about.category.trim().toLowerCase()) || about.facts.some((f) => MUSIC_TALK.test(f));
 
 /** From the app; an empty About is "none", never `found` */
 interface Answer {
@@ -47,6 +67,7 @@ interface Answer {
   state: "found" | "none" | "failed" | "off";
   name?: string;
   facts?: string[];
+  category?: string;
 }
 
 type Send = (message: { type: "twitch-about"; login: string; chars: number }) => void;
@@ -77,7 +98,7 @@ export function onAboutAnswer(data: unknown): void {
   if (!open || !a.login) return;
   asking.delete(a.login);
   const facts = Array.isArray(a.facts) ? a.facts.filter((f): f is string => typeof f === "string" && Boolean(f.trim())) : [];
-  const about = a.state === "found" && typeof a.name === "string" && a.name && facts.length ? { name: a.name, facts } : null;
+  const about = a.state === "found" && typeof a.name === "string" && a.name && facts.length ? { name: a.name, facts, category: typeof a.category === "string" ? a.category : "" } : null;
   // "Off" isn't kept: connecting Twitch or checking the box works from the next song on
   if (a.state !== "off") setCapped(known, a.login, { about, expires: Date.now() + (a.state === "failed" ? FAILED_KEPT_MS : KEPT_MS) }, MAX_KEPT);
   open.done(about);

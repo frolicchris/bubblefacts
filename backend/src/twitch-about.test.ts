@@ -1,6 +1,6 @@
 jest.mock("./config", () => ({ config: { topic: "none" } }));
 
-import { aboutIsChannelTalk, connectAboutAsker, forgetAbouts, loginForArtist, onAboutAnswer, twitchAbout } from "./twitch-about";
+import { aboutIsChannelTalk, aboutIsMusicChannel, connectAboutAsker, forgetAbouts, loginForArtist, loginForHandle, onAboutAnswer, twitchAbout } from "./twitch-about";
 
 const sent: Array<{ login: string; chars: number }> = [];
 beforeEach(() => {
@@ -28,6 +28,24 @@ describe("loginForArtist", () => {
   });
 });
 
+describe("a credited handle (#450)", () => {
+  it("is a login only when it is long and unusual enough to be the creator's own", () => {
+    expect(loginForHandle("MarlowKeys")).toBe("marlowkeys");
+    for (const handle of ["jane", "abc", "phoenix", "Piano", "2049"]) expect(loginForHandle(handle)).toBe("");
+  });
+
+  it("needs a second sign: a music category, or an About that speaks of making music", () => {
+    const channel = (facts: string[], category = "") => ({ name: "MarlowKeys", facts, category });
+    expect(aboutIsMusicChannel(channel(["Marlow lives in Lisbon."], "Music"))).toBe(true);
+    expect(aboutIsMusicChannel(channel(["Marlow lives in Lisbon."], "DJs"))).toBe(true);
+    expect(aboutIsMusicChannel(channel(["Marlow writes piano loops in Lisbon."], "Just Chatting"))).toBe(true);
+    expect(aboutIsMusicChannel(channel(["Singer and songwriter."]))).toBe(true);
+    // A stranger with the same name as someone's Instagram handle
+    expect(aboutIsMusicChannel(channel(["Speedrunner from Ohio. Mostly platformers and kart racers."], "Retro"))).toBe(false);
+    expect(aboutIsMusicChannel(channel(["I paint miniatures and talk about board games."]))).toBe(false);
+  });
+});
+
 describe("aboutIsChannelTalk", () => {
   it("knows a sentence about the channel from one about the person", () => {
     expect(aboutIsChannelTalk("Follow for new loops every week!")).toBe(true);
@@ -43,7 +61,7 @@ describe("twitchAbout", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].chars).toBeLessThan(160);
     onAboutAnswer(found);
-    expect(await first).toEqual({ name: "MarlowKeys", facts: ["Marlow writes piano loops."] });
+    expect(await first).toEqual({ name: "MarlowKeys", facts: ["Marlow writes piano loops."], category: "" });
     expect(await second).toEqual(await first);
     await twitchAbout("marlowkeys");
     expect(sent).toHaveLength(1);
