@@ -472,10 +472,16 @@ sign-ins and the built-in AI. Its design decisions are in
    channel's public About (`twitch-about.ts`) in two cases. With no article
    and nothing from the databases, a song by an artist named exactly like a
    channel gets that channel's. A song credited to a handle (`@name`,
-   `Name (@name)`) gets that channel's: the handle is the login, Wikipedia and
-   the databases stay skipped, and the name rules below don't apply. A
+   `Name (@name)`) gets that channel's: the handle is the login, and Wikipedia and
+   the databases stay skipped. An @name may be the creator's handle on another
+   site, with a stranger's Twitch channel under it (#450), so the handle passes
+   the name rules below (`loginForHandle`: five or more characters, not a
+   common word) and the channel must show a second sign that it is a music
+   channel (`aboutIsMusicChannel`): its category, the one it last streamed in,
+   is Music or DJs, or its About speaks of making music. Otherwise nothing is
+   shown. A
    placeholder request is never looked up. Both need Twitch
-   connected and **Check Twitch for artists no source knows** checked (on by
+   connected and **Show a line from an artist's Twitch About** checked (on by
    default). The words are the About's, cut by `factsFromAbout` as for **Fill
    from their Twitch About**, never rewritten, after "From their Twitch About: "
    so "I" can't read as the streamer. The dashboard's label is

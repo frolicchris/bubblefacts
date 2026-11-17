@@ -22,7 +22,7 @@ import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
 import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
-import { ABOUT_CREDIT, aboutIsChannelTalk, canAskAbout, forgetAbouts, loginForArtist, twitchAbout } from "./twitch-about";
+import { ABOUT_CREDIT, aboutIsChannelTalk, aboutIsMusicChannel, canAskAbout, forgetAbouts, loginForArtist, loginForHandle, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
@@ -1110,15 +1110,19 @@ async function liveLearnFacts(song: SSLSong, want: number, asked: SSLSong): Prom
 // Artist named exactly like a Twitch channel: a line or two of its About. Null on any doubt; never throws
 async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Promise<Generated | null> {
   // A guessed artist is no name to match a stranger's channel on.
-  // A credit "Jane (@janeplayskeys)" names the channel outright; any other artist is only a guess at one.
+  // A credit "Jane (@janeplayskeys)" names a channel, though the @name may be from another site: checked below.
   const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1]?.toLowerCase();
-  const login = song.artistFromTitle || song.artistUncertain ? "" : handle ?? loginForArtist(song.artist ?? "");
+  const login = song.artistFromTitle || song.artistUncertain ? "" : handle ? loginForHandle(handle) : loginForArtist(song.artist ?? "");
   if (!login || taggedFactsFor(song).length) return null;
   try {
     // Without an AI nothing has looked for the article yet, and a song with one is never looked up here.
     if (!handle && config.aiProvider === "none" && (await findReference(song)).context) return null;
     const about = await twitchAbout(login);
     if (!about) return null;
+    if (handle && !aboutIsMusicChannel(about)) {
+      console.log(`[FactGen] "${song.title}": the Twitch channel @${handle} doesn't look like a music channel, so its About isn't shown`);
+      return null;
+    }
     const label = `${SOURCE.twitchAbout}${about.name}`;
     if (blockedArticles(song).has(label)) return null;
     const names = [song.title, song.artist ?? ""];
