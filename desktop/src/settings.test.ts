@@ -18,6 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
+import { checkStyleLook, readStyleFile } from "./style-file";
 import { customFactsProblem, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
@@ -531,10 +532,52 @@ describe("the musician's own facts", () => {
   });
 });
 
+describe("an imported look (issue #402)", () => {
+  const look = { name: "Sunset Set", author: "A Made-Up Maker", madeFor: "2.3.0", values: { "--bf-bg-1": "#2a0a3c", "--bf-bg-2": "#2a0a3c", "--bf-text": "#ffffff" } };
+
+  it("starts with none, and isn't something the window can save with the other settings", () => {
+    expect(DEFAULTS.styleLook).toBeNull();
+    expect(fromWindow({ styleLook: look })).not.toHaveProperty("styleLook");
+  });
+
+  it("goes live to the running server, never restarting it, and leaves the Style and colors set under it", () => {
+    const withLook = sanitize({ ...DEFAULTS, bubbleStyle: "retro", styleLook: look });
+    expect(withLook.styleLook).toEqual(look);
+    expect(withLook.bubbleStyle).toBe("retro");
+    expect(JSON.parse(styleEnv(withLook).BUBBLE_STYLE_FILE)).toEqual(look);
+    const env = (s: typeof DEFAULTS) => ({ AI_PROVIDER: "none", ...styleEnv(s) });
+    expect(serverSettingsSignature(env(withLook), withLook)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
+  });
+
+  it("keeps a look with an icon through Use this look, the settings file and the next start", () => {
+    const read = readStyleFile(JSON.stringify({ bubblefacts: "style", name: "Sunset Set", madeFor: "2.3.0", values: { ...look.values, "--bf-icon": "♪" } }), "2.3.0");
+    if (!read.ok) throw new Error(read.reason);
+    const used = checkStyleLook(read.look, "2.3.0");
+    if (!used.ok) throw new Error(used.reason);
+    saveSettings(sanitize({ ...DEFAULTS, styleLook: used.look }));
+    const loaded = loadSettings();
+    expect(loaded.styleLook).toEqual(read.look);
+    expect(loaded.styleLook?.values["--bf-icon"]).toBe("♪");
+    expect(JSON.parse(styleEnv(loaded).BUBBLE_STYLE_FILE).values["--bf-icon"]).toBe("♪");
+  });
+
+  it("drops a saved look that no longer passes the checks, so a hand-edited settings file can't break the bubbles", () => {
+    const bad = [
+      { ...look, values: { ...look.values, "--bf-bg-1": "url(https://example.com/a.png)" } },
+      { ...look, values: { ...look.values, "--bf-scale": "3" } },
+      { ...look, values: { "--bf-text": "#2a0a3c", "--bf-bg-1": "#2a0a3c" } },
+      { ...look, madeFor: "2.2.0" },
+      "classic",
+      [],
+    ];
+    for (const styleLook of bad) expect(sanitize({ ...DEFAULTS, styleLook: styleLook as never }).styleLook).toBeNull();
+  });
+});
+
 describe("bubble Styles and your own colors (issue #177)", () => {
   it("starts on the classic dark blue, with its own colors ready for the pickers", () => {
     expect(DEFAULTS).toMatchObject({ bubbleStyle: "classic", customColors: false, accentColor: "#5b6ee1", backgroundColor: "#0a0a3c" });
-    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ICON: "style", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "", BUBBLE_SCALE: "1", BUBBLE_VERTICAL_SCALE: "1" });
+    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ICON: "style", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "", BUBBLE_SCALE: "1", BUBBLE_VERTICAL_SCALE: "1", BUBBLE_STYLE_FILE: "" });
   });
 
   it("sends a new bubble size to the running server, never restarting it", () => {

@@ -2,6 +2,7 @@ import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, 
 import { answerAbout, factsFromAbout, getCategory, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
+import { checkStyleLook, readStyleFile, STYLE_FILE_MAX_BYTES } from "./style-file";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -716,6 +717,60 @@ handle("choose-now-playing-file", async () => {
   return { ok: true, path: filePaths[0] };
 });
 
+/** The look in the settings, to the running server and so to every overlay; kept for its next start too */
+function sendStyle(): void {
+  const style = styleEnv(settings);
+  supervisor.setEnv(style);
+  void control("style", {
+    style: style.BUBBLE_STYLE,
+    icon: style.BUBBLE_ICON,
+    accent: style.BUBBLE_ACCENT,
+    background: style.BUBBLE_BACKGROUND,
+    scale: Number(style.BUBBLE_SCALE),
+    verticalScale: Number(style.BUBBLE_VERTICAL_SCALE),
+    file: settings.styleLook ?? "",
+  });
+}
+
+const LOOK_KEPT = "Your look hasn't changed.";
+
+/** Choose a shared Style file (#402) and check it; nothing changes until the streamer has seen the preview */
+handle("import-look", async () => {
+  const options = { title: "Choose a BubbleFacts Style file", properties: ["openFile" as const], filters: [{ name: "BubbleFacts Style", extensions: ["json"] }] };
+  const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  if (canceled || !filePaths[0]) return { ok: false, message: "" };
+  let text: string;
+  try {
+    if (fs.statSync(filePaths[0]).size > STYLE_FILE_MAX_BYTES) return { ok: false, message: `That file is too big to be a BubbleFacts Style file. ${LOOK_KEPT}` };
+    text = fs.readFileSync(filePaths[0], "utf8");
+  } catch {
+    return { ok: false, message: `That file couldn't be read. ${LOOK_KEPT}` };
+  }
+  const result = readStyleFile(text, app.getVersion());
+  if (!result.ok) console.warn(`[App] Style file refused: ${result.reason}`);
+  return result.ok ? { ok: true, look: result.look } : { ok: false, message: `${result.reason} ${LOOK_KEPT}` };
+});
+
+/** Show the previewed look on stream. Checked again: the window only hands back what it was given */
+handle("use-look", (_e, raw: unknown) => {
+  const result = checkStyleLook(raw, app.getVersion());
+  if (!result.ok) return { ok: false, message: `${result.reason} ${LOOK_KEPT}` };
+  settings = sanitize({ ...settings, styleLook: result.look });
+  saveSettings(settings);
+  sendStyle();
+  send("state", state());
+  return { ok: true, message: `Now showing ${result.look.name}.` };
+});
+
+/** Back to the Style and colors chosen in Settings, which the look never changed */
+handle("remove-look", () => {
+  settings = sanitize({ ...settings, styleLook: null });
+  saveSettings(settings);
+  sendStyle();
+  send("state", state());
+  return { ok: true, message: "Back to your Style." };
+});
+
 /** Settings with the window's changes: a blank secret keeps the saved one, a pasted token replaces the sign-in */
 function mergeSettings(changes: Partial<Settings>): Settings {
   const next: Settings = sanitize({ ...settings, ...changes });
@@ -745,18 +800,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   void ensureOllamaModel();
   startServer(newSignIn);
   // A new look or size goes to the running server, which changes every overlay: no restart, no Refresh in OBS
-  const style = styleEnv(settings);
-  if (JSON.stringify(style) !== JSON.stringify(styleEnv(previous))) {
-    supervisor.setEnv(style);
-    void control("style", {
-      style: style.BUBBLE_STYLE,
-      icon: style.BUBBLE_ICON,
-      accent: style.BUBBLE_ACCENT,
-      background: style.BUBBLE_BACKGROUND,
-      scale: Number(style.BUBBLE_SCALE),
-      verticalScale: Number(style.BUBBLE_VERTICAL_SCALE),
-    });
-  }
+  if (JSON.stringify(styleEnv(settings)) !== JSON.stringify(styleEnv(previous))) sendStyle();
   backUpNow();
   if (channelChanged) void checkForUpdate();
 }

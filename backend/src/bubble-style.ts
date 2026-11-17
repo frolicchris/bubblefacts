@@ -1,6 +1,8 @@
 // Bubble Styles (#177): the built-in look (custom properties in obs-overlay.css) and the streamer's own
 // colors over it, with a readable text color. Never the fact text (ARCHITECTURE.md: OBS details)
 
+import { checkStyleLook } from "./style-file";
+
 /** Built-in Styles; "classic" is the dark blue the overlay always had */
 export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-contrast"] as const;
 export type BubbleStyleName = (typeof BUBBLE_STYLES)[number];
@@ -34,6 +36,25 @@ export interface StylePayload {
   verticalScale?: number;
   /** Icon choice, when not the Style's own */
   icon?: BubbleIconName;
+  /** An imported Style file (#402), already checked; `style` and `colors` stay as the look to fall back to */
+  look?: { name: string; values: Record<string, string> };
+}
+
+/** A Style file's look from a request or the environment (an object, or its JSON), else null with a warning */
+function lookFrom(file: unknown, warn: (line: string) => void): StylePayload["look"] | null {
+  if (file === undefined || file === null || file === "") return null;
+  let raw: unknown = file;
+  if (typeof file === "string") {
+    try {
+      raw = file.length <= 20_000 ? JSON.parse(file) : null;
+    } catch {
+      raw = null;
+    }
+  }
+  const result = checkStyleLook(raw);
+  if (result.ok) return { name: result.look.name, values: result.look.values };
+  warn(`Imported look not used: ${result.reason} Showing your Style instead.`);
+  return null;
 }
 
 export const MIN_SCALE = 0.5; // smallest Bubble size: smaller is unreadable
@@ -106,7 +127,7 @@ export function customColors(accent: string, background: string): StyleColors {
  * The look from settings, never refusing (a typo mustn't stop bubbles): unknown Style = Classic, custom
  * colors only when both are #rrggbb. `warn` hears what's ignored
  */
-export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown; icon?: unknown } = {}): StylePayload {
+export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown; icon?: unknown; file?: unknown } = {}): StylePayload {
   const raw = typeof style === "string" ? style.trim().toLowerCase() : "";
   const name = (BUBBLE_STYLES as readonly string[]).includes(raw) ? (raw as BubbleStyleName) : "classic";
   if (raw && raw !== name) warn(`Unknown bubble style "${String(style).slice(0, 40)}": using classic. Choose ${BUBBLE_STYLES.join(", ")}.`);
@@ -123,6 +144,7 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
   const iconGiven = sizes.icon !== undefined && sizes.icon !== null && rawIcon !== "";
   const iconSupplied = iconGiven || (sizes.icon !== undefined && sizes.icon !== null && typeof sizes.icon !== "string");
   if (iconSupplied && rawIcon !== icon) warn(`Unknown bubble icon "${String(sizes.icon).slice(0, 40)}": using the Style's own. Choose ${BUBBLE_ICONS.join(", ")}.`);
+  const look = lookFrom(sizes.file, warn);
   return {
     type: "style",
     style: name,
@@ -130,5 +152,6 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
     ...(scale !== null ? { scale } : {}),
     ...(verticalScale !== null ? { verticalScale } : {}),
     ...(icon !== "style" ? { icon } : {}),
+    ...(look ? { look } : {}),
   };
 }
