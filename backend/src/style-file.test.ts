@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { BUBBLE_STYLES, styleFrom } from "./bubble-style";
-import { checkStyleLook, readStyleFile, STYLE_FILE_MAX_BYTES, STYLE_FILE_SETTINGS, StyleFileResult } from "./style-file";
+import { BUBBLE_ICONS, BUBBLE_STYLES, customColors, styleFrom } from "./bubble-style";
+import { checkStyleLook, readStyleFile, shownValues, STYLE_FILE_MAX_BYTES, STYLE_FILE_SETTINGS, StyleFileResult, writeStyleFile } from "./style-file";
 
 /** Style files (#402): a shared look is untrusted, so every bad one is refused with one plain line */
 const ROOT = path.resolve(__dirname, "../..");
@@ -28,6 +28,14 @@ const good = {
 };
 const file = (changes: Record<string, unknown> = {}, values: Record<string, unknown> = {}) => ({ ...good, ...changes, values: { ...good.values, ...values } });
 const reason = (r: StyleFileResult) => (r.ok ? "accepted" : r.reason);
+
+/** The declarations in one rule, by its exact selector */
+function block(selector: string): Record<string, string> {
+  const at = CSS.indexOf(selector + " {");
+  if (at < 0) throw new Error(`No rule for ${selector}`);
+  const body = CSS.slice(CSS.indexOf("{", at) + 1, CSS.indexOf("}", at)).replace(/\/\*[\s\S]*?\*\//g, "");
+  return Object.fromEntries(body.split(";").map((d) => d.trim()).filter(Boolean).map((d) => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()]));
+}
 
 describe("a Style file", () => {
   it("is read into a look whose values BubbleFacts wrote itself, in a fixed order", () => {
@@ -218,14 +226,6 @@ describe("a Style file", () => {
 });
 
 describe("every built-in Style, written as a Style file", () => {
-  /** The declarations in one rule, by its exact selector */
-  function block(selector: string): Record<string, string> {
-    const at = CSS.indexOf(selector + " {");
-    if (at < 0) throw new Error(`No rule for ${selector}`);
-    const body = CSS.slice(CSS.indexOf("{", at) + 1, CSS.indexOf("}", at)).replace(/\/\*[\s\S]*?\*\//g, "");
-    return Object.fromEntries(body.split(";").map((d) => d.trim()).filter(Boolean).map((d) => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()]));
-  }
-
   it.each(BUBBLE_STYLES)("%s passes the same checks a shared look must", (style) => {
     const css = { ...block(":where(:root)"), ...(style === "classic" ? {} : block(`:where(html[data-style="${style}"])`)) };
     // What a file can't say: a value taken from another setting, and the icon as a CSS escape
@@ -268,5 +268,89 @@ describe("styleFrom with an imported look", () => {
     expect(warn.mock.calls[0][0]).toMatch(/Showing your Style instead/);
     expect(styleFrom("light", "", "", warn, { file: "" })).toEqual({ type: "style", style: "light" });
     expect(warn).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe("saving the look on stream as a Style file", () => {
+  /** A CSS string escape ("\\2665\\FE0E") as its characters */
+  const unescaped = (css: string) => css.replace(/^"|"$/g, "").replace(/\\([0-9a-f]{1,6}) ?/gi, (_m, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
+  /** Values as the check writes them, so two spellings of one color compare equal */
+  const checked = (values: Record<string, string>) => {
+    const r = checkStyleLook({ bubblefacts: "style", madeFor: "2.3.0", values }, "2.3.0");
+    if (!r.ok) throw new Error(r.reason);
+    return r.look.values;
+  };
+
+  it.each(BUBBLE_STYLES)("%s is written with the values obs-overlay.css shows", (style) => {
+    const css = { ...block(":where(:root)"), ...(style === "classic" ? {} : block(`:where(html[data-style="${style}"])`)) };
+    const expected: Record<string, string> = {};
+    for (const [key, value] of Object.entries(css)) {
+      if (!STYLE_FILE_SETTINGS.includes(key)) continue;
+      expected[key] = key === "--bf-icon" ? unescaped(value) : value.startsWith("var(--bf-accent)") ? css["--bf-accent"] : value;
+    }
+    expect(checked(shownValues({ style, icon: "style" }))).toEqual(checked(expected));
+  });
+
+  it("writes the Icon setting's choice over the Style's or an imported look's icon, and none for the rotating notes", () => {
+    for (const icon of BUBBLE_ICONS.filter((i) => i !== "style" && i !== "notes")) {
+      const shownIcon = unescaped(block(`:where(html[data-icon="${icon}"])`)["--bf-icon"]);
+      expect(shownValues({ style: "light", icon })["--bf-icon"]).toBe(shownIcon);
+      expect(shownValues({ style: "light", icon, look: { values: { "--bf-icon": "♪" } } })["--bf-icon"]).toBe(shownIcon);
+    }
+    expect(shownValues({ style: "light", icon: "notes" })).not.toHaveProperty("--bf-icon");
+    expect(shownValues({ style: "classic", icon: "style" })).not.toHaveProperty("--bf-icon");
+    expect(shownValues({ style: "retro", icon: "style" })["--bf-icon"]).toBe("►");
+  });
+
+  it.each([["#ff8800", "#101030"], ["#223344", "#fff8e0"], ["#777777", "#777777"], ["#00ff00", "#c0c000"], ["#FFD700", "#000000"]])(
+    "writes the streamer's own colors %s on %s with the text colors the server picks",
+    (accent, background) => {
+      const c = customColors(accent.toLowerCase(), background.toLowerCase());
+      const values = shownValues({ style: "retro", icon: "style", accent, background });
+      expect(values).toMatchObject({ "--bf-bg-1": c.background, "--bf-toast-bg-2": c.background, "--bf-accent": c.accent, "--bf-text": c.text, "--bf-toast-text": c.text, "--bf-toast-label": c.label, "--bf-live-learn": c.liveLearn });
+      expect(values["--bf-cursor"]).toBe(c.accent);
+      expect(values["--bf-toast-border"]).toBe(c.accent);
+      // The Style's font and corners stay under the colors
+      expect(values["--bf-radius"]).toBe("0px");
+      expect(reason(writeStyleFile({ name: "Mine", appVersion: "2.3.0", values }) as StyleFileResult)).toBe("accepted");
+    }
+  );
+
+  it("ignores own colors that aren't both #rrggbb, as the server does", () => {
+    expect(shownValues({ style: "light", icon: "style", accent: "#ff8800", background: "" })).toEqual(shownValues({ style: "light", icon: "style" }));
+  });
+
+  it.each(BUBBLE_STYLES)("round trip: %s saved, then imported, shows the same values", (style) => {
+    const values = shownValues({ style, icon: "style" });
+    const saved = writeStyleFile({ name: "My Set", appVersion: "2.3.0-beta.1", values });
+    if (!saved.ok) throw new Error(saved.reason);
+    const read = readStyleFile(saved.text, "2.3.0-beta.1");
+    if (!read.ok) throw new Error(read.reason);
+    expect(read.look).toEqual(saved.look);
+    expect(read.look.values).toEqual(checked(values));
+    expect(Object.keys(read.look.values).sort()).toEqual(Object.keys(values).sort());
+    // Saved again from the imported look: the same file
+    const again = writeStyleFile({ name: read.look.name, appVersion: "2.3.0-beta.1", values: shownValues({ style: "classic", icon: "style", look: read.look }) });
+    expect(again.ok && again.look).toEqual(saved.look);
+  });
+
+  it("holds a name, the version it was made on and the values; an author only when given", () => {
+    const values = shownValues({ style: "classic", icon: "heart" });
+    const plain = writeStyleFile({ name: "  My <b>Set</b> ", appVersion: "2.4.1-beta.2", values });
+    if (!plain.ok) throw new Error(plain.reason);
+    const file = JSON.parse(plain.text);
+    expect(Object.keys(file)).toEqual(["bubblefacts", "format", "name", "madeFor", "values"]);
+    expect(file).toMatchObject({ bubblefacts: "style", format: 1, name: "My b Set /b", madeFor: "2.4.1" });
+    expect(Buffer.byteLength(plain.text)).toBeLessThan(STYLE_FILE_MAX_BYTES);
+    const credited = writeStyleFile({ name: "", author: "A Made-Up Maker", appVersion: "2.4.1", values });
+    expect(credited.ok && JSON.parse(credited.text)).toMatchObject({ name: "My look", author: "A Made-Up Maker" });
+    // A build older than Style files still writes one every 2.3 reads
+    const old = writeStyleFile({ name: "x", appVersion: "0.0.0", values });
+    expect(old.ok && old.look.madeFor).toBe("2.3.0");
+  });
+
+  it("saves nothing when the look wouldn't import", () => {
+    expect(reason(writeStyleFile({ name: "x", appVersion: "2.3.0", values: { "--bf-text": "#000000", "--bf-bg-1": "#000000" } }) as StyleFileResult)).toMatch(/hard to read/);
+    expect(reason(writeStyleFile({ name: "x", appVersion: "2.3.0", values: {} }) as StyleFileResult)).toMatch(/empty/);
   });
 });

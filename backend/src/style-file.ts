@@ -333,3 +333,216 @@ export function readStyleFile(text: string, appVersion?: string): StyleFileResul
   }
   return checkStyleLook(parsed, appVersion);
 }
+
+// --- Saving a look (#402): the look on stream now, written as a file this same check accepts ---
+
+/** Each built-in Style's values where it differs from Classic (the first), as obs-overlay.css; a test keeps the two the same */
+const BUILT_IN: Record<string, Record<string, string>> = {
+  classic: {
+    "--bf-font": "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+    "--bf-weight": "600",
+    "--bf-letter-spacing": "0.01em",
+    "--bf-toast-letter-spacing": "0.04em",
+    "--bf-radius": "6px",
+    "--bf-bg-1": "rgba(10, 10, 60, 0.94)",
+    "--bf-bg-2": "rgba(20, 20, 90, 0.94)",
+    "--bf-text": "#f2f2f2",
+    "--bf-text-shadow": "0 2px 4px rgba(0, 0, 0, 0.9)",
+    "--bf-accent": "#5b6ee1",
+    "--bf-border-width": "3px",
+    "--bf-outline": "rgba(91, 110, 225, 0.3)",
+    "--bf-outline-width": "2px",
+    "--bf-sparkle": "#fff",
+    "--bf-toast-radius": "4px",
+    "--bf-toast-bg-1": "rgba(10, 10, 50, 0.92)",
+    "--bf-toast-bg-2": "rgba(20, 20, 80, 0.92)",
+    "--bf-toast-text": "#ffd700",
+    "--bf-toast-glow": "0 0 6px rgba(255, 215, 0, 0.4)",
+    "--bf-toast-label": "#8ca0ff",
+    "--bf-toast-border-width": "2px",
+    "--bf-toast-highlight": "rgba(255, 215, 0, 0.6)",
+    "--bf-live-learn": "#ffd700",
+  },
+  light: {
+    "--bf-radius": "14px",
+    "--bf-icon": "♪",
+    "--bf-bg-1": "rgba(255, 255, 255, 0.96)",
+    "--bf-bg-2": "rgba(238, 241, 252, 0.96)",
+    "--bf-text": "#1b1d33",
+    "--bf-text-shadow": "none",
+    "--bf-accent": "#4152c9",
+    "--bf-border-width": "2px",
+    "--bf-outline": "rgba(0, 0, 0, 0.12)",
+    "--bf-outline-width": "1px",
+    "--bf-sparkle": "#4152c9",
+    "--bf-toast-radius": "14px",
+    "--bf-toast-bg-1": "rgba(255, 255, 255, 0.96)",
+    "--bf-toast-bg-2": "rgba(238, 241, 252, 0.96)",
+    "--bf-toast-text": "#1b1d33",
+    "--bf-toast-glow": "none",
+    "--bf-toast-label": "#3a47b0",
+    "--bf-toast-highlight": "transparent",
+    "--bf-live-learn": "#7a5200",
+  },
+  minimal: {
+    "--bf-font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    "--bf-weight": "500",
+    "--bf-letter-spacing": "0",
+    "--bf-radius": "10px",
+    "--bf-icon": "♫",
+    "--bf-bg-1": "rgba(0, 0, 0, 0.78)",
+    "--bf-bg-2": "rgba(0, 0, 0, 0.78)",
+    "--bf-text": "#ffffff",
+    "--bf-text-shadow": "none",
+    "--bf-accent": "#ffffff",
+    "--bf-border-width": "0px",
+    "--bf-outline": "transparent",
+    "--bf-outline-width": "0px",
+    "--bf-cursor": "transparent",
+    "--bf-sparkle": "transparent",
+    "--bf-toast-radius": "10px",
+    "--bf-toast-bg-1": "rgba(0, 0, 0, 0.78)",
+    "--bf-toast-bg-2": "rgba(0, 0, 0, 0.78)",
+    "--bf-toast-text": "#ffffff",
+    "--bf-toast-glow": "none",
+    "--bf-toast-label": "#d0d0d0",
+    "--bf-toast-border-width": "0px",
+    "--bf-toast-highlight": "transparent",
+    "--bf-live-learn": "#ffd700",
+  },
+  retro: {
+    "--bf-font": "'Lucida Console', Menlo, Monaco, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace",
+    "--bf-icon": "►",
+    "--bf-weight": "700",
+    "--bf-letter-spacing": "-0.06em",
+    "--bf-toast-letter-spacing": "-0.04em",
+    "--bf-radius": "0px",
+    "--bf-bg-1": "rgba(0, 0, 0, 0.94)",
+    "--bf-bg-2": "rgba(0, 0, 0, 0.94)",
+    "--bf-text": "#ffffff",
+    "--bf-text-shadow": "2px 2px 0 rgba(0, 0, 0, 0.9)",
+    "--bf-accent": "#ffffff",
+    "--bf-border-width": "4px",
+    "--bf-outline": "rgba(0, 0, 0, 0.94)",
+    "--bf-outline-width": "3px",
+    "--bf-sparkle": "#fff",
+    "--bf-toast-radius": "0px",
+    "--bf-toast-bg-1": "rgba(0, 0, 0, 0.94)",
+    "--bf-toast-bg-2": "rgba(0, 0, 0, 0.94)",
+    "--bf-toast-text": "#f8d878",
+    "--bf-toast-glow": "2px 2px 0 rgba(0, 0, 0, 0.9)",
+    "--bf-toast-label": "#7cd8ff",
+    "--bf-toast-border-width": "4px",
+    "--bf-toast-highlight": "transparent",
+    "--bf-live-learn": "#f8d878",
+  },
+  "high-contrast": {
+    "--bf-font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    "--bf-weight": "700",
+    "--bf-letter-spacing": "0.02em",
+    "--bf-toast-letter-spacing": "0.04em",
+    "--bf-radius": "4px",
+    "--bf-icon": "★",
+    "--bf-bg-1": "#000000",
+    "--bf-bg-2": "#000000",
+    "--bf-text": "#ffffff",
+    "--bf-text-shadow": "none",
+    "--bf-accent": "#ffe600",
+    "--bf-border-width": "4px",
+    "--bf-outline": "#000000",
+    "--bf-outline-width": "2px",
+    "--bf-cursor": "#ffe600",
+    "--bf-sparkle": "transparent",
+    "--bf-toast-radius": "4px",
+    "--bf-toast-bg-1": "#000000",
+    "--bf-toast-bg-2": "#000000",
+    "--bf-toast-text": "#ffffff",
+    "--bf-toast-glow": "none",
+    "--bf-toast-label": "#ffe600",
+    "--bf-toast-border-width": "4px",
+    "--bf-toast-highlight": "transparent",
+    "--bf-live-learn": "#ffe600",
+  },
+};
+
+/** The Icon setting's one-character choices, as obs-overlay.css; "notes" and Classic's own rotate, so have none */
+const ICON_CHOICES: Record<string, string> = { heart: "♥︎", star: "✦", moon: "☾", diamond: "◆" };
+
+const HEX6 = /^#[0-9a-f]{6}$/i;
+
+/** The streamer's own accent and background over a Style, with the text colors the server picks (customColors in bubble-style.ts, customColorsCss in obs-overlay.js) */
+function ownColors(accent: string, background: string): Record<string, string> {
+  const bg = parseColor(background, false)!;
+  const on = (hex: string) => worstContrast(parseColor(hex, false)!, bg);
+  const text = on("#ffffff") >= on("#000000") ? "#ffffff" : on("#111111") >= STYLE_MIN_CONTRAST ? "#111111" : "#000000";
+  const ok = (hex: string) => on(hex) >= STYLE_MIN_CONTRAST;
+  const a = parseColor(accent, false)!;
+  const shadow = parseInt(text.slice(1, 3), 16) > 128 ? "0 2px 4px rgba(0, 0, 0, 0.9)" : "none";
+  return {
+    "--bf-bg-1": background,
+    "--bf-bg-2": background,
+    "--bf-toast-bg-1": background,
+    "--bf-toast-bg-2": background,
+    "--bf-accent": accent,
+    "--bf-outline": `rgba(${a.r}, ${a.g}, ${a.b}, 0.3)`,
+    "--bf-text": text,
+    "--bf-text-shadow": shadow,
+    "--bf-toast-text": text,
+    "--bf-toast-glow": shadow,
+    "--bf-toast-label": ok(accent) ? accent : text,
+    "--bf-live-learn": ["#ffd700", "#7a5200"].find(ok) ?? text,
+  };
+}
+
+/** What decides the look on stream: the Style, the Icon setting, the streamer's own colors (when on), and an imported look */
+export interface ShownLook {
+  style: string;
+  icon: string;
+  accent?: string;
+  background?: string;
+  look?: { values: Record<string, string> } | null;
+}
+
+/**
+ * The look as it is shown, as Style file values: an imported look's own values, else the Style with
+ * the streamer's colors over it, and the Icon setting over either. Nothing else is read.
+ */
+export function shownValues(shown: ShownLook): Record<string, string> {
+  let values: Record<string, string>;
+  if (shown.look) {
+    values = { ...shown.look.values };
+  } else {
+    const style = Object.prototype.hasOwnProperty.call(BUILT_IN, shown.style) ? shown.style : "classic";
+    const own = HEX6.test(shown.accent ?? "") && HEX6.test(shown.background ?? "") ? ownColors(shown.accent!.toLowerCase(), shown.background!.toLowerCase()) : {};
+    values = { ...BUILT_IN.classic, ...(style === "classic" ? {} : BUILT_IN[style]), ...own };
+    // In the overlay these two follow the accent unless the Style sets them
+    values["--bf-cursor"] ??= values["--bf-accent"];
+    values["--bf-toast-border"] ??= values["--bf-accent"];
+  }
+  if (shown.icon === "notes") delete values["--bf-icon"];
+  else if (Object.prototype.hasOwnProperty.call(ICON_CHOICES, shown.icon)) values["--bf-icon"] = ICON_CHOICES[shown.icon];
+  return values;
+}
+
+export type StyleFileText = { ok: true; text: string; look: StyleLook } | { ok: false; reason: string };
+
+/**
+ * A Style file's text for these values: a name, the version it was made on, an author only when
+ * given, and the values. It is read back with the check above, so a saved file always imports.
+ */
+export function writeStyleFile(input: { name: unknown; author?: unknown; appVersion: string; values: Record<string, string> }): StyleFileText {
+  const app = versionOf(input.appVersion);
+  const since = versionOf(STYLE_FILE_SINCE)!;
+  const author = label(input.author);
+  const file = {
+    bubblefacts: "style",
+    format: STYLE_FILE_FORMAT,
+    name: label(input.name) || "My look",
+    ...(author ? { author } : {}),
+    madeFor: (app && !older(app, since) ? app : since).join("."),
+    values: input.values,
+  };
+  const text = JSON.stringify(file, null, 2) + "\n";
+  const result = readStyleFile(text, file.madeFor);
+  return result.ok ? { ok: true, text, look: result.look } : result;
+}

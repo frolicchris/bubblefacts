@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("bubbleFacts", {
   testStreamElements: (channel: string, jwt: string) => ipcRenderer.invoke("test-streamelements", channel, jwt),
   testSharing: (url: string, channel: string, key: string) => ipcRenderer.invoke("test-sharing", url, channel, key),
   importLook: () => ipcRenderer.invoke("import-look"),
+  readyLook: (id: string) => ipcRenderer.invoke("ready-look", id),
+  saveLook: (name: string, author: string) => ipcRenderer.invoke("save-look", name, author),
   useLook: (look: unknown) => ipcRenderer.invoke("use-look", look),
   removeLook: () => ipcRenderer.invoke("remove-look"),
   chooseNowPlayingFile: () => ipcRenderer.invoke("choose-now-playing-file"),

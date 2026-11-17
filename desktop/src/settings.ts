@@ -1,5 +1,5 @@
 import { app, safeStorage } from "electron";
-import { checkStyleLook, StyleLook } from "./style-file";
+import { checkStyleLook, shownValues, StyleFileText, StyleLook, writeStyleFile } from "./style-file";
 import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
@@ -538,6 +538,27 @@ export const MY_PACK = "my-facts";
 
 export function topicList(s: Settings): string[] {
   return s.myFacts.length || s.myOriginals.length ? [MY_PACK] : [];
+}
+
+/**
+ * The look on stream now as a Style file to share. Only the look is read: the Style, Icon and own
+ * colors, or an imported look. Never the channel, an account, a path or any other setting.
+ */
+export function styleFileOf(s: Pick<Settings, "bubbleStyle" | "bubbleIcon" | "customColors" | "accentColor" | "backgroundColor" | "styleLook">, name: unknown, author: unknown, appVersion: string): StyleFileText {
+  const values = shownValues({
+    style: s.bubbleStyle,
+    icon: s.bubbleIcon,
+    accent: s.customColors ? s.accentColor : "",
+    background: s.customColors ? s.backgroundColor : "",
+    look: s.styleLook,
+  });
+  return writeStyleFile({ name, author, appVersion, values });
+}
+
+/** A file name for a saved look, from its name: plain letters and digits only */
+export function styleFileName(name: string): string {
+  const slug = name.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return `${slug || "my-look"}.json`;
 }
 
 /** The look as the server reads it; colors blank when custom colors are off, so the server reverts to the Style's */

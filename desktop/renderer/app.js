@@ -1093,13 +1093,51 @@
   $("#look-import").addEventListener("click", async () => {
     const r = await api.importLook();
     previewLook(r.ok ? r.look : null);
+    $("#look-ready").value = "";
     lookResult(r.ok ? { ok: true, message: "" } : r);
   });
-  $("#look-cancel").addEventListener("click", () => previewLook(null));
+  $("#look-cancel").addEventListener("click", () => { previewLook(null); $("#look-ready").value = ""; });
+  // A look that comes with the app: previewed like an imported one, then Use this look
+  $("#look-ready").addEventListener("change", async (e) => {
+    if (!e.target.value) return previewLook(null);
+    const r = await api.readyLook(e.target.value);
+    previewLook(r.ok ? r.look : null);
+    lookResult(r.ok ? { ok: true, message: "" } : r);
+  });
+  // The name fields and the list aren't settings: keep them out of "Your changes aren't saved yet"
+  for (const type of ["input", "change"]) $("#s-look").addEventListener(type, (e) => e.stopPropagation());
+  const saveBox = (open) => {
+    $("#s-look-save").hidden = !open;
+    $("#look-save-open").setAttribute("aria-expanded", String(open));
+  };
+  $("#look-save-open").addEventListener("click", () => {
+    const opening = $("#s-look-save").hidden;
+    saveBox(opening);
+    if (!opening) return;
+    if (!$("#look-save-name").value) $("#look-save-name").value = state?.settings.styleLook?.name || "";
+    $("#look-save-name").focus();
+  });
+  $("#look-save-cancel").addEventListener("click", () => { saveBox(false); $("#look-save-open").focus(); });
+  $("#look-save-credit").addEventListener("change", (e) => { $("#look-save-author-box").hidden = !e.target.checked; });
+  const saveLook = async () => {
+    const r = await api.saveLook($("#look-save-name").value, $("#look-save-credit").checked ? $("#look-save-author").value : "");
+    lookResult(r);
+    if (r.ok) { saveBox(false); $("#look-save-open").focus(); }
+  };
+  $("#look-save").addEventListener("click", saveLook);
+  // Enter in a name field saves the file, not the Settings form
+  for (const id of ["look-save-name", "look-save-author"]) {
+    $("#" + id).addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      saveLook();
+    });
+  }
   for (const [id, call] of [["look-use", () => api.useLook(lookWaiting)], ["look-remove", () => api.removeLook()]]) {
     $("#" + id).addEventListener("click", async () => {
       const r = await call();
       previewLook(null);
+      $("#look-ready").value = "";
       lookResult(r);
       state = await api.getState();
       showLook();
