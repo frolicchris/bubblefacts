@@ -5,8 +5,8 @@ const root = path.join(__dirname, "..", "..");
 const page = fs.readFileSync(path.join(root, "site", "troubleshooting.html"), "utf8");
 const settings = fs.readFileSync(path.join(root, "desktop", "renderer", "index.html"), "utf8");
 
-/** The table's rows: what you see, then the cells' text */
-const rows = [...page.matchAll(/<tr>\s*<th scope="row">([\s\S]*?)<\/th>([\s\S]*?)<\/tr>/g)].map((m) => ({ see: m[1].trim(), rest: m[2].replace(/<[^>]+>/g, "").replace(/\s+/g, " ") }));
+/** The table's rows: what you see, then the cells' text, read for comparing words only (never put back into a page) */
+const rows = [...page.matchAll(/<tr>\s*<th scope="row">([\s\S]*?)<\/th>([\s\S]*?)<\/tr>/g)].map((m) => ({ see: m[1].trim(), rest: m[2].split(/<[^>]+>/).join("").replace(/\s+/g, " ") }));
 
 describe("the troubleshooting page (the app's Help and troubleshooting opens it)", () => {
   it("has a row for bubbles that stop partway through a long song, naming the setting as Settings words it", () => {
