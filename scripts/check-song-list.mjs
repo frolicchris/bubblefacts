@@ -2,11 +2,14 @@
 //   npm run build
 //   node scripts/check-song-list.mjs LIST.json OUT_DIR [--facts N] [--seed S] [--pace MS]
 // LIST.json: an array of {title, artist}. Each song gets its article (no AI); --facts N also has the AI_PROVIDER
-// AI write facts for N random songs, for a person to review. Writes articles.csv, facts.md and summary.md
+// AI write facts for N random songs, for a person to review. Writes articles.csv, facts.md and summary.md, and
+// facts.jsonl: each sampled fact as one line shaped like the app's wrong-log.jsonl (song, caption, source, article,
+// evidence), so a fact judged wrong can be replayed or pasted (with made-up names) as a case
 // Song lists are the streamer's own: keep them and the results out of the repository
 
 import fs from "fs";
 import path from "path";
+import { factLine } from "./fact-line.mjs";
 
 const [listFile, outDir, ...rest] = process.argv.slice(2);
 if (!listFile || !outDir) {
@@ -88,6 +91,7 @@ fs.writeFileSync(path.join(outDir, "articles.csv"), csv.join("\n") + "\n");
 // A seeded, reproducible sample, for facts a person reads one by one
 const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
 const sample = songs.map((s) => [rand(), s]).sort((a, b) => a[0] - b[0]).slice(0, sampleSize).map(([, s]) => s);
+const jsonl = [];
 const md = [`# Facts for ${sample.length} sampled songs`, "", `AI: ${process.env.AI_PROVIDER}. Each fact is what would show on stream; check it against its source.`, ""];
 for (const song of sample) {
   captured = [];
@@ -102,12 +106,14 @@ for (const song of sample) {
   md.push(`## ${song.title} (${song.artist})`, "");
   if (!facts.length) md.push("_No facts: nothing showed._", "");
   for (const f of facts) md.push(`- ${f.text}  \n  _${f.source ?? "?"}_`);
+  for (const f of facts) jsonl.push(JSON.stringify(factLine(song, f, generator.blockFor(f.source) ?? null)));
   const dropped = captured.filter((l) => /\[Screen\]|dropped/i.test(l));
   if (dropped.length) md.push("", ...dropped.map((l) => `> ${l}`));
   md.push("");
   real.log(`facts: ${song.title}: ${facts.length}`);
 }
 if (sample.length) fs.writeFileSync(path.join(outDir, "facts.md"), md.join("\n"));
+if (sample.length) fs.writeFileSync(path.join(outDir, "facts.jsonl"), jsonl.map((l) => l + "\n").join(""));
 
 const summary = [
   `# Song list check`,

@@ -18,6 +18,8 @@ export interface WrongLogLine {
   source: string | null;
   /** The article (or STRUCTURED source) blocked for the song, or null */
   article: string | null;
+  /** The sentence the caption was written from, to check it later without fetching the article; absent before 2.3 and when the fact had none */
+  evidence?: string;
   appVersion: string;
   date: string;
 }
@@ -25,13 +27,14 @@ export interface WrongLogLine {
 const file = () => path.join(config.dataDir, WRONG_LOG_FILE);
 
 /** Adds one line; never throws, as a failed write mustn't stop Wrong */
-export function logWrong(song: SSLSong, caption: string, source: string | undefined, article: string | null, now = new Date()): void {
+export function logWrong(song: SSLSong, caption: string, source: string | undefined, article: string | null, evidence?: string, now = new Date()): void {
   const line: WrongLogLine = {
     // Without a note after the artist's name (#262): backups carrying this file get shared
     song: { title: song.title, artist: withoutArtistNote(song.artist ?? ""), ...(song.songId !== undefined ? { songId: song.songId } : {}), ...(song.videoId ? { videoId: song.videoId } : {}) },
     caption,
     source: source ?? null,
     article,
+    ...(evidence ? { evidence } : {}),
     appVersion: process.env.BUBBLEFACTS_VERSION || "unknown",
     date: now.toISOString(),
   };

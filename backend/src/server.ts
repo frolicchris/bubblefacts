@@ -591,7 +591,7 @@ function takeWrong(song: SSLSong, fact: Fact, playing: boolean) {
     earlier = earlier.map((e) => (sameSong(e.song, song) ? { ...e, facts: e.facts.filter((f) => f.text !== text) } : e));
     if (lastSent.song) remember(lastSent.song, lastSent.facts ?? []);
   }
-  const article = markWrong(song, text, fact.source);
+  const article = markWrong(song, text, fact.source, fact.evidence);
   // The streamer's own fact: nothing to block, and it shows again until they change it
   return { removed: true, live: playing, article, structured: article === STRUCTURED, own: ownFactKind(fact.source), pulled };
 }
