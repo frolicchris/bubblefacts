@@ -32,6 +32,19 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # actionlint checks the workflow files as part of lint. A fixed version, checked against its published SHA-256.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          file="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$file" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${file}"
+          echo "${ACTIONLINT_SHA256}  ${file}" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$file" -C "$HOME/.local/bin" actionlint
+          rm "$file"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       # shellcheck comes preinstalled on GitHub's Ubuntu runners. The check builds too (its script tests need dist/).
       - run: npm run check
       # Shipped dependencies only: a high or critical advisory fails the check.

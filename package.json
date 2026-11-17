@@ -7,7 +7,7 @@
     "build": "tsc -p backend/tsconfig.json",
     "start": "node dist/backend/server.js",
     "test": "jest --config jest.config.ts",
-    "lint": "eslint frontend desktop/renderer scripts && shellcheck scripts/*.sh",
+    "lint": "eslint frontend desktop/renderer scripts && shellcheck scripts/*.sh && bash scripts/lint-workflows.sh",
     "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p backend/tsconfig.test.json && tsc -p desktop/tsconfig.json --noEmit && tsc -p desktop/tsconfig.test.json",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:scripts",
     "build:desktop": "tsc -p desktop/tsconfig.json",

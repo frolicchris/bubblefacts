@@ -138,6 +138,7 @@ jobs:
           chmod +x "$image"
           (cd installer && "$image" --appimage-extract >/dev/null)
           [ -x installer/squashfs-root/bubblefacts ] || { ls installer/squashfs-root; exit 1; }
+          # shellcheck disable=SC2129 # one line per variable reads better here
           echo "APP_LAUNCH=$image" >> "$GITHUB_ENV"
           echo "APP_EXE=$PWD/installer/squashfs-root/bubblefacts" >> "$GITHUB_ENV"
           echo "APP_RESOURCES=$PWD/installer/squashfs-root/resources" >> "$GITHUB_ENV"
@@ -231,6 +232,7 @@ jobs:
           ELECTRON_RUN_AS_NODE=1 "$APP_EXE" scripts/smoke-llama-debug.mjs "$APP_RESOURCES" model.gguf 2>&1 | tail -40
           echo "exit status ${PIPESTATUS[0]}"
           echo "--- the same node-llama-cpp under plain Node.js, outside the app"
+          # shellcheck disable=SC2046 # the version is one word
           mkdir -p /tmp/plain && cd /tmp/plain && npm init -y >/dev/null && npm install --silent node-llama-cpp@$(node -p "require('$APP_RESOURCES/app.asar.unpacked/node_modules/@node-llama-cpp/linux-x64/package.json').version" 2>/dev/null || echo latest) >/dev/null 2>&1
           mkdir -p res/app.asar && ln -s /tmp/plain/node_modules res/app.asar/node_modules
           node "$GITHUB_WORKSPACE/scripts/smoke-llama-debug.mjs" /tmp/plain/res "$GITHUB_WORKSPACE/model.gguf" 2>&1 | tail -40
