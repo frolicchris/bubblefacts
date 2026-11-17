@@ -18,7 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
-import { customFactsProblem, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -681,5 +681,27 @@ describe("port", () => {
   it("keeps any port the Settings field allows, up to 65535 (#165)", () => {
     expect(sanitize({ ...DEFAULTS, port: 65535 }).port).toBe(65535);
     expect(sanitize({ ...DEFAULTS, port: 80 }).port).toBe(1024);
+  });
+});
+
+describe("how long a song may stay on the list before it's taken as over (#451)", () => {
+  const env = (s: typeof DEFAULTS) => toServerEnv({ ...s, channel: "jane", token: "t" }, paths);
+
+  it("is 10 minutes until the streamer changes it", () => {
+    expect(DEFAULTS.staleMinutes).toBe(10);
+    expect(sanitize({ ...DEFAULTS }).staleMinutes).toBe(10);
+    expect(env(DEFAULTS)).toMatchObject({ STALE_SONG_MINUTES: "10" });
+  });
+
+  it("keeps the streamer's own value from 5 to 60, and hands it to the server", () => {
+    for (const minutes of [5, 25, 60]) expect(sanitize({ ...DEFAULTS, staleMinutes: minutes }).staleMinutes).toBe(minutes);
+    expect(env(sanitize({ ...DEFAULTS, staleMinutes: 25 }))).toMatchObject({ STALE_SONG_MINUTES: "25" });
+    expect(EDITABLE).toContain("staleMinutes");
+  });
+
+  it("goes back to 10 for a bad value, never to an end of the range", () => {
+    for (const bad of [0, 4, 61, 600, -10, NaN, Infinity, "ten" as unknown as number, undefined as unknown as number]) {
+      expect(sanitize({ ...DEFAULTS, staleMinutes: bad }).staleMinutes).toBe(10);
+    }
   });
 });

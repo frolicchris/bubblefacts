@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { presetFolder } from "./now-playing-folder";
 import { shareAddress } from "./share-song-facts";
+import { staleMinutes } from "./stale-song";
 import { styleFrom } from "./bubble-style";
 
 // Every setting, from .env or the environment; each explained in docs/CONFIG.md
@@ -170,6 +171,8 @@ export const config = {
   shareFactsUrl: shareAddress(process.env.SHARE_FACTS_URL || "") ?? "",
   shareFactsKey: process.env.SHARE_FACTS_KEY || "",
   shareFactsChannel: process.env.SHARE_FACTS_CHANNEL || "",
+  // Minutes one song may stay on the list before it's taken as over (#451); a bad value means the default
+  staleSongMinutes: staleMinutes(process.env.STALE_SONG_MINUTES),
 
   // --- AI ---
   aiProvider,

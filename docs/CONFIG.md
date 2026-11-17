@@ -186,6 +186,7 @@ hours is read as it was before. See
 |---|---|---|
 | `FACTS_PER_SONG` | `5` | How many bubbles per song, from 1 to 12. With `SOURCE_RISK=on` (the default), facts from Wikipedia, Wikidata or MusicBrainz stop at four. Songs with short articles may get fewer. |
 | `FACT_INTERVAL_SECONDS` | `15` | A new bubble every this many seconds, counted from one bubble's start to the next. From 3 to 300. |
+| `STALE_SONG_MINUTES` | `10` | Minutes one song may stay on your song list before BubbleFacts takes it as over: its bubbles stop, and an app you share with is told the song may have changed. Both start again with the next song. From 5 to 60; any other value means 10. A track whose length is known (StreamElements) gets at least twice its length plus 2 minutes. In the app: **Settings**, **Bubbles**, **Take a song as over after (minutes)**. |
 | `FACT_DURATION_SECONDS` | `8` | Seconds each bubble stays up, from 2 to 120. Shorter than `FACT_INTERVAL_SECONDS` shows one at a time; longer, and they overlap. |
 
 `BUBBLE_AREA` (`anywhere`, `top`, `bottom`, `left` or `right`; default
@@ -230,7 +231,7 @@ stay stable, and `frontend/obs/design-preview.html` shows a look without the app
 
 ## Sharing song facts with other apps
 
-Off by default. When all three settings below are set, the song on stream goes to that address as soon as it starts, and its facts as they're found, as context the other app may use to answer questions. A fact taken off the stream is taken out there too. With StreamerSongList, the next song in the queue is named too (`Up next: "Title" by Artist.`): its title and artist only, and nothing when the queue is empty. Nothing else is sent, never who requested a song, and paused bubbles aren't shared. When the song list has shown the same song for more than 10 minutes (or twice the track's length plus 2 minutes, when the source knows it), the facts are replaced by a note that the song may have changed, until the next song starts. Each change the other app takes is logged with the song and how many facts (`[Share] Shared "Title": 3 facts`), and failures by reason only; the key and the address are never logged.
+Off by default. When all three settings below are set, the song on stream goes to that address as soon as it starts, and its facts as they're found, as context the other app may use to answer questions. A fact taken off the stream is taken out there too. With StreamerSongList, the next song in the queue is named too (`Up next: "Title" by Artist.`): its title and artist only, and nothing when the queue is empty. Nothing else is sent, never who requested a song, and paused bubbles aren't shared. When the song list has shown the same song for longer than `STALE_SONG_MINUTES` ([Bubbles on screen](#bubbles-on-screen)), the facts are replaced by a note that the song may have changed, until the next song starts. Each change the other app takes is logged with the song and how many facts (`[Share] Shared "Title": 3 facts`), and failures by reason only; the key and the address are never logged.
 
 Each request is a POST with `Authorization: Bearer <key>` and a JSON body:
 

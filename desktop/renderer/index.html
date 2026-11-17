@@ -539,6 +539,9 @@
           </div>
           <p class="hint" id="s-facts-hint">BubbleFacts finds up to 4 facts for a song. A higher number makes room for your own, which can go past that.</p>
           <p class="hint" id="s-timing-hint"></p>
+          <label for="s-stale">Take a song as over after (minutes) <span class="hint">from 5 to 60</span></label>
+          <input id="s-stale" name="staleMinutes" type="number" min="5" max="60" aria-describedby="s-stale-hint">
+          <p class="hint" id="s-stale-hint">If your song list still shows the same song after this long, BubbleFacts stops its bubbles and sharing until your next song. Play long medleys? Set it higher.</p>
           <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
           <select id="s-wrongkey" name="wrongKey">
             <option value="off">Off</option>

@@ -22,7 +22,7 @@ import { AiredFacts } from "./aired-facts";
 import { creditLead, creditText, planCredit, restoredCredit } from "./credit";
 import { ObsStreaming, isDrewMessage, parseOverlayMessage, watchForStatus } from "./obs-streaming";
 import { SongFactSharer } from "./share-song-facts";
-import { STALE_NOTICE, StaleSongWatch } from "./stale-song";
+import { STALE_NOTICE, staleAfterMs, StaleSongWatch } from "./stale-song";
 import { coverage, Preparer, PrepTarget } from "./preparer";
 import { preparedStore } from "./prepared-facts";
 import { playHistory } from "./play-history";
@@ -144,7 +144,7 @@ const staleSong = new StaleSongWatch((entry) => {
   console.log(`[Server] "${songList.displayTitle(entry)}" has been on the list longer than a song lasts: no more bubbles or shared facts for it until the song changes`);
   for (const ws of clients.keys()) send(ws, { type: "clear" });
   shareNow();
-});
+}, (entry) => staleAfterMs(entry, config.staleSongMinutes));
 
 /** `credit`: goes to the overlay ahead of a facts_ready batch, never into the song's record */
 function broadcast(payload: FactsPayload, credit?: Fact): void {
