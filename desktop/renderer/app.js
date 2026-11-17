@@ -1277,7 +1277,12 @@
     $("#s-look-preview").hidden = !look;
     if (!look) return;
     $("#look-preview-name").textContent = look.name + (look.author ? " by " + look.author : "");
-    for (const [key, value] of Object.entries(look.values)) if (/^--bf-[a-z0-9-]+$/.test(key)) sample.style.setProperty(key, String(value));
+    for (const [key, value] of Object.entries(look.values)) {
+      if (!/^--bf-[a-z0-9-]+$/.test(key)) continue;
+      // The icon is kept as its character: CSS takes it as a string
+      const css = key === "--bf-icon" ? '"' + Array.from(String(value)).map((c) => "\\" + c.codePointAt(0).toString(16) + " ").join("") + '"' : String(value);
+      sample.style.setProperty(key, css);
+    }
   }
 
   function lookResult(r) {

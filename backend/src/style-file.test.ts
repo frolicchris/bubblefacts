@@ -42,7 +42,7 @@ describe("a Style file", () => {
           "--bf-font": "'Georgia', 'Times New Roman', serif",
           "--bf-weight": "700",
           "--bf-radius": "12px",
-          "--bf-icon": '"\\266a "',
+          "--bf-icon": "♪",
           "--bf-bg-1": "rgba(40, 10, 60, 0.95)",
           "--bf-bg-2": "#2a0a3c",
           "--bf-text": "#ffffff",
@@ -54,13 +54,61 @@ describe("a Style file", () => {
     });
   });
 
-  it("reads its own output again, unchanged", () => {
-    const first = checkStyleLook(good);
+  it("reads its own output again, unchanged, icon included: what Use this look, the saved settings and the server each do", () => {
+    const first = readStyleFile(JSON.stringify(good), "2.3.0");
     if (!first.ok) throw new Error(first.reason);
-    // The icon is kept as CSS escapes, which a file doesn't hold: all the rest round-trips
-    const { "--bf-icon": _icon, ...values } = first.look.values;
-    const second = checkStyleLook({ ...first.look, values });
-    expect(second).toEqual({ ok: true, look: { ...first.look, values } });
+    expect(first.look.values["--bf-icon"]).toBe("♪");
+    // Use this look, then the settings file read back
+    const used = checkStyleLook(first.look, "2.3.0");
+    expect(used).toEqual(first);
+    const stored = checkStyleLook(JSON.parse(JSON.stringify(first.look)));
+    expect(stored).toEqual(first);
+    // And on to the server, as text in its environment
+    const sent = styleFrom("classic", "", "", undefined, { file: JSON.stringify(first.look) });
+    expect(sent.look).toEqual({ name: "Sunset Set", values: first.look.values });
+    for (const icon of ["★", "❤️", "🎷", "♥\uFE0E"]) {
+      const again = checkStyleLook(file({}, { "--bf-icon": icon }));
+      if (!again.ok) throw new Error(again.reason);
+      expect(checkStyleLook(again.look)).toEqual(again);
+    }
+  });
+
+  it("ends every font list in a plain font, once", () => {
+    const fonts = (value: string) => (checkStyleLook(file({}, { "--bf-font": value })) as { look: { values: Record<string, string> } }).look.values["--bf-font"];
+    expect(fonts("Georgia")).toBe("'Georgia', sans-serif");
+    expect(fonts("'Comic Neue', cursive")).toBe("'Comic Neue', cursive, sans-serif");
+    expect(fonts(fonts("Georgia"))).toBe("'Georgia', sans-serif");
+    expect(fonts("Menlo, monospace")).toBe("'Menlo', monospace");
+  });
+
+  it.each(["Webdings", "Wingdings 2, sans-serif", "'Zapf Dingbats'", "Symbol", "Marlett", "Segoe MDL2 Assets", "Material Icons", "Georgia, webdings"])("refuses %s, a font that draws pictures in place of letters", (font) => {
+    expect(reason(checkStyleLook(file({}, { "--bf-font": font }), "2.3.0"))).toBe("That Style file has a value BubbleFacts can't use for --bf-font.");
+  });
+
+  it.each([
+    ["three text-colored copies far from the words", "--bf-text-shadow", "6px 0 0 #f2f2f2, -6px 0 0 #f2f2f2, 0 6px 0 #f2f2f2", /can't use for --bf-text-shadow/],
+    ["three shadows", "--bf-text-shadow", "1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000", /can't use for --bf-text-shadow/],
+    ["a shadow far from the words", "--bf-text-shadow", "6px 0 0 #000000", /can't use for --bf-text-shadow/],
+    ["a text-colored copy beside the words", "--bf-text-shadow", "2px 0 0 #ffffff", /shadow would make the words hard to read/],
+    ["a near-text-colored copy, blurred a little", "--bf-text-shadow", "3px 3px 2px #f2f2f2", /shadow would make the words hard to read/],
+    ["a title-colored copy on the Now Playing card", "--bf-toast-glow", "-2px 2px 0 #ffd700", /shadow would make the words hard to read/],
+  ])("refuses %s", (_what, key, value, line) => {
+    expect(reason(checkStyleLook(file({}, { [key]: value }), "2.3.0"))).toMatch(line);
+  });
+
+  it("keeps a dark drop shadow under light text, and a glow in the text's own color", () => {
+    expect(checkStyleLook(file({}, { "--bf-text-shadow": "2px 2px 0 rgba(0, 0, 0, 0.9), 0 0 6px #ffffff", "--bf-toast-glow": "0 0 6px rgba(255, 215, 0, 0.4)" })).ok).toBe(true);
+  });
+
+  it.each([["a Hangul filler", "\u3164"], ["a zero-width space", "\u200B"], ["a zero-width joiner", "\u200D"], ["a space", " "], ["a wide space", "\u3000"], ["a braille blank", "\u2800"], ["a mark alone", "\uFE0F"], ["nothing", ""], ["a CSS escape", "\\266a "], ["a quoted escape", '"\\266a "']])("refuses %s as the icon", (_what, icon) => {
+    expect(reason(checkStyleLook(file({}, { "--bf-icon": icon }), "2.3.0"))).toBe("That Style file has a value BubbleFacts can't use for --bf-icon.");
+  });
+
+  it("says a file from a later version with a setting it doesn't know needs a newer BubbleFacts", () => {
+    const later = file({ madeFor: "2.4.0" }, { "--bf-shimmer": "#ffffff" });
+    expect(reason(checkStyleLook(later, "2.3.0-beta.1"))).toBe("That Style file needs a newer BubbleFacts. Update, then try again.");
+    expect(reason(checkStyleLook(later, "2.4.1"))).toMatch(/a setting BubbleFacts doesn't use: --bf-shimmer/);
+    expect(reason(checkStyleLook(file({ madeFor: "2.3.0" }, { "--bf-shimmer": "#ffffff" }), "2.3.0"))).toMatch(/a setting BubbleFacts doesn't use/);
   });
 
   it("keeps a name and author short and plain", () => {
@@ -133,8 +181,9 @@ describe("a Style file", () => {
     ["--bf-letter-spacing", "40em"],
     ["--bf-letter-spacing", "-1em"],
     ["--bf-text-shadow", "0 0 0 9999px #000"],
+    ["--bf-bg-1", "image-se\\74(x)"],
     ["--bf-text-shadow", "0 2px 4px url(x)"],
-    ["--bf-toast-glow", "inset 0 0 4px #000, 0 0 4px #000, 0 0 4px #000, 0 0 4px #000"],
+    ["--bf-toast-glow", "inset 0 0 4px #000"],
     ["--bf-text", { toString: "x" }],
     ["--bf-text", null],
     ["--bf-text", "#fff" + " ".repeat(300)],

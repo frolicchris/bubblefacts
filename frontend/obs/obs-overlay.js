@@ -222,9 +222,13 @@
 
   // An imported Style file (#402). The server checked it; the overlay checks again and, at any
   // doubt, shows the streamer's own Style instead. Only --bf- values, never sizes, and no CSS
-  // function but rgb()/rgba(), so nothing can fetch a file or hide a bubble
+  // function but rgb()/rgba() and no backslash (a CSS escape could spell another), so nothing can
+  // fetch a file or hide a bubble
   const LOOK_KEY = /^--bf-[a-z0-9-]{1,40}$/;
-  const LOOK_VALUE = /^[#\w .,%()'"\\-]{1,300}$/;
+  const LOOK_VALUE = /^[#\w .,%()'"-]{1,300}$/;
+  // One visible character, as STYLE_ICON in style-file.ts; written here as a CSS string
+  const LOOK_ICON = /^[^\p{C}\p{Z}\p{M}"'\\\u3164\u115F\u1160\uFFA0\u2800](?:\uFE0E|\uFE0F)?$/u;
+  const iconString = (icon) => '"' + Array.from(icon).map((c) => "\\" + c.codePointAt(0).toString(16) + " ").join("") + '"';
   const LOOK_SIZES = ["--bf-scale", "--bf-vertical-scale"];
 
   function lookCss(look, iconChosen) {
@@ -234,13 +238,15 @@
     if (!keys.length || keys.length > 40) return "";
     const safe = keys.every((k) => {
       const v = values[k];
-      if (!LOOK_KEY.test(k) || LOOK_SIZES.includes(k) || typeof v !== "string" || !LOOK_VALUE.test(v)) return false;
+      if (!LOOK_KEY.test(k) || LOOK_SIZES.includes(k) || typeof v !== "string") return false;
+      if (k === "--bf-icon") return LOOK_ICON.test(v);
+      if (!LOOK_VALUE.test(v)) return false;
       return (v.match(/[a-z-]+\s*\(/gi) || []).every((fn) => /^rgba?\($/i.test(fn));
     });
     if (!safe) return "";
     // The app's Icon setting still wins over a look's icon
     const shown = keys.filter((k) => !(iconChosen && k === "--bf-icon"));
-    return ":where(html) {\n" + shown.map((k) => "  " + k + ": " + values[k] + ";").join("\n") + "\n}";
+    return ":where(html) {\n" + shown.map((k) => "  " + k + ": " + (k === "--bf-icon" ? iconString(values[k]) : values[k]) + ";").join("\n") + "\n}";
   }
 
   const rgbaOf = (hex, alpha) =>

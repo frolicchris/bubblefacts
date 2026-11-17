@@ -18,6 +18,7 @@ jest.mock("electron", () => ({
   },
 }));
 
+import { checkStyleLook, readStyleFile } from "./style-file";
 import { customFactsProblem, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
@@ -546,6 +547,18 @@ describe("an imported look (issue #402)", () => {
     expect(JSON.parse(styleEnv(withLook).BUBBLE_STYLE_FILE)).toEqual(look);
     const env = (s: typeof DEFAULTS) => ({ AI_PROVIDER: "none", ...styleEnv(s) });
     expect(serverSettingsSignature(env(withLook), withLook)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
+  });
+
+  it("keeps a look with an icon through Use this look, the settings file and the next start", () => {
+    const read = readStyleFile(JSON.stringify({ bubblefacts: "style", name: "Sunset Set", madeFor: "2.3.0", values: { ...look.values, "--bf-icon": "♪" } }), "2.3.0");
+    if (!read.ok) throw new Error(read.reason);
+    const used = checkStyleLook(read.look, "2.3.0");
+    if (!used.ok) throw new Error(used.reason);
+    saveSettings(sanitize({ ...DEFAULTS, styleLook: used.look }));
+    const loaded = loadSettings();
+    expect(loaded.styleLook).toEqual(read.look);
+    expect(loaded.styleLook?.values["--bf-icon"]).toBe("♪");
+    expect(JSON.parse(styleEnv(loaded).BUBBLE_STYLE_FILE).values["--bf-icon"]).toBe("♪");
   });
 
   it("drops a saved look that no longer passes the checks, so a hand-edited settings file can't break the bubbles", () => {

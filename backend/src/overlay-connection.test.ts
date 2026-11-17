@@ -168,7 +168,7 @@ describe("bubble Styles (issue #177)", () => {
   });
 
   describe("an imported look (issue #402)", () => {
-    const look = { name: "Sunset Set", values: { "--bf-bg-1": "rgba(40, 10, 60, 0.95)", "--bf-text": "#ffffff", "--bf-font": "'Georgia', serif", "--bf-icon": '"\\266a "' } };
+    const look = { name: "Sunset Set", values: { "--bf-bg-1": "rgba(40, 10, 60, 0.95)", "--bf-text": "#ffffff", "--bf-font": "'Georgia', serif", "--bf-icon": "♪" } };
 
     it("goes on Classic in place of the Style and the streamer's colors, and comes off again", () => {
       const o = overlay();
@@ -201,6 +201,10 @@ describe("bubble Styles (issue #177)", () => {
       ["another setting's value", { "--bf-bg-1": "var(--bf-text)" }],
       ["a way out of the rule", { "--bf-bg-1": "red; } .popup-bubble { display: none } :root {" }],
       ["an import", { "--bf-font": "x; @import 'https://example.com/a.css'" }],
+      ["a CSS escape that spells a function", { "--bf-bg-1": "image-se\\74(x)" }],
+      ["an escaped icon", { "--bf-icon": '"\\266a "' }],
+      ["a blank icon", { "--bf-icon": "\u3164" }],
+      ["an icon that leaves its quotes", { "--bf-icon": '"' }],
       ["a text size", { "--bf-scale": "3" }],
       ["a property that isn't a --bf- setting", { display: "none" }],
       ["a selector as a name", { "--bf-x } .popup-bubble { opacity: 0 } :root { --y": "1" }],

@@ -83,7 +83,7 @@ first, and **Go back to my Style** takes the look off again.
 
 - Save it with a name ending in `.json`. `madeFor` is the BubbleFacts version you made it on.
 - `values` holds only the `--bf-` settings in the table above, except the two sizes. Anything you leave out stays as Classic.
-- Colors are written `#rrggbb`, `rgb(...)` or `rgba(...)`. Text colors are solid. Fonts are named, and must already be on the streamer's computer. The icon is one character.
+- Colors are written `#rrggbb`, `rgb(...)` or `rgba(...)`. Text colors are solid. Fonts are named, and must already be on the streamer's computer; picture fonts like Webdings are refused, and a plain font is added at the end. The icon is one visible character. A shadow stays within 3px of the words, two at most, and isn't a second copy of them in the text's own color.
 - A file can't hold selectors, other CSS, web addresses or text sizes.
 - The app refuses a file it can't read, one made for a version before 2.3.0, and one whose text is under 4.5:1 on its own background. The streamer's look stays as it was.
 - OBS's Custom CSS box still wins over an imported look.

@@ -61,38 +61,62 @@ function measure(raw: string, unit: "px" | "em", min: number, max: number): numb
 
 const GENERIC_FONTS = ["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui", "ui-serif", "ui-sans-serif", "ui-monospace", "ui-rounded", "-apple-system"];
 
-/** Fonts already on the computer, by name: there is no way to name a file or a web address */
+/** Generic fonts that always show letters as letters */
+const READABLE_FONTS = ["serif", "sans-serif", "monospace", "system-ui"];
+/** Fonts that draw pictures in place of letters (Webdings, Wingdings 2, Symbol, icon fonts): a fact would be unreadable. Known names only */
+const SYMBOL_FONT = /dings|dingbat|^symbol$|marlett|mdl2|icons?$|font ?awesome|bookshelf symbol|mt extra|ms outlook|emoji/i;
+
+/**
+ * Fonts already on the computer, by name: there is no way to name a file or a web address. Always
+ * ends in a plain generic font, for a computer without the named ones
+ */
 function fontCss(raw: string): string | null {
   const families = raw.split(",").map((f) => f.trim().replace(/^(['"])(.*)\1$/, "$2").trim());
-  if (!families.length || families.length > 8) return null;
-  if (!families.every((f) => /^-?[A-Za-z0-9][A-Za-z0-9 _-]{0,40}$/.test(f))) return null;
+  if (!families.every((f) => /^-?[A-Za-z0-9][A-Za-z0-9 _-]{0,40}$/.test(f)) || families.some((f) => SYMBOL_FONT.test(f))) return null;
+  if (!READABLE_FONTS.includes(families[families.length - 1].toLowerCase())) families.push("sans-serif");
+  if (families.length > 8) return null;
   return families.map((f) => (GENERIC_FONTS.includes(f.toLowerCase()) ? f.toLowerCase() : `'${f}'`)).join(", ");
 }
 
-/** `none`, or up to three shadows of `x y [blur] color` */
-function shadowCss(raw: string): string | null {
+interface Shadow { x: number; y: number; blur: number; color: Color }
+
+const MAX_SHADOWS = 2;       // one drop shadow and one glow
+const MAX_SHADOW_OFFSET = 3; // px; Retro game's hard shadow is 2
+
+/** The shadows of `none` or `x y [blur] color, ...`: a few, close to the text, else null */
+function parseShadows(raw: string): Shadow[] | null {
   const value = raw.trim().toLowerCase().replace(/\s+/g, " ");
-  if (value === "none") return "none";
+  if (value === "none") return [];
   const parts = value.split(/,(?![^(]*\))/).map((p) => p.trim());
-  if (parts.length > 3) return null;
-  const out: string[] = [];
+  if (parts.length > MAX_SHADOWS) return null;
+  const out: Shadow[] = [];
   for (const part of parts) {
     const m = /^(\S+) (\S+)(?: (-?[\d.]+(?:px)?))? ([#a-z].*)$/.exec(part);
     if (!m) return null;
-    const x = measure(m[1], "px", -6, 6);
-    const y = measure(m[2], "px", -6, 6);
+    const x = measure(m[1], "px", -MAX_SHADOW_OFFSET, MAX_SHADOW_OFFSET);
+    const y = measure(m[2], "px", -MAX_SHADOW_OFFSET, MAX_SHADOW_OFFSET);
     const blur = m[3] === undefined ? 0 : measure(m[3], "px", 0, 24);
     const color = parseColor(m[4], true);
     if (x === null || y === null || blur === null || !color) return null;
-    out.push(`${x}px ${y}px ${blur}px ${colorCss(color)}`);
+    out.push({ x, y, blur, color });
   }
-  return out.join(", ");
+  return out;
 }
 
-/** One character (an emoji may carry its variation mark), written as CSS escapes */
+function shadowCss(raw: string): string | null {
+  const shadows = parseShadows(raw);
+  if (!shadows) return null;
+  return shadows.length ? shadows.map((s) => `${s.x}px ${s.y}px ${s.blur}px ${colorCss(s.color)}`).join(", ") : "none";
+}
+
+/**
+ * One visible character, kept as itself (an emoji may carry its variation mark). The overlay writes
+ * it as a CSS string. Not blank ones: spaces, zero-width and filler characters, or a mark alone
+ */
+export const STYLE_ICON = /^[^\p{C}\p{Z}\p{M}"'\\\u3164\u115F\u1160\uFFA0\u2800](?:\uFE0E|\uFE0F)?$/u;
+
 function iconCss(raw: string): string | null {
-  if (!/^[^\p{C}\p{Z}"'\\]{1,2}$/u.test(raw)) return null;
-  return `"${[...raw].map((c) => `\\${c.codePointAt(0)!.toString(16)} `).join("")}"`;
+  return STYLE_ICON.test(raw) ? raw : null;
 }
 
 type Kind = "background" | "text" | "color" | "radius" | "width" | "spacing" | "weight" | "font" | "shadow" | "icon";
@@ -213,6 +237,19 @@ const PAIRS: Array<[text: string, backgrounds: string[]]> = [
   ["--bf-live-learn", ["--bf-toast-bg-1", "--bf-toast-bg-2"]],
 ];
 
+/** A shadow that is a second copy of the words: set off from them, solid enough to see, in nearly their color */
+const SHADOW_MIN_CONTRAST = 3;
+const SHADOWS: Array<[shadow: string, text: string]> = [["--bf-text-shadow", "--bf-text"], ["--bf-toast-glow", "--bf-toast-text"]];
+
+function smears(values: Record<string, string>): boolean {
+  return SHADOWS.some(([shadow, text]) => {
+    const t = parseColor(values[text] ?? CLASSIC[text], false)!;
+    return (parseShadows(values[shadow] ?? "none") ?? []).some(
+      (s) => (s.x !== 0 || s.y !== 0) && s.color.a >= 0.3 && contrast([s.color.r, s.color.g, s.color.b], [t.r, t.g, t.b]) < SHADOW_MIN_CONTRAST
+    );
+  });
+}
+
 function readable(values: Record<string, string>): "ok" | "see-through" | "contrast" {
   const color = (key: string) => parseColor(values[key] ?? CLASSIC[key], false)!;
   for (const [text, backgrounds] of PAIRS) {
@@ -267,6 +304,8 @@ export function checkStyleLook(raw: unknown, appVersion?: string): StyleFileResu
   for (const [key, value] of entries) {
     const kind = Object.prototype.hasOwnProperty.call(SETTINGS, key) ? SETTINGS[key] : undefined;
     const shown = key.replace(/[^a-z0-9-]/gi, "").slice(0, 40);
+    // A setting from a later version, not a mistake
+    if (!kind && app && older([app[0], app[1], 0], [madeFor[0], madeFor[1], 0])) return refuse("That Style file needs a newer BubbleFacts. Update, then try again.");
     if (!kind) return refuse(`That Style file has a setting BubbleFacts doesn't use: ${shown || "one with no name"}.`);
     const text = typeof value === "number" ? String(value) : value;
     const css = typeof text === "string" && text.length <= 200 ? valueCss(kind, text) : null;
@@ -276,6 +315,7 @@ export function checkStyleLook(raw: unknown, appVersion?: string): StyleFileResu
   const verdict = readable(checked);
   if (verdict === "see-through") return refuse("That Style's background is too see-through to read on stream.");
   if (verdict === "contrast") return refuse("That Style's text is too hard to read on its background.");
+  if (smears(checked)) return refuse("That Style's shadow would make the words hard to read.");
   // In the order above, whatever order the file used
   const values: Record<string, string> = {};
   for (const key of STYLE_FILE_SETTINGS) if (key in checked) values[key] = checked[key];
