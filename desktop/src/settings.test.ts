@@ -19,7 +19,7 @@ jest.mock("electron", () => ({
 }));
 
 import { checkStyleLook, readStyleFile } from "./style-file";
-import { customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -746,5 +746,63 @@ describe("how long a song may stay on the list before it's taken as over (#451)"
     for (const bad of [0, 4, 61, 600, -10, NaN, Infinity, "ten" as unknown as number, undefined as unknown as number]) {
       expect(sanitize({ ...DEFAULTS, staleMinutes: bad }).staleMinutes).toBe(10);
     }
+  });
+});
+
+describe("Save my look as a Style file", () => {
+  const personal = {
+    channel: "made_up_channel", seChannel: "made_up_se", token: "tok-secret-123", refreshToken: "ref-secret-456", seJwt: "jwt-secret-789", groqKey: "gsk-secret", anthropicKey: "sk-ant-secret",
+    shareKey: "share-secret", shareUrl: "https://example.test/facts", nowPlayingFile: "/Users/made-up-person/Music/now-playing.txt", myFacts: ["Made-Up Song | A private fact"], twitchLogin: "made_up_twitch",
+  };
+  const mine = sanitize({ ...DEFAULTS, ...personal, bubbleStyle: "retro", bubbleIcon: "moon", customColors: true, accentColor: "#ff8800", backgroundColor: "#101030" } as Settings);
+
+  it("holds the look and nothing personal: no channel, account, key, path or other setting", () => {
+    const saved = styleFileOf(mine, "Night Set", "", "2.3.0");
+    if (!saved.ok) throw new Error(saved.reason);
+    const file = JSON.parse(saved.text);
+    expect(Object.keys(file)).toEqual(["bubblefacts", "format", "name", "madeFor", "values"]);
+    expect(Object.keys(file.values).every((key) => key.startsWith("--bf-"))).toBe(true);
+    for (const value of [...Object.values(personal).flat(), os.homedir(), os.userInfo().username, os.hostname()]) expect(saved.text).not.toContain(String(value));
+    expect(saved.text).not.toMatch(/https?:|[\\/]Users[\\/]|@/);
+    // The same file whoever saves it
+    expect(styleFileOf({ ...DEFAULTS, bubbleStyle: "retro", bubbleIcon: "moon", customColors: true, accentColor: "#ff8800", backgroundColor: "#101030" }, "Night Set", "", "2.3.0")).toEqual(saved);
+  });
+
+  it("round trip: the saved file imports, and shows the colors, font, corners and icon that were on stream", () => {
+    const saved = styleFileOf(mine, "Night Set", "A Made-Up Maker", "2.3.0");
+    if (!saved.ok) throw new Error(saved.reason);
+    const read = readStyleFile(saved.text, "2.3.0");
+    if (!read.ok) throw new Error(read.reason);
+    expect(read.look).toMatchObject({ name: "Night Set", author: "A Made-Up Maker", madeFor: "2.3.0" });
+    expect(read.look.values).toMatchObject({ "--bf-bg-1": "#101030", "--bf-accent": "#ff8800", "--bf-text": "#ffffff", "--bf-radius": "0px", "--bf-icon": "☾" });
+    expect(read.look.values["--bf-font"]).toContain("monospace");
+    // Used, then saved again: the same values
+    const using = sanitize({ ...DEFAULTS, styleLook: read.look });
+    const again = styleFileOf(using, "Night Set", "A Made-Up Maker", "2.3.0");
+    expect(again.ok && again.look).toEqual(read.look);
+  });
+
+  it("leaves own colors out when Use my own colors is off", () => {
+    const saved = styleFileOf({ ...mine, customColors: false }, "x", "", "2.3.0");
+    expect(saved.ok && saved.look.values["--bf-bg-1"]).toBe("rgba(0, 0, 0, 0.94)");
+  });
+
+  it("saves an imported look as it is shown: its own values, not the Style under it, with the Icon setting on top", () => {
+    const look = { name: "Sunset Set", author: "A Made-Up Maker", madeFor: "2.3.0", values: { "--bf-bg-1": "#2a0a3c", "--bf-bg-2": "#2a0a3c", "--bf-text": "#ffffff", "--bf-icon": "♪" } };
+    const asIs = styleFileOf(sanitize({ ...mine, bubbleIcon: "style", styleLook: look }), "Sunset Set", "", "2.3.0");
+    if (!asIs.ok) throw new Error(asIs.reason);
+    expect(asIs.look.values).toEqual(look.values);
+    // The maker's name isn't carried along unless the streamer adds one
+    expect(asIs.look.author).toBe("");
+    const withIcon = styleFileOf(sanitize({ ...mine, bubbleIcon: "diamond", styleLook: look }), "Sunset Set", "", "2.3.0");
+    expect(withIcon.ok && withIcon.look.values).toEqual({ ...look.values, "--bf-icon": "◆" });
+    const rotating = styleFileOf(sanitize({ ...mine, bubbleIcon: "notes", styleLook: look }), "Sunset Set", "", "2.3.0");
+    expect(rotating.ok && rotating.look.values).not.toHaveProperty("--bf-icon");
+  });
+
+  it("names the file from the look's name, in plain characters", () => {
+    expect(styleFileName("Night Set!")).toBe("night-set.json");
+    expect(styleFileName("../../etc/passwd")).toBe("etc-passwd.json");
+    expect(styleFileName("夜")).toBe("my-look.json");
   });
 });

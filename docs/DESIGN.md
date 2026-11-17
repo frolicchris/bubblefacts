@@ -62,6 +62,17 @@ A Style file is a look a musician or DJ can import in the app, with no CSS to
 paste: **Settings**, **Bubbles**, **Import a look…**. The app shows a preview
 first, and **Go back to my Style** takes the look off again.
 
+The quickest way to make one is in the app: set up the Style, colors and icon
+you like, click **Save**, then **Save my look as a Style file…**. Give the look
+a name (your own name is optional, and left out unless you check **Add my name
+to the file**) and choose where to save it. The file holds the look on stream
+and nothing else: no channel, account or other setting. If you are showing an
+imported look, that look is what gets saved, with your Icon choice on top.
+
+Three **Ready-made looks** come with the app, in the list next to Import:
+Stage Lights, Record Sleeve and Neon Booth. They are Style files too
+(`desktop/looks/`), good starting points for one of your own.
+
 ```json
 {
   "bubblefacts": "style",

@@ -3,6 +3,7 @@ import { answerAbout, factsFromAbout, getCategory, getChannel, TWITCH_CLIENT_ID,
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import { checkStyleLook, readStyleFile, STYLE_FILE_MAX_BYTES } from "./style-file";
+import { readReadyLook } from "./ready-looks";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -20,7 +21,7 @@ import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
   BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  serverSettingsSignature, toServerEnv, writeMyPack,
+  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
@@ -749,6 +750,28 @@ handle("import-look", async () => {
   const result = readStyleFile(text, app.getVersion());
   if (!result.ok) console.warn(`[App] Style file refused: ${result.reason}`);
   return result.ok ? { ok: true, look: result.look } : { ok: false, message: `${result.reason} ${LOOK_KEPT}` };
+});
+
+/** One of the looks that come with the app, by its name in the list (never a path); previewed like an imported one */
+handle("ready-look", (_e, id: unknown) => {
+  const result = readReadyLook(path.join(ROOT, "desktop/looks"), id, app.getVersion());
+  if (!result.ok) console.warn(`[App] Ready-made look refused: ${result.reason}`);
+  return result.ok ? { ok: true, look: result.look } : { ok: false, message: `${result.reason} ${LOOK_KEPT}` };
+});
+
+/** Save the look on stream now as a Style file to share. The window gives a name and, if wanted, an author; the app picks what goes in and where */
+handle("save-look", async (_e, name: unknown, author: unknown) => {
+  const file = styleFileOf(settings, name, author, app.getVersion());
+  if (!file.ok) return { ok: false, message: `${file.reason} Nothing was saved.` };
+  const options = { title: "Save your look as a Style file", defaultPath: path.join(app.getPath("documents"), styleFileName(file.look.name)), filters: [{ name: "BubbleFacts Style", extensions: ["json"] }] };
+  const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+  if (canceled || !filePath) return { ok: false, message: "" };
+  try {
+    writeFileAtomic(filePath, file.text);
+  } catch (err) {
+    return { ok: false, message: shown("Save my look", err, { fallback: "BubbleFacts couldn't save the file there. Choose another folder, then try again." }) };
+  }
+  return { ok: true, message: `Saved ${file.look.name} to ${path.basename(filePath)}. Share that file with any musician or DJ.` };
 });
 
 /** Show the previewed look on stream. Checked again: the window only hands back what it was given */

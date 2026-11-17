@@ -204,6 +204,8 @@ legend { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 4
 /* A shared look before it goes on stream: the sample reads the look's own --bf- values, with Classic's where it is silent. */
 #s-look { margin: 10px 0; }
 #s-look-by { margin-left: 8px; }
+#s-look .row { flex-wrap: wrap; }
+#s-look-save input[type="text"] { width: 100%; max-width: 320px; }
 .look-preview { margin: 10px 0; padding: 12px; border: 1px solid #3a4290; border-radius: 8px; }
 .look-sample { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: 10px 0 14px; padding: 16px; border-radius: 6px; background: linear-gradient(135deg, #2b2f3a, #6b7280); }
 .look-bubble { position: relative; max-width: 320px; padding: 10px 14px 10px 34px; font: var(--bf-weight, 600) 15px/1.4 var(--bf-font, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif); letter-spacing: var(--bf-letter-spacing, 0.01em); color: var(--bf-text, #f2f2f2); text-shadow: var(--bf-text-shadow, 0 2px 4px rgba(0, 0, 0, 0.9)); background: linear-gradient(180deg, var(--bf-bg-1, rgba(10, 10, 60, 0.94)), var(--bf-bg-2, rgba(20, 20, 90, 0.94))); border: var(--bf-border-width, 3px) solid var(--bf-accent, #5b6ee1); border-radius: var(--bf-radius, 6px); box-shadow: 0 0 0 var(--bf-outline-width, 2px) var(--bf-outline, rgba(91, 110, 225, 0.3)); }

@@ -87,6 +87,7 @@
       "dist/desktop/**/*.js",
       "desktop/renderer/**/*",
       "desktop/build/*.png",
+      "desktop/looks/*.json",
       "frontend/obs/**/*",
       "topics/*.json",
       "!node_modules/node-llama-cpp/llama/gitRelease.bundle",
