@@ -127,7 +127,15 @@ const sharer = config.shareFactsUrl && config.shareFactsKey && config.shareFacts
 
 /** Gives the sharer what's on stream now: the song as it starts, then its facts; nothing while paused, and without facts taken off */
 function shareNow(): void {
-  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], { stale: staleSong.stale });
+  sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], { stale: staleSong.stale, next: nextSongName() });
+}
+
+/** The next song in the queue for the sharer (#448): its title and artist only, never who requested it */
+function nextSongName(): { title: string; artist: string } | null {
+  const entry = songList.getNextSong?.() ?? null;
+  if (!entry) return null;
+  const { title, artist } = songList.toSong(entry);
+  return { title, artist };
 }
 
 // The list nobody advanced (#451): past the time a song plausibly lasts, its bubbles stop and the sharer says
@@ -839,6 +847,8 @@ app.get("/recent", (_req, res) => {
 songList.onCurrentSongChange((current) => {
   onSongChange(current).catch((err) => console.error("[Server] Song change failed:", err));
 });
+// The queue behind the song on now changed: only the sharer cares (#448)
+songList.onNextSongChange?.(() => shareNow());
 
 // Listen before connecting upstream, so a slow API never delays the overlay's socket
 server.listen(config.port, config.host, () => {

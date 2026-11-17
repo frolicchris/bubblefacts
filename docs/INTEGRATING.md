@@ -34,6 +34,12 @@ the artist follows `by` when one is known.
 What the text can hold:
 
 - **The song.** Title, and artist when known.
+- **The next song**, when the streamer's queue has one: `Up next: "Second
+  Song" by Someone Else.` right after the song, by name only. Its facts come
+  when it starts.
+- **A song that may be over.** When the streamer's list has shown one song
+  far longer than a song lasts, the text starts `BubbleFacts isn't sure
+  what's playing right now.` and carries no facts, until the next song.
 - **Checked facts.** From Wikipedia, Wikidata or MusicBrainz, with the sources
   they came from named.
 - **An artist's own words.** Lines that start `From their Twitch About:`.

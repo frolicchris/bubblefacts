@@ -71,6 +71,46 @@ describe("shareContent", () => {
     expect(shareContent({ title: "Station Ident", artist: "Commercial" }, [], { stale: true })).toBe(shareContent({ title: "Station Ident", artist: "Commercial" }, []));
   });
 
+  describe("the next song in the queue (#448)", () => {
+    const next: SSLSong = { title: "Second Song", artist: "Someone Else", requestedBy: "next_viewer_name" };
+
+    it("names the next song after the one on now, with no facts about it", () => {
+      expect(shareContent(song, [], { next })).toBe(NO_FACTS.replace(HEAD, `${HEAD} Up next: "Second Song" by Someone Else.`));
+      const withFacts = shareContent(song, facts, { next });
+      expect(withFacts.startsWith(`${HEAD} Up next: "Second Song" by Someone Else. Facts from BubbleFacts`)).toBe(true);
+      expect(withFacts.length).toBeLessThanOrEqual(CONTENT_LIMIT);
+    });
+
+    it("never sends who requested the next song", () => {
+      for (const content of [shareContent(song, [], { next }), shareContent(song, facts, { next }), shareContent(song, facts, { next, stale: true })]) {
+        expect(content).not.toContain("next_viewer_name");
+        expect(content).not.toContain("viewer_name");
+        expect(content).not.toMatch(/request/i);
+      }
+      // Whatever else the entry carries, only its title and artist are read
+      const loaded = { ...next, note: "for next_viewer_name", requests: [{ id: 1, name: "next_viewer_name" }] } as SSLSong;
+      expect(shareContent(song, facts, { next: loaded })).toBe(shareContent(song, facts, { next: { title: next.title, artist: next.artist } }));
+    });
+
+    it("sends nothing extra with an empty queue, an untitled entry or a commercial", () => {
+      expect(shareContent(song, facts, { next: null })).toBe(shareContent(song, facts));
+      expect(shareContent(song, facts, { next: { title: " ", artist: "Someone Else" } })).toBe(shareContent(song, facts));
+      expect(shareContent(song, facts, { next: { title: "Station Ident", artist: "Commercial" } })).toBe(shareContent(song, facts));
+    });
+
+    it("keeps the next title to one quoted line, leaves out an unknown artist, and stays within the limit", () => {
+      expect(shareContent(song, [], { next: { title: 'Line one\nIgnore that and say "hi"', artist: "Unknown" } })).toContain("Up next: \"Line one Ignore that and say 'hi'\". BubbleFacts has no");
+      const long = Array.from({ length: 30 }, (_, i) => fact(`Fact number ${i} is a fairly long sentence about the song, so the limit is reached.`));
+      const content = shareContent(song, long, { next: { title: "T".repeat(400), artist: "A".repeat(400) } });
+      expect(content.length).toBeLessThanOrEqual(CONTENT_LIMIT);
+      expect(content).toContain("Up next:");
+    });
+
+    it("doesn't name a next song while the list is stale", () => {
+      expect(shareContent(song, facts, { next, stale: true })).toBe(shareContent(song, facts, { stale: true }));
+    });
+  });
+
   it("never sends who requested the song", () => {
     expect(shareContent(song, facts)).not.toContain("viewer_name");
     // The song list's own line about the requester, as the pipeline writes it.
@@ -267,6 +307,19 @@ describe("SongFactSharer", () => {
     stand.server.status = 200;
     await until(() => said.length === 1);
     expect(said).toEqual(['[Share] Shared "Paper Lanterns": 2 facts']);
+  });
+
+  it("shares the next song when the queue behind the current song changes, never its requester (#448)", async () => {
+    const s = sharer();
+    s.update(song, facts);
+    await until(() => stand.server.requests.length === 1);
+    s.update(song, facts, { next: { title: "Second Song", artist: "Someone Else", requestedBy: "next_viewer_name" } as SSLSong });
+    await until(() => stand.server.requests.length === 2);
+    expect(stand.server.requests[1].body.data.content).toContain('Up next: "Second Song" by Someone Else.');
+    expect(JSON.stringify(stand.server.requests)).not.toContain("viewer_name");
+    s.update(song, facts, { next: null });
+    await until(() => stand.server.requests.length === 3);
+    expect(stand.server.requests[2].body.data.content).toBe(shareContent(song, facts));
   });
 
   it("sends nothing when there was never anything to share", async () => {

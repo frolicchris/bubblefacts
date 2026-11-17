@@ -41,3 +41,17 @@ describe("a song list that wasn't advanced (issue #451)", () => {
     expect(SOURCE).toMatch(/sharer\?\.update\([^\n]*stale: staleSong\.stale/);
   });
 });
+
+describe("sharing the next song in the queue (issue #448)", () => {
+  it("hands the sharer the next song's title and artist only, never the entry or who requested it", () => {
+    const name = SOURCE.slice(SOURCE.indexOf("function nextSongName("), SOURCE.indexOf("// The list nobody advanced"));
+    expect(name).toContain("const { title, artist } = songList.toSong(entry);");
+    expect(name).toContain("return { title, artist };");
+    expect(name).not.toMatch(/requestedBy|requests|note/);
+    expect(SOURCE).toMatch(/sharer\?\.update\([^\n]*next: nextSongName\(\)/);
+  });
+
+  it("shares again when only the queue behind the current song changes", () => {
+    expect(SOURCE).toContain("songList.onNextSongChange?.(() => shareNow());");
+  });
+});

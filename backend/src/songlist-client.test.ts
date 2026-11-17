@@ -27,7 +27,7 @@ jest.mock("./centrifugo-client", () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { SongListClient, setAccessToken } from "./songlist-client";
+import { SongListClient, nextInQueue, setAccessToken } from "./songlist-client";
 import { isLiveLearn, toSong } from "./song-mapping";
 import { config } from "./config";
 import { CentrifugoStream } from "./centrifugo-client";
@@ -117,6 +117,47 @@ describe("SongListClient", () => {
 
     expect(client.getCurrentSong()?.song.title).toBe("Now Playing");
     expect(songChangeSpy).toHaveBeenCalledTimes(1);
+
+    client.disconnect();
+  });
+
+  it("knows the next song: the top of the queue behind the one playing, else the second entry (#448)", async () => {
+    expect(nextInQueue({ items: [entry(2, "Up Next"), entry(3, "Third")], playing: entry(1, "Now Playing") } as never)?.song.title).toBe("Up Next");
+    expect(nextInQueue({ items: [entry(2, "On Now"), entry(3, "Third")], playing: null } as never)?.song.title).toBe("Third");
+    // A playing entry still listed isn't its own next song
+    expect(nextInQueue({ items: [entry(1, "Now Playing"), entry(2, "Up Next")], playing: entry(1, "Now Playing") } as never)?.song.title).toBe("Up Next");
+    expect(nextInQueue({ items: [entry(2, "On Now")], playing: null } as never)).toBeNull();
+    expect(nextInQueue({ items: null, playing: entry(1, "Now Playing") } as never)).toBeNull();
+    expect(nextInQueue({ items: [] } as never)).toBeNull();
+  });
+
+  it("says when the next song changes behind the same current song, and has it ready before a song change is announced (#448)", async () => {
+    mockFetch
+      .mockResolvedValueOnce(ok(STREAMER))
+      .mockResolvedValueOnce(ok({ items: [entry(2, "Up Next")], playing: entry(1, "Now Playing") }))
+      .mockResolvedValueOnce(ok({ items: [entry(3, "Jumped Ahead"), entry(2, "Up Next")], playing: entry(1, "Now Playing") }))
+      .mockResolvedValueOnce(ok({ items: [entry(2, "Up Next")], playing: entry(3, "Jumped Ahead") }))
+      .mockResolvedValue(ok({ items: [], playing: entry(2, "Up Next") }));
+    const nextAtChange: Array<string | undefined> = [];
+    client.onCurrentSongChange(() => nextAtChange.push(client.getNextSong()?.song.title));
+    const nextChanged = jest.fn();
+    client.onNextSongChange(nextChanged);
+
+    await client.connect();
+    expect(client.getNextSong()?.song.title).toBe("Up Next");
+    expect(nextChanged).toHaveBeenCalledTimes(1);
+
+    const refresh = () => (client as unknown as { fetchQueue(): Promise<void> }).fetchQueue();
+    await refresh();
+    expect(client.getCurrentSong()?.song.title).toBe("Now Playing");
+    expect(client.getNextSong()?.song.title).toBe("Jumped Ahead");
+    expect(nextChanged).toHaveBeenCalledTimes(2);
+
+    await refresh();
+    await refresh();
+    expect(client.getNextSong()).toBeNull();
+    // Never the new current song named as its own next
+    expect(nextAtChange).toEqual(["Up Next", "Up Next", undefined]);
 
     client.disconnect();
   });

@@ -10,6 +10,13 @@ import { debounce, pollLoop, retryAfterMs, singleFlight } from "./source-polling
 
 type SongChangeCallback = (current: SSLQueueItem | null) => void;
 
+/** The entry that follows the one on now: the top of the queue while the now-playing slot is filled, else the second */
+export function nextInQueue(queue: SSLQueueResponse): SSLQueueItem | null {
+  const items = queue.items ?? [];
+  const current = queue.playing ?? items[0] ?? null;
+  return items.find((item) => item.id !== current?.id) ?? null;
+}
+
 // StreamerSongList: REST for data, Centrifugo events mean "fetch the queue again", polling as backstop
 // (ARCHITECTURE.md: Song sources and YouTube titles)
 
@@ -34,6 +41,9 @@ export class SongListClient implements SongSource {
   private stream: CentrifugoStream | null = null;
   private currentSong: SSLQueueItem | null = null;
   private onSongChange: SongChangeCallback | null = null;
+  /** The entry after the one on now, for sharing what's next (#448); null with none */
+  private nextSong: SSLQueueItem | null = null;
+  private onNextChange: (() => void) | null = null;
   private readonly poll = pollLoop({
     isStopped: () => this.stopped,
     intervalMs: () => this.pollIntervalMs(),
@@ -61,6 +71,14 @@ export class SongListClient implements SongSource {
 
   getCurrentSong(): SSLQueueItem | null {
     return this.currentSong;
+  }
+
+  getNextSong(): SSLQueueItem | null {
+    return this.nextSong;
+  }
+
+  onNextSongChange(callback: () => void): void {
+    this.onNextChange = callback;
   }
 
   lastPollAttemptAgeMs(): number | null {
@@ -226,7 +244,13 @@ export class SongListClient implements SongSource {
       const queue = await this.getJSON<SSLQueueResponse>("/queue", "queue");
       this.lastSuccessfulFetchAt = Date.now();
       // Streamers without the now-playing feature work down the queue instead
-      this.applyNowPlaying(queue.playing ?? queue.items?.[0] ?? null);
+      const current = queue.playing ?? queue.items?.[0] ?? null;
+      // Set before the song change is announced, so what's told about the new song never names it as next too
+      const next = nextInQueue(queue);
+      const nextChanged = SongListClient.identity(next) !== SongListClient.identity(this.nextSong);
+      this.nextSong = next;
+      this.applyNowPlaying(current);
+      if (nextChanged) this.onNextChange?.();
     } catch (err) {
       console.error(`[SSL] Error fetching queue: ${err instanceof Error ? err.message : err}`);
     }

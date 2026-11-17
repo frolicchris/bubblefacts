@@ -1935,6 +1935,15 @@ an integration with one product.
 - **Never who asked for the song.** The song list's "Requested by ..." line is
   about a viewer, so it stays on the overlay (`namesRequester`), and the
   song's `requestedBy` is never read.
+- **What's next, by name only** (#448). When the song source has a queue
+  (StreamerSongList today), the snapshot adds `Up next: "Title" by Artist.`
+  after the song on now, so a streamer with busy hands can ask their bot
+  what is coming. Only the title and artist are handed to the sharer
+  (`nextSongName` in server.ts), never the entry, so who requested it can't
+  go out; its facts are sent when it starts, as for any song. Nothing is
+  added with an empty queue, a source without one, a commercial, or a stale
+  list. A change behind the current song (`onNextSongChange`) sends the
+  snapshot again.
 - **A commercial or jingle isn't announced** (`isNotMusic`), as on the
   overlay, unless the streamer gave it facts.
 - **Not a song the list forgot.** A streamer's hands are on the instrument,

@@ -56,6 +56,18 @@ const fromTwitchAbout = (fact: Fact) => (fact.source ?? "").startsWith(TWITCH_AB
 export interface ShareMore {
   /** The song list hasn't moved in longer than a song lasts: say so, and share no facts for it */
   stale?: boolean;
+  /** The next song in the queue, when the source has one (#448): only its title and artist are read */
+  next?: Pick<SSLSong, "title" | "artist"> | null;
+}
+
+/** `Up next: "Title" by Artist.`, or "" with no next song, no title, or a track that isn't music */
+function nextLine(next: ShareMore["next"]): string {
+  if (!next) return "";
+  // Built from the title and artist alone: who requested the next song is never read (privacy)
+  const title = oneLine(next.title ?? "", NAME_LIMIT).replace(/"/g, "'");
+  const artist = oneLine(next.artist ?? "", NAME_LIMIT);
+  if (!title || isNotMusic({ title, artist })) return "";
+  return `Up next: "${title}"${artist && artist !== "Unknown" ? ` by ${artist}` : ""}.`;
 }
 
 /**
@@ -73,7 +85,9 @@ export function shareSnapshot(song: SSLSong, facts: Fact[], more: ShareMore = {}
   const artist = oneLine(song.artist, NAME_LIMIT);
   const known = artist && artist !== "Unknown";
   const named = `"${title}"${known ? ` by ${artist}` : ""}`;
-  const head = `Now playing: ${named}.`;
+  // What's next rides with the song on now: its name only, and its facts when it starts (#448)
+  const upNext = nextLine(more.next);
+  const head = `Now playing: ${named}.${upNext ? ` ${upNext}` : ""}`;
   // Who asked for the song stays on the overlay: the entry fact naming them is never sent
   const shared = facts.filter((f) => !namesRequester(f.text));
   if (!title || (!shared.length && isNotMusic(song))) return { content: "", title: "", facts: 0 };
