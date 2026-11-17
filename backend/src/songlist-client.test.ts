@@ -1,4 +1,4 @@
-// Mock config before importing anything that uses it
+// Before importing anything that reads config
 jest.mock("./config", () => ({
   config: {
     sslStreamerName: "teststreamer",
@@ -13,7 +13,7 @@ jest.mock("./config", () => ({
   },
 }));
 
-// The realtime stream opens a real socket; stub it out entirely.
+// The realtime stream opens a real socket: stub it out
 const startMock = jest.fn();
 const stopMock = jest.fn();
 jest.mock("./centrifugo-client", () => ({
@@ -24,11 +24,10 @@ jest.mock("./centrifugo-client", () => ({
   })),
 }));
 
-// Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { SongListClient, setAccessToken } from "./songlist-client";
+import { SongListClient, nextInQueue, setAccessToken } from "./songlist-client";
 import { isLiveLearn, toSong } from "./song-mapping";
 import { config } from "./config";
 import { CentrifugoStream } from "./centrifugo-client";
@@ -118,6 +117,47 @@ describe("SongListClient", () => {
 
     expect(client.getCurrentSong()?.song.title).toBe("Now Playing");
     expect(songChangeSpy).toHaveBeenCalledTimes(1);
+
+    client.disconnect();
+  });
+
+  it("knows the next song: the top of the queue behind the one playing, else the second entry (#448)", async () => {
+    expect(nextInQueue({ items: [entry(2, "Up Next"), entry(3, "Third")], playing: entry(1, "Now Playing") } as never)?.song.title).toBe("Up Next");
+    expect(nextInQueue({ items: [entry(2, "On Now"), entry(3, "Third")], playing: null } as never)?.song.title).toBe("Third");
+    // A playing entry still listed isn't its own next song
+    expect(nextInQueue({ items: [entry(1, "Now Playing"), entry(2, "Up Next")], playing: entry(1, "Now Playing") } as never)?.song.title).toBe("Up Next");
+    expect(nextInQueue({ items: [entry(2, "On Now")], playing: null } as never)).toBeNull();
+    expect(nextInQueue({ items: null, playing: entry(1, "Now Playing") } as never)).toBeNull();
+    expect(nextInQueue({ items: [] } as never)).toBeNull();
+  });
+
+  it("says when the next song changes behind the same current song, and has it ready before a song change is announced (#448)", async () => {
+    mockFetch
+      .mockResolvedValueOnce(ok(STREAMER))
+      .mockResolvedValueOnce(ok({ items: [entry(2, "Up Next")], playing: entry(1, "Now Playing") }))
+      .mockResolvedValueOnce(ok({ items: [entry(3, "Jumped Ahead"), entry(2, "Up Next")], playing: entry(1, "Now Playing") }))
+      .mockResolvedValueOnce(ok({ items: [entry(2, "Up Next")], playing: entry(3, "Jumped Ahead") }))
+      .mockResolvedValue(ok({ items: [], playing: entry(2, "Up Next") }));
+    const nextAtChange: Array<string | undefined> = [];
+    client.onCurrentSongChange(() => nextAtChange.push(client.getNextSong()?.song.title));
+    const nextChanged = jest.fn();
+    client.onNextSongChange(nextChanged);
+
+    await client.connect();
+    expect(client.getNextSong()?.song.title).toBe("Up Next");
+    expect(nextChanged).toHaveBeenCalledTimes(1);
+
+    const refresh = () => (client as unknown as { fetchQueue(): Promise<void> }).fetchQueue();
+    await refresh();
+    expect(client.getCurrentSong()?.song.title).toBe("Now Playing");
+    expect(client.getNextSong()?.song.title).toBe("Jumped Ahead");
+    expect(nextChanged).toHaveBeenCalledTimes(2);
+
+    await refresh();
+    await refresh();
+    expect(client.getNextSong()).toBeNull();
+    // Never the new current song named as its own next
+    expect(nextAtChange).toEqual(["Up Next", "Up Next", undefined]);
 
     client.disconnect();
   });
@@ -316,7 +356,7 @@ describe("SongListClient", () => {
       await client.connect();
       const [, , onPublication] = (CentrifugoStream as unknown as jest.Mock).mock.calls.at(-1);
       const before = mockFetch.mock.calls.length;
-      // StreamerSongList sends each change on both channels, often several changes at once.
+      // StreamerSongList sends each change on both channels, often several changes at once
       for (const type of ["queue_add", "queue_reorder"]) {
         onPublication("streamer:123", { type, data: { streamerId: 123 } });
         onPublication("streamer:123-queue", { type, data: { streamerId: 123 } });
@@ -375,10 +415,9 @@ describe("SongListClient", () => {
       await client.learnListFormat();
       expect(mockFetch).toHaveBeenCalledTimes(total / 100);
       expect(client.searchSongs("night theme 19999", 8)).toEqual([{ id: 20_000, title: "Night Theme 19999", artist: "Artist 199" }]);
-      // A machine's speed changes the time, not how many times slower a search is than one plain
-      // pass over the same list. So the search is timed against that pass, here, on this machine
-      // (200 ms flat failed at 104.8 ms in #208 and 270.5 ms in the release run, both on slow builders).
-      // The fastest of several rounds on each side ignores a pause that hits only one of them.
+      // Timed against one plain pass over the list on this machine: speed changes the time, not the ratio
+      // (a flat 200 ms failed on slow builders in #208 and a release run). Fastest of several rounds
+      // on each side ignores a pause that hits only one
       const fastest = (work: () => void): number => {
         let best = Infinity;
         for (let round = 0; round < 7; round++) {
@@ -391,9 +430,9 @@ describe("SongListClient", () => {
       const songs = Array.from({ length: total }, (_, i) => ({ title: `Night Theme ${i}`, artist: `Artist ${i % 900}` }));
       const plainPass = fastest(() => songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes("no such song")));
       const search = fastest(() => client.searchSongs("no such song", 8));
-      // About 4 times a plain pass here; a search that rebuilt or re-sorted the list on every keystroke would be hundreds of times.
+      // About 4x a plain pass here; rebuilding or re-sorting the list per keystroke would be hundreds of times
       expect(search).toBeLessThan(Math.max(plainPass, 0.5) * 40);
-      // Where the speed is known (not on a shared builder), each keystroke's search still fits in the 200 ms the editor waits.
+      // Off shared builders, each keystroke's search still fits the editor's 200 ms wait
       if (!process.env.CI) expect(search).toBeLessThan(200);
     });
 
@@ -402,7 +441,7 @@ describe("SongListClient", () => {
       mockFetch.mockRejectedValueOnce(new Error("network down"));
       await client.learnListFormat();
       expect(client.searchSongs("rain", 8)).toBeNull();
-      // Too soon to try again.
+      // Too soon to try again
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const now = Date.now();
       jest.spyOn(Date, "now").mockReturnValue(now + 61_000);

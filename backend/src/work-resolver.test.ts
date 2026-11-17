@@ -4,9 +4,9 @@ jest.mock("./config", () => ({
 
 import { aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, referenceDecision, requestProfile, resolveWork, scoredLevel } from "./work-resolver";
 
-// Made-up bands, songs, games and shows: one case per kind of wrong match the scored match is for (issue #172).
+// Made-up bands, songs, games and shows: one case per kind of wrong match the scored match is for (#172)
 const song = (title: string, artist: string) => ({ title, artist });
-/** A request whose artist MusicBrainz credits with the song. */
+/** A request whose artist MusicBrainz credits with the song */
 const credited = (title: string, artist: string) => requestProfile(song(title, artist), song(title, artist), true);
 const plain = (title: string, artist: string) => requestProfile(song(title, artist), song(title, artist));
 const LONG = " It was made by a small team over three years.".repeat(10);
@@ -33,7 +33,7 @@ describe("the scored match", () => {
   it("abstains on a same-named game for a show's theme", () => {
     const pick = candidateProfile("Harbor Patrol (video game)", `Harbor Patrol is a 1994 action video game.${LONG}`);
     expect(resolveWork(plain("Opening Theme", "Harbor Patrol (TV)"), pick).decision).toBe("abstain");
-    // The same game for a game's track is the track's game.
+    // A game's track whose game is the same one
     expect(resolveWork(plain("Opening Theme", "Harbor Patrol (SNES)"), pick).decision).toBe("sure");
   });
 

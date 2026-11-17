@@ -1,11 +1,8 @@
 import fs from "fs";
 import path from "path";
 
-/**
- * server.ts starts listening when it loads, so it isn't imported here. A song change that
- * throws with no .catch is an unhandled rejection, which Node turns into a crash: every call
- * of onSongChange must catch and log, as the song source's own callback does.
- */
+// server.ts listens when loaded, so it's read here, not imported. An onSongChange with no .catch
+// crashes Node (unhandled rejection): every call must catch and log, like the song source's callback
 const SOURCE = fs.readFileSync(path.resolve(__dirname, "server.ts"), "utf8");
 
 describe("song changes in the server", () => {
@@ -30,3 +27,6 @@ describe("preparing songs in the server (issues #293 and #295)", () => {
     expect(route.slice(0, route.indexOf("});"))).toMatch(/cantPrepare\(\)[\s\S]*!refused\) preparer\.start\(\);[\s\S]*else preparer\.stop\(\);/);
   });
 });
+
+// The stale song list (#451) and the next song (#448) are tested by behavior: stale-song.test.ts,
+// share-song-facts.test.ts (nextSongToShare) and, on the running server, scripts/server-stale.test.mjs

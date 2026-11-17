@@ -4,31 +4,24 @@ import path from "path";
 import { MODEL, ModelFile, modelPath } from "./model";
 import type { Settings } from "./settings";
 
-/**
- * "Prepare my songs" in the app (issues #293 to #297). The server prepares;
- * this file decides when (issue #295), and holds the window's messages about
- * it, so main.ts only wires it in (`registerPreparing`).
- */
+// Prepare my songs in the app (#293 to #297): the server prepares, this decides when (#295) and holds
+// the window's messages, so main.ts only calls `registerPreparing` (ARCHITECTURE.md: Prepared songs)
 
-/**
- * The server's settings for preparing: the Standard model writes the first pass when High
- * quality is chosen and Standard is downloaded too, being several times faster (issue #296).
- * Songs it wrote are written again by Larger AI once every song has its first pass.
- */
+/** Server settings for preparing: with Larger AI chosen and Standard downloaded, Standard writes the first pass (#296) */
 export function prepareEnv(s: Pick<Settings, "ai" | "aiQuality">, modelsDir: string, ready: (model: ModelFile) => boolean): Record<string, string> {
   if (s.ai !== "builtin" || s.aiQuality !== "high" || !ready(MODEL)) return {};
   return { PREPARE_MODEL_PATH: modelPath(modelsDir, MODEL) };
 }
 
-// --- Is the computer free? ---------------------------------------------
+// --- Is the computer free? ---
 
-/** OBS's own program, as a process list names it: obs64.exe on Windows, OBS on a Mac, obs on Linux. Not its helpers. */
+/** OBS itself as a process list names it (obs64.exe, OBS, obs), not its helpers */
 export function isObsProcess(name: string): boolean {
   const base = path.posix.basename(name.trim().replace(/\\/g, "/")).replace(/\.exe$/i, "");
   return /^obs(?:32|64)?$/i.test(base);
 }
 
-/** Whether OBS is in a process list's text: `tasklist /FO CSV /NH` on Windows, `ps -A -o comm=` elsewhere. */
+/** OBS in a process list's text: `tasklist /FO CSV /NH` on Windows, `ps -A -o comm=` elsewhere */
 export function obsInProcessList(text: string): boolean {
   return text.split(/\r?\n/).some((line) => {
     const csv = /^"([^"]*)"/.exec(line);
@@ -36,7 +29,7 @@ export function obsInProcessList(text: string): boolean {
   });
 }
 
-/** The running programs' names. One cheap call, about once a second while preparing. */
+/** Running programs' names; one cheap call, about once a second while preparing */
 export function listProcesses(platform: NodeJS.Platform = process.platform): Promise<string> {
   const [cmd, args] = platform === "win32" ? ["tasklist", ["/FO", "CSV", "/NH"]] : ["ps", ["-A", "-o", "comm="]];
   return new Promise((resolve, reject) => {
@@ -44,10 +37,9 @@ export function listProcesses(platform: NodeJS.Platform = process.platform): Pro
   });
 }
 
-// Electron's powerMonitor said "plugged in" on battery (Electron 44, macOS, checked 2026-11-02), so each
-// system is asked in its own way too. Each answer below rejects when the system can't say.
+// Electron said "plugged in" on battery (Electron 44, macOS, 2026-11-02), so each system is asked too; each rejects when unsure
 
-/** Whether a Mac runs on its battery, from `pmset -g batt`'s first line ("Now drawing from 'Battery Power'"); null when it says neither. */
+/** Mac on battery, from `pmset -g batt`'s first line ("Now drawing from 'Battery Power'"); null when neither */
 export function batteryFromPmset(text: string): boolean | null {
   const first = text.split(/\r?\n/)[0] ?? "";
   if (/'Battery Power'/.test(first)) return true;
@@ -55,27 +47,21 @@ export function batteryFromPmset(text: string): boolean | null {
   return null;
 }
 
-/**
- * Whether Windows runs on battery, from Win32_Battery's BatteryStatus values, one per battery (none on a
- * desktop). 1 is discharging, and 4 and 5 (low, critical) are said only on battery; the rest are on AC.
- */
+/** Windows on battery, from BatteryStatus per battery (none on a desktop): 1, 4, 5 (discharging, low, critical) only on battery */
 export function batteryFromWin32(text: string): boolean | null {
   const values = text.split(/[\s,]+/).filter(Boolean);
   if (values.some((v) => !/^\d+$/.test(v))) return null;
   return values.some((v) => ["1", "4", "5"].includes(v));
 }
 
-/** One of Linux's /sys/class/power_supply entries: its `type`, and `online` or `status` where it has them. */
+/** A Linux /sys/class/power_supply entry: its `type`, and `online` or `status` where it has them */
 export interface PowerSupply {
   type: string;
   online?: string;
   status?: string;
 }
 
-/**
- * Whether Linux runs on battery: no charger (Mains or USB) is online, and a battery is discharging or a
- * charger is there but offline. A desktop or a virtual machine has no battery: not on battery.
- */
+/** Linux on battery: no charger (Mains, USB) online, and a battery discharging or a charger offline; no battery = not */
 export function batteryFromSysfs(supplies: PowerSupply[]): boolean {
   const chargers = supplies.filter((s) => /^(Mains|USB.*)$/.test(s.type));
   if (chargers.some((s) => s.online === "1")) return false;
@@ -86,8 +72,7 @@ export function batteryFromSysfs(supplies: PowerSupply[]): boolean {
 
 function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    // PowerShell's first Get-CimInstance on a cold or busy machine can take well over ten seconds (seen on CI);
-    // the answer is reused for 10 s, and until there is one the app only waits, so a long limit costs little.
+    // First Get-CimInstance on a cold or busy machine can take over 10 s (seen on CI); answers are reused, so a long limit costs little
     execFile(cmd, args, { timeout: 20_000, windowsHide: true }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
   });
 }
@@ -121,21 +106,21 @@ export async function linuxOnBattery(root = "/sys/class/power_supply"): Promise<
   return batteryFromSysfs(supplies);
 }
 
-/** The same answer for `ms`, for a check too slow to run every second (PowerShell starts in about half a second). */
+/** The same answer for `ms`, for a check too slow for every second (PowerShell takes about half a second to start) */
 export function reusedFor<T>(ms: number, ask: () => Promise<T>, now: () => number = Date.now): () => Promise<T> {
   let last: { at: number; answer: Promise<T> } | null = null;
   return () => {
     if (!last || now() - last.at >= ms) {
       const answer = ask();
       last = { at: now(), answer };
-      // A failed answer is asked again next time rather than kept.
+      // A failed answer is asked again next time, not kept
       answer.catch(() => (last = null));
     }
     return last.answer;
   };
 }
 
-/** This system's own answer on battery, for the driver: every second, or every 10 s on Windows. */
+/** This system's own battery answer for the driver: every second, every 10 s on Windows */
 export function systemOnBattery(platform: NodeJS.Platform = process.platform): (() => Promise<boolean>) | undefined {
   if (platform === "darwin") return macOnBattery;
   if (platform === "win32") return reusedFor(10_000, windowsOnBattery);
@@ -143,22 +128,22 @@ export function systemOnBattery(platform: NodeJS.Platform = process.platform): (
   return undefined;
 }
 
-/** Why preparing waits, in the order checked; "" when the computer is free and it may run. */
+/** Why preparing waits, in the order checked; "" when the computer is free */
 export type WaitReason = "" | "off" | "setup" | "online-ai" | "no-ai" | "server" | "battery" | "power-unknown" | "overlay" | "obs" | "obs-unknown";
 
 export interface Conditions {
-  /** Prepare my songs is on, and setup is done. */
+  /** The setting is on, and setup is done */
   enabled: boolean;
   setupDone: boolean;
-  /** Which AI writes: one on this computer, an online one (never used for preparing), or none ready. */
+  /** Which AI writes: on this computer, online (never used for preparing), or none ready */
   ai: "local" | "online" | "none";
   serverUp: boolean;
   onBattery: boolean;
-  /** Overlays connected to the server: OBS showing BubbleFacts. */
+  /** Overlays connected: OBS showing BubbleFacts */
   overlays: number;
 }
 
-/** Why preparing must wait now, without the process list; "" when only OBS is left to check. */
+/** Why preparing waits now, short of the process list; "" when only OBS is left to check */
 export function waitReason(c: Conditions): WaitReason {
   if (!c.enabled) return "off";
   if (!c.setupDone) return "setup";
@@ -173,21 +158,16 @@ export function waitReason(c: Conditions): WaitReason {
 export interface DriverDeps {
   conditions: () => Conditions;
   obsRunning: () => Promise<boolean>;
-  /** The system's own answer on battery (systemOnBattery), where the app's (`conditions().onBattery`) can be wrong. */
+  /** The system's own battery answer (systemOnBattery), as the app's (`conditions().onBattery`) can be wrong */
   onBattery?: () => Promise<boolean>;
-  /** Asks the server (`/control/<path>`); null when it didn't answer. */
+  /** Asks the server (`/control/<path>`); null on no answer */
   control: (pathname: string, body?: unknown) => Promise<Record<string, unknown> | null>;
   now?: () => number;
 }
 
-/** How often a run that has nothing left to do is started again: the list or the history may have grown. */
-const RECHECK_MS = 10 * 60_000;
+const RECHECK_MS = 10 * 60_000; // ms before a run with nothing left starts again: the list or history may grow
 
-/**
- * Starts and stops preparing as the computer becomes free or busy. `tick` runs about once a
- * second: a stream starting stops preparing within a second. The cheap checks come first; the
- * process list is read only when everything else says go, or while preparing runs.
- */
+/** Starts and stops preparing as the computer frees up or gets busy, ticking about once a second */
 export class PrepareDriver {
   private asked: "run" | "stop" | null = null;
   private askedAt = 0;
@@ -213,25 +193,25 @@ export class PrepareDriver {
   }
 
   async tick(): Promise<void> {
-    // A slow process list never piles up ticks.
+    // A slow process list never piles up ticks
     if (this.busy) return;
     this.busy = true;
     try {
       let reason = waitReason(this.deps.conditions());
-      // On battery comes before an overlay, so the window says the same either way. Not knowing waits too.
+      // Battery before an overlay, so the window says the same either way; not knowing waits too
       if ((!reason || reason === "overlay") && this.deps.onBattery) {
         const battery = await this.deps.onBattery().then((on) => (on ? "battery" : null), () => "power-unknown" as const);
         if (battery) reason = battery;
       }
-      // A process list that fails says nothing about OBS, so it waits: OBS can be open before its overlay connects.
+      // A failed process list says nothing about OBS, which can be open before its overlay connects: wait
       if (!reason) reason = await this.deps.obsRunning().then((open) => (open ? "obs" : ""), () => "obs-unknown" as const);
       this.reason = reason;
       if (reason) {
-        // Stop whenever it may be running: asked to run, or the server last said it was.
+        // Stop whenever it may be running: asked to run, or the server last said so
         if (this.asked !== "stop" || this.serverRunning) await this.ask(false);
         return;
       }
-      // Asked again now and then: a run that finished starts over if the list or the history grew.
+      // Asked again now and then: a finished run starts over if the list or history grew
       const due = this.asked !== "run" || this.now() - this.askedAt >= RECHECK_MS;
       if (due) await this.ask(true);
     } finally {
@@ -239,7 +219,7 @@ export class PrepareDriver {
     }
   }
 
-  /** The server started over (a settings change, a crash): what it was asked no longer holds, so it's asked again on the next tick. */
+  /** The server started over (settings change, crash): ask again on the next tick */
   serverRestarted(): void {
     this.asked = null;
     this.serverRunning = false;
@@ -249,7 +229,7 @@ export class PrepareDriver {
     this.asked = run ? "run" : "stop";
     this.askedAt = this.now();
     const answer = await this.deps.control("prepare", { run });
-    // No answer (the server is restarting): ask again next tick.
+    // No answer (server restarting): ask again next tick
     if (!answer) {
       this.asked = null;
       return;
@@ -258,17 +238,14 @@ export class PrepareDriver {
   }
 }
 
-/** What main.ts gives this file: its checked `handle`, the server, and what the app knows. */
+/** From main.ts: its checked `handle`, the server, and what the app knows */
 export interface PreparingDeps {
   handle: (channel: string, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
   control: DriverDeps["control"];
   conditions: () => Conditions;
 }
 
-/**
- * Wire Prepare my songs into the app: the window's messages, and the loop that starts and stops
- * it. Call `start` once the app is ready.
- */
+/** Wires Prepare my songs in (window messages, start-stop loop); call `start` once the app is ready */
 export function registerPreparing(deps: PreparingDeps): PrepareDriver {
   const driver = new PrepareDriver({
     conditions: deps.conditions,
@@ -276,7 +253,7 @@ export function registerPreparing(deps: PreparingDeps): PrepareDriver {
     onBattery: systemOnBattery(),
     control: deps.control,
   });
-  // Where preparing stands, for the window.
+  // Where preparing stands, for the window
   deps.handle("prepare-status", async () => ({ waiting: driver.reason, server: await deps.control("prepare/status") }));
   return driver;
 }

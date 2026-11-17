@@ -1,4 +1,15 @@
 {
+  "2.3.0-beta.1": [
+    "Share song facts with other apps: the song is shared the moment it starts, and who requested it is never sent.",
+    "Songs credited to a Twitch @name get a line or two from that creator's Twitch About.",
+    "Songs credited to their writers, not the performer, still get facts from the song's article."
+  ],
+  "2.2.0": [
+    "Prepare my songs: facts ready the moment a song starts. Turn it on in Settings.",
+    "Styles and icons for the bubbles, and a vertical overlay for phone-shaped streams.",
+    "Fewer wrong facts, and video game songs now get facts from the game's article.",
+    "An OBS source that stops answering reconnects by itself."
+  ],
   "2.2.0-rc.2": [
     "Video game songs now get facts from the game's Wikipedia article, not just your own facts.",
     "An OBS source that stops answering is dropped and reconnects by itself.",

@@ -10,7 +10,7 @@ type A11y = {
 const renderer = path.join(__dirname, "..", "renderer");
 const read = (f: string) => fs.readFileSync(path.join(renderer, f), "utf8");
 
-/** The renderer's helper is a plain browser script; run it with a stand-in window. */
+/** The renderer's helper is a plain browser script: run it with a stand-in window */
 function load(): A11y {
   const win: { A11y?: A11y } = {};
   new Function("window", read("a11y.js"))(win);
@@ -81,5 +81,23 @@ describe("overlay reduced motion", () => {
     expect(block).toMatch(/\.sparkle\s*\{[^}]*animation:\s*none/);
     expect(block).toMatch(/\.popup-bubble\.idle\s*\{[^}]*animation:\s*popIn[^;]*;/);
     expect(block).not.toContain("gameFloat");
+  });
+});
+
+describe("Settings: the last song shared with another app (#452)", () => {
+  const js = read("app.js");
+  const html = read("index.html");
+
+  it("has a line under Test connection that isn't a live region, so it doesn't speak every minute", () => {
+    const line = html.match(/<p id="s-share-last"[^>]*>/)?.[0] ?? "";
+    expect(line).toContain("hidden");
+    expect(line).not.toMatch(/role=|aria-live/);
+    expect(html.indexOf('id="s-share-last"')).toBeGreaterThan(html.indexOf('id="s-share-test"'));
+  });
+
+  it("fills it from the server's health with the song and the time, and hides it when there's none", () => {
+    expect(js).toContain("renderLastShared(status.health);");
+    expect(js).toMatch(/`Last shared: \$\{last\.title\}, \$\{new Date\(last\.at\)\.toLocaleTimeString/);
+    expect(js).toContain("line.hidden = !text;");
   });
 });

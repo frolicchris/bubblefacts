@@ -29,15 +29,12 @@ describe("assetName", () => {
 
   it("leaves a .deb install to the system's own updates", () => {
     expect(assetName("2.0.0", "linux", "x64", false)).toBeNull();
-    expect(assetName("2.0.0", "linux", "x64", false, "lite")).toBeNull();
   });
 
-  it("keeps Lite on Lite and the full app on the full one", () => {
-    expect(assetName("2.2.0-beta.3", "darwin", "arm64", false, "lite")).toBe("BubbleFacts-2.2.0-beta.3-lite-mac-arm64.dmg");
-    expect(assetName("2.2.0", "darwin", "x64", false, "lite")).toBe("BubbleFacts-2.2.0-lite-mac-x64.dmg");
-    expect(assetName("2.2.0", "win32", "x64", false, "lite")).toBe("BubbleFacts-2.2.0-lite-windows-x64.exe");
-    expect(assetName("2.2.0", "linux", "x64", true, "lite")).toBe("BubbleFacts-2.2.0-lite-linux-x86_64.AppImage");
-    expect(assetName("2.2.0", "win32", "x64", false, "full")).toBe("BubbleFacts-2.2.0-windows-x64.exe");
+  it("never names a -lite installer (BubbleFacts Lite is retired)", () => {
+    for (const [platform, arch, appImage] of [["darwin", "arm64", false], ["darwin", "x64", false], ["win32", "x64", false], ["linux", "x64", true]] as const) {
+      expect(assetName("2.2.0", platform, arch, appImage)).not.toContain("lite");
+    }
   });
 });
 
@@ -140,16 +137,16 @@ describe("macBundle", () => {
     expect(MAC_SWAP_SCRIPT).toContain('mv "$OLD" "$APP"');
   });
 
-  // The swap script is bash, run by macOS: there's no /bin/bash to run it with on Windows.
+  // The swap script is bash, for macOS: no /bin/bash on Windows
   (process.platform === "win32" ? describe.skip : describe)("when the disk image won't open (a tester's update, canceled half a second in)", () => {
-    // The script, run for real, with stand-ins for the macOS tools it calls.
+    // The script, run for real, with stand-ins for the macOS tools it calls
     let dir: string;
     const run = (hdiutilFails: number, interrupt = false) => {
       const bin = path.join(dir, "bin");
       fs.mkdirSync(bin, { recursive: true });
       const stub = (name: string, body: string) => fs.writeFileSync(path.join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
-      // hdiutil fails its first `hdiutilFails` attaches; every call is recorded.
-      // With `interrupt`, its first attach also sends the script the signals that could end it partway.
+      // hdiutil fails its first `hdiutilFails` attaches, recording every call; with `interrupt`,
+      // its first attach also sends the script the signals that could end it partway
       const signal = interrupt ? `[ "$n" = 1 ] && kill -TERM $PPID && kill -INT $PPID && kill -HUP $PPID;` : "";
       stub("hdiutil", `echo "hdiutil $1" >> "${dir}/calls"; [ "$1" = attach ] || exit 0; n=$(grep -c "hdiutil attach" "${dir}/calls"); ${signal} [ "$n" -gt ${hdiutilFails} ]`);
       stub("diskutil", `echo "diskutil $1 $2" >> "${dir}/calls"; exit 1`);
@@ -159,7 +156,7 @@ describe("macBundle", () => {
       fs.writeFileSync(script, MAC_SWAP_SCRIPT, { mode: 0o700 });
       const app = path.join(dir, "BubbleFacts.app");
       fs.mkdirSync(app, { recursive: true });
-      // 999999: a process id that isn't running, so the script doesn't wait.
+      // 999999: a process id that isn't running, so the script doesn't wait
       require("child_process").execFileSync("/bin/bash", [script, "999999", path.join(dir, "u.dmg"), app, path.join(dir, "log")], {
         env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, BF_RETRY_DELAY: "0" },
       });
@@ -195,7 +192,7 @@ describe("macBundle", () => {
       expect(out.calls.match(/hdiutil attach/g)).toHaveLength(3);
       expect(out.log).toContain("try 2 of 3");
       expect(out.log).not.toContain("try 3 of 3");
-      // The stand-in image holds no app, so the check after opening it stops the swap, and the app reopens.
+      // The stand-in image holds no app: the check after opening it stops the swap and the app reopens
       expect(out.log).toContain("not BubbleFacts");
       expect(out.calls).toMatch(/open .*BubbleFacts\.app/);
     });
@@ -227,24 +224,15 @@ describe("newerRelease with an installer", () => {
     expect(r?.download).toEqual({ name: "BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", url: `${base}a.dmg`, size: 10, sumsUrl: `${base}SHA256SUMS.txt` });
   });
 
-  it("picks Lite's installer for Lite and the full one for the full app, from a release with both", async () => {
-    const both = () =>
+  it("picks the full installer from a release that still has Lite's (the 2.2.0 releases)", async () => {
+    mockFetch.mockResolvedValueOnce(
       release([
         ["BubbleFacts-2.0.0-beta.5-lite-mac-arm64.dmg", `${base}lite.dmg`],
         ["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`],
         ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`],
-      ]);
-    mockFetch.mockResolvedValueOnce(both());
-    expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "lite")))?.download?.url).toBe(`${base}lite.dmg`);
-    mockFetch.mockResolvedValueOnce(both());
-    expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "full")))?.download?.url).toBe(`${base}full.dmg`);
-  });
-
-  it("sends Lite to the download page when a release has no Lite installer", async () => {
-    mockFetch.mockResolvedValueOnce(release([["BubbleFacts-2.0.0-beta.5-mac-arm64.dmg", `${base}full.dmg`], ["SHA256SUMS.txt", `${base}SHA256SUMS.txt`], ["SHA256SUMS.txt.sig", `${base}SHA256SUMS.txt.sig`]]));
-    const r = await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false, "lite"));
-    expect(r).toMatchObject({ version: "2.0.0-beta.5" });
-    expect(r?.download).toBeUndefined();
+      ])
+    );
+    expect((await newerRelease("2.0.0-beta.4", "beta", (v) => assetName(v, "darwin", "arm64", false)))?.download?.url).toBe(`${base}full.dmg`);
   });
 
   it("falls back to the download page without a checksum list or its signature, or for a file from anywhere else", async () => {

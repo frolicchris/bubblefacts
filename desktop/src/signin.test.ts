@@ -5,7 +5,7 @@ process.env.BUBBLEFACTS_SSL_CLIENT_ID = "client-1";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { refresh, signIn, SignInExpired } = require("./signin") as typeof import("./signin");
 
-/** The browser coming back to the app. Plain http, since fetch is mocked below. */
+/** The browser coming back to the app; plain http, since fetch is mocked below */
 function visit(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     http.get(url, (res) => {

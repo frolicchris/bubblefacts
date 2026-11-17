@@ -1,11 +1,12 @@
-/* The Your songs screen's sentences (issue #294). Plain functions, so tests can run them without a window. Information only: nothing here asks the streamer to check or approve anything. */
+/* The Your songs screen's sentences (#294); plain functions, so tests run them without a window.
+   Information only: nothing asks the streamer to check or approve anything */
 (function () {
   "use strict";
 
   const number = (n) => Number(n).toLocaleString("en-US");
-  const DAY = 24 * 60 * 60 * 1000;
+  const DAY = 24 * 60 * 60 * 1000; // ms
 
-  /** When the rest will be ready, as a person says it: later today, tomorrow, Thursday, or November 14. */
+  /** When the rest will be ready, as a person says it: later today, tomorrow, Thursday, or November 14 */
   function whenSaid(atIso, now) {
     const at = new Date(atIso);
     const start = new Date(now);
@@ -49,7 +50,7 @@
     "obs-unknown": "Waiting: BubbleFacts can't tell right now whether OBS is open, so it holds off and checks again.",
   };
 
-  /** What preparing is doing now. `waiting`: why the app holds it back ("" when free); `server`: what the server said. */
+  /** What preparing is doing: `waiting`, why the app holds it back ("" when free); `server`, what the server said */
   function stateLine(waiting, server) {
     if (waiting) return WAITING[waiting] || "";
     if (!server) return "Waiting for BubbleFacts to start.";

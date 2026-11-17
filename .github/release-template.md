@@ -1,6 +1,5 @@
 Download BubbleFacts at https://bubblefacts.frolic.org/download.html
 
-Files with `-lite` in the name are the last **BubbleFacts Lite** release, for people already using it: Lite is retired, and it now asks them to install the full BubbleFacts, which keeps their settings and facts. Delete this line from releases after it.
 
 **Already on 2.0.0-beta.5 or newer?** Open BubbleFacts, click **Update now**, then **Install now** between songs. Your settings are kept. On a Mac, click **Always Allow** when it asks to use your saved sign-in afterward.
 

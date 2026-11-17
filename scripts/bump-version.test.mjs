@@ -1,10 +1,10 @@
-// Tests for bump-version.mjs: `npm run test:scripts` (part of `npm run check`).
+// Tests for bump-version.mjs (`npm run test:scripts`, part of `npm run check`)
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { addChangelogStub, bumpBetaForm, bumpBugForm, bumpOverlay, bumpSiteAssets, changelogId, checkVersion } from "./bump-version.mjs";
+import { addChangelogStub, bumpBetaForm, bumpBugForm, bumpOverlay, bumpSiteAssets, changelogId, checkVersion, versionEdits } from "./bump-version.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -30,7 +30,7 @@ test("adds the version at the top of the beta form's list, once", () => {
   assert.match(once, /options:\n {8}- 9\.9\.9-beta\.1\n {8}- \d/);
   assert.equal(once.split("- 9.9.9-beta.1").length, 2);
   assert.equal(bumpBetaForm(once, "9.9.9-beta.1"), once);
-  // The Build field's example is the new version; otherwise only the version list changes.
+  // The Build field's example is the new version; otherwise only the version list changes
   const example = (t) => t.split("\n").slice(t.split("\n").findIndex((l) => l.trim() === "id: build")).find((l) => l.trim().startsWith("placeholder: "));
   assert.equal(example(once).trim(), "placeholder: 9.9.9-beta.1");
   assert.equal(once.replace("        - 9.9.9-beta.1\n", "").replace(example(once), example(form)), form);
@@ -62,7 +62,7 @@ test("adds a dated changelog entry to fill in, above the newest, once", () => {
   assert.equal(addChangelogStub(out, "3.0.0-beta.1", date), out);
   assert.match(addChangelogStub(page, "9.9.9-rc.1", date), /Release candidate, October 3, 2026/);
   assert.match(addChangelogStub(page, "9.9.9", date), /<span class="tag">October 3, 2026<\/span>/);
-  // A version the page already has, such as 2.0.0 ("Coming soon"), keeps its entry.
+  // A version the page already has, such as 2.0.0 ("Coming soon"), keeps its entry
   assert.equal(addChangelogStub(page, "2.0.0", date), page);
 });
 
@@ -79,4 +79,18 @@ test("stamps the version on every page's stylesheet and script links", () => {
     const html = read(`site/${file}`);
     assert.match(html, /assets\/site\.css\?v=/, `${file} links its stylesheet without a version`);
   }
+});
+
+// Release tags can't be moved, so a version left behind in one file costs a whole new version. Checked
+// here, on the pull request that sets the version, instead of by eye before the tag.
+test("every file a release needs has package.json's version", () => {
+  const { version } = JSON.parse(read("package.json"));
+  const lock = JSON.parse(read("package-lock.json"));
+  assert.equal(lock.version, version, "package-lock.json has another version: run npm run bump");
+  assert.equal(lock.packages[""].version, version, "package-lock.json has another version: run npm run bump");
+  for (const [file, change] of versionEdits(root, version)) {
+    assert.equal(change(read(file)), read(file), `${file} doesn't have ${version}: run npm run bump -- ${version}`);
+  }
+  const highlights = JSON.parse(read("desktop/renderer/whats-new.json"));
+  assert.ok(Array.isArray(highlights[version]) && highlights[version].length > 0, `desktop/renderer/whats-new.json has no highlights for ${version}`);
 });

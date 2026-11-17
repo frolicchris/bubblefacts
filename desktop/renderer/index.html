@@ -19,7 +19,7 @@
     <div class="brand"><img class="brand-mark" src="../build/tray@2x.png" alt="" width="26" height="26"><span>Bubble<span class="brand-accent">Facts</span></span></div>
     <nav id="nav" hidden>
       <button class="navlink" data-view="dashboard" aria-current="page">Dashboard</button>
-      <button class="navlink" data-view="songs" data-edition="full">Your songs</button>
+      <button class="navlink" data-view="songs">Your songs</button>
       <button class="navlink" data-view="settings">Settings</button>
       <button class="navlink" data-view="about">About</button>
     </nav>
@@ -38,8 +38,6 @@
       <div class="panel step" data-step="1">
         <h1 tabindex="-1">Connect your songs</h1>
         <p class="lead">BubbleFacts watches your song requests, so it knows what you're playing.</p>
-        <!-- data-edition: shown only in that edition, full or Lite (showEdition in the app's script). -->
-        <p class="fine" data-edition="lite" hidden>This is <strong>BubbleFacts Lite</strong>, with no AI. Songs get facts from music databases (Wikidata and MusicBrainz), your song list and your own facts. Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones.</p>
 
         <p class="label" id="source-label">Where do your song requests come from?</p>
         <div class="choices" role="radiogroup" aria-labelledby="source-label">
@@ -211,8 +209,7 @@
           <label id="setup-livelearns-row"><input type="checkbox" id="setup-livelearns" checked> <span><strong>I do live learns</strong><br><span class="hint">Off-list requests show a LIVE LEARN banner while you learn the song. Facts still show when BubbleFacts finds the song.</span></span></label>
         </div>
 
-        <p class="fine" data-edition="full">Facts are retold by AI from public sources and shown as-is. Press Wrong on any that's off.</p>
-        <p class="fine" data-edition="lite" hidden>BubbleFacts Lite has no AI: facts come from music databases, your song list and your own facts, and are shown as-is. Press Wrong on any that's off.</p>
+        <p class="fine">Facts are retold by AI from public sources and shown as-is. Press Wrong on any that's off.</p>
         <p id="facts-result" class="result" role="status"></p>
         <div class="nav-buttons">
           <button class="ghost" id="music-skip">Skip</button>
@@ -456,7 +453,7 @@
               <button type="button" class="ghost" id="twitch-disconnect" hidden>Disconnect</button>
               <span id="twitch-status" class="result" role="status"></span>
             </div>
-            <label class="inline"><input name="twitchAbout" type="checkbox"> Check Twitch for artists no source knows <span class="hint">shows a line from the About of the channel with the artist's exact name</span></label>
+            <label class="inline"><input name="twitchAbout" type="checkbox"> Show a line from an artist's Twitch About <span class="hint">for an artist credited with an @name on a music channel, or one no source knows whose exact name is a channel</span></label>
           </div>
         </fieldset>
 
@@ -470,8 +467,8 @@
           <ul id="s-songfacts" class="songfacts"></ul>
         </fieldset>
 
-        <!-- Preparing needs the AI on this computer, which Lite doesn't have: hidden there, and the app never runs it. -->
-        <fieldset id="s-prepare" data-edition="full">
+        <!-- Preparing needs the AI on this computer. -->
+        <fieldset id="s-prepare">
           <legend>Prepare my songs</legend>
           <div class="with-tip">
           <label class="inline"><input name="prepareSongs" type="checkbox" aria-describedby="s-prepare-hint"> Prepare facts for my songs while I'm not streaming</label>
@@ -514,6 +511,26 @@
             </div>
             <p class="hint">BubbleFacts picks light or dark text, whichever is easier to read on your background.</p>
           </div>
+          <div id="s-look">
+            <p id="s-look-current" hidden>Showing a shared look: <strong id="s-look-name"></strong><span id="s-look-by" class="hint"></span></p>
+            <div class="row">
+              <button type="button" id="look-import" class="ghost">Import a look…</button>
+              <button type="button" id="look-remove" class="ghost" hidden>Go back to my Style</button>
+            </div>
+            <div id="s-look-preview" class="look-preview" hidden>
+              <p class="hint">Preview of <strong id="look-preview-name"></strong>. Nothing has changed on stream yet.</p>
+              <div class="look-sample" aria-hidden="true">
+                <div class="look-toast"><span class="look-toast-label">NOW PLAYING</span><span>Song Title - Artist</span></div>
+                <div class="look-bubble">A fun fact about the song shows up here.</div>
+              </div>
+              <div class="row">
+                <button type="button" id="look-use" class="primary">Use this look</button>
+                <button type="button" id="look-cancel" class="ghost">Cancel</button>
+              </div>
+            </div>
+            <div role="status"><p id="look-result" class="result" hidden></p></div>
+            <p class="hint">A look is a small Style file another musician or DJ shared. It changes colors, font and corners only, and shows in place of the Style and colors above.</p>
+          </div>
           <p class="hint" id="s-style-hint">Changes on stream as soon as you save. Click <strong>Show a test bubble</strong> on the dashboard to see it.</p>
           <label for="s-area">Where bubbles appear <span class="hint">keep them clear of your camera, keyboard or chat</span></label>
           <select id="s-area" name="bubbleArea">
@@ -542,6 +559,9 @@
           </div>
           <p class="hint" id="s-facts-hint">BubbleFacts finds up to 4 facts for a song. A higher number makes room for your own, which can go past that.</p>
           <p class="hint" id="s-timing-hint"></p>
+          <label for="s-stale">Take a song as over after (minutes) <span class="hint">from 5 to 60</span></label>
+          <input id="s-stale" name="staleMinutes" type="number" min="5" max="60" aria-describedby="s-stale-hint">
+          <p class="hint" id="s-stale-hint">If your song list still shows the same song after this long, BubbleFacts stops its bubbles and sharing until your next song. Play long medleys? Set it higher.</p>
           <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
           <select id="s-wrongkey" name="wrongKey">
             <option value="off">Off</option>
@@ -590,7 +610,7 @@
         <fieldset>
           <legend>Share with other apps</legend>
           <label class="inline"><input name="shareFacts" type="checkbox" aria-describedby="s-share-hint"> Share song facts with other apps</label>
-          <p class="hint indent" id="s-share-hint">An app that takes song context can use the song's facts to answer chat's questions. Only the song and its facts are sent, to the address you enter here. Off until you turn it on.</p>
+          <p class="hint indent" id="s-share-hint">An app that takes song context can use the song's facts to answer chat's questions. Only the song, its facts and the name of the next song in your queue are sent, to the address you enter here. Off until you turn it on.</p>
           <div id="s-share-box" class="indent">
             <label for="s-share-url">Address <span class="hint">the web address the other app gives you, starting with https://</span></label>
             <input id="s-share-url" name="shareUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://">
@@ -602,6 +622,7 @@
               <button type="button" class="ghost" id="s-share-test">Test connection</button>
               <span id="s-share-result" class="result" role="status"></span>
             </div>
+            <p id="s-share-last" class="fine" hidden></p>
           </div>
         </fieldset>
 
@@ -616,11 +637,7 @@
           <p class="hint">Switching to Stable never goes back a version: you get the next full release when it's out.</p>
         </fieldset>
 
-        <p class="fine" data-edition="full">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Larger AI is under Advanced.</p>
-        <div data-edition="lite" hidden>
-          <p class="fine">This is <strong>BubbleFacts Lite</strong>. It has no AI of its own. Songs get facts from music databases (Wikidata and MusicBrainz), your song list and your own facts.</p>
-          <p class="fine">Without an AI, Wikipedia articles aren't turned into facts, so fewer songs get them, mostly well-known ones. To get more, install the full BubbleFacts, which writes facts on this computer. <button class="link" type="button" data-open="https://bubblefacts.frolic.org/download.html">Get the full BubbleFacts</button></p>
-        </div>
+        <p class="fine">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Larger AI is under Advanced.</p>
 
         <details class="advanced" id="s-advanced">
           <summary>Advanced</summary>
@@ -629,7 +646,7 @@
           <p class="label" id="s-ai-label">Who writes the facts</p>
           <p class="hint" id="s-ai-paused">Online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. You can keep the one you chose until then. BubbleFacts doesn't control or test them and can't vouch for their facts, and your viewers see a bubble saying so. If you switch back and save, these choices go away.</p>
           <div class="checks" role="radiogroup" aria-labelledby="s-ai-label" aria-describedby="s-ai-paused s-ai-warning">
-            <label><input type="radio" name="ai" value="builtin"> <span data-edition="full">On this computer (free)</span><span data-edition="lite" hidden>No AI: music databases and your own facts</span></label>
+            <label><input type="radio" name="ai" value="builtin"> On this computer (free)</label>
             <label><input type="radio" name="ai" value="groq"> Online, with Groq (free key)</label>
             <label><input type="radio" name="ai" value="anthropic"> Online, with Anthropic</label>
             <label><input type="radio" name="ai" value="ollama"> My own Ollama</label>
@@ -756,12 +773,12 @@
               <h3>MusicBrainz</h3>
               <p class="fine">Core data in the public domain, <button class="link" data-open="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</button>.</p>
             </li>
-            <li data-edition="full">
+            <li>
               <h3>Llama 3.2</h3>
               <p class="fine">Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved. <button class="link" type="button" data-open="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</button></p>
               <p class="fine">Built with Llama. The model is downloaded on first run and isn't part of the app.</p>
             </li>
-            <li data-edition="full">
+            <li>
               <h3>Llama 3.1</h3>
               <p class="fine">Llama 3.1 is licensed under the Llama 3.1 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved. <button class="link" type="button" data-open="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</button></p>
               <p class="fine">Built with Llama. The Larger AI model is downloaded only if you choose it in Settings, and isn't part of the app.</p>
@@ -772,18 +789,18 @@
               <p class="fine"><button class="link" data-open="https://opensource.org/license/mit">MIT License</button></p>
               <p class="fine">Includes Chromium, whose notices are in the app as <code>LICENSES.chromium.html</code>.</p>
             </li>
-            <li data-edition="full">
+            <li>
               <h3>Node.js</h3>
               <p class="legal-copyright">© Node.js contributors</p>
               <p class="fine"><button class="link" data-open="https://opensource.org/license/mit">MIT License</button></p>
               <p class="fine">Runs the fact server in the Linux app.</p>
             </li>
-            <li data-edition="full">
+            <li>
               <h3>llama.cpp</h3>
               <p class="legal-copyright">© 2023–2026 The ggml authors</p>
               <p class="fine"><button class="link" data-open="https://opensource.org/license/mit">MIT License</button></p>
             </li>
-            <li data-edition="full">
+            <li>
               <h3>node-llama-cpp</h3>
               <p class="legal-copyright">© 2023 Gilad S.</p>
               <p class="fine"><button class="link" data-open="https://opensource.org/license/mit">MIT License</button></p>

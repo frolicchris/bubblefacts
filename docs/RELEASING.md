@@ -6,29 +6,16 @@ For the maintainer. Contributors don't need any of this; see
 **Releases** are made by the maintainer pushing a version tag, such as
 `v2.0.0`. Version tags are protected, so a published release's tag can't be
 moved or deleted. The Release workflow builds every installer on its own
-system, for the full app and for BubbleFacts Lite (below), and puts them in a
+system, and puts them in a
 *draft* release with a `SHA256SUMS.txt` file, a
 software bill of materials (`bubblefacts-sbom.spdx.json`) and a
 build-provenance attestation for each file, for a person to read over and
 publish. A tag with a hyphen (`v2.0.0-beta.3`) becomes a pre-release.
 
-**BubbleFacts Lite is retired.** The next release is its last: Lite's dashboard
-tells its users to install the full BubbleFacts, which keeps their settings and
-facts, and the website no longer offers it. Once that release is out, remove
-Lite: the Lite build and its artifact in `release.yml`, the Lite smoke tests,
-`scripts/dist-lite.mjs` and its test, the `dist:lite` script, the edition code
-and Lite's text in the app, the `-lite` line in `.github/release-template.md`,
-and this paragraph. Until then:
-
-**BubbleFacts Lite.** Each system also gets a Lite installer: the same app
-without the AI engine (node-llama-cpp and its native builds), for streamers who
-want no AI or not the 2 GB download. Its files have `-lite` after the version
-(`BubbleFacts-2.2.0-lite-mac-arm64.dmg`, `bubblefacts-lite_2.2.0_amd64.deb`),
-and the in-app update keeps a Lite install on Lite. To build it on your own
-computer, run `npm run dist:lite` (it takes the same arguments as
-`npm run dist`, and writes into `release-lite/`). It changes `package.json`
-while it builds and puts it back when it's done; if a build is killed hard
-enough that it can't, `git checkout package.json`.
+**BubbleFacts Lite** (issue #34) was retired after 2.2.0: the 2.2.0 releases
+were its last, and their Lite builds ask Lite users to install the full app,
+which keeps their settings and facts. Releases from 2.3.0 build the full app
+only.
 
 **Update channels.** Every beta and release candidate is published as a GitHub
 pre-release; full releases (`v2.0.0`, `v2.0.1`) are not. That's what the app's
@@ -140,9 +127,11 @@ reads.
    `desktop/renderer/whats-new.json` has that version's two to four
    highlights (plain words, like the changelog's top lines), added before
    tagging. The app shows them once on the dashboard after the update; a
-   version without an entry shows nothing.
+   version without an entry shows nothing. `npm run check` fails on the
+   version's pull request if any file still has the old version or the
+   highlights are missing.
 2. The Release workflow passed for every system, and the draft has every
-   installer, full and Lite (`-lite` in the name), `SHA256SUMS.txt`,
+   installer, `SHA256SUMS.txt`,
    `bubblefacts.zip` and `bubblefacts-sbom.spdx.json`.
 3. The **Smoke test** workflow starts by itself when the Release run finishes
    successfully, and tests that run's artifacts. (A draft release can't be
@@ -151,21 +140,15 @@ reads.
    from the default branch's copy of `smoke.yml`, so a change to that file
    counts only after it is merged. Every smoke system passes (Windows, Linux
    `.deb` and AppImage, Apple-silicon and Intel Mac), including writing and
-   keeping captions, and both Lite systems (Windows and Linux `.deb`), which
-   check that Lite's server starts, it says it's Lite and no AI engine file is
-   in it. Each starts the app as shipped first, past setup, and requires its
+   keeping captions. Each starts the app as shipped first, past setup, and requires its
    fact server to be listening: the check that would have caught the Linux
-   server not starting from 2.0.0 to 2.1.0 (fixed in 2.1.1). Open one Mac Lite
-   build by hand (step 5).
+   server not starting from 2.0.0 to 2.1.0 (fixed in 2.1.1).
 4. Download one installer from the draft. Its checksum matches the draft's
    `SHA256SUMS.txt`, and `gh attestation verify FILE --repo
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
 5. Install it and open it. The setup screen appears and shows the new version
-   at the bottom, with the tagged commit and no "test build". Open one Lite
-   installer too: its version says "Lite", setup says what Lite does, nothing
-   downloads, the dashboard says Lite is retired with a **Get BubbleFacts**
-   button, and Settings, Advanced, shows no **On this computer**. In either,
-   **Who writes the facts** doesn't show for a new install.
+   at the bottom, with the tagged commit and no "test build". Settings,
+   Advanced, doesn't show **Who writes the facts** for a new install.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.
@@ -185,6 +168,13 @@ A release candidate (`2.0.0-rc.1`) means "this is 2.0.0 unless testing finds
 a blocker." These rules follow the practice of projects such as Python,
 GNOME, Mozilla and VS Code, sized for one maintainer.
 
+**How many releases.** A beta goes out when there is something new for
+testers to try, about one a week at most; a beta that broke something is
+fixed with the next one at once. Anything else that needs trying is a test
+build (Actions → Release → Run workflow), which costs no version, notes or
+announcement. Keep a feature release small enough that its freeze, from the
+first release candidate to the final release, lasts about a week.
+
 **Freezes, from the first release candidate (rc.1):** (planned from beta.12; testers' requests added a beta.13 and a few features after it, so the freeze took effect with rc.1)
 
 - **Features:** nothing new. Only fixes, docs and tests.
@@ -195,11 +185,11 @@ GNOME, Mozilla and VS Code, sized for one maintainer.
   ships; restore its Electron-only rule then (`.github/dependabot.yml`).
 
 **What may change during the release candidates:** only a low-risk fix for a
-release blocker. Anything else waits for 2.0.1. To make an exception, write
+release blocker. Anything else waits for the next maintenance release. To make an exception, write
 the reason in the pull request.
 
-**Release blockers** carry the `release blocker` label and the 2.0.0
-milestone. A blocker is anything that puts wrong or unsafe words on stream,
+**Release blockers** carry the `release blocker` label and the milestone
+of the release being prepared. A blocker is anything that puts wrong or unsafe words on stream,
 stops bubbles mid-stream, loses a streamer's settings or facts, breaks
 setup, sign-in or the in-app update, or a security problem. There must be
 none open to make a release candidate, and none to make the final release.
@@ -211,17 +201,29 @@ merges.
 **Testing each release candidate:**
 
 1. The release checklist above, on every system.
-1. A fact check of two testers' whole song lists, of different kinds of
-   music (with their permission): `npm run build`, then
-   `node scripts/check-song-list.mjs LIST.json OUT_DIR --facts 50`. It
-   records the Wikipedia article every song gets and flags ones that look
-   wrong, and writes facts for a random 50 songs, each checked against its
-   own source. **The bar: under 5% of the facts that come from a source are
-   wrong or misleading, on each list, with no new kind of mistake.** (A
-   small AI never reaches zero; Wrong and Hands-free Wrong catch the rest.)
-   For 2.0.0 this bar moved to 2.1.0 (#172): Standard ships as measured,
-   and its rate is in the known issues (#36).
-   Keep the lists and results out of the repository.
+1. The fact check. **The goal: under 5% of the facts that come from a
+   source are wrong or misleading, with no new kind of mistake.** (A small
+   AI never reaches zero; Wrong and Hands-free Wrong catch the rest.) Three
+   checks, each for its own question:
+   - **Cases, on every pull request.** The labeled examples in
+     `backend/src/fixtures/` that the tests read: exact, free, no AI. They
+     show whether a change broke something that was right.
+   - **Before and after, for each fact-quality change.** The old code and
+     the new on songs already measured, counting the facts that changed.
+     This decides whether a change merges
+     ([CONTRIBUTING.md](../.github/CONTRIBUTING.md), "How a change moves").
+     A song list that has guided a change is only good for this.
+   - **The stated rate, once per release, on the release candidate's
+     code.** A fresh set of 80 songs that has guided no change: `npm run
+     build`, then `node scripts/check-song-list.mjs LIST.json OUT_DIR`
+     writes the facts, and each is judged right, wrong or misleading
+     against its own source. One set is about 310 facts, which can't show a
+     rate under 5% by itself (its range is about 3 points either way), so
+     sets on the same code are pooled until the rule in #199 decides.
+
+   The release notes and the known issues (#36) state the measured rate and
+   its range. A single set moving up or down is not a trend. Keep the lists
+   and results out of the repository.
 2. A hands-on pass on real computers: Mac and Windows by a tester each. Linux
    relies on the smoke test unless a tester has it; say so in the notes.
 3. Every bug fixed since the last beta, checked again.
@@ -229,37 +231,39 @@ merges.
    settings and facts kept.
 5. At least one tester streams with it, twice, with no new blocker.
 
-**Making the final release:** 2.0.0 is the last release candidate's code with
-only the version number changed.
+**Making the final release:** the final version (2.3.0, say) is the last
+release candidate's code with only the version number changed.
 
-**rc.2 is the last release candidate for 2.0.0.** So everything it needs is
-proven before it's tagged, on a test build of the exact commit: the fact check
-on both lists (measured and stated, see #172), every fix since rc.1 checked
-again, the in-app update from rc.1, and a tester streaming the test build. No
-release blocker may be open when it's cut. After rc.2, nothing merges to `main` but the 2.0.0 version
-change; anything else found goes to the 2.0.1 milestone. Before tagging it, go or no-go:
+**Plan on one release candidate.** So everything it needs is proven before
+it's tagged, on a test build of the exact commit: the fact check, every fix
+since the last beta checked again, the in-app update from the last beta, and a
+tester streaming the test build. No release blocker may be open when it's cut.
+A second release candidate is only for a release blocker. After the last one,
+nothing merges to `main` but the version change; anything else found goes to
+the next milestone. (2.0.0 did this with rc.2.) Before tagging the final
+release, go or no-go:
 
 - [ ] No open release blockers.
-- [ ] The fact check of the last release candidate met the under-5% bar
-      (for 2.0.0: measured and stated in the known issues, #172).
+- [ ] The fact check of the last release candidate found no new kind of
+      mistake, and its rate and range are in the release notes and the known
+      issues (#36).
 - [ ] The last release candidate was out at least three days, and testers
       streamed with it.
-- [ ] The update from it to 2.0.0 works (the app treats 2.0.0 as newer than
-      any `rc` or `beta`).
+- [ ] The update from it to the final version works (the app treats it as
+      newer than any `rc` or `beta`).
 - [ ] Release notes, changelog, guide and known issues are current.
 - [ ] Signing is decided: signed, or the first-launch steps are on the
       download page.
-- [ ] `desktop/renderer/whats-new.json` has 2.0.0's highlights.
+- [ ] `desktop/renderer/whats-new.json` has the release's highlights.
 
-**The website on release day:** it switches to stable wording by itself as
-soon as 2.0.0 is published (the download page then says "Newest version"
-instead of "2.0 beta"). The one edit is for visitors without JavaScript:
-flip the site default in `site/assets/site.css` and upload it (done in
-2.0.0; see `site/README.md`, "Since version 2.0.0").
+**The website on release day:** it already shows stable wording (the site
+default since 2.0.0; see `site/README.md`, "Since version 2.0.0"), and the
+download page reads GitHub for the newest version. Add the changelog entry
+and upload the changed `site/` files.
 
-**If 2.0.0 has a serious problem:** releases are immutable and version tags
-are locked, so the way back is forward: fix it on `main` and release 2.0.1
-the same way, as soon as possible. Serious means a release blocker as
+**If a stable release has a serious problem:** releases are immutable and version tags
+are locked, so the way back is forward: fix it on `main` and release the next
+patch version the same way, as soon as possible. Serious means a release blocker as
 defined above. Publish the post in Discussions (Announcements) and Discord
 (`announce.yml` does both: write the title and body, then run it from
 Actions > Announce) with what happened and what to do meanwhile; if the in-app update itself is broken, the post links the
@@ -279,8 +283,8 @@ go/no-go list above,
 
 A new feature release (x.y.0) reaches Beta-channel users at once and
 Stable-channel users three days later, so problems show up with testers
-first. Maintenance releases (below) reach both at once. Plan a 2.0.1
-about a week after 2.0.0 for what they find.
+first. Maintenance releases (below) reach both at once. Plan a maintenance release
+about a week after each feature release for what testers find.
 
 ## Maintenance releases
 

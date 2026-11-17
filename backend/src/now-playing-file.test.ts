@@ -21,7 +21,7 @@ import { SSLQueueItem } from "./types";
 import * as musicbrainz from "./musicbrainz";
 import { otherOrder } from "./youtube-title";
 
-/** Sample files as now-playing apps write them, with made-up songs. */
+/** Sample files as now-playing apps write them, with made-up songs */
 const SAMPLES = path.join(__dirname, "fixtures", "now-playing");
 let dir: string;
 let file: string;
@@ -34,14 +34,14 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-/** The app writes a sample into the watched file, just now or `ageMs` ago. */
+/** The app writes a sample into the watched file, just now or `ageMs` ago */
 function write(sample: string, ageMs = 0): void {
   fs.copyFileSync(path.join(SAMPLES, sample), file);
   const when = new Date(Date.now() - ageMs);
   fs.utimesSync(file, when, when);
 }
 
-/** A source plus every song change it reported. Two checks settle a reading (see apply()). */
+/** A source plus every song change it reported; two checks settle a reading (see apply()) */
 function source(format: NowPlayingFormat = "artist-title") {
   const changes: Array<SSLQueueItem | null> = [];
   const src = new NowPlayingFileSource({ file, format });
@@ -69,7 +69,7 @@ describe("parseNowPlaying", () => {
 
   it("treats a line without a spaced dash as all title", () => {
     expect(parseNowPlaying("Theme of the Glass Valley", "artist-title")).toEqual({ artist: "Unknown", title: "Theme of the Glass Valley" });
-    // A hyphen inside a word isn't a separator.
+    // A hyphen inside a word isn't a separator
     expect(parseNowPlaying("Hi-Fi Dreams", "artist-title")).toEqual({ artist: "Unknown", title: "Hi-Fi Dreams" });
   });
 
@@ -111,9 +111,9 @@ describe("parseNowPlaying with a YouTube title", () => {
   });
 
   it("does not guess at other text, and does not strip a title that only looks like one", () => {
-    // No explicit marker, so a bare name stays with the title: the line's format is Nightbot's to customize.
+    // No explicit marker, so a bare name stays with the title: Nightbot's line format is customizable
     expect(read("Marlow Finch - Harbor Lights (Official Video) - dana_k")?.artist).toBe("Marlow Finch");
-    // A line that is only a requester note still shows something, not nothing.
+    // A line that is only a requester note still shows something
     expect(read("Requested by dana_k")).toEqual({ artist: "Unknown", title: "Requested by dana_k" });
   });
 
@@ -146,7 +146,7 @@ describe("newestTextFile", () => {
 });
 
 describe("NowPlayingFileSource following a folder (Nightbot)", () => {
-  /** Nightbot's files, each written just now or `ageMs` ago. */
+  /** Nightbot's files, each written just now or `ageMs` ago */
   const put = (name: string, sample: string, ageMs = 0) => {
     const f = path.join(dir, name);
     fs.copyFileSync(path.join(SAMPLES, sample), f);
@@ -208,7 +208,7 @@ describe("NowPlayingFileSource following a folder (Nightbot)", () => {
   });
 
   it("asks MusicBrainz which side of a YouTube title is the artist; an Artist - Title line is read as written", async () => {
-    // As if MusicBrainz had "Harbor Lights" by Marlow Finch only.
+    // As if MusicBrainz had "Harbor Lights" by Marlow Finch only
     const settle = jest.spyOn(musicbrainz, "settleTitleOrder").mockImplementation(async (r) => (r.orderUnsure ? otherOrder(r) : r));
     try {
       fs.writeFileSync(file, "Harbor Lights - Marlow Finch (remix)\n");
@@ -315,7 +315,7 @@ describe("NowPlayingFileSource", () => {
     await settle();
     expect(src.getCurrentSong()).toBeNull();
     expect(changes.at(-1)).toBeNull();
-    // Missing isn't broken: the app may not have started yet.
+    // Missing isn't broken: the app may not have started yet
     expect(src.lastSuccessfulFetchAgeMs()).toBeLessThan(1000);
   });
 
@@ -342,12 +342,12 @@ describe("NowPlayingFileSource", () => {
     write("artist-title.txt");
     await settle();
     expect(src.getCurrentSong()).not.toBeNull();
-    // The player stopped and the file was never rewritten.
+    // The player stopped and the file was never rewritten
     const old = new Date(Date.now() - STALE_AFTER_MS - 1000);
     fs.utimesSync(file, old, old);
     await settle();
     expect(src.getCurrentSong()).toBeNull();
-    // Written again later, the same line is a new play.
+    // Written again later, the same line is a new play
     write("artist-title.txt");
     await settle();
     expect(changes.map((c) => c?.song.title ?? null)).toEqual(["Harbor Lights", null, "Harbor Lights"]);
@@ -385,7 +385,7 @@ describe("NowPlayingFileSource", () => {
     fs.mkdirSync(file);
     await settle();
     expect(src.getCurrentSong()).toBeNull();
-    // Logged once, not on every check.
+    // Logged once, not on every check
     expect(error).toHaveBeenCalledTimes(1);
     expect(error.mock.calls[0][0]).toMatch(/is a folder, not a file/);
     error.mockRestore();

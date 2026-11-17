@@ -3,12 +3,14 @@
 OBS overlay and desktop app that show verified trivia about the song a
 StreamerSongList queue, a StreamElements request player or a now playing file
 says is playing.
-Node 20+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
+Node 22+, TypeScript backend compiled with `tsc`, plain JS overlay. Read
 `docs/ARCHITECTURE.md` before changing the fact pipeline. It records the
 constraints that were learned on live streams.
 
 The rules for every contributor are in `.github/CONTRIBUTING.md`; the rules
-below add to them.
+below add to them. Every session follows its "How a change moves"
+section: the milestone is the plan, at most three pull requests are open, and
+each holds one kind of change.
 
 ## Commands
 ```bash
@@ -20,8 +22,7 @@ npm run build       # compile to dist/
 npm run bump -- X.Y.Z  # set a new version everywhere a release needs it
 npm run app         # build and run the desktop app in development
 npm run dist        # build installers into release/ (on iCloud-synced folders, see .github/CONTRIBUTING.md)
-npm run dist:lite   # build BubbleFacts Lite (no AI engine) into release-lite/; same arguments as dist
-npm run test:scripts  # the version and Lite build scripts' own tests (part of check)
+npm run test:scripts  # the version and release scripts' own tests (part of check)
 bash scripts/start-overlay.sh
 ```
 Desktop app tests live in `desktop/src/*.test.ts` and run with `npm test`.

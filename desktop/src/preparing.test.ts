@@ -80,7 +80,7 @@ describe("PrepareDriver (issue #295)", () => {
   it("reads macOS's own answer on battery, from pmset -g batt", () => {
     expect(batteryFromPmset("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1)\t62%; discharging; (no estimate) present: true\n")).toBe(true);
     expect(batteryFromPmset("Now drawing from 'AC Power'\n -InternalBattery-0 (id=1)\t60%; charging; 1:29 remaining present: true\n")).toBe(false);
-    // A desktop Mac has no battery line at all.
+    // A desktop Mac has no battery line at all
     expect(batteryFromPmset("Now drawing from 'AC Power'\n")).toBe(false);
     expect(batteryFromPmset("Now drawing from 'UPS Power'\n")).toBe(false);
     expect(batteryFromPmset("")).toBeNull();
@@ -91,7 +91,7 @@ describe("PrepareDriver (issue #295)", () => {
     expect(batteryFromWin32("2\r\n")).toBe(false);
     expect(batteryFromWin32("6")).toBe(false);
     expect(batteryFromWin32("2,1")).toBe(true);
-    // A desktop has no battery.
+    // A desktop has no battery
     expect(batteryFromWin32("\r\n")).toBe(false);
     expect(batteryFromWin32("Get-CimInstance : Access denied")).toBeNull();
   });
@@ -101,11 +101,11 @@ describe("PrepareDriver (issue #295)", () => {
     const unplugged = [{ type: "Mains", online: "0" }, { type: "Battery", status: "Discharging" }];
     expect(batteryFromSysfs(plugged)).toBe(false);
     expect(batteryFromSysfs(unplugged)).toBe(true);
-    // A charger that's out and a battery whose status says nothing useful: on battery.
+    // Charger out, battery status unhelpful: on battery
     expect(batteryFromSysfs([{ type: "Mains", online: "0" }, { type: "Battery", status: "Unknown" }])).toBe(true);
-    // USB-C charging.
+    // USB-C charging
     expect(batteryFromSysfs([{ type: "USB", online: "1" }, { type: "Battery", status: "Not charging" }])).toBe(false);
-    // A desktop, or a virtual machine.
+    // A desktop, or a virtual machine
     expect(batteryFromSysfs([])).toBe(false);
     expect(batteryFromSysfs([{ type: "Mains", online: "1" }])).toBe(false);
 
@@ -139,12 +139,12 @@ describe("PrepareDriver (issue #295)", () => {
     expect(asked).toBe(3);
   });
 
-  // Runs this system's real check: CI does this on macOS, Windows and Linux.
+  // Runs this system's real check: CI does this on macOS, Windows and Linux
   it("gets an answer from this computer's own system", async () => {
     const own = systemOnBattery();
     if (!own) return;
     await expect(own()).resolves.toEqual(expect.any(Boolean));
-  }, 30_000); // Windows' PowerShell can take well over ten seconds on a busy runner, beside the other test workers.
+  }, 30_000); // Windows PowerShell can take well over 10 s on a busy runner beside the other test workers
 
   it("stops on battery when the system says so, though the app's own check says plugged in", async () => {
     let battery = false;
@@ -161,7 +161,7 @@ describe("PrepareDriver (issue #295)", () => {
     await d.tick();
     expect(d.reason).toBe("battery");
     expect(calls).toEqual([{ run: true }, { run: false }]);
-    // Said before an overlay, as the app's own check does.
+    // Said before an overlay, as the app's own check does
     const withOverlay = new PrepareDriver({ conditions: () => ({ ...free, overlays: 1 }), obsRunning: async () => false, onBattery: async () => true, control: async () => ({ running: false }) });
     await withOverlay.tick();
     expect(withOverlay.reason).toBe("battery");
@@ -182,7 +182,7 @@ describe("PrepareDriver (issue #295)", () => {
     await d.tick();
     expect(calls).toEqual([{ run: true }, { run: false }]);
     expect(d.reason).toBe("obs-unknown");
-    // The next good check frees it again.
+    // The next good check frees it again
     await d.tick();
     expect(d.reason).toBe("");
     expect(calls).toEqual([{ run: true }, { run: false }, { run: true }]);
@@ -206,7 +206,7 @@ describe("PrepareDriver (issue #295)", () => {
     const state = { conditions: { ...free, enabled: false }, obs: false };
     const { d, calls } = driver(state);
     await d.tick();
-    // Nothing was running, but a stop is cheap and makes sure.
+    // Nothing was running, but a stop is cheap and makes sure
     expect(calls).toEqual([{ run: false }]);
     await d.tick();
     expect(calls).toHaveLength(1);

@@ -1,12 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-/** The only things the window can ask the app to do. */
+// The only things the window can ask the app to do
 contextBridge.exposeInMainWorld("bubbleFacts", {
   getState: () => ipcRenderer.invoke("get-state"),
   unlockReady: () => ipcRenderer.send("unlock-ready"),
   testConnection: (channel: string, token: string, kind: string) => ipcRenderer.invoke("test-connection", channel, token, kind),
   testStreamElements: (channel: string, jwt: string) => ipcRenderer.invoke("test-streamelements", channel, jwt),
   testSharing: (url: string, channel: string, key: string) => ipcRenderer.invoke("test-sharing", url, channel, key),
+  importLook: () => ipcRenderer.invoke("import-look"),
+  useLook: (look: unknown) => ipcRenderer.invoke("use-look", look),
+  removeLook: () => ipcRenderer.invoke("remove-look"),
   chooseNowPlayingFile: () => ipcRenderer.invoke("choose-now-playing-file"),
   saveSettings: (changes: Record<string, unknown>) => ipcRenderer.invoke("save-settings", changes),
   signIn: () => ipcRenderer.invoke("sign-in"),

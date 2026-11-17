@@ -2,19 +2,15 @@ import type { AiredFacts } from "./aired-facts";
 import { Fact, SSLSong } from "./types";
 
 /**
- * What viewers see, as `[Shown] "Song" (source): text`, so a stream's log can
- * be read back for quality, not just counts. The server logs a batch where it
- * actually goes out to an overlay, never where it's written: a skipped,
- * paused or superseded song's facts never reach one. Each fact is logged once
- * per play of a song, however many overlays get it or catch up on it. The
- * same facts go into the aired facts record (aired-facts.ts), when there is one.
+ * What viewers see, as `[Shown] "Song" (source): text`, logged where facts go out, once per play, and added to aired-facts.ts
+ * (ARCHITECTURE.md: How do I see what a stream showed?)
  */
 export class ShownLog {
   private logged = new Set<string>();
 
   constructor(private readonly aired?: AiredFacts) {}
 
-  /** A new play of a song: its facts may be logged again, even if it's the same song. */
+  /** A new play: its facts may be logged again, even for the same song */
   newPlay(): void {
     this.logged = new Set();
   }

@@ -43,7 +43,7 @@ describe("writeFileAtomic", () => {
 
 describe("the server's copy", () => {
   it("is the same code, so the app and the server write files the same way", () => {
-    // The two are compiled separately; only the comment naming the other copy differs.
+    // The two are compiled separately; only the comment naming the other copy differs
     const code = (file: string) =>
       fs.readFileSync(path.join(__dirname, "../..", file), "utf8").replace(/\r\n/g, "\n").replace(/^ \* The (?:desktop app|server) has its own copy .*$/m, "");
     expect(code("desktop/src/atomic-write.ts")).toBe(code("backend/src/atomic-write.ts"));

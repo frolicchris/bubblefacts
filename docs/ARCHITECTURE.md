@@ -60,7 +60,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/song-search.ts` | Finds songs on the StreamerSongList list for the song facts editor. |
 | `backend/src/session.ts` | What the stream has seen, kept across a restart, in `session.json`. |
 | `backend/src/wrong-facts.ts` | Sources marked **Wrong**, per song, in `wrong-facts.json`. |
-| `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. |
+| `backend/src/wrong-log.ts` | One line per **Wrong** press in `wrong-log.jsonl` (song, caption, source, article, the sentence the caption was written from when the fact has one, version, date), newest 500, private, in backups and removed with the data. `scripts/wrong-cases.mjs` replays it. A report to GitHub never includes the file. `scripts/check-song-list.mjs` writes its sampled facts in the same shape (`facts.jsonl`). |
 | `backend/src/wrong-target.ts` | Which fact a click on **Wrong** means: the one on stream now, or an earlier play's. |
 | `backend/src/shown-log.ts` | The `[Shown]` log lines, once per fact per play. |
 | `backend/src/aired-facts.ts` | The same facts kept in `aired-facts.json` (song, fact, source, link, time), newest 500, private, removed with the data; the app's reports read it through `/control/aired`. |
@@ -75,7 +75,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/artist-good.ts`, `neutral-wording.ts` | Facts about the good an artist does, and the neutral-wording rules on top of them. |
 | `backend/src/not-music.ts` | Spots commercials, station idents and jingles. |
 | `backend/src/listening.ts` | The dashboard's "Hearing your queue live" and "Facts took" lines. |
-| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream and its facts to the address the streamer set, beside the overlay flow, never in front of it. |
+| `backend/src/share-song-facts.ts` | **Share song facts with other apps** (off by default): sends the song on stream, then its facts, to the address the streamer set, beside the overlay flow, never in front of it (see [Sharing song facts with other apps](#sharing-song-facts-with-other-apps)). |
 | `backend/src/twitch-about.ts` | Which artists can be a Twitch login, and asking the app for that channel's About (step 9 below). |
 | `backend/src/atomic-write.ts`, `capped-map.ts`, `log-timestamps.ts`, `text.ts`, `types.ts` | Crash-safe file writes, session caches that can't grow for ever, a time on every log line, small text helpers, and the shared song and fact shapes. |
 | `backend/src/server.ts` | Sends songs and facts to the overlay; `/health`, `/recent` and the app's `/control` routes. |
@@ -87,6 +87,11 @@ Now playing file ─┘ reads the file   │
 Each file stays under about 30 KB, so a change to one check reads one file.
 Imports only point up this list: a file uses the ones above it, never one below
 (`grounding/` reaches into `screening/` for its name and sentence helpers).
+The files they depend on (`wikidata.ts`, `musicbrainz.ts`, `infobox.ts`,
+`data-facts.ts`) import each name from the file that owns it, not from
+`fact-verifier.ts`. `backend/src/import-graph.test.ts` fails if any files
+import each other in a circle, or if `grounding/` or `screening/` imports the
+server, a song source or anything that shows or shares a fact.
 
 | File | Job |
 |---|---|
@@ -306,7 +311,10 @@ sign-ins and the built-in AI. Its design decisions are in
 6. **Write.** The AI rewrites details from the reference as short captions,
    at temperature 0, with the same short system prompt from every provider
    (without one, node-llama-cpp gave the built-in model its own "helpful
-   assistant" prompt, which Ollama never sends). Its instructions are laid out as CROSS (Context,
+   assistant" prompt, which Ollama never sends). The built-in model isn't
+   told today's date either (`builtin-chat.ts`): node-llama-cpp's Llama
+   templates add it unless told not to, and with it the same song could get
+   different captions on another day (issue #431). Its instructions are laid out as CROSS (Context,
    Role, Objective, Source, Scope); `PROMPT_STYLE=rules` uses the older
    numbered list.
    Before the reference, the CROSS prompt shows worked examples with made-up
@@ -463,18 +471,28 @@ sign-ins and the built-in AI. Its design decisions are in
    the song go before the AI's captions, and so they do when the article is
    surely the song's own. When the article may be about another
    work, they are all that is shown (see "Is it the requested work?").
-9. **Twitch About.** With no article and nothing from the databases, a song
-   by an artist named exactly like a Twitch channel can get up to two bubbles
-   from that channel's public About (`twitch-about.ts`). It needs Twitch
-   connected and **Check Twitch for artists no source knows** checked (on by
+9. **Twitch About.** A song can get up to two bubbles from a Twitch
+   channel's public About (`twitch-about.ts`) in two cases. With no article
+   and nothing from the databases, a song by an artist named exactly like a
+   channel gets that channel's. A song credited to a handle (`@name`,
+   `Name (@name)`) gets that channel's: the handle is the login, and Wikipedia and
+   the databases stay skipped. An @name may be the creator's handle on another
+   site, with a stranger's Twitch channel under it (#450), so the handle passes
+   the name rules below (`loginForHandle`: five or more characters, not a
+   common word) and the channel must show a second sign that it is a music
+   channel (`aboutIsMusicChannel`): its category, the one it last streamed in,
+   is Music or DJs, or its About speaks of making music. Otherwise nothing is
+   shown. A
+   placeholder request is never looked up. Both need Twitch
+   connected and **Show a line from an artist's Twitch About** checked (on by
    default). The words are the About's, cut by `factsFromAbout` as for **Fill
    from their Twitch About**, never rewritten, after "From their Twitch About: "
    so "I" can't read as the streamer. The dashboard's label is
    "Twitch About: <name>", and Wrong blocks that channel for that song, like an
    article.
 
-   A stranger with the same name is the risk, so it abstains on any doubt. The
-   artist must be one name that could be a login: no spaces (they are never
+   For a name match, a stranger with the same name is the risk, so it abstains
+   on any doubt. The artist must be one name that could be a login: no spaces (they are never
    removed: "Blue Moon" isn't the channel bluemoon), so no "A & B" or "A feat.
    B"; five characters or more; not on a short list of common words. A guessed
    artist doesn't count, nor does a song with an article, its own facts or
@@ -494,8 +512,7 @@ sign-ins and the built-in AI. Its design decisions are in
    passed screening all lead to the same place: entry facts plus custom
    facts, or nothing when the streamer has none (the app's default). The AI is
    never asked to write without a reference. With `AI_PROVIDER=none` (the app
-   while its model downloads, and BubbleFacts Lite, which ships without the AI
-   engine) no AI is asked at all: articles aren't turned into captions, so only
+   while its model downloads or when it can't run) no AI is asked at all: articles aren't turned into captions, so only
    facts that need no AI (Wikidata and MusicBrainz, a Twitch About, the song
    list and the streamer's own) reach the stream, and
    `node-llama-cpp` is never imported (it's loaded only for `builtin`).
@@ -679,8 +696,8 @@ reads vouches for those facts: the app, the site and the credit say only that
 BubbleFacts doesn't control or test that AI and can't vouch for what it
 writes, never that its facts were screened or checked.
 The same at-least-once rule applies, switch or no switch. When no AI writes
-(`AI_PROVIDER=none`: Lite, the full app while its AI downloads or can't run,
-the command line set to none), the credit leaves out "retold by AI"
+(`AI_PROVIDER=none`: the app while its AI downloads or can't run, the
+command line set to none), the credit leaves out "retold by AI"
 (`NO_AI_CREDIT_TEXT`), since the rule means it shows even with the switch off. The session file
 keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
@@ -1186,7 +1203,8 @@ artist field. `resolveGameAndTrack` is the one place that handles this. If
 every song suddenly gets generic facts, check it first.
 
 An artist that is a streamer's handle (`@name`, `Name (@name)`) is another
-music content creator's piece: nothing is looked up, and the streamer's own facts are used.
+music content creator's piece: only their Twitch About is looked up (see
+step 9), and without one the streamer's own facts are used.
 
 ### How do I see what a stream showed?
 
@@ -1766,9 +1784,7 @@ the next tick. A song on stream also takes the model from a preparing turn
 at once (`setCurrentSong`), and the preparing model, when there is one, gives
 its memory back when a run ends. An online AI (Groq, Anthropic) is never used
 for preparing: every song would count against the streamer's own key and
-limits. BubbleFacts Lite has no AI engine of its own, so the setting and **Your
-songs** are hidden there (`data-edition="full"`), even with Ollama, and the app
-never starts it (`EDITION === "full"` in main.ts).
+limits.
 The process's own priority isn't lowered by preparing itself (the CPU watch of
 issue #314 may lower it while other programs are busy): on Linux and macOS it can't
 be raised again without administrator rights, which would slow the stream.
@@ -1905,6 +1921,92 @@ priority, so the thread limit does most of the work there.
 memory is taken when it loads, and fewer threads don't free any. It is there
 so a report from a slow stream shows whether the computer was short of
 memory.
+
+### Sharing song facts with other apps
+
+`share-song-facts.ts` (off until the streamer turns it on) tells one other
+app, at an address and with a key the streamer enters, what is on stream, so
+an app that takes context can answer chat's questions about the song from the
+same facts the bubbles show. It is one documented door any app can use (the
+request is in [CONFIG.md](CONFIG.md#sharing-song-facts-with-other-apps)), not
+an integration with one product.
+
+- **The song first, then its facts.** A snapshot goes out when the song
+  starts, saying there are no checked facts yet and not to make any up. It is
+  replaced as facts arrive, and again when one comes off with **Wrong** or a
+  switch. Without the first one the other app knew nothing about a song until
+  its facts were written, and never about a song with none.
+- **It says where each fact is from.** Facts from Wikipedia, Wikidata and
+  MusicBrainz are named as checked against the sources they came from, with
+  BubbleFacts credited. The streamer's own are "From the streamer", and an
+  artist's Twitch About keeps its own lead-in. The text asks the other app to
+  state facts only from these and add none, and says its own opinions are
+  welcome when said as its own: it may change how a fact
+  sounds, never what it says.
+- **Never who asked for the song.** The song list's "Requested by ..." line is
+  about a viewer, so it stays on the overlay (`namesRequester`), and the
+  song's `requestedBy` is never read.
+- **What's next, by name only, and said when it isn't known** (#448). Every
+  snapshot says one thing about the next song, after the song on now and
+  under one label: `Next song: "Title" by Artist.` when the song source has
+  a queue with a song waiting (StreamerSongList today), else `Next song: not
+  known`, with "no song is waiting in the queue" when that is why, and a
+  request to say so and not make one up. So a streamer with busy hands can
+  ask their bot what is coming, and a bot with nothing to go on says that
+  instead of guessing, as with a song that has no facts yet. Only the title and artist are handed to the sharer
+  (`nextSongName` in server.ts), never the entry, so who requested it can't
+  go out; its facts are sent when it starts, as for any song. A source
+  without a queue (no `getNextSong`), a commercial and a stale list all read
+  as not known. So does an off-list request (`nextSongToShare`): its title
+  was typed by a viewer, and reaches another app only once the streamer
+  plays it. A change behind the current song (`onNextSongChange`) sends the
+  snapshot again.
+- **A commercial or jingle isn't announced** (`isNotMusic`), as on the
+  overlay, unless the streamer gave it facts.
+- **Not a song the list forgot.** A streamer's hands are on the instrument,
+  so the list can show a song that ended minutes ago (seen on three streams
+  in November 2026, #451). `stale-song.ts` times each entry: past the
+  streamer's minutes (`STALE_SONG_MINUTES`, 10 unless changed, 5 to 60; a
+  bad value means 10), the server is not sure what is playing. A track
+  whose length the source knows gets twice its length plus 2 minutes when
+  that is longer, never less than the setting. It is a setting because a
+  medley player and a three-minute-song player need different limits. Overlays are
+  cleared and get nothing more for that entry, and the snapshot is replaced
+  by one that names the last song listed, says the song may have changed and
+  carries no facts. `/health` has the notice in `songStale`, which the app
+  shows on the Songs light and the banner (both read out by screen readers).
+  The next song change starts over, with nothing to click, and the notice
+  names no time. Time paused doesn't count (a streamer may line a song up,
+  pause and talk before playing it), and Resume on a stale song takes it as
+  playing again: it starts like a new song, timed from then. A restart (a
+  settings save, the watchdog) keeps the song's clock: `session.json` holds
+  when it came on (`onSince`), unless that is more than 20 minutes past its
+  time, which reads as a new play. A long medley loses only what comes after the limit: by
+  then its bubbles have shown.
+- **Short-lived, and sent again every minute.** Each snapshot lasts 150
+  seconds, and the current one is sent again every 60, for up to an hour
+  after the last change (a song left on the queue doesn't send all night). So
+  an app that started late, or started over and lost what it was told, has
+  the song within a minute; one missed send doesn't drop it; and when
+  BubbleFacts quits, crashes or the computer sleeps, the other app forgets
+  the song by itself. The server sends no goodbye when it's stopped: the app
+  restarts it by ending it and starting the next one at once, and a server
+  that stayed to send one would still hold the port.
+- **Beside the overlay, never in front of it.** `update` returns at once. A
+  request has 5 seconds and never follows a redirect, so the key stays with
+  the address the streamer set. A failure is logged once, by reason, without
+  the key or the song, and tried again with the next change or refresh; a
+  refused key stops sharing until the settings change. It only gives context:
+  nothing asks the other app to speak, so it can't talk over the music.
+- **A send that got through says so** (#452). Before, the log had a line
+  only for a failure, so a quiet log couldn't tell "every song was sent"
+  from "nothing was tried". Each change the other app takes is one line with
+  the song and how many facts (`[Share] Shared "Title": 3 facts`), never
+  the key or the address; the one-minute resend of the same snapshot adds no
+  line. `/health` carries the last song taken and when (`lastShared`), which
+  Settings shows as "Last shared: Title, 7:42 PM". The note that a song
+  may be over doesn't count as sharing the song, so the line keeps the last
+  real share. It is not a live region: it would speak every minute.
 
 ### The app's control routes
 

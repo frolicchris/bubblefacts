@@ -1,4 +1,4 @@
-/** Prefix every console line with a wall-clock time. Import first, for side effects. */
+// Prefixes every console line with a wall-clock time; import first, for its side effects
 const original = {
   log: console.log.bind(console),
   warn: console.warn.bind(console),

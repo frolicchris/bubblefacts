@@ -12,14 +12,14 @@ type Report = {
 const renderer = path.join(__dirname, "..", "renderer");
 const read = (f: string) => fs.readFileSync(path.join(renderer, f), "utf8");
 
-/** The screen's sentences are a plain browser script; run it with a stand-in window. */
+/** The screen's sentences are a plain browser script: run it with a stand-in window */
 function load(): Report {
   const win: { SongsReport?: Report } = {};
   new Function("window", read("songs-report.js"))(win);
   return win.SongsReport!;
 }
 const report = load();
-// A Monday evening, local time.
+// A Monday evening, local time
 const now = new Date(2026, 10, 2, 20, 0).getTime();
 const base: Coverage = { total: 5000, ready: 1240, noFacts: 60, left: 3700, requestsCovered: 0.62, finish: null };
 

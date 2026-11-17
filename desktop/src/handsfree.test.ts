@@ -4,7 +4,7 @@ import { WrongKeyListener } from "./handsfree";
 import { DEFAULTS, fromWindow, sanitize } from "./settings";
 import { makeBackup, readBackup } from "./backup";
 
-/** A stand-in for Electron's globalShortcut; `taken` are keys another app already has. */
+/** A stand-in for Electron's globalShortcut; `taken` are keys another app already has */
 function fakeShortcuts(taken: string[] = []) {
   const held = new Map<string, () => void>();
   return {

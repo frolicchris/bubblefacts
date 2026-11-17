@@ -6,7 +6,7 @@ import { clearArticleItemCache } from "./wikidata";
 import { clearGroundingCache, fetchGrounding as lookup, gameInsteadOfScreen, gameTrackText, namesPiece, oneOfSeveral, resolveGameAndTrack, workMatchConfidence as rules, articleText } from "./fact-verifier";
 import { referenceDecision, scoredLevel } from "./work-resolver";
 
-// MATCH=scored is the default; the "rules match" test project runs these again with MATCH=rules. The score may hold an article back, never add one.
+// MATCH=scored by default; the "rules match" test project reruns these with MATCH=rules (the score may hold an article back, never add one)
 const scored = process.env.MATCH !== "rules";
 const fetchGrounding = async (...a: Parameters<typeof lookup>) => {
   const text = await lookup(...a);
@@ -14,13 +14,13 @@ const fetchGrounding = async (...a: Parameters<typeof lookup>) => {
 };
 const workMatchConfidence = (...a: Parameters<typeof rules>) => (scored ? scoredLevel(rules(...a), referenceDecision(a[2] ?? a[0], a[1], a[0], articleText(a[1].split("\n")[0]))) : rules(...a));
 
-// Made-up bands, songs and games. Each case is a wrong work the lookup once took: an artist's name
-// read as a game's, a name the article only uses for something else, one of several same-name games.
+// Made-up bands, songs and games, each a wrong work the lookup once took: an artist's name read as
+// a game's, a name the article uses only for something else, one of several same-name games
 describe("the requested work, or none", () => {
   let hits: Record<string, string[]>;
   let descriptions: Record<string, string>;
   let extracts: Record<string, string>;
-  /** Pages that exist when looked up by name; none unless a test says so. */
+  /** Pages that exist when looked up by name; none unless a test says so */
   let pages: string[];
   const LONG = " It was made by a small team over three years.".repeat(20);
   const mock = jest.fn(async (url: string) => {
@@ -51,7 +51,7 @@ describe("the requested work, or none", () => {
   });
 
   it("takes a band's song article over a game that only uses the title as a word", async () => {
-    // Heart's "Alone" once read from "Heart of Darkness (video game)", which says "working alone".
+    // Heart's "Alone" once read from "Heart of Darkness (video game)", which says "working alone"
     hits = { "Lantern video game": ["Lantern of Dusk (video game)"] };
     extracts = {
       "Lantern of Dusk (video game)": `Lantern of Dusk is a 1998 platform video game. Its director said he preferred working alone.${LONG}`,
@@ -62,7 +62,7 @@ describe("the requested work, or none", () => {
   });
 
   it("takes a band's article over someone else's album that never names the song", async () => {
-    // Muse's "Space Dementia" once read from Elton John's "The Muse (soundtrack)".
+    // Muse's "Space Dementia" once read from Elton John's "The Muse (soundtrack)"
     hits = { "Quasar soundtrack": ["The Quasar (soundtrack)"] };
     extracts = {
       "The Quasar (soundtrack)": `The Quasar is a soundtrack album by Dana Reyes for the 1999 film of the same name.${LONG}`,
@@ -83,7 +83,7 @@ describe("the requested work, or none", () => {
   });
 
   it("keeps a person's own article that never names the song", async () => {
-    // Not a record by someone else: the performer's lookup finds this very page.
+    // Not a record by someone else: the performer's lookup finds this very page
     hits = { "Mara Quinn": ["Mara Quinn"] };
     extracts = { "Mara Quinn": `Mara Quinn is an American internet personality and actress.${LONG}` };
     descriptions = { "Mara Quinn": "American internet personality and entertainer" };
@@ -98,7 +98,7 @@ describe("the requested work, or none", () => {
   });
 
   it("never takes a later game that names the track only as something else", async () => {
-    // "Vampire Killer" once read from "Castlevania: Belmont's Curse", whose whip has that name.
+    // "Vampire Killer" once read from "Castlevania: Belmont's Curse", whose whip has that name
     hits = { "Gloomhold video game": ["Gloomhold: Ashen Crown", "Gloomhold"], Gloomhold: ["Gloomhold"] };
     extracts = {
       "Gloomhold: Ashen Crown": `Gloomhold: Ashen Crown is a 2025 action video game. The hero wields the "Night Lancer", a spear passed down in his family.${LONG}`,
@@ -106,7 +106,7 @@ describe("the requested work, or none", () => {
     };
     const text = await fetchGrounding({ title: "Night Lancer", artist: "Gloomhold" });
     expect(text).not.toMatch(/^Gloomhold: Ashen Crown\n/);
-    // The series' article may serve, but never as sure about this one track, nor with the spear as "About this piece".
+    // The series' article may serve, but never as sure of this track, nor with the spear as "About this piece"
     if (text) {
       expect(text).not.toMatch(/^About this piece:/m);
       expect(workMatchConfidence({ title: "Night Lancer", artist: "Gloomhold" }, text).level).toBe("unsure");
@@ -124,7 +124,7 @@ describe("the requested work, or none", () => {
   });
 
   it("never guesses among same-name games when none names the track", async () => {
-    // NES Punch-Out!!'s "Training" once read from the 1984 arcade game's article.
+    // NES Punch-Out!!'s "Training" once read from the 1984 arcade game's article
     hits = { "Brawlers!! video game": ["Brawlers!! (1984 video game)", "Brawlers!! (1987 video game)", "Brawlers!!"] };
     extracts = {
       "Brawlers!! (1984 video game)": `Brawlers!! is a 1984 arcade boxing video game.${LONG}`,
@@ -137,7 +137,7 @@ describe("the requested work, or none", () => {
   });
 
   describe("a game that shares its name with a film", () => {
-    // Sonic 2's zones once read from "Sonic the Hedgehog 2 (film)", which outranked the game in the search.
+    // Sonic 2's zones once read from "Sonic the Hedgehog 2 (film)", which outranked the game in the search
     const FILM = `Quill Dash 2 is a 2022 action-adventure comedy film based on the video game franchise.${LONG}`;
     const GAME = `Quill Dash 2 is a 1992 platform game developed by Vell Soft. Its music was composed by Rio Tanabe.${LONG}`;
     const zone = { title: "Neon Casino Zone", artist: "Quill Dash 2" };
@@ -219,7 +219,7 @@ describe("About this piece", () => {
   });
 });
 
-// "HAVANA - Camila Cabello" read the wrong way round once found the city: a place is never a song's reference.
+// "HAVANA - Camila Cabello" read backwards once found the city: a place is never a song's reference
 describe("a place named like the song or its artist", () => {
   const LONG = " It lies on a wide bay and has many old buildings.".repeat(20);
   let hits: Record<string, string[]>;

@@ -30,7 +30,7 @@ describe("PreparedStore (issue #292)", () => {
     store().put("ssl:1", entry());
     expect(store().get("ssl:1")).toEqual(entry({ preparedAt: expect.any(String), checkedAt: expect.any(String) }));
     if (process.platform !== "win32") expect(fs.statSync(file).mode & 0o777).toBe(0o600);
-    // Written whole: no temporary file is left beside it.
+    // Written whole: no temporary file left beside it
     expect(fs.readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 

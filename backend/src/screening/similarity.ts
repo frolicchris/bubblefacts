@@ -4,19 +4,16 @@ import { MAX_FACT_CHARS } from "../fact-limits";
 import { normalizeTitle, resolveGameAndTrack } from "../grounding/titles";
 import { STOPWORDS } from "../grounding/relevance";
 
-/**
- * Comparing a caption with its source: shared content words, quotes,
- * restating the request, and plain-word music terms.
- */
+// Caption vs source: shared content words, quotes, restating the request, plain-word music terms
 
-/** Strip "Fact 1:", bullets, numbering and wrapping quotes. */
+/** Without "Fact 1:", bullets, numbering and wrapping quotes */
 export function stripPrefix(fact: string): string {
   return fact
     .replace(/^\s*(fact|trivia|tip|line)\s*\d*\s*[:.\-—]\s*/i, "")
     .replace(/^\s*[-*•]\s*/, "")
     .replace(/^\s*\d+\s*[.)]\s*/, "")
     .trim()
-    // Quotes around the whole line go; a quoted title at the start stays whole.
+    // Quotes around the whole line go; a quoted title at the start stays
     .replace(/^["“]([^"“”]*)["”]$/, "$1")
     .replace(/^'(.*)'$/, "$1")
     .trim();
@@ -28,12 +25,8 @@ export function contentTokens(s: string): Set<string> {
   );
 }
 
-/**
- * Words that only say what the request already shows: that it's a song, who
- * it's by or what it's from, and how it was made in general terms. Genre and
- * nationality words count too: "a song by English rock band Coldplay" tells
- * a viewer nothing the request didn't.
- */
+// Words saying only what the request shows: a song, by whom, from what, made how; genre and
+// nationality too ("a song by English rock band Coldplay" adds nothing)
 const RESTATES = new Set(
   (
     "is was are were be been a an the this that it its one here now so just " +
@@ -48,16 +41,11 @@ const RESTATES = new Set(
   ).split(" ")
 );
 
-/**
- * A caption that only repeats what viewers already see: the title, the artist
- * or game, and filler. "\"Clocks\" was written by Coldplay" says nothing when the
- * request read "Coldplay - Clocks"; "\"Clocks\" was written by Chris Martin" or
- * "came out in 2002" adds something and stays.
- */
+/** Only the title, artist or game plus filler: "\"Clocks\" was written by Coldplay" for "Coldplay - Clocks" */
 export function restatesRequest(fact: string, song: SSLSong): boolean {
   const { game, track } = resolveGameAndTrack(song);
   const known = new Set(
-    // Apostrophes go on both sides, so "Laura's" in the title is "Lauras" in the caption too.
+    // Apostrophes dropped on both sides: "Laura's" matches "Lauras"
     [song.title, hasNoArtist(song.artist) ? "" : song.artist, game, track].flatMap((s) => normalizeTitle((s ?? "").replace(/['’]/g, "")).split(" ")).filter(Boolean)
   );
   const left = normalizeTitle(fact.replace(/['’]/g, ""))
@@ -66,7 +54,7 @@ export function restatesRequest(fact: string, song: SSLSong): boolean {
   return left.length === 0;
 }
 
-/** Jaccard or containment overlap; containment catches a restatement that adds words. */
+/** Word overlap, or one mostly inside the other (a restatement that adds words) */
 export function tooSimilar(a: string, b: string): boolean {
   const ta = contentTokens(a);
   const tb = contentTokens(b);
@@ -76,15 +64,10 @@ export function tooSimilar(a: string, b: string): boolean {
   return shared / (ta.size + tb.size - shared) >= 0.5 || shared / Math.min(ta.size, tb.size) >= 0.7;
 }
 
-const MAX_QUOTE_WORDS = 12;
+const MAX_QUOTE_WORDS = 12;  // longest quote allowed
 export const plainQuotes = (s: string) => s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, " ").toLowerCase();
 
-/**
- * Words in quotation marks are someone's own words, so they must be in the
- * source exactly, and short: a quote of three or more words that the source
- * doesn't contain, or one over twelve words, is returned. One- and two-word
- * quotes are titles and nicknames, which the name checks cover.
- */
+/** A quote of 3+ words not in the source exactly, or over MAX_QUOTE_WORDS. Shorter ones are titles and nicknames: name checks cover them */
 export function alteredQuote(fact: string, context: string): string | null {
   const source = plainQuotes(context);
   for (const m of plainQuotes(fact).matchAll(/"([^"]+)"/g)) {
@@ -96,7 +79,7 @@ export function alteredQuote(fact: string, context: string): string | null {
   return null;
 }
 
-/** Music terms a viewer may not know, each with a few plain words. Fixed text: the model never explains them itself. */
+// Music terms and their plain words. Fixed text: the model never explains them itself
 const PLAIN_WORDS: Array<[RegExp, string]> = [
   [/\barpeggi(?:o|os|ated)\b/i, "a chord's notes played one at a time"],
   [/\bostinato\b/i, "a short pattern repeated over and over"],
@@ -112,7 +95,7 @@ const PLAIN_WORDS: Array<[RegExp, string]> = [
   [/\bbeats per minute\b/i, "how fast it goes"],
 ];
 
-/** Add a few plain words after the first music term in a caption, when they fit in the bubble (issue #48). */
+/** Plain words after the caption's first music term, when they fit the bubble (#48) */
 export function explainMusicTerms(fact: string): string {
   for (const [term, plain] of PLAIN_WORDS) {
     const m = term.exec(fact);
@@ -124,15 +107,9 @@ export function explainMusicTerms(fact: string): string {
   return fact;
 }
 
-/**
- * The sentence in the reference a caption was most likely written from, so
- * the streamer can see what it rests on. The one sharing the most of the
- * caption's content words, when it shares at least half; otherwise none:
- * showing a poor match as "the source" would mislead.
- */
+/** The reference sentence sharing most of a caption's words, if at least half; else "" (a poor match would mislead) */
 export function supportingSentence(fact: string, context: string, maxChars = 320): string {
-  // The plain-word explanations in brackets are ours, not the article's. Only the words are
-  // compared, so the space before a bracket can stay; this keeps the pattern linear on any text.
+  // Bracketed plain words are ours, not the article's. The space before stays: keeps the pattern linear
   const want = contentTokens(fact.replace(/\([^()]*\)/g, " "));
   if (!want.size) return "";
   let best = "";

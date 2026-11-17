@@ -1,33 +1,16 @@
 import { namesBlanked } from "./content-standard";
 import { escapeRe } from "./text";
 
-/**
- * Neutral wording for facts about what artists do in public. Every rule is here, on purpose, so
- * the line can be read and reviewed in one place: the rule, the prompt, the word lists.
- *
- * THE RULE. State the public act someone can check, not its merit: what the artist did and for
- * whom. "Performed at a benefit for X", "co-founded Y", "named a goodwill ambassador". Never
- * whether a cause is right, never why they did it unless they said so and the fact says who said
- * it.
- *
- * WHAT STAYS OUT, whatever the wording:
- *   1. Elections, candidates, parties and endorsements (`ELECTIONS`).
- *   2. Anything that reads as taking a side in a contested fight (`CONTESTED`), and acts that
- *      only state a side (`SIDE_ACTS`): naming a letter or a petition still spreads the side.
- *   3. Judging or heated words (`LOADED`), characterizations (`CHARACTERIZING`), motives
- *      (`MOTIVE`) and hedges (`HEDGES`).
- *   4. For someone living: money figures, and an undated present-tense role.
- * The content standard (content-standard.ts) comes first and is never loosened by this file.
- *
- * These lists sit on top of an allow-list: an article sentence must first have the shape of a
- * checkable act (`ACTS` in artist-good.ts). Word lists only, as in the content standard: no AI
- * decides, and a miss keeps the fact off the stream.
- */
+// Neutral wording for facts about an artist's public acts: every rule in this one file, for review
+// THE RULE: the checkable act and for whom, never its merit or a motive the artist didn't state
+// After the content standard, never loosening it, and on top of `ACTS` (artist-good.ts); word lists only, a miss keeps a fact off
+// (ARCHITECTURE.md: Facts about the good an artist does)
 
-/** Added to the prompt when the reference is an artist's article. */
+// Added to the prompt when the reference is an artist's article
 export const NEUTRAL_PROMPT =
   " When a statement is about what the artist does in public, say what they did and for whom, as plain news would. Do not judge it, do not say why they did it, and do not write about elections, parties or candidates.";
 
+// Elections, candidates, parties and endorsements
 const ELECTIONS = [
   "election", "elections", "electoral", "re-election", "reelection", "candidate", "candidates", "candidacy", "ballot",
   "ballots", "voter", "voters", "referendum", "referendums", "inauguration", "inaugural", "endorse", "endorsed",
@@ -40,7 +23,7 @@ const ELECTIONS = [
   "nationalists", "Marxism", "Marxist", "anarchism", "anarchist", "anarchists", "capitalism", "Stalin", "Lenin", "Mao",
 ];
 
-/** Fights where naming the subject at all reads as taking a side. Short, and open to review. */
+// Fights where naming the subject at all reads as taking a side; short, and open to review
 const CONTESTED = [
   "abortion", "pro-choice", "pro-life", "gun control", "gun rights", "immigration", "Brexit", "secession",
   "independence movement", "Israel", "Israeli", "Palestine", "Palestinian", "Palestinians", "Zionist", "Zionism",
@@ -49,10 +32,10 @@ const CONTESTED = [
   "minimum wage", "fracking", "Iraq War", "Vietnam War", "Occupy", "National Rifle Association", "NRA", "culling",
   "repeal", "ban on",
 ];
-/** "Against" alone is too wide: "a concert against hunger", Rage Against the Machine. */
+// "Against" alone is too wide: "a concert against hunger", Rage Against the Machine
 const AGAINST_STATE = /\bagainst\s+the\s+(?:[\p{L}-]+\s+)?(?:government|war|law|regime|policy)\b/iu;
 
-/** Acts that do nothing but state a side. The rights of musicians themselves are the exception (`OWN_TRADE`). */
+// Acts that only state a side (a letter or petition still spreads it); musicians' own rights excepted (`OWN_TRADE`)
 const SIDE_ACTS = [
   "open letter", "public letter", "signed a letter", "signed letters", "petition", "petitions", "boycott", "boycotts",
   "boycotted", "protest", "protests", "protested", "protesters", "demonstration", "demonstrations", "rally", "rallies",
@@ -60,7 +43,7 @@ const SIDE_ACTS = [
 ];
 const OWN_TRADE = /\b(?:musicians'|artists'|songwriters') rights\b|\broyalt(?:y|ies)\b|\bfair pay\b/i;
 
-/** A judgment of the act rather than the act. */
+// A judgment of the act rather than the act
 const LOADED = [
   "champion of", "champions of", "fought against", "fought for", "fighting for", "stood up to", "stood up for",
   "standing up to", "controversial", "activist hero", "hero of", "heroic", "heroically", "tireless", "tirelessly",
@@ -71,10 +54,7 @@ const LOADED = [
   "pioneering", "tremendous", "remarkable", "inspiring",
 ];
 
-/**
- * Fine in a sentence about a song, so captions aren't held to these; in a fact about an artist's
- * public life they characterize rather than tell.
- */
+// Characterize rather than tell in a fact about an artist's public life; fine about a song, so captions skip them
 const CHARACTERIZING = [
   "activism", "activist", "activists", "advocate", "advocates", "advocacy", "social justice", "human rights",
   "civil rights", "consciousness", "causes",
@@ -82,14 +62,14 @@ const CHARACTERIZING = [
 
 const HEDGES = ["reportedly", "allegedly"];
 
-/** Why they did it: only the artist can say, and then the fact must say who said it. */
+// Why they did it: only the artist can say, and then the fact must say who said it
 const MOTIVE = [
   "because", "out of concern", "motivated by", "driven by", "passionate", "passion for", "believes", "believing",
   "commitment to", "committed to", "dedicated to", "dedication to", "devoted to", "in protest", "in solidarity",
   "deeply", "cares about",
 ];
 
-/** Names of honors and charities that hold a listed word. */
+// Names of honors and charities that hold a listed word
 const HONOR_NAMES = /\bPresidential Medal of (?:Freedom|Arts)\b|\bPresidential Citation\b|\bWar Child\b/giu;
 
 const pattern = (words: string[]) =>
@@ -105,15 +85,12 @@ const OUT: Array<{ reason: string; re: RegExp }> = [
 const SIDE_ACT = pattern(SIDE_ACTS);
 const LOADED_RE = pattern(LOADED);
 const MOTIVE_RE = pattern(MOTIVE);
-/** A sum a living person gave is theirs to tell. */
+// A sum a living person gave is theirs to tell
 const MONEY = /[$£€]\s?\d|\b\d+(?:\.\d+)?\s+(?:million|billion)\s+(?:dollars|pounds|euros)\b/i;
-/** "Is a patron of ...": no date to check it by. "Became a patron in 1999" is an act. */
+// "Is a patron of ...": no date to check it by; "became a patron in 1999" is an act
 const PRESENT_ROLE = /\b(?:is|are)\s+(?:(?:a|an|the)\s+)?(?:[\p{L}'’-]+\s+){0,3}?(?:patron|supporter|ambassador|trustee|spokes(?:person|man|woman))\b/iu;
 
-/**
- * Why a fact about an artist's public life can't be shown (see THE RULE), or null when it can.
- * `names` (the artist, titles) are read as names, not words. `living`: whether they are alive.
- */
+/** Why a fact about an artist's public life can't be shown, or null; `names` are read as names, not words */
 export function neutralBreach(text: string, names: string[] = [], living = true): string | null {
   const plain = namesBlanked(text, names).replace(HONOR_NAMES, "");
   const out = OUT.find(({ re }) => re.test(plain));
@@ -123,11 +100,7 @@ export function neutralBreach(text: string, names: string[] = [], living = true)
   return SIDE_ACT.test(plain) && !OWN_TRADE.test(plain) ? "an act that states a side" : null;
 }
 
-/**
- * Whether an AI caption judges rather than tells. Every caption is held to `LOADED`. One written
- * from an artist's article (`artistArticle`) is about their life, so it is held to `MOTIVE` too;
- * on a song's article "because" and "dedicated to" are how the music came about.
- */
+/** Whether an AI caption judges: always `LOADED`, plus `MOTIVE` from an artist's article ("because" is fine about a song) */
 export function loadedCaption(text: string, names: string[] = [], artistArticle = false): boolean {
   const plain = namesBlanked(text, names);
   return LOADED_RE.test(plain) || (artistArticle && MOTIVE_RE.test(plain));

@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-/** Documents as the system names it (it follows a redirect the home path doesn't); the home path if Electron can't say. */
+// Documents as the system names it (it follows a redirect the home path doesn't), else ~/Documents
 function documentsDir(home: string): string {
   try {
     return app.getPath("documents") || path.join(home, "Documents");
@@ -13,13 +13,9 @@ function documentsDir(home: string): string {
 }
 
 /**
- * Where a now-playing preset's folder is, given its path inside Documents. Apps write to Documents, which on Windows is often
- * redirected into OneDrive, so the system's Documents folder is looked at first, then "~/Documents/<folder>", then
- * the same folder in each OneDrive the computer names (OneDrive, OneDriveConsumer,
- * OneDriveCommercial). When none of them exists yet, the system's Documents folder is returned, so a log line
- * and a "no song yet" still name a folder that makes sense.
- *
- * The same rule as backend/src/now-playing-folder.ts, which the server uses; keep them alike.
+ * A now-playing preset's folder, given its path inside Documents (often redirected into OneDrive on Windows)
+ * Tries the system's Documents, ~/Documents, then each OneDrive; none yet: the system's, so messages name a sensible folder
+ * Same rule as backend/src/now-playing-folder.ts; keep them alike
  */
 export function presetFolder(
   folder: readonly string[],
@@ -40,10 +36,7 @@ export function presetFolder(
   return candidates.find((c) => isDir(c)) ?? usual;
 }
 
-/**
- * What the picker says a preset reads: nothing (the window's own text stands) when the usual
- * Documents folder is the one in use, else the folder actually found, which is where the server looks too.
- */
+/** The folder the picker names for a preset (where the server looks too), or "" when the usual Documents one is in use */
 export function folderShownInstead(
   folder: readonly string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -55,7 +48,7 @@ export function folderShownInstead(
   return found === path.join(documents, ...folder) || found === path.join(home, "Documents", ...folder) ? "" : found;
 }
 
-/** What the picker names for each preset: Streamling's file, Nightbot's folder; "" where the usual Documents folder is in use. */
+/** What the picker names per preset: Streamling's file, Nightbot's folder; "" for the usual Documents folder */
 export function presetFoldersShown(
   env: NodeJS.ProcessEnv = process.env,
   home: string = os.homedir(),

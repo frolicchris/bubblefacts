@@ -7,7 +7,7 @@ import { anotherArtist } from "./musicbrainz";
 import { pageArtistIds } from "./wikidata";
 
 const ids = pageArtistIds as jest.Mock;
-/** One recording of the song, credited to `id`. */
+/** One recording of the song, credited to `id` */
 const serve = (id: string | null) => {
   const recordings = id ? [{ title: "Slow Tide", score: 100, "artist-credit": [{ name: "Northlight", artist: { id, name: "Northlight" } }] }] : [];
   return jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify({ recordings, count: recordings.length })));

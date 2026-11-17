@@ -5,8 +5,8 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// check-song-list.mjs and wrong-cases.mjs import the compiled server, so a rename there breaks them quietly.
-// The fact server reads these at import; nothing here connects to a song list.
+// check-song-list.mjs and wrong-cases.mjs import the compiled server: a rename there breaks them quietly
+// The fact server reads these at import; nothing here connects to a song list
 process.env.SSL_ACCESS_TOKEN ??= "unused";
 process.env.SSL_STREAMER_NAME ??= "unused";
 process.env.AI_PROVIDER ??= "none";

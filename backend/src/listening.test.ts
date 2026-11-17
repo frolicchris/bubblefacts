@@ -31,7 +31,7 @@ describe("the dashboard's listening line", () => {
   it("follows the interval the source really uses", () => {
     expect(listeningLine(source("StreamerSongList", false, 5000))).toBe("Checking your list every 5 seconds");
     expect(listeningLine(source("StreamerSongList", false, 1000))).toBe("Checking your list every second");
-    // Rounded up: it never promises faster than it checks.
+    // Rounded up: it never promises faster than it checks
     expect(listeningLine(source("StreamerSongList", false, 2500))).toBe("Checking your list every 3 seconds");
   });
 
