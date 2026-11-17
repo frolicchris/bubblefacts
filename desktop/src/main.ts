@@ -160,7 +160,7 @@ function state() {
     signInAvailable: !!CLIENT_ID,
     // Where the Streamling and Nightbot presets look when Documents is elsewhere; empty when it isn't
     nowPlayingFolders: presetFoldersShown(),
-    twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitch.userCode, error: twitch.error },
+    twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitch.userCode, error: twitch.error, ended: twitch.ended && !twitch.userCode },
     paused,
     ollama,
     signInExpired,
@@ -783,7 +783,8 @@ const twitch = new TwitchSession(
     settings = { ...settings, twitchToken: t?.accessToken ?? "", twitchRefreshToken: t?.refreshToken ?? "", twitchTokenExpiresAt: t?.expiresAt ?? 0, twitchLogin: t?.login ?? "" };
     saveSettings(settings);
   },
-  (line) => supervisor.note(line)
+  (line) => supervisor.note(line),
+  { get: () => settings.twitchEnded, set: (v) => { settings = { ...settings, twitchEnded: v }; saveSettings(settings); } }
 );
 
 handle("connect-twitch", async () => {

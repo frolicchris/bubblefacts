@@ -515,6 +515,11 @@
         ? "StreamerSongList isn't answering right now. Your sign-in is fine, so there's nothing to do: BubbleFacts keeps trying."
         : status.message + ".";
     }
+    // Twitch About facts stopped: shown only after a connection ended by itself, gone once connected again
+    else if (status.state === "running" && state.twitch?.ended && !state.settings.twitchConnected) {
+      title = "Your Twitch connection ended";
+      detail = "Twitch About facts are paused. Connect Twitch again in Settings to get them back.";
+    }
     else if (status.state === "running") {
       kind = "ok";
       title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";

@@ -181,6 +181,43 @@ describe("TwitchSession", () => {
     await expect(session.withToken((t) => getChannel("janeplayskeys", t))).resolves.toMatchObject({ description: "Pianist." });
   });
 
+  it("flags a connection that ended by itself, and not one the streamer disconnected", async () => {
+    const { session, get } = store(expired);
+    expect(session.ended).toBe(false);
+    mockFetch.mockResolvedValueOnce(json(400, {}));
+    await expect(session.token()).rejects.toBeInstanceOf(TwitchSignInExpired);
+    expect(get()).toBeNull();
+    expect(session.ended).toBe(true);
+    const chosen = store(expired);
+    mockFetch.mockResolvedValue(json(200, {}));
+    await chosen.session.disconnect();
+    expect(chosen.session.ended).toBe(false);
+    await session.disconnect();
+    expect(session.ended).toBe(false);
+  });
+
+  it("remembers an ended connection across a restart until Twitch is connected again or disconnected", async () => {
+    let saved: TwitchSignIn | null = expired;
+    let flag = false; // stands in for the settings file
+    const make = () => new TwitchSession(() => saved, (t) => { saved = t; }, undefined, { get: () => flag, set: (v) => { flag = v; } });
+    mockFetch.mockResolvedValueOnce(json(400, {}));
+    await expect(make().token()).rejects.toBeInstanceOf(TwitchSignInExpired);
+    expect(make().ended).toBe(true); // a new session, as after a restart
+    // Disconnect clears it
+    mockFetch.mockResolvedValue(json(200, {}));
+    await make().disconnect();
+    expect(make().ended).toBe(false);
+    // Connecting clears it
+    flag = true;
+    mockFetch
+      .mockResolvedValueOnce(json(200, { device_code: "d", user_code: "ABCD", verification_uri: "https://twitch.tv/activate", interval: 1, expires_in: 60 }))
+      .mockResolvedValueOnce(json(200, { access_token: "at", refresh_token: "rt", expires_in: 14400 }))
+      .mockResolvedValueOnce(json(200, { data: [{ login: "janeplayskeys" }] }));
+    const connected = new Promise<void>((done) => { void make().connect(() => undefined, done); });
+    await connected;
+    expect(flag).toBe(false);
+  });
+
   it("keeps the bubble length the same as the fact checker's", () => {
     const verifier = fs.readFileSync(path.join(__dirname, "../../backend/src/fact-limits.ts"), "utf8");
     expect(Number(/const MAX_FACT_CHARS = (\d+)/.exec(verifier)?.[1])).toBe(BUBBLE_CHARS);
