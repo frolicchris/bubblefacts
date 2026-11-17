@@ -559,6 +559,9 @@
           </div>
           <p class="hint" id="s-facts-hint">BubbleFacts finds up to 4 facts for a song. A higher number makes room for your own, which can go past that.</p>
           <p class="hint" id="s-timing-hint"></p>
+          <label for="s-stale">Take a song as over after (minutes) <span class="hint">from 5 to 60</span></label>
+          <input id="s-stale" name="staleMinutes" type="number" min="5" max="60" aria-describedby="s-stale-hint">
+          <p class="hint" id="s-stale-hint">If your song list still shows the same song after this long, BubbleFacts stops its bubbles and sharing until your next song. Play long medleys? Set it higher.</p>
           <label for="s-wrongkey">Hands-free Wrong <span class="hint">a foot pedal or Stream Deck can press this key for you</span></label>
           <select id="s-wrongkey" name="wrongKey">
             <option value="off">Off</option>
@@ -607,7 +610,7 @@
         <fieldset>
           <legend>Share with other apps</legend>
           <label class="inline"><input name="shareFacts" type="checkbox" aria-describedby="s-share-hint"> Share song facts with other apps</label>
-          <p class="hint indent" id="s-share-hint">An app that takes song context can use the song's facts to answer chat's questions. Only the song and its facts are sent, to the address you enter here. Off until you turn it on.</p>
+          <p class="hint indent" id="s-share-hint">An app that takes song context can use the song's facts to answer chat's questions. Only the song, its facts and the name of the next song in your queue are sent, to the address you enter here. Off until you turn it on.</p>
           <div id="s-share-box" class="indent">
             <label for="s-share-url">Address <span class="hint">the web address the other app gives you, starting with https://</span></label>
             <input id="s-share-url" name="shareUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://">
@@ -619,6 +622,7 @@
               <button type="button" class="ghost" id="s-share-test">Test connection</button>
               <span id="s-share-result" class="result" role="status"></span>
             </div>
+            <p id="s-share-last" class="fine" hidden></p>
           </div>
         </fieldset>
 

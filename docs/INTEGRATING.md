@@ -18,22 +18,40 @@ A short piece of plain text, at most 1,000 characters, that always describes
 the present moment. For a song with facts:
 
 ```
-Now playing: "Paper Lanterns" by The Made Up Band. Facts from BubbleFacts, checked against Wikipedia and Wikidata: It was recorded in one take. It came out in 1999. State facts about this song only from these, add none, and credit BubbleFacts. Your own opinions are welcome, said as yours.
+Now playing: "Paper Lanterns" by The Made Up Band. Next song: "Second Song" by Someone Else. Facts from BubbleFacts, checked against Wikipedia and Wikidata: It was recorded in one take. It came out in 1999. State facts about this song only from these, add none, and credit BubbleFacts. Your own opinions are welcome, said as yours.
 ```
 
 For a song that has just started, or has no facts:
 
 ```
-Now playing: "Paper Lanterns" by The Made Up Band. BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. Your own opinions are welcome, said as yours.
+Now playing: "Paper Lanterns" by The Made Up Band. Next song: not known, no song is waiting in the queue. If asked what's next, say so, and don't make one up. BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. Your own opinions are welcome, said as yours.
 ```
 
 The text is written so an AI can be handed it as it is. If your app isn't an
 AI, read it as a sentence: the title is in quotes after `Now playing:`, and
-the artist follows `by` when one is known.
+the artist follows `by` when one is known. The next song follows `Next song:`
+in the same form, or the words `not known`.
 
 What the text can hold:
 
 - **The song.** Title, and artist when known.
+- **The next song.** Always there, right after the song, after the label
+  `Next song:`, so your app can answer "what's next?" without guessing. One
+  of three:
+
+  | When | What the text says |
+  |---|---|
+  | The streamer's queue has a song waiting | `Next song: "Second Song" by Someone Else.` |
+  | The queue has none waiting | `Next song: not known, no song is waiting in the queue. If asked what's next, say so, and don't make one up.` |
+  | The streamer's song source has no queue BubbleFacts can read (StreamElements, a now playing file), or the next request isn't a song from the streamer's own list | `Next song: not known. If asked what's next, say so, and don't make one up.` |
+
+  Only the name is given, never who asked for it; its facts come when it
+  starts. When it's not known, say that. Don't name a song from memory or
+  from an earlier snapshot.
+- **A song that may be over.** When the streamer's list has shown one song
+  far longer than a song lasts, the text starts `BubbleFacts isn't sure
+  what's playing right now.` and carries no facts, until the next song. The
+  next song is `not known` then too.
 - **Checked facts.** From Wikipedia, Wikidata or MusicBrainz, with the sources
   they came from named.
 - **An artist's own words.** Lines that start `From their Twitch About:`.

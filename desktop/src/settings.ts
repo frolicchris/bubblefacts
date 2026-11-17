@@ -95,6 +95,8 @@ export interface Settings {
   intervalSeconds: number;
   /** Minimum seconds on screen, 2 to 120 */
   durationSeconds: number;
+  /** Minutes one song may stay on the list before it's taken as over (#451), 5 to 60; the server's stale-song.ts */
+  staleMinutes: number;
   /** Hands-free Wrong: a key from a foot pedal or Stream Deck, or "off" */
   wrongKey: WrongKey;
   /** The server's port on this computer, 1024 to 65535 */
@@ -179,6 +181,7 @@ export const DEFAULTS: Settings = {
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
+  staleMinutes: 10,
   wrongKey: "off",
   port: 3000,
   startAtLogin: false,
@@ -343,6 +346,8 @@ export function sanitize(s: Settings): Settings {
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
     intervalSeconds: clamp(s.intervalSeconds, 3, 300, DEFAULTS.intervalSeconds),
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
+    // Out of range means the default, not the nearest end: a typo shouldn't become 60 minutes of a song that's over
+    staleMinutes: Number.isFinite(s.staleMinutes) && Math.round(s.staleMinutes) >= 5 && Math.round(s.staleMinutes) <= 60 ? Math.round(s.staleMinutes) : DEFAULTS.staleMinutes,
     wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
     updateChannel: oneOf(s.updateChannel, ["stable", "beta"] as const, "stable"),
     port: clamp(s.port, 1024, 65535, DEFAULTS.port),
@@ -394,7 +399,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -476,6 +481,7 @@ export function toServerEnv(
     FACTS_PER_SONG: String(s.factsPerSong),
     FACT_INTERVAL_SECONDS: String(s.intervalSeconds),
     FACT_DURATION_SECONDS: String(s.durationSeconds),
+    STALE_SONG_MINUTES: String(s.staleMinutes),
     PORT: String(s.port),
     HOST: "127.0.0.1",
     BUBBLEFACTS_LOG_DIR: paths.logDir,
