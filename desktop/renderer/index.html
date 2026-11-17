@@ -511,6 +511,26 @@
             </div>
             <p class="hint">BubbleFacts picks light or dark text, whichever is easier to read on your background.</p>
           </div>
+          <div id="s-look">
+            <p id="s-look-current" hidden>Showing a shared look: <strong id="s-look-name"></strong><span id="s-look-by" class="hint"></span></p>
+            <div class="row">
+              <button type="button" id="look-import" class="ghost">Import a look…</button>
+              <button type="button" id="look-remove" class="ghost" hidden>Go back to my Style</button>
+            </div>
+            <div id="s-look-preview" class="look-preview" hidden>
+              <p class="hint">Preview of <strong id="look-preview-name"></strong>. Nothing has changed on stream yet.</p>
+              <div class="look-sample" aria-hidden="true">
+                <div class="look-toast"><span class="look-toast-label">NOW PLAYING</span><span>Song Title - Artist</span></div>
+                <div class="look-bubble">A fun fact about the song shows up here.</div>
+              </div>
+              <div class="row">
+                <button type="button" id="look-use" class="primary">Use this look</button>
+                <button type="button" id="look-cancel" class="ghost">Cancel</button>
+              </div>
+            </div>
+            <div role="status"><p id="look-result" class="result" hidden></p></div>
+            <p class="hint">A look is a small Style file another musician or DJ shared. It changes colors, font and corners only, and shows in place of the Style and colors above.</p>
+          </div>
           <p class="hint" id="s-style-hint">Changes on stream as soon as you save. Click <strong>Show a test bubble</strong> on the dashboard to see it.</p>
           <label for="s-area">Where bubbles appear <span class="hint">keep them clear of your camera, keyboard or chat</span></label>
           <select id="s-area" name="bubbleArea">

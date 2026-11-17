@@ -56,6 +56,38 @@ without the release notes announcing it first, in the release before the change 
 - **Keep `prefers-reduced-motion`.** If your look adds motion, switch it off under that setting.
 - **Never hide a bubble.** No `display: none`, `visibility: hidden`, `opacity: 0` or moving one off screen, on any bubble, the credit bubble included. A look that hides bubbles looks like a bug on stream. (If bubbles vanish after a new look, empty the Custom CSS box.)
 
+## Style files
+
+A Style file is a look a musician or DJ can import in the app, with no CSS to
+paste: **Settings**, **Bubbles**, **Import a look…**. The app shows a preview
+first, and **Go back to my Style** takes the look off again.
+
+```json
+{
+  "bubblefacts": "style",
+  "format": 1,
+  "name": "Sunset Set",
+  "author": "Your name",
+  "madeFor": "2.3.0",
+  "values": {
+    "--bf-bg-1": "rgba(40, 10, 60, 0.95)",
+    "--bf-bg-2": "#2a0a3c",
+    "--bf-text": "#ffffff",
+    "--bf-accent": "#ff8800",
+    "--bf-radius": "12px",
+    "--bf-font": "Georgia, serif",
+    "--bf-icon": "♪"
+  }
+}
+```
+
+- Save it with a name ending in `.json`. `madeFor` is the BubbleFacts version you made it on.
+- `values` holds only the `--bf-` settings in the table above, except the two sizes. Anything you leave out stays as Classic.
+- Colors are written `#rrggbb`, `rgb(...)` or `rgba(...)`. Text colors are solid. Fonts are named, and must already be on the streamer's computer. The icon is one character.
+- A file can't hold selectors, other CSS, web addresses or text sizes.
+- The app refuses a file it can't read, one made for a version before 2.3.0, and one whose text is under 4.5:1 on its own background. The streamer's look stays as it was.
+- OBS's Custom CSS box still wins over an imported look.
+
 ## Sharing a look
 
 Say it's made for BubbleFacts and that it's yours (see

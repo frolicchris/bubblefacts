@@ -516,10 +516,11 @@ control.post("/style", (req, res) => {
     scale: req.body?.scale,
     verticalScale: req.body?.verticalScale,
     icon: req.body?.icon,
+    file: req.body?.file,
   });
-  console.log(`[Server] Bubble style: ${bubbleStyle.style}${bubbleStyle.colors ? ", with custom colors" : ""}`);
+  console.log(`[Server] Bubble style: ${bubbleStyle.look ? "an imported look over " : ""}${bubbleStyle.style}${bubbleStyle.colors ? ", with custom colors" : ""}`);
   for (const ws of clients.keys()) send(ws, bubbleStyle);
-  res.json({ style: bubbleStyle.style, colors: bubbleStyle.colors ?? null, overlays: clients.size });
+  res.json({ style: bubbleStyle.style, colors: bubbleStyle.colors ?? null, look: bubbleStyle.look?.name ?? null, overlays: clients.size });
 });
 
 /**

@@ -167,6 +167,57 @@ describe("bubble Styles (issue #177)", () => {
     expect(o.sheets).toEqual([]);
   });
 
+  describe("an imported look (issue #402)", () => {
+    const look = { name: "Sunset Set", values: { "--bf-bg-1": "rgba(40, 10, 60, 0.95)", "--bf-text": "#ffffff", "--bf-font": "'Georgia', serif", "--bf-icon": '"\\266a "' } };
+
+    it("goes on Classic in place of the Style and the streamer's colors, and comes off again", () => {
+      const o = overlay();
+      o.send({ type: "style", style: "minimal", colors });
+      o.send({ type: "style", style: "minimal", colors, look });
+      expect(o.root.dataset.style).toBe("classic");
+      const css = o.sheets.map((s) => s.textContent).filter(Boolean);
+      expect(css).toHaveLength(1);
+      // No specificity: OBS's Custom CSS box still wins
+      expect(css[0]!.startsWith(":where(html) {")).toBe(true);
+      expect(css[0]).toContain("--bf-bg-1: rgba(40, 10, 60, 0.95);");
+      expect(css[0]).toContain("--bf-font: 'Georgia', serif;");
+      expect(css[0]).toContain('--bf-icon: "\\266a ";');
+      o.send({ type: "style", style: "minimal", colors });
+      expect(o.root.dataset.style).toBe("minimal");
+      const after = o.sheets.map((s) => s.textContent).filter(Boolean);
+      expect(after).toHaveLength(1);
+      expect(after[0]).toContain("--bf-accent: #ff8800;");
+    });
+
+    it("leaves the icon to the app's Icon setting when one is chosen", () => {
+      const o = overlay();
+      o.send({ type: "style", style: "classic", icon: "heart", look });
+      expect(o.root.dataset.icon).toBe("heart");
+      expect(o.sheets.map((s) => s.textContent).join("")).not.toContain("--bf-icon");
+    });
+
+    it.each([
+      ["a web address", { "--bf-bg-1": "url(https://example.com/a.png)" }],
+      ["another setting's value", { "--bf-bg-1": "var(--bf-text)" }],
+      ["a way out of the rule", { "--bf-bg-1": "red; } .popup-bubble { display: none } :root {" }],
+      ["an import", { "--bf-font": "x; @import 'https://example.com/a.css'" }],
+      ["a text size", { "--bf-scale": "3" }],
+      ["a property that isn't a --bf- setting", { display: "none" }],
+      ["a selector as a name", { "--bf-x } .popup-bubble { opacity: 0 } :root { --y": "1" }],
+      ["a value that isn't text", { "--bf-text": 5 }],
+      ["no values", {}],
+    ])("shows the streamer's Style instead of a look with %s, and bubbles still show", (_what, values) => {
+      const o = overlay();
+      o.send({ type: "style", style: "light", look: { name: "Bad", values: { ...look.values, ...values } } });
+      o.send({ type: "style", style: "light", look: { name: "Bad", values } });
+      expect(o.root.dataset.style).toBe("light");
+      expect(o.sheets.map((s) => s.textContent ?? "").join("")).toBe("");
+      o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Shown.")] });
+      o.run();
+      expect(o.shown).toEqual(["Shown."]);
+    });
+  });
+
   it("changes the bubble size live, and ignores a size that would be unreadable or cover the stream", () => {
     const o = overlay();
     o.send({ type: "style", style: "classic", scale: 1.25, verticalScale: 1.5 });

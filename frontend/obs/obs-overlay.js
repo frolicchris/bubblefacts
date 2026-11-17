@@ -218,6 +218,30 @@
   const CUSTOM_ALPHA = 1; // custom background opacity; must match CUSTOM_ALPHA in bubble-style.ts (contrast check)
   let colorSheet = null;
   let sizeSheet = null;
+  let lookSheet = null;
+
+  // An imported Style file (#402). The server checked it; the overlay checks again and, at any
+  // doubt, shows the streamer's own Style instead. Only --bf- values, never sizes, and no CSS
+  // function but rgb()/rgba(), so nothing can fetch a file or hide a bubble
+  const LOOK_KEY = /^--bf-[a-z0-9-]{1,40}$/;
+  const LOOK_VALUE = /^[#\w .,%()'"\\-]{1,300}$/;
+  const LOOK_SIZES = ["--bf-scale", "--bf-vertical-scale"];
+
+  function lookCss(look, iconChosen) {
+    const values = look && typeof look === "object" ? look.values : null;
+    if (!values || typeof values !== "object") return "";
+    const keys = Object.keys(values);
+    if (!keys.length || keys.length > 40) return "";
+    const safe = keys.every((k) => {
+      const v = values[k];
+      if (!LOOK_KEY.test(k) || LOOK_SIZES.includes(k) || typeof v !== "string" || !LOOK_VALUE.test(v)) return false;
+      return (v.match(/[a-z-]+\s*\(/gi) || []).every((fn) => /^rgba?\($/i.test(fn));
+    });
+    if (!safe) return "";
+    // The app's Icon setting still wins over a look's icon
+    const shown = keys.filter((k) => !(iconChosen && k === "--bf-icon"));
+    return ":where(html) {\n" + shown.map((k) => "  " + k + ": " + values[k] + ";").join("\n") + "\n}";
+  }
 
   const rgbaOf = (hex, alpha) =>
     "rgba(" + [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ") + ", " + alpha + ")";
@@ -245,12 +269,22 @@
 
   /** The look the streamer chose, switched at once, bubbles on screen included */
   function applyStyle(msg) {
-    document.documentElement.dataset.style = STYLES.includes(msg.style) ? msg.style : "classic";
-    if (ICON_CHOICES.includes(msg.icon)) document.documentElement.dataset.icon = msg.icon;
+    const iconChosen = ICON_CHOICES.includes(msg.icon);
+    const look = lookCss(msg.look, iconChosen);
+    // A look sits on Classic, in place of the Style and the streamer's colors
+    document.documentElement.dataset.style = !look && STYLES.includes(msg.style) ? msg.style : "classic";
+    if (iconChosen) document.documentElement.dataset.icon = msg.icon;
     else delete document.documentElement.dataset.icon;
     applySizes(msg);
+    if (look || lookSheet) {
+      if (!lookSheet) {
+        lookSheet = document.createElement("style");
+        document.head.appendChild(lookSheet);
+      }
+      lookSheet.textContent = look;
+    }
     const c = msg.colors;
-    const custom = !!c && COLOR_KEYS.every((k) => HEX.test(c[k]));
+    const custom = !look && !!c && COLOR_KEYS.every((k) => HEX.test(c[k]));
     if (!custom && !colorSheet) return;
     if (!colorSheet) {
       colorSheet = document.createElement("style");

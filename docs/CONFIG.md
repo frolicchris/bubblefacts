@@ -215,6 +215,7 @@ bubble size is `BUBBLE_VERTICAL_SCALE` (see [The look](#the-look)), apart from
 | `BUBBLE_ACCENT` | (empty) | Your own accent color for the border and the Now Playing label, written `#rrggbb` (like `#ff8800`). Used only together with `BUBBLE_BACKGROUND`. |
 | `BUBBLE_SCALE` | (empty) | Bubble size on the landscape overlay, from `0.5` to `3` (the app's Standard, Large and Larger are `1`, `1.25` and `1.5`). Empty, or a size outside that range, keeps the size written in `obs-overlay.css`. The app sends a new size live, with no Refresh in OBS. |
 | `BUBBLE_VERTICAL_SCALE` | (empty) | The same for the vertical overlay (the app's sizes there are `1`, `1.15` and `1.3`). |
+| `BUBBLE_STYLE_FILE` | (empty) | An imported look: the whole text of a Style file ([docs/DESIGN.md](DESIGN.md#style-files)) on one line. The app sets it from **Import a look…**. One that fails a check is named in the log, and the Style shows instead. |
 | `BUBBLE_BACKGROUND` | (empty) | Your own background color, written `#rrggbb`. The text color is chosen for you, light or dark, so it always reads at WCAG AA contrast (4.5:1). The accent colors the Now Playing label only when it reads that well on the background; otherwise the label uses the text color. |
 
 A style changes colors, the font, corners and the Now Playing bubble's look,
