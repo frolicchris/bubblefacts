@@ -795,6 +795,8 @@ app.get("/health", (_req, res) => {
     currentSong: current ? songList.displayTitle(current) : null,
     // The list has shown this song longer than a song lasts (stale-song.ts): the dashboard's words, or none
     songStale: staleSong.stale ? STALE_NOTICE : undefined,
+    // The last song the other app took, and when (ms): Settings' "Last shared" line (#452). Never the key or address
+    lastShared: sharer?.lastShared ?? undefined,
     lastQueueFetchAgeMs: queueAgeMs,
     // For the app's watchdog: failing fetches (an outage) keep this small; only a stuck poll loop grows it
     lastPollAttemptAgeMs: songList.lastPollAttemptAgeMs?.() ?? null,

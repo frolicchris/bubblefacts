@@ -63,6 +63,11 @@ export interface ShareMore {
  * track that isn't music (a commercial, a jingle) with no facts, which the overlay skips too
  */
 export function shareContent(song: SSLSong, facts: Fact[], more: ShareMore = {}): string {
+  return shareSnapshot(song, facts, more).content;
+}
+
+/** The content with what the log says about it (#452): the title as sent, and how many facts went with it */
+export function shareSnapshot(song: SSLSong, facts: Fact[], more: ShareMore = {}): { content: string; title: string; facts: number; stale?: boolean } {
   // Quoted, so a title reads as one: "Stand by Me" by Some Singer
   const title = oneLine(song.title, NAME_LIMIT).replace(/"/g, "'");
   const artist = oneLine(song.artist, NAME_LIMIT);
@@ -71,8 +76,8 @@ export function shareContent(song: SSLSong, facts: Fact[], more: ShareMore = {})
   const head = `Now playing: ${named}.`;
   // Who asked for the song stays on the overlay: the entry fact naming them is never sent
   const shared = facts.filter((f) => !namesRequester(f.text));
-  if (!title || (!shared.length && isNotMusic(song))) return "";
-  if (more.stale) return staleText(named);
+  if (!title || (!shared.length && isNotMusic(song))) return { content: "", title: "", facts: 0 };
+  if (more.stale) return { content: staleText(named), title, facts: 0, stale: true };
 
   let room = CONTENT_LIMIT - head.length - 1 - CLOSING_CREDIT.length;
   const take = (list: Fact[], introRoom: number): string[] => {
@@ -96,8 +101,15 @@ export function shareContent(song: SSLSong, facts: Fact[], more: ShareMore = {})
     about.join(" "),
     own.length ? `${INTRO_STREAMER} ${own.join(" ")}` : "",
   ].filter(Boolean);
-  if (!parts.length) return `${head} ${NO_FACTS}`;
-  return [head, ...parts, taken.size ? CLOSING_CREDIT : CLOSING].join(" ");
+  if (!parts.length) return { content: `${head} ${NO_FACTS}`, title, facts: 0 };
+  return { content: [head, ...parts, taken.size ? CLOSING_CREDIT : CLOSING].join(" "), title, facts: taken.size + about.length + own.length };
+}
+
+/** The log's line for a snapshot the other app took: the song and how many facts, never the key or the address */
+function sharedLine(content: string, about: { title: string; facts: number; stale: boolean }): string {
+  if (!content) return "[Share] Cleared: no song is shared now";
+  if (about.stale) return `[Share] Shared that "${about.title}" may be over`;
+  return `[Share] Shared "${about.title}": ${about.facts ? `${about.facts} fact${about.facts === 1 ? "" : "s"}` : "no facts yet"}`;
 }
 
 export interface ShareOptions {
@@ -111,8 +123,18 @@ export interface ShareOptions {
   log?: (line: string) => void;
 }
 
+/** The last snapshot the other app took: for Settings' "Last shared" line */
+export interface LastShared {
+  title: string;
+  /** ms since 1970 */
+  at: number;
+}
+
 export class SongFactSharer {
   private wanted = "";
+  /** What `wanted` says, for the log */
+  private wantedAbout = { title: "", facts: 0, stale: false };
+  private shared: LastShared | null = null;
   /** What the other app holds, as far as this app knows */
   private held = "";
   private sending = false;
@@ -128,14 +150,21 @@ export class SongFactSharer {
   /** The song on now and its facts (none yet is fine), or null when nothing is; returns at once */
   update(song: SSLSong | null, facts: Fact[], more: ShareMore = {}): void {
     if (this.refused) return;
-    const content = song ? shareContent(song, facts, more) : "";
+    const snapshot = song ? shareSnapshot(song, facts, more) : { content: "", title: "", facts: 0 };
+    const content = snapshot.content;
     if (content === this.wanted) return;
     this.wanted = content;
+    this.wantedAbout = { title: snapshot.title, facts: snapshot.facts, stale: Boolean(snapshot.stale) };
     if (content) this.refreshUntil = Date.now() + REFRESH_FOR_MS;
     this.clearTimer("refresh");
     this.clearTimer("settle");
     this.settle = setTimeout(() => void this.send(), this.options.settleMs ?? SETTLE_MS);
     this.settle.unref?.();
+  }
+
+  /** The song of the last snapshot the other app took, and when; null before the first */
+  get lastShared(): LastShared | null {
+    return this.shared;
   }
 
   /** Nothing more is sent or said; a request on its way ends quietly */
@@ -155,12 +184,16 @@ export class SongFactSharer {
   private async send(force = false): Promise<void> {
     if (this.sending || this.refused) return;
     const content = this.wanted;
+    const about = this.wantedAbout;
     if (!force && content === this.held) return;
     this.sending = true;
     const problem = await this.post(content);
     this.sending = false;
     if (problem) this.note(problem);
     else {
+      // One line per change the other app took (#452), not per one-minute resend of the same snapshot
+      if (content !== this.held) this.say(sharedLine(content, about));
+      if (content) this.shared = { title: about.title, at: Date.now() };
       this.held = content;
       this.lastProblem = "";
     }
@@ -207,5 +240,9 @@ export class SongFactSharer {
     if (this.stopped || problem === this.lastProblem) return;
     this.lastProblem = problem;
     (this.options.log ?? console.warn)(`[Share] Song facts not shared: ${problem}`);
+  }
+
+  private say(line: string): void {
+    if (!this.stopped) (this.options.log ?? console.log)(line);
   }
 }

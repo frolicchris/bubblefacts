@@ -143,14 +143,18 @@ describe("shareAddress", () => {
 describe("SongFactSharer", () => {
   let stand: ReturnType<typeof standIn>;
   const lines: string[] = [];
+  /** The lines for sends that got through (#452), apart from the failures in `lines` */
+  const said: string[] = [];
+  const log = (l: string) => void (l.includes("not shared") ? lines : said).push(l);
   /** Every sharer a test starts, stopped when it ends: one left running would log into the next test. */
   const started: SongFactSharer[] = [];
   const track = (s: SongFactSharer) => (started.push(s), s);
   const sharer = (more: { refreshMs?: number } = {}) =>
-    track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log: (l) => lines.push(l), ...more }));
+    track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log, ...more }));
 
   beforeEach(async () => {
     lines.length = 0;
+    said.length = 0;
     stand = standIn();
     await stand.ready;
   });
@@ -218,6 +222,51 @@ describe("SongFactSharer", () => {
     s.update({ title: "Second Song", artist: "Someone Else" }, []);
     await until(() => stand.server.requests.length === 3);
     expect(stand.server.requests[2].body.data.content).toContain('Now playing: "Second Song" by Someone Else.');
+  });
+
+  it("logs each change the other app took, with the song and how many facts, and never the key or address (#452)", async () => {
+    const s = sharer({ refreshMs: 20 });
+    expect(s.lastShared).toBeNull();
+    s.update(song, []);
+    await until(() => said.length === 1);
+    const before = Date.now();
+    s.update(song, facts);
+    await until(() => said.length === 2);
+    // The same snapshot sent again is not a new line, but it is a newer "last shared"
+    await until(() => stand.server.requests.length >= 4);
+    expect(s.lastShared).toMatchObject({ title: "Paper Lanterns" });
+    expect(s.lastShared!.at).toBeGreaterThanOrEqual(before);
+    s.update(song, facts.slice(0, 1));
+    await until(() => said.length === 3);
+    s.update(song, facts, { stale: true });
+    await until(() => said.length === 4);
+    s.update(null, []);
+    await until(() => said.length === 5);
+    expect(said).toEqual([
+      '[Share] Shared "Paper Lanterns": no facts yet',
+      '[Share] Shared "Paper Lanterns": 2 facts',
+      '[Share] Shared "Paper Lanterns": 1 fact',
+      '[Share] Shared that "Paper Lanterns" may be over',
+      "[Share] Cleared: no song is shared now",
+    ]);
+    expect(said.join()).not.toContain(KEY);
+    expect(said.join()).not.toContain("127.0.0.1");
+    expect(said.join()).not.toContain("viewer_name");
+    expect(lines).toEqual([]);
+    // Cleared, yet Settings still says what went last
+    expect(s.lastShared).toMatchObject({ title: "Paper Lanterns" });
+  });
+
+  it("logs nothing for a send that failed, and the song once it gets through (#452)", async () => {
+    stand.server.status = 500;
+    const s = sharer({ refreshMs: 20 });
+    s.update(song, facts);
+    await until(() => lines.length === 1);
+    expect(said).toEqual([]);
+    expect(s.lastShared).toBeNull();
+    stand.server.status = 200;
+    await until(() => said.length === 1);
+    expect(said).toEqual(['[Share] Shared "Paper Lanterns": 2 facts']);
   });
 
   it("sends nothing when there was never anything to share", async () => {

@@ -19,6 +19,8 @@ export interface Health {
   eventsConnected: boolean;
   /** Set while the list has shown one song longer than a song lasts: the notice to show (stale-song.ts); older servers leave it out */
   songStale?: string;
+  /** The last song shared with another app, and when (ms since 1970); unset before the first, or with sharing off */
+  lastShared?: { title: string; at: number };
   /** How songs arrive, under the Songs light ("Hearing your queue live"); older servers leave it out */
   listening?: string;
   obsClients: number;

@@ -1964,6 +1964,14 @@ an integration with one product.
   the key or the song, and tried again with the next change or refresh; a
   refused key stops sharing until the settings change. It only gives context:
   nothing asks the other app to speak, so it can't talk over the music.
+- **A send that got through says so** (#452). Before, the log had a line
+  only for a failure, so a quiet log couldn't tell "every song was sent"
+  from "nothing was tried". Each change the other app takes is one line with
+  the song and how many facts (`[Share] Shared "Title": 3 facts`), never
+  the key or the address; the one-minute resend of the same snapshot adds no
+  line. `/health` carries the last song taken and when (`lastShared`), which
+  Settings shows as "Last shared: Title, 7:42 PM". That line is not a live
+  region: it would speak every minute.
 
 ### The app's control routes
 

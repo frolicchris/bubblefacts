@@ -447,7 +447,17 @@
     };
     renderLights(status, seen);
     renderBanner(status, seen);
+    renderLastShared(status.health);
     if (!$("#view-setup").hidden) watchForObs();
+  }
+
+  /** Settings, Share with other apps: the last song the other app took, and when (#452). Not a live region: it would speak every minute */
+  function renderLastShared(h) {
+    const line = $("#s-share-last");
+    const last = h?.lastShared;
+    const text = last?.title ? `Last shared: ${last.title}, ${new Date(last.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
+    if (line.textContent !== text) line.textContent = text;
+    line.hidden = !text;
   }
 
   /** The three status lights: Songs, Facts and Stream */
