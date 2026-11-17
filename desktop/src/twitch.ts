@@ -142,6 +142,8 @@ export async function getCategory(channelId: string, accessToken: string): Promi
   return ((await res.json()) as { data?: Array<{ game_name?: string }> }).data?.[0]?.game_name ?? "";
 }
 
+const memoryFlag = () => { let v = false; return { get: () => v, set: (n: boolean) => { v = n; } }; };
+
 /**
  * The Twitch connection: connect, renew, disconnect, one at a time. `save(null)` clears it.
  * Newer wins: work for an older sign-in never saves over a Disconnect or a new connection
@@ -152,12 +154,16 @@ export class TwitchSession {
   /** Code to show while waiting for approval */
   userCode = "";
   error = "";
+  /** The connection ended by itself (expired or revoked), not by Disconnect; clears on connecting again. Drives the dashboard notice */
+  get ended(): boolean { return this.endedFlag.get(); }
 
   /** `log`: where a failed connection's technical detail goes */
   constructor(
     private readonly saved: () => TwitchSignIn | null,
     private readonly save: (t: TwitchSignIn | null) => void,
-    private readonly log: (line: string) => void = () => undefined
+    private readonly log: (line: string) => void = () => undefined,
+    /** Kept with the settings so the notice survives a restart */
+    private readonly endedFlag: { get: () => boolean; set: (v: boolean) => void } = memoryFlag()
   ) {}
 
   private failed(err: unknown): void {
@@ -178,7 +184,7 @@ export class TwitchSession {
       this.userCode = code.userCode;
       openPage(code.verificationUri);
       void finishDeviceCode(code, mine.signal)
-        .then((t) => { if (!mine.signal.aborted) this.save(t); })
+        .then((t) => { if (!mine.signal.aborted) { this.endedFlag.set(false); this.save(t); } })
         .catch((err) => { if (!mine.signal.aborted) this.failed(err); })
         .finally(() => {
           if (this.connecting === mine) { this.connecting = null; this.userCode = ""; }
@@ -194,6 +200,7 @@ export class TwitchSession {
     this.connecting = null;
     this.userCode = "";
     this.error = "";
+    this.endedFlag.set(false);
     const was = this.saved();
     this.save(null);
     if (!was) return;
@@ -214,7 +221,7 @@ export class TwitchSession {
         return t.accessToken;
       })
       .catch((err) => {
-        if (err instanceof TwitchSignInExpired && this.saved()?.refreshToken === s.refreshToken) this.save(null);
+        if (err instanceof TwitchSignInExpired && this.saved()?.refreshToken === s.refreshToken) { this.endedFlag.set(true); this.save(null); }
         throw err;
       })
       .finally(() => { this.renewing = null; });

@@ -24,6 +24,8 @@ export interface Settings {
   twitchRefreshToken: string;
   twitchTokenExpiresAt: number;
   twitchLogin: string;
+  /** The Twitch connection ended by itself (not Disconnect): drives the dashboard notice; no secret */
+  twitchEnded: boolean;
   /** Unknown song by an artist named exactly like a channel: a fact from its About */
   twitchAbout: boolean;
   /** StreamElements channel, filled in from the token when tested */
@@ -133,6 +135,7 @@ export const DEFAULTS: Settings = {
   twitchRefreshToken: "",
   twitchTokenExpiresAt: 0,
   twitchLogin: "",
+  twitchEnded: false,
   twitchAbout: true,
   seChannel: "",
   seJwt: "",
