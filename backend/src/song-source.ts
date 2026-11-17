@@ -12,6 +12,10 @@ export interface SongSource {
   disconnect(): void;
   onCurrentSongChange(callback: (current: SSLQueueItem | null) => void): void;
   getCurrentSong(): SSLQueueItem | null;
+  /** The entry after the current one, for sources with a queue (#448); null with none */
+  getNextSong?(): SSLQueueItem | null;
+  /** Called when the next entry changes while the current one stays */
+  onNextSongChange?(callback: () => void): void;
   /** The song as the overlay shows it */
   toSong(item: SSLQueueItem): SSLSong;
   displayTitle(item: SSLQueueItem): string;

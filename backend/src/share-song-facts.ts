@@ -1,5 +1,6 @@
 import { isNotMusic } from "./not-music";
 import { namesRequester } from "./stat-facts";
+import type { SongSource } from "./song-source";
 import { Fact, SSLSong } from "./types";
 
 // "Share song facts with other apps" (off by default): the song on now, as it starts, then its facts, never its
@@ -25,6 +26,8 @@ const INTRO_STREAMER = "From the streamer:";
 const OPINIONS = "Your own opinions are welcome, said as yours.";
 const CLOSING = `State facts about this song only from these, and add none. ${OPINIONS}`;
 const CLOSING_CREDIT = `State facts about this song only from these, add none, and credit BubbleFacts. ${OPINIONS}`;
+/** The list has shown this song longer than a song lasts (stale-song.ts): the last song known, and no facts about it */
+const staleText = (named: string) => `BubbleFacts isn't sure what's playing right now. The song list still shows ${named}, but it has been on so long that the song may have changed. If asked what's playing, say you're not sure, and state no facts about that song.`;
 const NO_FACTS = `BubbleFacts has no checked facts for this song right now. Say what's playing if asked, and don't make up facts about it. ${OPINIONS}`;
 
 const listOf = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(""));
@@ -51,19 +54,71 @@ const checkedSource = (fact: Fact) => CHECKED_SOURCES.find((s) => new RegExp(`^$
 // The artist's own words from their Twitch About: neither checked nor the streamer's; its text says where it's from
 const fromTwitchAbout = (fact: Fact) => (fact.source ?? "").startsWith(TWITCH_ABOUT);
 
+export interface ShareMore {
+  /** The song list hasn't moved in longer than a song lasts: say so, and share no facts for it */
+  stale?: boolean;
+  /**
+   * The next song in the queue (#448), of which only the title and artist are read; null when the queue has
+   * none waiting; left out when the song source can't tell (it has no queue)
+   */
+  next?: Pick<SSLSong, "title" | "artist"> | null;
+}
+
+// What's next is always said, known or not, under one label, so the other app answers "what's next?" from this
+// and says so when it isn't known, as with a song that has no facts yet
+const NEXT = "Next song:";
+const NEXT_SAY_SO = "If asked what's next, say so, and don't make one up.";
+export const NEXT_EMPTY = `${NEXT} not known, no song is waiting in the queue. ${NEXT_SAY_SO}`;
+export const NEXT_UNKNOWN = `${NEXT} not known. ${NEXT_SAY_SO}`;
+
+/**
+ * The next song as the sharer may name it: its title and artist only, never who requested it. null with none
+ * waiting. undefined (not known) when the song source has no queue to read, and for an off-list request: its
+ * title was typed by a viewer, and goes to another app only once the streamer plays it
+ */
+export function nextSongToShare(source: Pick<SongSource, "getNextSong" | "toSong">): Pick<SSLSong, "title" | "artist"> | null | undefined {
+  if (!source.getNextSong) return undefined;
+  const entry = source.getNextSong();
+  if (!entry) return null;
+  const song = source.toSong(entry);
+  // As isLiveLearn in song-mapping.ts, which reads the config that reads this file
+  if (entry.nonlistSong?.trim() || entry.nonlistTitle?.trim() || song.liveLearn) return undefined;
+  return { title: song.title, artist: song.artist };
+}
+
+/** `Next song: "Title" by Artist.`, or that it isn't known: an empty queue, a source without one, no title, or a track that isn't music */
+function nextLine(next: ShareMore["next"]): string {
+  if (next === null) return NEXT_EMPTY;
+  if (!next) return NEXT_UNKNOWN;
+  // Built from the title and artist alone: who requested the next song is never read (privacy)
+  const title = oneLine(next.title ?? "", NAME_LIMIT).replace(/"/g, "'");
+  const artist = oneLine(next.artist ?? "", NAME_LIMIT);
+  if (!title || isNotMusic({ title, artist })) return NEXT_UNKNOWN;
+  return `${NEXT} "${title}"${artist && artist !== "Unknown" ? ` by ${artist}` : ""}.`;
+}
+
 /**
  * What's playing, then its facts (whole only) or that it has none yet. "" with no title, or for a
  * track that isn't music (a commercial, a jingle) with no facts, which the overlay skips too
  */
-export function shareContent(song: SSLSong, facts: Fact[]): string {
+export function shareContent(song: SSLSong, facts: Fact[], more: ShareMore = {}): string {
+  return shareSnapshot(song, facts, more).content;
+}
+
+/** The content with what the log says about it (#452): the title as sent, and how many facts went with it */
+export function shareSnapshot(song: SSLSong, facts: Fact[], more: ShareMore = {}): { content: string; title: string; facts: number; stale?: boolean } {
   // Quoted, so a title reads as one: "Stand by Me" by Some Singer
   const title = oneLine(song.title, NAME_LIMIT).replace(/"/g, "'");
   const artist = oneLine(song.artist, NAME_LIMIT);
   const known = artist && artist !== "Unknown";
-  const head = `Now playing: "${title}"${known ? ` by ${artist}` : ""}.`;
+  const named = `"${title}"${known ? ` by ${artist}` : ""}`;
+  // What's next rides with the song on now: its name only, and its facts when it starts (#448)
+  const head = `Now playing: ${named}. ${nextLine(more.next)}`;
   // Who asked for the song stays on the overlay: the entry fact naming them is never sent
   const shared = facts.filter((f) => !namesRequester(f.text));
-  if (!title || (!shared.length && isNotMusic(song))) return "";
+  if (!title || (!shared.length && isNotMusic(song))) return { content: "", title: "", facts: 0 };
+  // A stale list's queue is no surer than its song
+  if (more.stale) return { content: `${staleText(named)} ${NEXT_UNKNOWN}`, title, facts: 0, stale: true };
 
   let room = CONTENT_LIMIT - head.length - 1 - CLOSING_CREDIT.length;
   const take = (list: Fact[], introRoom: number): string[] => {
@@ -87,8 +142,15 @@ export function shareContent(song: SSLSong, facts: Fact[]): string {
     about.join(" "),
     own.length ? `${INTRO_STREAMER} ${own.join(" ")}` : "",
   ].filter(Boolean);
-  if (!parts.length) return `${head} ${NO_FACTS}`;
-  return [head, ...parts, taken.size ? CLOSING_CREDIT : CLOSING].join(" ");
+  if (!parts.length) return { content: `${head} ${NO_FACTS}`, title, facts: 0 };
+  return { content: [head, ...parts, taken.size ? CLOSING_CREDIT : CLOSING].join(" "), title, facts: taken.size + about.length + own.length };
+}
+
+/** The log's line for a snapshot the other app took: the song and how many facts, never the key or the address */
+function sharedLine(content: string, about: { title: string; facts: number; stale: boolean }): string {
+  if (!content) return "[Share] Cleared: no song is shared now";
+  if (about.stale) return `[Share] Shared that "${about.title}" may be over`;
+  return `[Share] Shared "${about.title}": ${about.facts ? `${about.facts} fact${about.facts === 1 ? "" : "s"}` : "no facts yet"}`;
 }
 
 export interface ShareOptions {
@@ -102,8 +164,18 @@ export interface ShareOptions {
   log?: (line: string) => void;
 }
 
+/** The last snapshot the other app took: for Settings' "Last shared" line */
+export interface LastShared {
+  title: string;
+  /** ms since 1970 */
+  at: number;
+}
+
 export class SongFactSharer {
   private wanted = "";
+  /** What `wanted` says, for the log */
+  private wantedAbout = { title: "", facts: 0, stale: false };
+  private shared: LastShared | null = null;
   /** What the other app holds, as far as this app knows */
   private held = "";
   private sending = false;
@@ -117,16 +189,23 @@ export class SongFactSharer {
   constructor(private readonly options: ShareOptions) {}
 
   /** The song on now and its facts (none yet is fine), or null when nothing is; returns at once */
-  update(song: SSLSong | null, facts: Fact[]): void {
+  update(song: SSLSong | null, facts: Fact[], more: ShareMore = {}): void {
     if (this.refused) return;
-    const content = song ? shareContent(song, facts) : "";
+    const snapshot = song ? shareSnapshot(song, facts, more) : { content: "", title: "", facts: 0 };
+    const content = snapshot.content;
     if (content === this.wanted) return;
     this.wanted = content;
+    this.wantedAbout = { title: snapshot.title, facts: snapshot.facts, stale: Boolean(snapshot.stale) };
     if (content) this.refreshUntil = Date.now() + REFRESH_FOR_MS;
     this.clearTimer("refresh");
     this.clearTimer("settle");
     this.settle = setTimeout(() => void this.send(), this.options.settleMs ?? SETTLE_MS);
     this.settle.unref?.();
+  }
+
+  /** The song of the last snapshot the other app took, and when; null before the first */
+  get lastShared(): LastShared | null {
+    return this.shared;
   }
 
   /** Nothing more is sent or said; a request on its way ends quietly */
@@ -146,12 +225,17 @@ export class SongFactSharer {
   private async send(force = false): Promise<void> {
     if (this.sending || this.refused) return;
     const content = this.wanted;
+    const about = this.wantedAbout;
     if (!force && content === this.held) return;
     this.sending = true;
     const problem = await this.post(content);
     this.sending = false;
     if (problem) this.note(problem);
     else {
+      // One line per change the other app took (#452), not per one-minute resend of the same snapshot
+      if (content !== this.held) this.say(sharedLine(content, about));
+      // Only a song the other app was told is playing: not the note that it may be over
+      if (content && !about.stale) this.shared = { title: about.title, at: Date.now() };
       this.held = content;
       this.lastProblem = "";
     }
@@ -198,5 +282,9 @@ export class SongFactSharer {
     if (this.stopped || problem === this.lastProblem) return;
     this.lastProblem = problem;
     (this.options.log ?? console.warn)(`[Share] Song facts not shared: ${problem}`);
+  }
+
+  private say(line: string): void {
+    if (!this.stopped) (this.options.log ?? console.log)(line);
   }
 }
