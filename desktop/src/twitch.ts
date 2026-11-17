@@ -166,6 +166,11 @@ export class TwitchSession {
     private readonly endedFlag: { get: () => boolean; set: (v: boolean) => void } = memoryFlag()
   ) {}
 
+  /** The streamer turned Twitch About off: an ended connection is no longer news, so the notice goes */
+  forgetEnded(): void {
+    if (this.endedFlag.get()) this.endedFlag.set(false);
+  }
+
   private failed(err: unknown): void {
     this.log(`[App] Connect Twitch: ${errorDetail(err)}`);
     this.error = plainError(err, { service: "Twitch" });
@@ -278,20 +283,32 @@ export interface AboutAnswer {
   name?: string;
   facts?: string[];
   category?: string;
+  /** Said back when the server asked for the category too, so it knows which question this answers */
+  withCategory?: true;
+}
+
+/**
+ * A channel for the server's question: its About, and what it streams only when the server asked
+ * (`withCategory`, a credited @name). A plain name is one request to Twitch, not two
+ */
+export async function channelForAbout(login: string, accessToken: string, withCategory: boolean): Promise<TwitchChannel | null> {
+  const channel = await getChannel(login, accessToken);
+  return channel && withCategory ? { ...channel, category: await getCategory(channel.id, accessToken) } : channel;
 }
 
 /**
  * Answers the server's twitch-about.ts question here, as the sign-in stays in the app. "off" asks
  * Twitch nothing; an empty About is "none"; any error is "failed", so facts never wait on it
  */
-export async function answerAbout(login: string, chars: number, allowed: boolean, read: (login: string) => Promise<TwitchChannel | null>): Promise<AboutAnswer> {
-  if (!allowed) return { type: "twitch-about", login, state: "off" };
-  if (!LOGIN.test(login)) return { type: "twitch-about", login, state: "none" };
+export async function answerAbout(login: string, chars: number, allowed: boolean, read: (login: string) => Promise<TwitchChannel | null>, withCategory = false): Promise<AboutAnswer> {
+  const answer = (rest: Pick<AboutAnswer, "state" | "name" | "facts" | "category">): AboutAnswer => ({ type: "twitch-about", login, ...rest, ...(withCategory ? { withCategory } : {}) });
+  if (!allowed) return answer({ state: "off" });
+  if (!LOGIN.test(login)) return answer({ state: "none" });
   try {
     const channel = await read(login);
     const facts = channel ? factsFromAbout(channel.description, chars) : [];
-    return channel && facts.length ? { type: "twitch-about", login, state: "found", name: channel.displayName, facts, category: channel.category ?? "" } : { type: "twitch-about", login, state: "none" };
+    return channel && facts.length ? answer({ state: "found", name: channel.displayName, facts, category: channel.category ?? "" }) : answer({ state: "none" });
   } catch {
-    return { type: "twitch-about", login, state: "failed" };
+    return answer({ state: "failed" });
   }
 }

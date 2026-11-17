@@ -2,7 +2,7 @@ jest.mock("./config", () => ({ config: { topic: "none" } }));
 
 import { aboutIsChannelTalk, aboutIsMusicChannel, connectAboutAsker, forgetAbouts, loginForArtist, loginForHandle, onAboutAnswer, twitchAbout } from "./twitch-about";
 
-const sent: Array<{ login: string; chars: number }> = [];
+const sent: Array<{ login: string; chars: number; withCategory?: boolean }> = [];
 beforeEach(() => {
   sent.length = 0;
   forgetAbouts();
@@ -65,6 +65,27 @@ describe("twitchAbout", () => {
     expect(await second).toEqual(await first);
     await twitchAbout("marlowkeys");
     expect(sent).toHaveLength(1);
+  });
+
+  it("asks for the category only when told to, as its own question", async () => {
+    const plain = twitchAbout("marlowkeys");
+    expect(sent).toEqual([expect.not.objectContaining({ withCategory: expect.anything() })]);
+    onAboutAnswer(found);
+    expect((await plain)?.category).toBe("");
+
+    // The plain answer knows no category, so a credited @name asks again, this time with it
+    const credited = twitchAbout("marlowkeys", { category: true });
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ login: "marlowkeys", withCategory: true });
+    // A late plain answer isn't taken for it
+    onAboutAnswer(found);
+    onAboutAnswer({ ...found, category: "Music", withCategory: true });
+    expect((await credited)?.category).toBe("Music");
+
+    // And the fuller answer serves a plain question too
+    expect((await twitchAbout("marlowkeys"))?.name).toBe("MarlowKeys");
+    expect((await twitchAbout("marlowkeys", { category: true }))?.category).toBe("Music");
+    expect(sent).toHaveLength(2);
   });
 
   it("keeps a miss and a failure, but not off, so connecting works from the next song", async () => {

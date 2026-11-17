@@ -165,15 +165,59 @@ describe("StaleSongWatch", () => {
 describe("carriedOnForMs: a song's clock across a restart", () => {
   const now = 1_800_000_000_000;
 
-  it("carries how long the song has been on", () => {
-    expect(carriedOnForMs(now - 4 * MINUTE, STALE_AFTER_MS, now)).toBe(4 * MINUTE);
-    expect(carriedOnForMs(now - 25 * MINUTE, STALE_AFTER_MS, now)).toBe(25 * MINUTE);
+  it("saved while playing, the song played on since the save", () => {
+    expect(carriedOnForMs({ playedMs: 3 * MINUTE, savedAt: now - MINUTE }, STALE_AFTER_MS, now)).toBe(4 * MINUTE);
+    expect(carriedOnForMs({ playedMs: STALE_AFTER_MS, playedPaused: false, savedAt: now - 15 * MINUTE }, STALE_AFTER_MS, now)).toBe(STALE_AFTER_MS + 15 * MINUTE);
+  });
+
+  it("saved while paused, neither the pause nor the time the server was down counts", () => {
+    expect(carriedOnForMs({ playedMs: 6 * MINUTE, playedPaused: true, savedAt: now - 5 * MINUTE }, STALE_AFTER_MS, now)).toBe(6 * MINUTE);
+    expect(carriedOnForMs({ playedMs: 6 * MINUTE, playedPaused: true, savedAt: now - 300 * MINUTE }, STALE_AFTER_MS, now)).toBe(6 * MINUTE);
   });
 
   it("starts afresh when that isn't known, or the song is so far past its time that it's likely a new play", () => {
     expect(carriedOnForMs(undefined, STALE_AFTER_MS, now)).toBe(0);
-    expect(carriedOnForMs(NaN, STALE_AFTER_MS, now)).toBe(0);
-    expect(carriedOnForMs(now + 1000, STALE_AFTER_MS, now)).toBe(0);
-    expect(carriedOnForMs(now - 31 * MINUTE, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs(null, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs({ playedMs: NaN, savedAt: now }, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs({ playedMs: -5, savedAt: now }, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs({ playedMs: MINUTE, savedAt: now + 1000 }, STALE_AFTER_MS, now)).toBe(0);
+    expect(carriedOnForMs({ playedMs: MINUTE, savedAt: now - 30 * MINUTE }, STALE_AFTER_MS, now)).toBe(0);
+  });
+
+  it("takes a session from before 2.3.0-beta.2, which kept a time of day, as a fresh start", () => {
+    const old = { onSince: now - 4 * MINUTE, savedAt: now - MINUTE } as Parameters<typeof carriedOnForMs>[0];
+    expect(carriedOnForMs(old, STALE_AFTER_MS, now)).toBe(0);
+  });
+});
+
+describe("StaleSongWatch after a restart while paused", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it("a song paused part way carries on from there on Resume, however long the pause", () => {
+    const stale: string[] = [];
+    const watch = new StaleSongWatch((e) => stale.push(e.song.title));
+    watch.pause();
+    watch.follow(entry("Paper Lanterns"), { onForMs: STALE_AFTER_MS - MINUTE });
+    jest.advanceTimersByTime(STALE_AFTER_MS);
+    expect(watch.stale).toBe(false);
+    expect(watch.resume()).toBe(false);
+    jest.advanceTimersByTime(MINUTE - 1);
+    expect(watch.stale).toBe(false);
+    jest.advanceTimersByTime(1);
+    expect(stale).toEqual(["Paper Lanterns"]);
+  });
+
+  it("a song that was stale is stale, and Resume starts it again", () => {
+    const stale: string[] = [];
+    const watch = new StaleSongWatch((e) => stale.push(e.song.title));
+    watch.pause();
+    watch.follow(entry("Paper Lanterns"), { onForMs: STALE_AFTER_MS });
+    expect(watch.stale).toBe(true);
+    expect(watch.resume()).toBe(true);
+    expect(watch.stale).toBe(false);
+    expect(stale).toEqual([]);
+    jest.advanceTimersByTime(STALE_AFTER_MS);
+    expect(stale).toEqual(["Paper Lanterns"]);
   });
 });

@@ -68,9 +68,15 @@ interface Answer {
   name?: string;
   facts?: string[];
   category?: string;
+  /** The question asked for the category too: said back, so the answer goes to that question */
+  withCategory?: boolean;
 }
 
-type Send = (message: { type: "twitch-about"; login: string; chars: number }) => void;
+/** `withCategory`: the app also asks Twitch what the channel streams, a second request, only for a credited @name */
+type Send = (message: { type: "twitch-about"; login: string; chars: number; withCategory?: boolean }) => void;
+
+// A question with the category and one without are two questions: "+" is in no login
+const keyFor = (login: string, withCategory: boolean) => (withCategory ? `${login}+category` : login);
 
 let send: Send | null = null;
 const known = new Map<string, { about: TwitchAbout | null; expires: number }>();
@@ -94,37 +100,45 @@ export function forgetAbouts(): void {
 /** The app's answer; anything unexpected counts as no answer */
 export function onAboutAnswer(data: unknown): void {
   const a = data as Partial<Answer>;
-  const open = typeof a?.login === "string" ? asking.get(a.login) : undefined;
+  const key = typeof a?.login === "string" ? keyFor(a.login, a.withCategory === true) : "";
+  const open = asking.get(key);
   if (!open || !a.login) return;
-  asking.delete(a.login);
+  asking.delete(key);
   const facts = Array.isArray(a.facts) ? a.facts.filter((f): f is string => typeof f === "string" && Boolean(f.trim())) : [];
   const about = a.state === "found" && typeof a.name === "string" && a.name && facts.length ? { name: a.name, facts, category: typeof a.category === "string" ? a.category : "" } : null;
   // "Off" isn't kept: connecting Twitch or checking the box works from the next song on
-  if (a.state !== "off") setCapped(known, a.login, { about, expires: Date.now() + (a.state === "failed" ? FAILED_KEPT_MS : KEPT_MS) }, MAX_KEPT);
+  if (a.state !== "off") setCapped(known, key, { about, expires: Date.now() + (a.state === "failed" ? FAILED_KEPT_MS : KEPT_MS) }, MAX_KEPT);
   open.done(about);
 }
 
-/** A channel's About, or null (no channel, empty About, Twitch off, slow or failing); never throws */
-export async function twitchAbout(login: string): Promise<TwitchAbout | null> {
-  const kept = known.get(login);
-  if (kept && Date.now() < kept.expires) return kept.about;
+/**
+ * A channel's About, or null (no channel, empty About, Twitch off, slow or failing); never throws.
+ * `category`: also what the channel streams, for a credited @name (`aboutIsMusicChannel`). A plain name
+ * doesn't wait on that second request, so more of its 2 seconds go to the About itself
+ */
+export async function twitchAbout(login: string, more: { category?: boolean } = {}): Promise<TwitchAbout | null> {
+  const withCategory = more.category === true;
+  const key = keyFor(login, withCategory);
+  // An answer with the category serves a plain question too; never the other way round
+  const kept = [known.get(key), withCategory ? undefined : known.get(keyFor(login, true))].find((k) => k && Date.now() < k.expires);
+  if (kept) return kept.about;
   if (!send) return null;
-  let open = asking.get(login);
+  let open = asking.get(key);
   if (!open) {
     let done: (about: TwitchAbout | null) => void = () => undefined;
     const answer = new Promise<TwitchAbout | null>((resolve) => (done = resolve));
     const mine = { done, answer };
     open = mine;
-    asking.set(login, mine);
+    asking.set(key, mine);
     setTimeout(() => {
-      if (asking.get(login) !== mine) return;
-      asking.delete(login);
+      if (asking.get(key) !== mine) return;
+      asking.delete(key);
       mine.done(null);
     }, GIVE_UP_MS).unref();
     try {
-      send({ type: "twitch-about", login, chars: MAX_FACT_CHARS - ABOUT_CREDIT.length });
+      send({ type: "twitch-about", login, chars: MAX_FACT_CHARS - ABOUT_CREDIT.length, ...(withCategory ? { withCategory } : {}) });
     } catch {
-      asking.delete(login);
+      asking.delete(key);
       return null;
     }
   }

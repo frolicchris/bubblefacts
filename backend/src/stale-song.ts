@@ -33,13 +33,28 @@ export const STALE_NOTICE = "Your song list has shown the same song for a long t
 
 const CARRY_PAST_MS = 20 * 60 * 1000; // ms past its time a song is still the same play after a restart (session.ts allows a resume as long)
 
+/** What a restart is told about the song's clock (session.json): time played, never a time of day */
+export interface SavedClock {
+  /** ms the song had been on when this was saved, time paused left out */
+  playedMs?: number;
+  /** Whether bubbles were paused then: the clock stood still, and stands still until Resume */
+  playedPaused?: boolean;
+  savedAt?: number;
+}
+
 /**
- * ms a song that was on before a restart (a settings save, the watchdog) has been on, so the restart doesn't
- * hand a stale song a fresh clock; 0 to start afresh: not known, or so far past its time that it's likely a new play
+ * ms a song that was on before a restart (a settings save, the watchdog) has been played, so the restart doesn't
+ * hand a stale song a fresh clock. Saved paused, it is the time saved: neither the pause nor the time the server
+ * was down counts. Saved playing, the song played on since the save. 0 to start afresh: not known (a session
+ * from before this, which kept a time of day), or so far past its time that it's likely a new play
  */
-export function carriedOnForMs(onSince: number | undefined, limitMs: number, now = Date.now()): number {
-  if (typeof onSince !== "number" || !Number.isFinite(onSince) || onSince > now) return 0;
-  const onFor = now - onSince;
+export function carriedOnForMs(saved: SavedClock | null | undefined, limitMs: number, now = Date.now()): number {
+  const played = saved?.playedMs;
+  if (typeof played !== "number" || !Number.isFinite(played) || played < 0) return 0;
+  if (saved?.playedPaused) return played;
+  const savedAt = saved?.savedAt;
+  if (typeof savedAt !== "number" || !Number.isFinite(savedAt) || savedAt > now) return 0;
+  const onFor = played + (now - savedAt);
   return onFor < limitMs + CARRY_PAST_MS ? onFor : 0;
 }
 
@@ -56,7 +71,8 @@ export class StaleSongWatch {
 
   /**
    * The entry on now, or null. The same entry again keeps its clock; another one starts fresh, or from
-   * `onForMs` when it was already on that long before a restart (stale at once when that is past its time)
+   * `onForMs` when it was already on that long before a restart (stale at once when that is past its time,
+   * also while paused, so Resume starts it again as it does without a restart)
    */
   follow(entry: SSLQueueItem | null, more: { onForMs?: number } = {}): void {
     if (entry === this.entry) return;
@@ -65,6 +81,7 @@ export class StaleSongWatch {
     if (!entry) return;
     this.ranMs = Math.max(0, more.onForMs ?? 0);
     if (!this.paused) this.run();
+    else if (this.ranMs >= this.afterMs(entry)) this.isStale = true;
   }
 
   /** Bubbles paused: the clock stops, since a streamer may line a song up, pause and talk before playing it */

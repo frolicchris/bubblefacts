@@ -57,6 +57,8 @@ const song = (title: string, artist = "MarlowKeys"): SSLSong => ({ title, artist
 const about = ["Marlow writes piano loops in Lisbon.", "Marlow scored two short films."];
 let asked: string[];
 /** The app's answer to every question */
+/** For each question, whether it asked what the channel streams too */
+let askedCategory: boolean[] = [];
 let answer: (login: string) => Record<string, unknown>;
 
 beforeEach(() => {
@@ -64,9 +66,11 @@ beforeEach(() => {
   answer = (login) => ({ type: "twitch-about", login, state: "found", name: "MarlowKeys", facts: about });
   forgetAbouts();
   clearFactCache();
-  connectAboutAsker(({ login }) => {
+  askedCategory = [];
+  connectAboutAsker(({ login, withCategory }) => {
     asked.push(login);
-    onAboutAnswer(answer(login));
+    askedCategory.push(withCategory === true);
+    onAboutAnswer({ ...answer(login), withCategory });
   });
   (fetchGrounding as jest.Mock).mockResolvedValue("");
   (musicbrainzFacts as jest.Mock).mockResolvedValue([]);
@@ -216,6 +220,15 @@ describe("A song credited to a Twitch handle", () => {
     forgetAbouts();
     clearFactCache();
     expect((await generateFacts(credited("Fog Loop"))).map((f) => f.text)).toEqual([`${ABOUT_CREDIT}Marlow toured Portugal for ten years before settling down.`]);
+  });
+
+  it("asks what the channel streams only for a credited @name, where it decides", async () => {
+    await generateFacts(song("Rain Loop"));
+    expect(askedCategory).toEqual([false]);
+    forgetAbouts();
+    clearFactCache();
+    await generateFacts(credited("Snow Loop"));
+    expect(askedCategory).toEqual([false, true]);
   });
 
   it("never asks about a handle that is short or a common word", async () => {

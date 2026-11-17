@@ -132,7 +132,7 @@ sign-ins and the built-in AI. Its design decisions are in
 |---|---|
 | `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and the requests from the window (`handle`, which checks each comes from the app's own window). A feature in its own file registers its messages through the `handle` main.ts passes in (`preparing.ts`). |
 | `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
-| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen, `a11y.js` holds the screen reader announcements and `song-source.js` which Settings fields go with each song source. |
+| `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen, `banner.js` decides which notice the dashboard banner shows, `a11y.js` holds the screen reader announcements and `song-source.js` which Settings fields go with each song source. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
@@ -482,7 +482,9 @@ sign-ins and the built-in AI. Its design decisions are in
    common word) and the channel must show a second sign that it is a music
    channel (`aboutIsMusicChannel`): its category, the one it last streamed in,
    is Music or DJs, or its About speaks of making music. Otherwise nothing is
-   shown. A
+   shown. The category is a second request to Twitch, asked only for a
+   handle (`withCategory` in the question, said back in the answer), so a
+   plain name's About doesn't wait on it. A
    placeholder request is never looked up. Both need Twitch
    connected and **Show a line from an artist's Twitch About** checked (on by
    default). The words are the About's, cut by `factsFromAbout` as for **Fill
@@ -1967,13 +1969,21 @@ an integration with one product.
   by one that names the last song listed, says the song may have changed and
   carries no facts. `/health` has the notice in `songStale`, which the app
   shows on the Songs light and the banner (both read out by screen readers).
+  Without OBS connected the banner asks for OBS, unless facts are shared
+  with another app: sharing runs without OBS, so the stale notice comes
+  first then (`banner.js`).
   The next song change starts over, with nothing to click, and the notice
   names no time. Time paused doesn't count (a streamer may line a song up,
   pause and talk before playing it), and Resume on a stale song takes it as
   playing again: it starts like a new song, timed from then. A restart (a
   settings save, the watchdog) keeps the song's clock: `session.json` holds
-  when it came on (`onSince`), unless that is more than 20 minutes past its
-  time, which reads as a new play. A long medley loses only what comes after the limit: by
+  the time played (`playedMs`) and whether bubbles were paused
+  (`playedPaused`), never a time of day. Saved paused, the clock stands
+  where it stood, so neither the pause nor the time the server was down
+  counts, and Resume does what it does without a restart. Saved playing,
+  the song played on since the save, unless that is more than 20 minutes
+  past its time, which reads as a new play. A session from before
+  2.3.0-beta.2 (`onSince`) starts the clock afresh. A long medley loses only what comes after the limit: by
   then its bubbles have shown.
 - **Short-lived, and sent again every minute.** Each snapshot lasts 150
   seconds, and the current one is sent again every 60, for up to an hour

@@ -1119,7 +1119,8 @@ async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Pr
   try {
     // Without an AI nothing has looked for the article yet, and a song with one is never looked up here.
     if (!handle && config.aiProvider === "none" && (await findReference(song)).context) return null;
-    const about = await twitchAbout(login);
+    // What the channel streams is asked only for a credited @name, the one case that decides on it
+    const about = await twitchAbout(login, { category: Boolean(handle) });
     if (!about) return null;
     if (handle && !aboutIsMusicChannel(about)) {
       console.log(`[FactGen] "${song.title}": the Twitch channel @${handle} doesn't look like a music channel, so its About isn't shown`);

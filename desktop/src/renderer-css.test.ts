@@ -22,7 +22,7 @@ describe("dashboard", () => {
   });
 
   it("gives each green banner title its own second line", () => {
-    const js = read("app.js");
+    const js = read("banner.js");
     for (const line of [
       "BubbleFacts will show facts when your next song starts.",
       "This song's facts pop up on your stream while it plays.",
