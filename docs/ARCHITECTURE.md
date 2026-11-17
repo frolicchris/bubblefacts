@@ -1969,6 +1969,9 @@ an integration with one product.
   by one that names the last song listed, says the song may have changed and
   carries no facts. `/health` has the notice in `songStale`, which the app
   shows on the Songs light and the banner (both read out by screen readers).
+  Without OBS connected the banner asks for OBS, unless facts are shared
+  with another app: sharing runs without OBS, so the stale notice comes
+  first then (`banner.js`).
   The next song change starts over, with nothing to click, and the notice
   names no time. Time paused doesn't count (a streamer may line a song up,
   pause and talk before playing it), and Resume on a stale song takes it as

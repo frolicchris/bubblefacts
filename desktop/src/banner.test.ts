@@ -47,6 +47,27 @@ describe("the dashboard banner", () => {
   });
 });
 
+describe("a song left on the list, with no OBS connected", () => {
+  const stale = { health: { currentSong: "Paper Lanterns", songStale: STALE }, obs: false };
+
+  it("says so when facts are shared with another app, since sharing runs without OBS", () => {
+    expect(banner.bannerFor(view({ ...stale, sharing: true }))).toMatchObject({ kind: "warn", title: "Waiting for your next song", detail: STALE });
+    expect(title({ ...stale, sharing: true, obsGrace: true })).toBe("Waiting for your next song");
+  });
+
+  it("still asks for OBS when nothing is shared, and until the song goes stale", () => {
+    expect(title(stale)).toBe("Add BubbleFacts to OBS");
+    expect(title({ obs: false, sharing: true })).toBe("Add BubbleFacts to OBS");
+  });
+
+  it("stays below a pause, a sign-in problem and a list that isn't answering", () => {
+    expect(title({ ...stale, sharing: true, paused: true })).toBe("Bubbles are paused");
+    expect(title({ ...stale, sharing: true, rejected: true })).toBe("Reconnect your song list");
+    expect(title({ ...stale, sharing: true, status: { state: "running", message: "Reconnecting to your song list" } })).toBe("Add BubbleFacts to OBS");
+    expect(title({ ...stale, sharing: true, obs: true, status: { state: "running", message: "Reconnecting to your song list" } })).toBe("Reconnecting");
+  });
+});
+
 describe("the Twitch connection ended notice", () => {
   const ended = { ended: true, about: true, connected: false };
 

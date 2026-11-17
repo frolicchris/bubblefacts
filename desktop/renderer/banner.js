@@ -5,7 +5,7 @@
 
   /**
    * `v`: status (the fact server's), health, obs, obsGrace, downloading (its progress in words, or ""),
-   * rejected, paused, source (the song source setting), songListDown, twitch ({ ended, about, connected }),
+   * rejected, paused, source (the song source setting), sharing (facts are shared with another app), songListDown, twitch ({ ended, about, connected }),
    * showing (bubbles for this song) and ready (its facts are in)
    */
   function bannerFor(v) {
@@ -23,6 +23,11 @@
         : onStreamElements ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.");
     }
     if (v.paused) return warn("Bubbles are paused", "BubbleFacts is still following your songs. Click Resume bubbles when you're ready.");
+    const stale = () => warn("Waiting for your next song", h.songStale);
+    // Sharing runs without OBS, so with sharing on a stale song is news even then: the other app was told
+    // "not sure", and without this only the Songs light said so. With sharing off and no OBS nothing has
+    // stopped, and adding BubbleFacts to OBS is what there is to do. A list that isn't answering comes first
+    if (running && h.songStale && !v.obs && v.sharing && !status.message) return stale();
     if (running && !v.obs && v.obsGrace) return warn("Connecting to OBS", "If BubbleFacts is already in OBS, this takes a few seconds.");
     if (running && !v.obs) return warn("Add BubbleFacts to OBS", "Drag the tile below into OBS's Sources list, or open OBS if it's closed.");
     if (running && status.message) {
@@ -31,7 +36,7 @@
         ? "StreamerSongList isn't answering right now. Your sign-in is fine, so there's nothing to do: BubbleFacts keeps trying."
         : status.message + ".");
     }
-    if (running && h.songStale) return warn("Waiting for your next song", h.songStale);
+    if (running && h.songStale) return stale();
     // Twitch About facts stopped: only after a connection ended by itself, and only for a streamer who has
     // Twitch About turned on. Last of the notices: bubbles are still showing
     if (running && twitchEndedNotice(twitch)) {

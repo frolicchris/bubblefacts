@@ -508,7 +508,7 @@
     const { kind, title, detail } = window.Banner.bannerFor({
       status, health: h, obs, obsGrace, rejected,
       downloading: downloading ? downloadText(state.modelDownload) || "starting" : "",
-      paused: state.paused, source: state.settings.songSource, songListDown: state.songListDown,
+      paused: state.paused, source: state.settings.songSource, sharing: !!state.settings.shareFacts, songListDown: state.songListDown,
       twitch: { ended: state.twitch?.ended, about: state.settings.twitchAbout, connected: state.settings.twitchConnected },
       showing: nowShowing, ready: nowReady,
     });
