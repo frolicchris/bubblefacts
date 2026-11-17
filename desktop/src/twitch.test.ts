@@ -196,6 +196,19 @@ describe("TwitchSession", () => {
     expect(session.ended).toBe(false);
   });
 
+  it("forgets an ended connection when the streamer turns Twitch About off, with no reconnect", async () => {
+    let saved: TwitchSignIn | null = expired;
+    let flag = false;
+    const make = () => new TwitchSession(() => saved, (t) => { saved = t; }, undefined, { get: () => flag, set: (v) => { flag = v; } });
+    mockFetch.mockResolvedValueOnce(json(400, {}));
+    await expect(make().token()).rejects.toBeInstanceOf(TwitchSignInExpired);
+    expect(make().ended).toBe(true);
+    make().forgetEnded();
+    expect(make().ended).toBe(false);
+    expect(flag).toBe(false);
+    expect(saved).toBeNull();
+  });
+
   it("remembers an ended connection across a restart until Twitch is connected again or disconnected", async () => {
     let saved: TwitchSignIn | null = expired;
     let flag = false; // stands in for the settings file

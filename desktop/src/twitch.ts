@@ -166,6 +166,11 @@ export class TwitchSession {
     private readonly endedFlag: { get: () => boolean; set: (v: boolean) => void } = memoryFlag()
   ) {}
 
+  /** The streamer turned Twitch About off: an ended connection is no longer news, so the notice goes */
+  forgetEnded(): void {
+    if (this.endedFlag.get()) this.endedFlag.set(false);
+  }
+
   private failed(err: unknown): void {
     this.log(`[App] Connect Twitch: ${errorDetail(err)}`);
     this.error = plainError(err, { service: "Twitch" });

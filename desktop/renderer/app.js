@@ -502,49 +502,16 @@
     else setStatusLight("light-obs", status.state === "running" ? "warn" : "", "Not in OBS yet");
   }
 
-  /** The one banner at the top of the dashboard: what matters most right now */
+  /** The one banner at the top of the dashboard: what matters most right now (banner.js decides) */
   function renderBanner(status, { health: h, obs, obsGrace, downloading, rejected }) {
     const banner = $("#status-banner");
-    let kind = "warn", title = "Getting BubbleFacts ready", detail = "This only takes a moment.";
-    if (status.state === "failing") { kind = "bad"; title = "Something's wrong"; detail = status.message + ". BubbleFacts keeps trying on its own. If this doesn't clear, use Report a problem under Help."; }
-    else if (status.state === "restarting") { title = "Fixing a problem"; detail = status.message + ". This fixes itself in a moment."; }
-    else if (rejected) {
-      kind = "bad"; title = "Reconnect your song list";
-      detail = onStreamElements() ? "StreamElements didn't accept your JWT token. Paste a new one in Settings." : "StreamerSongList needs you to sign in again.";
-    }
-    else if (status.state === "stopped") {
-      title = "Connect your songs";
-      detail = onFile() ? "Choose your now playing file in Settings to start."
-        : onStreamElements() ? "Paste your StreamElements JWT token in Settings to start." : "Sign in with StreamerSongList in Settings to start.";
-    }
-    else if (state.paused) { title = "Bubbles are paused"; detail = "BubbleFacts is still following your songs. Click Resume bubbles when you're ready."; }
-    else if (status.state === "running" && !obs && obsGrace) { title = "Connecting to OBS"; detail = "If BubbleFacts is already in OBS, this takes a few seconds."; }
-    else if (status.state === "running" && !obs) { title = "Add BubbleFacts to OBS"; detail = "Drag the tile below into OBS's Sources list, or open OBS if it's closed."; }
-    else if (status.state === "running" && status.message) {
-      title = "Reconnecting";
-      // The sign-in was checked and holds: StreamerSongList itself is down or slow
-      detail = state.songListDown && !onStreamElements() && !onFile()
-        ? "StreamerSongList isn't answering right now. Your sign-in is fine, so there's nothing to do: BubbleFacts keeps trying."
-        : status.message + ".";
-    }
-    else if (status.state === "running" && h.songStale) { title = "Waiting for your next song"; detail = h.songStale; }
-    // Twitch About facts stopped: shown only after a connection ended by itself, gone once connected again
-    else if (status.state === "running" && state.twitch?.ended && !state.settings.twitchConnected) {
-      title = "Your Twitch connection ended";
-      detail = "Twitch About facts are paused. Connect Twitch again in Settings to get them back.";
-    }
-    else if (status.state === "running") {
-      kind = "ok";
-      title = !h.currentSong ? "Ready for your next song" : nowShowing > 0 ? "Showing facts" : nowReady ? "Following your songs" : "Finding facts";
-      const waiting = !h.currentSong ? "BubbleFacts will show facts when your next song starts."
-        : nowShowing > 0 ? "This song's facts pop up on your stream while it plays."
-        // Nothing reliable, facts off, a live learn or a failure: the note under On stream now says which
-        : nowReady ? "No bubbles for this song. The note below says why."
-        : "Looking up facts for this song. They appear in a few seconds.";
-      detail = downloading
-        ? `Getting BubbleFacts ready (${downloadText(state.modelDownload) || "starting"}). Until then, songs get facts from music databases and your custom facts.`
-        : waiting;
-    }
+    const { kind, title, detail } = window.Banner.bannerFor({
+      status, health: h, obs, obsGrace, rejected,
+      downloading: downloading ? downloadText(state.modelDownload) || "starting" : "",
+      paused: state.paused, source: state.settings.songSource, songListDown: state.songListDown,
+      twitch: { ended: state.twitch?.ended, about: state.settings.twitchAbout, connected: state.settings.twitchConnected },
+      showing: nowShowing, ready: nowReady,
+    });
     banner.className = "banner " + kind;
     $("#status-title").textContent = title;
     $("#status-detail").textContent = detail;
@@ -1431,8 +1398,11 @@
     const t = state.twitch || {};
     $("#twitch-box").hidden = !t.available;
     const twitchOn = state.settings.twitchConnected;
-    $("#twitch-connect").hidden = twitchOn;
-    $("#twitch-disconnect").hidden = !twitchOn;
+    // A connection that ended by itself can be left that way: the same button, so the dashboard notice goes
+    const buttons = window.Banner.twitchButtons({ connected: twitchOn, ended: t.ended });
+    $("#twitch-connect").hidden = !buttons.connect;
+    $("#twitch-disconnect").hidden = !buttons.disconnect;
+    $("#twitch-disconnect").textContent = buttons.disconnectText;
     $("#twitch-connect").textContent = t.userCode ? "Get a new code" : "Connect Twitch";
     const status = $("#twitch-status");
     if (twitchOn) setResult(status, `✓ Connected${state.settings.twitchLogin ? " as " + state.settings.twitchLogin : ""}.`, "ok");

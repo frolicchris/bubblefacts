@@ -836,7 +836,11 @@ handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const previous = settings;
   settings = mergeSettings(changes);
   applySettingsChange(previous, changes);
-  if (previous.twitchAbout && !settings.twitchAbout) supervisor.tell({ type: "twitch-about-off" });
+  if (previous.twitchAbout && !settings.twitchAbout) {
+    // Nothing left to reconnect for: the "connection ended" notice goes with it
+    twitch.forgetEnded();
+    supervisor.tell({ type: "twitch-about-off" });
+  }
   return state();
 });
 
