@@ -482,7 +482,9 @@ sign-ins and the built-in AI. Its design decisions are in
    common word) and the channel must show a second sign that it is a music
    channel (`aboutIsMusicChannel`): its category, the one it last streamed in,
    is Music or DJs, or its About speaks of making music. Otherwise nothing is
-   shown. A
+   shown. The category is a second request to Twitch, asked only for a
+   handle (`withCategory` in the question, said back in the answer), so a
+   plain name's About doesn't wait on it. A
    placeholder request is never looked up. Both need Twitch
    connected and **Show a line from an artist's Twitch About** checked (on by
    default). The words are the About's, cut by `factsFromAbout` as for **Fill

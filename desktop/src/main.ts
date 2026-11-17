@@ -1,5 +1,5 @@
 import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, wrongLogLines } from "./backup";
-import { answerAbout, factsFromAbout, getCategory, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
+import { answerAbout, channelForAbout, factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
 import { checkStyleLook, readStyleFile, STYLE_FILE_MAX_BYTES } from "./style-file";
@@ -871,10 +871,12 @@ handle("disconnect-twitch", async () => {
 
 /** The server asks for a channel's About for a song no source knows; the token never leaves this process */
 supervisor.on("server-message", (message: unknown) => {
-  const m = message as { type?: unknown; login?: unknown; chars?: unknown };
+  const m = message as { type?: unknown; login?: unknown; chars?: unknown; withCategory?: unknown };
   if (m?.type !== "twitch-about" || typeof m.login !== "string" || typeof m.chars !== "number") return;
   const allowed = settings.twitchAbout && !!settings.twitchRefreshToken;
-  void answerAbout(m.login, m.chars, allowed, (login) => twitch.withToken((token) => getChannel(login, token).then(async (c) => c && { ...c, category: await getCategory(c.id, token) }))).then((answer) => {
+  // What the channel streams is a second request to Twitch: only when the server needs it (a credited @name)
+  const withCategory = m.withCategory === true;
+  void answerAbout(m.login, m.chars, allowed, (login) => twitch.withToken((token) => channelForAbout(login, token, withCategory)), withCategory).then((answer) => {
     // A lost connection shows under Connect Twitch, as for Fill
     if (answer.state === "failed") send("state", state());
     supervisor.tell({ ...answer });

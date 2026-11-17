@@ -2,7 +2,7 @@ process.env.BUBBLEFACTS_TWITCH_CLIENT_ID = "test-client";
 
 import fs from "fs";
 import path from "path";
-import { answerAbout, BUBBLE_CHARS, factsFromAbout, finishDeviceCode, getCategory, getChannel, refreshTwitch, startDeviceCode, TwitchSession, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
+import { answerAbout, BUBBLE_CHARS, channelForAbout, factsFromAbout, finishDeviceCode, getCategory, getChannel, refreshTwitch, startDeviceCode, TwitchSession, TwitchSignIn, TwitchSignInExpired, twitchLoginFrom } from "./twitch";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -122,6 +122,34 @@ describe("renewing and reading a channel", () => {
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toContain("users?login=janeplayskeys");
     expect(init.headers).toMatchObject({ Authorization: "Bearer at", "Client-Id": "test-client" });
+  });
+
+  it("asks Twitch what a channel streams only for a question that needs it: one request for a plain name", async () => {
+    const user = () => json(200, { data: [{ id: "101", login: "janeplayskeys", display_name: "JanePlaysKeys", description: "Pianist." }] });
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce(user());
+    await expect(channelForAbout("janeplayskeys", "at", false)).resolves.toEqual({ id: "101", login: "janeplayskeys", displayName: "JanePlaysKeys", description: "Pianist." });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toContain("users?login=");
+
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce(user()).mockResolvedValueOnce(json(200, { data: [{ broadcaster_id: "101", game_name: "Music" }] }));
+    await expect(channelForAbout("janeplayskeys", "at", true)).resolves.toMatchObject({ login: "janeplayskeys", category: "Music" });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toContain("channels?broadcaster_id=101");
+
+    // No such channel: nothing more to ask
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce(json(200, { data: [] }));
+    await expect(channelForAbout("janeplayskeys", "at", true)).resolves.toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("says back that the category was asked for, so the server knows which question it answers", async () => {
+    const channel = { id: "101", login: "marlowkeys", displayName: "MarlowKeys", description: "Marlow writes piano loops.", category: "Music" };
+    expect(await answerAbout("marlowkeys", 135, true, async () => channel, true)).toMatchObject({ state: "found", category: "Music", withCategory: true });
+    expect(await answerAbout("marlowkeys", 135, false, async () => channel, true)).toMatchObject({ state: "off", withCategory: true });
+    expect(await answerAbout("marlowkeys", 135, true, async () => channel)).not.toHaveProperty("withCategory");
   });
 
   it("reads the category a channel last streamed in, and any trouble is only \"unknown\"", async () => {
