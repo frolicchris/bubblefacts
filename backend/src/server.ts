@@ -130,9 +130,13 @@ function shareNow(): void {
   sharer?.update(paused ? null : (lastSent.song ?? null), lastSent.facts ?? [], { stale: staleSong.stale, next: nextSongName() });
 }
 
-/** The next song in the queue for the sharer (#448): its title and artist only, never who requested it */
-function nextSongName(): { title: string; artist: string } | null {
-  const entry = songList.getNextSong?.() ?? null;
+/**
+ * The next song in the queue for the sharer (#448): its title and artist only, never who requested it. null with
+ * none waiting; undefined when the song source has no queue to read, so the sharer says the next song isn't known
+ */
+function nextSongName(): { title: string; artist: string } | null | undefined {
+  if (!songList.getNextSong) return undefined;
+  const entry = songList.getNextSong();
   if (!entry) return null;
   const { title, artist } = songList.toSong(entry);
   return { title, artist };

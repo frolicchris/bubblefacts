@@ -56,18 +56,29 @@ const fromTwitchAbout = (fact: Fact) => (fact.source ?? "").startsWith(TWITCH_AB
 export interface ShareMore {
   /** The song list hasn't moved in longer than a song lasts: say so, and share no facts for it */
   stale?: boolean;
-  /** The next song in the queue, when the source has one (#448): only its title and artist are read */
+  /**
+   * The next song in the queue (#448), of which only the title and artist are read; null when the queue has
+   * none waiting; left out when the song source can't tell (it has no queue)
+   */
   next?: Pick<SSLSong, "title" | "artist"> | null;
 }
 
-/** `Up next: "Title" by Artist.`, or "" with no next song, no title, or a track that isn't music */
+// What's next is always said, known or not, under one label, so the other app answers "what's next?" from this
+// and says so when it isn't known, as with a song that has no facts yet
+const NEXT = "Next song:";
+const NEXT_SAY_SO = "If asked what's next, say so, and don't make one up.";
+export const NEXT_EMPTY = `${NEXT} not known, no song is waiting in the queue. ${NEXT_SAY_SO}`;
+export const NEXT_UNKNOWN = `${NEXT} not known. ${NEXT_SAY_SO}`;
+
+/** `Next song: "Title" by Artist.`, or that it isn't known: an empty queue, a source without one, no title, or a track that isn't music */
 function nextLine(next: ShareMore["next"]): string {
-  if (!next) return "";
+  if (next === null) return NEXT_EMPTY;
+  if (!next) return NEXT_UNKNOWN;
   // Built from the title and artist alone: who requested the next song is never read (privacy)
   const title = oneLine(next.title ?? "", NAME_LIMIT).replace(/"/g, "'");
   const artist = oneLine(next.artist ?? "", NAME_LIMIT);
-  if (!title || isNotMusic({ title, artist })) return "";
-  return `Up next: "${title}"${artist && artist !== "Unknown" ? ` by ${artist}` : ""}.`;
+  if (!title || isNotMusic({ title, artist })) return NEXT_UNKNOWN;
+  return `${NEXT} "${title}"${artist && artist !== "Unknown" ? ` by ${artist}` : ""}.`;
 }
 
 /**
@@ -86,12 +97,12 @@ export function shareSnapshot(song: SSLSong, facts: Fact[], more: ShareMore = {}
   const known = artist && artist !== "Unknown";
   const named = `"${title}"${known ? ` by ${artist}` : ""}`;
   // What's next rides with the song on now: its name only, and its facts when it starts (#448)
-  const upNext = nextLine(more.next);
-  const head = `Now playing: ${named}.${upNext ? ` ${upNext}` : ""}`;
+  const head = `Now playing: ${named}. ${nextLine(more.next)}`;
   // Who asked for the song stays on the overlay: the entry fact naming them is never sent
   const shared = facts.filter((f) => !namesRequester(f.text));
   if (!title || (!shared.length && isNotMusic(song))) return { content: "", title: "", facts: 0 };
-  if (more.stale) return { content: staleText(named), title, facts: 0, stale: true };
+  // A stale list's queue is no surer than its song
+  if (more.stale) return { content: `${staleText(named)} ${NEXT_UNKNOWN}`, title, facts: 0, stale: true };
 
   let room = CONTENT_LIMIT - head.length - 1 - CLOSING_CREDIT.length;
   const take = (list: Fact[], introRoom: number): string[] => {

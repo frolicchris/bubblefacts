@@ -51,6 +51,12 @@ describe("sharing the next song in the queue (issue #448)", () => {
     expect(SOURCE).toMatch(/sharer\?\.update\([^\n]*next: nextSongName\(\)/);
   });
 
+  it("tells a source without a queue (not known) from a queue with nothing waiting", () => {
+    const name = SOURCE.slice(SOURCE.indexOf("function nextSongName("), SOURCE.indexOf("// The list nobody advanced"));
+    expect(name).toContain("if (!songList.getNextSong) return undefined;");
+    expect(name).toContain("if (!entry) return null;");
+  });
+
   it("shares again when only the queue behind the current song changes", () => {
     expect(SOURCE).toContain("songList.onNextSongChange?.(() => shareNow());");
   });
