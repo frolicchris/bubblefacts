@@ -20,7 +20,11 @@ export interface Session {
   creditText?: string;
   /** Whether OBS was streaming, so a restart mid-stream isn't a stream going live */
   obsStreaming?: boolean;
-  /** When the song list first showed this song, time paused left out (stale-song.ts): a restart keeps its clock */
+  /** ms the song had been on when saved, time paused left out (stale-song.ts): a restart keeps its clock */
+  playedMs?: number;
+  /** Whether bubbles were paused when saved: the clock stood still, and the time since doesn't count */
+  playedPaused?: boolean;
+  /** Before 2.3.0-beta.2: the time of day the song came on. Read and ignored, since it counted time paused */
   onSince?: number;
 }
 
@@ -49,7 +53,8 @@ export function loadSession(now = Date.now()): Session | null {
       && (s.creditSince === undefined || (Number.isInteger(s.creditSince) && s.creditSince >= 0))
       && (s.creditText === undefined || typeof s.creditText === "string")
       && (s.obsStreaming === undefined || typeof s.obsStreaming === "boolean")
-      && (s.onSince === undefined || typeof s.onSince === "number");
+      && (s.playedMs === undefined || typeof s.playedMs === "number")
+      && (s.playedPaused === undefined || typeof s.playedPaused === "boolean");
     return ok && now - s.savedAt < REMEMBER_FOR_MS && now >= s.savedAt ? s : null;
   } catch {
     return null;

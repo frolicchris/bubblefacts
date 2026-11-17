@@ -1972,8 +1972,13 @@ an integration with one product.
   pause and talk before playing it), and Resume on a stale song takes it as
   playing again: it starts like a new song, timed from then. A restart (a
   settings save, the watchdog) keeps the song's clock: `session.json` holds
-  when it came on (`onSince`), unless that is more than 20 minutes past its
-  time, which reads as a new play. A long medley loses only what comes after the limit: by
+  the time played (`playedMs`) and whether bubbles were paused
+  (`playedPaused`), never a time of day. Saved paused, the clock stands
+  where it stood, so neither the pause nor the time the server was down
+  counts, and Resume does what it does without a restart. Saved playing,
+  the song played on since the save, unless that is more than 20 minutes
+  past its time, which reads as a new play. A session from before
+  2.3.0-beta.2 (`onSince`) starts the clock afresh. A long medley loses only what comes after the limit: by
   then its bubbles have shown.
 - **Short-lived, and sent again every minute.** Each snapshot lasts 150
   seconds, and the current one is sent again every 60, for up to an hour

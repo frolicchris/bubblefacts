@@ -145,8 +145,9 @@ test("time paused doesn't count: a song lined up, paused over and resumed is sti
   await until(() => lastShared().startsWith('Now playing: "Third Song"'), 3000, "the song to be shared on Resume");
   // The clock carried on from where Pause stopped it
   await until(isStale, LIMIT_MS + 3000, "it to go stale once it has really been on that long");
-  // What a restart needs to keep the clock: when the song came on
+  // What a restart needs to keep the clock: time played, not a time of day (server-stale-restart.test.mjs)
   const session = JSON.parse(fs.readFileSync(path.join(dir, "data", "session.json"), "utf8"));
-  assert.equal(typeof session.onSince, "number");
+  assert.equal(typeof session.playedMs, "number");
+  assert.equal(session.onSince, undefined);
   o.close();
 });

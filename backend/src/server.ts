@@ -256,7 +256,7 @@ function resendRemaining(song: SSLSong, record: Fact[], first?: Fact): Fact[] | 
 }
 
 function remember(song: SSLSong, facts: NonNullable<FactsPayload["facts"]>): void {
-  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, onSince: Date.now() - staleSong.onForMs(), recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}), ...(obsStreaming.state !== undefined ? { obsStreaming: obsStreaming.state } : {}) });
+  saveSession({ song: { title: song.title, artist: song.artist }, facts, shownAt: factsShownAt, playedMs: staleSong.onForMs(), playedPaused: paused, recent: recentShown(), savedAt: Date.now(), earlier, ...(creditCount.since !== undefined ? { creditSince: creditCount.since, creditText: creditText() } : {}), ...(obsStreaming.state !== undefined ? { obsStreaming: obsStreaming.state } : {}) });
 }
 
 
@@ -402,7 +402,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   const token = ++generation;
   // The song that was on before a restart keeps its clock, so a stale one doesn't share again for a full limit
   const sameAsBefore = current && restored && sameRequest(restored.song, songList.toSong(current));
-  staleSong.follow(current, { onForMs: current && sameAsBefore ? carriedOnForMs(restored?.onSince, staleLimitMs(current)) : 0 });
+  staleSong.follow(current, { onForMs: current && sameAsBefore ? carriedOnForMs(restored, staleLimitMs(current)) : 0 });
   if (!current) {
     setCurrentSong(null);
     broadcast({ type: "clear" });
