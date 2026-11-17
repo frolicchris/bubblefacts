@@ -124,6 +124,8 @@ export const config = {
     icon: process.env.BUBBLE_ICON,
     scale: process.env.BUBBLE_SCALE,
     verticalScale: process.env.BUBBLE_VERTICAL_SCALE,
+    // An imported Style file (#402), as the app hands it over; checked again here
+    file: process.env.BUBBLE_STYLE_FILE,
   }),
   // Streamer's own packs, checked before the examples
   topicsDir: process.env.BUBBLEFACTS_TOPICS_DIR || "",

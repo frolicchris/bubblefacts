@@ -268,8 +268,23 @@ describe("the bubbles' look (issue #177)", () => {
   });
 
   it("falls back to the classic look for anything it doesn't know, rather than refusing", async () => {
-    expect(await post("style", { style: "neon", accent: "orange", background: "#fff" })).toEqual({ style: "classic", colors: null, overlays: expect.any(Number) });
+    expect(await post("style", { style: "neon", accent: "orange", background: "#fff" })).toEqual({ style: "classic", colors: null, look: null, overlays: expect.any(Number) });
     expect(await post("style", {})).toMatchObject({ style: "classic", colors: null });
+  });
+
+  it("puts an imported look (#402) on every overlay at once, and shows the Style instead of one that fails a check", async () => {
+    const o = await overlay();
+    await until(() => o.styles.length > 0);
+    const seen = o.styles.length;
+    const file = { bubblefacts: "style", name: "Sunset Set", madeFor: "2.3.0", values: { "--bf-bg-1": "#2a0a3c", "--bf-bg-2": "#2a0a3c", "--bf-text": "#fff" } };
+    expect(await post("style", { style: "light", file })).toMatchObject({ style: "light", look: "Sunset Set" });
+    await until(() => o.styles.length === seen + 1);
+    expect(o.styles[seen]).toEqual({ type: "style", style: "light", look: { name: "Sunset Set", values: { "--bf-bg-1": "#2a0a3c", "--bf-bg-2": "#2a0a3c", "--bf-text": "#ffffff" } } });
+    const bad = { ...file, values: { ...file.values, "--bf-bg-1": "url(https://example.com/a.png)" } };
+    expect(await post("style", { style: "light", file: bad })).toMatchObject({ style: "light", look: null });
+    await until(() => o.styles.length === seen + 2);
+    expect(o.styles[seen + 1]).toEqual({ type: "style", style: "light" });
+    await post("style", {});
   });
 
   it("is only for the app", async () => {

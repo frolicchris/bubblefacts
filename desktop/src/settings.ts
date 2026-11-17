@@ -1,4 +1,5 @@
 import { app, safeStorage } from "electron";
+import { checkStyleLook, StyleLook } from "./style-file";
 import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
@@ -82,6 +83,8 @@ export interface Settings {
   bubbleStyle: BubbleStyle;
   /** Icon at each bubble's left; "style" = the Style's own */
   bubbleIcon: BubbleIcon;
+  /** An imported Style file (#402), checked; shown in place of the Style and colors, which stay set under it */
+  styleLook: StyleLook | null;
   /** Own accent and background over the Style, each #rrggbb; text color picked for contrast */
   customColors: boolean;
   accentColor: string;
@@ -170,6 +173,7 @@ export const DEFAULTS: Settings = {
   verticalArea: "top",
   bubbleStyle: "classic",
   bubbleIcon: "style",
+  styleLook: null,
   customColors: false,
   // Classic's own, so custom colors start from the look already on stream
   accentColor: "#5b6ee1",
@@ -309,6 +313,13 @@ const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.incl
 /** #rrggbb (as a color picker gives it), lowercased, else fallback; same rule as hexColor in bubble-style.ts: keep alike */
 const hexColor = (value: string, fallback: string) => (/^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback);
 
+/** A saved look that still passes every check (a hand-edited settings file is as untrusted as a shared one), else none */
+function lookOrNull(raw: unknown): StyleLook | null {
+  if (!raw) return null;
+  const result = checkStyleLook(raw);
+  return result.ok ? result.look : null;
+}
+
 /** Every value within what the server accepts, so no setting can stop it starting */
 export function sanitize(s: Settings): Settings {
   const lines = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
@@ -327,6 +338,7 @@ export function sanitize(s: Settings): Settings {
     verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
     bubbleStyle: oneOf(s.bubbleStyle, BUBBLE_STYLES, "classic"),
     bubbleIcon: oneOf(s.bubbleIcon, BUBBLE_ICONS, "style"),
+    styleLook: lookOrNull(s.styleLook),
     accentColor: hexColor(s.accentColor, DEFAULTS.accentColor),
     backgroundColor: hexColor(s.backgroundColor, DEFAULTS.backgroundColor),
     myFacts: lines(s.myFacts),
@@ -529,8 +541,10 @@ export function topicList(s: Settings): string[] {
 }
 
 /** The look as the server reads it; colors blank when custom colors are off, so the server reverts to the Style's */
-export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string } {
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string; BUBBLE_STYLE_FILE: string } {
   return {
+    // The imported look, which the server checks again; blank for none
+    BUBBLE_STYLE_FILE: s.styleLook ? JSON.stringify(s.styleLook) : "",
     BUBBLE_STYLE: s.bubbleStyle,
     BUBBLE_ICON: s.bubbleIcon,
     BUBBLE_ACCENT: s.customColors ? s.accentColor : "",
@@ -544,7 +558,7 @@ export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: stri
 /** All the server reads at start (environment, own facts pack) as one string; not the token, handed over live */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
   // The look goes live (POST /control/style), so a new one never restarts the server
-  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, ...rest } = env;
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, BUBBLE_STYLE_FILE: _styleFile, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

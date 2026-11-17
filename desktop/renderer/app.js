@@ -1090,6 +1090,21 @@
       if (r.ok && id === "backup-restore") { state = await api.getState(); settingsDraft.clear(); fillSettings(); }
     });
   }
+  $("#look-import").addEventListener("click", async () => {
+    const r = await api.importLook();
+    previewLook(r.ok ? r.look : null);
+    lookResult(r.ok ? { ok: true, message: "" } : r);
+  });
+  $("#look-cancel").addEventListener("click", () => previewLook(null));
+  for (const [id, call] of [["look-use", () => api.useLook(lookWaiting)], ["look-remove", () => api.removeLook()]]) {
+    $("#" + id).addEventListener("click", async () => {
+      const r = await call();
+      previewLook(null);
+      lookResult(r);
+      state = await api.getState();
+      showLook();
+    });
+  }
   $("#report-problem").addEventListener("click", () => api.reportProblem());
   $("#report-beta").addEventListener("click", () => api.reportBeta());
   // The same report without GitHub, to paste in Discord or an email
@@ -1255,6 +1270,40 @@
     return String(el.value).trim() !== String(s[key] ?? "");
   }
 
+  // --- A shared look (#402): chosen, previewed, then used; the app checks the file, the window only shows it ---
+  let lookWaiting = null;
+
+  /** The imported look's name, and the way back to the Style */
+  function showLook() {
+    const look = state?.settings.styleLook;
+    $("#s-look-current").hidden = !look;
+    $("#look-remove").hidden = !look;
+    $("#s-look-name").textContent = look ? look.name : "";
+    $("#s-look-by").textContent = look && look.author ? "by " + look.author : "";
+  }
+
+  /** The sample bubble and Now Playing card in the look's values, or no preview */
+  function previewLook(look) {
+    lookWaiting = look;
+    const sample = $("#s-look-preview .look-sample");
+    sample.removeAttribute("style");
+    $("#s-look-preview").hidden = !look;
+    if (!look) return;
+    $("#look-preview-name").textContent = look.name + (look.author ? " by " + look.author : "");
+    for (const [key, value] of Object.entries(look.values)) {
+      if (!/^--bf-[a-z0-9-]+$/.test(key)) continue;
+      // The icon is kept as its character: CSS takes it as a string
+      const css = key === "--bf-icon" ? '"' + Array.from(String(value)).map((c) => "\\" + c.codePointAt(0).toString(16) + " ").join("") + '"' : String(value);
+      sample.style.setProperty(key, css);
+    }
+  }
+
+  function lookResult(r) {
+    const el = $("#look-result");
+    el.hidden = !r.message;
+    setResult(el, r.message || "", r.ok ? "ok" : "bad");
+  }
+
   function fillSettings() {
     const s = state.settings;
     for (const key of [...settingsDraft]) if (!differsFromSaved(key)) settingsDraft.delete(key);
@@ -1271,6 +1320,7 @@
     $("#s-originals-box").hidden = !form.elements.originals.checked;
     $("#s-share-box").hidden = !form.elements.shareFacts.checked;
     $("#s-colors-box").hidden = !form.elements.customColors.checked;
+    showLook();
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"
