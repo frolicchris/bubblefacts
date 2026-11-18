@@ -1326,6 +1326,7 @@ async function twitchAboutFacts(song: SSLSong, want: number, asked: SSLSong): Pr
   // A credit "Jane (@janeplayskeys)" names the channel outright; any other artist is only a guess at one.
   const handle = STREAMER_HANDLE.exec(song.artist ?? "")?.[1]?.toLowerCase();
   const login = song.artistFromTitle || song.artistUncertain ? "" : handle ?? loginForArtist(song.artist ?? "");
+  if (login.length < 4) return null; // Twitch logins are 4 to 25 characters: a shorter handle is no channel.
   if (!login || taggedFactsFor(song).length) return null;
   try {
     // Without an AI nothing has looked for the article yet, and a song with one is never looked up here.
@@ -1361,7 +1362,9 @@ export function forgetTwitchAbout(): void {
 async function friendsOriginalAbout(song: SSLSong, entry: SSLQueueItem | null, want: number, asked: SSLSong): Promise<Generated | null> {
   const names = [config.sslStreamerName, config.streamerDisplayName];
   if (!canAskAbout() || !config.originals || !isOriginal(entry, names) || isOwnOriginal(entry, names)) return null;
-  return (await findReference(song)).context ? null : twitchAboutFacts(song, want, asked);
+  // A handle credit is never looked up in an encyclopedia: its About is the only source.
+  if (!STREAMER_HANDLE.test(song.artist ?? "") && (await findReference(song)).context) return null;
+  return twitchAboutFacts(song, want, asked);
 }
 
 /** The streamer's original: facts from its queue entry and their notes, no lookup. Null when it isn't one. */
