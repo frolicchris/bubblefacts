@@ -317,6 +317,9 @@ waits three days for Beta to have it first.
 at the tagged commit, so a release branch cut before that workflow existed
 (`release/2.1`, for 2.1.1) announces nothing by itself. Run Actions > Announce
 > Run workflow with the release's title and notes (dry run first).
+A beta or release candidate is posted in the Discord's #beta-testing channel
+as well as #announcements; a regular release goes to #announcements only.
+Each channel has its own webhook secret (`announce.yml` names them).
 
 **Support:** only the newest release gets fixes. When 2.1.0 ships, 2.0.x
 stops. After 3.0.0, the last 2.x gets security fixes for three months.

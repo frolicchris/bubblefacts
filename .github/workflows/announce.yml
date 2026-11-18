@@ -10,9 +10,13 @@ name: Announce
 # without posting anything. A title that already has a Discussion in
 # Announcements is skipped, so a rerun posts nothing twice.
 #
-# Needs one secret, DISCORD_ANNOUNCE_WEBHOOK: the webhook URL of #announcements
-# (Discord: Server Settings > Integrations > Webhooks). Without it the Discussion
-# still goes up and the Discord step is skipped with a warning.
+# A beta or release candidate (a release marked as a pre-release) is also
+# posted in the Discord's #beta-testing channel, where the testers are.
+#
+# Needs two secrets, each a webhook URL (Discord: Server Settings >
+# Integrations > Webhooks): DISCORD_ANNOUNCE_WEBHOOK for #announcements and
+# DISCORD_BETA_WEBHOOK for #beta-testing. Without one, the Discussion and the
+# other channel still go up, and the missing channel is skipped with a warning.
 
 on:
   release:
@@ -45,6 +49,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+          DISCORD_BETA_WEBHOOK: ${{ secrets.DISCORD_BETA_WEBHOOK }}
         with:
           script: |
             const release = context.payload.release;
@@ -114,20 +119,31 @@ jobs:
               ],
             };
 
-            const hook = process.env.DISCORD_ANNOUNCE_WEBHOOK;
+            // A pre-release (beta or release candidate) goes to the testers' channel too.
+            const channels = [{ name: "#announcements", secret: "DISCORD_ANNOUNCE_WEBHOOK", payload }];
+            if (release && release.prerelease) {
+              const forTesters = { ...payload.embeds[0], footer: { text: "Testing it? Help and troubleshooting > Send a beta test report tells us how it went." } };
+              channels.push({ name: "#beta-testing", secret: "DISCORD_BETA_WEBHOOK", payload: { ...payload, embeds: [forTesters] } });
+            }
             if (dryRun) {
-              core.info(`Dry run. Would post to Discord:\n${JSON.stringify(payload, null, 2)}`);
+              core.info(`Dry run. Would post to Discord ${channels.map((c) => c.name).join(" and ")}:\n${JSON.stringify(payload, null, 2)}`);
               return;
             }
-            if (!hook) {
-              core.warning("DISCORD_ANNOUNCE_WEBHOOK is not set, so nothing was posted to Discord.");
-              return;
+            // Each channel is tried whatever happened to the other. A webhook URL is a secret:
+            // never log it, and only report the status.
+            const failed = [];
+            for (const channel of channels) {
+              const hook = process.env[channel.secret];
+              if (!hook) {
+                core.warning(`${channel.secret} is not set, so nothing was posted to Discord ${channel.name}.`);
+                continue;
+              }
+              const res = await fetch(hook, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(channel.payload),
+              }).catch(() => null);
+              if (res && res.ok) core.info(`Posted to Discord ${channel.name}.`);
+              else failed.push(`${channel.name} (${res ? res.status : "no answer"})`);
             }
-            // The webhook URL is a secret: never log it, and only report the status.
-            const res = await fetch(hook, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-            if (!res.ok) return core.setFailed(`Discord answered ${res.status}. The Discussion is up; post in #announcements by hand.`);
-            else core.info("Posted to Discord #announcements.");
+            if (failed.length) core.setFailed(`Discord didn't take the post for ${failed.join(" and ")}. The Discussion is up; post there by hand.`);
