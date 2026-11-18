@@ -26,8 +26,8 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=2.3.0-beta.1">
-  <script src="assets/site.js?v=2.3.0-beta.1" defer></script>
+  <link rel="stylesheet" href="assets/site.css?v=2.3.0-beta.2">
+  <script src="assets/site.js?v=2.3.0-beta.2" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -53,6 +53,23 @@
         <p class="eyebrow">Changelog</p>
         <h1>What's new</h1>
         <p class="section-intro">What changed in each version. The full notes for every release are on <a href="https://github.com/frolicchris/bubblefacts/releases">GitHub</a>.</p>
+
+        <article class="rpg release" aria-labelledby="v2-3-beta2">
+          <h2 id="v2-3-beta2">Version 2.3.0-beta.2 <span class="tag">Beta, November 17, 2026</span></h2>
+          <p>Share a look with other streamers, tell other apps what's next, and two beta.1 problems fixed. A beta: please tell us what you find.</p>
+          <ul>
+            <li>New: share a look. <span class="ui">Import a look…</span> takes a small Style file another musician or DJ made, and <span class="ui">Save my look as a Style file…</span> makes one from yours. Three ready-made looks come with the app: Stage Lights, Record Sleeve and Neon Booth. <span class="ui">Go back to my Style</span> undoes it.</li>
+            <li>New: with <span class="ui">Share song facts with other apps</span> on, the other app is also told the next song in your queue, title and artist only, so it can answer "what's next?". With no next song, or a request that isn't a song from your list, it is told so and doesn't make one up.</li>
+            <li>New: if your song list still shows the same song after a while, BubbleFacts stops its bubbles and sharing until your next song, and says so on the dashboard. <span class="ui">Take a song as over after (minutes)</span> sets how long: 10 by default, 5 to 60. Play long medleys? Set it higher. Time spent paused doesn't count.</li>
+            <li>Improved: Settings shows the last song shared with the other app, and when.</li>
+            <li>Improved: the dashboard says when your Twitch connection has ended, so Twitch About facts don't stop silently.</li>
+            <li>Improved: a song's facts no longer change from one day to the next.</li>
+            <li>Improved: a fact you mark Wrong keeps the sentence it came from, on your computer only, so it can be checked later.</li>
+            <li>Fixed: a song credited to an @name that isn't that creator's Twitch channel no longer shows a stranger's About text. The @name's channel has to be a music channel.</li>
+            <li>Fixed: <span class="ui">Undo</span> and <span class="ui">Report it</span> on a Wrong note work after the app refreshes its window, for example after a pause.</li>
+            <li>Changed: the Twitch checkbox in Settings is now <span class="ui">Show a line from an artist's Twitch About</span>.</li>
+          </ul>
+        </article>
 
         <article class="rpg release" aria-labelledby="v2-3-beta1">
           <h2 id="v2-3-beta1">Version 2.3.0-beta.1 <span class="tag">Beta, November 16, 2026</span></h2>
