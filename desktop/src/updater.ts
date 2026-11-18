@@ -3,6 +3,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { plainWithDetail } from "./plain-errors";
+import { isStoreApp, STORE_UPDATES_LINE } from "./store-app";
 
 // The app's own updater (Electron's needs an Apple Developer ID): download the installer, check it
 // against the signed SHA256SUMS.txt, swap the app. Nothing installs without a click: never mid-stream
@@ -155,6 +156,8 @@ export type InstallResult = { started: true; relaunch?: string } | { started: fa
 
 /** Start installing a checked download; on success quit at once, as the installer or swap script waits for it */
 export function startInstall(file: string, opts: { pid: number; logFile: string; scriptDir: string }): InstallResult {
+  // The Store updates a Store app; an installer is never launched from inside the package.
+  if (isStoreApp()) return { started: false, reason: STORE_UPDATES_LINE };
   const detached = (cmd: string, args: string[]) => spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
   if (process.platform === "darwin") {
     const bundle = macBundle();
