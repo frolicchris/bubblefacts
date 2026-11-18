@@ -138,7 +138,9 @@ export class StaleSongWatch {
     if (left <= 0) return this.goStale(entry);
     this.startedAt = Date.now();
     this.timer = setTimeout(() => {
-      this.ranMs = this.onForMs();
+      // A timer can fire a millisecond early by the clock. A stale song has been on its whole time: saved
+      // as less, it would come back from a restart not yet stale, and Resume would not start it again
+      this.ranMs = Math.max(this.onForMs(), this.afterMs(entry));
       this.timer = null;
       this.goStale(entry);
     }, left);
