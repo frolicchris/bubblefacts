@@ -1,4 +1,8 @@
 {
+  "2.2.1": [
+    "Nothing changes if you installed BubbleFacts from the website.",
+    "A Microsoft Store version for Windows is on its way. The Store updates it, so it has no in-app update."
+  ],
   "2.2.0": [
     "Prepare my songs: facts ready the moment a song starts. Turn it on in Settings.",
     "Styles and icons for the bubbles, and a vertical overlay for phone-shaped streams.",
