@@ -1315,6 +1315,11 @@
   const isLite = () => state.edition === "lite";
   function showEdition() {
     for (const el of $$("[data-edition]")) el.hidden = el.dataset.edition !== (isLite() ? "lite" : "full");
+    // Installed from the Microsoft Store: it starts and updates the app, so those choices give way to one line.
+    const store = state.storeApp === true;
+    $("#s-login-row").hidden = store;
+    $("#s-update-choices").hidden = store;
+    $("#s-store-updates").hidden = !store;
   }
 
   /** Larger AI is a choice under "On this computer", with a warning (never a block) where it may struggle. */
@@ -1611,6 +1616,7 @@
     // With the build, such as "2.0.0-beta.12 test build (c4ee826)", so testers can tell builds apart.
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;
+    $("#about-store-updates").hidden = state.storeApp !== true;
     $("#report-beta").hidden = $("#copy-beta-report").hidden = !(/-(beta|rc)\./.test(state.version) || state.testBuild);
     renderNotices();
     renderWhatsNew();

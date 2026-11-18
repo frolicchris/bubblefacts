@@ -607,13 +607,16 @@
 
         <fieldset>
           <legend>General</legend>
-          <label class="inline"><input name="startAtLogin" type="checkbox"> Start BubbleFacts when I log in</label>
+          <label class="inline" id="s-login-row"><input name="startAtLogin" type="checkbox"> Start BubbleFacts when I log in</label>
           <p class="label" id="s-updates-label">Updates</p>
-          <div class="checks" role="radiogroup" aria-labelledby="s-updates-label">
-            <label><input type="radio" name="updateChannel" value="stable"> Stable (recommended)</label>
-            <label><input type="radio" name="updateChannel" value="beta"> Beta: new features first, for testers</label>
+          <p class="hint" id="s-store-updates" hidden>Updates come through the Microsoft Store.</p>
+          <div id="s-update-choices">
+            <div class="checks" role="radiogroup" aria-labelledby="s-updates-label">
+              <label><input type="radio" name="updateChannel" value="stable"> Stable (recommended)</label>
+              <label><input type="radio" name="updateChannel" value="beta"> Beta: new features first, for testers</label>
+            </div>
+            <p class="hint">Switching to Stable never goes back a version: you get the next full release when it's out.</p>
           </div>
-          <p class="hint">Switching to Stable never goes back a version: you get the next full release when it's out.</p>
         </fieldset>
 
         <p class="fine" data-edition="full">Facts are written on this computer by the built-in AI, Meta's <span id="s-model-name">Llama 3.2 3B</span>, used under the <button class="link" type="button" data-open-license><span id="s-model-license">Llama 3.2 Community License</span></button>. Built with Llama. Larger AI is under Advanced.</p>
@@ -689,6 +692,7 @@
           <h1 tabindex="-1">BubbleFacts</h1>
           <p class="about-dev">Christopher Feyrer</p>
           <p class="about-version"><span id="about-page-version"></span></p>
+          <p class="fine" id="about-store-updates" hidden>Updates come through the Microsoft Store.</p>
           <p class="about-links">
             <button class="link" data-open="https://bubblefacts.frolic.org/">Website</button>
             <button class="link" data-open="https://bubblefacts.frolic.org/support.html">Support Questions</button>

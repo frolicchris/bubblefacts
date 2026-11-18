@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import type { Edition } from "./build";
 import { plainWithDetail } from "./plain-errors";
+import { isStoreApp, STORE_UPDATES_LINE } from "./store-app";
 
 /**
  * The app's own updater. The standard one for Electron needs a Mac app
@@ -174,6 +175,8 @@ export type InstallResult = { started: true; relaunch?: string } | { started: fa
  * app right away: the installer (or the swap script) is waiting for it.
  */
 export function startInstall(file: string, opts: { pid: number; logFile: string; scriptDir: string }): InstallResult {
+  // The Store updates a Store app; an installer is never launched from inside the package.
+  if (isStoreApp()) return { started: false, reason: STORE_UPDATES_LINE };
   const detached = (cmd: string, args: string[]) => spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
   if (process.platform === "darwin") {
     const bundle = macBundle();
