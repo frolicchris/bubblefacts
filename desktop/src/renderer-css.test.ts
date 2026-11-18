@@ -71,6 +71,30 @@ describe("Settings", () => {
     [...src.matchAll(new RegExp(`<label class="choice">\\s*<input type="radio" name="${name}" value="([a-z]+)"[^>]*>\\s*<span class="choice-body">\\s*<strong>([^<]+)</strong>\\s*<span>([\\s\\S]*?)</span>\\s*</span>\\s*</label>`, "g"))]
       .map((m) => ({ value: m[1], title: m[2], body: text(m[3]) }));
 
+  it("shows one section at a time, every setting under one of the section buttons, all in the one form", () => {
+    const tabs = [...settings.matchAll(/class="settings-tab" data-settings-tab="([a-z]+)"( aria-current="true")?>([^<]+)</g)];
+    expect(tabs.map((t) => t[3])).toEqual(["Song list", "Your music", "Custom facts", "Bubbles", "Vertical stream", "Sharing", "General"]);
+    // Opens on the first, so the page reads the same before the script runs
+    expect(tabs.filter((t) => t[2]).map((t) => t[1])).toEqual(["songs"]);
+    const names = tabs.map((t) => t[1]);
+    // No section is left outside the buttons, where nobody could reach it
+    const fieldsets = [...settings.matchAll(/<fieldset([^>]*)>/g)].map((f) => f[1].match(/data-settings-panel="([a-z]+)"/)?.[1]);
+    expect(fieldsets.length).toBeGreaterThan(0);
+    for (const panel of fieldsets) expect(names).toContain(panel);
+    expect(settings).toMatch(/<details class="advanced" id="s-advanced" data-settings-panel="general">/);
+    for (const name of names) expect(settings).toContain(`data-settings-panel="${name}"`);
+    // Hidden by a class, never the hidden attribute, which Prepare my songs and others already use for their own reasons
+    expect(read("app.css")).toContain("[data-settings-panel].tab-off { display: none; }");
+    const js = read("app.js");
+    expect(js).toContain('p.classList.toggle("tab-off", p.dataset.settingsPanel !== name)');
+    // A link or button that sends the musician to one setting opens its section first
+    expect(js).toContain("revealInSettings(document.getElementById(t.dataset.scrollTo))");
+    expect(js).toContain('revealInSettings($("#s-myfacts"))');
+    // Reopens on the section last looked at, and on the first when that one is gone or nothing was saved
+    expect(js).toContain("showSettingsTab(lastSettingsTab())");
+    expect(js).toMatch(/lastSettingsTab\(\) \{[^]*?\? saved : "songs";/);
+  });
+
   it("warns, without blocking, the moment another AI is chosen to write the facts", () => {
     const start = settings.indexOf('aria-labelledby="s-ai-label"');
     const group = settings.slice(start, settings.indexOf("</div>", start));

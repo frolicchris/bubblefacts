@@ -118,9 +118,43 @@
     }
     if (t.dataset.gotoStep) goStep(Number(t.dataset.gotoStep));
     if (t.dataset.view) show(t.dataset.view);
-    if (t.dataset.scrollTo) document.getElementById(t.dataset.scrollTo)?.scrollIntoView({ block: "start" });
+    if (t.dataset.settingsTab) showSettingsTab(t.dataset.settingsTab);
+    if (t.dataset.scrollTo) {
+      revealInSettings(document.getElementById(t.dataset.scrollTo));
+      document.getElementById(t.dataset.scrollTo)?.scrollIntoView({ block: "start" });
+    }
     if (t.dataset.tip) showTip(t, document.getElementById(t.dataset.tip).hidden);
   });
+
+  /** Settings shows one section at a time; the others stay in the form, so one Save covers them all */
+  function showSettingsTab(name) {
+    for (const p of document.querySelectorAll("[data-settings-panel]")) p.classList.toggle("tab-off", p.dataset.settingsPanel !== name);
+    for (const b of document.querySelectorAll(".settings-tab")) b.setAttribute("aria-current", String(b.dataset.settingsTab === name));
+    // Comes back to the section last looked at: related settings are often changed more than once
+    try {
+      window.localStorage.setItem("settingsTab", name);
+    } catch {
+      // No storage: it opens on the first section
+    }
+  }
+
+  /** The section last looked at, when it still exists; else the first */
+  function lastSettingsTab() {
+    let saved = "";
+    try {
+      saved = window.localStorage.getItem("settingsTab") || "";
+    } catch {
+      // No storage
+    }
+    return [...document.querySelectorAll(".settings-tab")].some((b) => b.dataset.settingsTab === saved) ? saved : "songs";
+  }
+
+  /** Opens the section a setting is in, before it is focused or scrolled to */
+  function revealInSettings(el) {
+    const panel = el?.closest("[data-settings-panel]");
+    if (panel) showSettingsTab(panel.dataset.settingsPanel);
+  }
+  showSettingsTab(lastSettingsTab());
 
   function showTip(button, open) {
     document.getElementById(button.dataset.tip).hidden = !open;
@@ -568,6 +602,7 @@
       edit.addEventListener("click", async () => {
         if (f.source === "Your custom facts") {
           show("settings");
+          revealInSettings($("#s-myfacts"));
           $("#s-myfacts").focus();
           return;
         }
