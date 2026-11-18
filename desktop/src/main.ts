@@ -23,6 +23,7 @@ import {
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
+import { isStoreApp, loginItemSettings, storeDataFolder } from "./store-app";
 
 /**
  * A YouTube Data API key restricted to that API, added to package.json at
@@ -47,6 +48,14 @@ import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
 import { prepareEnv, registerPreparing } from "./preparing";
 
 /** BubbleFacts desktop app: setup, the dashboard, and a supervised fact server. */
+
+// A Store app keeps its data in the BubbleFacts folder in Documents, where OBS can read the overlay (Windows
+// redirects AppData writes for packaged apps). First of all: before anything reads userData and before the
+// single-instance lock. Chromium's caches stay where they were: sessionData follows userData unless set first.
+if (isStoreApp()) {
+  app.setPath("sessionData", app.getPath("sessionData"));
+  app.setPath("userData", storeDataFolder(app.getPath("documents")));
+}
 
 // A second copy hands over to the first (which shows its window) and leaves at once.
 const primaryInstance = app.requestSingleInstanceLock();
@@ -209,6 +218,8 @@ function state() {
     versionLabel: versionWithBuild(),
     testBuild: BUILD.kind === "test",
     platform: process.platform,
+    // Installed from the Microsoft Store: the window hides Start at login and the update choices.
+    storeApp: isStoreApp(),
     // Not asked until the sign-in is read: the window must be up first (see secretsUnprotected).
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
@@ -602,7 +613,9 @@ function applyStartAtLogin(): void {
     }
     return;
   }
-  app.setLoginItemSettings({ openAtLogin: settings.startAtLogin, args: ["--hidden"] });
+  // A Store app leaves the login items alone: the setting is hidden there.
+  const login = loginItemSettings(settings.startAtLogin);
+  if (login) app.setLoginItemSettings(login);
 }
 
 /** Ask the running server to do something only the app may ask for. */
@@ -1044,6 +1057,8 @@ handle("recent", async () => {
 let updateChecks = 0;
 /** At start, and again when the musician picks Stable or Beta, so the dashboard notice matches right away. */
 async function checkForUpdate(): Promise<void> {
+  // The Store updates a Store app: no check, so no banner.
+  if (isStoreApp()) return;
   const mine = ++updateChecks;
   const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE), EDITION) : () => null);
   // Only the newest check counts, and a download under way finishes.
@@ -1056,7 +1071,7 @@ async function checkForUpdate(): Promise<void> {
 }
 
 handle("download-update", async () => {
-  if (!update?.download || updating.stage === "downloading") return;
+  if (isStoreApp() || !update?.download || updating.stage === "downloading") return;
   updating = { stage: "downloading", progress: 0, file: "", error: "" };
   send("state", state());
   let last = 0;
@@ -1076,7 +1091,7 @@ handle("download-update", async () => {
 });
 
 handle("install-update", () => {
-  if (updating.stage !== "ready") return;
+  if (isStoreApp() || updating.stage !== "ready") return;
   fs.mkdirSync(DIRS.logs, { recursive: true });
   const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
   if (!result.started) {
@@ -1198,7 +1213,8 @@ async function refreshSignInIfDue(): Promise<void> {
 
 async function startApp(): Promise<void> {
   if (!primaryInstance) return;
-  app.setAppUserModelId("org.frolic.bubblefacts");
+  // A Store app's identity comes from its package.
+  if (!isStoreApp()) app.setAppUserModelId("org.frolic.bubblefacts");
   setAboutPanel();
   const atLogin = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
   // On a Mac, each new version makes macOS ask again before the saved sign-in can be read, and the

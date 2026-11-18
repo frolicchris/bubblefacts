@@ -13,6 +13,7 @@
     "build:desktop": "tsc -p desktop/tsconfig.json",
     "app": "npm run build && npm run build:desktop && electron .",
     "dist": "npm run build && npm run build:desktop && electron-builder --publish never",
+    "dist:store": "npm run build && npm run build:desktop && electron-builder --win appx --x64 --publish never",
     "dist:lite": "npm run build && npm run build:desktop && node scripts/dist-lite.mjs",
     "bump": "node scripts/bump-version.mjs",
     "test:scripts": "npm run build && node --test scripts/bump-version.test.mjs scripts/dist-lite.test.mjs scripts/dist-exports.test.mjs"
@@ -130,6 +131,14 @@
       ],
       "icon": "desktop/build/icon.png",
       "artifactName": "BubbleFacts-${version}-windows-${arch}.${ext}"
+    },
+    "appx": {
+      "artifactName": "BubbleFacts-${version}-windows-x64.msix",
+      "languages": [
+        "en-US"
+      ],
+      "applicationId": "BubbleFacts",
+      "displayName": "BubbleFacts"
     },
     "nsis": {
       "oneClick": true,

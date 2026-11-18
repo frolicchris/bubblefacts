@@ -86,6 +86,46 @@ jobs:
           ls -la installer
           # Releases from before Lite (2.2.0) have no Lite installers.
           if [ -z "$(ls installer)" ]; then echo "No installer named ${{ matrix.asset }} in $TAG"; exit 1; fi
+      # The Microsoft Store package (issue #482): only looked at, never installed. Its name and publisher must
+      # be the ones in the repository variables, or Partner Center would refuse the upload.
+      - name: Check the Microsoft Store package
+        if: matrix.name == 'windows'
+        shell: pwsh
+        env:
+          RUN_INPUT: ${{ inputs.run || github.event.workflow_run.id }}
+          STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if (-not ($env:STORE_IDENTITY_NAME -and $env:STORE_PUBLISHER -and $env:STORE_PUBLISHER_DISPLAY_NAME)) {
+            Write-Host "Microsoft Store package: not checked (the STORE_* repository variables are not set)"
+            exit 0
+          }
+          New-Item -ItemType Directory -Force store | Out-Null
+          if ($env:RUN_INPUT) {
+            gh run download $env:RUN_INPUT --repo $env:GITHUB_REPOSITORY --name windows-x64 --dir store-all
+            Get-ChildItem store-all -Recurse -Filter "*[0-9]-windows-x64.msix" | Copy-Item -Destination store
+          } else {
+            gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "*[0-9]-windows-x64.msix" --dir store
+          }
+          $pkg = Get-ChildItem store -Filter *.msix | Select-Object -First 1
+          if (-not $pkg) { throw "No .msix in $env:TAG, but the STORE_* variables are set" }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+          try {
+            $entry = $zip.GetEntry("AppxManifest.xml")
+            if (-not $entry) { throw "$($pkg.Name) has no AppxManifest.xml" }
+            $reader = New-Object System.IO.StreamReader($entry.Open())
+            [xml]$manifest = $reader.ReadToEnd()
+            $reader.Dispose()
+          } finally { $zip.Dispose() }
+          $id = $manifest.Package.Identity
+          $display = $manifest.Package.Properties.PublisherDisplayName
+          Write-Host "$($pkg.Name): $($id.Name) / $($id.Publisher) / $display / $($id.Version)"
+          if ($id.Name -ne $env:STORE_IDENTITY_NAME) { throw "Identity name is $($id.Name), expected $env:STORE_IDENTITY_NAME" }
+          if ($id.Publisher -ne $env:STORE_PUBLISHER) { throw "Publisher is $($id.Publisher), expected $env:STORE_PUBLISHER" }
+          if ($display -ne $env:STORE_PUBLISHER_DISPLAY_NAME) { throw "Publisher display name is $display, expected $env:STORE_PUBLISHER_DISPLAY_NAME" }
+          if ($id.Version -notmatch '^\d+\.\d+\.\d+\.0$') { throw "Version $($id.Version) is not x.y.z.0" }
       - name: Restore the AI model
         id: model
         if: ${{ !matrix.lite }}
