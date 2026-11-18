@@ -273,3 +273,10 @@ textarea { resize: vertical; line-height: 1.45; }
 .earlier > summary { cursor: pointer; }
 .earlier .now-song { margin-top: 12px; }
 .earlier .earlier-off { margin: 2px 0 4px; font-size: 0.9em; }
+
+/* Settings: one section at a time, so no section needs a long scroll */
+.settings-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; padding-bottom: 12px; border-bottom: 1px solid #262c66; }
+.settings-tab { background: transparent; color: var(--text); border: 1px solid #3a4290; border-radius: 999px; padding: 7px 14px; font-size: 14px; }
+.settings-tab:hover { border-color: var(--border); }
+.settings-tab[aria-current="true"] { background: var(--gold); border-color: var(--gold); color: #0b0e2a; font-weight: 700; }
+[data-settings-panel].tab-off { display: none; }
