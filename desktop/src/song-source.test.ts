@@ -37,7 +37,7 @@ describe("which song source fields are saved", () => {
   });
 
   it("drops a path typed under Another app's file once Streamling or Nightbot is picked", () => {
-    for (const preset of ["streamling", "nightbot"]) {
+    for (const preset of ["streamling", "nightbot", "whatsnowplaying"]) {
       const out = sourceChanges({ ...form, songSource: "nowplaying", nowPlayingPreset: preset });
       expect(out.nowPlayingPreset).toBe(preset);
       expect(out).not.toHaveProperty("nowPlayingFile");
@@ -89,7 +89,7 @@ describe("Settings wiring for song sources", () => {
     expect(html.indexOf('src="song-source.js"')).toBeGreaterThan(-1);
     expect(html.indexOf('src="song-source.js"')).toBeLessThan(html.indexOf('src="app.js"'));
     // Each preset card's folder sits in a part that starts hidden
-    for (const card of ["streamling", "nightbot"]) {
+    for (const card of ["streamling", "nightbot", "whatsnowplaying"]) {
       expect(html).toMatch(new RegExp(`data-np-card="${card}" hidden>[^]*?data-np-folder="${card}"`));
     }
     const js = read("app.js");

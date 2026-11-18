@@ -160,7 +160,7 @@ function state() {
   return {
     settings: { ...rest, tokenSet: !!token, seJwtSet: !!seJwt, groqKeySet: !!groqKey, anthropicKeySet: !!anthropicKey, shareKeySet: !!shareKey, twitchConnected: !!twitchRefreshToken },
     signInAvailable: !!CLIENT_ID,
-    // Where the Streamling and Nightbot presets look when Documents is elsewhere; empty when it isn't
+    // Where the presets look when Documents is elsewhere; empty when it isn't
     nowPlayingFolders: presetFoldersShown(),
     twitch: { available: !!TWITCH_CLIENT_ID, userCode: twitch.userCode, error: twitch.error, ended: twitch.ended && !twitch.userCode },
     paused,

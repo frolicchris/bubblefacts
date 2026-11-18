@@ -7,7 +7,7 @@ import { SSLQueueItem, SSLSong } from "./types";
 import { parseVideoTitle } from "./youtube-title";
 import { settleTitleOrder } from "./musicbrainz";
 
-// The song on now from a text file an app keeps up to date (SONG_SOURCE=nowplaying): Streamling, Nightbot, any one-line writer
+// The song on now from a text file an app keeps up to date (SONG_SOURCE=nowplaying): Streamling, Nightbot, What's Now Playing, any one-line writer
 // Polled, not watched; the file is the only word, so doubt means no song (ARCHITECTURE.md: Song sources and YouTube titles)
 
 export type NowPlayingFormat = "artist-title" | "title" | "youtube-title";

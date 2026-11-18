@@ -8,7 +8,7 @@
     streamelements: ["seChannel", "seJwt"],
     nowplaying: ["nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat"],
   };
-  /** Only "Another app's file" asks for a file and its line format; Streamling and Nightbot know both */
+  /** Only "Another app's file" asks for a file and its line format; the presets know both */
   const OWN_FILE_FIELDS = ["nowPlayingFile", "nowPlayingFormat"];
 
   /** A field is on screen with this source and file card picked; fields outside the song list always are */

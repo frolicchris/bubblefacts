@@ -33,8 +33,8 @@ export interface Settings {
   seChannel: string;
   /** StreamElements JWT: dashboard, Account, Channels, Show secrets */
   seJwt: string;
-  /** "streamling" or "nightbot": that app's own file or folder; "none": `nowPlayingFile` */
-  nowPlayingPreset: "streamling" | "nightbot" | "none";
+  /** "streamling", "nightbot" or "whatsnowplaying": that app's own file or folder; "none": `nowPlayingFile` */
+  nowPlayingPreset: "streamling" | "nightbot" | "whatsnowplaying" | "none";
   /** Text file another app writes the song to, from the file picker */
   nowPlayingFile: string;
   /** Its line: "Artist - Title", or the title alone */
@@ -326,7 +326,7 @@ export function sanitize(s: Settings): Settings {
   return {
     ...s,
     songSource: oneOf(s.songSource, ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist"),
-    nowPlayingPreset: oneOf(s.nowPlayingPreset, ["streamling", "nightbot", "none"] as const, "streamling"),
+    nowPlayingPreset: oneOf(s.nowPlayingPreset, ["streamling", "nightbot", "whatsnowplaying", "none"] as const, "streamling"),
     nowPlayingFormat: oneOf(s.nowPlayingFormat, ["artist-title", "title"] as const, "artist-title"),
     nowPlayingFile: s.nowPlayingFile.trim(),
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
@@ -487,7 +487,7 @@ export function toServerEnv(
     BUBBLEFACTS_LOG_DIR: paths.logDir,
     NODE_ENV: "production",
   };
-  // The system's Documents, for the Streamling and Nightbot presets: tried before the home folder's
+  // The system's Documents, for the presets (Streamling, Nightbot, What's Now Playing): tried before the home folder's
   if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
@@ -500,6 +500,9 @@ export function toServerEnv(
     } else if (s.nowPlayingPreset === "nightbot") {
       // Known folder, but file name and line are the streamer's: the newest .txt, read as a YouTube title
       Object.assign(env, { NOW_PLAYING_PRESET: "nightbot", NOW_PLAYING_FORMAT: "youtube-title" });
+    } else if (s.nowPlayingPreset === "whatsnowplaying") {
+      // Known file, written as "Artist - Title" unless the streamer changed its template
+      Object.assign(env, { NOW_PLAYING_PRESET: "whatsnowplaying", NOW_PLAYING_FORMAT: "artist-title" });
     } else {
       Object.assign(env, { NOW_PLAYING_PRESET: "none", NOW_PLAYING_FILE: s.nowPlayingFile, NOW_PLAYING_FORMAT: s.nowPlayingFormat });
     }
@@ -524,7 +527,7 @@ export function toServerEnv(
 /** The chosen song source has what it needs to start */
 export function songSourceReady(s: Settings): boolean {
   if (s.songSource === "streamelements") return !!s.seJwt;
-  // The server knows where Streamling's and Nightbot's files are; another app's needs one chosen
+  // The server knows where each preset's file is; another app's needs one chosen
   if (s.songSource === "nowplaying") return s.nowPlayingPreset !== "none" || !!s.nowPlayingFile;
   // The app's own sign-in follows the channel by ID, so no name is needed
   return !!s.token && (!!s.channel || (s.tokenKind === "oauth" && s.streamerId > 0));

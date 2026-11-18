@@ -48,16 +48,18 @@ export function folderShownInstead(
   return found === path.join(documents, ...folder) || found === path.join(home, "Documents", ...folder) ? "" : found;
 }
 
-/** What the picker names per preset: Streamling's file, Nightbot's folder; "" for the usual Documents folder */
+/** What the picker names per preset: Streamling's and What's Now Playing's file, Nightbot's folder; "" for the usual Documents folder */
 export function presetFoldersShown(
   env: NodeJS.ProcessEnv = process.env,
   home: string = os.homedir(),
   isDir?: (p: string) => boolean,
   documents: string = documentsDir(home)
-): { streamling: string; nightbot: string } {
+): { streamling: string; nightbot: string; whatsnowplaying: string } {
   const streamling = folderShownInstead(["streamling", "livetext"], env, home, isDir, documents);
+  const whatsnowplaying = folderShownInstead(["WhatsNowPlaying"], env, home, isDir, documents);
   return {
     streamling: streamling && path.join(streamling, "nowplaying-minimal.txt"),
     nightbot: folderShownInstead(["Nightbot"], env, home, isDir, documents),
+    whatsnowplaying: whatsnowplaying && path.join(whatsnowplaying, "now-playing.txt"),
   };
 }

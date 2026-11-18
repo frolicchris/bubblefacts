@@ -428,8 +428,16 @@ describe("Now playing file", () => {
     expect(sig({ ...other, nowPlayingFormat: "artist-title" })).not.toBe(sig(other));
   });
 
-  it("is ready with Streamling or Nightbot, or once a file is chosen", () => {
+  it("starts the server on What's Now Playing's file, read as Artist - Title, with nothing typed", () => {
+    const env = toServerEnv({ ...streamling, nowPlayingPreset: "whatsnowplaying", nowPlayingFile: "/left/over.txt", nowPlayingFormat: "title" }, paths);
+    expect(env).toMatchObject({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "whatsnowplaying", NOW_PLAYING_FORMAT: "artist-title" });
+    expect(env.NOW_PLAYING_FILE).toBeUndefined();
+    expect(sanitize({ ...DEFAULTS, nowPlayingPreset: "whatsnowplaying" }).nowPlayingPreset).toBe("whatsnowplaying");
+  });
+
+  it("is ready with Streamling, Nightbot or What's Now Playing, or once a file is chosen", () => {
     expect(songSourceReady(streamling)).toBe(true);
+    expect(songSourceReady({ ...streamling, nowPlayingPreset: "whatsnowplaying" })).toBe(true);
     expect(songSourceReady({ ...streamling, nowPlayingPreset: "nightbot" })).toBe(true);
     expect(songSourceReady({ ...other, nowPlayingFile: "" })).toBe(false);
     expect(songSourceReady(other)).toBe(true);

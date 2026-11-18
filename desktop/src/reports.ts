@@ -115,6 +115,8 @@ export function betaReportUrl(opts: { version: string; build: string; systemVers
     source:
       opts.songSource === "nowplaying" && opts.nowPlayingPreset === "nightbot"
         ? "Now playing file (Nightbot)"
+        : opts.songSource === "nowplaying" && opts.nowPlayingPreset === "whatsnowplaying"
+        ? "Now playing file (What's Now Playing)"
         : ({ streamelements: "StreamElements", nowplaying: "Now playing file" } as Record<string, string>)[opts.songSource] ?? "StreamerSongList",
     osversion: `${osName()} ${opts.systemVersion}`,
     log: redact(opts.logLines.slice(-60).join("\n"), opts.secrets),

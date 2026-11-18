@@ -20,12 +20,17 @@ describe("the folder the picker names", () => {
     expect(folderShownInstead(["streamling", "livetext"], { OneDrive: oneDrive }, home, existing(streamling))).toBe(streamling);
   });
 
+  it("names What's Now Playing's file for the window when Documents is elsewhere", () => {
+    const wnp = path.join(oneDrive, "Documents", "WhatsNowPlaying");
+    expect(presetFoldersShown({ OneDrive: oneDrive }, home, existing(wnp)).whatsnowplaying).toBe(path.join(wnp, "now-playing.txt"));
+  });
+
   it("names Streamling's file and Nightbot's folder for the window, each empty when Documents is where it usually is", () => {
     const streamling = path.join(oneDrive, "Documents", "streamling", "livetext");
     const env = { OneDrive: oneDrive };
-    expect(presetFoldersShown(env, home, existing(streamling))).toEqual({ streamling: path.join(streamling, "nowplaying-minimal.txt"), nightbot: "" });
-    expect(presetFoldersShown(env, home, existing(moved))).toEqual({ streamling: "", nightbot: moved });
-    expect(presetFoldersShown({}, home, existing())).toEqual({ streamling: "", nightbot: "" });
+    expect(presetFoldersShown(env, home, existing(streamling))).toEqual({ streamling: path.join(streamling, "nowplaying-minimal.txt"), nightbot: "", whatsnowplaying: "" });
+    expect(presetFoldersShown(env, home, existing(moved))).toEqual({ streamling: "", nightbot: moved, whatsnowplaying: "" });
+    expect(presetFoldersShown({}, home, existing())).toEqual({ streamling: "", nightbot: "", whatsnowplaying: "" });
   });
 
   it("tries the system's Documents folder first, then the home one", () => {

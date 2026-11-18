@@ -66,8 +66,10 @@ export const NOW_PLAYING_PRESETS = {
   streamling: { name: "Streamling", folder: ["streamling", "livetext"], file: "nowplaying-minimal.txt", format: "youtube-title" },
   // A YouTube title; Nightbot's docs name neither file nor line
   nightbot: { name: "Nightbot", folder: ["Nightbot"], file: "", format: "youtube-title" },
+  // " Artist - Title", UTF-8, or " Title" alone: its defaults (What's Now Playing's config.py, basic-plain.txt)
+  whatsnowplaying: { name: "What's Now Playing", folder: ["WhatsNowPlaying"], file: "now-playing.txt", format: "artist-title" },
 } as const;
-const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling", "nightbot"] as const, "none");
+const nowPlayingPreset = oneOf("NOW_PLAYING_PRESET", ["none", "streamling", "nightbot", "whatsnowplaying"] as const, "none");
 
 // Relative to the preset's folder (else the overlay folder); full paths and ~/ as written
 function nowPlayingFile(): string {

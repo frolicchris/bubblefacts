@@ -113,7 +113,7 @@ The overlay needs permission to read your queue.
 Treat the token like a password: keep it off your stream and out of screenshots.
 
 Not using StreamerSongList? Skip this step. For StreamElements or a now
-playing file (Streamling, Nightbot or another app), use the settings in
+playing file (Streamling, Nightbot, What's Now Playing or another app), use the settings in
 [CONFIG.md](CONFIG.md#your-streamelements-account) in step 4 instead.
 
 ### 3. Choose where the AI runs

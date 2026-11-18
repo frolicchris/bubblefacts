@@ -133,6 +133,8 @@ describe("beta test reports", () => {
     const fields = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "nightbot", logLines: ["x"], secrets: [] }));
     expect(options("source")).toContain(fields.source);
     expect(fields.source).toBe("Now playing file (Nightbot)");
+    const wnp = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "whatsnowplaying", logLines: ["x"], secrets: [] }));
+    expect(wnp.source).toBe("Now playing file (What's Now Playing)");
     const other = decode(betaReportUrl({ version, build: version, systemVersion: "15.3.0", songSource: "nowplaying", nowPlayingPreset: "streamling", logLines: ["x"], secrets: [] }));
     expect(other.source).toBe("Now playing file");
   });
