@@ -116,17 +116,9 @@ handled, is in [SECURITY.md](.github/SECURITY.md#what-2x-promises).
 
 ## Join in
 
-BubbleFacts is made by one person, and shaped by the musicians and DJs who use it.
-
-- **Say hello** in the [BubbleFacts Discord](https://discord.gg/3YS3eWkWrW).
-  Every new version is announced there.
-- **Share an idea** in **#feature-requests** on Discord. Approved ideas become
-  GitHub issues, so you can follow them.
-- **Try new versions early.** In the app, choose **Beta** under **Settings**,
-  then **General**, then **Updates**, and send a beta test report.
-- **Pass it on.** Know a music content creator who'd enjoy it? Send them the
-  [website](https://bubblefacts.frolic.org). A star on this page helps others
-  find it too.
+Say hello, share an idea or hear about new versions in the
+[BubbleFacts Discord](https://discord.gg/3YS3eWkWrW). Know a music content
+creator who'd enjoy it? Send them the [website](https://bubblefacts.frolic.org).
 
 ## For developers
 
