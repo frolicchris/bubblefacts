@@ -1,4 +1,10 @@
 {
+  "2.3.0-beta.2": [
+    "Share a look: import a Style file another musician or DJ made, save your own, or pick one of three ready-made looks.",
+    "Share song facts with other apps: the other app is also told the next song in your queue, never who requested it.",
+    "A song left on your list too long stops its bubbles and sharing until your next song. Settings sets how long.",
+    "Fixed: a credited @name that isn't the creator's Twitch channel no longer shows a stranger's About text."
+  ],
   "2.3.0-beta.1": [
     "Share song facts with other apps: the song is shared the moment it starts, and who requested it is never sent.",
     "Songs credited to a Twitch @name get a line or two from that creator's Twitch About.",
