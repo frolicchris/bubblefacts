@@ -73,6 +73,32 @@ steps, and macOS stops asking for the keychain again after each update.
 Once both are signed, remove the first-launch steps from `site/guide.html`
 and `site/download.html` (see `site/README.md`).
 
+## Microsoft Store package
+
+Besides the installers, the Windows build can make an `.msix` package for the
+Microsoft Store (`BubbleFacts-X.Y.Z-windows-x64.msix`, built by
+`npm run dist:store`). It is **not signed by us**: the Store signs it when
+you submit it, so it costs nothing and Windows shows no warning for it. Don't
+hand it to streamers as a download; it only installs from the Store.
+
+The release builds it only when these three repository variables are set
+(Settings, Secrets and variables, Actions, Variables). All three come from
+Partner Center, under the app's **Product identity**:
+
+- `STORE_IDENTITY_NAME`: Package/Identity/Name.
+- `STORE_PUBLISHER`: Package/Identity/Publisher (starts with `CN=`).
+- `STORE_PUBLISHER_DISPLAY_NAME`: Package/Properties/PublisherDisplayName.
+
+Without them the log says "Microsoft Store package: skipped" and the release
+has no `.msix`. The package's version is the app's version with `.0` added
+(2.2.1 becomes 2.2.1.0), the form the Store needs; a beta's version doesn't
+fit, so the Store only gets stable releases.
+
+The Store does not pick up new releases by itself. For every version you want
+there, download the `.msix` from the published release and upload it in
+Partner Center as a new submission. The app inside never checks for updates,
+and keeps its data in the BubbleFacts folder in Documents.
+
 ## Update signing key
 
 The in-app update installs only a release whose `SHA256SUMS.txt` has a valid
