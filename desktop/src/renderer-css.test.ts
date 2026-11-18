@@ -122,8 +122,9 @@ describe("Settings", () => {
     expect(cards(settings, "songSource")).toEqual(setup);
   });
 
-  it("puts Streamling, Nightbot and Another app's file as cards right under Now playing file", () => {
-    expect(cards(settings, "nowPlayingPreset").map((c) => c.title)).toEqual(["Streamling", "Nightbot", "Another app's file"]);
+  it("puts Streamling, Nightbot, What's Now Playing and Another app's file as cards right under Now playing file", () => {
+    expect(cards(settings, "nowPlayingPreset").map((c) => c.title)).toEqual(["Streamling", "Nightbot", "What's Now Playing", "Another app's file"]);
+    expect(cards(html, "setup-np").map((c) => c.value)).toEqual(cards(settings, "nowPlayingPreset").map((c) => c.value));
     const nowPlayingCard = settings.indexOf('name="songSource" value="nowplaying"');
     const box = settings.indexOf('<div id="s-np-box"');
     expect(box).toBeGreaterThan(nowPlayingCard);

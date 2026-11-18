@@ -145,7 +145,7 @@
   const onStreamElements = () => state?.settings.songSource === "streamelements";
   /** A text file another app writes the song to: nothing to sign in to */
   const onFile = () => state?.settings.songSource === "nowplaying";
-  /** Streamling's and Nightbot's files need no choosing; any other app's does */
+  /** A preset's file needs no choosing; any other app's does */
   const fileChosen = () => state.settings.nowPlayingPreset !== "none" || !!state.settings.nowPlayingFile;
   const channelName = () => (onFile() ? "" : onStreamElements() ? state.settings.seChannel : state.settings.channel);
   /** The song source can start: its token saved, or its file chosen */
@@ -205,6 +205,7 @@
     const preset = $('input[name="setup-np"]:checked').value;
     $("#setup-np-streamling").hidden = preset !== "streamling";
     $("#setup-np-nightbot").hidden = preset !== "nightbot";
+    $("#setup-np-whatsnowplaying").hidden = preset !== "whatsnowplaying";
     $("#setup-np-other").hidden = preset !== "none";
     $("#setup-np-file").textContent = setupFile || "No file chosen yet.";
   }
@@ -250,7 +251,7 @@
 
   function toStreamStep() {
     $("#connected-as").textContent = onFile()
-      ? ({ streamling: "✓ Following Streamling's file.", nightbot: "✓ Following Nightbot's song file." }[state.settings.nowPlayingPreset] ?? "✓ Following your file.")
+      ? ({ streamling: "✓ Following Streamling's file.", nightbot: "✓ Following Nightbot's song file.", whatsnowplaying: "✓ Following What's Now Playing's file." }[state.settings.nowPlayingPreset] ?? "✓ Following your file.")
       : onStreamElements()
         ? `✓ Connected to StreamElements${channelName() ? " as " + channelName() : ""}.`
         : state.settings.channel ? `✓ Connected to ${state.settings.channel}.` : "✓ Connected.";

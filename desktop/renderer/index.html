@@ -59,7 +59,7 @@
             <input type="radio" name="setup-source" value="nowplaying">
             <span class="choice-body">
               <strong>Now playing file</strong>
-              <span>The song your music app writes to a text file, such as Streamling or Nightbot.</span>
+              <span>The song your music app writes to a text file, such as Streamling, Nightbot or What's Now Playing.</span>
             </span>
           </label>
         </div>
@@ -82,6 +82,13 @@
               </span>
             </label>
             <label class="choice">
+              <input type="radio" name="setup-np" value="whatsnowplaying">
+              <span class="choice-body">
+                <strong>What's Now Playing</strong>
+                <span>Nothing to choose. BubbleFacts reads the file What's Now Playing keeps in your Documents folder. For DJs. Windows, Mac and Linux.</span>
+              </span>
+            </label>
+            <label class="choice">
               <input type="radio" name="setup-np" value="none">
               <span class="choice-body">
                 <strong>Another app's file</strong>
@@ -91,6 +98,7 @@
           </div>
           <p class="fine" id="setup-np-streamling">It reads <span class="filepath" data-np-folder="streamling">Documents\streamling\livetext\nowplaying-minimal.txt</span></p>
           <p class="fine" id="setup-np-nightbot" hidden>It reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span></p>
+          <p class="fine" id="setup-np-whatsnowplaying" hidden>It reads <span class="filepath" data-np-folder="whatsnowplaying">Documents/WhatsNowPlaying/now-playing.txt</span></p>
           <div id="setup-np-other" hidden>
             <div class="actions">
               <button type="button" class="ghost" id="setup-np-choose">Choose file...</button>
@@ -367,7 +375,7 @@
               <input type="radio" name="songSource" value="nowplaying">
               <span class="choice-body">
                 <strong>Now playing file</strong>
-                <span>The song your music app writes to a text file, such as Streamling or Nightbot.</span>
+                <span>The song your music app writes to a text file, such as Streamling, Nightbot or What's Now Playing.</span>
               </span>
             </label>
           </div>
@@ -386,6 +394,13 @@
                 <span class="choice-body">
                   <strong>Nightbot</strong>
                   <span>Windows and Mac.<span class="picked-path" data-np-card="nightbot" hidden> Reads the newest .txt file in <span class="filepath" data-np-folder="nightbot">Documents/Nightbot</span>.</span></span>
+                </span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="nowPlayingPreset" value="whatsnowplaying">
+                <span class="choice-body">
+                  <strong>What's Now Playing</strong>
+                  <span>For DJs. Windows, Mac and Linux.<span class="picked-path" data-np-card="whatsnowplaying" hidden> Reads <span class="filepath" data-np-folder="whatsnowplaying">Documents/WhatsNowPlaying/now-playing.txt</span>.</span></span>
                 </span>
               </label>
               <label class="choice">
@@ -777,7 +792,7 @@
           <summary><h2>Legal</h2></summary>
           <p class="legal-copyright">© 2026 Christopher Feyrer</p>
           <p class="fine">This application comes with absolutely no warranty. See the <button class="link" data-open="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT License</button> for details.</p>
-          <p class="fine">The BubbleFacts name and logo are trademarks and aren't covered by the license. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with, including Twitch, StreamerSongList, StreamElements, Streamling, Nightbot, the Now Playing app, OBS, the Wikimedia Foundation, MusicBrainz, Meta and Anthropic.</p>
+          <p class="fine">The BubbleFacts name and logo are trademarks and aren't covered by the license. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with, including Twitch, StreamerSongList, StreamElements, Streamling, Nightbot, What's Now Playing, the Now Playing app, OBS, the Wikimedia Foundation, MusicBrainz, Meta and Anthropic.</p>
           <ul class="legal-list">
             <li>
               <h3>Song facts</h3>

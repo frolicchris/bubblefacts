@@ -13,7 +13,7 @@ setting, stop the overlay (Ctrl-C in its window) and start it again.
 `SSL_ACCESS_TOKEN`. Everything else has a default that works. If your song
 requests come through StreamElements instead, see
 [Your StreamElements account](#your-streamelements-account). To follow a text
-file your music app writes, such as Streamling's or Nightbot's, see
+file your music app writes, such as Streamling's, Nightbot's or What's Now Playing's, see
 [A now playing file](#a-now-playing-file).
 
 If a setting has a typo or an impossible value (a word where a number belongs,
@@ -78,8 +78,8 @@ show. BubbleFacts can follow that file instead of a request queue. Set
 | Setting | Default | What it does |
 |---|---|---|
 | `NOW_PLAYING_FILE` | *required with a now playing file* | The text file to follow. A full path, or with a preset just the file's name. |
-| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with either preset) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
-| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt` (Windows); `nightbot` reads the newest `.txt` in `Documents/Nightbot` (Windows and Mac). Both read the line as a YouTube title. Either way `NOW_PLAYING_FILE` can stay empty. If your Documents folder lives in OneDrive, the preset looks there when the usual `Documents` folder doesn't have the app's folder. |
+| `NOW_PLAYING_FORMAT` | `artist-title` (`youtube-title` with the Streamling or Nightbot preset) | How the line reads: `artist-title` for "Artist - Title", `title` for the title alone, or `youtube-title` for a YouTube video's title such as "Artist - Song (Official Video)". |
+| `NOW_PLAYING_PRESET` | *none* | `streamling` reads Streamling's `Documents\streamling\livetext\nowplaying-minimal.txt` (Windows); `nightbot` reads the newest `.txt` in `Documents/Nightbot` (Windows and Mac). Both read the line as a YouTube title. `whatsnowplaying` reads What's Now Playing's `Documents/WhatsNowPlaying/now-playing.txt` (Windows, Mac and Linux) as "Artist - Title". Either way `NOW_PLAYING_FILE` can stay empty. If your Documents folder lives in OneDrive, the preset looks there when the usual `Documents` folder doesn't have the app's folder. |
 
 Good to know:
 
@@ -87,6 +87,7 @@ Good to know:
 - A file that hasn't changed for 15 minutes counts as no song too, so last night's song never comes back when you start streaming.
 - The file says nothing about who asked or how long the song is, so facts built from those don't appear. Neither do live learns.
 - The line is read every 2 seconds. A new song shows once two checks in a row agree, so expect about 2 to 4 seconds.
+- The `whatsnowplaying` preset expects What's Now Playing's own settings: its usual file name, and its usual Text Template (`basic-plain.txt`), which writes "Artist - Title". If you changed either, leave the preset out and set `NOW_PLAYING_FILE` and `NOW_PLAYING_FORMAT` yourself.
 - Nightbot's file is written by its desktop app, so the app has to be running while you play. Nightbot's own docs don't name the file or its line, so BubbleFacts takes the newest `.txt` in the folder and drops a trailing "requested by ..." or "added by ...".
 - A line with a title and no artist (a YouTube title like "Song - Official Music Video") gets an artist only when MusicBrainz knows exactly one artist with a recording of that title. Common titles stay without one. Such a song shows basic facts from the databases, no AI captions.
 
@@ -283,7 +284,7 @@ need them with a `.env` file.
 | `BUBBLEFACTS_LOG_DIR` | Where `songs.log` goes. |
 | `BUBBLEFACTS_PAUSED` | `1` starts the server with bubbles paused, so a restart while paused stays paused. |
 | `BUBBLEFACTS_DATA_DIR` | Where the server keeps its files: `song-facts.json` (your facts for particular songs, and the No facts switches), `wrong-facts.json` (sources marked **Wrong**, per song), `wrong-log.jsonl` (each Wrong press, newest 500), `session.json` (what the current stream has shown), `aired-facts.json` (the facts that went out, newest 500), `play-history.json` (songs seen on stream, never who asked) and `prepared-facts.json` (**Prepare my songs**). All stay on this computer. Without it, the overlay uses a `data` folder in the overlay folder. |
-| `BUBBLEFACTS_DOCUMENTS_DIR` | Where the system keeps Documents, tried first for the Streamling and Nightbot presets. |
+| `BUBBLEFACTS_DOCUMENTS_DIR` | Where the system keeps Documents, tried first for the Streamling, Nightbot and What's Now Playing presets. |
 | `BUBBLEFACTS_VERSION` | The app's version, written into the Wrong log. |
 | `YOUTUBE_API_KEY` | The YouTube Data API key built into the app, if its build had one (see [Your StreamElements account](#your-streamelements-account)). |
 

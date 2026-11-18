@@ -40,7 +40,7 @@ Now playing file ─┘ reads the file   │
 | `backend/src/source-polling.ts` | What the two web clients share: Retry-After backoff, one fetch at a time, debounce, the polling loop. |
 | `backend/src/streamelements-client.ts` | StreamElements: reads the song request player and works out what's playing. |
 | `backend/src/astro-client.ts` | StreamElements' live song request events. |
-| `backend/src/now-playing-file.ts` | A text file a now-playing app (Streamling, Nightbot or another) keeps up to date. |
+| `backend/src/now-playing-file.ts` | A text file a now-playing app (Streamling, Nightbot, What's Now Playing or another) keeps up to date. |
 | `backend/src/now-playing-folder.ts` | Where a preset's folder is: `Documents`, or the same folder in OneDrive. |
 | `backend/src/youtube-title.ts` | Reads a song and artist out of a YouTube video title. |
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
@@ -1399,6 +1399,13 @@ apps that write the playing song into one text file:
   names (Windows often moves Documents into OneDrive). If none exists yet, the
   usual path is used. The app has the same rule in `desktop/src/now-playing-folder.ts`
   to show the folder actually read; keep the two alike.
+- What's Now Playing (`whatsnowplaying` preset): a free app DJs use to read
+  the track from their DJ software. Its source gives the defaults:
+  `Documents/WhatsNowPlaying/now-playing.txt` (`config.py`), UTF-8, emptied
+  when it starts, written from the `basic-plain.txt` template as
+  " Artist - Title", or " Title" alone without an artist. So the preset
+  names that file and reads `artist-title`. A streamer who changed the
+  template or the file name uses their own `NOW_PLAYING_FILE` instead.
 - Nightbot (`nightbot` preset): its docs name the folder (`Documents/Nightbot`,
   Windows and Mac) but neither the file nor the line, which is customizable,
   and its songs are YouTube videos. So the preset has no file: each check

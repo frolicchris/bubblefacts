@@ -12,7 +12,7 @@ Wikipedia and open music databases in game-inspired bubbles in OBS, each one
 checked against its source. It reads your
 [StreamerSongList](https://streamersonglist.com) or
 [StreamElements](https://streamelements.com) song requests, or the text file
-your music app keeps, such as Streamling or Nightbot's. The
+your music app keeps, such as Streamling, Nightbot's or What's Now Playing's. The
 captions are written by a small AI model, and the app itself was written with
 an AI coding agent: see [AI disclosure](#ai-disclosure).
 
@@ -37,7 +37,8 @@ shows exactly what to click.
    with Twitch. Take requests through StreamElements instead? Choose
    **StreamElements** and paste your JWT token from the StreamElements
    dashboard. Use Streamling or Nightbot's desktop app? Choose
-   **Now playing file**, then **Streamling** or **Nightbot**. Another music
+   **Now playing file**, then **Streamling** or **Nightbot**. A DJ using
+   What's Now Playing? Choose it there too. Another music
    app that writes the song to a text file works too: **Another app's file**.
 3. **Put BubbleFacts on your stream.** Drag the tile from the app into the
    **Sources** list in OBS. A test bubble appears, and the app says

@@ -135,6 +135,11 @@
                 <td>Open Nightbot's desktop app and play a song. BubbleFacts reads the newest .txt file in <span class="ui">Documents/Nightbot</span>, so it sees nothing while the app is closed. See <a href="guide.html#song-list-file">Follow a now playing file instead</a>.</td>
               </tr>
               <tr>
+                <th scope="row">What's Now Playing is chosen, but no song shows</th>
+                <td>What's Now Playing isn't running or hasn't seen a track yet, or its file or <span class="ui">Text Template</span> was changed</td>
+                <td>Open What's Now Playing and play a track. BubbleFacts reads <span class="ui">Documents/WhatsNowPlaying/now-playing.txt</span>, written as "Artist - Title". If you changed the file or the template in What's Now Playing, pick <span class="ui">Another app's file</span> in BubbleFacts and choose your file. See <a href="guide.html#song-list-file">Follow a now playing file instead</a>.</td>
+              </tr>
+              <tr>
                 <th scope="row">Bubbles start a bit after a song changes in StreamerSongList</th>
                 <td>The live connection to StreamerSongList dropped, so BubbleFacts is checking your list every 15 seconds instead</td>
                 <td>Look under <span class="ui">Songs</span> on the dashboard. <span class="ui">Checking your list every 15 seconds</span> still works, just a little later; it goes back to <span class="ui">Hearing your queue live</span> on its own. If it keeps happening, click <span class="ui">Report a problem</span> and add your logs (see <a href="support.html#faq-logs">How do I send my logs?</a>).</td>

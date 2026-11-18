@@ -85,6 +85,22 @@ describe("config song source", () => {
     expect(read("Fake Song")).toEqual({ artist: "Unknown", title: "Fake Song" });
   });
 
+  it("follows What's Now Playing's file, read as its default line: a space, then Artist - Title", () => {
+    const loaded = load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "whatsnowplaying" });
+    expect(loaded).toMatchObject({
+      nowPlayingPreset: "whatsnowplaying",
+      nowPlayingFile: path.join(os.homedir(), "Documents", "WhatsNowPlaying", "now-playing.txt"),
+      nowPlayingFolder: "",
+      nowPlayingFormat: "artist-title",
+    });
+    const read = (line: string) => require("./now-playing-file").parseNowPlaying(line, loaded.nowPlayingFormat);
+    // basic-plain.txt: "{% if artist %} {{ artist }} -{% endif %} {{ title }}"
+    expect(read(" Made Up Band - Fake Song\n")).toEqual({ artist: "Made Up Band", title: "Fake Song" });
+    expect(read(" Fake Song\n")).toEqual({ artist: "Unknown", title: "Fake Song" });
+    // Emptied when What's Now Playing starts: no song
+    expect(read("")).toBeNull();
+  });
+
   it("follows Nightbot's whole folder with the Nightbot preset, reading YouTube titles", () => {
     const folder = path.join(os.homedir(), "Documents", "Nightbot");
     expect(load({ SONG_SOURCE: "nowplaying", NOW_PLAYING_PRESET: "nightbot" })).toMatchObject({
