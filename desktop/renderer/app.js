@@ -1390,6 +1390,14 @@
     renderDraftNote();
   }
 
+  /** Installed from the Microsoft Store: it starts and updates the app, so those choices give way to one line. */
+  function showStoreApp() {
+    const store = state.storeApp === true;
+    $("#s-login-row").hidden = store;
+    $("#s-update-choices").hidden = store;
+    $("#s-store-updates").hidden = !store;
+  }
+
   /** Larger AI, with a warning (never a block) where it may struggle */
   const GB = 1024 ** 3;
   function renderQuality() {
@@ -1676,9 +1684,11 @@
       // Painted first: the app stops answering while the Mac's prompt is up
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => api.unlockReady()));
     }
+    showStoreApp();
     // With the build ("2.0.0-beta.12 test build (c4ee826)"), so testers can tell builds apart
     $("#about-version").textContent = state.versionLabel;
     $("#about-page-version").textContent = `Version ${state.versionLabel}`;
+    $("#about-store-updates").hidden = state.storeApp !== true;
     $("#report-beta").hidden = $("#copy-beta-report").hidden = !(/-(beta|rc)\./.test(state.version) || state.testBuild);
     renderNotices();
     renderWhatsNew();

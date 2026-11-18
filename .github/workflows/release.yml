@@ -148,6 +148,23 @@ jobs:
           else
             npm run dist -- $ARGS
           fi
+      # The Microsoft Store package (issue #482): unsigned, because the Store signs it. Built only when the
+      # three repository variables that name the app in Partner Center are set. It joins the Windows
+      # installers in the windows-x64 artifact, so the checksums, attestation and release pick it up.
+      - name: Build the Microsoft Store package
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if [ -z "$STORE_IDENTITY_NAME" ] || [ -z "$STORE_PUBLISHER" ] || [ -z "$STORE_PUBLISHER_DISPLAY_NAME" ]; then
+            echo "Microsoft Store package: skipped (set the STORE_IDENTITY_NAME, STORE_PUBLISHER and STORE_PUBLISHER_DISPLAY_NAME repository variables to build it)"
+            exit 0
+          fi
+          npm run dist:store -- "-c.appx.identityName=$STORE_IDENTITY_NAME" "-c.appx.publisher=$STORE_PUBLISHER" "-c.appx.publisherDisplayName=$STORE_PUBLISHER_DISPLAY_NAME"
+          ls -la release/BubbleFacts-*.msix
       # Says in the log whether each installer came out signed.
       - name: Report signing
         shell: bash
@@ -170,6 +187,7 @@ jobs:
           path: |
             release/BubbleFacts-*.dmg
             release/BubbleFacts-*.exe
+            release/BubbleFacts-*.msix
             release/BubbleFacts-*.AppImage
             release/bubblefacts_*.deb
 
@@ -195,6 +213,7 @@ jobs:
           subject-path: |
             files/BubbleFacts-*.dmg
             files/BubbleFacts-*.exe
+            files/BubbleFacts-*.msix
             files/BubbleFacts-*.AppImage
             files/bubblefacts_*.deb
 
