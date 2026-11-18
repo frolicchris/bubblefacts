@@ -130,6 +130,23 @@
   function showSettingsTab(name) {
     for (const p of document.querySelectorAll("[data-settings-panel]")) p.classList.toggle("tab-off", p.dataset.settingsPanel !== name);
     for (const b of document.querySelectorAll(".settings-tab")) b.setAttribute("aria-current", String(b.dataset.settingsTab === name));
+    // Comes back to the section last looked at: related settings are often changed more than once
+    try {
+      window.localStorage.setItem("settingsTab", name);
+    } catch {
+      // No storage: it opens on the first section
+    }
+  }
+
+  /** The section last looked at, when it still exists; else the first */
+  function lastSettingsTab() {
+    let saved = "";
+    try {
+      saved = window.localStorage.getItem("settingsTab") || "";
+    } catch {
+      // No storage
+    }
+    return [...document.querySelectorAll(".settings-tab")].some((b) => b.dataset.settingsTab === saved) ? saved : "songs";
   }
 
   /** Opens the section a setting is in, before it is focused or scrolled to */
@@ -137,7 +154,7 @@
     const panel = el?.closest("[data-settings-panel]");
     if (panel) showSettingsTab(panel.dataset.settingsPanel);
   }
-  showSettingsTab("songs");
+  showSettingsTab(lastSettingsTab());
 
   function showTip(button, open) {
     document.getElementById(button.dataset.tip).hidden = !open;

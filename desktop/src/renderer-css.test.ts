@@ -90,6 +90,9 @@ describe("Settings", () => {
     // A link or button that sends the musician to one setting opens its section first
     expect(js).toContain("revealInSettings(document.getElementById(t.dataset.scrollTo))");
     expect(js).toContain('revealInSettings($("#s-myfacts"))');
+    // Reopens on the section last looked at, and on the first when that one is gone or nothing was saved
+    expect(js).toContain("showSettingsTab(lastSettingsTab())");
+    expect(js).toMatch(/lastSettingsTab\(\) \{[^]*?\? saved : "songs";/);
   });
 
   it("warns, without blocking, the moment another AI is chosen to write the facts", () => {
