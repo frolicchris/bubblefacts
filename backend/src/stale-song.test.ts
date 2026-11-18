@@ -68,6 +68,19 @@ describe("StaleSongWatch", () => {
     expect(stale).toEqual(["Paper Lanterns"]);
   });
 
+  it("counts a stale song as on its whole time, even when the timer fires a moment early by the clock", () => {
+    const watch = new StaleSongWatch(() => {});
+    watch.follow(entry("Paper Lanterns"));
+    // The timer fires, but the clock reads a millisecond short of the limit (Node's timers can do this)
+    const now = Date.now();
+    const clock = jest.spyOn(Date, "now").mockReturnValue(now + STALE_AFTER_MS - 1);
+    jest.runOnlyPendingTimers();
+    clock.mockRestore();
+    expect(watch.stale).toBe(true);
+    // Saved as less, a restart would bring it back not yet stale, and Resume would not start it again
+    expect(watch.onForMs()).toBeGreaterThanOrEqual(STALE_AFTER_MS);
+  });
+
   it("picks up again by itself on the next song", () => {
     const stale: string[] = [];
     const watch = new StaleSongWatch((e) => stale.push(e.song.title));
