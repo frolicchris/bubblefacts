@@ -98,7 +98,8 @@ jobs:
           New-Item -ItemType Directory -Force store | Out-Null
           if ($env:RUN_INPUT) {
             gh run download $env:RUN_INPUT --repo $env:GITHUB_REPOSITORY --name windows-x64 --dir store-all
-            Get-ChildItem store-all -Recurse -Filter "*[0-9]-windows-x64.msix" | Copy-Item -Destination store
+            # -Filter takes no [0-9] classes on Windows, so match with -like.
+            Get-ChildItem store-all -Recurse -File | Where-Object { $_.Name -like "*[0-9]-windows-x64.msix" } | Copy-Item -Destination store
           } else {
             gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "*[0-9]-windows-x64.msix" --dir store
           }
