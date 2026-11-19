@@ -30,6 +30,11 @@ page or change the menu, update the `<header>` and `<footer>` in every page.
 
 All links between pages are relative, so the site works from any folder.
 
+Browsers keep `site.css` and `site.js` for weeks. Every page links them with a
+fingerprint of the file (`site.js?v=…`), so a change reaches returning visitors.
+After changing either file, run `npm run stamp-site`; `npm run check` fails
+until you do.
+
 ## Preview on your computer
 
 ```bash

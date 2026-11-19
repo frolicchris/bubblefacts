@@ -15,6 +15,7 @@
     "dist": "npm run build && npm run build:desktop && electron-builder --publish never",
     "dist:store": "npm run build && npm run build:desktop && electron-builder --win appx --x64 --publish never",
     "bump": "node scripts/bump-version.mjs",
+    "stamp-site": "node scripts/stamp-site.mjs",
     "test:scripts": "npm run build && node --test \"scripts/*.test.mjs\""
   },
   "dependencies": {
