@@ -2,6 +2,7 @@
 // Sets a new version everywhere a release needs it: `npm run bump -- 2.0.0-beta.12`
 // package files, overlay header, issue forms, site asset links, a changelog stub; safe to run again
 import { execFileSync } from "child_process";
+import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -58,9 +59,15 @@ export function bumpBugForm(text, version) {
   return text.replace(re, `$1${version}`);
 }
 
-/** Versions the site's CSS and JS links ("assets/site.css?v=2.0.0-beta.13"), so browsers drop old cached copies */
-export function bumpSiteAssets(html, version) {
-  return html.replace(/(["'])(assets\/site\.(?:css|js))(?:\?v=[^"']*)?\1/g, `$1$2?v=${version}$1`);
+/** A short fingerprint of each of the site's CSS and JS files, the same on every system (line endings aside) */
+export function siteAssetStamps(root) {
+  const stamp = (file) => createHash("sha256").update(fs.readFileSync(path.join(root, "site/assets", file), "utf8").replace(/\r\n/g, "\n")).digest("hex").slice(0, 10);
+  return { css: stamp("site.css"), js: stamp("site.js") };
+}
+
+/** Stamps the site's CSS and JS links with their file's fingerprint ("assets/site.css?v=0a1b2c3d4e"): browsers keep these files for weeks, and drop a copy only when its link changes */
+export function bumpSiteAssets(html, stamps) {
+  return html.replace(/(["'])(assets\/site\.(css|js))(?:\?v=[^"']*)?\1/g, (_all, quote, file, kind) => `${quote}${file}?v=${stamps[kind]}${quote}`);
 }
 
 /** The changelog's anchor for a version: v2 (2.0.0), v2-1 (2.1.0), v2-0-1, v2-beta12, v2-rc1 */
@@ -103,12 +110,13 @@ export function addChangelogStub(html, version, date) {
 /** Each file besides package.json and its lock carrying the version, with a release's change. Tests run them on the current version: any change means a release would ship an old version somewhere */
 export function versionEdits(root, version, date = new Date()) {
   const pages = fs.readdirSync(path.join(root, "site")).filter((f) => f.endsWith(".html")).sort();
+  const stamps = siteAssetStamps(root);
   return [
     ["frontend/obs/obs-overlay.js", (t) => bumpOverlay(t, version)],
     [".github/ISSUE_TEMPLATE/beta_test.yml", (t) => bumpBetaForm(t, version)],
     [".github/ISSUE_TEMPLATE/bug_report.yml", (t) => bumpBugForm(t, version)],
     ["site/changelog.html", (t) => addChangelogStub(t, version, date)],
-    ...pages.map((page) => [`site/${page}`, (t) => bumpSiteAssets(t, version)]),
+    ...pages.map((page) => [`site/${page}`, (t) => bumpSiteAssets(t, stamps)]),
   ];
 }
 
