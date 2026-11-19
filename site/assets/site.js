@@ -330,12 +330,16 @@
           }
           var match = findMatch(releases, file.name, got.hex);
           if (!match) {
-            say("bad", "\u2717 This file doesn't match any BubbleFacts download. Delete it and download it again from this page.");
-          } else if (match.index === 0) {
-            say("ok", "\u2713 This is the genuine " + match.entry.name + " from GitHub.");
-          } else {
-            say("ok", "\u2713 This is the genuine " + match.entry.name + " from GitHub. It's an older version. The newest is " + versionOf(releases[0]) + ".");
+            say("bad", "\u2717 This file doesn't match any recent BubbleFacts download. Don't open it. Download it again from this page.");
+            return;
           }
+          // Newer means a higher version, not a later place in GitHub's list:
+          // a beta is measured against every release, a full release against full releases.
+          var mine = releases[match.index];
+          var top = newest(isPrerelease(mine) ? releases : releases.filter(function (r) { return !isPrerelease(r); }));
+          var text = "\u2713 This file matches " + match.entry.name + " on GitHub.";
+          if (compareVersions(versionOf(top), versionOf(mine)) > 0) text += " A newer version is out: " + versionOf(top) + ".";
+          say("ok", text);
         })
         .catch(function (err) {
           if (run !== current) return;
