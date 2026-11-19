@@ -75,6 +75,8 @@ let clientSeq = 0;
 
 // Bumped on every song change; a generation that finishes late sees it and drops its result
 let generation = 0;
+// Counts the saved facts sent for the song on now (showAgainIfOn): a turn that was writing sees it and doesn't send them again
+let shownAgain = 0;
 
 function send(ws: WebSocket, payload: FactsPayload | StylePayload): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
@@ -445,6 +447,7 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
 
   // Facts from data go out as soon as they're ready, while the AI writes (#256)
   let early: Fact[] | null = null;
+  const againAtStart = shownAgain;
   const facts = await generateFacts(song, current, (data) => {
     if (token !== generation) return;
     early = data;
@@ -459,6 +462,8 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
     sendLater(song, early, facts);
     return;
   }
+  // The streamer saved the song's facts while the AI wrote: they're out already, and a second batch would replay the bubbles
+  if (shownAgain !== againAtStart && sameRequest(lastSent.song, song) && lastSent.ready) return;
   if (!clients.size && facts.length) {
     console.warn(
       `[Server] ${facts.length} facts ready for "${song.title}" but no overlay is connected. ` +
@@ -672,7 +677,9 @@ function showAgainIfOn(song: SSLSong): boolean {
   if (shown && current) {
     generateFacts(songList.toSong(current), current)
       .then((facts) => {
-        if (sameSong(songFrom(lastSent.song), song)) broadcast({ type: "facts_ready", song: lastSent.song!, facts });
+        if (!sameSong(songFrom(lastSent.song), song)) return;
+        shownAgain++;
+        broadcast({ type: "facts_ready", song: lastSent.song!, facts });
       })
       .catch((err) => console.error("[SongFacts] Couldn't show the saved facts:", err));
   }
