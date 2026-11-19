@@ -1152,7 +1152,9 @@ export function forgetTwitchAbout(): void {
 async function friendsOriginalAbout(song: SSLSong, entry: SSLQueueItem | null, want: number, asked: SSLSong): Promise<Generated | null> {
   const names = [config.sslStreamerName, config.streamerDisplayName];
   if (!canAskAbout() || !config.originals || !isOriginal(entry, names) || isOwnOriginal(entry, names)) return null;
-  return (await findReference(song)).context ? null : twitchAboutFacts(song, want, asked);
+  // A handle credit is never looked up in an encyclopedia: its About is the only source.
+  if (!STREAMER_HANDLE.test(song.artist ?? "") && (await findReference(song)).context) return null;
+  return twitchAboutFacts(song, want, asked);
 }
 
 // Entry facts and the streamer's notes, no lookup; null if not an original

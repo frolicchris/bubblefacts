@@ -236,6 +236,14 @@ describe("A song credited to a Twitch handle", () => {
     expect(asked).toEqual([]);
   });
 
+  it("is not looked up in Wikipedia even when tagged Originals", async () => {
+    (fetchGrounding as jest.Mock).mockClear();
+    const tagged = { song: { attributes: [{ name: "Originals" }], artist: "Marlow (@MarlowKeys)" } } as unknown as SSLQueueItem;
+    const facts = await generateFacts(credited("Rain Loop"), tagged);
+    expect(facts[0].text).toBe(`${ABOUT_CREDIT}${about[0]}`);
+    expect(fetchGrounding).not.toHaveBeenCalled();
+  });
+
   it("drops channel talk, and skips a placeholder request", async () => {
     answer = (login) => ({ type: "twitch-about", login, state: "found", name: "MarlowKeys", facts: ["Follow for new loops every week!"] });
     expect((await generateFacts(credited("Rain Loop"))).some((f) => f.source?.startsWith(SOURCE.twitchAbout))).toBe(false);
