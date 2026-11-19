@@ -15,6 +15,8 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 const REQUESTED_BY = "Requested by "; // how the line naming who asked for the song starts
 /** Whether a fact names who asked for the song: the one entry fact about a viewer, kept on the overlay only (share-song-facts.ts) */
 export const namesRequester = (fact: string): boolean => fact.startsWith(REQUESTED_BY);
+/** The fact as the log and the reports keep it: a viewer's name is for the overlay only, never for a record a problem report copies */
+export const withoutRequesterName = (fact: string): string => (namesRequester(fact) ? `${REQUESTED_BY}a viewer.` : fact);
 
 /** The artist field is one of the streamer's names or holds "@name"; streamer "Joe" doesn't own "Joe Hisaishi" */
 export function creditedToStreamer(entry: SSLQueueItem | null, names: string[]): boolean {
