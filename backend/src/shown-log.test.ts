@@ -27,6 +27,14 @@ describe("the [Shown] log", () => {
     expect(lines()).toHaveLength(4);
   });
 
+  it("keeps a viewer's name out of the log and the aired record, which problem reports copy", () => {
+    const kept: Fact[] = [];
+    const aired = { add: (_song: unknown, facts: Fact[]) => kept.push(...facts) } as unknown as ConstructorParameters<typeof ShownLog>[0];
+    new ShownLog(aired).log(song, [fact("Requested by MadeUpViewer."), fact("Requested by MadeUpViewer and 2 others."), fact("One.")]);
+    expect(lines()).toEqual(['[Shown] "Logged Song" (no source): Requested by a viewer.', '[Shown] "Logged Song" (no source): Requested by a viewer.', '[Shown] "Logged Song" (no source): One.']);
+    expect(kept.map((f) => f.text)).toEqual(["Requested by a viewer.", "Requested by a viewer.", "One."]);
+  });
+
   it("logs the same facts again on the song's next play", () => {
     const shown = new ShownLog();
     shown.log(song, [fact("One.")]);
