@@ -54,7 +54,7 @@ released:
 3. **Real-world testing.** Releases are tested in a real copy of OBS and on
    live streams, following the release checklist in
    [RELEASING.md](RELEASING.md#release-checklist). Installers are smoke-tested on Windows,
-   Linux (`.deb`) and Apple-silicon Mac.
+   Linux (`.deb` and AppImage) and Mac (Apple silicon and Intel).
 4. **Release.** The maintainer reviews each draft release before publishing
    it. Release files carry SHA-256 checksums and build-provenance attestations.
 
