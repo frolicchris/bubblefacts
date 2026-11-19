@@ -137,6 +137,7 @@
       "languages": [
         "en-US"
       ],
+      "minVersion": "10.0.17763.0",
       "applicationId": "BubbleFacts",
       "displayName": "BubbleFacts"
     },

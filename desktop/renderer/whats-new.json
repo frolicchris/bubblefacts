@@ -10,6 +10,10 @@
     "Songs credited to a Twitch @name get a line or two from that creator's Twitch About.",
     "Songs credited to their writers, not the performer, still get facts from the song's article."
   ],
+  "2.2.2": [
+    "Nothing changes if you installed BubbleFacts from the website.",
+    "The Microsoft Store version now names the oldest Windows it supports, as the Store requires."
+  ],
   "2.2.1": [
     "Nothing changes if you installed BubbleFacts from the website.",
     "A Microsoft Store version for Windows is on its way. The Store updates it, so it has no in-app update."
