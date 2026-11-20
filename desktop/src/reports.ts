@@ -80,14 +80,15 @@ const aiName = (ai: string) =>
   "Other or not sure";
 
 /** GitHub problem report address; `version` is the label with the build: "2.0.0-beta.12 test build (c4ee826)" (build.ts) */
-export function problemReportUrl(opts: { version: string; ai: string; logLines: string[]; secrets: string[]; aired?: AiredFact[] }): string {
+export function problemReportUrl(opts: { version: string; ai: string; logLines: string[]; secrets: string[]; aired?: AiredFact[]; storeApp?: boolean }): string {
   const log = redact(opts.logLines.slice(-60).join("\n"), opts.secrets);
   const aired = (opts.aired ?? []).slice(-PROBLEM_REPORT_AIRED).map((a) => redact(airedLine(a), opts.secrets));
   return issueUrl(
     "bug_report.yml",
     {
       version: opts.version,
-      install: "The desktop app",
+      // The bug form's options, word for word: a Store app keeps its files and gets its updates differently
+      install: opts.storeApp ? "The desktop app from the Microsoft Store" : "The desktop app",
       os: osName(),
       osversion: `${osName()} ${os.release()}, ${process.arch}`,
       ai: aiName(opts.ai),

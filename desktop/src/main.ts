@@ -1143,7 +1143,7 @@ async function airedFacts(): Promise<AiredFact[]> {
 }
 
 handle("report-problem", async () =>
-  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts() }))
+  openExternal(problemReportUrl({ version: versionWithBuild(), ai: settings.ai, logLines: supervisor.lines, secrets: secretsOf(settings), aired: await airedFacts(), storeApp: isStoreApp() }))
 );
 handle("report-beta", () =>
   openExternal(
@@ -1165,7 +1165,7 @@ handle("copy-report", async (_e, kind: unknown) => {
   clipboard.writeText(
     kind === "beta"
       ? betaReportText({ ...common, version: app.getVersion(), build: versionWithBuild(), systemVersion: process.getSystemVersion(), songSource: settings.songSource, nowPlayingPreset: settings.nowPlayingPreset })
-      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai, aired })
+      : problemReportText({ ...common, version: versionWithBuild(), ai: settings.ai, aired, storeApp: isStoreApp() })
   );
 });
 handle("report-fact", async (_e, song: string, fact: string) =>
