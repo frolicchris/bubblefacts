@@ -33,7 +33,7 @@ body:
     id: install
     attributes:
       label: How you run BubbleFacts
-      options: [The desktop app, Manual setup (command line)]
+      options: [The desktop app, The desktop app from the Microsoft Store, Manual setup (command line)]
     validations:
       required: true
   - type: dropdown

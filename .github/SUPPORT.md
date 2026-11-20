@@ -14,6 +14,6 @@ Every release and update is posted in the Discord **#announcements** channel, an
 
 ## Which versions get help
 
-Only the newest version is supported, including during testing, so please update first: **Update now** in the app, or the [download page](https://bubblefacts.frolic.org/download.html).
+Only the newest version is supported, including during testing, so please update first: **Update now** in the app, or the [download page](https://bubblefacts.frolic.org/download.html). If you got BubbleFacts from the Microsoft Store, update it there.
 
 BubbleFacts is made by one person, so replies can take a few days. Thank you for your patience.

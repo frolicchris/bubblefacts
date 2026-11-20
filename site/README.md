@@ -10,7 +10,7 @@ download script asking GitHub's public API for the newest release.
 | File | What it is |
 |---|---|
 | `index.html` | Home page: pitch, download button, how it works, FAQ |
-| `download.html` | Signing note, one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", the other downloads, first-launch steps, the beta box, updating, and a collapsed "For security-conscious users and developers" with the in-browser checker and the file names and commands |
+| `download.html` | The release downloads first: one main Mac button (Apple silicon) with a small Intel link and "Which Mac do I have?", Windows with the Microsoft Store badge (preferred) above the installer, and Linux. Then a short first-open note, the beta box, first-launch steps, updating, and a collapsed "For security-conscious users and developers" with the in-browser checker and the file names and commands |
 | `guide.html` | Step-by-step setup, then "Make it yours" (your facts and display settings) |
 | `troubleshooting.html` | What you see, why, and what to do, as one table |
 | `requirements.html` | System requirements, Larger AI, speed, fallback when the built-in AI can't run |
