@@ -964,15 +964,15 @@ td {
   margin-bottom: 0.3rem;
 }
 
-/* Microsoft's own Store badge, unaltered and at least its natural size (their badge rules) */
+/* Microsoft's own Store badge, unaltered: the light one for this dark page, at the width their badge page gives */
 .store-badge {
   display: inline-block;
   line-height: 0;
 }
 
 .store-badge img {
-  height: 52px;
-  width: auto;
+  width: 200px;
+  height: auto;
 }
 
 .dl-meta {
