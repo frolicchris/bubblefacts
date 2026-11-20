@@ -58,6 +58,14 @@ There's a vertical overlay. With the AI on your computer, **Prepare my songs**
 writes facts for your songs ahead of time, while OBS is closed, so they show
 the moment a song starts. The [setup guide](https://bubblefacts.frolic.org/guide.html) shows every click.
 
+Setup for your song source:
+[StreamerSongList](https://bubblefacts.frolic.org/streamersonglist.html),
+[StreamElements](https://bubblefacts.frolic.org/streamelements.html),
+[Nightbot](https://bubblefacts.frolic.org/nightbot.html),
+[Streamling](https://bubblefacts.frolic.org/streamling.html), or
+[a now playing file](https://bubblefacts.frolic.org/now-playing-file.html)
+(What's Now Playing and other music apps).
+
 ## How the facts are checked
 
 When a song starts, BubbleFacts finds its Wikipedia article (or the game's or
