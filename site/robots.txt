@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://bubblefacts.frolic.org/sitemap.xml
