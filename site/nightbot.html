@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Song facts overlay for Nightbot song requests: BubbleFacts</title>
+  <meta name="description" content="BubbleFacts follows the song file from the Nightbot desktop app and shows short, checked facts about the song you are playing as bubbles in OBS. Free and open source.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/nightbot.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="Song facts overlay for Nightbot song requests">
+  <meta property="og:description" content="BubbleFacts follows the song file from the Nightbot desktop app and shows short, checked facts about the song you are playing as bubbles in OBS. Free and open source.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/nightbot.html">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="stylesheet" href="assets/site.css?v=33f85c3636">
+  <script src="assets/site.js?v=a8efb41114" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+    <main id="main">
+    <section class="section">
+      <div class="wrap narrow">
+        <p class="eyebrow">Song sources</p>
+        <h1>Song facts overlay for Nightbot song requests</h1>
+        <p class="section-intro">Taking song requests with Nightbot? Its desktop app on Windows or Mac writes the current song to a file in Documents/Nightbot. BubbleFacts follows that file, with no sign-in and no token, and shows short facts about each song as bubbles on your stream.</p>
+        <p>BubbleFacts is free and open source for musicians and DJs who stream, on Mac, Windows and Linux. Every fact is screened against its source, and one click on <span class="ui">Wrong</span> takes it off your stream.</p>
+        <h2>Set it up with Nightbot</h2>
+        <ol>
+              <li>Install BubbleFacts from the <a href="download.html">download page</a> and open it. Under <span class="ui">Where do your song requests come from?</span>, choose <span class="ui">Now playing file</span>.</li>
+              <li>Pick <span class="ui">Nightbot</span>. BubbleFacts reads the newest song file Nightbot keeps in <span class="ui">Documents/Nightbot</span>, so there is nothing to choose. Keep Nightbot's desktop app running while you play.</li>
+              <li>Click <span class="ui">Continue</span>.</li>
+              <li>Open OBS Studio and choose the scene you normally stream from.</li>
+              <li>In BubbleFacts, drag the tile that says <span class="ui">Drag this into your Sources list</span> onto the <span class="ui">Sources</span> list in OBS. A test bubble shows up and the app says <span class="ui">It&#39;s on your stream!</span></li>
+        </ol>
+        <p><a class="btn btn-primary" href="download.html">Download BubbleFacts</a></p>
+        <p>Every step, with pictures and help if something goes wrong: <a href="guide.html#song-list-file">the full setup guide</a>. Other song sources: <a href="streamersonglist.html">StreamerSongList</a>, <a href="streamelements.html">StreamElements</a>, <a href="nightbot.html">Nightbot</a>, <a href="streamling.html">Streamling</a> and <a href="now-playing-file.html">a now playing file</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="requirements.html">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="https://discord.gg/3YS3eWkWrW">Discord</a></li>
+        <li><a href="mailto:bubblefacts@frolic.org">Email BubbleFacts</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>, or with Larger AI, Meta's Llama 3.1, used under the <a href="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.</p>
+    </div>
+  </footer>
+</body>
+</html>
