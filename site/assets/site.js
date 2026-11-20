@@ -13,6 +13,7 @@
 
   var REPO = "frolicchris/bubblefacts";
   var RELEASES_PAGE = "https://github.com/" + REPO + "/releases";
+  var STORE_PAGE = "https://apps.microsoft.com/detail/9PP5TXRLTF4Z";
   var API = "https://api.github.com/repos/" + REPO + "/releases?per_page=30";
   var CACHE_KEY = "sf-releases-v2";
   var CACHE_MS = 10 * 60 * 1000;
@@ -387,6 +388,17 @@
     alt.hidden = false;
   }
 
+  // Windows has a second way in: the Microsoft Store version, which opens with no warning and updates itself
+  function windowsAlternative(alt) {
+    if (!alt) return;
+    alt.textContent = "";
+    var link = document.createElement("a");
+    link.href = STORE_PAGE;
+    link.textContent = "Or get it from the Microsoft Store (preferred)";
+    alt.appendChild(link);
+    alt.hidden = false;
+  }
+
   function setPrimary(button, note, key) {
     var build = BUILDS[key];
     button.setAttribute("data-asset", key);
@@ -410,6 +422,7 @@
       Array.prototype.forEach.call(document.querySelectorAll('[data-os="' + os + '"]'), function (item) {
         item.hidden = true;
       });
+      if (os === "windows") windowsAlternative(alt);
       if (os === "mac") {
         // Most Macs since late 2020 are Apple silicon. Chrome and Edge can tell us about Intel.
         macAlternative(alt, key);
