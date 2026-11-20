@@ -27,6 +27,8 @@ On Windows, the
 [Microsoft Store](https://apps.microsoft.com/detail/9PP5TXRLTF4Z) version is
 preferred: it opens with no warning, and the Store keeps it up to date.
 
+[<img src="site/assets/microsoft-store-badge.svg" width="161" height="44" alt="Download from the Microsoft Store">](https://apps.microsoft.com/detail/9PP5TXRLTF4Z)
+
 Already have it? See [Updating to a newer version](https://bubblefacts.frolic.org/download.html#update): your settings are kept.
 
 The app isn't signed yet, so the first time you open it, your computer may
