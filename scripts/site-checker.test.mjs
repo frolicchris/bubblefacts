@@ -94,3 +94,23 @@ test("a match never claims more than the fingerprint shows", async () => {
   const said = await verdict(releases, "BubbleFacts-7.2.2-windows-x64.exe", "full 7.2.2");
   assert.doesNotMatch(said.textContent, /genuine/i);
 });
+
+test("a Windows visitor to the home page is offered the Microsoft Store under the main button", () => {
+  const made = [];
+  const el = () => ({ hidden: true, textContent: "", href: "", children: [], setAttribute() {}, appendChild(c) { this.children.push(c); } });
+  const ids = { "dl-primary": el(), "dl-note": el(), "dl-alt": el() };
+  const document = {
+    documentElement: element(),
+    getElementById: (id) => ids[id] || null,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+    createElement: () => { const e = el(); made.push(e); return e; },
+  };
+  const window = { addEventListener() {}, sessionStorage: { getItem: () => null, setItem() {} } };
+  vm.runInNewContext(source, { window, document, navigator: { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", platform: "Win32" }, location: { hash: "" }, Promise, Date, JSON });
+  assert.equal(ids["dl-primary"].textContent, "Download for Windows");
+  assert.equal(ids["dl-alt"].hidden, false);
+  assert.equal(made[0].href, "https://apps.microsoft.com/detail/9PP5TXRLTF4Z");
+  assert.match(made[0].textContent, /Microsoft Store \(preferred\)/);
+});

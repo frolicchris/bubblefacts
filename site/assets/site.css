@@ -964,6 +964,17 @@ td {
   margin-bottom: 0.3rem;
 }
 
+/* Microsoft's own Store badge, unaltered and at least its natural size (their badge rules) */
+.store-badge {
+  display: inline-block;
+  line-height: 0;
+}
+
+.store-badge img {
+  height: 52px;
+  width: auto;
+}
+
 .dl-meta {
   color: var(--muted);
 }
