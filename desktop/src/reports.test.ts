@@ -38,6 +38,11 @@ describe("problem reports", () => {
     expect(decode(problemReportUrl({ version: "2.3.0 (c4ee826)", ai: "none", logLines: [], secrets: [] })).ai).toBe("No AI");
     const form = fs.readFileSync(path.join(__dirname, "../../.github/ISSUE_TEMPLATE/bug_report.yml"), "utf8");
     expect(form).toContain("[Built into the app, No AI, Ollama");
+    // A Store app says so, in the form's own words; the installed app keeps the plain choice
+    const from = (storeApp: boolean) => decode(problemReportUrl({ version: "2.3.0", ai: "builtin", logLines: [], secrets: [], storeApp })).install;
+    expect(from(true)).toBe("The desktop app from the Microsoft Store");
+    expect(from(false)).toBe("The desktop app");
+    expect(form).toContain(`[${from(false)}, ${from(true)}, `);
     expect(fields.log).not.toContain("secret-token-xyz");
     expect(fields.log).toContain("line 799");
   });
