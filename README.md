@@ -111,7 +111,7 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 ## Help
 
 - [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step
-- [Ask a question in Discord (#help)](https://discord.gg/3YS3eWkWrW)
+- [Ask in the BubbleFacts Discord community (#help)](https://discord.gg/3YS3eWkWrW)
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** under **Help and troubleshooting** fills in
   the details for you.
@@ -131,7 +131,7 @@ handled, is in [SECURITY.md](.github/SECURITY.md#what-2x-promises).
 ## Join in
 
 Say hello, share an idea or hear about new versions in the
-[BubbleFacts Discord](https://discord.gg/3YS3eWkWrW). Know a music content
+[BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW). Know a music content
 creator who'd enjoy it? Send them the [website](https://bubblefacts.frolic.org).
 
 ## For developers
