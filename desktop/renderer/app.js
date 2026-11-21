@@ -486,7 +486,7 @@
     if (!$("#view-setup").hidden) watchForObs();
   }
 
-  /** Settings, Share with other apps: the last song the other app took, and when (#452). Not a live region: it would speak every minute */
+  /** Settings, Sharing: the last song the other app took, and when (#452). Not a live region: it would speak every minute */
   function renderLastShared(h) {
     const line = $("#s-share-last");
     const last = h?.lastShared;

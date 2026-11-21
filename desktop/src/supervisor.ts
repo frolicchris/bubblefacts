@@ -193,7 +193,7 @@ export class Supervisor extends EventEmitter {
     if (next > this.basePort + PORT_SEARCH) {
       this.status.port = this.basePort;
       this.env = { ...this.env, PORT: String(this.basePort) };
-      return this.scheduleRestart("Other programs are using the ports BubbleFacts tries. Choose another Port in Settings, under Advanced", `ports ${this.basePort} to ${next - 1} are all in use`);
+      return this.scheduleRestart("Other programs are using the ports BubbleFacts tries. Choose another Port in Settings, under General, then Advanced", `ports ${this.basePort} to ${next - 1} are all in use`);
     }
     this.log(`[App] Port ${this.status.port} is in use; trying ${next}`);
     this.status.port = next;
