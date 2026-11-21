@@ -350,7 +350,7 @@ async function ensureOllamaModel(): Promise<void> {
     if (names.some((n) => n === model || n === `${model}:latest`)) return tell(null);
     tell({ pulling: model });
     const res = await fetch(`${base}/api/pull`, { method: "POST", body: JSON.stringify({ model, stream: false }) });
-    if (!res.ok) throw new Error(`Ollama couldn't download "${model}". Check the model name in Settings, under Advanced.`, { cause: `HTTP ${res.status}` });
+    if (!res.ok) throw new Error(`Ollama couldn't download "${model}". Check the model name in Settings, under General, then Advanced.`, { cause: `HTTP ${res.status}` });
     tell(null);
     startServer();
   } catch (err) {
@@ -362,7 +362,7 @@ async function ensureOllamaModel(): Promise<void> {
       error: offline
         ? `Ollama isn't running at ${base}. Open the Ollama app, then click Try again.`
         : notOllama
-          ? `Something other than Ollama is answering at ${base}. Check the Ollama address in Settings, under Advanced.`
+          ? `Something other than Ollama is answering at ${base}. Check the Ollama address in Settings, under General, then Advanced.`
           : message,
     });
   }
