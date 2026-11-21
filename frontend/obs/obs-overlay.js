@@ -9,7 +9,7 @@
  * ----
  *
  *  Bug reports and wrong facts: open an issue on the page above.
- *  Questions: #help on the BubbleFacts Discord, https://discord.gg/3YS3eWkWrW
+ *  Questions: ask in #help in the BubbleFacts Discord community, https://discord.gg/3YS3eWkWrW
  *
  * Setup
  * -----

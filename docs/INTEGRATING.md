@@ -215,7 +215,7 @@ curl -X POST http://127.0.0.1:8123/events \
 
 ## Questions and ideas
 
-Ask in the [BubbleFacts Discord](https://discord.gg/3YS3eWkWrW), in #help. If
+Ask in the [BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW), in #help. If
 your app needs something this doesn't give it, #feature-requests is where
 ideas start. Why each part works the way it does is in
 [ARCHITECTURE.md](ARCHITECTURE.md#sharing-song-facts-with-other-apps).
