@@ -81,10 +81,15 @@ has no `.msix`. The package's version is the app's version with `.0` added
 (2.2.1 becomes 2.2.1.0), the form the Store needs; a beta's version doesn't
 fit, so the Store only gets stable releases.
 
-The Store does not pick up new releases by itself. For every version you want
-there, download the `.msix` from the published release and upload it in
-Partner Center as a new submission. The app inside never checks for updates,
-and keeps its data in the BubbleFacts folder in Documents.
+The Store does not pick up new releases by itself. Every full release (no
+hyphen in the tag) goes to the Store as part of the release, step 11 of the
+checklist below: download the `.msix` from the published release and upload it
+in Partner Center as a new submission. Betas and release candidates don't go
+to the Store. The app inside never checks for updates, and keeps its data in
+the BubbleFacts folder in Documents.
+
+The Store listing links to the website's `support.html` (as the app's
+website) and `privacy.html`, so keep both pages at those addresses.
 
 ## Update signing key
 
@@ -187,6 +192,10 @@ reads.
    a mistake in a file is fixed with a new version, never by replacing it.
 10. Upload the changed `site/` files to the website and check each one against
     `main`.
+11. Full releases only (no hyphen in the tag): download the `.msix` from the
+    published release and submit it in Partner Center, as in "Microsoft Store
+    package" above. Once certification passes, the listing shows the new
+    version.
 
 ## Release candidates and the final release
 
