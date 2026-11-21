@@ -1,4 +1,10 @@
 {
+  "2.3.0-beta.3": [
+    "Settings shows one section at a time, and every Style, ready-made or imported, is in one Style list.",
+    "One-click setup for What's Now Playing, the free DJ track app.",
+    "Fixed: facts you save while the AI is writing no longer show twice.",
+    "The requesting viewer's name stays out of the log and reports."
+  ],
   "2.3.0-beta.2": [
     "Share a look: import a Style file another musician or DJ made, save your own, or pick one of three ready-made looks.",
     "Share song facts with other apps: the other app is also told the next song in your queue, never who requested it.",
