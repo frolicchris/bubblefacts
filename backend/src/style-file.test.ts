@@ -125,7 +125,7 @@ describe("a Style file", () => {
     expect(result.look.name).toMatch(/^b Neon \/b nights x+$/);
     expect(result.look.name.length).toBeLessThanOrEqual(40);
     expect(result.look.author).toBe("");
-    expect((checkStyleLook(file({ name: "" })) as { look: { name: string } }).look.name).toBe("Shared look");
+    expect((checkStyleLook(file({ name: "" })) as { look: { name: string } }).look.name).toBe("Shared Style");
   });
 
   it.each([
@@ -343,7 +343,7 @@ describe("saving the look on stream as a Style file", () => {
     expect(file).toMatchObject({ bubblefacts: "style", format: 1, name: "My b Set /b", madeFor: "2.4.1" });
     expect(Buffer.byteLength(plain.text)).toBeLessThan(STYLE_FILE_MAX_BYTES);
     const credited = writeStyleFile({ name: "", author: "A Made-Up Maker", appVersion: "2.4.1", values });
-    expect(credited.ok && JSON.parse(credited.text)).toMatchObject({ name: "My look", author: "A Made-Up Maker" });
+    expect(credited.ok && JSON.parse(credited.text)).toMatchObject({ name: "My Style", author: "A Made-Up Maker" });
     // A build older than Style files still writes one every 2.3 reads
     const old = writeStyleFile({ name: "x", appVersion: "0.0.0", values });
     expect(old.ok && old.look.madeFor).toBe("2.3.0");

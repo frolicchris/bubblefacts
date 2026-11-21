@@ -1096,19 +1096,41 @@
   $("#look-import").addEventListener("click", async () => {
     const r = await api.importLook();
     previewLook(r.ok ? r.look : null);
-    $("#look-ready").value = "";
+    showLook();
     lookResult(r.ok ? { ok: true, message: "" } : r);
   });
-  $("#look-cancel").addEventListener("click", () => { previewLook(null); $("#look-ready").value = ""; });
-  // A look that comes with the app: previewed like an imported one, then Use this look
-  $("#look-ready").addEventListener("change", async (e) => {
-    if (!e.target.value) return previewLook(null);
-    const r = await api.readyLook(e.target.value);
-    previewLook(r.ok ? r.look : null);
-    lookResult(r.ok ? { ok: true, message: "" } : r);
+  $("#look-cancel").addEventListener("click", () => { previewLook(null); showLook(); });
+  // One Style list. One of the first five is a setting, kept in the hidden bubbleStyle field and saved with Save.
+  // A "file:" one is a Style file: one that comes with the app is previewed like an imported one, then Use this Style.
+  $("#s-style").addEventListener("change", async (e) => {
+    const picked = e.target.value;
+    const saved = form.elements.bubbleStyle;
+    const setSaved = (value) => { saved.value = value; saved.dispatchEvent(new window.Event("change", { bubbles: true })); };
+    if (picked.startsWith("file:")) {
+      // No half-made change to the first five is left waiting for Save
+      setSaved(state.settings.bubbleStyle);
+      if (picked === styleInUse()) return previewLook(null);
+      const r = await api.readyLook(picked.slice("file:".length));
+      previewLook(r.ok ? r.look : null);
+      if (!r.ok) showLook();
+      return lookResult(r.ok ? { ok: true, message: "" } : r);
+    }
+    previewLook(null);
+    lookResult({ ok: true, message: "" });
+    setSaved(picked);
+    $("#s-style-file-note").hidden = true;
+    // Already the saved one: nothing for Save to do, so the Style file comes off now
+    if (state.settings.styleLook && picked === state.settings.bubbleStyle) {
+      lookResult(await api.removeLook());
+      state = await api.getState();
+      showLook();
+    }
   });
-  // The name fields and the list aren't settings: keep them out of "Your changes aren't saved yet"
-  for (const type of ["input", "change"]) $("#s-look").addEventListener(type, (e) => e.stopPropagation());
+  // The list, the name fields and the buttons aren't settings: keep them out of "Your changes aren't saved yet"
+  for (const type of ["input", "change"]) {
+    $("#s-style").addEventListener(type, (e) => e.stopPropagation());
+    $("#s-look").addEventListener(type, (e) => e.stopPropagation());
+  }
   const saveBox = (open) => {
     $("#s-look-save").hidden = !open;
     $("#look-save-open").setAttribute("aria-expanded", String(open));
@@ -1136,16 +1158,13 @@
       saveLook();
     });
   }
-  for (const [id, call] of [["look-use", () => api.useLook(lookWaiting)], ["look-remove", () => api.removeLook()]]) {
-    $("#" + id).addEventListener("click", async () => {
-      const r = await call();
-      previewLook(null);
-      $("#look-ready").value = "";
-      lookResult(r);
-      state = await api.getState();
-      showLook();
-    });
-  }
+  $("#look-use").addEventListener("click", async () => {
+    const r = await api.useLook(lookWaiting);
+    previewLook(null);
+    lookResult(r);
+    state = await api.getState();
+    showLook();
+  });
   $("#report-problem").addEventListener("click", () => api.reportProblem());
   $("#report-beta").addEventListener("click", () => api.reportBeta());
   // The same report without GitHub, to paste in Discord or an email
@@ -1311,16 +1330,32 @@
     return String(el.value).trim() !== String(s[key] ?? "");
   }
 
-  // --- A shared look (#402): chosen, previewed, then used; the app checks the file, the window only shows it ---
+  // --- A Style file (#402): chosen, previewed, then used; the app checks the file, the window only shows it ---
   let lookWaiting = null;
 
-  /** The imported look's name, and the way back to the Style */
+  /** The Style list's value for what's on stream: one of the first five, a Style file that comes with the app, or an imported one */
+  function styleInUse() {
+    const look = state?.settings.styleLook;
+    if (!look) return state?.settings.bubbleStyle || "classic";
+    const ready = [...$("#s-style").options].find((o) => o.value.startsWith("file:") && o.value !== "file:imported" && o.textContent.startsWith(look.name + " ("));
+    return ready ? ready.value : "file:imported";
+  }
+
+  /** The Style list on what's on stream (or on a change still waiting for Save), with an imported Style's name and maker */
   function showLook() {
     const look = state?.settings.styleLook;
-    $("#s-look-current").hidden = !look;
-    $("#look-remove").hidden = !look;
-    $("#s-look-name").textContent = look ? look.name : "";
-    $("#s-look-by").textContent = look && look.author ? "by " + look.author : "";
+    const inUse = styleInUse();
+    const imported = inUse === "file:imported";
+    const option = $("#s-style-imported");
+    option.hidden = !imported;
+    option.textContent = imported ? look.name + " (imported)" : "";
+    const waitingForSave = settingsDraft.has("bubbleStyle");
+    // A preview keeps the list where the streamer put it
+    if (!lookWaiting) $("#s-style").value = waitingForSave ? form.elements.bubbleStyle.value : inUse;
+    $("#s-style-file-note").hidden = !look || waitingForSave;
+    $("#s-look-current").hidden = !imported;
+    $("#s-look-name").textContent = imported ? look.name : "";
+    $("#s-look-by").textContent = imported && look.author ? "by " + look.author : "";
   }
 
   /** The sample bubble and Now Playing card in the look's values, or no preview */
@@ -1527,6 +1562,11 @@
     const saved = await api.saveSettings(changes);
     if (saved.error) return setResult($("#settings-result"), saved.error, "bad");
     state = saved;
+    // One of the first five Styles was picked over a Style file: the file comes off with the save
+    if (state.settings.styleLook && settingsDraft.has("bubbleStyle")) {
+      await api.removeLook();
+      state = await api.getState();
+    }
     settingsDraft.clear();
     renderNotices();
     fillSettings();

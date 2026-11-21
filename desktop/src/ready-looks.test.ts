@@ -18,8 +18,9 @@ describe("ready-made looks", () => {
   it("are exactly the files in desktop/looks, each in the Settings list and in the packaged app", () => {
     expect(fs.readdirSync(DIR).sort()).toEqual(READY_LOOKS.map((id) => `${id}.json`).sort());
     const html = fs.readFileSync(path.join(ROOT, "desktop/renderer/index.html"), "utf8");
-    const list = html.slice(html.indexOf('<select id="look-ready">'), html.indexOf("</select>", html.indexOf('<select id="look-ready">')));
-    expect([...list.matchAll(/value="([^"]+)"/g)].map((m) => m[1])).toEqual([...READY_LOOKS]);
+    // In the one Style list, after the five Styles that are settings; "file:imported" is the place for an imported one
+    const list = html.slice(html.indexOf('<select id="s-style"'), html.indexOf("</select>", html.indexOf('<select id="s-style"')));
+    expect([...list.matchAll(/value="file:([^"]+)"/g)].map((m) => m[1])).toEqual([...READY_LOOKS, "imported"]);
     for (const id of READY_LOOKS) expect(list).toContain(`>${look(id).name} (`);
     expect(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).build.files).toContain("desktop/looks/*.json");
   });

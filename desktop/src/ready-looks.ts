@@ -8,7 +8,7 @@ import { readStyleFile, STYLE_FILE_MAX_BYTES, StyleFileResult } from "./style-fi
 export const READY_LOOKS = ["stage-lights", "record-sleeve", "neon-booth"] as const;
 
 export function readReadyLook(dir: string, id: unknown, appVersion?: string): StyleFileResult {
-  const missing: StyleFileResult = { ok: false, reason: "That look isn't in this BubbleFacts." };
+  const missing: StyleFileResult = { ok: false, reason: "That Style isn't in this BubbleFacts." };
   if (typeof id !== "string" || !(READY_LOOKS as readonly string[]).includes(id)) return missing;
   let text: string;
   try {

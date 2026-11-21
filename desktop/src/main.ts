@@ -746,7 +746,7 @@ function sendStyle(): void {
   });
 }
 
-const LOOK_KEPT = "Your look hasn't changed.";
+const LOOK_KEPT = "Your Style hasn't changed.";
 
 /** Choose a shared Style file (#402) and check it; nothing changes until the streamer has seen the preview */
 handle("import-look", async () => {
@@ -776,13 +776,13 @@ handle("ready-look", (_e, id: unknown) => {
 handle("save-look", async (_e, name: unknown, author: unknown) => {
   const file = styleFileOf(settings, name, author, app.getVersion());
   if (!file.ok) return { ok: false, message: `${file.reason} Nothing was saved.` };
-  const options = { title: "Save your look as a Style file", defaultPath: path.join(app.getPath("documents"), styleFileName(file.look.name)), filters: [{ name: "BubbleFacts Style", extensions: ["json"] }] };
+  const options = { title: "Save your Style as a file", defaultPath: path.join(app.getPath("documents"), styleFileName(file.look.name)), filters: [{ name: "BubbleFacts Style", extensions: ["json"] }] };
   const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
   if (canceled || !filePath) return { ok: false, message: "" };
   try {
     writeFileAtomic(filePath, file.text);
   } catch (err) {
-    return { ok: false, message: shown("Save my look", err, { fallback: "BubbleFacts couldn't save the file there. Choose another folder, then try again." }) };
+    return { ok: false, message: shown("Save my Style", err, { fallback: "BubbleFacts couldn't save the file there. Choose another folder, then try again." }) };
   }
   return { ok: true, message: `Saved ${file.look.name} to ${path.basename(filePath)}. Share that file with any musician or DJ.` };
 });
