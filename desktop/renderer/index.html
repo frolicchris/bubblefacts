@@ -510,14 +510,21 @@
             <option value="large">Large</option>
             <option value="larger">Larger</option>
           </select>
-          <label for="s-style">Style <span class="hint">the look of the bubbles and the Now Playing bubble, on both overlays</span></label>
-          <select id="s-style" name="bubbleStyle" aria-describedby="s-style-hint">
+          <label for="s-style">Style <span class="hint">how the bubbles and the Now Playing bubble appear, on both overlays</span></label>
+          <!-- One list for every Style. The first five are saved as bubbleStyle (the hidden field); a "file:" one is a Style file, previewed first -->
+          <input type="hidden" name="bubbleStyle">
+          <select id="s-style" aria-describedby="s-style-hint">
             <option value="classic">Classic (dark blue)</option>
             <option value="light">Light</option>
             <option value="minimal">Minimal</option>
             <option value="retro">Retro game</option>
             <option value="high-contrast">High contrast</option>
+            <option value="file:stage-lights">Stage Lights (purple and gold)</option>
+            <option value="file:record-sleeve">Record Sleeve (cream and red)</option>
+            <option value="file:neon-booth">Neon Booth (dark with cyan and pink)</option>
+            <option value="file:imported" id="s-style-imported" hidden></option>
           </select>
+          <p class="hint" id="s-style-file-note" hidden>This Style has its own colors, font, icon and corners. Icon and your own colors below go with the first five Styles.</p>
           <label for="s-icon">Icon <span class="hint">the symbol at the left of each bubble</span></label>
           <select id="s-icon" name="bubbleIcon">
             <option value="style">Style default</option>
@@ -536,29 +543,21 @@
             <p class="hint">BubbleFacts picks light or dark text, whichever is easier to read on your background.</p>
           </div>
           <div id="s-look">
-            <p id="s-look-current" hidden>Showing a shared look: <strong id="s-look-name"></strong><span id="s-look-by" class="hint"></span></p>
+            <p id="s-look-current" hidden>Showing an imported Style: <strong id="s-look-name"></strong><span id="s-look-by" class="hint"></span></p>
             <div class="row">
-              <button type="button" id="look-import" class="ghost">Import a look…</button>
-              <button type="button" id="look-save-open" class="ghost" aria-expanded="false" aria-controls="s-look-save">Save my look as a Style file…</button>
-              <button type="button" id="look-remove" class="ghost" hidden>Go back to my Style</button>
+              <button type="button" id="look-import" class="ghost">Import a Style…</button>
+              <button type="button" id="look-save-open" class="ghost" aria-expanded="false" aria-controls="s-look-save">Save my Style as a file…</button>
             </div>
-            <label for="look-ready">Ready-made looks <span class="hint">pick one to see a preview</span></label>
-            <select id="look-ready">
-              <option value="">Choose a look…</option>
-              <option value="stage-lights">Stage Lights (purple and gold)</option>
-              <option value="record-sleeve">Record Sleeve (cream and red)</option>
-              <option value="neon-booth">Neon Booth (dark with cyan and pink)</option>
-            </select>
             <div id="s-look-save" class="look-preview" role="group" aria-labelledby="look-save-title" hidden>
-              <p id="look-save-title"><strong>Save my look as a Style file</strong></p>
-              <label for="look-save-name">Name for this look</label>
+              <p id="look-save-title"><strong>Save my Style as a file</strong></p>
+              <label for="look-save-name">Name for this Style</label>
               <input id="look-save-name" type="text" maxlength="40" autocomplete="off">
               <label class="inline"><input id="look-save-credit" type="checkbox"> Add my name to the file</label>
               <div id="look-save-author-box" class="indent" hidden>
                 <label for="look-save-author">Your name <span class="hint">anyone you share the file with can see it</span></label>
                 <input id="look-save-author" type="text" maxlength="40" autocomplete="off">
               </div>
-              <p class="hint">The file holds the look on stream now: colors, font, icon and corners. Nothing about you, your channel or your other settings. Changed your Style just now? Click Save at the bottom first.</p>
+              <p class="hint">The file holds the Style on stream now: colors, font, icon and corners. Nothing about you, your channel or your other settings. Changed your Style just now? Click Save at the bottom first.</p>
               <div class="row">
                 <button type="button" id="look-save" class="primary">Save the file…</button>
                 <button type="button" id="look-save-cancel" class="ghost">Cancel</button>
@@ -571,14 +570,14 @@
                 <div class="look-bubble">A fun fact about the song shows up here.</div>
               </div>
               <div class="row">
-                <button type="button" id="look-use" class="primary">Use this look</button>
+                <button type="button" id="look-use" class="primary">Use this Style</button>
                 <button type="button" id="look-cancel" class="ghost">Cancel</button>
               </div>
             </div>
             <div role="status"><p id="look-result" class="result" hidden></p></div>
-            <p class="hint">A look is a small Style file a musician or DJ can share. It changes colors, font, icon and corners only, and shows in place of the Style and colors above.</p>
+            <p class="hint">A Style file is a small file a musician or DJ can share. It changes colors, font, icon and corners only.</p>
           </div>
-          <p class="hint" id="s-style-hint">Changes on stream as soon as you save. Click <strong>Show a test bubble</strong> on the dashboard to see it.</p>
+          <p class="hint" id="s-style-hint">Changes on stream as soon as you save, or click <strong>Use this Style</strong>. Click <strong>Show a test bubble</strong> on the dashboard to see it.</p>
           <label for="s-area">Where bubbles appear <span class="hint">keep them clear of your camera, keyboard or chat</span></label>
           <select id="s-area" name="bubbleArea">
             <option value="anywhere">Anywhere</option>

@@ -56,7 +56,9 @@ describe("every built-in Style", () => {
     expect(settings).toContain(`export const BUBBLE_STYLES = [${BUBBLE_STYLES.map((s) => `"${s}"`).join(", ")}] as const;`);
     const html = fs.readFileSync(path.join(desktop, "renderer", "index.html"), "utf8");
     const menu = /<select id="s-style"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1] ?? "";
-    expect([...menu.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1])).toEqual([...BUBBLE_STYLES]);
+    // The list also holds Style files ("file:..."), which aren't settings
+    expect([...menu.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]).filter((v) => !v.startsWith("file:"))).toEqual([...BUBBLE_STYLES]);
+    expect(html).toContain('<input type="hidden" name="bubbleStyle">');
   });
 
   it("has the overlay keep a bubble size within the server's limits", () => {

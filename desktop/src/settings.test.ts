@@ -757,7 +757,7 @@ describe("how long a song may stay on the list before it's taken as over (#451)"
   });
 });
 
-describe("Save my look as a Style file", () => {
+describe("Save my Style as a file", () => {
   const personal = {
     channel: "made_up_channel", seChannel: "made_up_se", token: "tok-secret-123", refreshToken: "ref-secret-456", seJwt: "jwt-secret-789", groqKey: "gsk-secret", anthropicKey: "sk-ant-secret",
     shareKey: "share-secret", shareUrl: "https://example.test/facts", nowPlayingFile: "/Users/made-up-person/Music/now-playing.txt", myFacts: ["Made-Up Song | A private fact"], twitchLogin: "made_up_twitch",
@@ -811,6 +811,6 @@ describe("Save my look as a Style file", () => {
   it("names the file from the look's name, in plain characters", () => {
     expect(styleFileName("Night Set!")).toBe("night-set.json");
     expect(styleFileName("../../etc/passwd")).toBe("etc-passwd.json");
-    expect(styleFileName("夜")).toBe("my-look.json");
+    expect(styleFileName("夜")).toBe("my-style.json");
   });
 });

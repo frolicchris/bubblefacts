@@ -561,7 +561,7 @@ export function styleFileOf(s: Pick<Settings, "bubbleStyle" | "bubbleIcon" | "cu
 /** A file name for a saved look, from its name: plain letters and digits only */
 export function styleFileName(name: string): string {
   const slug = name.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
-  return `${slug || "my-look"}.json`;
+  return `${slug || "my-style"}.json`;
 }
 
 /** The look as the server reads it; colors blank when custom colors are off, so the server reverts to the Style's */

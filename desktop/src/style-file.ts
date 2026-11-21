@@ -319,7 +319,7 @@ export function checkStyleLook(raw: unknown, appVersion?: string): StyleFileResu
   // In the order above, whatever order the file used
   const values: Record<string, string> = {};
   for (const key of STYLE_FILE_SETTINGS) if (key in checked) values[key] = checked[key];
-  return { ok: true, look: { name: label(file.name) || "Shared look", author: label(file.author), madeFor: madeFor.join("."), values } };
+  return { ok: true, look: { name: label(file.name) || "Shared Style", author: label(file.author), madeFor: madeFor.join("."), values } };
 }
 
 /** A look from a Style file's text, or one plain line saying why not */
@@ -537,7 +537,7 @@ export function writeStyleFile(input: { name: unknown; author?: unknown; appVers
   const file = {
     bubblefacts: "style",
     format: STYLE_FILE_FORMAT,
-    name: label(input.name) || "My look",
+    name: label(input.name) || "My Style",
     ...(author ? { author } : {}),
     madeFor: (app && !older(app, since) ? app : since).join("."),
     values: input.values,
