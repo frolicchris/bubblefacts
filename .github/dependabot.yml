@@ -5,7 +5,6 @@ updates:
     directory: /
     schedule:
       interval: monthly
-    # Major versions wait until 2.0.0 ships (the dependency freeze in docs/RELEASING.md).
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -23,11 +22,7 @@ updates:
       npm:
         applies-to: version-updates
         patterns: ["*"]
-    # Major versions wait until 2.0.0 ships (the dependency freeze in docs/RELEASING.md); after
-    # that, only Electron's stay manual. Security fixes aren't affected.
+    # Electron's major versions stay manual. Security fixes aren't affected.
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-  # Once release/2.0 exists, add an entry like the one above with
-  #   target-branch: release/2.0
-  # and ignore semver-minor and semver-major updates, so 2.0.x only gets patches.

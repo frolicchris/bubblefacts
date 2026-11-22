@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to test, such as v2.0.0-beta.2 (empty means the newest release, betas included)
+        description: Release tag to test, such as v2.3.0-beta.3 (empty means the newest release, betas included)
         required: false
       run:
         description: Or a Release workflow run ID, to test unpublished builds from its artifacts
