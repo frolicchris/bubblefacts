@@ -1,10 +1,10 @@
-import crypto from "crypto";
 import fs from "fs";
 import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import type { ReadableStream as WebReadableStream } from "stream/web";
 import path from "path";
 import { plainWithDetail } from "./plain-errors";
+import { sha256 } from "./updater";
 
 // The built-in AI's model files and their download (DESKTOP-APP.md: AI)
 
@@ -62,13 +62,6 @@ export function modelReady(dir: string, model: ModelFile = MODEL): boolean {
   } catch {
     return false;
   }
-}
-
-function sha256(file: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256");
-    fs.createReadStream(file).on("data", (d) => hash.update(d)).on("end", () => resolve(hash.digest("hex"))).on("error", reject);
-  });
 }
 
 const SPARE_BYTES = 500 * 1024 * 1024; // bytes to leave free beyond the file

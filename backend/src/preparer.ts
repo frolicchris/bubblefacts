@@ -298,7 +298,7 @@ export class Preparer {
       if (result.trouble) {
         const tries = (this.troubled.get(target.key) ?? 0) + 1;
         this.troubled.set(target.key, tries);
-        if (tries < MAX_TROUBLED_TRIES || !result.outcome || result.outcome !== "facts") {
+        if (tries < MAX_TROUBLED_TRIES || result.outcome !== "facts") {
           // A lookup failed or was throttled: the miss says nothing
           await backOff("Lookups are failing or slowed down");
           continue;
@@ -308,11 +308,6 @@ export class Preparer {
         await backOff("The AI couldn't write for the song");
         continue;
       } else backoff = FIRST_BACKOFF_MS;
-      if (!result.outcome) {
-        this.skipped.add(target.key);
-        this.addActive(started);
-        continue;
-      }
       this.save(target, result.outcome, result, took);
       this.doneThisRun++;
       await this.sleep(this.deps.gapMs ?? 2000, signal);
