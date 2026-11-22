@@ -142,7 +142,6 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/now-playing-folder.ts` | The app's copy of the preset folder rule (`presetFolder`), kept alike with the server's. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
-| `desktop/src/release-signature.ts` | Checking a release's minisign signature on `SHA256SUMS.txt` against a key built into the app. Staged: nothing calls it yet, until the real keys are in place. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
