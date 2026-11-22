@@ -420,11 +420,11 @@
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble" + (VERTICAL ? " centered" : "");
     Object.assign(bubble.style, VERTICAL ? { top: "15%" } : { top: "8%", left: "33%" }, { opacity: "1", transform: "scale(1)" });
-    bubble.textContent = "TEST MODE — if you can read this in OBS, the browser source is loading and rendering correctly.";
+    bubble.textContent = "TEST MODE: if you can read this in OBS, the browser source is loading and rendering correctly.";
     const banner = document.createElement("div");
     banner.className = "song-toast";
     banner.style.opacity = "1";
-    banner.textContent = "▶ TEST MODE — remove ?test=1 when done";
+    banner.textContent = "▶ TEST MODE: remove ?test=1 when done";
     container.append(bubble, banner);
   }
 

@@ -85,7 +85,7 @@ export function buildStatFacts(
 
   const played = song.timesPlayed;
   if (played === 0) {
-    facts.push(`First time on stream — you're hearing the debut of "${display}".`);
+    facts.push(`First time on stream: you're hearing the debut of "${display}".`);
   } else if (typeof played === "number" && played > 0) {
     facts.push(`${who} has played "${display}" ${played} ${plural(played, "time", "times")} on stream.`);
   }

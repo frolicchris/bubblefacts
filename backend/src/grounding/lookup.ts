@@ -392,7 +392,7 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
   console.log(
     `[Grounding] No reference for "${song.title}"` +
       (unreachable ? ` (${unreachable}, not cached)` : "") +
-      ` — tried: ${terms.join(" | ")}`
+      `; tried: ${terms.join(" | ")}`
   );
   // A miss from this song's blocked articles says nothing of the game's other tracks
   if (!unreachable) setCapped(groundingCache, artist || blocked.size ? trackCacheKey : gameCacheKey, { text: "", at: Date.now() }, MAX_GROUNDING);
