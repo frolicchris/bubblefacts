@@ -1,4 +1,9 @@
 {
+  "2.3.0-rc.1": [
+    "The 2.3.0 release candidate: everything from the 2.3.0 betas, with clearer wording and small fixes.",
+    "Online AIs and Ollama stay a legacy choice, kept for anyone who already chose one.",
+    "Setting up a now playing file names an example: the Now Playing app's File Output."
+  ],
   "2.3.0-beta.3": [
     "Settings shows one section at a time, and every Style, ready-made or imported, is in one Style list.",
     "One-click setup for What's Now Playing, the free DJ track app.",
