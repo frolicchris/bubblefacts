@@ -88,8 +88,7 @@ server with settings passed as environment variables.
 
 - **Code signing.** Without it, macOS says the app "can't be checked for
   malicious software" and Windows SmartScreen warns on download. Needs an Apple
-  Developer Program membership ($99 a year) and Azure Artifact Signing ($9.99 a
-  month). Signing also enables fully automatic updates.
+  Developer Program membership and Azure Artifact Signing. Signing also enables fully automatic updates.
 - **Add to OBS automatically,** through OBS's built-in WebSocket server (OBS 28+).
   The streamer enables it in OBS once; the app then creates the Browser Source.
 - **Automatic problem reports,** through a small endpoint on bubblefacts.frolic.org that holds
