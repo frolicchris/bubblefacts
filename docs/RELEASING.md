@@ -41,7 +41,7 @@ Before adding the first signing secret, move the build job's signing secrets
 into a protected `release` environment that only `v*` tags can use, so a test
 build from another branch never sees them.
 
-**Mac (Apple Developer Program, $99 a year):**
+**Mac (Apple Developer Program):**
 
 1. Enroll at [developer.apple.com/programs](https://developer.apple.com/programs/) as an individual.
 2. In Xcode or the developer site, create a **Developer ID Application** certificate and export it with its key as a `.p12` file with a password.
@@ -51,7 +51,7 @@ build from another branch never sees them.
 Signed and notarized, the Mac app opens without the "unidentified developer"
 steps, and macOS stops asking for the keychain again after each update.
 
-**Windows (Azure Artifact Signing, formerly Trusted Signing, billed monthly):**
+**Windows (Azure Artifact Signing, formerly Trusted Signing):**
 
 1. In Azure, create an Artifact Signing account, complete identity validation, and create a public-trust certificate profile.
 2. Create an app registration with the certificate profile signer role on the account.
