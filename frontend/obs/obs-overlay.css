@@ -169,7 +169,7 @@
 :where(html[data-icon="moon"]) { --bf-icon: "\263E"; }
 :where(html[data-icon="diamond"]) { --bf-icon: "\25C6"; }
 
-/* === Reset & Base — Transparent for OBS Browser Source === */
+/* === Reset & Base: Transparent for OBS Browser Source === */
 * {
   margin: 0;
   padding: 0;

@@ -38,7 +38,7 @@ const server = http.createServer(app);
 // Only this computer (local-only.ts)
 const fromHere = (host: string | undefined) => allowedHost(host, config.port, config.host);
 app.use((req, res, next) => (fromHere(req.get("host")) ? next() : res.status(403).end()));
-const MAX_WS_MESSAGE = 1024; // bytes; the overlay sends one small message (obs-streaming.ts)
+const MAX_WS_MESSAGE = 1024; // bytes; the overlay sends only small messages (obs-streaming.ts)
 const MAX_CLIENTS = 16; // overlays; OBS needs one per scene showing the source, more is not OBS
 const wss = new WebSocketServer({
   server,
@@ -333,7 +333,7 @@ wss.on("connection", (ws, req) => {
     console.error(`[WS] Client #${client.id} error: ${err.message}`);
     drop();
   });
-  // The one message an overlay sends: whether OBS is streaming. Silence means the credit keeps its own timing
+  // One of the two messages an overlay sends (the other is "drew"): whether OBS is streaming. Silence means the credit keeps its own timing
   const status = watchForStatus(() =>
     console.log(`[WS] Client #${client.id} hasn't said whether OBS is streaming: it's outside OBS, or the Browser source's Page permissions don't allow it. The credit bubble keeps to its own timing.`)
   );

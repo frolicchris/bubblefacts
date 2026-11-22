@@ -1,4 +1,4 @@
-/** Sets a key in a session cache that can't grow for ever: a re-set key becomes newest, the oldest goes past `max` */
+/** Sets a key in a session cache that can't grow forever: a re-set key becomes newest, the oldest goes past `max` */
 export function setCapped<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
   map.delete(key);
   map.set(key, value);

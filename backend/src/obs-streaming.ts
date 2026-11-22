@@ -8,7 +8,7 @@ export interface ObsStreamingMessage {
 
 const MAX_MESSAGE_CHARS = 200; // longer is not the overlay's message
 
-/** The overlay's one message, or null for anything else (ignored) */
+/** The overlay's OBS streaming message, or null for anything else (ignored) */
 export function parseOverlayMessage(raw: string): ObsStreamingMessage | null {
   if (raw.length > MAX_MESSAGE_CHARS) return null;
   try {
