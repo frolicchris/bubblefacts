@@ -40,8 +40,6 @@ export interface Settings {
   /** Its line: "Artist - Title", or the title alone */
   nowPlayingFormat: "artist-title" | "title";
   displayName: string;
-  /** Unused, never sent; kept so files that have it still load */
-  instrument: string;
   /** From setup: "I play my own compositions", "I do live learns" */
   originals: boolean;
   liveLearns: boolean;
@@ -148,7 +146,6 @@ export const DEFAULTS: Settings = {
   nowPlayingFile: "",
   nowPlayingFormat: "artist-title",
   displayName: "",
-  instrument: "",
   originals: false,
   liveLearns: true,
   prepareSongs: false,
@@ -397,7 +394,7 @@ function webAddress(s: string): string | null {
 
 /** What the window may change; sign-in details and automatic fallbacks are the app's */
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
-  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "instrument", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
+  "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
   "updateChannel",

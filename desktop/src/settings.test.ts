@@ -122,10 +122,11 @@ describe("loadSettings", () => {
 
   it("loads a file with or without the retired instrument setting, and never sends it to the server", () => {
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", displayName: "Jane Composer" }));
-    expect(loadSettings()).toMatchObject({ setupComplete: true, channel: "jane", displayName: "Jane Composer", instrument: "" });
+    expect(loadSettings()).toMatchObject({ setupComplete: true, channel: "jane", displayName: "Jane Composer" });
     fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", instrument: "kazoo" }));
     const s = loadSettings();
     expect(s).toMatchObject({ setupComplete: true, channel: "jane" });
+    expect(s).not.toHaveProperty("instrument");
     expect(toServerEnv(s, paths)).not.toHaveProperty("INSTRUMENT");
   });
 
