@@ -119,7 +119,7 @@ describe("Settings", () => {
     const choice = settings.slice(settings.indexOf('<div id="s-other-ai" hidden>'), settings.indexOf('<div id="s-quality-box"'));
     expect(choice).toContain('id="s-ai-label">Who writes the facts</p>');
     expect(choice).toContain('name="ai" value="groq"');
-    expect(choice).toContain("Online AIs and Ollama are a legacy choice, leaving BubbleFacts in 3.0. You can keep the one you chose until then. BubbleFacts doesn't control or test them and can't vouch for their facts, and your viewers see a bubble saying so. If you switch back and save, these choices go away.");
+    expect(choice).toContain("Online AIs and Ollama are a legacy choice, kept for anyone who already chose one. BubbleFacts doesn't control or test them and can't vouch for their facts, and your viewers see a bubble saying so. If you switch back and save, these choices go away.");
     // No claim their facts are checked: BubbleFacts doesn't control that pipeline
     expect(choice).not.toMatch(/screen|checked|verified/i);
     const keys = settings.slice(settings.indexOf('<div id="s-other-ai-keys" hidden>'), settings.indexOf('<label for="s-port">'));

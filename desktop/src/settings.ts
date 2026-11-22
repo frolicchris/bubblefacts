@@ -62,7 +62,7 @@ export interface Settings {
   /** Custom facts, one per line in Settings */
   myFacts: string[];
   myOriginals: string[];
-  /** "builtin": the app's own AI; the others are a legacy choice, leaving in 3.0 */
+  /** "builtin": the app's own AI; the others are a legacy choice */
   ai: "builtin" | "groq" | "anthropic" | "ollama";
   /** Built-in model: the small default, or the bigger one (model.ts) */
   aiQuality: AiQuality;

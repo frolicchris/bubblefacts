@@ -697,7 +697,7 @@ keeps the wording of the credit it counted (`creditText`), and a restart with
 a different one (the streamer switched AI mid-stream) credits first
 (`restoredCredit`), so each stream shows the credit that fits the AI writing
 its facts. In the desktop app these AIs are a legacy choice for those who
-already made it, leaving in 3.0, so every fact BubbleFacts shows then comes
+already made it, so a new install only shows facts
 from the AI its fact check measures (see [DESKTOP-APP.md](DESKTOP-APP.md)). The command line, which
 has no built-in AI, always shows this wording when an AI writes.
 

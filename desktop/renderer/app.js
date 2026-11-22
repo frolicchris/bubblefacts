@@ -1411,7 +1411,7 @@
     $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";
     $("#s-model-license").textContent = s.aiQuality === "high" ? "Llama 3.1 Community License" : "Llama 3.2 Community License";
-    // Other AIs are a legacy choice (leaving in 3.0): shown only when the saved choice is one
+    // Other AIs are a legacy choice: shown only when the saved choice is one
     const otherAi = s.ai !== "builtin";
     $("#s-other-ai").hidden = !otherAi;
     $("#s-other-ai-keys").hidden = !otherAi;

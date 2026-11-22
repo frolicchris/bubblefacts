@@ -64,7 +64,7 @@ The fact captions are written by a small AI model: by default, Meta's
 Llama 3.2, running on your own computer, while you stream or, with **Prepare
 my songs**, ahead of time while you're not streaming, through the same
 screening. (Groq, Anthropic and Ollama are a legacy choice, kept only for
-anyone who had already chosen one and leaving in 3.0. BubbleFacts doesn't
+anyone who had already chosen one. BubbleFacts doesn't
 control or test those AIs, and vouches for nothing they write.) The model only
 rewrites details from the song's Wikipedia article, and every caption is
 screened against the article before it's shown: names, who did what, years,
