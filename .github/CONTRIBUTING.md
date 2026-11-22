@@ -104,6 +104,9 @@ maintainer and the AI sessions he directs as much as anyone else.
    change doesn't count). Merge or close one before opening a fourth. A draft
    that has had conflicts for a week is closed, with a note on its issue saying
    what was learned and which branch holds the work.
+   Small doc and comment fixes share one rolling docs pull request per
+   milestone (branch `docs/rolling-X.Y`): add to it rather than opening another,
+   and merge it whenever it's ready, at the latest before the release.
 3. **One kind of change per pull request.** Say which in the pull request:
 
    | Kind | Done when |
