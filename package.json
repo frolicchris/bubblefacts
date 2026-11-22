@@ -191,5 +191,8 @@
   "bubblefacts": {
     "sslClientId": "e8b60f8c-f592-4c7d-bf4b-506d0752301c",
     "twitchClientId": "omqbs0mryllbx6n7uzw9k9rldzq2cy"
+  },
+  "overrides": {
+    "minimatch@>=7 <11.0.1": "^11.0.1"
   }
 }
