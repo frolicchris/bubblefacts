@@ -216,8 +216,8 @@ first release candidate to the final release, lasts about a week.
 - **Screens and wording:** no changes to the app's labels or layout, so the
   setup guide, screenshots and tester steps stay right.
 - **Dependencies:** no new packages and no major upgrades. A security fix to
-  a dependency is allowed. Dependabot is set to skip major versions until 2.0.0
-  ships; restore its Electron-only rule then (`.github/dependabot.yml`).
+  a dependency is allowed. Dependabot skips Electron major versions
+  (`.github/dependabot.yml`).
 
 **What may change during the release candidates:** only a low-risk fix for a
 release blocker. Anything else waits for the next maintenance release. To make an exception, write
@@ -369,17 +369,17 @@ or major update waits for a person.
 **Keeping stable and beta in step:** every fix lands on `main` first, so the
 next beta has it; a fix that only reached the stable line would be lost to
 Beta-channel users, whose newer beta outranks it. While `main` has nothing
-newer than 2.0.x, maintenance releases are tagged from `main`. Once 2.1 work
-merges:
+newer than the stable line, maintenance releases are tagged from `main`.
+Once the next minor version's work merges (as with `release/2.1` and
+`release/2.2`):
 
-1. Create `release/2.0` from the newest 2.0.x tag, with the same protection
-   as `main` (pull requests and `ci-ok`, no force pushes or deletion), and add
-   a Dependabot entry for it that takes patch updates only.
-2. Fix on `main` first, through a pull request, and label it `backport 2.0`.
-3. Cherry-pick it to a branch from `release/2.0` (`git cherry-pick -x`) and
-   open a pull request into `release/2.0`. Merge when `ci-ok` passes, and
+1. Create `release/X.Y` from the newest X.Y.z tag, with the same protection
+   as `main` (pull requests and `ci-ok`, no force pushes or deletion).
+2. Fix on `main` first, through a pull request, and label it `backport X.Y`.
+3. Cherry-pick it to a branch from `release/X.Y` (`git cherry-pick -x`) and
+   open a pull request into `release/X.Y`. Merge when `ci-ok` passes, and
    remove the label.
-4. The release workflow accepts a tag like `v2.0.3` from `release/2.0`, and
+4. The release workflow accepts a tag like `v2.2.2` from `release/2.2`, and
    only that kind of tag.
 
 **Making a maintenance release:**
@@ -393,5 +393,5 @@ merges:
    settings and facts kept.
 5. Fill in Fixed (and Security) in the release notes and publish it as a
    full release.
-6. Upload changed `site/` files. A release from `release/2.0` also needs
+6. Upload changed `site/` files. A release from a `release/X.Y` branch also needs
    its changelog entry copied to `main`.

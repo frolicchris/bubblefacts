@@ -142,7 +142,7 @@ behind it are in [docs/DESKTOP-APP.md](../docs/DESKTOP-APP.md).
 2. `npm run check` type-checks, lints and tests everything, including the
    app's tests in `desktop/src/*.test.ts`.
 3. `npm run app` builds the app and runs it in development. On Linux, the
-   packaged full app runs its fact server under a bundled Node.js because the
+   packaged app runs its fact server under a bundled Node.js because the
    built-in AI crashes under Electron's own runtime there; from source it
    uses Electron's, so use Ollama while developing on Linux: quit the app, set
    `"ai": "ollama"` in its `settings.json`, and open it again (Settings shows
@@ -166,7 +166,7 @@ npx electron-builder --mac --arm64 -c.directories.output=/tmp/bubblefacts-releas
 **Test builds for every system:** on GitHub, go to **Actions → Release → Run
 workflow**. The installers appear as downloadable artifacts on the run, one for each system. This
 works in forks too. A test build says so at the bottom of its window, with
-the commit it was built from, for example `2.0.0-rc.1 test build (c4ee826)`;
+the commit it was built from, for example `2.3.0-beta.3 test build (c4ee826)`;
 a build from your own computer says `(dev)`.
 
 **Releases** are made by the maintainer; how, and how builds get signed, is
@@ -186,8 +186,7 @@ a bug there only shows up in OBS.
 
 ## Questions
 
-Setup questions are welcome in the
-[BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW), in #help,
+Setup questions are welcome in #help. [Ask in the BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW),
 where the answer can help the next person too.
 
 By taking part, you agree to the [code of conduct](CODE_OF_CONDUCT.md).

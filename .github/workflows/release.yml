@@ -39,7 +39,7 @@ jobs:
     steps:
       # A release is built only from reviewed code: the tag's commit must already be on main,
       # which takes a pull request. A tag pushed on any other commit fails here.
-      # A maintenance release (v2.0.3) may instead come from its release branch (release/2.0), which
+      # A maintenance release (v2.2.2) may instead come from its release branch (release/2.2), which
       # takes pull requests the same way; nothing else can be tagged from it (docs/RELEASING.md).
       - name: Check the tag is on main or its release branch
         if: startsWith(github.ref, 'refs/tags/v')
@@ -142,7 +142,6 @@ jobs:
           ARGS: ${{ matrix.args }}
         run: |
           # shellcheck disable=SC2086 # $ARGS and $EXTRA are split into words on purpose
-          # $ARGS and $EXTRA are split into words on purpose.
           if [ -n "$EXTRA" ]; then
             npm run dist -- $ARGS $EXTRA "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
           else

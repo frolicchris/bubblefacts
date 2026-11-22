@@ -111,7 +111,7 @@ are in [AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md).
 ## Help
 
 - [Setup guide](https://bubblefacts.frolic.org/guide.html), step by step
-- [Ask in the BubbleFacts Discord community (#help)](https://discord.gg/3YS3eWkWrW)
+- [Ask in the BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW), in #help
 - [Report a problem](https://github.com/frolicchris/bubblefacts/issues/new?template=bug_report.yml).
   In the app, **Report a problem** under **Help and troubleshooting** fills in
   the details for you.
@@ -130,8 +130,8 @@ handled, is in [SECURITY.md](.github/SECURITY.md#what-2x-promises).
 
 ## Join in
 
-Say hello, share an idea or hear about new versions in the
-[BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW). Know a music content
+[Say hello in the BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW),
+share an idea or hear about new versions. Know a music content
 creator who'd enjoy it? Send them the [website](https://bubblefacts.frolic.org).
 
 ## For developers
@@ -158,8 +158,8 @@ facts aren't covered by copyright, but wording taken from an article can be.
 (Not legal advice, and a credit line alone doesn't settle every possible use.)
 
 Built with Llama. The app's built-in AI is Meta's Llama 3.2 3B, used under the
-[Llama 3.2 Community License](https://www.llama.com/llama3_2/license/), or with
-Larger AI chosen in Settings, Meta's Llama 3.1 8B, used under the
+[Llama 3.2 Community License](https://www.llama.com/llama3_2/license/). With
+Larger AI chosen in Settings, it is Meta's Llama 3.1 8B, used under the
 [Llama 3.1 Community License](https://www.llama.com/llama3_1/license/).
 
 The open source software BubbleFacts ships, and each license, is listed in

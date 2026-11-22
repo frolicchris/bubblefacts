@@ -1,6 +1,6 @@
 # Getting help
 
-Start in **#help** in the [BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW). Search it first, since your answer may already be there. If it isn't, start a new post for each question. No Discord account? Email [bubblefacts@frolic.org](mailto:bubblefacts@frolic.org).
+Start in **#help**: [ask in the BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW). Search it first, since your answer may already be there. If it isn't, start a new post for each question. No Discord account? Email [bubblefacts@frolic.org](mailto:bubblefacts@frolic.org).
 
 - **How do I…?** Start with the [guide](https://bubblefacts.frolic.org/guide.html), then ask in **#help**.
 - **Something's broken?** In the app, open **Help and troubleshooting** and click **Report a problem**. It fills in your version and recent log lines, and opens a GitHub report. No GitHub account? Click **Copy report** and paste it in a post in **#help**.

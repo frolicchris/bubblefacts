@@ -3,7 +3,7 @@
 This page is for people who want to run BubbleFacts from the command line,
 with Node.js and a settings file, instead of using the app.
 
-> **Most streamers should use the app instead.** It needs no Terminal, no
+> **Most musicians and DJs should use the app instead.** It needs no Terminal, no
 > Node.js and no AI setup. Download it for Mac, Windows or Linux at
 > **[bubblefacts.frolic.org](https://bubblefacts.frolic.org/download.html)**.
 
@@ -33,7 +33,7 @@ Everything you might need to download or sign up for, in one place.
 
 - [Releases](https://github.com/frolicchris/bubblefacts/releases): from the newest one, download **bubblefacts.zip**
 - [All versions and what changed](https://github.com/frolicchris/bubblefacts/releases)
-- [Ask a setup question](https://discord.gg/3YS3eWkWrW) (in #help)
+- [Ask a setup question in the BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW) (in #help)
 - [Report a problem or a wrong fact](https://github.com/frolicchris/bubblefacts/issues/new/choose)
 
 **Required**
@@ -398,7 +398,7 @@ in a web browser and add `?test=1` to the end of the address. A sample bubble
 and banner appear. If they show in a browser but not in OBS, the problem is in
 the OBS source settings.
 
-Still stuck? [Ask in the Discord #help channel](https://discord.gg/3YS3eWkWrW),
+Still stuck? [Ask in the BubbleFacts Discord community](https://discord.gg/3YS3eWkWrW), in #help,
 or if it looks like a bug, [open an issue](https://github.com/frolicchris/bubblefacts/issues/new/choose).
 Include the relevant lines from the newest file in the `logs` folder, with
 your token removed.

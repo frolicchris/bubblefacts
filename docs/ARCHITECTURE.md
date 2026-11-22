@@ -1,6 +1,6 @@
 # How it works
 
-*Current as of 2.2.0 (November 2026).*
+*Current as of 2.3.0-beta.3 (November 2026).*
 
 This is for anyone changing the code. It explains how a song becomes fact
 bubbles, and why the less obvious parts are the way they are. Each of those
