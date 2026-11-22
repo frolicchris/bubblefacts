@@ -3,7 +3,7 @@
 The public page for the BubbleFacts desktop app, published at
 <https://bubblefacts.frolic.org/>.
 
-Plain static files: ten HTML pages, one stylesheet, one small script, and
+Plain static files: 15 HTML pages, one stylesheet, one small script, and
 images. No build step and no server code. The only outside request is the
 download script asking GitHub's public API for the newest release.
 
@@ -19,6 +19,11 @@ download script asking GitHub's public API for the newest release.
 | `support.html` | Where to get help and report problems |
 | `privacy.html` | What the app sends where |
 | `credits.html` | Credits, licenses, "Built with Llama" notice |
+| `streamersonglist.html` | Setup for StreamerSongList |
+| `streamelements.html` | Setup for StreamElements Media Request |
+| `nightbot.html` | Setup for Nightbot song requests |
+| `streamling.html` | Setup for Streamling |
+| `now-playing-file.html` | Setup for any app that writes a now playing text file |
 | `assets/site.css` | All styles |
 | `assets/site.js` | Picks the right download for the visitor's computer, switches beta wording to stable, Copy buttons, opens linked FAQ answers, plays the home page clip with a Pause button |
 | `assets/favicon.svg`, `assets/favicon-32.png`, `favicon.ico`, `assets/apple-touch-icon.png` | Browser tab and home screen icons |
@@ -108,24 +113,9 @@ signing note under "Check your download" in `download.html`.
 
 ## Beta or stable wording
 
-Words that are only true before 2.0.0 (the download page's "BubbleFacts
-test version" and its signing note, the home page's "Not signed yet:"
-line, the guide's signing note, the support page's "While a new version is
-being tested", the changelog's "Coming soon" tag for 2.0.0) sit next to their stable wording, each marked:
-
-- `data-beta-only` for beta wording, `data-stable-only` for stable wording.
-- `assets/site.js` adds the class `site-stable` to `<html>` when GitHub lists
-  a full (not pre-release) 2.x release with installers, and `site-beta` when
-  it lists only betas. `assets/site.css` hides the other wording.
-- So the site switches to stable wording **by itself** the moment 2.0.0 is
-  published, with no upload.
-- Without JavaScript, or if GitHub can't be reached, the **site default** in
-  `assets/site.css` decides. It's stable.
-
-New beta-only wording gets `data-beta-only` and a `data-stable-only` twin
-(or none, if nothing should show after 2.0).
-
-## Since version 2.0.0
-
-Done in 2.0.0: the site default is stable. The beta wording and its markers
-can be deleted at leisure; nothing depends on them.
+Wording marked `data-beta-only` or `data-stable-only` switches by itself:
+`assets/site.js` adds `site-stable` to `<html>` when GitHub lists a full
+release, and `site-beta` when it lists only betas, and `assets/site.css`
+hides the other wording. Without JavaScript the site shows stable wording.
+The old 2.0.0 beta wording and its markers can be deleted; nothing depends
+on them.
