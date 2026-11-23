@@ -179,7 +179,7 @@ reads.
    frolicchris/bubblefacts --source-ref refs/tags/vX.Y.Z` passes.
 5. Install it and open it. The setup screen appears and shows the new version
    at the bottom, with the tagged commit and no "test build". Settings,
-   Advanced, doesn't show **Who writes the facts** for a new install.
+   General, Advanced, doesn't show **Who writes the facts** for a new install.
 6. Sign in, then drag the tile into a test scene in a real OBS. The test bubble
    appears in OBS and the app says **It's on your stream!**
 7. Play one song from the queue. The Now Playing bubble and facts appear.
