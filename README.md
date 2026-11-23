@@ -76,8 +76,9 @@ is screened: names, who did what, years, consoles, and award or chart claims
 must appear in the article, or it's dropped. Captions that only repeat the
 title and artist are dropped too. So is anything that isn't family-friendly or
 about the music: scandals, crime, threats, and anything that labels who a
-person is. That catches most mistakes, not every one
-(a caption can still mix up details the article does mention), so
+person is. That screening doesn't catch everything: on fresh test sets, about
+5 to 10% of facts were still wrong or misleading (a caption can still mix up
+details the article does mention), so
 **Wrong** next to a fact in the app takes it off your stream, along with the
 song's other bubbles from that article, and from the album or soundtrack
 article it led to. Playing when you spot it? Mark it
