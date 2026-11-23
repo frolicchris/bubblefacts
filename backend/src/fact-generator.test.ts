@@ -1001,18 +1001,30 @@ describe("facts from data go out before a slow AI (issue #256)", () => {
   });
 
   it("sends the data facts while the AI is still writing, then puts the captions after them", async () => {
-    slowAI(300);
-    const started = Date.now();
-    let earlyAt = 0;
+    // The fake AI answers only once the data facts have gone out, so the order is checked, not the clock (a busy
+    // CI runner once took 243 ms against a fixed 150 ms limit). If the data facts waited for the AI, the fallback
+    // answers instead and the order below fails
+    const order: string[] = [];
+    let dataSent = false;
+    let answer: (() => void) | undefined;
+    mockCreate.mockImplementation(() => new Promise((resolve) => {
+      answer = () => {
+        answer = undefined;
+        order.push("AI answered");
+        resolve(reply(MODEL_LINES));
+      };
+      if (dataSent) answer();
+      else setTimeout(() => answer?.(), 2000);
+    }));
     let early: Fact[] = [];
     const facts = await generateFacts(request, null, (data) => {
-      earlyAt = Date.now() - started;
+      order.push("data sent");
       early = data;
+      dataSent = true;
+      answer?.();
     });
-    const total = Date.now() - started;
+    expect(order).toEqual(["data sent", "AI answered"]);
     expect(early.map((f) => [f.text, f.source])).toEqual([[dataFact, SOURCE.wikidata]]);
-    expect(earlyAt).toBeLessThan(150);
-    expect(total).toBeGreaterThanOrEqual(290);
     // The full list starts with what went out early, unchanged; the AI's captions follow
     expect(facts[0]).toEqual(early[0]);
     expect(facts.length).toBeGreaterThan(1);
