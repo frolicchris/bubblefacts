@@ -1407,6 +1407,9 @@
     $("#s-sign-in").hidden = !state.signInAvailable;
     for (const p of $$('#settings-form input[type="password"]')) if (!settingsDraft.has(draftKey(p))) p.value = "";
     $("#s-datadir").textContent = state.dataDir;
+    // The vertical canvas the streamer saved, in the steps for adding the source by hand (#544)
+    for (const c of $$(".vcanvas-width")) c.textContent = String(s.verticalCanvasWidth);
+    for (const c of $$(".vcanvas-height")) c.textContent = String(s.verticalCanvasHeight);
     // Someone already using an online AI or Larger AI finds them open
     $("#s-advanced").open = form.elements.ai.value !== "builtin" || form.elements.aiQuality.value === "high";
     $("#s-model-name").textContent = s.aiQuality === "high" ? "Llama 3.1 8B" : "Llama 3.2 3B";

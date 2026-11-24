@@ -16,7 +16,8 @@
  *
  *  Add a Browser Source in OBS with the URL http://127.0.0.1:3000/obs-overlay
  *  while the server runs, or with "Local file" checked, pointing at this
- *  folder's obs-overlay.html, 1920x1080. See docs/MANUAL-SETUP.md.
+ *  folder's obs-overlay.html, at your canvas size (usually 1920x1080). Another
+ *  canvas size? Set CANVAS_SIZE so bubbles stay inside it. See docs/MANUAL-SETUP.md.
  *
  *  For a vertical (9:16) stream, use obs-overlay-vertical.html instead, at
  *  1080x1920. It has its own bubble spots and size, kept clear of the
@@ -51,6 +52,15 @@
 
   // The vertical overlay (obs-overlay-vertical.html) uses each fact's vertical spot
   const VERTICAL = document.documentElement.dataset.layout === "vertical";
+
+  // Canvas size (#544): the streamer's own, from the server's style message; none = 1920x1080 and 1080x1920
+  const VERTICAL_CANVAS = { width: 1080, height: 1920 };
+  let canvas = null;
+  let verticalCanvas = null;
+  // A bubble's widest, as a share of the source's height at Bubble size 1: --bubble-max-width in obs-overlay.css
+  const BUBBLE_MAX_WIDTH = 0.5185;
+  const EDGE = 2; // % kept clear at the canvas's right edge
+  let bubbleScale = 1;
 
   const container = document.getElementById("bubble-container");
   const statusDot = document.getElementById("connection-status");
@@ -150,6 +160,28 @@
     return Math.max(fact.durationSeconds, 2 + words / 3);
   }
 
+  /** The Bubble size in use: OBS's Custom CSS, else the app's */
+  function scaleNow() {
+    try {
+      const css = typeof window.getComputedStyle === "function" ? Number(window.getComputedStyle(document.documentElement).getPropertyValue("--bf-scale")) : NaN;
+      return css > 0 ? css : bubbleScale;
+    } catch {
+      return bubbleScale;
+    }
+  }
+
+  /**
+   * A spot's left edge on the streamer's canvas (#544): moved left only as far as a bubble at its widest
+   * needs to end inside the canvas. With no canvas size set, the spot as sent
+   */
+  function fitLeft(left) {
+    const m = /^(\d+(?:\.\d+)?)%$/.exec(left || "");
+    if (!canvas || !m) return left;
+    const widest = (BUBBLE_MAX_WIDTH * scaleNow() * canvas.height / canvas.width) * 100;
+    const most = Math.max(1, 100 - EDGE - widest);
+    return Number(m[1]) > most ? Math.round(most * 10) / 10 + "%" : left;
+  }
+
   function showBubble(fact) {
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble";
@@ -158,7 +190,7 @@
     if (at.bottom) bubble.style.bottom = at.bottom;
     else bubble.style.top = at.top;
     // Right spots measure from the right edge, others with no side are centered: any length stays in its spot
-    if (at.left) bubble.style.left = at.left;
+    if (at.left) bubble.style.left = VERTICAL ? at.left : fitLeft(at.left);
     else if (at.right) bubble.style.right = at.right;
     else bubble.classList.add("centered");
     bubble.dataset.spot = [at.top, at.bottom, at.left, at.right].join("|");
@@ -282,6 +314,7 @@
     if (iconChosen) document.documentElement.dataset.icon = msg.icon;
     else delete document.documentElement.dataset.icon;
     applySizes(msg);
+    applyCanvas(msg);
     if (look || lookSheet) {
       if (!lookSheet) {
         lookSheet = document.createElement("style");
@@ -302,10 +335,23 @@
   /** A size the server sent, or null outside MIN_SCALE to MAX_SCALE (bubble-style.ts) */
   const sizeOf = (n) => (typeof n === "number" && n >= 0.5 && n <= 3 ? n : null);
 
+  /** A canvas size the server sent, or null outside MIN_CANVAS to MAX_CANVAS (bubble-style.ts) */
+  const side = (n) => typeof n === "number" && Number.isInteger(n) && n >= 320 && n <= 7680;
+  const canvasOf = (c) => (c && typeof c === "object" && side(c.width) && side(c.height) ? { width: c.width, height: c.height } : null);
+
+  /** The streamer's canvas sizes (#544); each message carries both, so a missing one means the usual size */
+  function applyCanvas(msg) {
+    canvas = canvasOf(msg.canvas);
+    const tall = canvasOf(msg.verticalCanvas);
+    verticalCanvas = tall && tall.width <= tall.height ? tall : null;
+    checkVerticalSize();
+  }
+
   /** Bubble size, live: beats the size in the copied CSS, loses to OBS's Custom CSS */
   function applySizes(msg) {
     const scale = sizeOf(msg.scale);
     const vertical = sizeOf(msg.verticalScale);
+    bubbleScale = scale === null ? 1 : scale;
     if (scale === null && vertical === null && !sizeSheet) return;
     if (!sizeSheet) {
       sizeSheet = document.createElement("style");
@@ -435,13 +481,17 @@
   function checkVerticalSize() {
     if (!VERTICAL || !window.obsstudio) return;
     const wide = window.innerWidth > window.innerHeight;
+    const size = verticalCanvas || VERTICAL_CANVAS;
+    const text = "BubbleFacts Vertical: in this Browser source's properties, set Width to " + size.width + " and Height to " + size.height + ".";
     let note = document.querySelector(".size-note");
     if (wide && !note) {
       note = document.createElement("div");
       note.className = "size-note";
-      note.textContent = "BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1920.";
+      note.textContent = text;
       document.body.appendChild(note);
-    } else if (!wide && note) {
+    } else if (wide) {
+      note.textContent = text;
+    } else if (note) {
       note.remove();
     }
   }

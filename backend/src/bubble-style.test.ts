@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { autoTextColor, BUBBLE_STYLES, contrast, contrastOver, CUSTOM_ALPHA, customColors, MAX_SCALE, MIN_CONTRAST, MIN_SCALE, styleFrom } from "./bubble-style";
+import { autoTextColor, BUBBLE_STYLES, canvasFrom, contrast, contrastOver, CUSTOM_ALPHA, customColors, MAX_CANVAS, MAX_SCALE, MIN_CANVAS, MIN_CONTRAST, MIN_SCALE, styleFrom } from "./bubble-style";
 
 /** Bubble Styles (#177), checked against the overlay's real CSS */
 const OBS = path.resolve(__dirname, "../../frontend/obs");
@@ -185,6 +185,38 @@ describe("styleFrom", () => {
       style: "minimal",
       colors: { background: "#ffffff", accent: "#ff8800", text: "#111111", label: "#111111", liveLearn: "#7a5200" },
     });
+  });
+});
+
+describe("the canvas size (issue #544)", () => {
+  it("reads a width and height, written 2560x1440 or as an object, held to 320 to 7680 pixels", () => {
+    expect(canvasFrom("2560x1440")).toEqual({ width: 2560, height: 1440 });
+    expect(canvasFrom(" 1440 X 1080 ")).toEqual({ width: 1440, height: 1080 });
+    expect(canvasFrom({ width: 1280, height: "720" })).toEqual({ width: 1280, height: 720 });
+    expect(canvasFrom("100x99999")).toEqual({ width: MIN_CANVAS, height: MAX_CANVAS });
+    expect(canvasFrom("1919.6x1080")).toEqual({ width: 1920, height: 1080 });
+    for (const bad of ["", "big", "1920", "1920x", "x1080", null, undefined, 42, { width: 1920 }]) expect(canvasFrom(bad)).toBeNull();
+  });
+
+  it("sends a canvas size only when it isn't the usual one, so bubbles sit where they always did", () => {
+    const warnings: string[] = [];
+    const warn = (line: string) => warnings.push(line);
+    expect(styleFrom("classic", "", "", warn, { canvas: "1920x1080", verticalCanvas: "1080x1920" })).toEqual({ type: "style", style: "classic" });
+    expect(styleFrom("classic", "", "", warn, { canvas: "", verticalCanvas: undefined })).toEqual({ type: "style", style: "classic" });
+    expect(warnings).toEqual([]);
+    expect(styleFrom("classic", "", "", warn, { canvas: "1440x1080", verticalCanvas: "1080x1350" })).toEqual({
+      type: "style", style: "classic", canvas: { width: 1440, height: 1080 }, verticalCanvas: { width: 1080, height: 1350 },
+    });
+  });
+
+  it("leaves out a size it can't read, or a vertical canvas wider than tall, and says so in the log", () => {
+    const warnings: string[] = [];
+    const warn = (line: string) => warnings.push(line);
+    expect(styleFrom("classic", "", "", warn, { canvas: "wide", verticalCanvas: "1920x1080" })).toEqual({ type: "style", style: "classic" });
+    expect(warnings).toEqual([
+      expect.stringContaining('Canvas size "wide"'),
+      expect.stringContaining("Vertical canvas size 1920x1080 is wider than tall"),
+    ]);
   });
 });
 

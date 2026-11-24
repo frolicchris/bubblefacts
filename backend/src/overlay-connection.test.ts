@@ -237,6 +237,93 @@ describe("bubble Styles (issue #177)", () => {
   });
 });
 
+describe("the streamer's canvas size (issue #544)", () => {
+  const right = { top: "8%", left: "66%" };
+  const middle = { top: "8%", left: "33%" };
+
+  it("moves a spot left just enough that a bubble at its widest ends inside a narrower canvas", () => {
+    const o = overlay();
+    // 4:3: a bubble at its widest is 51.85% of 1080 = 560px, 38.9% of 1440; it must end 2% from the edge
+    o.send({ type: "style", style: "classic", canvas: { width: 1440, height: 1080 } });
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Right.", right), { ...o.fact("Middle.", middle), delaySeconds: 1 }] });
+    o.run();
+    expect(o.spots["Right."]).toMatchObject({ top: "8%", left: "59.1%" });
+    expect(o.spots["Middle."]).toMatchObject(middle);
+  });
+
+  it("makes room for a bigger Bubble size too", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "classic", scale: 1.5, canvas: { width: 1440, height: 1080 } });
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Big.", middle)] });
+    o.run();
+    expect(o.spots["Big."]).toMatchObject({ left: "33%" });
+    o.send({ type: "new_song", song: { title: "Other", artist: "Someone" } });
+    o.run();
+    o.send({ type: "facts_ready", song: { title: "Other", artist: "Someone" }, facts: [o.fact("Bigger.", right)] });
+    o.run();
+    expect(o.spots["Bigger."]).toMatchObject({ left: "39.7%" });
+  });
+
+  it("places bubbles exactly as before with no canvas size, a wide canvas, or one it can't use", () => {
+    for (const canvas of [undefined, { width: 2560, height: 1080 }, { width: 100, height: 1080 }, { width: "1440", height: 1080 }, "1440x1080"]) {
+      const o = overlay();
+      o.send({ type: "style", style: "classic", canvas });
+      o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Wide.", right)] });
+      o.run();
+      expect(o.spots["Wide."]).toMatchObject(right);
+    }
+  });
+
+  it("never moves a bubble measured from the right edge or centered", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "classic", canvas: { width: 1080, height: 1080 } });
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Right edge.", { top: "6%", right: "3%" }), { ...o.fact("Centered.", { top: "6%" }), delaySeconds: 1 }] });
+    o.run();
+    expect(o.spots["Right edge."]).toMatchObject({ right: "3%" });
+    expect(o.spots["Centered."].left).toBeUndefined();
+  });
+
+  /** The vertical overlay in OBS, in a source of this size: the words of its size note, if one shows */
+  function verticalNote(width: number, height: number) {
+    const notes: Array<{ textContent: string; remove(): void }> = [];
+    let socket: { onmessage?: (e: { data: string }) => void; onopen?: () => void } = {};
+    const element = () => ({ classList: { add() {}, remove() {} }, dataset: {}, style: { setProperty() {} }, appendChild() {}, append() {}, addEventListener() {}, remove() {}, textContent: "" });
+    class FakeSocket {
+      constructor() { socket = this as typeof socket; }
+      close() {}
+    }
+    vm.runInNewContext(SCRIPT, {
+      location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
+      document: {
+        getElementById: element,
+        createElement: element,
+        body: { appendChild: (el: { textContent: string; remove(): void }) => notes.push(Object.assign(el, { remove: () => notes.splice(notes.indexOf(el), 1) })) },
+        head: { appendChild() {} },
+        documentElement: { dataset: { layout: "vertical" } },
+        querySelector: () => notes[0] ?? null,
+      },
+      window: { innerWidth: width, innerHeight: height, obsstudio: {}, addEventListener() {} },
+      WebSocket: FakeSocket,
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+      console,
+    });
+    socket.onopen?.();
+    return { text: () => notes[0]?.textContent, send: (msg: object) => socket.onmessage?.({ data: JSON.stringify(msg) }) };
+  }
+
+  it("asks for the streamer's own vertical canvas size when the vertical source is wide", () => {
+    const page = verticalNote(800, 600);
+    expect(page.text()).toBe("BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1920.");
+    page.send({ type: "style", style: "classic", verticalCanvas: { width: 1080, height: 1350 } });
+    expect(page.text()).toBe("BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1350.");
+    // A vertical canvas wider than tall can't be right: the usual size instead
+    page.send({ type: "style", style: "classic", verticalCanvas: { width: 1920, height: 1080 } });
+    expect(page.text()).toContain("set Width to 1080 and Height to 1920.");
+    expect(verticalNote(1080, 1350).text()).toBeUndefined();
+  });
+});
+
 describe("the vertical overlay (issue #175)", () => {
   const landscape = { top: "8%", left: "33%" };
   const vertical = { top: "15%" };

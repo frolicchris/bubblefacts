@@ -184,7 +184,9 @@ Start the overlay (step 5) before you do this.
    **Browser**. Name it "BubbleFacts".
 2. Leave **Local file** unchecked. In **URL**, type
    `http://127.0.0.1:3000/obs-overlay`
-3. Set **Width** to `1920` and **Height** to `1080`.
+3. Set **Width** to `1920` and **Height** to `1080`. Is your OBS canvas
+   another size (**Settings**, **Video**, **Base (Canvas) Resolution**)? Use
+   that size here, and set `CANVAS_SIZE` to it too, like `CANVAS_SIZE=1440x1080`.
 4. Leave **Shutdown source when not visible** and **Refresh browser when scene
    becomes active** unchecked, and Custom CSS empty.
 5. Click **OK**. Then right-click the source and choose
@@ -317,6 +319,8 @@ second Browser source, **Local file**, pointing at
 bubbles keep clear of those apps' buttons and chat. Choose where they go with
 `VERTICAL_AREA=top` (or `above-chat`), and their size with
 `BUBBLE_VERTICAL_SCALE=1` (from 0.5 to 3; see [The look](#the-look)).
+Another vertical canvas size, like 1080 by 1350? Set the source to it, and
+`VERTICAL_CANVAS_SIZE=1080x1350`.
 
 ### The look
 

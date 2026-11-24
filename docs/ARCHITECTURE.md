@@ -2179,6 +2179,23 @@ BubbleFacts data** deletes all of them.
   than tall (dropped onto a landscape canvas, or a new Browser source left at
   800x600), it says how to fix the size instead of drawing bubbles off the
   phone's screen.
+- **The canvas size is typed, not measured** (issue #544). The landscape
+  spots (`POSITIONS` and `AREAS` in `fact-generator.ts`) are percentages
+  laid out for 16:9, while a bubble's width follows the source's height
+  (`--bubble-max-width`, 51.85% of it, 560px at 1080p). On a narrower canvas
+  (4:3, 16:10, square) a spot with a large `left` would run a long bubble off
+  the right edge. The streamer types the canvas size in Settings
+  (`CANVAS_SIZE`, `VERTICAL_CANVAS_SIZE`); the server sends it in the `style`
+  message only when it isn't 1920x1080 or 1080x1920, and the overlay then
+  moves a `left` spot left just far enough that a bubble at its widest, at
+  the Bubble size in use, ends 2% inside the canvas (`fitLeft`,
+  `BUBBLE_MAX_WIDTH` in `obs-overlay.js`, which mirrors the CSS). Spots
+  measured from the right edge or centered never move, and the spots
+  themselves stay in `fact-generator.ts`, unchanged. With no size sent,
+  bubbles sit exactly where they always did. The size is typed, as the
+  layout is chosen by file, because the page can't tell a canvas from a
+  source squeezed on purpose. The vertical overlay's size note names the
+  vertical canvas size the streamer typed.
 - **Styles are custom properties, switched live** (issue #177). The look
   (colors, font, corners, the Now Playing bubble's) is a set of `--bf-*`
   properties in `obs-overlay.css`: Classic's on `:where(:root)`, each other

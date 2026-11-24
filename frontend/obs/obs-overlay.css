@@ -16,6 +16,7 @@
 :root {
   --fact-font-size: calc(2.222vh * var(--bf-scale));
   --toast-font-size: calc(1.944vh * var(--bf-scale));
+  /* BUBBLE_MAX_WIDTH in obs-overlay.js keeps bubbles inside a canvas size the streamer set (#544) */
   --bubble-max-width: calc(51.85vh * var(--bf-scale));
   --bubble-min-width: calc(27.78vh * var(--bf-scale));
 }

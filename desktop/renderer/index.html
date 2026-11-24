@@ -594,6 +594,12 @@
               <option value="bottom-right">Bottom right</option>
             </optgroup>
           </select>
+          <p class="label" id="s-canvas-label">Canvas size <span class="hint">in pixels, from 320 to 7680</span></p>
+          <div class="grid3" role="group" aria-labelledby="s-canvas-label">
+            <label>Width <input name="canvasWidth" type="number" min="320" max="7680" step="1" aria-describedby="s-canvas-hint"></label>
+            <label>Height <input name="canvasHeight" type="number" min="320" max="7680" step="1" aria-describedby="s-canvas-hint"></label>
+          </div>
+          <p class="hint" id="s-canvas-hint">Most streams are 1920 by 1080. Using another shape, like 4:3 or an ultrawide? Type the size from OBS: <strong>Settings</strong>, then <strong>Video</strong>, then <strong>Base (Canvas) Resolution</strong>. Bubbles then stay inside it. Set the BubbleFacts source in OBS to the same size.</p>
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
           <label class="inline"><input name="creditBubble" type="checkbox" aria-describedby="s-credit-hint"> Now and then, show where the facts come from</label>
           <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later. Unchecked, it still shows when you go live in OBS, and again after 20 minutes without facts.</p>
@@ -634,9 +640,9 @@
               <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
                 <div class="pathbox"><code class="vertical-overlay-path"></code><button class="ghost" type="button" data-copy-path="vertical">Copy</button></div>
               </li>
-              <li>Set <strong>Width</strong> to <strong>1080</strong> and <strong>Height</strong> to <strong>1920</strong>. Click <strong>OK</strong>.</li>
+              <li>Set <strong>Width</strong> to <strong class="vcanvas-width">1080</strong> and <strong>Height</strong> to <strong class="vcanvas-height">1920</strong>. Click <strong>OK</strong>.</li>
             </ol>
-            <p class="fine">If the overlay asks you to set the size, it's this step: open the source's properties and set 1080 and 1920.</p>
+            <p class="fine">If the overlay asks you to set the size, it's this step: open the source's properties and set <span class="vcanvas-width">1080</span> and <span class="vcanvas-height">1920</span>.</p>
           </details>
           <label for="s-vsize">Bubble size on the vertical stream</label>
           <select id="s-vsize" name="verticalBubbleSize">
@@ -649,6 +655,12 @@
             <option value="top">Near the top</option>
             <option value="above-chat">Just above the chat</option>
           </select>
+          <p class="label" id="s-vcanvas-label">Vertical canvas size <span class="hint">in pixels, from 320 to 7680</span></p>
+          <div class="grid3" role="group" aria-labelledby="s-vcanvas-label">
+            <label>Width <input name="verticalCanvasWidth" type="number" min="320" max="7680" step="1" aria-describedby="s-vcanvas-hint"></label>
+            <label>Height <input name="verticalCanvasHeight" type="number" min="320" max="7680" step="1" aria-describedby="s-vcanvas-hint"></label>
+          </div>
+          <p class="hint" id="s-vcanvas-hint">Usually 1080 by 1920. Taller than wide, or square. Is your vertical canvas another size? Type it here, and set the BubbleFacts Vertical source in OBS to the same size.</p>
           <p class="hint">One bubble at a time: a new one replaces the last. A new size shows on stream as soon as you save.</p>
           <button class="ghost" type="button" data-test-overlay="vertical">Test the vertical overlay in your browser</button>
         </fieldset>

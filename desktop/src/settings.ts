@@ -77,6 +77,11 @@ export interface Settings {
   /** Vertical overlay (phone-shaped streams): its own size and spots */
   verticalBubbleSize: "standard" | "large" | "larger";
   verticalArea: "top" | "above-chat";
+  /** OBS canvas size in pixels (#544), landscape and vertical: bubbles stay inside it */
+  canvasWidth: number;
+  canvasHeight: number;
+  verticalCanvasWidth: number;
+  verticalCanvasHeight: number;
   /** The look (#177), both overlays */
   bubbleStyle: BubbleStyle;
   /** Icon at each bubble's left; "style" = the Style's own */
@@ -168,6 +173,10 @@ export const DEFAULTS: Settings = {
   bubbleArea: "anywhere",
   verticalBubbleSize: "standard",
   verticalArea: "top",
+  canvasWidth: 1920,
+  canvasHeight: 1080,
+  verticalCanvasWidth: 1080,
+  verticalCanvasHeight: 1920,
   bubbleStyle: "classic",
   bubbleIcon: "style",
   styleLook: null,
@@ -333,6 +342,7 @@ export function sanitize(s: Settings): Settings {
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
     verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
+    ...canvasSizes(s),
     bubbleStyle: oneOf(s.bubbleStyle, BUBBLE_STYLES, "classic"),
     bubbleIcon: oneOf(s.bubbleIcon, BUBBLE_ICONS, "style"),
     styleLook: lookOrNull(s.styleLook),
@@ -356,6 +366,49 @@ export function sanitize(s: Settings): Settings {
     shareKey: s.shareKey.trim(),
     ollamaUrl: webAddress(s.ollamaUrl) ?? DEFAULTS.ollamaUrl,
   };
+}
+
+/** Canvas sides in pixels, as MIN_CANVAS and MAX_CANVAS in bubble-style.ts (a test keeps them alike) */
+export const MIN_CANVAS = 320;
+export const MAX_CANVAS = 7680;
+
+/** Canvas sizes held to MIN_CANVAS to MAX_CANVAS; a vertical canvas wider than tall goes back to 1080x1920 */
+function canvasSizes(s: Settings): Pick<Settings, "canvasWidth" | "canvasHeight" | "verticalCanvasWidth" | "verticalCanvasHeight"> {
+  const px = (n: number, fallback: number) => clamp(n, MIN_CANVAS, MAX_CANVAS, fallback);
+  const vw = px(s.verticalCanvasWidth, DEFAULTS.verticalCanvasWidth);
+  const vh = px(s.verticalCanvasHeight, DEFAULTS.verticalCanvasHeight);
+  const tall = vw <= vh;
+  return {
+    canvasWidth: px(s.canvasWidth, DEFAULTS.canvasWidth),
+    canvasHeight: px(s.canvasHeight, DEFAULTS.canvasHeight),
+    verticalCanvasWidth: tall ? vw : DEFAULTS.verticalCanvasWidth,
+    verticalCanvasHeight: tall ? vh : DEFAULTS.verticalCanvasHeight,
+  };
+}
+
+type CanvasKeys = "canvasWidth" | "canvasHeight" | "verticalCanvasWidth" | "verticalCanvasHeight";
+
+/**
+ * Why a canvas size can't be saved as typed (refused, never changed behind the streamer's back), or null.
+ * Only sizes in `changes` are checked
+ */
+export function canvasProblem(changes: Partial<Pick<Settings, CanvasKeys>>): string | null {
+  const sides: Array<[CanvasKeys, string]> = [
+    ["canvasWidth", "Canvas width"],
+    ["canvasHeight", "Canvas height"],
+    ["verticalCanvasWidth", "Vertical canvas width"],
+    ["verticalCanvasHeight", "Vertical canvas height"],
+  ];
+  for (const [key, name] of sides) {
+    const n = changes[key];
+    if (n === undefined) continue;
+    if (!Number.isFinite(n) || n === 0) return `${name}: type a number of pixels, like the one in OBS under Settings, then Video, Base (Canvas) Resolution.`;
+    if (!Number.isInteger(n)) return `${name}: use a whole number of pixels, like ${Math.round(n)}.`;
+    if (n < MIN_CANVAS || n > MAX_CANVAS) return `${name}: ${n} is outside what BubbleFacts can use. Type a number from ${MIN_CANVAS} to ${MAX_CANVAS}.`;
+  }
+  const { verticalCanvasWidth: w, verticalCanvasHeight: h } = changes;
+  if (w !== undefined && h !== undefined && w > h) return `The vertical canvas is ${w} wide and ${h} tall. A vertical canvas is taller than it is wide: check that the two numbers aren't swapped.`;
+  return null;
 }
 
 export const CUSTOM_FACT_LENGTH = 300; // characters, as for song facts (SONG_FACT_LIMITS in song-facts.ts)
@@ -396,7 +449,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "canvasWidth", "canvasHeight", "verticalCanvasWidth", "verticalCanvasHeight", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -562,7 +615,7 @@ export function styleFileName(name: string): string {
 }
 
 /** The look as the server reads it; colors blank when custom colors are off, so the server reverts to the Style's */
-export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string; BUBBLE_STYLE_FILE: string } {
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string; BUBBLE_STYLE_FILE: string; CANVAS_SIZE: string; VERTICAL_CANVAS_SIZE: string } {
   return {
     // The imported look, which the server checks again; blank for none
     BUBBLE_STYLE_FILE: s.styleLook ? JSON.stringify(s.styleLook) : "",
@@ -573,13 +626,16 @@ export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: stri
     // Size goes live too: no Refresh in OBS
     BUBBLE_SCALE: String(BUBBLE_SCALE[s.bubbleSize]),
     BUBBLE_VERTICAL_SCALE: String(VERTICAL_BUBBLE_SCALE[s.verticalBubbleSize]),
+    // Canvas size (#544) goes live with the look: bubbles move inside it at once
+    CANVAS_SIZE: `${s.canvasWidth}x${s.canvasHeight}`,
+    VERTICAL_CANVAS_SIZE: `${s.verticalCanvasWidth}x${s.verticalCanvasHeight}`,
   };
 }
 
 /** All the server reads at start (environment, own facts pack) as one string; not the token, handed over live */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
   // The look goes live (POST /control/style), so a new one never restarts the server
-  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, BUBBLE_STYLE_FILE: _styleFile, ...rest } = env;
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, BUBBLE_STYLE_FILE: _styleFile, CANVAS_SIZE: _canvas, VERTICAL_CANVAS_SIZE: _verticalCanvas, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

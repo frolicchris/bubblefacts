@@ -34,6 +34,9 @@ export interface StylePayload {
   /** Bubble size, landscape and vertical (`--bf-scale`, `--bf-vertical-scale`), when set */
   scale?: number;
   verticalScale?: number;
+  /** Canvas size (#544), landscape and vertical, when not the usual 1920x1080 and 1080x1920 */
+  canvas?: CanvasSize;
+  verticalCanvas?: CanvasSize;
   /** Icon choice, when not the Style's own */
   icon?: BubbleIconName;
   /** An imported Style file (#402), already checked; `style` and `colors` stay as the look to fall back to */
@@ -65,6 +68,38 @@ export function scaleFrom(value: unknown): number | null {
   const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
   return Number.isFinite(n) && n >= MIN_SCALE && n <= MAX_SCALE ? n : null;
 }
+
+/** OBS canvas size in pixels (#544): the overlay keeps each bubble inside it */
+export interface CanvasSize {
+  width: number;
+  height: number;
+}
+
+export const MIN_CANVAS = 320;  // pixels, either side: smaller can't hold a bubble
+export const MAX_CANVAS = 7680; // pixels: 8K, OBS's largest common canvas
+/** The sizes every overlay had before #544, and still the default: nothing is sent for them */
+export const LANDSCAPE_CANVAS: CanvasSize = { width: 1920, height: 1080 };
+export const VERTICAL_CANVAS: CanvasSize = { width: 1080, height: 1920 };
+
+const side = (n: unknown): number | null => {
+  const v = typeof n === "number" ? n : typeof n === "string" && n.trim() ? Number(n) : NaN;
+  return Number.isFinite(v) ? Math.min(MAX_CANVAS, Math.max(MIN_CANVAS, Math.round(v))) : null;
+};
+
+/**
+ * A canvas size, "2560x1440" or { width, height }, each side held to MIN_CANVAS to MAX_CANVAS;
+ * null when either side isn't a number
+ */
+export function canvasFrom(value: unknown): CanvasSize | null {
+  let w: unknown, h: unknown;
+  if (typeof value === "string") [w, h] = value.trim().split(/\s*[x×]\s*/i);
+  else if (value && typeof value === "object") ({ width: w, height: h } = value as Record<string, unknown>);
+  const width = side(w);
+  const height = side(h);
+  return width !== null && height !== null ? { width, height } : null;
+}
+
+const sameSize = (a: CanvasSize, b: CanvasSize) => a.width === b.width && a.height === b.height;
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -127,7 +162,7 @@ export function customColors(accent: string, background: string): StyleColors {
  * The look from settings, never refusing (a typo mustn't stop bubbles): unknown Style = Classic, custom
  * colors only when both are #rrggbb. `warn` hears what's ignored
  */
-export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown; icon?: unknown; file?: unknown } = {}): StylePayload {
+export function styleFrom(style: unknown, accent: unknown, background: unknown, warn: (line: string) => void = () => {}, sizes: { scale?: unknown; verticalScale?: unknown; icon?: unknown; file?: unknown; canvas?: unknown; verticalCanvas?: unknown } = {}): StylePayload {
   const raw = typeof style === "string" ? style.trim().toLowerCase() : "";
   const name = (BUBBLE_STYLES as readonly string[]).includes(raw) ? (raw as BubbleStyleName) : "classic";
   if (raw && raw !== name) warn(`Unknown bubble style "${String(style).slice(0, 40)}": using classic. Choose ${BUBBLE_STYLES.join(", ")}.`);
@@ -145,6 +180,16 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
   const iconSupplied = iconGiven || (sizes.icon !== undefined && sizes.icon !== null && typeof sizes.icon !== "string");
   if (iconSupplied && rawIcon !== icon) warn(`Unknown bubble icon "${String(sizes.icon).slice(0, 40)}": using the Style's own. Choose ${BUBBLE_ICONS.join(", ")}.`);
   const look = lookFrom(sizes.file, warn);
+  // Canvas size (#544): the usual sizes send nothing, so the overlay places bubbles as it always did
+  const canvas = canvasFrom(sizes.canvas);
+  const givenCanvas = (v: unknown) => v !== undefined && v !== null && v !== "";
+  if (!canvas && givenCanvas(sizes.canvas)) warn(`Canvas size "${String(sizes.canvas).slice(0, 40)}" isn't a width and height like 2560x1440: using 1920x1080.`);
+  let verticalCanvas = canvasFrom(sizes.verticalCanvas);
+  if (!verticalCanvas && givenCanvas(sizes.verticalCanvas)) warn(`Vertical canvas size "${String(sizes.verticalCanvas).slice(0, 40)}" isn't a width and height like 1080x1920: using 1080x1920.`);
+  if (verticalCanvas && verticalCanvas.width > verticalCanvas.height) {
+    warn(`Vertical canvas size ${verticalCanvas.width}x${verticalCanvas.height} is wider than tall: using 1080x1920.`);
+    verticalCanvas = null;
+  }
   return {
     type: "style",
     style: name,
@@ -152,6 +197,8 @@ export function styleFrom(style: unknown, accent: unknown, background: unknown, 
     ...(scale !== null ? { scale } : {}),
     ...(verticalScale !== null ? { verticalScale } : {}),
     ...(icon !== "style" ? { icon } : {}),
+    ...(canvas && !sameSize(canvas, LANDSCAPE_CANVAS) ? { canvas } : {}),
+    ...(verticalCanvas && !sameSize(verticalCanvas, VERTICAL_CANVAS) ? { verticalCanvas } : {}),
     ...(look ? { look } : {}),
   };
 }
