@@ -2146,25 +2146,39 @@ usability check and a GUI check with real streamers.
   an optional `expires` date (stored, not acted on yet), and `created` and
   `modified` times. A field or scope this version doesn't know is kept as it
   is when it saves, and a record the boxes can't show stays in the file.
-- **Saving:** text is normalized (NFC, control characters out, one space
-  between words), the way the box then shows it. Curly quotes stay as typed:
-  straightening them would change what shows on stream. A line that matches a
-  stored one keeps its record; a changed line in the same place keeps its id
-  with a new `modified`; any other line is a new record. The file is written
-  only when something changed, atomically.
+- **The line as typed:** the box and the server's pack get exactly the lines
+  they did before the store (each line trimmed, blank lines dropped), byte
+  for byte. A record's `text` is normalized (NFC, straight quotes, control
+  characters out, one space between words) for later features to compare
+  and sort by; when the typed line differs from `[tag] text` rebuilt from
+  it, the record also keeps `asTyped`, and that is what the box and the
+  stream show.
+- **Saving:** a line that matches a stored one keeps its record; a changed
+  line in the same place keeps its id with a new `modified`; any other line
+  is a new record. The file is written only when something changed,
+  atomically.
 - **Limits:** 300 characters a fact (a `[Song]` tag doesn't count), refused
   where it's typed, never trimmed; 500 lines a box. A longer fact saved
   before the limit is kept whole.
 - **Moving the lines in:** at start, lines found in `settings.json` (saved by
-  2.3 or earlier) are brought in once: `own-facts.before-import.json` first
-  (what the store held and the lines brought in, no secrets), then
-  `own-facts.json`, then `settings.json` without them. Run again, it changes
-  nothing. A version from before the move shows empty boxes; if it saves
-  lines there, the next start brings them in (an empty box it saves is
-  ignored, so nothing is lost by going back and forward).
-- **Can't be read:** a locked file is retried a few times, then nothing is
-  saved over it this run; one that reads but isn't a store is renamed to
-  `own-facts.json.unreadable`. The automatic backups hold the lines too.
+  2.3 or earlier, or by such a version after going back) are brought in: a
+  new backup in `own-facts-backups/` first (what the store held and the
+  lines brought in, no secrets; never written over, the newest 10 kept),
+  then `own-facts.json`, then `settings.json` without them. With no store
+  yet, all of them; with one, each line not stored yet is added after the
+  stored ones, so a stored fact is never replaced or removed by it. Run
+  again, it changes nothing. A version from before the move shows empty
+  boxes; lines it saves are added on the next start (the empty boxes it
+  saves add nothing).
+- **Can't be read or written:** `settings.json` drops the lines only once
+  `own-facts.json` holds them. A locked file is retried a few times; then
+  the boxes show the lines `settings.json` has, and saves keep them there
+  this run. A save that can't write the file keeps the lines in
+  `settings.json` and says so where Save reports; the next save or start
+  brings them in. A failure while moving the lines in at start is logged and
+  the app starts on `settings.json`'s lines. A file that reads but isn't a
+  store is renamed to `own-facts.json.unreadable`, and the boxes show what
+  `settings.json` has, if anything; the backups hold the lines too.
 
 ### Licenses of the sources
 

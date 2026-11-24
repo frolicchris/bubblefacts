@@ -21,7 +21,7 @@ import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
   BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack,
+  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsSaveProblem,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
@@ -854,6 +854,10 @@ handle("save-settings", (_e, raw: Record<string, unknown>) => {
     twitch.forgetEnded();
     supervisor.tell({ type: "twitch-about-off" });
   }
+  // Facts typed but not in their own file (#193): said plainly, as a failed save is; they're kept in settings.json
+  const factsChanged = JSON.stringify([previous.myFacts, previous.myOriginals]) !== JSON.stringify([settings.myFacts, settings.myOriginals]);
+  const factsProblem = factsSaveProblem();
+  if (factsChanged && factsProblem) return { error: factsProblem };
   return state();
 });
 

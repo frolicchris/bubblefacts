@@ -5,7 +5,7 @@ import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { shareAddress } from "./checks";
 import { AiQuality, modelFor, modelPath } from "./model";
-import { FACT_LENGTH, loadOwnFacts, normalizeLines, saveOwnFacts } from "./own-facts";
+import { FACT_LENGTH, loadOwnFacts, saveOwnFacts } from "./own-facts";
 
 /** Everything the musician can change; secrets encrypted on disk with the system keychain */
 export interface Settings {
@@ -293,9 +293,9 @@ export function loadSettings(readSecrets = true): Settings {
 
 /** The musician's facts, from own-facts.json (#193); lines settings.json still holds are moved there first */
 function withOwnFacts(settings: Settings, raw: Record<string, unknown> | null): Settings {
-  const { lines, settingsHadFacts } = loadOwnFacts(path.dirname(file()), raw ?? {});
-  if (raw && settingsHadFacts) {
-    // Facts and secrets don't share a file: settings.json drops the lines now they're in their own
+  const { lines, moved } = loadOwnFacts(path.dirname(file()), raw ?? {});
+  if (raw && moved) {
+    // Facts and secrets don't share a file: settings.json drops the lines once they're safely in their own
     const { myFacts: _facts, myOriginals: _originals, ...rest } = raw;
     try {
       writeFileAtomic(file(), JSON.stringify(rest, null, 2), { mode: 0o600 });
@@ -336,6 +336,7 @@ function lookOrNull(raw: unknown): StyleLook | null {
 
 /** Every value within what the server accepts, so no setting can stop it starting */
 export function sanitize(s: Settings): Settings {
+  const lines = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
   return {
     ...s,
     songSource: oneOf(s.songSource, ["streamersonglist", "streamelements", "nowplaying"] as const, "streamersonglist"),
@@ -354,8 +355,8 @@ export function sanitize(s: Settings): Settings {
     styleLook: lookOrNull(s.styleLook),
     accentColor: hexColor(s.accentColor, DEFAULTS.accentColor),
     backgroundColor: hexColor(s.backgroundColor, DEFAULTS.backgroundColor),
-    myFacts: normalizeLines(s.myFacts, "myFacts"),
-    myOriginals: normalizeLines(s.myOriginals, "myOriginals"),
+    myFacts: lines(s.myFacts),
+    myOriginals: lines(s.myOriginals),
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
     intervalSeconds: clamp(s.intervalSeconds, 3, 300, DEFAULTS.intervalSeconds),
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
@@ -437,6 +438,13 @@ const RETIRED_KEYS = new Set(["topics"]);
 /** Settings `sanitize` holds to a list of values */
 export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
 
+/** The last save had to keep the facts in settings.json: own-facts.json couldn't be read or written */
+let factsKeptHere = false;
+/** Why the last save couldn't put the facts in their own file, for the streamer, or null */
+export const factsSaveProblem = (): string | null => (factsKeptHere
+  ? "BubbleFacts couldn't save your own facts to their file. Another program may have it open. They're kept with your settings for now, so nothing is lost. BubbleFacts tries again with the next save and the next time it starts."
+  : null);
+
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
   // Keys a newer version saved are kept: back a version and forward again loses nothing
@@ -458,10 +466,12 @@ export function saveSettings(settings: Settings): void {
   const version = Math.max(SETTINGS_VERSION, typeof kept.settingsVersion === "number" ? kept.settingsVersion : 0);
   const stored: Record<string, unknown> = { ...settings, ...kept, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
-  // The musician's facts go in own-facts.json (#193), not beside the secrets
-  delete stored.myFacts;
-  delete stored.myOriginals;
-  saveOwnFacts(path.dirname(file()), { myFacts: settings.myFacts, myOriginals: settings.myOriginals });
+  // The musician's facts go in own-facts.json (#193), not beside the secrets; here only while that can't be written
+  factsKeptHere = !saveOwnFacts(path.dirname(file()), { myFacts: settings.myFacts, myOriginals: settings.myOriginals });
+  if (!factsKeptHere) {
+    delete stored.myFacts;
+    delete stored.myOriginals;
+  }
   fs.mkdirSync(path.dirname(file()), { recursive: true });
   writeFileAtomic(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
 }

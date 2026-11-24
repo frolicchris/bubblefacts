@@ -19,7 +19,7 @@ jest.mock("electron", () => ({
 }));
 
 import { checkStyleLook, readStyleFile } from "./style-file";
-import { customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { customFactsProblem, factsSaveProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -556,7 +556,8 @@ describe("the musician's facts in their own file (issue #193)", () => {
     const facts = fs.readFileSync(store, "utf8");
     expect(facts).toContain("I wrote it on a ferry.");
     expect(facts).not.toContain("secret-token");
-    const backup = JSON.parse(fs.readFileSync(path.join(dir, "own-facts.before-import.json"), "utf8"));
+    const backups = path.join(dir, "own-facts-backups");
+    const backup = JSON.parse(fs.readFileSync(path.join(backups, fs.readdirSync(backups)[0]), "utf8"));
     expect(backup).toMatchObject({ fromSettings: mine, store: null });
     expect(JSON.stringify(backup)).not.toContain("secret-token");
   });
@@ -585,7 +586,7 @@ describe("the musician's facts in their own file (issue #193)", () => {
     fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: [], myOriginals: [] }));
     expect(loadSettings()).toMatchObject(mine);
     fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Typed in the older version."], myOriginals: [] }));
-    expect(loadSettings()).toMatchObject({ myFacts: ["Typed in the older version."], myOriginals: mine.myOriginals });
+    expect(loadSettings()).toMatchObject({ myFacts: [...mine.myFacts, "Typed in the older version."], myOriginals: mine.myOriginals });
   });
 
   it("still has the facts when settings.json is unreadable", () => {
@@ -594,8 +595,87 @@ describe("the musician's facts in their own file (issue #193)", () => {
     expect(loadSettings()).toMatchObject(mine);
   });
 
-  it("normalizes what's typed the way it's stored, so the box and the file agree", () => {
-    expect(sanitize({ ...DEFAULTS, myFacts: ["  Two  spaces\there. ", "", "[ Harbor Lights ]  Mine."] }).myFacts).toEqual(["Two spaces here.", "[Harbor Lights] Mine."]);
+  // A file that can't be read: a folder in its place gives the same error a lock does, after the retries
+  const lock = () => {
+    const kept = fs.readFileSync(store, "utf8");
+    fs.rmSync(store);
+    fs.mkdirSync(store);
+    return () => {
+      fs.rmSync(store, { recursive: true });
+      fs.writeFileSync(store, kept);
+    };
+  };
+  const many = Array.from({ length: 13 }, (_, i) => `Stored fact ${i + 1}.`);
+
+  it("going forward after an older version adds its new lines to the stored ones, never replacing them", () => {
+    saveSettings({ ...DEFAULTS, myFacts: many, myOriginals: mine.myOriginals });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Stored fact 2.", "New from the older version."], myOriginals: [] }));
+    expect(loadSettings()).toMatchObject({ myFacts: [...many, "New from the older version."], myOriginals: mine.myOriginals });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Another one."] }));
+    expect(loadSettings().myFacts).toEqual([...many, "New from the older version.", "Another one."]);
+    // Each bring-in has its own backup: the first is never written over
+    expect(fs.readdirSync(path.join(dir, "own-facts-backups"))).toHaveLength(2);
+  });
+
+  it("keeps the lines in settings.json while own-facts.json can't be read, so the next start still has them", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const unlock = lock();
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Added in the older version."] }));
+    const s = loadSettings();
+    expect(s.myFacts).toEqual(["Added in the older version."]);
+    saveSettings({ ...s, displayName: "Changed" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Added in the older version."]);
+    unlock();
+    expect(loadSettings()).toMatchObject({ myFacts: [...mine.myFacts, "Added in the older version."], myOriginals: mine.myOriginals, displayName: "Changed" });
+  });
+
+  it("says so when the facts can't be saved to their file, and keeps the edit in settings.json until they can", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const s = loadSettings();
+    expect(factsSaveProblem()).toBeNull();
+    const unlock = lock();
+    saveSettings({ ...s, myFacts: [...s.myFacts, "Edited while it was locked."] });
+    expect(factsSaveProblem()).toMatch(/couldn't save your own facts/i);
+    unlock();
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "Edited while it was locked."]);
+    saveSettings(loadSettings());
+    expect(factsSaveProblem()).toBeNull();
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+  });
+
+  it("starts normally when the facts can't be moved, using the lines in settings.json", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
+    fs.writeFileSync(path.join(dir, "own-facts-backups"), "not a folder");
+    expect(() => loadSettings()).not.toThrow();
+    expect(loadSettings()).toMatchObject({ ...mine, channel: "jane" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject(mine);
+  });
+
+  it("shows the lines settings.json has when own-facts.json is broken", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    fs.writeFileSync(store, "{not json");
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
+    expect(loadSettings()).toMatchObject(mine);
+  });
+
+  it("puts in the box and the server's pack exactly what 2.3 did, for any line", () => {
+    // 2.3's rule (sanitize): each line trimmed, blanks dropped, the first 500
+    const asBefore = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
+    const varied = [
+      "[Harbor Lights]no space after the tag", "[ Spaced Tag ]  two spaces", "a  double  space", "tab\there", "  padded  ", "",
+      "100 km and 10 h", "全角　スペース", "“curly” ‘quotes’", "emoji 🎸 👩‍🎤",
+      "Café not composed", "[OnlyTag]", "[ ] empty tag", "dup", "dup", "x".repeat(320), "bell\u0007inside",
+    ];
+    const s = sanitize({ ...DEFAULTS, myFacts: varied, myOriginals: varied });
+    expect(s.myFacts).toEqual(asBefore(varied));
+    expect(s.myOriginals).toEqual(asBefore(varied));
+    saveSettings(s);
+    const back = loadSettings();
+    expect(back.myFacts).toEqual(asBefore(varied));
+    expect(back.myOriginals).toEqual(asBefore(varied));
+    const packDir = path.join(dir, "facts");
+    writeMyPack(back, packDir);
+    expect(JSON.parse(fs.readFileSync(path.join(packDir, "my-facts.json"), "utf8"))).toMatchObject({ curatedFacts: asBefore(varied), originalsFacts: asBefore(varied) });
   });
 });
 

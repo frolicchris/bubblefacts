@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import {
-  emptyStore, FACT_LENGTH, linesOf, loadOwnFacts, MAX_LINES, newId, normalizeLines, normalizeText, OWN_FACTS_BACKUP, OWN_FACTS_FILE, parseLine, readStore, saveOwnFacts, toLine, withLines,
+  BACKUPS_KEPT, emptyStore, FACT_LENGTH, linesOf, loadOwnFacts, MAX_LINES, newId, normalizeLines, normalizeText, OWN_FACTS_BACKUPS, OWN_FACTS_FILE, parseLine, readStore, saveOwnFacts, toLine, withLines,
 } from "./own-facts";
 import { customFactsProblem } from "./settings";
 
@@ -29,8 +29,8 @@ describe("normalizeText", () => {
   it("joins spaces, drops control characters and composes accents", () => {
     expect(normalizeText("  Café  del\tMar\u0007 \n")).toBe("Café del Mar");
   });
-  it("keeps emoji sequences and the quotes as typed", () => {
-    expect(normalizeText("“Hi” 👩‍🎤")).toBe("“Hi” 👩‍🎤");
+  it("straightens quotes and keeps emoji sequences", () => {
+    expect(normalizeText("“Hi” it’s 👩‍🎤")).toBe(`"Hi" it's 👩‍🎤`);
   });
   it("is the same done twice", () => {
     const once = normalizeText(" a  b ");
@@ -71,8 +71,16 @@ describe("lines to records and back", () => {
     expect(second.scope).toEqual({ type: "tag", tag: "Harbor Lights" });
     expect(first).not.toHaveProperty("expires");
   });
-  it("normalizes on the way in: the saved line is the normalized one", () => {
-    expect(normalizeLines(["  [ Harbor Lights ]   Two  spaces.", "", "x\u0000y"], "myFacts")).toEqual(["[Harbor Lights] Two spaces.", "x y"]);
+  it("normalizes a record's text, and keeps the line exactly as typed for the box and the stream", () => {
+    const typed = ["[ Harbor Lights ]Two  spaces “here”.", "x\u0007y", "Café"];
+    expect(normalizeLines(["  padded  ", "", ...typed])).toEqual(["padded", ...typed]);
+    const s = withLines(emptyStore(), { myFacts: typed, myOriginals: typed }, NOW, ids);
+    expect(s.facts[0]).toMatchObject({ text: `Two spaces "here".`, scope: { type: "tag", tag: "Harbor Lights" }, asTyped: typed[0] });
+    expect(s.facts[1]).toMatchObject({ text: "x y", asTyped: "x\u0007y" });
+    expect(s.facts[2].text).toBe("Café");
+    expect(linesOf(s)).toEqual({ myFacts: typed, myOriginals: typed });
+    // A canonical line needs no copy
+    expect(withLines(emptyStore(), { myFacts: ["[Harbor Lights] Mine."], myOriginals: [] }, NOW, ids).facts[0]).not.toHaveProperty("asTyped");
   });
 });
 
@@ -119,21 +127,50 @@ describe("what a newer version saved", () => {
 });
 
 describe("moving today's lines in", () => {
+  const backups = () => fs.readdirSync(path.join(dir, OWN_FACTS_BACKUPS)).sort();
+  const backup = (name: string) => JSON.parse(fs.readFileSync(path.join(dir, OWN_FACTS_BACKUPS, name), "utf8"));
+
   it("backs up first, then writes the store", () => {
-    const { lines: got, settingsHadFacts } = loadOwnFacts(dir, lines, NOW);
-    expect(settingsHadFacts).toBe(true);
-    expect(got).toEqual(normalizeLinesOf(lines));
-    expect(JSON.parse(fs.readFileSync(path.join(dir, OWN_FACTS_BACKUP), "utf8"))).toEqual({ savedAt: NOW, fromSettings: lines, store: null });
+    const { lines: got, moved } = loadOwnFacts(dir, lines, NOW);
+    expect(moved).toBe(true);
+    expect(got).toEqual(lines);
+    expect(backups()).toHaveLength(1);
+    expect(backup(backups()[0])).toEqual({ savedAt: NOW, fromSettings: lines, store: null });
     expect(linesOf(store())).toEqual(got);
   });
 
   it("run twice gives the same result, and the first backup stays", () => {
     loadOwnFacts(dir, lines, NOW);
     const once = fs.readFileSync(path.join(dir, OWN_FACTS_FILE), "utf8");
-    const backup = fs.readFileSync(path.join(dir, OWN_FACTS_BACKUP), "utf8");
+    const first = backups();
     loadOwnFacts(dir, lines, LATER);
     expect(fs.readFileSync(path.join(dir, OWN_FACTS_FILE), "utf8")).toBe(once);
-    expect(fs.readFileSync(path.join(dir, OWN_FACTS_BACKUP), "utf8")).toBe(backup);
+    expect(backups()).toEqual(first);
+  });
+
+  it("adds lines it doesn't have yet after the stored ones, in their order, never replacing any", () => {
+    loadOwnFacts(dir, lines, NOW);
+    const before = store().facts;
+    const { lines: got } = loadOwnFacts(dir, { myFacts: ["Newer one.", lines.myFacts[1], "Newer two."], myOriginals: [] }, LATER);
+    expect(got).toEqual({ myFacts: [...lines.myFacts, "Newer one.", "Newer two."], myOriginals: lines.myOriginals });
+    expect(store().facts.slice(0, 3)).toEqual(before.slice(0, 3));
+    // A backup for each bring-in, at the same moment too, and none written over
+    loadOwnFacts(dir, { myFacts: ["Newest."] }, LATER);
+    expect(backups()).toHaveLength(3);
+    expect(backup(backups()[0]).store).toBeNull();
+  });
+
+  it("keeps only the newest backups", () => {
+    for (let i = 0; i < BACKUPS_KEPT + 3; i++) loadOwnFacts(dir, { myFacts: [`Fact ${i}.`] }, `2026-11-${String(i + 1).padStart(2, "0")}T00:00:00.000Z`);
+    expect(backups()).toHaveLength(BACKUPS_KEPT);
+    expect(backups()[0]).toContain("2026-11-04");
+  });
+
+  it("never throws when it can't write: the lines stay where they were", () => {
+    fs.writeFileSync(path.join(dir, OWN_FACTS_BACKUPS), "not a folder");
+    const result = loadOwnFacts(dir, lines, NOW);
+    expect(result).toEqual({ lines, moved: false });
+    expect(fs.existsSync(path.join(dir, OWN_FACTS_FILE))).toBe(false);
   });
 
   it("writes nothing for someone with no facts", () => {
@@ -166,7 +203,7 @@ describe("limits", () => {
     const s = withLines(emptyStore(), { myFacts: many, myOriginals: many }, NOW, ids);
     expect(linesOf(s).myFacts).toHaveLength(MAX_LINES);
     expect(linesOf(s).myOriginals).toHaveLength(MAX_LINES);
-    expect(normalizeLines(many, "myFacts")).toHaveLength(MAX_LINES);
+    expect(normalizeLines(many)).toHaveLength(MAX_LINES);
   });
 
   it("refuses a fact over 300 characters where it's typed, and never trims one already saved", () => {
@@ -178,7 +215,3 @@ describe("limits", () => {
     expect(linesOf(withLines(emptyStore(), { myFacts: [long], myOriginals: [] }, NOW, ids)).myFacts).toEqual([long]);
   });
 });
-
-function normalizeLinesOf(l: typeof lines) {
-  return { myFacts: normalizeLines(l.myFacts, "myFacts"), myOriginals: normalizeLines(l.myOriginals, "myOriginals") };
-}
