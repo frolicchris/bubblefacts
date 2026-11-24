@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
+import { prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { MAX_BUBBLES } from "./fact-ranking";
 import { blockArticle as blockArticleForTest, blockedArticles, resetWrongFacts, songKey } from "./wrong-facts";
 import { PreparedEntry, PreparedFact, preparedStore, PREPARED_RULES_VERSION } from "./prepared-facts";
@@ -62,7 +62,7 @@ import { saveSongFacts, setFactsOff } from "./song-facts";
 import { loadSession, remainingFacts, saveSession } from "./session";
 import { Fact } from "./types";
 import { BoxSubject } from "./infobox";
-import { fetchGrounding } from "./fact-verifier";
+import { copiesExample, fetchGrounding } from "./fact-verifier";
 import { articleItem, artistFacts, wikidataFacts } from "./wikidata";
 import { artistGoodFacts } from "./artist-good";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
@@ -130,6 +130,21 @@ describe("generateFacts", () => {
     const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
     expect(first.length).toBeGreaterThan(0);
     expect(second.filter((t) => first.includes(t))).toEqual([]);
+  });
+
+  it("doesn't repeat a fact another song showed while this one waited for its data facts (issue #226)", async () => {
+    // Song One's Wikidata lookup is still out when its AI answers; Song Two is written and shown meanwhile
+    withArticle("Same Artist");
+    let lookupDone: (facts: string[]) => void = () => undefined;
+    (wikidataFacts as jest.Mock).mockImplementationOnce(() => new Promise<string[]>((resolve) => (lookupDone = resolve)));
+    const first = generateFacts({ title: "Song One", artist: "Same Artist" });
+    while (!mockCreate.mock.calls.length) await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
+    lookupDone([]);
+    const firstTexts = (await first).map((f) => f.text);
+    expect(second.length).toBeGreaterThan(0);
+    expect(firstTexts.filter((t) => second.includes(t))).toEqual([]);
   });
 
   it("looks nothing up for a fellow streamer's piece: the artist is a handle", async () => {
@@ -1161,14 +1176,14 @@ describe("Wrong decides what to block from the fact's own label (audit)", () => 
 describe("copiesExample", () => {
   it("catches the examples' wording when the reference doesn't have it", () => {
     const ref = "Mara Quinn composed the score in 2011. The album reached number 4 in Canada.";
-    expect(copiesExample("Mara Quinn said the band wanted the chorus to sound like a storm.", ref)).toBe(true);
-    expect(copiesExample("The album reached number 9 on the Oricon chart.", ref)).toBe(true);
+    expect(copiesExample("Mara Quinn said the band wanted the chorus to sound like a storm.", ref, RETELL_EXAMPLES)).toBe(true);
+    expect(copiesExample("The album reached number 9 on the Oricon chart.", ref, RETELL_EXAMPLES)).toBe(true);
   });
 
   it("lets through common wording and wording the reference has", () => {
-    expect(copiesExample("The band's lyrics are about loss and distance.", "Its lyrics are about loss and distance.")).toBe(false);
-    expect(copiesExample("Lee wanted the chorus to sound like a storm.", "Lee said she wanted the chorus to sound like a storm at sea.")).toBe(false);
-    expect(copiesExample("The album reached number 4 in Canada.", "The album reached number 4 in Canada.")).toBe(false);
+    expect(copiesExample("The band's lyrics are about loss and distance.", "Its lyrics are about loss and distance.", RETELL_EXAMPLES)).toBe(false);
+    expect(copiesExample("Lee wanted the chorus to sound like a storm.", "Lee said she wanted the chorus to sound like a storm at sea.", RETELL_EXAMPLES)).toBe(false);
+    expect(copiesExample("The album reached number 4 in Canada.", "The album reached number 4 in Canada.", RETELL_EXAMPLES)).toBe(false);
   });
 });
 

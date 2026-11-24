@@ -2,29 +2,15 @@
 // the rules each check one; points decide sure, data-only or abstain (ARCHITECTURE.md: the scored match).
 // Pure, no I/O: the caller passes in what the pipeline fetched
 import { SSLSong } from "./types";
-import type { WorkMatch } from "./fact-verifier";
-import {
-  describedKind,
-  editDistance,
-  isConcertFilm,
-  isInitials,
-  isPerformerArticle,
-  isPieceArticle,
-  isRespelling,
-  mentionsName,
-  namesLoosely,
-  namesPiece,
-  normalizeTitle,
-  numeralStyleDiffers,
-  openingSays,
-  parseClassicalTitle,
-  qualifierNamesAnotherArtist,
-  resolveGameAndTrack,
-  themeOf,
-  workFromTitle,
-  artistNames,
-} from "./fact-verifier";
-import { qualifierOf, withoutQualifier } from "./grounding/relevance";
+import { editDistance } from "./text";
+import { artistNames, mentionsName, normalizeTitle, parseClassicalTitle, resolveGameAndTrack } from "./grounding/titles";
+import { isInitials, namesLoosely, numeralStyleDiffers, qualifierNamesAnotherArtist, qualifierOf, withoutQualifier } from "./grounding/relevance";
+import { describedKind, namesPiece } from "./grounding/summary";
+import { isPieceArticle, openingSays } from "./grounding/covers";
+import { isRespelling, workFromTitle } from "./grounding/readings";
+import { isPerformerArticle, type WorkMatch } from "./grounding/work-match";
+import { isConcertFilm } from "./grounding/performer-name";
+import { themeOf } from "./grounding/theme";
 import { PLATFORM_TAG } from "./infobox";
 
 /** What the artist field names: who sings it, who wrote it, the work it's from, or unknown */

@@ -2,7 +2,8 @@ jest.mock("./config", () => ({ config: { topic: "general" } }));
 
 import { readFileSync } from "fs";
 import { join } from "path";
-import { screenClaims } from "./fact-verifier";
+import { screenCaptions } from "./fact-verifier";
+import { RETELL_EXAMPLES } from "./fact-generator";
 import { NOT_FOR_STREAM, RISKY_PATTERNS } from "./screening/names";
 import { escapeRe } from "./text";
 
@@ -31,8 +32,12 @@ describe("the caption corpus", () => {
     // "cites": the sentence number the model wrote before the caption; "before" and "after": a caption screened in the same batch.
     const cited = c.cites !== undefined;
     const lines = [c.before, cited ? `${c.cites} | ${c.caption}` : c.caption, c.after].filter((l): l is string => Boolean(l));
-    const { kept, rejected } = screenClaims(lines, c.source, { track: c.track, artists: c.artists, otherParts: c.otherParts, cited });
-    const got = kept.includes(c.caption) ? "keep" : rejected.find((r) => r.text === c.caption)?.reason;
+    // Every drop the stream makes, as the stream makes it. The request: "track" as a track on the article's
+    // work ("Some Game - Track", the article not the song's own), "artists" as its artist; no earlier facts
+    const work = c.source.split("\n")[0].replace(/\s*\([^)]*\)$/, "");
+    const read = { title: c.track ? `${work} - ${c.track}` : "", artist: (c.artists ?? []).join(" & ") };
+    const { kept, dropped } = screenCaptions({ lines, context: c.source, song: read, read, otherParts: c.otherParts ?? [], cited, examples: RETELL_EXAMPLES, recent: [] });
+    const got = kept.some((k) => k.text === c.caption) ? "keep" : dropped.find((d) => d.caption === c.caption)?.reason;
     return { ...c, got, want: c.expect === "keep" ? "keep" : c.reason };
   });
 
