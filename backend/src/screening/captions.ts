@@ -6,7 +6,6 @@ import { aboutAnotherWork, type RequestProfile, type WorkKind } from "../work-re
 import { artistNames, mentionsName, normalizeTitle, resolveGameAndTrack } from "../grounding/titles";
 import { keepsAttribution } from "../grounding/sections";
 import { articleText } from "../grounding/covers";
-import { otherParts } from "../grounding/summary";
 import { isPerformerArticle } from "../grounding/work-match";
 import { explainMusicTerms, restatesRequest, tooSimilar } from "./similarity";
 import { qualifierRepair, repairQualifier, repairScope, scopeRepair } from "./repair";
@@ -31,6 +30,8 @@ export type CaptionCheck = {
   song: SSLSong;
   /** The reading of the song that found the article: its track and artist */
   read: SSLSong;
+  /** The soundtrack's other parts, from the whole article (`otherParts`): a caption about one is dropped */
+  otherParts: string[];
   /** The captions cite their sentence ("3 | ...") */
   cited: boolean;
   /** The prompt's worked examples (`RETELL_EXAMPLES`): a caption copying their wording is dropped */
@@ -112,7 +113,7 @@ export function screenCaptions(check: CaptionCheck): ScreenedCaptions {
     return false;
   });
 
-  const { kept, rejected, sources } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited: check.cited, artists: artistNames(read.artist ?? "") });
+  const { kept, rejected, sources } = screenClaims(lines, context, { otherParts: check.otherParts, track: aboutTheSong(read, context) ? undefined : track, cited: check.cited, artists: artistNames(read.artist ?? "") });
   // Reason only, never the words: logs mustn't spread what was held back (#242, #262)
   for (const r of rejected) {
     log(`[Screen] DROP (${r.reason})`, "claims");

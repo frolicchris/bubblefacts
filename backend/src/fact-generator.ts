@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenCaptions, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
+import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenCaptions, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
 import type { Caption } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
@@ -1041,6 +1041,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     context,
     song,
     read,
+    otherParts: otherParts(context, track),
     cited: Boolean(context) && citesSentences(),
     examples: RETELL_EXAMPLES,
     recent: recentList(),
