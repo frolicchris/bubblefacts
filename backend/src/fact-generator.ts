@@ -93,8 +93,8 @@ function clearOfBanner(p: Fact["position"]): Fact["position"] {
 
 /** The area's spots in order of use. `banner`: Now Playing or LIVE LEARN shows, so no spot reaches it */
 export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> => {
-  const spots = AREAS[area] ?? POSITIONS;
-  return banner ? spots.map(clearOfBanner) : spots;
+  const inArea = AREAS[area] ?? POSITIONS;
+  return banner ? inArea.map(clearOfBanner) : inArea;
 };
 /** Vertical safe area, % per edge, clear of phone apps' buttons and chat; mirrored in obs-overlay.css */
 export const VERTICAL_SAFE = { top: 14, bottom: 38, left: 6, right: 12 } as const;
@@ -1067,7 +1067,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     console.log("[Screen] DROP (copies an example)");
     return false;
   });
-  const songFacts = await dataFacts;
+  // Wikidata and MusicBrainz facts, read beside the AI
+  const fromData = await dataFacts;
   // A cover on the original's article: only songwriter infobox facts hold
   const allBox = await boxLookup;
   // An infobox naming another artist is their record, even if the article never names this one
@@ -1116,7 +1117,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Fixed plain words for music terms
   const plain = new Map(fresh.map((f) => [f, explainMusicTerms(repaired.get(f) as string)]));
   // Song's data facts, then the infobox's: at most dataRoom, none a caption already says; early ones stay as sent
-  const aboutSong = songFacts.filter((f) => !artistSentences.has(f));
+  const aboutSong = fromData.filter((f) => !artistSentences.has(f));
   const candidates = [...(early.length ? [] : rankedData(aboutSong, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
   const structured: string[] = early.map((f) => f.text);
   for (const c of candidates) {
@@ -1130,7 +1131,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     }
   }
   // Artist fact beyond dataRoom: never displaces a song fact
-  const artistFact = songFacts.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), fresh));
+  const artistFact = fromData.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), fresh));
   if (artistFact) structured.push(artistFact);
   // A spare replaces a line that only repeats title and artist
   const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
