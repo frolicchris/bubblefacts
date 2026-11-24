@@ -118,12 +118,13 @@ server, a song source or anything that shows or shares a fact.
 | `grounding/performer-name.ts` | A performer's name shared with a film or a book. |
 | `grounding/theme.ts` | "Some Name Theme": the article of what the theme is named for. |
 | `grounding/lookup.ts` | `fetchGrounding`: the grounding entry point. |
+| `grounding/reference.ts` | `resolveReference`: which article a song's captions are written from, and how sure it is the requested work (`findReference`, then `howSure`), with the reason it's unsure. The stream calls the two steps apart, at the moments it always has. |
 | `screening/captions.ts` | `screenCaptions`: whether each of the AI's captions shows. Every drop between the answer and the ranking, with its reason. |
 
 New to the fact checking? Start with `screenClaims` in `screening/screen.ts`
 (what makes a caption pass), then `screenCaptions` in `screening/captions.ts`
-(every other reason a caption doesn't show) and `fetchGrounding` in `grounding/lookup.ts` (how the article is chosen),
-then `generateRest` in `fact-generator.ts`, which ties them together.
+(every other reason a caption doesn't show), `fetchGrounding` in `grounding/lookup.ts` (how an article is found)
+and `resolveReference` in `grounding/reference.ts` (which one is used, and how sure), then `generateRest` in `fact-generator.ts`, which ties them together.
 
 ### The desktop app
 

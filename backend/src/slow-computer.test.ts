@@ -31,10 +31,11 @@ jest.mock("./musicbrainz", () => ({
   statesAlbum: () => false,
   withoutYear: (l: string[]) => l,
 }));
+// Which article, and how sure: grounding/reference.ts calls these from the files that own them
+jest.mock("./grounding/lookup", () => ({ ...jest.requireActual("./grounding/lookup"), fetchGrounding: jest.fn().mockResolvedValue("") }));
+jest.mock("./grounding/summary", () => ({ ...jest.requireActual("./grounding/summary"), summaryGate: jest.fn().mockResolvedValue("") }));
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
-  fetchGrounding: jest.fn().mockResolvedValue(""),
-  summaryGate: jest.fn().mockResolvedValue(""),
   loadWikitext: jest.fn().mockResolvedValue(""),
 }));
 
