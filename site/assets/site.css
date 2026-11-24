@@ -874,6 +874,10 @@ td {
     content: "What to do: ";
     color: #ffffff;
   }
+  /* Another table's own column names (mark-played.html) */
+  .stack-phone td[data-label]::before {
+    content: attr(data-label) ": ";
+  }
 }
 
 /* ---------- Privacy ---------- */

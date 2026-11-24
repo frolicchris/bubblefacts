@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Move your song list on: BubbleFacts</title>
+  <meta name="description" content="How a mod or a stream bot moves your song list on to the next song, for StreamerSongList, StreamElements, Nightbot, Streamling and now playing files, so BubbleFacts follows without you reaching for the mouse.">
+  <link rel="canonical" href="https://bubblefacts.frolic.org/mark-played.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <meta name="theme-color" content="#07071a">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="BubbleFacts">
+  <meta property="og:title" content="Move your song list on without the mouse">
+  <meta property="og:description" content="How a mod or a stream bot moves your song list on to the next song, for StreamerSongList, StreamElements, Nightbot, Streamling and now playing files, so BubbleFacts follows without you reaching for the mouse.">
+  <meta property="og:url" content="https://bubblefacts.frolic.org/mark-played.html">
+  <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="stylesheet" href="assets/site.css?v=2edc2eb89e">
+  <script src="assets/site.js?v=a8efb41114" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="32" height="32"><span>Bubble<span class="brand-accent">Facts</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="./">Home</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="guide.html">Setup guide</a></li>
+          <li><a href="requirements.html">Requirements</a></li>
+          <li><a href="support.html">Help</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="section" aria-labelledby="mark-played">
+      <div class="wrap narrow">
+        <p class="eyebrow">Song sources</p>
+        <h1 id="mark-played">Move your song list on without the mouse</h1>
+        <p class="section-intro">BubbleFacts follows your song list and never changes it. So when a song ends, your song list has to move on to the next song, and BubbleFacts follows. Hands on your instrument? Most song lists have a chat command, so a mod or a stream bot can do it for you.</p>
+
+        <h2 id="by-source">The command for each song source</h2>
+        <div class="table-wrap">
+          <table class="stack-phone">
+            <caption class="visually-hidden">How to move on to the next song, for each song source</caption>
+            <thead>
+              <tr><th scope="col">Song source</th><th scope="col">Chat command</th><th scope="col">Who can use it</th><th scope="col">Or click</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">StreamerSongList</th>
+                <td data-label="Chat command"><code>!setPlayed</code> (your list may also take <code>!done</code>). It marks the song that's playing now as played.</td>
+                <td data-label="Who can use it">You. Whether your mods can is set in StreamerSongList; its public pages don't say who can by default.</td>
+                <td data-label="Or click">Mark the song played on your queue at streamersonglist.com.</td>
+              </tr>
+              <tr>
+                <th scope="row">StreamElements Media Request</th>
+                <td data-label="Chat command"><code>!skip</code>. It skips the song that's playing now.</td>
+                <td data-label="Who can use it">You and your mods, unless you changed it.</td>
+                <td data-label="Or click">The Media Request player on your StreamElements dashboard.</td>
+              </tr>
+              <tr>
+                <th scope="row">Nightbot song requests</th>
+                <td data-label="Chat command"><code>!songs skip</code>. It skips the song that's playing now.</td>
+                <td data-label="Who can use it">You and your mods, unless you changed it.</td>
+                <td data-label="Or click">The player on Nightbot's Song Requests page, or the Fast Forward media key while Nightbot's desktop app runs.</td>
+              </tr>
+              <tr>
+                <th scope="row">Streamling</th>
+                <td data-label="Chat command">None. Streamling shows what your music player is playing.</td>
+                <td data-label="Who can use it">Whoever controls your music player.</td>
+                <td data-label="Or click">Skip to the next song in your music player.</td>
+              </tr>
+              <tr>
+                <th scope="row">What's Now Playing, or another app's file</th>
+                <td data-label="Chat command">None. The file changes when the app that writes it moves on.</td>
+                <td data-label="Who can use it">Whoever controls that app.</td>
+                <td data-label="Or click">Play the next track in your DJ software or music app.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="let-a-mod">Let a mod move it on</h2>
+        <ol>
+          <li>Find your song source in the table above.</li>
+          <li>Check that the command is turned on and that your mods may use it:
+            <ul>
+              <li><strong>StreamerSongList:</strong> sign in at <a href="https://streamersonglist.com">streamersonglist.com</a> and look through your commands for <span class="ui">Marks the current now-playing song as played</span>. It lists the names it answers to. Viewers see the same list at <code>streamersonglist.com/t/<var>your channel</var>/commands</code>.</li>
+              <li><strong>StreamElements:</strong> on your StreamElements dashboard, go to <span class="ui">Chatbot</span>, then <span class="ui">Chat Commands</span>, then <span class="ui">Default Commands</span>, and find <code>!skip</code>.</li>
+              <li><strong>Nightbot:</strong> in Nightbot's control panel, open the default commands page and find <code>!songs</code>. Its options button sets who may use it.</li>
+            </ul>
+          </li>
+          <li>Tell your mods the command, and when to use it: once you've clearly moved on to the next song.</li>
+          <li>Try it once before you go live. Start a song, have a mod send the command in chat, and watch <span class="ui">On stream now</span> on the BubbleFacts dashboard change to the next song.</li>
+        </ol>
+
+        <h2 id="bot">Let a stream bot do it</h2>
+        <p>A stream bot, or a button set up to post in your chat, can send the same command. Your song list treats it like anyone else's message:</p>
+        <ul>
+          <li>If it posts as your own account, the command counts as yours.</li>
+          <li>If it posts as its own account, that account needs a mod's rights. Make it a mod in your channel.</li>
+        </ul>
+        <p>Streamling and now playing files have no chat command. There, a bot can only help if it can control your music player or DJ software.</p>
+
+        <h2 id="forgot">If nobody moves it on</h2>
+        <p>BubbleFacts notices. When your song list shows the same song for a long time (10 minutes, unless you change it), BubbleFacts stops that song's bubbles and tells any app you <a href="guide.html#share-facts">share facts with</a> that the song may have changed. Both start again by themselves with your next song. Play long medleys? Open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and raise <span class="ui">Take a song as over after (minutes)</span>. It goes from 5 to 60.</p>
+        <p>A now playing file that hasn't changed in 15 minutes counts as no song playing.</p>
+
+        <h2 id="help">Where these commands come from</h2>
+        <p>Song lists change their commands from time to time. If one here doesn't work, check that song list's own help:</p>
+        <ul>
+          <li>StreamerSongList: the commands list for your channel at streamersonglist.com</li>
+          <li>StreamElements: <a href="https://docs.streamelements.com/chatbot/commands/default/skip">the !skip command</a> and <a href="https://docs.streamelements.com/chatbot/modules/songrequest">the song request commands</a></li>
+          <li>Nightbot: <a href="https://docs.nightbot.tv/commands/songs">the !songs command</a>, <a href="https://docs.nightbot.tv/control-panel/commands">default commands</a> and <a href="https://docs.nightbot.tv/app">the Nightbot app</a></li>
+        </ul>
+        <p>Set up a song source: <a href="streamersonglist.html">StreamerSongList</a>, <a href="streamelements.html">StreamElements</a>, <a href="nightbot.html">Nightbot</a>, <a href="streamling.html">Streamling</a> or <a href="now-playing-file.html">a now playing file</a>. Every step: <a href="guide.html#song-list">the full setup guide</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Site">
+      <ul class="footer-links">
+        <li><a href="https://github.com/frolicchris/bubblefacts">GitHub</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="guide.html">Setup guide</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="requirements.html">System requirements</a></li>
+        <li><a href="changelog.html">What's new</a></li>
+        <li><a href="uninstall.html">Uninstall</a></li>
+        <li><a href="support.html">Help and support</a></li>
+        <li><a href="https://discord.gg/3YS3eWkWrW">Ask in the BubbleFacts Discord community</a></li>
+        <li><a href="mailto:bubblefacts@frolic.org">Email BubbleFacts</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="credits.html">Credits and licenses</a></li>
+        <li><a href="https://github.com/frolicchris/bubblefacts/blob/HEAD/LICENSE">MIT license</a></li>
+      </ul>
+      </nav>
+      <p>Built with Llama. The built-in AI is Meta's Llama 3.2, used under the <a href="https://www.llama.com/llama3_2/license/">Llama 3.2 Community License</a>, or with Larger AI, Meta's Llama 3.1, used under the <a href="https://www.llama.com/llama3_1/license/">Llama 3.1 Community License</a>.</p>
+      <p>Facts are rewritten from <a href="https://www.wikipedia.org">Wikipedia</a>, whose text is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.</p>
+      <p>Written with <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding agent. BubbleFacts is not affiliated with or endorsed by any of the apps and services it works with.</p>
+    </div>
+  </footer>
+</body>
+</html>
