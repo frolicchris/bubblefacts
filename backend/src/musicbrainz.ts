@@ -1,7 +1,7 @@
 import { config } from "./config";
 import { MAX_CONTEXT_CHARS, MAX_FACT_CHARS, MIN_CONTEXT_CHARS } from "./fact-limits";
 import { isPieceArticle, openingSays } from "./grounding/covers";
-import { initialsDiffer, isInitials, looksLikeArtistName } from "./grounding/relevance";
+import { initialsDiffer, isInitials, looksLikeArtistName, qualifierOf, withoutQualifier } from "./grounding/relevance";
 import { artistNames, foldSymbols, mentionsName, normalizeTitle, resolveGameAndTrack } from "./grounding/titles";
 import { orderExtract, ownArticleExtract, USER_AGENT, wikiExtract } from "./grounding/wikipedia";
 import { editDistance, hasNoArtist } from "./text";
@@ -530,7 +530,6 @@ async function songItem(recordings: Recording[]): Promise<{ page: string; perfor
 }
 
 const leadOf = (full: string) => full.split(/\n==/)[0].slice(0, 1500);
-const withoutQualifier = (page: string) => page.replace(/\s*\([^)]*\)\s*$/, "");
 
 /** Whether the article's opening says one of `names` wrote the song: "written by Siedah Garrett and Glen Ballard" */
 function wroteIt(full: string, names: string[]): boolean {
@@ -563,7 +562,7 @@ const NOT_AN_ACT = /\b(film|movie|television|TV|series|show|album|EP|song|single
  * `description` (Wikidata's) stands in when the content standard dropped the opening ("a Cuban-American musician")
  */
 export function artistPageFit(page: string, full: string, artists: string[], description = ""): { ok: boolean; why?: string } {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   const what = openingSays(full) || description;
   if ((qualifier && !AN_ACT.test(qualifier)) || !AN_ACT.test(what) || NOT_AN_ACT.test(what)) return { ok: false, why: "doesn't open like a performer's article" };
   const base = withoutQualifier(page);
