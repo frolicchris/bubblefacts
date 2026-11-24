@@ -286,7 +286,47 @@ describe("the vertical overlay (issue #175)", () => {
     const o = overlay();
     o.send({ type: "facts_ready", song: o.song, facts: [{ ...o.fact("Wide.", landscape), vertical }] });
     o.run();
-    expect(o.spots["Wide."]).toMatchObject(landscape);
+    // The landscape spot, with its left side kept clear of the right edge (issue #556)
+    expect(o.spots["Wide."]).toMatchObject({ top: "8%", left: "min(33%, calc(100% - 3% - var(--bubble-max-width)))" });
+  });
+});
+
+describe("a left spot at a bigger Bubble size (issue #556)", () => {
+  const css = fs.readFileSync(path.resolve(__dirname, "../../frontend/obs/obs-overlay.css"), "utf8");
+  /** --bubble-max-width as a share of the page height at Bubble size 1, from the stylesheet */
+  const widest = Number(/--bubble-max-width: calc\(([\d.]+) \* var\(--fit-unit\) \* var\(--bf-scale\)\)/.exec(css)?.[1]);
+  /** Where a bubble's left side lands on a 1920x1080 page, as the browser works out `min(left, calc(100% - 3% - widest))` */
+  const leftPx = (left: number, scale: number) => Math.min(left * 1920, 0.97 * 1920 - widest * 10.8 * scale);
+
+  it("caps a landscape left spot so a bubble at its widest ends 3% from the right edge", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Right side.", { top: "8%", left: "66%" })] });
+    o.run();
+    expect(o.spots["Right side."]).toMatchObject({ top: "8%", left: "min(66%, calc(100% - 3% - var(--bubble-max-width)))" });
+  });
+
+  it("leaves right-hand and vertical spots as they were", () => {
+    const o = overlay();
+    o.send({ type: "facts_ready", song: o.song, facts: [o.fact("Corner.", { top: "6%", right: "3%" })] });
+    o.run();
+    expect(o.spots["Corner."]).toMatchObject({ top: "6%", right: "3%" });
+    expect(o.spots["Corner."].left).toBeUndefined();
+    const v = overlay("vertical");
+    v.send({ type: "facts_ready", song: v.song, facts: [{ ...v.fact("Tall.", { top: "8%", left: "66%" }), vertical: { top: "15%", left: "9%" } }] });
+    v.run();
+    expect(v.spots["Tall."]).toMatchObject({ top: "15%", left: "9%" });
+  });
+
+  it("doesn't move the 66% spot at Standard, and keeps Large, Larger and the biggest size on the page", () => {
+    expect(widest).toBeGreaterThan(0);
+    // Standard: 66% + 560px ends at 95%, inside the margin, so the spot stays at 66%
+    expect(leftPx(0.66, 1)).toBeCloseTo(0.66 * 1920);
+    // Large (1.25), Larger (1.5) and MAX_SCALE (3): the widest bubble ends 3% from the edge, and starts on the page
+    for (const scale of [1.25, 1.5, 3]) {
+      const left = leftPx(0.66, scale);
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(left + widest * 10.8 * scale).toBeLessThanOrEqual(0.97 * 1920 + 0.01);
+    }
   });
 });
 

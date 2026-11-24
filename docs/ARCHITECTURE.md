@@ -2194,6 +2194,14 @@ BubbleFacts data** deletes all of them.
   shape, for the reason above: OBS shares one source between canvases, and a
   streamer may squeeze it on purpose. Without a size, or at 16:9 and 9:16,
   nothing changes.
+- **A left spot never runs a big bubble off the right edge** (issue #556).
+  The spots' `left` <= 66% limit was set for Standard: 66% plus the widest
+  Standard bubble (560px on 1920x1080) ends at 95%. Bubble size scales the
+  widest bubble (840px at Larger) but not the spot, so a long fact ran to the
+  edge and was cut off. On the landscape overlay a left spot is drawn as
+  `min(spot, calc(100% - 3% - var(--bubble-max-width)))`: the bubble at its
+  widest ends 3% from the right edge, the margin the right-hand spots use.
+  At Standard the 66% spot doesn't move. The vertical overlay is unchanged.
 - **Styles are custom properties, switched live** (issue #177). The look
   (colors, font, corners, the Now Playing bubble's) is a set of `--bf-*`
   properties in `obs-overlay.css`: Classic's on `:where(:root)`, each other
