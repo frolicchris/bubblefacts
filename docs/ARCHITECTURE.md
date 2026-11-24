@@ -118,7 +118,7 @@ server, a song source or anything that shows or shares a fact.
 | `grounding/performer-name.ts` | A performer's name shared with a film or a book. |
 | `grounding/theme.ts` | "Some Name Theme": the article of what the theme is named for. |
 | `grounding/lookup.ts` | `fetchGrounding`: the grounding entry point. |
-| `grounding/reference.ts` | `resolveReference`: which article a song's captions are written from, and how sure it is the requested work (`findReference`, then `howSure`), with the reason it's unsure. The stream calls the two steps apart, at the moments it always has. |
+| `grounding/reference.ts` | `resolveReference`: which article a song's captions are written from, and how sure it is the requested work (`findReference`, then `howSure`), with the reason it's unsure. The stream calls the two steps apart, at the moments it always has; the song list check (`scripts/check-song-list.mjs`) and the Wrong replay call `resolveReference`, so their article counts are the stream's. |
 | `screening/captions.ts` | `screenCaptions`: whether each of the AI's captions shows. Every drop between the answer and the ranking, with its reason. |
 
 New to the fact checking? Start with `screenClaims` in `screening/screen.ts`
@@ -476,8 +476,9 @@ sign-ins and the built-in AI. Its design decisions are in
    self-test (`/control/selftest`), the caption corpus
    (`caption-corpus.test.ts`) and the Wrong replay (`scripts/wrong-cases.mjs`)
    call `screenCaptions`, which runs both, so they see every drop the stream
-   makes. The replay still reads the song as requested, with no scored match
-   and no facts shown before it.
+   makes. The replay picks the article as the stream does (`resolveReference`),
+   so a caption from an article the stream is now unsure of passes; it still
+   screens with no facts shown before it.
    **Choose and order.** `rankFacts` decides which of the captions left, and
    of the song's data facts, are shown, and in what order: at most four (see
    [Which bubbles a song shows](#which-bubbles-a-song-shows)).
