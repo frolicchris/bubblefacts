@@ -202,7 +202,7 @@ top of `frontend/obs/obs-overlay.css`; for colors, see [The look](#the-look).
 
 `VERTICAL_AREA` (`top` or `above-chat`; default `top`) is where bubbles go in
 the vertical overlay, `frontend/obs/obs-overlay-vertical.html`, a 1080x1920
-Browser source for Twitch Dual Format, TikTok, YouTube Shorts and Instagram Live. It has one spot
+Browser source (or the size in `VERTICAL_CANVAS_SIZE`) for Twitch Dual Format, TikTok, YouTube Shorts and Instagram Live. It has one spot
 in each case, inside the part of the screen those apps leave clear of their
 own buttons and chat (`VERTICAL_SAFE` in `backend/src/fact-generator.ts`). Its
 bubble size is `BUBBLE_VERTICAL_SCALE` (see [The look](#the-look)), apart from
@@ -217,6 +217,8 @@ bubble size is `BUBBLE_VERTICAL_SCALE` (see [The look](#the-look)), apart from
 | `BUBBLE_ACCENT` | (empty) | Your own accent color for the border and the Now Playing label, written `#rrggbb` (like `#ff8800`). Used only together with `BUBBLE_BACKGROUND`. |
 | `BUBBLE_SCALE` | (empty) | Bubble size on the landscape overlay, from `0.5` to `3` (the app's Standard, Large and Larger are `1`, `1.25` and `1.5`). Empty, or a size outside that range, keeps the size written in `obs-overlay.css`. The app sends a new size live, with no Refresh in OBS. |
 | `BUBBLE_VERTICAL_SCALE` | (empty) | The same for the vertical overlay (the app's sizes there are `1`, `1.15` and `1.3`). |
+| `CANVAS_SIZE` | (empty) | Your OBS canvas, as width x height, like `1440x1080` (in OBS: **Settings**, then **Video**, **Base (Canvas) Resolution**). Empty means `1920x1080`. On a canvas narrower than 16:9, like 4:3 or 16:10, bubbles and text size to its width, so none run off the right edge. Whole numbers from 480 to 7680, at least as wide as tall, the long side at most 4 times the short one; anything else is ignored, with a `[Config]` line in the log. Set the overlay's Browser source to the same size. |
+| `VERTICAL_CANVAS_SIZE` | (empty) | The same for the vertical overlay, like `1080x1350`. Empty means `1080x1920`. It must be taller than wide. On a canvas wider than 9:16, text sizes to its height. When the vertical overlay finds itself in a wide source, the note it shows asks for this size. |
 | `BUBBLE_STYLE_FILE` | (empty) | An imported Style: the whole text of a Style file ([docs/DESIGN.md](DESIGN.md#style-files)) on one line. The app sets it from **Import a Style…** or a Style file picked in the Style list. One that fails a check is named in the log, and the Style shows instead. |
 | `BUBBLE_BACKGROUND` | (empty) | Your own background color, written `#rrggbb`. The text color is chosen for you, light or dark, so it always reads at WCAG AA contrast (4.5:1). The accent colors the Now Playing label only when it reads that well on the background; otherwise the label uses the text color. |
 
