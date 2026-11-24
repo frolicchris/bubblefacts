@@ -9,7 +9,8 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { newerRelease, Release, testSharing, testSongList, testStreamElements } from "./checks";
 import { assetName, downloadUpdate, startInstall } from "./updater";
-import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady, Progress } from "./model";
+import { MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady } from "./model";
+import { modelDownloader } from "./model-download";
 import { installOverlay, OVERLAY_FILE, VERTICAL_OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
@@ -76,10 +77,6 @@ let builtinFailed = false;
 let update: Release | null = null;
 /** The in-app update: idle, downloading, checked and ready, or failed (then the download page is offered) */
 let updating: { stage: "idle" | "downloading" | "ready" | "failed"; progress: number; file: string; error: string } = { stage: "idle", progress: 0, file: "", error: "" };
-let download: AbortController | null = null;
-let modelDownload: (Progress & { error?: string }) | null = null;
-let downloadRetry: NodeJS.Timeout | null = null;
-let downloadFailures = 0;
 let signingIn: AbortController | null = null;
 let signInExpired = false;
 let refreshTimer: NodeJS.Timeout | null = null;
@@ -177,7 +174,7 @@ function state() {
     signInExpired,
     songListDown,
     unlocking: secretsWaiting(),
-    modelDownload,
+    modelDownload: aiDownload.progress(),
     status: supervisor.status,
     overlayPath: overlayFile(),
     verticalOverlayPath: overlayFile(true),
@@ -288,46 +285,17 @@ supervisor.on("builtin-failed", () => {
 
 // --- The built-in AI's download ---
 
-/** Download the AI in the background whenever it's chosen and missing, retrying on its own */
-async function ensureModel(): Promise<void> {
-  if (settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
-  if (downloadRetry) clearTimeout(downloadRetry);
-  downloadRetry = null;
-  download = new AbortController();
-  const model = chosenModel();
-  const progress = (p: Progress) => {
-    modelDownload = p;
-    send("model-progress", p);
-  };
-  try {
-    progress({ received: 0, total: model.bytes, phase: "downloading" });
-    await downloadModel(DIRS.models, progress, download.signal, model);
-    downloadFailures = 0;
-    modelDownload = null;
-    startServer();
-  } catch (err) {
-    if (download.signal.aborted) return;
-    downloadFailures++;
-    const wait = Math.min(30_000 * downloadFailures, 5 * 60_000);
-    const reason = shown("AI download", err, { fallback: "The download stopped. BubbleFacts tries again on its own." });
-    modelDownload = { ...(modelDownload ?? { received: 0, total: model.bytes, phase: "downloading" }), error: reason };
-    send("model-progress", modelDownload);
-    if (!(err instanceof ChecksumMismatch)) downloadRetry = setTimeout(() => void ensureModel(), wait);
-  } finally {
-    const stopped = download?.signal.aborted;
-    download = null;
-    send("state", state());
-    // Stopped by a switch away and back, or to the other quality: pick up the chosen one
-    if (stopped && !quitting && settings.ai === "builtin") void ensureModel();
-  }
-}
-
-function stopModelDownload(): void {
-  download?.abort();
-  if (downloadRetry) clearTimeout(downloadRetry);
-  downloadRetry = null;
-  modelDownload = null;
-}
+/** The built-in AI's download in the background (model-download.ts), retrying on its own */
+const aiDownload = modelDownloader({
+  modelsDir: DIRS.models,
+  wanted: () => settings.ai === "builtin",
+  chosen: chosenModel,
+  quitting: () => quitting,
+  progress: (p) => send("model-progress", p),
+  ready: () => startServer(),
+  changed: () => send("state", state()),
+  shown,
+});
 
 // --- The musician's own Ollama ---
 
@@ -831,10 +799,10 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   wrongKey.use(settings.wrongKey);
   if (newSignIn) signInExpired = false;
   if (changes.token) scheduleRefresh(); // stops refreshing the replaced sign-in
-  // Stop the old quality's download; ensureModel starts the chosen one
-  if (qualityChanged) stopModelDownload();
-  if (settings.ai === "builtin") void ensureModel();
-  else stopModelDownload();
+  // Stop the old quality's download; ensure() starts the chosen one
+  if (qualityChanged) aiDownload.stop();
+  if (settings.ai === "builtin") void aiDownload.ensure();
+  else aiDownload.stop();
   void ensureOllamaModel();
   startServer(newSignIn);
   // A new look or size goes to the running server, which changes every overlay: no restart, no Refresh in OBS
@@ -1048,7 +1016,7 @@ handle("remove-data", async () => {
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
   quitting = true;
-  download?.abort();
+  aiDownload.abort();
   supervisor.stop();
   if (refreshTimer) clearTimeout(refreshTimer);
   await revoke(settings.refreshToken);
@@ -1063,8 +1031,7 @@ handle("remove-data", async () => {
 });
 
 handle("download-model", () => {
-  downloadFailures = 0;
-  void ensureModel();
+  aiDownload.tryAgain();
   void ensureOllamaModel();
 });
 handle("copy", (_e, text: string) => clipboard.writeText(text));
@@ -1191,7 +1158,7 @@ app.on("second-instance", showWindow);
 app.on("activate", showWindow);
 app.on("before-quit", () => {
   quitting = true;
-  download?.abort();
+  aiDownload.abort();
   supervisor.stop();
 });
 // Frees the hands-free Wrong key for other apps
@@ -1266,7 +1233,7 @@ async function startApp(): Promise<void> {
   checkSignInSurvived();
   powerMonitor.on("resume", () => scheduleRefresh());
   await refreshSignInIfDue();
-  void ensureModel();
+  void aiDownload.ensure();
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);

@@ -139,7 +139,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
 | `desktop/src/sign-in-check.ts` | Asks StreamerSongList whether the sign-in still holds, to tell an outage from an expired sign-in. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
-| `desktop/src/model.ts` | The built-in AI's two models (Standard and Larger AI) and downloading them. |
+| `desktop/src/model.ts`, `model-download.ts` | The built-in AI's two models (Standard and Larger AI) and downloading them (`model-download.ts`: in the background, trying again on its own). |
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/now-playing-folder.ts` | The app's copy of the preset folder rule (`presetFolder`), kept alike with the server's. |
 | `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
