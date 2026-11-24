@@ -1,6 +1,6 @@
 import { escapeRe } from "../text";
 import { withoutQualifier } from "../grounding/relevance";
-import { hasWord, NAME_STOPWORDS, sourceSentences } from "./names";
+import { CAPITALIZED_WORD, hasWord, NAME_STOPWORDS, sourceSentences } from "./names";
 import { contentTokens } from "./similarity";
 
 // The source's sentences and which one a caption retells (support); numbers, connectives, relations, lost qualifiers
@@ -39,14 +39,6 @@ export function bodySentences(context: string): string[] {
   return referenceSentences(context).filter((s) => s.length >= 20);
 }
 
-// The sentence cited for the caption being screened: while set, it is the retold one, no guessing
-let citing: { fact: string; sentence: string } | null = null;
-
-/** screenClaims sets this around each caption */
-export function setCiting(next: { fact: string; sentence: string } | null): void {
-  citing = next;
-}
-
 /** Share of a caption's content words a sentence holds */
 export function share(fact: string, sentence: string): number {
   const want = contentTokens(fact.replace(/\s*\([^)]*\)/g, ""));
@@ -57,9 +49,9 @@ export function share(fact: string, sentence: string): number {
   return shared / want.size;
 }
 
-/** Sentences a caption likely retells: the best match and any nearly as good; none under a quarter */
-export function retoldSentences(fact: string, context: string): string[] {
-  if (citing?.fact === fact) return [citing.sentence];
+/** Sentences a caption likely retells: the one it cites, else the best match and any nearly as good; none under a quarter */
+export function retoldSentences(fact: string, context: string, cited?: string): string[] {
+  if (cited !== undefined) return [cited];
   const scored = bodySentences(context).map((s) => ({ s, share: share(fact, s) }));
   const best = Math.max(0, ...scored.map((x) => x.share));
   return best < 0.25 ? [] : scored.filter((x) => x.share >= best - 0.1).map((x) => x.s);
@@ -90,7 +82,7 @@ export const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }>
   // "originally from", "originally formed in" only say where someone comes from
   { label: "an origin", fact: /\boriginally\b(?!\s+(?:from|formed|based|born|hails?|titled|called|named|known|intended|meant|planned|supposed|going)\b)/i, source: /\b(original\w*|initial\w*|first|earlier|early|previously|formerly|began|before|pre-\w+|at the time)\b/i },
   // "inspiring Y to write Z" when the source only says Z resembles X's piece
-  { label: "a prompt", fact: /\binspir(?:ed|ing|es)\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*\s+){1,3}to\b/u, source: /\b(inspir\w*|prompt\w*|led|motivat\w*|encourag\w*|persuad\w*|convinc\w*|urged)\b/i },
+  { label: "a prompt", fact: new RegExp(String.raw`\binspir(?:ed|ing|es)\s+(?:${CAPITALIZED_WORD}\s+){1,3}to\b`, "u"), source: /\b(inspir\w*|prompt\w*|led|motivat\w*|encourag\w*|persuad\w*|convinc\w*|urged)\b/i },
   // "inspired by X" when the source says it resembles X
   { label: "an influence", fact: /\b(inspir\w*|influenc\w*)\b/i, source: /\b(inspir\w*|influenc\w*|based on|model\w*|drew|draws?|drawn|borrow\w*|deriv\w*|homage|tribute|took reference|references?)\b/i },
   // "born on 17 December" for a baptism date
@@ -123,8 +115,8 @@ function withoutTitles(fact: string, context: string, titles: string[]): string 
 }
 
 /** Joining word or number (not a year) the retold sentence lacks, or null: "twice", "three pieces" when it has five */
-export function unsupportedConnective(fact: string, context: string, titles: string[] = []): string | null {
-  const retold = retoldSentences(fact, context);
+export function unsupportedConnective(fact: string, context: string, titles: string[] = [], cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   const worded = withoutTitles(fact, context, titles);
   // "first" is too common to drop when nothing is retold; other checks judge that
   const used = CONNECTIVES.filter((c) => c.fact.test(worded) && (c.label !== "a first" || retold.length > 0));
@@ -210,7 +202,7 @@ function afterFollowsSource(fact: string, context: string): boolean {
 // Needs a source sentence with the word, the caption's subject and the person next to the word
 const RELATION =
   /(?<![\p{L}-])(brothers?|sisters?|siblings?|sons?|daughters?|father|mother|parents?|wife|husband|spouse|married|girlfriend|boyfriend|fianc[eé]e?|cousins?|uncle|aunt|nephew|niece|grand(?:son|daughter|father|mother)|partners?|self-titled|eponymous|guitarist|keyboardist|keyboard player|drummer|bassist|pianist|violinist|saxophonist|trumpeter|voice actress|voice actor)\b/gu;
-export const NAME_RUN = /(?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*)*/gu;
+export const NAME_RUN = new RegExp(String.raw`${CAPITALIZED_WORD}(?:\s+${CAPITALIZED_WORD})*`, "gu");
 
 export function unsupportedRelation(fact: string, context: string): string | null {
   const sentences = sourceSentences(context);
@@ -239,8 +231,8 @@ const RELEASE_ORDINAL = `(?:first|lead|debut|second|third|fourth|fifth|sixth|sev
 const FROM_AN_ALBUM = /\b(?:from|off|of|on)\s+(?:(?:the|their|his|her|its|a|an)\s+)?(?:[\p{L}'’-]+\s+){0,5}(?:album|EP|LP)s?\b/giu;
 
 /** What a kept detail lost, so it lands on something else, or null: two charts' peaks on one, "her second single", a single's date as the album's */
-export function lostQualifier(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function lostQualifier(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   // "jazz musicians" from "jazz and pop musicians"
   for (const [, first, noun] of fact.matchAll(/\b(\p{Ll}{3,}) (?=(\p{Ll}{4,})\b)/gu)) {
     const pair = new RegExp(`\\b${escapeRe(first)} and (\\p{L}+) ${escapeRe(noun)}\\b`, "iu").exec(retold.join(" "));

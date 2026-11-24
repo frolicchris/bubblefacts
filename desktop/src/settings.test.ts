@@ -19,7 +19,7 @@ jest.mock("electron", () => ({
 }));
 
 import { checkStyleLook, readStyleFile } from "./style-file";
-import { canvasProblem, customFactsProblem, EDITABLE, FACT_SURENESS, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE, MAX_CANVAS_RATIO, MAX_CANVAS_SIDE, MIN_CANVAS_SIDE } from "./settings";
+import { canvasProblem, customFactsProblem, factsAreWhole, factsSaveProblem, EDITABLE, FACT_SURENESS, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE, MAX_CANVAS_RATIO, MAX_CANVAS_SIDE, MIN_CANVAS_SIDE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -170,7 +170,7 @@ describe("loadSettings", () => {
     saveSettings(s);
     const saved = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(saved).not.toHaveProperty("topics");
-    expect(saved.myFacts).toEqual(["I've played since I was six."]);
+    expect(loadSettings().myFacts).toEqual(["I've played since I was six."]);
   });
 
   it("never takes example packs from the window", () => {
@@ -566,9 +566,218 @@ describe("the musician's own facts", () => {
   it("saves settings.json for the musician only, replacing it whole", () => {
     saveSettings({ ...DEFAULTS, myFacts: ["One."] });
     saveSettings({ ...DEFAULTS, myFacts: ["Two."] });
-    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Two."]);
+    expect(loadSettings().myFacts).toEqual(["Two."]);
     if (process.platform !== "win32") expect(fs.statSync(file).mode & 0o777).toBe(0o600);
     expect(fs.readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+  });
+});
+
+describe("the musician's facts in their own file (issue #193)", () => {
+  const store = path.join(dir, "own-facts.json");
+  const mine = { myFacts: ["I play by ear.", "[Harbor Lights] I wrote it on a ferry."], myOriginals: ["Every song here is mine."] };
+
+  it("moves the lines from an older settings.json into own-facts.json, backup first, and the boxes show the same", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", token: "plain:secret-token", ...mine }));
+    const s = loadSettings();
+    expect(s).toMatchObject({ ...mine, channel: "jane", token: "secret-token" });
+    const disk = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(disk).not.toHaveProperty("myFacts");
+    expect(disk).not.toHaveProperty("myOriginals");
+    expect(disk).toMatchObject({ setupComplete: true, channel: "jane", token: "plain:secret-token" });
+    const facts = fs.readFileSync(store, "utf8");
+    expect(facts).toContain("I wrote it on a ferry.");
+    expect(facts).not.toContain("secret-token");
+    const backups = path.join(dir, "own-facts-backups");
+    const backup = JSON.parse(fs.readFileSync(path.join(backups, fs.readdirSync(backups)[0]), "utf8"));
+    expect(backup).toMatchObject({ fromSettings: mine, store: null });
+    expect(JSON.stringify(backup)).not.toContain("secret-token");
+  });
+
+  it("changes nothing when it starts again", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
+    const first = loadSettings();
+    const after = [fs.readFileSync(store, "utf8"), fs.readFileSync(file, "utf8")];
+    expect(loadSettings()).toEqual(first);
+    expect([fs.readFileSync(store, "utf8"), fs.readFileSync(file, "utf8")]).toEqual(after);
+  });
+
+  it("saves facts to own-facts.json, never to settings.json, and keeps a fact's id while it's unchanged", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+    const before = JSON.parse(fs.readFileSync(store, "utf8")).facts;
+    saveSettings({ ...DEFAULTS, ...mine, myFacts: [...mine.myFacts, "A new one."] });
+    const after = JSON.parse(fs.readFileSync(store, "utf8")).facts;
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "A new one."]);
+  });
+
+  it("takes in lines an older version saved after the move, and ignores the empty lists it writes", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    // Back a version: it saves settings.json with the boxes it saw (empty), or with an edit
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: [], myOriginals: [] }));
+    expect(loadSettings()).toMatchObject(mine);
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Typed in the older version."], myOriginals: [] }));
+    expect(loadSettings()).toMatchObject({ myFacts: [...mine.myFacts, "Typed in the older version."], myOriginals: mine.myOriginals });
+  });
+
+  it("still has the facts when settings.json is unreadable", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    fs.writeFileSync(file, "{not json");
+    expect(loadSettings()).toMatchObject(mine);
+  });
+
+  // A file that can't be read: a folder in its place gives the same error a lock does, after the retries
+  const lock = () => {
+    const kept = fs.readFileSync(store, "utf8");
+    fs.rmSync(store);
+    fs.mkdirSync(store);
+    return () => {
+      fs.rmSync(store, { recursive: true });
+      fs.writeFileSync(store, kept);
+    };
+  };
+  const many = Array.from({ length: 13 }, (_, i) => `Stored fact ${i + 1}.`);
+
+  it("going forward after an older version adds its new lines to the stored ones, never replacing them", () => {
+    saveSettings({ ...DEFAULTS, myFacts: many, myOriginals: mine.myOriginals });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Stored fact 2.", "New from the older version."], myOriginals: [] }));
+    expect(loadSettings()).toMatchObject({ myFacts: [...many, "New from the older version."], myOriginals: mine.myOriginals });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Another one."] }));
+    expect(loadSettings().myFacts).toEqual([...many, "New from the older version.", "Another one."]);
+    // Each bring-in has its own backup: the first is never written over
+    expect(fs.readdirSync(path.join(dir, "own-facts-backups"))).toHaveLength(2);
+  });
+
+  it("keeps the lines in settings.json while own-facts.json can't be read, so the next start still has them", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const unlock = lock();
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Added in the older version."] }));
+    const s = loadSettings();
+    expect(s.myFacts).toEqual(["Added in the older version."]);
+    saveSettings({ ...s, displayName: "Changed" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Added in the older version."]);
+    unlock();
+    expect(loadSettings()).toMatchObject({ myFacts: [...mine.myFacts, "Added in the older version."], myOriginals: mine.myOriginals, displayName: "Changed" });
+  });
+
+  it("says so when the facts can't be saved to their file, and keeps the edit in settings.json until they can", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const s = loadSettings();
+    expect(factsSaveProblem()).toBeNull();
+    const unlock = lock();
+    saveSettings({ ...s, myFacts: [...s.myFacts, "Edited while it was locked."] });
+    expect(factsSaveProblem()).toMatch(/couldn't save your own facts/i);
+    unlock();
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "Edited while it was locked."]);
+    saveSettings(loadSettings());
+    expect(factsSaveProblem()).toBeNull();
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+  });
+
+  it("keeps in settings.json the older version's lines that don't fit in a full box, until there's room", () => {
+    const full = Array.from({ length: 495 }, (_, i) => `Stored fact ${i + 1}.`);
+    const typed = Array.from({ length: 10 }, (_, i) => `Typed in the older version ${i + 1}.`);
+    saveSettings({ ...DEFAULTS, myFacts: full });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: typed }));
+    const s = loadSettings();
+    expect(s.myFacts).toEqual([...full, ...typed.slice(0, 5)]);
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(typed.slice(5));
+    saveSettings({ ...s, myFacts: s.myFacts.slice(10) });
+    expect(loadSettings().myFacts).toEqual([...full.slice(10), ...typed]);
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+  });
+
+  it("doesn't add an older version's line again when it differs from a stored one only in spaces or quotes", () => {
+    saveSettings({ ...DEFAULTS, myFacts: ["It's in \"two\" parts."] });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["It’s in  “two” parts."] }));
+    expect(loadSettings().myFacts).toEqual(["It's in \"two\" parts."]);
+  });
+
+  it("keeps a delete or an edit made while own-facts.json was locked: the lines BubbleFacts kept replace the stored ones", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const s = loadSettings();
+    const unlock = lock();
+    saveSettings({ ...s, myFacts: ["I play by ear, mostly."] });
+    expect(factsSaveProblem()).toMatch(/couldn't save your own facts/i);
+    unlock();
+    expect(loadSettings()).toMatchObject({ myFacts: ["I play by ear, mostly."], myOriginals: mine.myOriginals });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("ownFactsFallback");
+  });
+
+  it("adds, not replaces, when an older version changed those kept lines, or when the box couldn't show the stored facts", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    let unlock = lock();
+    saveSettings({ ...loadSettings(), myFacts: ["Kept while locked."] });
+    unlock();
+    // An older version edited the kept lines: it keeps unknown keys, so the mark is there but no longer matches
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    fs.writeFileSync(file, JSON.stringify({ ...saved, myFacts: ["Kept while locked.", "Older version."] }));
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "Kept while locked.", "Older version."]);
+    // Locked from the start: the box shows none of the stored facts, so a save there must not remove them
+    unlock = lock();
+    const blind = loadSettings();
+    expect(blind.myFacts).toEqual([]);
+    saveSettings({ ...blind, myFacts: ["Added while locked."] });
+    unlock();
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "Kept while locked.", "Older version.", "Added while locked."]);
+  });
+
+  it("a restored list replaces the stored one, even when own-facts.json can't be written", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const unlock = lock();
+    const blind = loadSettings();
+    factsAreWhole();
+    saveSettings({ ...blind, myFacts: ["From the backup."], myOriginals: [] });
+    expect(factsSaveProblem()).not.toBeNull();
+    unlock();
+    expect(loadSettings()).toMatchObject({ myFacts: ["From the backup."], myOriginals: [] });
+  });
+
+  it("a restore leaves behind the lines that waited past a full box", () => {
+    saveSettings({ ...DEFAULTS, myFacts: Array.from({ length: 500 }, (_, i) => `Stored fact ${i + 1}.`) });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Waiting for room."] }));
+    const s = loadSettings();
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Waiting for room."]);
+    factsAreWhole();
+    saveSettings({ ...s, myFacts: ["From the backup."], myOriginals: [] });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+    expect(loadSettings().myFacts).toEqual(["From the backup."]);
+  });
+
+  it("starts normally when the facts can't be moved, using the lines in settings.json", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
+    fs.writeFileSync(path.join(dir, "own-facts-backups"), "not a folder");
+    expect(() => loadSettings()).not.toThrow();
+    expect(loadSettings()).toMatchObject({ ...mine, channel: "jane" });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject(mine);
+  });
+
+  it("shows the lines settings.json has when own-facts.json is broken", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    fs.writeFileSync(store, "{not json");
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
+    expect(loadSettings()).toMatchObject(mine);
+  });
+
+  it("puts in the box and the server's pack exactly what 2.3 did, for any line", () => {
+    // 2.3's rule (sanitize): each line trimmed, blanks dropped, the first 500
+    const asBefore = (list: string[]) => list.map((l) => l.trim()).filter(Boolean).slice(0, 500);
+    const varied = [
+      "[Harbor Lights]no space after the tag", "[ Spaced Tag ]  two spaces", "a  double  space", "tab\there", "  padded  ", "",
+      "100 km and 10 h", "全角　スペース", "“curly” ‘quotes’", "emoji 🎸 👩‍🎤",
+      "Café not composed", "[OnlyTag]", "[ ] empty tag", "dup", "dup", "x".repeat(320), "bell\u0007inside",
+    ];
+    const s = sanitize({ ...DEFAULTS, myFacts: varied, myOriginals: varied });
+    expect(s.myFacts).toEqual(asBefore(varied));
+    expect(s.myOriginals).toEqual(asBefore(varied));
+    saveSettings(s);
+    const back = loadSettings();
+    expect(back.myFacts).toEqual(asBefore(varied));
+    expect(back.myOriginals).toEqual(asBefore(varied));
+    const packDir = path.join(dir, "facts");
+    writeMyPack(back, packDir);
+    expect(JSON.parse(fs.readFileSync(path.join(packDir, "my-facts.json"), "utf8"))).toMatchObject({ curatedFacts: asBefore(varied), originalsFacts: asBefore(varied) });
   });
 });
 

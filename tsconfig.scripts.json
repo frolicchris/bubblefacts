@@ -1,0 +1,13 @@
+{
+  // The overlay and the app window's scripts are plain JavaScript: checked here, never compiled
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["frontend/obs/*.js", "desktop/renderer/*.js", "types/browser-scripts.d.ts"]
+}

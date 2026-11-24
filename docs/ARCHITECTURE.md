@@ -131,19 +131,20 @@ sign-ins and the built-in AI. Its design decisions are in
 
 | File | Job |
 |---|---|
-| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and the requests from the window (`handle`, which checks each comes from the app's own window). A feature in its own file registers its messages through the `handle` main.ts passes in (`preparing.ts`). |
+| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and the requests from the window (`handle`, which checks each comes from the app's own window). A feature in its own file registers its messages through the `handle` main.ts passes in (`preparing.ts`, `self-update.ts`, `backup-restore.ts`). |
 | `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
+| `desktop/src/ipc-channels.ts` | The names of the messages between the window and `main.ts`, declared once. Types only: the sandboxed preload script can't load a local file. |
 | `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen, `banner.js` decides which notice the dashboard banner shows, `a11y.js` holds the screen reader announcements and `song-source.js` which Settings fields go with each song source. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
 | `desktop/src/settings.ts` | Settings: loading and saving (secrets encrypted), and turning them into the server's environment. |
 | `desktop/src/signin.ts` | Sign in with StreamerSongList (OAuth with PKCE) and its token refresh. |
 | `desktop/src/sign-in-check.ts` | Asks StreamerSongList whether the sign-in still holds, to tell an outage from an expired sign-in. |
 | `desktop/src/twitch.ts` | Connect Twitch (device code), reading another channel's About, and answering the server's questions about one. |
-| `desktop/src/model.ts` | The built-in AI's two models (Standard and Larger AI) and downloading them. |
+| `desktop/src/model.ts`, `model-download.ts` | The built-in AI's two models (Standard and Larger AI) and downloading them (`model-download.ts`: in the background, trying again on its own). |
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/now-playing-folder.ts` | The app's copy of the preset folder rule (`presetFolder`), kept alike with the server's. |
-| `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
-| `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
+| `desktop/src/updater.ts`, `self-update.ts`, `checks.ts` | Finding, checking and installing a new version (`self-update.ts` keeps where an update stands and its window messages); connection checks. |
+| `desktop/src/backup.ts`, `backup-restore.ts` | Automatic and manual backups of settings and facts (`backup-restore.ts`: Back up…, Restore… and the automatic copy, with their window messages). |
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
 | `desktop/src/plain-errors.ts` | Turns errors into plain words: what happened and what to do. |
@@ -2082,13 +2083,20 @@ interface: a change that breaks one waits for 3.0 (SemVer).
   a few times, then the defaults stand in for this run and nothing is saved
   over it, so the sign-in survives.
 - **Facts files:** `song-facts.json`, `wrong-facts.json`, and the custom
-  facts in settings.
+  facts (`own-facts.json`; before 2.4, the `myFacts` and `myOriginals` lines
+  in `settings.json`, which a newer version moves over when it starts, see
+  "Files in the data folder").
 - **Backups:** `formatVersion` 1; a newer format is refused with a plain
   message, never half-read.
 - **The OBS source:** the overlay file's path in the data folder and the
   server's address and port, so a scene set up once keeps working.
 - **The update path:** any 2.x, beta or release candidate updates straight to
   the newest 2.x in the app.
+
+Not kept yet: the text **Share song facts with other apps** sends (see
+[Sharing song facts with other apps](#sharing-song-facts-with-other-apps)) has
+no format version, so it may change between 2.x releases. Giving it a version
+and this promise is a later decision.
 
 Such a change is announced in the release notes of at least one earlier 2.x
 release first. For releases:
@@ -2136,12 +2144,80 @@ server and one for the app), so a crash mid-write leaves the old file whole,
 never half of one.
 
 The app's own files sit beside them: `settings.json` (and
-`settings.json.unreadable`, see above), `models/`, `overlay/`, `facts/` (the
-streamer's custom facts, as a pack), `logs/`, `backups/` (automatic copies of
+`settings.json.unreadable`, see above), `own-facts.json` (below), `models/`,
+`overlay/`, `facts/` (the streamer's custom facts, as a pack the server reads,
+written again from `own-facts.json` at every start), `logs/`, `backups/` (automatic copies of
 the settings, facts, Wrong marks and Wrong log, never sign-ins, keys or which
 AI writes the facts), `updates/` (a downloaded update) and a copy of
 `THIRD-PARTY-NOTICES.md`. **Remove my
 BubbleFacts data** deletes all of them.
+
+#### The streamer's own facts (`own-facts.json`)
+
+The two boxes under Custom facts (**Your own facts** and **About your own
+compositions**) are stored as records in `own-facts.json` (`own-facts.ts`,
+issue #193), apart from `settings.json`, so facts and secrets never share a
+file. The boxes stay the way to edit them: their lines (`[Tag] text`) go in,
+records are stored, and the same lines come back out. Features that read or
+rewrite facts in bulk (a color per kind, expiry dates, finding duplicates)
+are built on these records; none is yet, and none goes live before a
+usability check and a GUI check with real streamers.
+
+- **A record:** `id` (`fct_` and 26 random letters and digits, never built
+  from the text, so an edit keeps it), `text`, `kind` (`yours` or `joke`),
+  `scope` (`all`, `originals`, a `tag`, or a `song` with title and artist),
+  an optional `expires` date (stored, not acted on yet), and `created` and
+  `modified` times. A field or scope this version doesn't know is kept as it
+  is when it saves, and a record the boxes can't show stays in the file.
+- **The line as typed:** the box and the server's pack get exactly the lines
+  they did before the store (each line trimmed, blank lines dropped), byte
+  for byte. A record's `text` is normalized (NFC, straight quotes, control
+  characters out, one space between words) for later features to compare
+  and sort by; when the typed line differs from `[tag] text` rebuilt from
+  it, the record also keeps `asTyped`, and that is what the box and the
+  stream show.
+- **Saving:** a line that matches a stored one keeps its record; a changed
+  line in the same place keeps its id with a new `modified`; any other line
+  is a new record. The file is written only when something changed,
+  atomically.
+- **Limits:** 300 characters a fact (a `[Song]` tag doesn't count), refused
+  where it's typed, never trimmed; 500 lines a box. A longer fact saved
+  before the limit is kept whole.
+- **Moving the lines in:** at start, lines found in `settings.json` (saved by
+  2.3 or earlier, or by such a version after going back) are brought in: a
+  new backup in `own-facts-backups/` first (what the store held and the
+  lines brought in, no secrets; never written over, the newest 10 kept),
+  then `own-facts.json`, then `settings.json` without them. With no store
+  yet, all of them; with one, each line whose normalized text isn't stored
+  yet is added after the stored ones, so a stored fact is never replaced or
+  removed by it. Lines past a full box (500) stay in `settings.json` and are
+  added once there's room. Run again, it changes nothing. A version from
+  before the move shows empty boxes; lines it saves are added on the next
+  start (the empty boxes it saves add nothing).
+- **Can't be read or written:** `settings.json` drops the lines only once
+  `own-facts.json` holds them. A save that can't write the file keeps the
+  boxes in `settings.json` and says so where Save (or Restore) reports. When
+  the boxes were whole (the file was read at start, or a backup was
+  restored), they're kept with `ownFactsFallback`, a SHA-256 of exactly
+  those lines, and the next start puts them in place of the stored ones, so
+  a removal or an edit sticks. An older version keeps that key (it keeps
+  keys it doesn't know) but changes the lines when it edits them, so the
+  mark no longer matches and its lines are added instead. So a removal made
+  while the file was locked, followed by going back a version and editing
+  the facts there, comes back on the next start: accepted, since nothing is
+  lost. A file locked at
+  start is retried a few times; then the boxes show only what
+  `settings.json` has, and lines saved then are added, never put in place of
+  the stored ones, and the message says a removal has to wait. A backup
+  taken then (the automatic one at start, or **Back up…**) leaves the
+  custom facts out (`facts: "unread"` in `makeBackup`), and restoring a
+  backup without them leaves the stored facts as they are; any other
+  restore replaces the boxes whole and drops lines waiting past a full box.
+  A failure
+  while moving the lines in at start is logged and the app starts on
+  `settings.json`'s lines. A file that reads but isn't a store is renamed to
+  `own-facts.json.unreadable`, and the boxes show what `settings.json` has,
+  if anything; the backups hold the lines too.
 
 ### Licenses of the sources
 

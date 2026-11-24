@@ -4,7 +4,7 @@ import { escapeRe } from "../text";
 import { creditsSong } from "../musicbrainz";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { artistNames, mentionsName, normalizeTitle } from "./titles";
-import { isRelevantArticle, looksLikeArtistName, qualifierNamesAnotherArtist } from "./relevance";
+import { isRelevantArticle, looksLikeArtistName, qualifierNamesAnotherArtist, qualifierOf, withoutQualifier } from "./relevance";
 import { ownArticleExtract, wikiExtract, wikiGet, wikiResolveTitles, wikiSearch } from "./wikipedia";
 import { wikitextOf } from "./work-scope";
 import { openingSays, writingText } from "./covers";
@@ -25,7 +25,7 @@ const CONCERT_FILM =
 
 /** Whether a concert film, documentary or live video: its lead names the band, its facts are still the film's */
 export function isConcertFilm(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   return CONCERT_FILM.test(qualifier ?? "") || CONCERT_FILM.test(openingSays(full));
 }
 
@@ -105,7 +105,7 @@ export async function performerArticle(
   const nonMusic = !aGame && (isNonMusicWork(page, full) || concert);
   const told = !!song.performer || !!reading.aPerformer || looksLikeArtistName(game) || PERFORMER_BRACKET.test(game);
   if (aGame ? !unnamed : !nonMusic && !told && !unnamed) return null;
-  const artist = game.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const artist = withoutQualifier(game).trim();
   const found = await performerPages(artist, track);
   if (found.song && found.song !== page && usable(found.song)) return { page: found.song, subject: false };
   if (aGame) {

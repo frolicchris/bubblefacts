@@ -82,7 +82,7 @@ The commands, one by one:
 
 ```bash
 npm run check       # typecheck, lint, tests, and the build plus script tests; also runs on every pull request and push to main
-npm run typecheck   # TypeScript in strict mode, the server and the desktop app, tests included
+npm run typecheck   # TypeScript in strict mode, the server and the desktop app, tests included; the overlay and window scripts too, not strict
 npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts,
                     # actionlint on the workflows (skipped if actionlint isn't installed)
 npm test            # jest, a few seconds: the server and the desktop app

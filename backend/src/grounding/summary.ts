@@ -386,7 +386,7 @@ export function gameTrackText(a: GameArticles, track: string, usable: (title: st
   const fromMusic = Boolean(fits && a.music);
   let base = fits && a.music ? a.music : a;
   // A series-wide music article: only this game's part ("Music of Some Quest" for the first "Some Quest")
-  const name = game || a.page.replace(/\s*\([^)]*\)\s*$/, "");
+  const name = game || withoutQualifier(a.page);
   if (seriesFilter.on && base.full && ((fromMusic && a.music?.series) || isSeriesWide(base.page, base.full, name))) {
     base = { ...base, full: seriesScope(base.full, name, track) };
   }

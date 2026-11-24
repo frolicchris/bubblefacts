@@ -32,6 +32,11 @@ export function qualifierOf(title: string): string | undefined {
   return /\(([^)]*)\)\s*$/.exec(title)?.[1];
 }
 
+/** A test for a page whose trailing qualifier ends in one of `kinds`: "(song)", "(Some Band song)" for "song" */
+export function qualifierEndsIn(kinds: string): RegExp {
+  return new RegExp(String.raw`\((?:[^)]*\b)?(?:${kinds})\)$`, "i");
+}
+
 /** A title minus its trailing qualifier: "Let It Be (song)" is "Let It Be" */
 export function withoutQualifier(title: string): string {
   return title.replace(/\s*\([^)]*\)\s*$/, "");

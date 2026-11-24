@@ -2,6 +2,7 @@ import { config } from "../config";
 import { escapeRe, removeAll, withoutRefsAndComments } from "../text";
 import { setCapped } from "../capped-map";
 import { normalizeTitle } from "./titles";
+import { qualifierOf, withoutQualifier } from "./relevance";
 import { STABLE_AGE_MS, USER_AGENT, WIKI_API } from "./wikipedia";
 import { contentTokens } from "../screening/similarity";
 
@@ -90,7 +91,7 @@ const titleWords = (s: string) => normalizeTitle(s).split(" ").filter((w) => w.l
 
 /** The work a page is about: "Some Game" from "Music of Some Game", "Some Game (soundtrack)" */
 export function workOfPage(page: string): string {
-  return page.replace(/\s*\([^)]*\)\s*$/, "").replace(/^(?:the )?(?:music|soundtracks?|scores?) (?:of|from|for) (?:the )?/i, "").replace(/\s+(?:series|franchise)$/i, "").trim();
+  return withoutQualifier(page).replace(/^(?:the )?(?:music|soundtracks?|scores?) (?:of|from|for) (?:the )?/i, "").replace(/\s+(?:series|franchise)$/i, "").trim();
 }
 
 /** The requested work's names, normalized: the game field, the page's work, the lead's bold italic titles */
@@ -164,7 +165,7 @@ export function otherWorkSentences(full: string, wikitext: string, game: string,
     return names.some((x) => x.includes(" ") && n.includes(` ${x} `)) && MUSIC_ALBUM.test(t) && !NOT_MUSIC_ALBUM.test(t) && !games.some((g) => n.includes(` ${g} `));
   };
   // A link to "Some Game (TV series)" from "Some Game (video game)" is the show, not the game
-  const qualifier = (t: string) => /\(([^)]*)\)\s*$/.exec(t)?.[1]?.toLowerCase() ?? "";
+  const qualifier = (t: string) => qualifierOf(t)?.toLowerCase() ?? "";
   const isRequested = (w: { title: string; target: string }) =>
     (w.target
       ? names.includes(norm(w.target)) || (names.includes(norm(workOfPage(w.target))) && (!qualifier(w.target) || qualifier(w.target) === qualifier(page)))

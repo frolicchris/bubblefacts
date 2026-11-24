@@ -93,8 +93,8 @@ function clearOfBanner(p: Fact["position"]): Fact["position"] {
 
 /** The area's spots in order of use. `banner`: Now Playing or LIVE LEARN shows, so no spot reaches it */
 export const positionsFor = (area: string = config.bubbleArea, banner: boolean = config.nowPlaying): Array<Fact["position"]> => {
-  const spots = AREAS[area] ?? POSITIONS;
-  return banner ? spots.map(clearOfBanner) : spots;
+  const inArea = AREAS[area] ?? POSITIONS;
+  return banner ? inArea.map(clearOfBanner) : inArea;
 };
 /** Vertical safe area, % per edge, clear of phone apps' buttons and chat; mirrored in obs-overlay.css */
 export const VERTICAL_SAFE = { top: 14, bottom: 38, left: 6, right: 12 } as const;
@@ -781,6 +781,9 @@ async function titleOnlyReading(song: SSLSong): Promise<SSLSong | null> {
 // ttlMs 0: not cached; Infinity: for the session
 type Generated = { facts: Fact[]; ttlMs: number };
 
+// A screened caption: as the AI wrote it (what the screens and the cited sentence go by), in the words shown, and the sentence it cites
+type Caption = { text: string; plain: string; cited?: string };
+
 // The streamer's facts for this song, as written, no lookup; even a live learn (often another creator's original)
 function ownSongFacts(song: SSLSong, want: number, asked: SSLSong): Generated | null {
   const ownRecord = findSongFacts(song);
@@ -1067,7 +1070,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     console.log("[Screen] DROP (copies an example)");
     return false;
   });
-  const songFacts = await dataFacts;
+  // Wikidata and MusicBrainz facts, read beside the AI
+  const fromData = await dataFacts;
   // A cover on the original's article: only songwriter infobox facts hold
   const allBox = await boxLookup;
   // An infobox naming another artist is their record, even if the article never names this one
@@ -1101,28 +1105,26 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const unseen = attributed.filter((f) => !recentList().some((r) => tooSimilar(r, f)));
   if (unseen.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - unseen.length} already shown for an earlier song`);
   // Restore a dropped limit ("in Japan", "usually"); drop the caption if it has no clear place
-  const repaired = new Map<string, string>();
-  const fresh = unseen.filter((f) => {
+  const fresh = unseen.flatMap((f): Caption[] => {
     const scoped = context && scopeRepair.on ? repairScope(f, context) : f;
     const fixed = context && qualifierRepair.on ? repairQualifier(scoped, context) : { text: scoped };
     if ("drop" in fixed) {
       console.log(`[Screen] DROP (${fixed.drop})`);
-      return false;
+      return [];
     }
     if (fixed.text !== f) console.log(`[Screen] SCOPE: ${f.slice(0, 70)} -> ${fixed.text.slice(0, 110)}`);
-    repaired.set(f, fixed.text);
-    return true;
+    // Fixed plain words for music terms
+    return [{ text: f, plain: explainMusicTerms(fixed.text), cited: citedSentence?.get(f) }];
   });
-  // Fixed plain words for music terms
-  const plain = new Map(fresh.map((f) => [f, explainMusicTerms(repaired.get(f) as string)]));
+  const freshTexts = fresh.map((c) => c.text);
   // Song's data facts, then the infobox's: at most dataRoom, none a caption already says; early ones stay as sent
-  const aboutSong = songFacts.filter((f) => !artistSentences.has(f));
+  const aboutSong = fromData.filter((f) => !artistSentences.has(f));
   const candidates = [...(early.length ? [] : rankedData(aboutSong, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
   const structured: string[] = early.map((f) => f.text);
   for (const c of candidates) {
     if (structured.length >= dataRoom) break;
     if (recentList().includes(c.text) || restatesRequest(c.text, song) || !fitsTarget(c.text)) continue;
-    if (alreadySaid(c.values, [...fresh, ...structured])) continue;
+    if (alreadySaid(c.values, [...freshTexts, ...structured])) continue;
     structured.push(c.text);
     if (c.evidence) {
       setCapped(structuredLabel, c.text, `${SOURCE.infobox}${page}`, MAX_KEPT);
@@ -1130,16 +1132,19 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     }
   }
   // Artist fact beyond dataRoom: never displaces a song fact
-  const artistFact = songFacts.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), fresh));
+  const artistFact = fromData.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), freshTexts));
   if (artistFact) structured.push(artistFact);
   // A spare replaces a line that only repeats title and artist
-  const usable = fresh.filter((f) => !restatesRequest(plain.get(f) as string, song));
-  const cites = new Map(usable.flatMap((f) => (citedSentence?.has(f) ? [[plain.get(f) as string, citedSentence.get(f) as string] as const] : [])));
+  const usable = fresh.filter((c) => !restatesRequest(c.plain, song));
+  const cites = new Map(usable.flatMap((c) => (c.cited !== undefined ? [[c.plain, c.cited] as const] : [])));
   // Sent facts first, as sent; captions fill the rest
   const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
   const sent = early.map((f) => f.text);
   const lead = structured.filter((f) => !sent.includes(f));
-  const captions = context && config.sourceRisk ? rankedFromArticle(lead, usable, context, plain, citedSentence, room, resolveGameAndTrack(read).track) : bestSupported(lead, usable, context, plain, citedSentence, room);
+  // rankedFromArticle still takes the captions as text and a map to their final words
+  const captions = context && config.sourceRisk
+    ? rankedFromArticle(lead, usable.map((c) => c.text), context, new Map(usable.map((c) => [c.text, c.plain])), citedSentence, room, resolveGameAndTrack(read).track)
+    : bestSupported(lead, usable, context, room);
   const later = captions.filter((c) => !sent.includes(c));
   const shown = early.length ? [...sent, ...later] : captions;
   // early ones were remembered when sent
@@ -1302,23 +1307,16 @@ function rankedFromArticle(
 }
 
 // SOURCE_RISK=off: data facts, then the best-supported captions in order
-function bestSupported(
-  data: string[],
-  captions: string[],
-  context: string,
-  plain: ReadonlyMap<string, string>,
-  cited: ReadonlyMap<string, string> | undefined,
-  want: number
-): string[] {
+function bestSupported(data: string[], captions: Caption[], context: string, want: number): string[] {
   const room = Math.max(0, want - data.length);
   const best = new Set(
     captions
-      .map((f, i) => ({ f, i, score: context ? support(f, context, cited?.get(f)) : 0 }))
+      .map((c, i) => ({ text: c.text, i, score: context ? support(c.text, context, c.cited) : 0 }))
       .sort((a, b) => b.score - a.score || a.i - b.i)
       .slice(0, room)
-      .map((x) => x.f)
+      .map((x) => x.text)
   );
-  return [...data, ...captions.filter((f) => best.has(f)).map((f) => plain.get(f) as string)].slice(0, want);
+  return [...data, ...captions.filter((c) => best.has(c.text)).map((c) => c.plain)].slice(0, want);
 }
 
 /** Without the artist's bracket note or the title's requester credit; same object if neither */
