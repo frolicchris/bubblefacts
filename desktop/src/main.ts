@@ -1,4 +1,5 @@
-import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, restoresFacts, wrongLogLines } from "./backup";
+import { REMOVED_WITH_DATA } from "./backup";
+import { readDataJson, registerBackups } from "./backup-restore";
 import { answerAbout, channelForAbout, factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
@@ -7,9 +8,10 @@ import { readReadyLook } from "./ready-looks";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, Release, testSharing, testSongList, testStreamElements } from "./checks";
-import { assetName, downloadUpdate, startInstall } from "./updater";
-import { ChecksumMismatch, downloadModel, MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady, Progress } from "./model";
+import { testSharing, testSongList, testStreamElements } from "./checks";
+import { registerSelfUpdate } from "./self-update";
+import { MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady } from "./model";
+import { modelDownloader } from "./model-download";
 import { installOverlay, OVERLAY_FILE, VERTICAL_OVERLAY_FILE } from "./overlay";
 import { WrongKeyListener } from "./handsfree";
 import { CHANGELOG_URL, readWhatsNew, WhatsNew, whatsNewOnStart } from "./whats-new";
@@ -21,7 +23,7 @@ import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
   BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, canvasProblem, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsAreWhole, factsSaveProblem, factsWhole,
+  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsSaveProblem,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
@@ -74,13 +76,6 @@ let tray: Tray | null = null;
 let quitting = false;
 let toldAboutTray = false;
 let builtinFailed = false;
-let update: Release | null = null;
-/** The in-app update: idle, downloading, checked and ready, or failed (then the download page is offered) */
-let updating: { stage: "idle" | "downloading" | "ready" | "failed"; progress: number; file: string; error: string } = { stage: "idle", progress: 0, file: "", error: "" };
-let download: AbortController | null = null;
-let modelDownload: (Progress & { error?: string }) | null = null;
-let downloadRetry: NodeJS.Timeout | null = null;
-let downloadFailures = 0;
 let signingIn: AbortController | null = null;
 let signInExpired = false;
 let refreshTimer: NodeJS.Timeout | null = null;
@@ -178,7 +173,7 @@ function state() {
     signInExpired,
     songListDown,
     unlocking: secretsWaiting(),
-    modelDownload,
+    modelDownload: aiDownload.progress(),
     status: supervisor.status,
     overlayPath: overlayFile(),
     verticalOverlayPath: overlayFile(true),
@@ -199,8 +194,7 @@ function state() {
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
     wrongKeyProblem: wrongKey.problem,
-    update,
-    updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
+    ...selfUpdate.forWindow(),
     dataDir: DATA,
     whatsNew: whatsNew && { ...whatsNew, url: CHANGELOG_URL },
   };
@@ -289,46 +283,17 @@ supervisor.on("builtin-failed", () => {
 
 // --- The built-in AI's download ---
 
-/** Download the AI in the background whenever it's chosen and missing, retrying on its own */
-async function ensureModel(): Promise<void> {
-  if (settings.ai !== "builtin" || modelReady(DIRS.models, chosenModel()) || download) return;
-  if (downloadRetry) clearTimeout(downloadRetry);
-  downloadRetry = null;
-  download = new AbortController();
-  const model = chosenModel();
-  const progress = (p: Progress) => {
-    modelDownload = p;
-    send("model-progress", p);
-  };
-  try {
-    progress({ received: 0, total: model.bytes, phase: "downloading" });
-    await downloadModel(DIRS.models, progress, download.signal, model);
-    downloadFailures = 0;
-    modelDownload = null;
-    startServer();
-  } catch (err) {
-    if (download.signal.aborted) return;
-    downloadFailures++;
-    const wait = Math.min(30_000 * downloadFailures, 5 * 60_000);
-    const reason = shown("AI download", err, { fallback: "The download stopped. BubbleFacts tries again on its own." });
-    modelDownload = { ...(modelDownload ?? { received: 0, total: model.bytes, phase: "downloading" }), error: reason };
-    send("model-progress", modelDownload);
-    if (!(err instanceof ChecksumMismatch)) downloadRetry = setTimeout(() => void ensureModel(), wait);
-  } finally {
-    const stopped = download?.signal.aborted;
-    download = null;
-    send("state", state());
-    // Stopped by a switch away and back, or to the other quality: pick up the chosen one
-    if (stopped && !quitting && settings.ai === "builtin") void ensureModel();
-  }
-}
-
-function stopModelDownload(): void {
-  download?.abort();
-  if (downloadRetry) clearTimeout(downloadRetry);
-  downloadRetry = null;
-  modelDownload = null;
-}
+/** The built-in AI's download in the background (model-download.ts), retrying on its own */
+const aiDownload = modelDownloader({
+  modelsDir: DIRS.models,
+  wanted: () => settings.ai === "builtin",
+  chosen: chosenModel,
+  quitting: () => quitting,
+  progress: (p) => send("model-progress", p),
+  ready: () => startServer(),
+  changed: () => send("state", state()),
+  shown,
+});
 
 // --- The musician's own Ollama ---
 
@@ -662,7 +627,7 @@ handle("mark-wrong", async (_e, text: string, song?: unknown, live?: unknown) =>
 handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // From the file, so the list works before songs are connected
 handle("list-song-facts", () => {
-  const list = readJson("song-facts.json");
+  const list = readDataJson(DATA, "song-facts.json");
   return Array.isArray(list) ? list : [];
 });
 // "Add facts for another song": list songs matching what's typed, to pick rather than retype
@@ -832,16 +797,16 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   wrongKey.use(settings.wrongKey);
   if (newSignIn) signInExpired = false;
   if (changes.token) scheduleRefresh(); // stops refreshing the replaced sign-in
-  // Stop the old quality's download; ensureModel starts the chosen one
-  if (qualityChanged) stopModelDownload();
-  if (settings.ai === "builtin") void ensureModel();
-  else stopModelDownload();
+  // Stop the old quality's download; ensure() starts the chosen one
+  if (qualityChanged) aiDownload.stop();
+  if (settings.ai === "builtin") void aiDownload.ensure();
+  else aiDownload.stop();
   void ensureOllamaModel();
   startServer(newSignIn);
   // A new look or size goes to the running server, which changes every overlay: no restart, no Refresh in OBS
   if (JSON.stringify(styleEnv(settings)) !== JSON.stringify(styleEnv(previous))) sendStyle();
   backUpNow();
-  if (channelChanged) void checkForUpdate();
+  if (channelChanged) void selfUpdate.check();
 }
 
 handle("save-settings", (_e, raw: Record<string, unknown>) => {
@@ -958,82 +923,32 @@ handle("cancel-sign-in", () => signingIn?.abort());
 
 // --- Backup ---
 
-const readJson = (name: string): unknown => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(DATA, name), "utf8"));
-  } catch {
-    return null;
-  }
-};
-
-const readWrongLog = (): unknown[] => {
-  try {
-    return wrongLogLines(fs.readFileSync(path.join(DATA, "wrong-log.jsonl"), "utf8"));
-  } catch {
-    return [];
-  }
-};
-
-// Facts left out while own-facts.json couldn't be read: the boxes then aren't the streamer's facts (#193)
-const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json"), wrongLog: readWrongLog(), ...(factsWhole() ? {} : { facts: "unread" as const }) }, app.getVersion());
+/** Back up… and Restore… (backup-restore.ts), and the automatic copy after every change */
+const backups = registerBackups({
+  handle,
+  dataDir: DATA,
+  backupsDir: DIRS.backups,
+  documentsDir: () => app.getPath("documents"),
+  version: () => app.getVersion(),
+  settings: () => settings,
+  useSettings: (restored) => (settings = restored),
+  restored: () => {
+    applyStartAtLogin();
+    wrongKey.use(settings.wrongKey);
+    void selfUpdate.check();
+    // The server reads its files at start
+    startServer(true);
+    send("state", state());
+  },
+  dialogs: {
+    save: (options) => (win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)),
+    open: (options) => (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)),
+    ask: (options) => (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)),
+  },
+  shown,
+});
 /** After any change to facts or settings: a copy the streamer never has to think about */
-const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
-
-handle("save-backup", async () => {
-  const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
-  const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
-  if (canceled || !filePath) return { ok: false, message: "" };
-  try {
-    writeFileAtomic(filePath, JSON.stringify(currentBackup(), null, 2));
-  } catch (err) {
-    return { ok: false, message: shown("Back up", err, { fallback: "BubbleFacts couldn't save the backup there. Choose another folder, then try again." }) };
-  }
-  return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
-});
-
-handle("restore-backup", async () => {
-  // Opens at the automatic backups, so the newest is a click away
-  const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
-  const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-  if (canceled || !filePaths[0]) return { ok: false, message: "" };
-  let backup;
-  try {
-    backup = readBackup(fs.readFileSync(filePaths[0], "utf8"));
-  } catch (err) {
-    return { ok: false, message: shown("Restore", err, { fallback: "That file couldn't be read." }) };
-  }
-  const when = backup.createdAt ? new Date(backup.createdAt).toLocaleDateString() : "an earlier day";
-  const confirm = {
-    type: "question" as const,
-    buttons: ["Restore", "Cancel"],
-    defaultId: 1,
-    cancelId: 1,
-    message: `Restore the backup from ${when}?`,
-    detail: "This replaces your settings, your facts, your facts for particular songs and the sources you marked Wrong on this computer. Your sign-in and your AI choice stay as they are.",
-  };
-  const { response } = win ? await dialog.showMessageBox(win, confirm) : await dialog.showMessageBox(confirm);
-  if (response !== 0) return { ok: false, message: "" };
-  // Back up first, so a restore can be undone
-  backUpNow();
-  settings = sanitize({ ...settings, ...backup.settings });
-  // The backup's facts are the whole boxes: they replace the stored ones, even while they wait in settings.json (#193).
-  // One taken while the facts couldn't be read has none, and leaves them as they are
-  if (restoresFacts(backup)) factsAreWhole();
-  saveSettings(settings);
-  const factsProblem = factsSaveProblem();
-  if (backup.songFacts) writeFileAtomic(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
-  if (backup.wrongFacts) writeFileAtomic(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
-  if (backup.wrongLog?.length) writeFileAtomic(path.join(DATA, "wrong-log.jsonl"), backup.wrongLog.map((l) => JSON.stringify(l)).join("\n") + "\n", { mode: 0o600 });
-  applyStartAtLogin();
-  wrongKey.use(settings.wrongKey);
-  void checkForUpdate();
-  // The server reads its files at start
-  startServer(true);
-  send("state", state());
-  // Said as a failed save is; the rest of the backup is restored
-  if (factsProblem) return { ok: false, message: `Restored. ${factsProblem}` };
-  return { ok: true, message: "Restored." };
-});
+const backUpNow = () => backups.now();
 
 /** The first half of uninstalling, without hunting for hidden folders */
 handle("remove-data", async () => {
@@ -1049,7 +964,7 @@ handle("remove-data", async () => {
   const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
   quitting = true;
-  download?.abort();
+  aiDownload.abort();
   supervisor.stop();
   if (refreshTimer) clearTimeout(refreshTimer);
   await revoke(settings.refreshToken);
@@ -1064,8 +979,7 @@ handle("remove-data", async () => {
 });
 
 handle("download-model", () => {
-  downloadFailures = 0;
-  void ensureModel();
+  aiDownload.tryAgain();
   void ensureOllamaModel();
 });
 handle("copy", (_e, text: string) => clipboard.writeText(text));
@@ -1095,54 +1009,23 @@ handle("get-recent", async () => {
 });
 // --- Updating itself ---
 
-let updateChecks = 0;
-/** At start, and when Stable or Beta is picked, so the dashboard notice matches at once */
-async function checkForUpdate(): Promise<void> {
-  // The Store updates a Store app: no check, so no banner.
-  if (isStoreApp()) return;
-  const mine = ++updateChecks;
-  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE)) : () => null);
-  // Only the newest check counts, and a download under way finishes
-  if (mine !== updateChecks || updating.stage === "downloading") return;
-  if (found?.version !== update?.version) updating = { stage: "idle", progress: 0, file: "", error: "" };
-  update = found;
-  send("state", state());
-}
-
-handle("download-update", async () => {
-  if (isStoreApp() || !update?.download || updating.stage === "downloading") return;
-  updating = { stage: "downloading", progress: 0, file: "", error: "" };
-  send("state", state());
-  let last = 0;
-  try {
-    const file = await downloadUpdate(update.download, path.join(DATA, "updates"), (fraction) => {
-      // A few a second is plenty for a progress line
-      if (Date.now() - last < 300) return;
-      last = Date.now();
-      updating.progress = fraction;
-      send("state", state());
-    });
-    updating = { stage: "ready", progress: 1, file, error: "" };
-  } catch (err) {
-    updating = { stage: "failed", progress: 0, file: "", error: shown("Update download", err, { fallback: "The download didn't finish." }) };
-  }
-  send("state", state());
-});
-
-handle("install-update", () => {
-  if (isStoreApp() || updating.stage !== "ready") return;
-  fs.mkdirSync(DIRS.logs, { recursive: true });
-  const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
-  if (!result.started) {
-    supervisor.note(`[App] Update install: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`);
-    updating = { stage: "failed", progress: 0, file: "", error: result.reason };
-    send("state", state());
-    return;
-  }
-  // The installer waits for this app to close; on Linux the app reopens the new AppImage itself
-  if (result.relaunch) app.relaunch({ execPath: result.relaunch, args: [] });
-  quitting = true;
-  app.quit();
+/** Updating itself (self-update.ts): the check, and its download and install messages */
+const selfUpdate = registerSelfUpdate({
+  handle,
+  version: () => app.getVersion(),
+  updateChannel: () => settings.updateChannel,
+  packaged: app.isPackaged,
+  storeApp: isStoreApp,
+  dataDir: DATA,
+  logsDir: DIRS.logs,
+  changed: () => send("state", state()),
+  shown,
+  note: (line) => supervisor.note(line),
+  quitForInstall: (relaunch) => {
+    if (relaunch) app.relaunch({ execPath: relaunch, args: [] });
+    quitting = true;
+    app.quit();
+  },
 });
 
 /** Facts sent to the overlay, for a report: from the server, or its file when it isn't running */
@@ -1192,7 +1075,7 @@ app.on("second-instance", showWindow);
 app.on("activate", showWindow);
 app.on("before-quit", () => {
   quitting = true;
-  download?.abort();
+  aiDownload.abort();
   supervisor.stop();
 });
 // Frees the hands-free Wrong key for other apps
@@ -1267,13 +1150,13 @@ async function startApp(): Promise<void> {
   checkSignInSurvived();
   powerMonitor.on("resume", () => scheduleRefresh());
   await refreshSignInIfDue();
-  void ensureModel();
+  void aiDownload.ensure();
   void ensureOllamaModel();
   startServer();
   wrongKey.use(settings.wrongKey);
   preparing.start();
   backUpNow();
-  await checkForUpdate();
+  await selfUpdate.check();
 }
 
 app.whenReady().then(startApp);
