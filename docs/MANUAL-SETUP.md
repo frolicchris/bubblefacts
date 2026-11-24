@@ -184,7 +184,11 @@ Start the overlay (step 5) before you do this.
    **Browser**. Name it "BubbleFacts".
 2. Leave **Local file** unchecked. In **URL**, type
    `http://127.0.0.1:3000/obs-overlay`
-3. Set **Width** to `1920` and **Height** to `1080`.
+3. Set **Width** and **Height** to your canvas size: in OBS, it's under
+   **Settings**, then **Video**, **Base (Canvas) Resolution**. Usually that's
+   `1920` and `1080`. If yours is another shape, like `1440` by `1080`, also
+   add `CANVAS_SIZE=1440x1080` to your `.env` file, so bubbles fit it (see
+   [docs/CONFIG.md](CONFIG.md#the-look)).
 4. Leave **Shutdown source when not visible** and **Refresh browser when scene
    becomes active** unchecked, and Custom CSS empty.
 5. Click **OK**. Then right-click the source and choose
@@ -313,7 +317,9 @@ at a time.
 
 **Streaming vertically** (Twitch Dual Format, TikTok, YouTube Shorts, Instagram Live)? Add a
 second Browser source, **Local file**, pointing at
-`frontend/obs/obs-overlay-vertical.html`, at **1080** by **1920**. Its
+`frontend/obs/obs-overlay-vertical.html`, at **1080** by **1920** (another
+vertical size, like 1080 by 1350? Use that, and add
+`VERTICAL_CANVAS_SIZE=1080x1350` to `.env`). Its
 bubbles keep clear of those apps' buttons and chat. Choose where they go with
 `VERTICAL_AREA=top` (or `above-chat`), and their size with
 `BUBBLE_VERTICAL_SCALE=1` (from 0.5 to 3; see [The look](#the-look)).
@@ -329,6 +335,8 @@ BUBBLE_ACCENT=#ff8800        # optional: the border and the Now Playing label
 BUBBLE_BACKGROUND=#ffffff    # optional: set both colors, or neither
 BUBBLE_SCALE=1               # optional: bubble size, 0.5 to 3
 BUBBLE_VERTICAL_SCALE=1      # optional: the same for the vertical overlay
+CANVAS_SIZE=1920x1080        # optional: your OBS canvas, if it isn't 1920x1080
+VERTICAL_CANVAS_SIZE=1080x1920  # optional: the same for the vertical overlay
 ```
 
 The text turns light or dark by itself, whichever is easier to read on your

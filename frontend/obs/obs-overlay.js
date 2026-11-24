@@ -16,11 +16,12 @@
  *
  *  Add a Browser Source in OBS with the URL http://127.0.0.1:3000/obs-overlay
  *  while the server runs, or with "Local file" checked, pointing at this
- *  folder's obs-overlay.html, 1920x1080. See docs/MANUAL-SETUP.md.
+ *  folder's obs-overlay.html, at your canvas size (usually 1920x1080). See
+ *  docs/MANUAL-SETUP.md. Another canvas shape? Set CANVAS_SIZE (docs/CONFIG.md).
  *
  *  For a vertical (9:16) stream, use obs-overlay-vertical.html instead, at
- *  1080x1920. It has its own bubble spots and size, kept clear of the
- *  phone apps' buttons and chat.
+ *  1080x1920 (or VERTICAL_CANVAS_SIZE). It has its own bubble spots and size,
+ *  kept clear of the phone apps' buttons and chat.
  *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
  *  without the server. A red dot bottom-right means the server isn't
@@ -282,6 +283,7 @@
     if (iconChosen) document.documentElement.dataset.icon = msg.icon;
     else delete document.documentElement.dataset.icon;
     applySizes(msg);
+    applyCanvas(msg);
     if (look || lookSheet) {
       if (!lookSheet) {
         lookSheet = document.createElement("style");
@@ -313,6 +315,32 @@
     }
     const props = (scale !== null ? "  --bf-scale: " + scale + ";\n" : "") + (vertical !== null ? "  --bf-vertical-scale: " + vertical + ";\n" : "");
     sizeSheet.textContent = props ? ":where(html) {\n" + props + "}" : "";
+  }
+
+  // The canvas this overlay is on, as the streamer set it (#544); without a setting, the usual one
+  const DEFAULT_CANVAS = VERTICAL ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
+  let canvas = DEFAULT_CANVAS;
+
+  /** A canvas size the server sent: whole pixels within MIN_CANVAS_SIDE to MAX_CANVAS_SIDE (bubble-style.ts), else null */
+  const canvasOf = (c) =>
+    c && typeof c === "object" && [c.width, c.height].every((n) => Number.isInteger(n) && n >= 480 && n <= 7680) ? { width: c.width, height: c.height } : null;
+
+  /**
+   * How text and bubbles size on this canvas: landscape narrower than 16:9 from its width ("width"),
+   * vertical wider than 9:16 from its height ("height"), else as always (none). Must match obs-overlay.css
+   */
+  function fitFor(c) {
+    if (VERTICAL) return c.width * 16 > c.height * 9 ? "height" : "";
+    return c.width * 9 < c.height * 16 ? "width" : "";
+  }
+
+  /** The streamer's canvas, live: a new size needs no Refresh in OBS */
+  function applyCanvas(msg) {
+    canvas = canvasOf(VERTICAL ? msg.verticalCanvas : msg.canvas) || DEFAULT_CANVAS;
+    const fit = fitFor(canvas);
+    if (fit) document.documentElement.dataset.fit = fit;
+    else delete document.documentElement.dataset.fit;
+    checkVerticalSize();
   }
 
   // --- Connection ---
@@ -439,11 +467,11 @@
     if (wide && !note) {
       note = document.createElement("div");
       note.className = "size-note";
-      note.textContent = "BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1920.";
       document.body.appendChild(note);
     } else if (!wide && note) {
       note.remove();
     }
+    if (wide) note.textContent = "BubbleFacts Vertical: in this Browser source's properties, set Width to " + canvas.width + " and Height to " + canvas.height + ".";
   }
 
   renderTestMode();

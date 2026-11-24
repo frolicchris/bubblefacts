@@ -1,7 +1,9 @@
 /* BubbleFacts
  *
  * Size: everything scales with the source's height (24px text at 1080p). Bigger: raise
- * --bf-scale (the app's Bubble size does this, live).
+ * --bf-scale (the app's Bubble size does this, live). On a canvas the streamer said is narrower
+ * than 16:9 (4:3, 16:10, square), data-fit="width" sizes from the width instead, so every bubble
+ * takes as much of the width as on 1920x1080 and none runs off the right edge (#544).
  * OBS draws browser sources without the graphics card: animate only transform and opacity.
  * Look: the --bf-* colors, font and corners below are Classic; the Style setting swaps them
  * via data-style on <html> (#177). A Style sets only --bf-*, never size, animation or text.
@@ -13,11 +15,17 @@
   --bf-vertical-scale: 1;
 }
 
+/* --fit-unit: 1% of a 16:9 canvas's height. The height itself, or on a narrower canvas 9/16 of 1% of its width */
 :root {
-  --fact-font-size: calc(2.222vh * var(--bf-scale));
-  --toast-font-size: calc(1.944vh * var(--bf-scale));
-  --bubble-max-width: calc(51.85vh * var(--bf-scale));
-  --bubble-min-width: calc(27.78vh * var(--bf-scale));
+  --fit-unit: 1vh;
+  --fact-font-size: calc(2.222 * var(--fit-unit) * var(--bf-scale));
+  --toast-font-size: calc(1.944 * var(--fit-unit) * var(--bf-scale));
+  --bubble-max-width: calc(51.85 * var(--fit-unit) * var(--bf-scale));
+  --bubble-min-width: calc(27.78 * var(--fit-unit) * var(--bf-scale));
+}
+
+html[data-fit="width"] {
+  --fit-unit: 0.5625vw;
 }
 
 /* === Styles. Classic, the default: a dark blue RPG dialog box === */
@@ -453,13 +461,20 @@ html, body {
 /* === Vertical: BubbleFacts Vertical.html, 1080x1920, for Twitch Dual Format, TikTok,
    YouTube Shorts and Instagram Live (#175) ===
    Stays clear of the phone apps' own bar, chat and buttons: 14% top, 38% bottom, 6% left,
-   12% right (VERTICAL_SAFE in fact-generator.ts). Sizes follow the width: 40px text at 1080 */
+   12% right (VERTICAL_SAFE in fact-generator.ts). Sizes follow the width: 40px text at 1080.
+   On a canvas the streamer said is wider than 9:16 (4:5, 3:4), data-fit="height" sizes text from the
+   height instead, so a bubble takes no more of the height than on 1080x1920 (#544) */
 html[data-layout="vertical"] {
-  --fact-font-size: calc(3.7vw * var(--bf-vertical-scale));
-  --toast-font-size: calc(3.2vw * var(--bf-vertical-scale));
+  --vertical-fit-unit: 1vw;
+  --fact-font-size: calc(3.7 * var(--vertical-fit-unit) * var(--bf-vertical-scale));
+  --toast-font-size: calc(3.2 * var(--vertical-fit-unit) * var(--bf-vertical-scale));
   /* The safe area's width at any size: bigger text wraps instead */
   --bubble-max-width: 82vw;
   --bubble-min-width: 50vw;
+}
+
+html[data-layout="vertical"][data-fit="height"] {
+  --vertical-fit-unit: 0.5625vh;
 }
 
 /* Tighter than landscape: a 160-character fact at Larger fits above a three-line Now Playing */

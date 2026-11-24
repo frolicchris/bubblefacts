@@ -467,3 +467,99 @@ describe("OBS's streaming signal", () => {
     expect(early.sent).toEqual([{ type: "obs_streaming", streaming: false }]);
   });
 });
+
+describe("the canvas size the streamer chose (issue #544)", () => {
+  it("sizes as always on a 16:9 canvas, or with no size sent", () => {
+    const o = overlay();
+    o.send({ type: "style", style: "classic" });
+    expect(o.root.dataset.fit).toBeUndefined();
+    for (const canvas of [{ width: 1920, height: 1080 }, { width: 1280, height: 720 }, { width: 2560, height: 1080 }, { width: 1366, height: 768 }]) {
+      o.send({ type: "style", style: "classic", canvas });
+      expect(o.root.dataset.fit).toBeUndefined();
+    }
+  });
+
+  it("sizes bubbles from the width on a canvas narrower than 16:9, and back again", () => {
+    const o = overlay();
+    for (const canvas of [{ width: 1440, height: 1080 }, { width: 1920, height: 1200 }, { width: 1080, height: 1080 }]) {
+      o.send({ type: "style", style: "classic", canvas });
+      expect(o.root.dataset.fit).toBe("width");
+    }
+    o.send({ type: "style", style: "classic" });
+    expect(o.root.dataset.fit).toBeUndefined();
+  });
+
+  it("ignores a size that isn't whole pixels in range, sizing as always", () => {
+    const o = overlay();
+    for (const canvas of [{ width: 1440.5, height: 1080 }, { width: "1440", height: 1080 }, { width: 100, height: 100 }, "1440x1080", null]) {
+      o.send({ type: "style", style: "classic", canvas });
+      expect(o.root.dataset.fit).toBeUndefined();
+    }
+  });
+
+  it("on the vertical overlay, uses the vertical size only, sizing text from the height on a wider shape", () => {
+    const o = overlay("vertical");
+    o.send({ type: "style", style: "classic", canvas: { width: 1440, height: 1080 } });
+    expect(o.root.dataset.fit).toBeUndefined();
+    o.send({ type: "style", style: "classic", verticalCanvas: { width: 1080, height: 1920 } });
+    expect(o.root.dataset.fit).toBeUndefined();
+    o.send({ type: "style", style: "classic", verticalCanvas: { width: 1080, height: 1350 } });
+    expect(o.root.dataset.fit).toBe("height");
+  });
+
+  it("asks for the chosen size when the vertical overlay is in a wide source", () => {
+    const notes: Array<{ textContent?: string }> = [];
+    let socket: { onmessage?: (e: { data: string }) => void; onopen?: () => void } = {};
+    const element = () => ({ classList: { add() {}, remove() {} }, dataset: {}, style: { setProperty() {} }, appendChild() {}, append() {}, remove() {} });
+    class FakeSocket {
+      constructor() { socket = this as typeof socket; }
+      close() {}
+    }
+    vm.runInNewContext(SCRIPT, {
+      location: { href: "http://absolute/x.html", protocol: "http:", hostname: "absolute", host: "absolute", search: "" },
+      document: {
+        getElementById: element,
+        createElement: element,
+        body: { appendChild: (el: { textContent?: string }) => notes.push(el) },
+        head: { appendChild() {} },
+        documentElement: { dataset: { layout: "vertical" } },
+        querySelector: () => notes[0] ?? null,
+      },
+      // In OBS, in a source left landscape
+      window: { innerWidth: 1920, innerHeight: 1080, addEventListener() {}, obsstudio: {} },
+      WebSocket: FakeSocket,
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+      console,
+    });
+    expect(notes).toHaveLength(1);
+    expect(notes[0].textContent).toBe("BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1920.");
+    socket.onopen?.();
+    socket.onmessage?.({ data: JSON.stringify({ type: "style", style: "classic", verticalCanvas: { width: 1080, height: 1350 } }) });
+    expect(notes).toHaveLength(1);
+    expect(notes[0].textContent).toBe("BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1350.");
+  });
+});
+
+describe("the overlay's sizes (issue #544)", () => {
+  const css = fs.readFileSync(path.resolve(__dirname, "../../frontend/obs/obs-overlay.css"), "utf8");
+  /** A length in the stylesheet, worked out in pixels for a page of this size */
+  const px = (expr: string, page: { width: number; height: number }) =>
+    Function(`"use strict"; return (${expr.replace(/([\d.]+)v([hw])/g, (_m, n, unit) => `(${n} * ${unit === "h" ? page.height : page.width} / 100)`)});`)() as number;
+  const unit = (selector: string, name: string) => new RegExp(`${selector.replace(/[[\]"]/g, "\\$&")} \\{\\s*${name}: ([\\d.]+v[hw]);`).exec(css)?.[1] ?? "";
+
+  it("gives the same pixels on 1920x1080 and 1080x1920 whichever way it sizes", () => {
+    expect(px(unit(":root", "--fit-unit"), { width: 1920, height: 1080 })).toBeCloseTo(px(unit('html[data-fit="width"]', "--fit-unit"), { width: 1920, height: 1080 }));
+    const tall = { width: 1080, height: 1920 };
+    expect(px(unit('html[data-layout="vertical"]', "--vertical-fit-unit"), tall)).toBeCloseTo(px(unit('html[data-layout="vertical"][data-fit="height"]', "--vertical-fit-unit"), tall));
+  });
+
+  it("keeps a bubble at the rightmost left spot (66%) on a 4:3 canvas once it sizes from the width", () => {
+    const page = { width: 1440, height: 1080 };
+    const maxWidth = 51.85 * px(unit('html[data-fit="width"]', "--fit-unit"), page);
+    expect(0.66 * page.width + maxWidth).toBeLessThanOrEqual(page.width);
+    // As it was, from the height, it ran off the edge
+    expect(0.66 * page.width + 51.85 * px(unit(":root", "--fit-unit"), page)).toBeGreaterThan(page.width);
+    expect(css).toContain("--bubble-max-width: calc(51.85 * var(--fit-unit) * var(--bf-scale));");
+  });
+});
