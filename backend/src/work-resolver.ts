@@ -24,6 +24,7 @@ import {
   workFromTitle,
   artistNames,
 } from "./fact-verifier";
+import { qualifierOf, withoutQualifier } from "./grounding/relevance";
 import { PLATFORM_TAG } from "./infobox";
 
 /** What the artist field names: who sings it, who wrote it, the work it's from, or unknown */
@@ -136,8 +137,6 @@ export function tokens(s: string): string[] {
     .map((t) => ROMAN[t] ?? t);
 }
 
-const qualifierOf = (page: string) => /\(([^)]*)\)\s*$/.exec(page)?.[1] ?? "";
-const withoutQualifier = (page: string) => page.replace(/\s*\([^)]*\)\s*$/, "");
 // The work music is of: "Music of Some Game", "Some Game Original Soundtrack", "Music of the Some series"
 const musicOf = (base: string) =>
   base
@@ -218,7 +217,7 @@ function kindOf(qualifier: string, description: string, full: string, page: stri
 
 /** What an article says it is; `full` "" for a search-only title, `description` Wikipedia's short one if read */
 export function candidateProfile(page: string, full = "", description = "", rank = -1): CandidateProfile {
-  const qualifier = qualifierOf(page);
+  const qualifier = qualifierOf(page) ?? "";
   const kind = kindOf(qualifier, description, full, page);
   const first = full ? firstSentences(full, 1) : "";
   const year = kind === "person" ? null : Number(YEAR.exec(qualifier)?.[1] ?? YEAR.exec(first.replace(/\([^)]*\)/g, ""))?.[1] ?? NaN);

@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import fs from "fs";
 import path from "path";
 import { MODEL, ModelFile, modelPath } from "./model";
+import type { AskChannel } from "./ipc-channels";
 import type { Settings } from "./settings";
 
 // Prepare my songs in the app (#293 to #297): the server prepares, this decides when (#295) and holds
@@ -240,7 +241,7 @@ export class PrepareDriver {
 
 /** From main.ts: its checked `handle`, the server, and what the app knows */
 export interface PreparingDeps {
-  handle: (channel: string, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
+  handle: (channel: AskChannel, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
   control: DriverDeps["control"];
   conditions: () => Conditions;
 }
@@ -254,6 +255,6 @@ export function registerPreparing(deps: PreparingDeps): PrepareDriver {
     control: deps.control,
   });
   // Where preparing stands, for the window
-  deps.handle("prepare-status", async () => ({ waiting: driver.reason, server: await deps.control("prepare/status") }));
+  deps.handle("get-prepare-status", async () => ({ waiting: driver.reason, server: await deps.control("prepare/status") }));
   return driver;
 }
