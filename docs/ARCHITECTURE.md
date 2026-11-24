@@ -2076,6 +2076,11 @@ interface: a change that breaks one waits for 3.0 (SemVer).
 - **The update path:** any 2.x, beta or release candidate updates straight to
   the newest 2.x in the app.
 
+Not kept yet: the text **Share song facts with other apps** sends (see
+[Sharing song facts with other apps](#sharing-song-facts-with-other-apps)) has
+no format version, so it may change between 2.x releases. Giving it a version
+and this promise is a later decision.
+
 Such a change is announced in the release notes of at least one earlier 2.x
 release first. For releases:
 
