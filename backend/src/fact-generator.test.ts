@@ -51,7 +51,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, copiesExample, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
+import { prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { MAX_BUBBLES } from "./fact-ranking";
 import { blockArticle as blockArticleForTest, blockedArticles, resetWrongFacts, songKey } from "./wrong-facts";
 import { PreparedEntry, PreparedFact, preparedStore, PREPARED_RULES_VERSION } from "./prepared-facts";
@@ -62,7 +62,7 @@ import { saveSongFacts, setFactsOff } from "./song-facts";
 import { loadSession, remainingFacts, saveSession } from "./session";
 import { Fact } from "./types";
 import { BoxSubject } from "./infobox";
-import { fetchGrounding } from "./fact-verifier";
+import { copiesExample, fetchGrounding } from "./fact-verifier";
 import { articleItem, artistFacts, wikidataFacts } from "./wikidata";
 import { artistGoodFacts } from "./artist-good";
 import { artistByTitle, cachedArtistByTitle, musicbrainzFacts } from "./musicbrainz";
@@ -1176,14 +1176,14 @@ describe("Wrong decides what to block from the fact's own label (audit)", () => 
 describe("copiesExample", () => {
   it("catches the examples' wording when the reference doesn't have it", () => {
     const ref = "Mara Quinn composed the score in 2011. The album reached number 4 in Canada.";
-    expect(copiesExample("Mara Quinn said the band wanted the chorus to sound like a storm.", ref)).toBe(true);
-    expect(copiesExample("The album reached number 9 on the Oricon chart.", ref)).toBe(true);
+    expect(copiesExample("Mara Quinn said the band wanted the chorus to sound like a storm.", ref, RETELL_EXAMPLES)).toBe(true);
+    expect(copiesExample("The album reached number 9 on the Oricon chart.", ref, RETELL_EXAMPLES)).toBe(true);
   });
 
   it("lets through common wording and wording the reference has", () => {
-    expect(copiesExample("The band's lyrics are about loss and distance.", "Its lyrics are about loss and distance.")).toBe(false);
-    expect(copiesExample("Lee wanted the chorus to sound like a storm.", "Lee said she wanted the chorus to sound like a storm at sea.")).toBe(false);
-    expect(copiesExample("The album reached number 4 in Canada.", "The album reached number 4 in Canada.")).toBe(false);
+    expect(copiesExample("The band's lyrics are about loss and distance.", "Its lyrics are about loss and distance.", RETELL_EXAMPLES)).toBe(false);
+    expect(copiesExample("Lee wanted the chorus to sound like a storm.", "Lee said she wanted the chorus to sound like a storm at sea.", RETELL_EXAMPLES)).toBe(false);
+    expect(copiesExample("The album reached number 4 in Canada.", "The album reached number 4 in Canada.", RETELL_EXAMPLES)).toBe(false);
   });
 });
 

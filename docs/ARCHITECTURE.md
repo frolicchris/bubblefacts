@@ -118,9 +118,11 @@ server, a song source or anything that shows or shares a fact.
 | `grounding/performer-name.ts` | A performer's name shared with a film or a book. |
 | `grounding/theme.ts` | "Some Name Theme": the article of what the theme is named for. |
 | `grounding/lookup.ts` | `fetchGrounding`: the grounding entry point. |
+| `screening/captions.ts` | `screenCaptions`: whether each of the AI's captions shows. Every drop between the answer and the ranking, with its reason. |
 
 New to the fact checking? Start with `screenClaims` in `screening/screen.ts`
-(what makes a caption pass) and `fetchGrounding` in `grounding/lookup.ts` (how the article is chosen),
+(what makes a caption pass), then `screenCaptions` in `screening/captions.ts`
+(every other reason a caption doesn't show) and `fetchGrounding` in `grounding/lookup.ts` (how the article is chosen),
 then `generateRest` in `fact-generator.ts`, which ties them together.
 
 ### The desktop app
@@ -463,6 +465,13 @@ sign-ins and the built-in AI. Its design decisions are in
    in 2015"). Put back where the place is clear (the number, or the word
    right after the limit, appears once in the caption); dropped when the
    caption retells that part but there is no clear place; otherwise left.
+   One function makes every drop in this step and the one before it, from
+   `copiesExample` to `restatesRequest`: `screenCaptions` in
+   `screening/captions.ts`. It returns the captions kept and each dropped one
+   with its reason. The stream runs its two steps at two moments:
+   `screenAnswer` (the checks on the whole answer) as soon as the answer is
+   in, and `screenRest` (everything else) once the song's data lookups are
+   in, so a fact another song showed meanwhile still counts as shown.
    **Choose and order.** `rankFacts` decides which of the captions left, and
    of the song's data facts, are shown, and in what order: at most four (see
    [Which bubbles a song shows](#which-bubbles-a-song-shows)).
