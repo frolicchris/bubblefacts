@@ -3,7 +3,8 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
+import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenCaptions, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
+import type { Caption } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
@@ -24,7 +25,7 @@ import { logWrong } from "./wrong-log";
 import { Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, aboutIsMusicChannel, canAskAbout, forgetAbouts, loginForArtist, loginForHandle, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
-import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
+import { MatchResult, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
 import { askAI, builtinState, Obsolete, prepModelName, runningTurn, streamModelName } from "./ai-client";
 
@@ -378,23 +379,6 @@ Wrong: "Paper Lanterns" sold 40,000 copies and reached the top 10.
 Right: In Japan, "Paper Lanterns" sold 40,000 copies by March 2009.
 Always name who said, wrote or thought something, and keep where, when and on which chart. Never start with "it", "they", "these" or "the records": use the name the text gives, or skip the statement.`;
 
-// Three of these in a row prove nothing
-const COMMON_WORDS = new Set("the of a an s are is was were to in on and it its that by for with as about lyrics album song band said wrote".split(" "));
-const words = (text: string) => text.toLowerCase().replace(/(\d),(\d)/g, "$1$2").match(/[a-z0-9]+/g) ?? [];
-const threeWords = (list: string[]) => list.slice(0, -2).map((w, i) => `${w} ${list[i + 1]} ${list[i + 2]}`);
-// Every three-word run in the examples, not all common words
-const EXAMPLE_WORDING = new Set(
-  RETELL_EXAMPLES.split("\n")
-    .filter((l) => /^(Text|Wrong|Right): /.test(l))
-    .flatMap((l) => threeWords(words(l.replace(/^\w+: /, ""))))
-    .filter((g) => g.split(" ").some((w) => !COMMON_WORDS.has(w)))
-);
-
-/** Three words in a row from an example that the reference lacks ("sound like a storm"); no other screen catches it */
-export function copiesExample(caption: string, context: string): boolean {
-  const source = ` ${words(context).join(" ")} `;
-  return threeWords(words(caption)).some((g) => EXAMPLE_WORDING.has(g) && !source.includes(` ${g} `));
-}
 /** For an artist's article: a line on another of their songs must say so, or chat takes it for the one playing */
 export const ARTIST_SONG_RULE = ` The text is about the artist, not only this song. When a statement is about a different song, album or hit, make the artist the subject of your caption and name that other work, like "Her breakthrough hit was 'TITLE'." with the real title from the text. Never write it as if it were about the song playing now.`;
 const CAPTION_RULES = `Nothing about the music video. Skip release dates, record labels, catalog numbers and formats unless the text has nothing better. Never mention the text, this prompt or what you could not find.`;
@@ -628,13 +612,6 @@ function remember(shown: string[]): void {
   list.splice(0, Math.max(0, list.length - RECENT_KEPT));
 }
 
-// Not its artist's or game's
-function aboutTheSong(song: SSLSong, context: string): boolean {
-  const { game, track } = resolveGameAndTrack(song);
-  if (!track || track === game) return true;
-  return mentionsName(normalizeTitle(context.split("\n")[0]), [normalizeTitle(track)]);
-}
-
 const MAX_MISFITS = 2; // articles skipped before giving up on a reading
 
 // Skips misfits (articleMisfit) and searches again: "Jezebel" by Sade finds the singer, not the queen
@@ -780,9 +757,6 @@ async function titleOnlyReading(song: SSLSong): Promise<SSLSong | null> {
 
 // ttlMs 0: not cached; Infinity: for the session
 type Generated = { facts: Fact[]; ttlMs: number };
-
-// A screened caption: as the AI wrote it (what the screens and the cited sentence go by), in the words shown, and the sentence it cites
-type Caption = { text: string; plain: string; cited?: string };
 
 // The streamer's facts for this song, as written, no lookup; even a live learn (often another creator's original)
 function ownSongFacts(song: SSLSong, want: number, asked: SSLSong): Generated | null {
@@ -1059,16 +1033,20 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     throw err;
   }
   aiDone = true;
-  // Shared answer: a line naming its first song's track is about that one
-  const otherTrack = shared && normalizeTitle(shared.track) !== normalizeTitle(track) ? normalizeTitle(shared.track) : "";
-  const lines = answer.split("\n").map((l) => l.trim()).filter(Boolean).filter((l) => {
-    if (otherTrack && mentionsName(normalizeTitle(l), [otherTrack])) {
-      console.log("[Screen] DROP (names the song it was first written for)");
-      return false;
-    }
-    if (!context || !copiesExample(l, context)) return true;
-    console.log("[Screen] DROP (copies an example)");
-    return false;
+  const answerLines = answer.split("\n").map((l) => l.trim()).filter(Boolean);
+  // Every drop (screening/captions.ts): the answer's own logged now, the rest once the data lookups are in
+  const held: string[] = [];
+  const screened = screenCaptions({
+    lines: answerLines,
+    context,
+    song,
+    read,
+    cited: Boolean(context) && citesSentences(),
+    examples: RETELL_EXAMPLES,
+    recent: recentList(),
+    writtenFor: shared?.track,
+    scored: config.match === "scored" && scored ? scored : undefined,
+    log: (line, step) => (step === "answer" ? console.log(line) : held.push(line)),
   });
   // Wikidata and MusicBrainz facts, read beside the AI
   const fromData = await dataFacts;
@@ -1081,42 +1059,13 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
     (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
   );
-  const cited = Boolean(context) && citesSentences();
-  const { kept, rejected, sources: citedSentence } = screenClaims(lines, context, { otherParts: otherParts(context, track), track: aboutTheSong(read, context) ? undefined : track, cited, artists: artistNames(read.artist ?? "") });
-  // Reason only, never the words: logs mustn't spread what was held back (#242, #262)
-  for (const r of rejected) console.log(`[Screen] DROP (${r.reason})`);
-  // A "someone said" caption must keep who said it
-  const attributed = kept.filter((f) => {
-    if (context && !keepsAttribution(f, context)) {
-      console.log("[Screen] DROP (drops who said it)");
-      return false;
-    }
-    if (loadedCaption(f, [read.title, read.artist ?? ""], isPerformerArticle(page, articleText(page) || context))) {
-      console.log("[Screen] DROP (loaded wording)");
-      return false;
-    }
-    // Opens on a sister work ("Some Game II sold")
-    if (config.match === "scored" && scored && aboutAnotherWork(f, scored.request, scored.target)) {
-      console.log("[Screen] DROP (about another work)");
-      return false;
-    }
-    return true;
-  });
-  const unseen = attributed.filter((f) => !recentList().some((r) => tooSimilar(r, f)));
-  if (unseen.length < attributed.length) console.log(`[Screen] DROP ${attributed.length - unseen.length} already shown for an earlier song`);
-  // Restore a dropped limit ("in Japan", "usually"); drop the caption if it has no clear place
-  const fresh = unseen.flatMap((f): Caption[] => {
-    const scoped = context && scopeRepair.on ? repairScope(f, context) : f;
-    const fixed = context && qualifierRepair.on ? repairQualifier(scoped, context) : { text: scoped };
-    if ("drop" in fixed) {
-      console.log(`[Screen] DROP (${fixed.drop})`);
-      return [];
-    }
-    if (fixed.text !== f) console.log(`[Screen] SCOPE: ${f.slice(0, 70)} -> ${fixed.text.slice(0, 110)}`);
-    // Fixed plain words for music terms
-    return [{ text: f, plain: explainMusicTerms(fixed.text), cited: citedSentence?.get(f) }];
-  });
-  const freshTexts = fresh.map((c) => c.text);
+  for (const line of held) console.log(line);
+  const { kept: usable, sources: citedSentence } = screened;
+  // Past the whole-answer checks; dropped by screenClaims
+  const generated = answerLines.length - screened.dropped.filter((d) => d.step === "answer").length;
+  const claimDrops = screened.dropped.filter((d) => d.step === "claims").length;
+  // A line that only repeats the request still says what it says
+  const freshTexts = [...usable.map((c) => c.text), ...screened.dropped.filter((d) => d.reason === RESTATES_REQUEST).map((d) => d.caption)];
   // Song's data facts, then the infobox's: at most dataRoom, none a caption already says; early ones stay as sent
   const aboutSong = fromData.filter((f) => !artistSentences.has(f));
   const candidates = [...(early.length ? [] : rankedData(aboutSong, MAX_BUBBLES)).map((text) => ({ text, values: valuesIn(text), evidence: "" })), ...boxFacts];
@@ -1134,8 +1083,6 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   // Artist fact beyond dataRoom: never displaces a song fact
   const artistFact = fromData.find((f) => artistSentences.has(f) && !structured.includes(f) && !alreadySaid(valuesIn(f), freshTexts));
   if (artistFact) structured.push(artistFact);
-  // A spare replaces a line that only repeats title and artist
-  const usable = fresh.filter((c) => !restatesRequest(c.plain, song));
   const cites = new Map(usable.flatMap((c) => (c.cited !== undefined ? [[c.plain, c.cited] as const] : [])));
   // Sent facts first, as sent; captions fill the rest
   const room = early.length ? Math.max(0, Math.min(want, MAX_BUBBLES) - early.length) : want;
@@ -1149,9 +1096,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const shown = early.length ? [...sent, ...later] : captions;
   // early ones were remembered when sent
   remember(early.length ? later : shown);
-  console.log(`[Screen] "${song.title}": ${lines.length} generated, ${rejected.length} dropped, ${shown.length} shown`);
+  console.log(`[Screen] "${song.title}": ${generated} generated, ${claimDrops} dropped, ${shown.length} shown`);
   // Not for a shared answer: this song's own ask may do better
-  if (lines.length && !usable.length && !short && !shared) setCapped(screenedOut, askedKey, screenedKey(page, writer), MAX_KEPT);
+  if (generated && !usable.length && !short && !shared) setCapped(screenedOut, askedKey, screenedKey(page, writer), MAX_KEPT);
   else if (usable.length) screenedOut.delete(askedKey);
 
   if (shown.length) {
