@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { newerRelease, Release } from "./checks";
+import type { AskChannel } from "./ipc-channels";
 import type { PlainOptions } from "./plain-errors";
 import type { Settings } from "./settings";
 import { assetName, downloadUpdate, startInstall } from "./updater";
@@ -18,7 +19,7 @@ interface Updating {
 
 /** From main.ts: its checked `handle`, and what the app knows */
 export interface SelfUpdateDeps {
-  handle: (channel: string, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
+  handle: (channel: AskChannel, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
   version: () => string;
   updateChannel: () => Settings["updateChannel"];
   /** A copy run from source has no installer to download: a newer release is offered from the website */

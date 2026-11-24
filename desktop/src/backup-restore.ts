@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { autoBackup, backupFileName, makeBackup, readBackup, restoresFacts, wrongLogLines } from "./backup";
+import type { AskChannel } from "./ipc-channels";
 import type { PlainOptions } from "./plain-errors";
 import { factsAreWhole, factsSaveProblem, factsWhole, sanitize, saveSettings, Settings } from "./settings";
 
@@ -20,7 +21,7 @@ export function readDataJson(dataDir: string, name: string): unknown {
 
 /** From main.ts: its checked `handle`, the folders, the settings, and the window's dialogs */
 export interface BackupDeps {
-  handle: (channel: string, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
+  handle: (channel: AskChannel, listener: (e: unknown, ...args: unknown[]) => unknown) => void;
   dataDir: string;
   backupsDir: string;
   /** Where Back up… suggests saving */

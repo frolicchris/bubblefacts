@@ -255,7 +255,7 @@ describe("registerPreparing", () => {
     const handlers = new Map<string, (e: unknown, ...a: unknown[]) => unknown>();
     const control = jest.fn(async () => ({ running: false }));
     registerPreparing({ handle: (c, l) => void handlers.set(c, l), control, conditions: () => free });
-    expect([...handlers.keys()]).toEqual(["prepare-status"]);
-    expect(await handlers.get("prepare-status")!(null)).toEqual({ waiting: "off", server: { running: false } });
+    expect([...handlers.keys()]).toEqual(["get-prepare-status"]);
+    expect(await handlers.get("get-prepare-status")!(null)).toEqual({ waiting: "off", server: { running: false } });
   });
 });
