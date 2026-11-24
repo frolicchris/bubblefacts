@@ -90,14 +90,14 @@
 
   // The main process starts a real file drag, which OBS turns into a Browser source
   document.addEventListener("dragstart", (e) => {
-    const tile = e.target.closest?.("[data-drag-overlay]");
+    const tile = /** @type {HTMLElement | null | undefined} */ (/** @type {HTMLElement} */ (e.target).closest?.("[data-drag-overlay]"));
     if (!tile) return;
     e.preventDefault();
     api.startDrag(tile.dataset.dragOverlay === "vertical");
   });
 
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("button");
+    const t = /** @type {HTMLButtonElement | null} */ (/** @type {HTMLElement} */ (e.target).closest("button"));
     if (!t) return;
     if (t.dataset.open) api.openExternal(t.dataset.open);
     if (t.id === "open-notices") api.openNotices();
@@ -112,7 +112,7 @@
       flash(t, "Copied");
     }
     if (t.dataset.toggleSecret) {
-      const input = document.getElementById(t.dataset.toggleSecret);
+      const input = /** @type {HTMLInputElement} */ (document.getElementById(t.dataset.toggleSecret));
       input.type = input.type === "password" ? "text" : "password";
       t.textContent = input.type === "password" ? "Show" : "Hide";
     }
@@ -128,8 +128,8 @@
 
   /** Settings shows one section at a time; the others stay in the form, so one Save covers them all */
   function showSettingsTab(name) {
-    for (const p of document.querySelectorAll("[data-settings-panel]")) p.classList.toggle("tab-off", p.dataset.settingsPanel !== name);
-    for (const b of document.querySelectorAll(".settings-tab")) b.setAttribute("aria-current", String(b.dataset.settingsTab === name));
+    for (const p of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll("[data-settings-panel]"))) p.classList.toggle("tab-off", p.dataset.settingsPanel !== name);
+    for (const b of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".settings-tab"))) b.setAttribute("aria-current", String(b.dataset.settingsTab === name));
     // Comes back to the section last looked at: related settings are often changed more than once
     try {
       window.localStorage.setItem("settingsTab", name);
@@ -146,7 +146,7 @@
     } catch {
       // No storage
     }
-    return [...document.querySelectorAll(".settings-tab")].some((b) => b.dataset.settingsTab === saved) ? saved : "songs";
+    return [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".settings-tab"))].some((b) => b.dataset.settingsTab === saved) ? saved : "songs";
   }
 
   /** Opens the section a setting is in, before it is focused or scrolled to */
@@ -162,7 +162,7 @@
   }
   // Turning Prepare on explains it, without a trip to the "?"
   document.querySelector('input[name="prepareSongs"]').addEventListener("change", (e) => {
-    if (e.target.checked) showTip(document.querySelector('[data-tip="s-prepare-hint"]'), true);
+    if (/** @type {HTMLInputElement} */ (e.target).checked) showTip(document.querySelector('[data-tip="s-prepare-hint"]'), true);
   });
 
   function flash(button, text) {
@@ -1093,7 +1093,7 @@
   $("#show-logs").addEventListener("click", () => api.showLogs());
   $("#remove-data").addEventListener("click", () => api.removeData());
   $("#backup-show").addEventListener("click", () => api.showBackups());
-  for (const [id, call] of [["backup-save", () => api.saveBackup()], ["backup-restore", () => api.restoreBackup()]]) {
+  for (const [id, call] of /** @type {Array<[string, () => Promise<any>]>} */ ([["backup-save", () => api.saveBackup()], ["backup-restore", () => api.restoreBackup()]])) {
     $("#" + id).addEventListener("click", async () => {
       const r = await call();
       if (r.message) setResult($("#backup-result"), r.message, r.ok ? "ok" : "bad");
