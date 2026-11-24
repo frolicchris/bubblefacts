@@ -1,7 +1,8 @@
 // Checks a whole song list as BubbleFacts would see it, to find wrong articles and facts before musicians do
 //   npm run build
 //   node scripts/check-song-list.mjs LIST.json OUT_DIR [--facts N] [--seed S] [--pace MS]
-// LIST.json: an array of {title, artist}. Each song gets its article (no AI); --facts N also has the AI_PROVIDER
+// LIST.json: an array of {title, artist}. Each song gets the article the stream would write from, and how sure
+// (resolveReference, no AI: an unsure article gets data facts only on stream); --facts N also has the AI_PROVIDER
 // AI write facts for N random songs, for a person to review. Writes articles.csv, facts.md and summary.md, and
 // facts.jsonl: each sampled fact as one line shaped like the app's wrong-log.jsonl (song, caption, source, article,
 // evidence), so a fact judged wrong can be replayed or pasted (with made-up names) as a case
@@ -53,20 +54,25 @@ function suspicion(song, article) {
   return "";
 }
 
-const csv = [["title", "artist", "game", "track", "article", "chars", "suspect", "log"].join(",")];
+const csv = [["title", "artist", "game", "track", "article", "chars", "suspect", "unsure", "log"].join(",")];
 const cell = (v) => `"${String(v ?? "").replace(/"/g, '""').replace(/\s+/g, " ")}"`;
-let found = 0, none = 0, suspect = 0;
-const suspects = [];
+let found = 0, none = 0, suspect = 0, unsure = 0;
+const suspects = [], unsures = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const throttled = () => captured.some((l) => /rate-limited/.test(l));
 for (const [i, song] of songs.entries()) {
-  let text = "";
+  let text = "", why = "", read = song;
+  // As the stream reads it: without the artist's bracket note
+  const asked = generator.withoutNote({ title: song.title, artist: song.artist ?? "" });
   // Wikipedia slows heavy readers (HTTP 429): a throttled miss isn't an answer, so wait longer each time and retry
   for (let wait = 60_000; ; wait = Math.min(wait * 2, 600_000)) {
     captured = [];
     console.log = console.warn = quiet;
     try {
-      text = await verifier.fetchGrounding({ title: song.title, artist: song.artist ?? "" });
+      const ref = await verifier.resolveReference(asked);
+      text = ref.context;
+      read = ref.read;
+      why = ref.level === "unsure" ? ref.why : "";
     } catch (err) {
       captured.push(`error: ${err?.message ?? err}`);
     }
@@ -76,12 +82,13 @@ for (const [i, song] of songs.entries()) {
     await sleep(wait);
   }
   const article = text ? text.split("\n")[0] : "";
-  const why = suspicion(song, article);
+  const odd = suspicion(song, article);
   if (article) found++; else none++;
-  if (why) { suspect++; suspects.push({ song, article, why }); }
-  const { game, track } = verifier.resolveGameAndTrack({ title: song.title, artist: song.artist ?? "" });
+  if (odd) { suspect++; suspects.push({ song, article, why: odd }); }
+  if (why) { unsure++; unsures.push({ song, article, why }); }
+  const { game, track } = verifier.resolveGameAndTrack(read);
   const pick = captured.filter((l) => /\[Grounding\]/.test(l)).slice(-1)[0] ?? "";
-  csv.push([song.title, song.artist, game, track, article, text.length, why, pick].map(cell).join(","));
+  csv.push([song.title, song.artist, game, track, article, text.length, odd, why, pick].map(cell).join(","));
   if ((i + 1) % 25 === 0) real.log(`${i + 1}/${songs.length} songs, ${found} with an article, ${suspect} suspect`);
   // Gentle with Wikipedia, as the server is: one song at a time, minutes apart
   await sleep(PACE_MS);
@@ -122,12 +129,17 @@ const summary = [
   `- With an article: ${found} (${Math.round((100 * found) / songs.length)}%)`,
   `- No article (facts from music databases or nothing): ${none}`,
   `- Article looks wrong: ${suspect}`,
+  `- Article unsure (facts from music databases only, no AI captions): ${unsure}`,
   "",
   "## Articles that look wrong",
   "",
   ...suspects.map((s) => `- ${s.song.title} (${s.song.artist}) -> ${s.article}: ${s.why}`),
   "",
+  "## Articles the stream is unsure of",
+  "",
+  ...unsures.map((s) => `- ${s.song.title} (${s.song.artist}) -> ${s.article}: ${s.why}`),
+  "",
 ];
 fs.writeFileSync(path.join(outDir, "summary.md"), summary.join("\n"));
-real.log(summary.slice(0, 7).join("\n"));
+real.log(summary.slice(0, 8).join("\n"));
 process.exit(0);

@@ -2,11 +2,12 @@
 //   npm run build
 //   node scripts/wrong-cases.mjs [WRONG_LOG] [--pace MS]
 // WRONG_LOG: the app's `wrong-log.jsonl` (default $BUBBLEFACTS_DATA_DIR/wrong-log.jsonl); private, never commit or post it
-// Each song is looked up fresh, no Wrong blocks. Passes when another article (or none) is found, or the same
-// one now screens the caption out; "STILL SHOWS" is a fact-checking gap, and exits 1. Non-article captions skipped
+// Each song is looked up fresh, no Wrong blocks. Passes when another article (or none) is found, the stream is
+// now unsure of it (no AI captions), or the same one now screens the caption out; "STILL SHOWS" is a
+// fact-checking gap, and exits 1. Non-article captions skipped
 // Needs Wikipedia: offline every line is "no article found", which says nothing about the screening
-// Screened as the stream screens it (screenCaptions), but read as requested, with no scored match and no
-// facts shown before it: a caption only those would drop can still show
+// The article is picked as the stream picks it (resolveReference) and the caption screened as the stream
+// screens it (screenCaptions), with no facts shown before it: a caption only those would drop can still show
 
 import fs from "fs";
 import os from "os";
@@ -30,7 +31,8 @@ process.env.BUBBLEFACTS_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "bubble
 
 const dist = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../dist/backend");
 const verifier = await import(path.join(dist, "fact-verifier.js"));
-const { RETELL_EXAMPLES, STRUCTURED } = await import(path.join(dist, "fact-generator.js"));
+const { RETELL_EXAMPLES, STRUCTURED, withoutNote } = await import(path.join(dist, "fact-generator.js"));
+const { config } = await import(path.join(dist, "config.js"));
 
 const cases = [];
 for (const text of fs.readFileSync(logFile, "utf8").split("\n")) {
@@ -52,16 +54,18 @@ for (const [i, c] of cases.entries()) {
     real.log(`skip   ${name}: the caption didn't come from an article`);
     continue;
   }
-  const song = { title: c.song.title, artist: c.song.artist ?? "", ...(c.song.songId ? { songId: c.song.songId } : {}), ...(c.song.videoId ? { videoId: c.song.videoId } : {}) };
-  let context = "";
+  // As the stream reads it: without the artist's bracket note
+  const song = withoutNote({ title: c.song.title, artist: c.song.artist ?? "", ...(c.song.songId ? { songId: c.song.songId } : {}), ...(c.song.videoId ? { videoId: c.song.videoId } : {}) });
+  let ref = null;
   console.log = console.warn = () => undefined;
   try {
-    context = await verifier.fetchGrounding(song);
+    ref = await verifier.resolveReference(song);
   } catch {
     // Treated as no article
   }
   console.log = real.log;
   console.warn = real.warn;
+  const context = ref?.context ?? "";
   const now = context ? context.split("\n")[0] : "";
   if (!now) {
     nothing++;
@@ -70,9 +74,13 @@ for (const [i, c] of cases.entries()) {
   } else if (now !== c.article) {
     ok++;
     real.log(`ok     ${name}: now from "${now}", not "${c.article}"`);
+  } else if (ref.level === "unsure") {
+    ok++;
+    real.log(`ok     ${name}: unsure of "${now}" now (${ref.why}), so no AI captions`);
   } else {
-    const { track } = verifier.resolveGameAndTrack(song);
-    const { kept, dropped } = verifier.screenCaptions({ lines: [c.caption], context, song, read: song, otherParts: verifier.otherParts(context, track), cited: false, examples: RETELL_EXAMPLES, recent: [] });
+    const { track } = verifier.resolveGameAndTrack(ref.read);
+    const scored = config.match === "scored" && ref.scored ? ref.scored : undefined;
+    const { kept, dropped } = verifier.screenCaptions({ lines: [c.caption], context, song, read: ref.read, otherParts: verifier.otherParts(context, track), cited: false, examples: RETELL_EXAMPLES, recent: [], scored });
     if (kept.length) {
       still++;
       real.log(`STILL SHOWS  ${name}, "${c.article}": ${c.caption}`);
