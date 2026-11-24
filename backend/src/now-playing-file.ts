@@ -6,6 +6,7 @@ import { displayTitle, toSong } from "./song-mapping";
 import { SSLQueueItem, SSLSong } from "./types";
 import { parseVideoTitle } from "./youtube-title";
 import { settleTitleOrder } from "./musicbrainz";
+import { pollLoop } from "./source-polling";
 
 // The song on now from a text file an app keeps up to date (SONG_SOURCE=nowplaying): Streamling, Nightbot, What's Now Playing, any one-line writer
 // Polled, not watched; the file is the only word, so doubt means no song (ARCHITECTURE.md: Song sources and YouTube titles)
@@ -104,10 +105,16 @@ export class NowPlayingFileSource implements SongSource {
   /** What the last check read, for the next to agree with; undefined before the first */
   private candidate: string | null | undefined = undefined;
   private onSongChange: ((current: SSLQueueItem | null) => void) | null = null;
-  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  /** A file has no Retry-After, so no backoff */
+  private readonly poll = pollLoop({
+    isStopped: () => this.stopped,
+    intervalMs: () => this.pollMs,
+    backoffUntil: () => 0,
+    tick: () => this.checkNow(),
+  });
+  /** One check at a time; unlike `singleFlight`, a call meanwhile shares it and doesn't read again */
   private inFlight: Promise<void> | null = null;
   private lastSuccessfulFetchAt: number | null = null;
-  private lastPollAttemptAt: number | null = null;
   private stopped = false;
   /** Last state logged ("missing", "stale", an error), so a quiet file isn't logged every check */
   private lastNote = "";
@@ -129,7 +136,7 @@ export class NowPlayingFileSource implements SongSource {
   }
 
   lastPollAttemptAgeMs(): number | null {
-    return this.lastPollAttemptAt === null ? null : Date.now() - this.lastPollAttemptAt;
+    return this.poll.lastAttemptAgeMs();
   }
 
   lastSuccessfulFetchAgeMs(): number | null {
@@ -166,14 +173,13 @@ export class NowPlayingFileSource implements SongSource {
     const what = this.folder ? `the newest .txt in "${path.basename(this.folder)}"` : `"${path.basename(this.file)}"`;
     const how = { title: "title only", "artist-title": "Artist - Title", "youtube-title": "YouTube title" }[this.format];
     console.log(`[NowPlaying] Reading ${what} every ${this.pollMs / 1000} s (${how})`);
-    this.schedulePoll();
+    this.poll.schedule();
     await this.checkNow();
   }
 
   disconnect(): void {
     this.stopped = true;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = null;
+    this.poll.cancel();
   }
 
   /** The song as a queue entry; no requester or length, so no facts use them */
@@ -277,17 +283,5 @@ export class NowPlayingFileSource implements SongSource {
     if (state === this.lastNote) return;
     this.lastNote = state;
     if (state) log();
-  }
-
-  private schedulePoll(): void {
-    if (this.stopped) return;
-    this.lastPollAttemptAt ??= Date.now();
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(async () => {
-      if (this.stopped) return;
-      this.lastPollAttemptAt = Date.now();
-      await this.checkNow();
-      if (!this.stopped) this.schedulePoll();
-    }, this.pollMs);
   }
 }

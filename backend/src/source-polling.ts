@@ -1,4 +1,4 @@
-// What the StreamerSongList and StreamElements clients share: backoff, one fetch at a time, debounce, polling
+// What the song sources share: backoff, one fetch at a time, debounce, polling (the now playing file uses the poll loop only)
 // Small functions, not a base class: each client still decides what to fetch
 
 type Timer = ReturnType<typeof setTimeout>;
