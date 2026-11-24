@@ -44,7 +44,8 @@ Now playing file ─┘ reads the file   │
 | `backend/src/now-playing-folder.ts` | Where a preset's folder is: `Documents`, or the same folder in OneDrive. |
 | `backend/src/youtube-title.ts` | Reads a song and artist out of a YouTube video title. |
 | `backend/src/youtube-metadata.ts` | Reads the exact song and artist of YouTube's auto-generated "- Topic" uploads. |
-| `backend/src/fact-generator.ts` | Decides how to handle each song, talks to the AI, caches results, handles **Wrong**. |
+| `backend/src/fact-generator.ts` | Decides how to handle each song, writes the AI's prompt, caches results, handles **Wrong**. |
+| `backend/src/ai-client.ts` | The one way to the AI: a prompt in, the reply's text out, one client for each AI (built-in, Anthropic, OpenAI-compatible, Ollama). The system prompt, temperature, token limits and the built-in model's one-turn-at-a-time queue are here. |
 | `backend/src/fact-verifier.ts` | Finds the right Wikipedia article and screens the AI's captions. It only re-exports: the code is in `grounding/` and `screening/` (module map below), so callers import from one place. |
 | `backend/src/fact-limits.ts`, `curated-facts.ts` | The bubble and reference size limits; the streamer's untagged custom facts taking turns (issue #190). |
 | `backend/src/content-standard.ts` | The content standard's word lists: what no article sentence, caption or data fact may say. |
@@ -1843,7 +1844,7 @@ list song that played is prepared sooner: its plays add to its count.
 ### Keeping generations in order
 
 - **One model, one turn at a time.** The built-in model has one chat session.
-  Songs queue for it (`askBuiltin`); each turn resets the history and runs its
+  Songs queue for it (`askBuiltin` in `ai-client.ts`); each turn resets the history and runs its
   prompt together, and stops after 90 seconds (`BUILTIN_TIMEOUT_MS`).
 - **Obsolete work is dropped.** `setCurrentSong()` aborts a running built-in
   generation for another song, and a queued turn for an old song throws
