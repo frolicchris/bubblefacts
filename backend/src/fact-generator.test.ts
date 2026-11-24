@@ -132,6 +132,21 @@ describe("generateFacts", () => {
     expect(second.filter((t) => first.includes(t))).toEqual([]);
   });
 
+  it("doesn't repeat a fact another song showed while this one waited for its data facts (issue #226)", async () => {
+    // Song One's Wikidata lookup is still out when its AI answers; Song Two is written and shown meanwhile
+    withArticle("Same Artist");
+    let lookupDone: (facts: string[]) => void = () => undefined;
+    (wikidataFacts as jest.Mock).mockImplementationOnce(() => new Promise<string[]>((resolve) => (lookupDone = resolve)));
+    const first = generateFacts({ title: "Song One", artist: "Same Artist" });
+    while (!mockCreate.mock.calls.length) await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    const second = (await generateFacts({ title: "Song Two", artist: "Same Artist" })).map((f) => f.text);
+    lookupDone([]);
+    const firstTexts = (await first).map((f) => f.text);
+    expect(second.length).toBeGreaterThan(0);
+    expect(firstTexts.filter((t) => second.includes(t))).toEqual([]);
+  });
+
   it("looks nothing up for a fellow streamer's piece: the artist is a handle", async () => {
     (config as { factVerification: boolean }).factVerification = true;
     (wikidataFacts as jest.Mock).mockClear();
