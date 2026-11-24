@@ -470,7 +470,11 @@ sign-ins and the built-in AI. Its design decisions are in
    `screening/captions.ts`. It returns the captions kept and each dropped one
    with its reason. It writes the same `[Screen]` lines as before: a drop
    for the whole answer at once, the rest once the song's data lookups are
-   in (an infobox line can come between them).
+   in (an infobox line can come between them). The self-test
+   (`/control/selftest`), the caption corpus (`caption-corpus.test.ts`) and
+   the Wrong replay (`scripts/wrong-cases.mjs`) call it too, so they see
+   every drop the stream makes. The replay still reads the song as
+   requested, with no scored match and no facts shown before it.
    **Choose and order.** `rankFacts` decides which of the captions left, and
    of the song's data facts, are shown, and in what order: at most four (see
    [Which bubbles a song shows](#which-bubbles-a-song-shows)).

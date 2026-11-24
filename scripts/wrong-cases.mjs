@@ -5,7 +5,8 @@
 // Each song is looked up fresh, no Wrong blocks. Passes when another article (or none) is found, or the same
 // one now screens the caption out; "STILL SHOWS" is a fact-checking gap, and exits 1. Non-article captions skipped
 // Needs Wikipedia: offline every line is "no article found", which says nothing about the screening
-// The track is left out of screening, so a caption only a track-aware check drops can still show
+// Screened as the stream screens it (screenCaptions), but read as requested, with no scored match and no
+// facts shown before it: a caption only those would drop can still show
 
 import fs from "fs";
 import os from "os";
@@ -29,7 +30,7 @@ process.env.BUBBLEFACTS_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "bubble
 
 const dist = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../dist/backend");
 const verifier = await import(path.join(dist, "fact-verifier.js"));
-const { STRUCTURED } = await import(path.join(dist, "fact-generator.js"));
+const { RETELL_EXAMPLES, STRUCTURED } = await import(path.join(dist, "fact-generator.js"));
 
 const cases = [];
 for (const text of fs.readFileSync(logFile, "utf8").split("\n")) {
@@ -71,13 +72,13 @@ for (const [i, c] of cases.entries()) {
     real.log(`ok     ${name}: now from "${now}", not "${c.article}"`);
   } else {
     const { track } = verifier.resolveGameAndTrack(song);
-    const { kept, rejected } = verifier.screenClaims([c.caption], context, { otherParts: verifier.otherParts(context, track), artists: verifier.artistNames(song.artist) });
+    const { kept, dropped } = verifier.screenCaptions({ lines: [c.caption], context, song, read: song, otherParts: verifier.otherParts(context, track), cited: false, examples: RETELL_EXAMPLES, recent: [] });
     if (kept.length) {
       still++;
       real.log(`STILL SHOWS  ${name}, "${c.article}": ${c.caption}`);
     } else {
       ok++;
-      real.log(`ok     ${name}: now dropped (${rejected[0]?.reason ?? "screened"})`);
+      real.log(`ok     ${name}: now dropped (${dropped[0]?.reason ?? "screened"})`);
     }
   }
   if (i < cases.length - 1) await sleep(PACE_MS);
