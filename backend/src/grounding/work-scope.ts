@@ -2,7 +2,7 @@ import { config } from "../config";
 import { escapeRe, removeAll, withoutRefsAndComments } from "../text";
 import { setCapped } from "../capped-map";
 import { normalizeTitle } from "./titles";
-import { withoutQualifier } from "./relevance";
+import { qualifierOf, withoutQualifier } from "./relevance";
 import { STABLE_AGE_MS, USER_AGENT, WIKI_API } from "./wikipedia";
 import { contentTokens } from "../screening/similarity";
 
@@ -165,7 +165,7 @@ export function otherWorkSentences(full: string, wikitext: string, game: string,
     return names.some((x) => x.includes(" ") && n.includes(` ${x} `)) && MUSIC_ALBUM.test(t) && !NOT_MUSIC_ALBUM.test(t) && !games.some((g) => n.includes(` ${g} `));
   };
   // A link to "Some Game (TV series)" from "Some Game (video game)" is the show, not the game
-  const qualifier = (t: string) => /\(([^)]*)\)\s*$/.exec(t)?.[1]?.toLowerCase() ?? "";
+  const qualifier = (t: string) => qualifierOf(t)?.toLowerCase() ?? "";
   const isRequested = (w: { title: string; target: string }) =>
     (w.target
       ? names.includes(norm(w.target)) || (names.includes(norm(workOfPage(w.target))) && (!qualifier(w.target) || qualifier(w.target) === qualifier(page)))

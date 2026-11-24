@@ -158,7 +158,7 @@ const MUSIC_OR_GAME_WORK =
 
 /** Whether it's about a work that isn't music or a game, by brackets ("(1963 film)") or first sentence */
 export function isNonMusicWork(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   const what = qualifier ?? openingSays(full);
   return NON_MUSIC_WORK.test(what) && !MUSIC_OR_GAME_WORK.test(what);
 }

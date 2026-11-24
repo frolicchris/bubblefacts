@@ -4,7 +4,7 @@ import { escapeRe } from "../text";
 import { creditsSong } from "../musicbrainz";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { artistNames, mentionsName, normalizeTitle } from "./titles";
-import { isRelevantArticle, looksLikeArtistName, qualifierNamesAnotherArtist, withoutQualifier } from "./relevance";
+import { isRelevantArticle, looksLikeArtistName, qualifierNamesAnotherArtist, qualifierOf, withoutQualifier } from "./relevance";
 import { ownArticleExtract, wikiExtract, wikiGet, wikiResolveTitles, wikiSearch } from "./wikipedia";
 import { wikitextOf } from "./work-scope";
 import { openingSays, writingText } from "./covers";
@@ -25,7 +25,7 @@ const CONCERT_FILM =
 
 /** Whether a concert film, documentary or live video: its lead names the band, its facts are still the film's */
 export function isConcertFilm(page: string, full: string): boolean {
-  const qualifier = /\(([^)]*)\)\s*$/.exec(page)?.[1];
+  const qualifier = qualifierOf(page);
   return CONCERT_FILM.test(qualifier ?? "") || CONCERT_FILM.test(openingSays(full));
 }
 
