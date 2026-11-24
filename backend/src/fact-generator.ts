@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenAnswer, screenClaims, screenRest, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
+import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenAnswer, screenCaptions, screenRest, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
 import type { Caption } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
@@ -1453,8 +1453,10 @@ export async function selfTest(variant = 0): Promise<{ generated: number; kept: 
     "It was recorded with a string quartet in Lisbon. The game was directed by John Smith and released for the Nintendo Switch.";
   const song: SSLSong = { title, artist: "Starfall" };
   const lines = (await askModel(groundedPrompt(song, context, 4))).split("\n").map((l) => l.trim()).filter(Boolean);
-  const { kept } = screenClaims(lines, context, { cited: citesSentences() });
-  return { generated: lines.length, kept, ms: Date.now() - started };
+  // Every drop the stream would make, in the words it would show; quietly. No facts shown before: a made-up
+  // song tests the writer and the screens, not what this stream happened to show
+  const { kept } = screenCaptions({ lines, context, song, read: song, otherParts: otherParts(context, resolveGameAndTrack(song).track), cited: citesSentences(), examples: RETELL_EXAMPLES, recent: [] });
+  return { generated: lines.length, kept: kept.map((c) => c.plain), ms: Date.now() - started };
 }
 
 /** After a song's own facts change: its next generation starts over */

@@ -19,10 +19,11 @@ const load = (file) => import(pathToFileURL(path.join(dist, file)).href);
 test("the compiled server exports what the scripts import (after npm run build)", async () => {
   const verifier = await load("fact-verifier.js");
   const generator = await load("fact-generator.js");
-  for (const name of ["artistNames", "fetchGrounding", "looksLikeArtistName", "normalizeTitle", "otherParts", "resolveGameAndTrack", "screenClaims"]) {
+  for (const name of ["artistNames", "fetchGrounding", "looksLikeArtistName", "normalizeTitle", "otherParts", "resolveGameAndTrack", "screenCaptions"]) {
     assert.equal(typeof verifier[name], "function", `fact-verifier.js: ${name}`);
   }
   assert.equal(typeof generator.generateFacts, "function", "fact-generator.js: generateFacts");
   assert.equal(typeof generator.STRUCTURED, "string", "fact-generator.js: STRUCTURED");
+  assert.equal(typeof generator.RETELL_EXAMPLES, "string", "fact-generator.js: RETELL_EXAMPLES");
   fs.rmSync(data, { recursive: true, force: true });
 });

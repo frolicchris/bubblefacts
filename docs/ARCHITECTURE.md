@@ -471,7 +471,12 @@ sign-ins and the built-in AI. Its design decisions are in
    with its reason. The stream runs its two steps at two moments:
    `screenAnswer` (the checks on the whole answer) as soon as the answer is
    in, and `screenRest` (everything else) once the song's data lookups are
-   in, so a fact another song showed meanwhile still counts as shown.
+   in, so a fact another song showed meanwhile still counts as shown. The
+   self-test (`/control/selftest`), the caption corpus
+   (`caption-corpus.test.ts`) and the Wrong replay (`scripts/wrong-cases.mjs`)
+   call `screenCaptions`, which runs both, so they see every drop the stream
+   makes. The replay still reads the song as requested, with no scored match
+   and no facts shown before it.
    **Choose and order.** `rankFacts` decides which of the captions left, and
    of the song's data facts, are shown, and in what order: at most four (see
    [Which bubbles a song shows](#which-bubbles-a-song-shows)).
