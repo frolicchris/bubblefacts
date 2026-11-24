@@ -20,7 +20,7 @@ import { buildInfo, versionLabel } from "./build";
 import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
-  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
+  BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, canvasProblem, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
   serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsAreWhole, factsSaveProblem,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
@@ -742,6 +742,8 @@ function sendStyle(): void {
     background: style.BUBBLE_BACKGROUND,
     scale: Number(style.BUBBLE_SCALE),
     verticalScale: Number(style.BUBBLE_VERTICAL_SCALE),
+    canvas: style.CANVAS_SIZE,
+    verticalCanvas: style.VERTICAL_CANVAS_SIZE,
     file: settings.styleLook ?? "",
   });
 }
@@ -844,7 +846,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
 handle("save-settings", (_e, raw: Record<string, unknown>) => {
   const changes = fromWindow(raw ?? {});
   // The window checks first; this backstop means an over-long fact is never saved
-  const problem = customFactsProblem(changes) ?? shareUrlProblem(changes);
+  const problem = customFactsProblem(changes) ?? shareUrlProblem(changes) ?? canvasProblem(changes, settings);
   if (problem) return { error: problem };
   const previous = settings;
   settings = mergeSettings(changes);

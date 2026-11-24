@@ -16,11 +16,12 @@
  *
  *  Add a Browser Source in OBS with the URL http://127.0.0.1:3000/obs-overlay
  *  while the server runs, or with "Local file" checked, pointing at this
- *  folder's obs-overlay.html, 1920x1080. See docs/MANUAL-SETUP.md.
+ *  folder's obs-overlay.html, at your canvas size (usually 1920x1080). See
+ *  docs/MANUAL-SETUP.md. Another canvas shape? Set CANVAS_SIZE (docs/CONFIG.md).
  *
  *  For a vertical (9:16) stream, use obs-overlay-vertical.html instead, at
- *  1080x1920. It has its own bubble spots and size, kept clear of the
- *  phone apps' buttons and chat.
+ *  1080x1920 (or VERTICAL_CANVAS_SIZE). It has its own bubble spots and size,
+ *  kept clear of the phone apps' buttons and chat.
  *
  *  Open obs-overlay.html?test=1 in a browser to draw a fixed test bubble
  *  without the server. A red dot bottom-right means the server isn't
@@ -150,6 +151,19 @@
     return Math.max(fact.durationSeconds, 2 + words / 3);
   }
 
+  /** Gap a bubble at its widest keeps from the right edge: the same 3% the right-hand spots use */
+  const RIGHT_MARGIN = "3%";
+
+  /**
+   * A left spot, moved left only as far as a bubble at its widest needs to end
+   * RIGHT_MARGIN from the right edge (issue #556). At Standard size the rightmost
+   * left spot, 66%, already does (66% + 560px of 1920 ends at 95%), so nothing
+   * moves; at Larger the widest bubble is 840px and would run off the edge.
+   */
+  function leftSpot(left) {
+    return "min(" + left + ", calc(100% - " + RIGHT_MARGIN + " - var(--bubble-max-width)))";
+  }
+
   function showBubble(fact) {
     const bubble = document.createElement("div");
     bubble.className = "popup-bubble";
@@ -158,7 +172,7 @@
     if (at.bottom) bubble.style.bottom = at.bottom;
     else bubble.style.top = at.top;
     // Right spots measure from the right edge, others with no side are centered: any length stays in its spot
-    if (at.left) bubble.style.left = at.left;
+    if (at.left) bubble.style.left = VERTICAL ? at.left : leftSpot(at.left);
     else if (at.right) bubble.style.right = at.right;
     else bubble.classList.add("centered");
     bubble.dataset.spot = [at.top, at.bottom, at.left, at.right].join("|");
@@ -282,6 +296,7 @@
     if (iconChosen) document.documentElement.dataset.icon = msg.icon;
     else delete document.documentElement.dataset.icon;
     applySizes(msg);
+    applyCanvas(msg);
     if (look || lookSheet) {
       if (!lookSheet) {
         lookSheet = document.createElement("style");
@@ -313,6 +328,32 @@
     }
     const props = (scale !== null ? "  --bf-scale: " + scale + ";\n" : "") + (vertical !== null ? "  --bf-vertical-scale: " + vertical + ";\n" : "");
     sizeSheet.textContent = props ? ":where(html) {\n" + props + "}" : "";
+  }
+
+  // The canvas this overlay is on, as the streamer set it (#544); without a setting, the usual one
+  const DEFAULT_CANVAS = VERTICAL ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
+  let canvas = DEFAULT_CANVAS;
+
+  /** A canvas size the server sent: whole pixels within MIN_CANVAS_SIDE to MAX_CANVAS_SIDE (bubble-style.ts), else null */
+  const canvasOf = (c) =>
+    c && typeof c === "object" && [c.width, c.height].every((n) => Number.isInteger(n) && n >= 480 && n <= 7680) ? { width: c.width, height: c.height } : null;
+
+  /**
+   * How text and bubbles size on this canvas: landscape narrower than 16:9 from its width ("width"),
+   * vertical wider than 9:16 from its height ("height"), else as always (none). Must match obs-overlay.css
+   */
+  function fitFor(c) {
+    if (VERTICAL) return c.width * 16 > c.height * 9 ? "height" : "";
+    return c.width * 9 < c.height * 16 ? "width" : "";
+  }
+
+  /** The streamer's canvas, live: a new size needs no Refresh in OBS */
+  function applyCanvas(msg) {
+    canvas = canvasOf(VERTICAL ? msg.verticalCanvas : msg.canvas) || DEFAULT_CANVAS;
+    const fit = fitFor(canvas);
+    if (fit) document.documentElement.dataset.fit = fit;
+    else delete document.documentElement.dataset.fit;
+    checkVerticalSize();
   }
 
   // --- Connection ---
@@ -439,11 +480,11 @@
     if (wide && !note) {
       note = document.createElement("div");
       note.className = "size-note";
-      note.textContent = "BubbleFacts Vertical: in this Browser source's properties, set Width to 1080 and Height to 1920.";
       document.body.appendChild(note);
     } else if (!wide && note) {
       note.remove();
     }
+    if (wide) note.textContent = "BubbleFacts Vertical: in this Browser source's properties, set Width to " + canvas.width + " and Height to " + canvas.height + ".";
   }
 
   renderTestMode();

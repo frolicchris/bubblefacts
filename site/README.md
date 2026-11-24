@@ -3,7 +3,7 @@
 The public page for the BubbleFacts desktop app, published at
 <https://bubblefacts.frolic.org/>.
 
-Plain static files: 15 HTML pages, one stylesheet, one small script, and
+Plain static files: 16 HTML pages, one stylesheet, one small script, and
 images. No build step and no server code. The only outside request is the
 download script asking GitHub's public API for the newest release.
 
@@ -24,6 +24,7 @@ download script asking GitHub's public API for the newest release.
 | `nightbot.html` | Setup for Nightbot song requests |
 | `streamling.html` | Setup for Streamling |
 | `now-playing-file.html` | Setup for any app that writes a now playing text file |
+| `mark-played.html` | For each song source, the chat command or button that moves the song list on, and who can use it |
 | `assets/site.css` | All styles |
 | `assets/site.js` | Picks the right download for the visitor's computer, switches beta wording to stable, Copy buttons, opens linked FAQ answers, plays the home page clip with a Pause button |
 | `assets/favicon.svg`, `assets/favicon-32.png`, `favicon.ico`, `assets/apple-touch-icon.png` | Browser tab and home screen icons |

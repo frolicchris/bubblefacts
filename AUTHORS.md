@@ -22,6 +22,7 @@ Code carry a `Co-Authored-By: Claude` trailer.
 - Epic Realms
 - izzyparadox
 - MacYoda
+- Rx7man
 - SaxDragon
 
 ## Special Thanks

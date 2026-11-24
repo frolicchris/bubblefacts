@@ -194,6 +194,8 @@ legend { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 4
 .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .grid3 label { font-weight: 400; }
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.grid2 label { font-weight: 400; }
 .checks.single { grid-template-columns: 1fr; gap: 6px; margin-bottom: 8px; }
 .checks.single label { align-items: flex-start; }
 .checks.single input { margin-top: 5px; }
@@ -229,7 +231,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .about { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 24px 24px; }
 
 @media (max-width: 760px) {
-  .lights, .grid3, .checks { grid-template-columns: 1fr; }
+  .lights, .grid3, .grid2, .checks { grid-template-columns: 1fr; }
 }
 #ssl-box, #se-box, #np-box { margin-top: 18px; }
 .filepath { overflow-wrap: anywhere; }
