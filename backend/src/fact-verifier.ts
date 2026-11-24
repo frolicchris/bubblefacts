@@ -34,4 +34,6 @@ export { COMPANION_LABEL, companionOf, companionPages, companionSentences, MIN_M
 export { isConcertFilm, leadNamesPerformer, listedTracks, performerPages } from "./grounding/performer-name";
 export { ownMusicParts, themeOf } from "./grounding/theme";
 export { clearGroundingCache, fetchGrounding } from "./grounding/lookup";
+export { findReference, howSure, resolveReference, streamerHandle, sureArticle } from "./grounding/reference";
+export type { FoundArticle, Reference, SureArticle, Sureness } from "./grounding/reference";
 export { CURATED_REST_MS, curatedFacts, resetCuratedTurns } from "./curated-facts";

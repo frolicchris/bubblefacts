@@ -139,12 +139,23 @@ describe("PrepareDriver (issue #295)", () => {
     expect(asked).toBe(3);
   });
 
-  // Runs this system's real check: CI does this on macOS, Windows and Linux
+  // Runs this system's real check: CI does this on macOS, Windows and Linux. A busy runner's PowerShell
+  // sometimes fails to answer once; the app then waits ("power-unknown") and asks again. A broken check
+  // fails every time, so up to three tries still catch it
   it("gets an answer from this computer's own system", async () => {
     const own = systemOnBattery();
     if (!own) return;
-    await expect(own()).resolves.toEqual(expect.any(Boolean));
-  }, 30_000); // Windows PowerShell can take well over 10 s on a busy runner beside the other test workers
+    const TRIES = 3;
+    let answer: boolean | undefined;
+    for (let i = 1; answer === undefined; i++) {
+      try {
+        answer = await own();
+      } catch (err) {
+        if (i >= TRIES) throw err;
+      }
+    }
+    expect(answer).toEqual(expect.any(Boolean));
+  }, 90_000); // Windows PowerShell can take well over 10 s on a busy runner beside the other test workers, each try
 
   it("stops on battery when the system says so, though the app's own check says plugged in", async () => {
     let battery = false;

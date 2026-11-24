@@ -42,10 +42,11 @@ jest.mock("./musicbrainz", () => ({
   withoutYear: actual("./musicbrainz", "withoutYear"),
 }));
 
+// Which article, and how sure: grounding/reference.ts calls these from the files that own them
+jest.mock("./grounding/lookup", () => ({ ...jest.requireActual("./grounding/lookup"), fetchGrounding: jest.fn().mockResolvedValue("") }));
+jest.mock("./grounding/summary", () => ({ ...jest.requireActual("./grounding/summary"), summaryGate: jest.fn().mockResolvedValue("") }));
 jest.mock("./fact-verifier", () => ({
   ...jest.requireActual("./fact-verifier"),
-  fetchGrounding: jest.fn().mockResolvedValue(""),
-  summaryGate: jest.fn().mockResolvedValue(""),
   // No article text and no real Wikipedia request (the mocked config has no timeout for one)
   loadWikitext: jest.fn().mockResolvedValue(""),
 }));
