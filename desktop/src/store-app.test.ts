@@ -65,8 +65,10 @@ describe("main.ts for a Store app", () => {
   });
 
   it("skips the update check and the app identity", () => {
-    const check = main.indexOf("async function checkForUpdate()");
-    expect(main.slice(check, check + 200)).toContain("if (isStoreApp()) return;");
+    const selfUpdate = fs.readFileSync(path.join(__dirname, "self-update.ts"), "utf8");
+    const check = selfUpdate.indexOf("async function check()");
+    expect(selfUpdate.slice(check, check + 200)).toContain("if (deps.storeApp()) return;");
+    expect(main).toContain("storeApp: isStoreApp,");
     expect(main).toContain('if (!isStoreApp()) app.setAppUserModelId(');
   });
 });
