@@ -131,7 +131,7 @@ sign-ins and the built-in AI. Its design decisions are in
 
 | File | Job |
 |---|---|
-| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and the requests from the window (`handle`, which checks each comes from the app's own window). A feature in its own file registers its messages through the `handle` main.ts passes in (`preparing.ts`). |
+| `desktop/src/main.ts` | The app itself: window, tray, starting and restarting the server, and the requests from the window (`handle`, which checks each comes from the app's own window). A feature in its own file registers its messages through the `handle` main.ts passes in (`preparing.ts`, `self-update.ts`). |
 | `desktop/src/preload.ts` | The only functions the window can call, passed through to `main.ts`. |
 | `desktop/renderer/index.html`, `app.js`, `app.css` | The window: setup, dashboard, Your songs, settings and About. Plain JavaScript, no build step. `songs-report.js` words the Your songs screen, `banner.js` decides which notice the dashboard banner shows, `a11y.js` holds the screen reader announcements and `song-source.js` which Settings fields go with each song source. |
 | `desktop/src/supervisor.ts` | Runs the server, checks its health, restarts it after a crash or stall, and moves its port if needed. |
@@ -142,7 +142,7 @@ sign-ins and the built-in AI. Its design decisions are in
 | `desktop/src/model.ts`, `model-download.ts` | The built-in AI's two models (Standard and Larger AI) and downloading them (`model-download.ts`: in the background, trying again on its own). |
 | `desktop/src/overlay.ts` | Copying the overlay page to the folder OBS loads it from. |
 | `desktop/src/now-playing-folder.ts` | The app's copy of the preset folder rule (`presetFolder`), kept alike with the server's. |
-| `desktop/src/updater.ts`, `checks.ts` | Finding, checking and installing a new version; connection checks. |
+| `desktop/src/updater.ts`, `self-update.ts`, `checks.ts` | Finding, checking and installing a new version (`self-update.ts` keeps where an update stands and its window messages); connection checks. |
 | `desktop/src/backup.ts` | Automatic and manual backups of settings and facts. |
 | `desktop/src/handsfree.ts` | **Hands-free Wrong**: the global key a foot pedal or Stream Deck sends. |
 | `desktop/src/reports.ts` | The prefilled GitHub reports, with secrets removed. |
@@ -2075,6 +2075,11 @@ interface: a change that breaks one waits for 3.0 (SemVer).
   server's address and port, so a scene set up once keeps working.
 - **The update path:** any 2.x, beta or release candidate updates straight to
   the newest 2.x in the app.
+
+Not kept yet: the text **Share song facts with other apps** sends (see
+[Sharing song facts with other apps](#sharing-song-facts-with-other-apps)) has
+no format version, so it may change between 2.x releases. Giving it a version
+and this promise is a later decision.
 
 Such a change is announced in the release notes of at least one earlier 2.x
 release first. For releases:

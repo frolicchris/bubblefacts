@@ -7,8 +7,8 @@ import { readReadyLook } from "./ready-looks";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { newerRelease, Release, testSharing, testSongList, testStreamElements } from "./checks";
-import { assetName, downloadUpdate, startInstall } from "./updater";
+import { testSharing, testSongList, testStreamElements } from "./checks";
+import { registerSelfUpdate } from "./self-update";
 import { MODEL, MODEL_HIGH, modelFor, ModelFile, modelPath, modelReady } from "./model";
 import { modelDownloader } from "./model-download";
 import { installOverlay, OVERLAY_FILE, VERTICAL_OVERLAY_FILE } from "./overlay";
@@ -74,9 +74,6 @@ let tray: Tray | null = null;
 let quitting = false;
 let toldAboutTray = false;
 let builtinFailed = false;
-let update: Release | null = null;
-/** The in-app update: idle, downloading, checked and ready, or failed (then the download page is offered) */
-let updating: { stage: "idle" | "downloading" | "ready" | "failed"; progress: number; file: string; error: string } = { stage: "idle", progress: 0, file: "", error: "" };
 let signingIn: AbortController | null = null;
 let signInExpired = false;
 let refreshTimer: NodeJS.Timeout | null = null;
@@ -195,8 +192,7 @@ function state() {
     secretsUnprotected: !secretsWaiting() && secretsUnprotected(),
     builtinFailed,
     wrongKeyProblem: wrongKey.problem,
-    update,
-    updating: { stage: updating.stage, progress: updating.progress, error: updating.error },
+    ...selfUpdate.forWindow(),
     dataDir: DATA,
     whatsNew: whatsNew && { ...whatsNew, url: CHANGELOG_URL },
   };
@@ -808,7 +804,7 @@ function applySettingsChange(previous: Settings, changes: Partial<Settings>): vo
   // A new look or size goes to the running server, which changes every overlay: no restart, no Refresh in OBS
   if (JSON.stringify(styleEnv(settings)) !== JSON.stringify(styleEnv(previous))) sendStyle();
   backUpNow();
-  if (channelChanged) void checkForUpdate();
+  if (channelChanged) void selfUpdate.check();
 }
 
 handle("save-settings", (_e, raw: Record<string, unknown>) => {
@@ -993,7 +989,7 @@ handle("restore-backup", async () => {
   if (backup.wrongLog?.length) writeFileAtomic(path.join(DATA, "wrong-log.jsonl"), backup.wrongLog.map((l) => JSON.stringify(l)).join("\n") + "\n", { mode: 0o600 });
   applyStartAtLogin();
   wrongKey.use(settings.wrongKey);
-  void checkForUpdate();
+  void selfUpdate.check();
   // The server reads its files at start
   startServer(true);
   send("state", state());
@@ -1061,54 +1057,23 @@ handle("recent", async () => {
 });
 // --- Updating itself ---
 
-let updateChecks = 0;
-/** At start, and when Stable or Beta is picked, so the dashboard notice matches at once */
-async function checkForUpdate(): Promise<void> {
-  // The Store updates a Store app: no check, so no banner.
-  if (isStoreApp()) return;
-  const mine = ++updateChecks;
-  const found = await newerRelease(app.getVersion(), settings.updateChannel, app.isPackaged ? (v) => assetName(v, process.platform, process.arch, Boolean(process.env.APPIMAGE)) : () => null);
-  // Only the newest check counts, and a download under way finishes
-  if (mine !== updateChecks || updating.stage === "downloading") return;
-  if (found?.version !== update?.version) updating = { stage: "idle", progress: 0, file: "", error: "" };
-  update = found;
-  send("state", state());
-}
-
-handle("download-update", async () => {
-  if (isStoreApp() || !update?.download || updating.stage === "downloading") return;
-  updating = { stage: "downloading", progress: 0, file: "", error: "" };
-  send("state", state());
-  let last = 0;
-  try {
-    const file = await downloadUpdate(update.download, path.join(DATA, "updates"), (fraction) => {
-      // A few a second is plenty for a progress line
-      if (Date.now() - last < 300) return;
-      last = Date.now();
-      updating.progress = fraction;
-      send("state", state());
-    });
-    updating = { stage: "ready", progress: 1, file, error: "" };
-  } catch (err) {
-    updating = { stage: "failed", progress: 0, file: "", error: shown("Update download", err, { fallback: "The download didn't finish." }) };
-  }
-  send("state", state());
-});
-
-handle("install-update", () => {
-  if (isStoreApp() || updating.stage !== "ready") return;
-  fs.mkdirSync(DIRS.logs, { recursive: true });
-  const result = startInstall(updating.file, { pid: process.pid, logFile: path.join(DIRS.logs, "update.log"), scriptDir: path.join(DATA, "updates") });
-  if (!result.started) {
-    supervisor.note(`[App] Update install: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`);
-    updating = { stage: "failed", progress: 0, file: "", error: result.reason };
-    send("state", state());
-    return;
-  }
-  // The installer waits for this app to close; on Linux the app reopens the new AppImage itself
-  if (result.relaunch) app.relaunch({ execPath: result.relaunch, args: [] });
-  quitting = true;
-  app.quit();
+/** Updating itself (self-update.ts): the check, and its download and install messages */
+const selfUpdate = registerSelfUpdate({
+  handle,
+  version: () => app.getVersion(),
+  updateChannel: () => settings.updateChannel,
+  packaged: app.isPackaged,
+  storeApp: isStoreApp,
+  dataDir: DATA,
+  logsDir: DIRS.logs,
+  changed: () => send("state", state()),
+  shown,
+  note: (line) => supervisor.note(line),
+  quitForInstall: (relaunch) => {
+    if (relaunch) app.relaunch({ execPath: relaunch, args: [] });
+    quitting = true;
+    app.quit();
+  },
 });
 
 /** Facts sent to the overlay, for a report: from the server, or its file when it isn't running */
@@ -1239,7 +1204,7 @@ async function startApp(): Promise<void> {
   wrongKey.use(settings.wrongKey);
   preparing.start();
   backUpNow();
-  await checkForUpdate();
+  await selfUpdate.check();
 }
 
 app.whenReady().then(startApp);
