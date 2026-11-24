@@ -21,7 +21,7 @@ it("registers the now playing file picker behind the own-window check", () => {
 });
 
 // Register their own messages through main.ts's handle(), passed in, so main.ts doesn't grow with each
-const SELF_REGISTERING = ["preparing.ts", "self-update.ts"];
+const SELF_REGISTERING = ["preparing.ts", "self-update.ts", "backup-restore.ts"];
 
 it("lets a feature's own file register messages only through the handle() main.ts passes it", () => {
   const main = fs.readFileSync(path.join(__dirname, "main.ts"), "utf8");
