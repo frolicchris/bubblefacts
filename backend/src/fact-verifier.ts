@@ -14,8 +14,8 @@ export { droppedHedge, mergedClauses, misplacedYear, otherRecordingSection, reve
 export { qualifierRepair, repairQualifier, repairScope, scopeRepair } from "./screening/repair";
 export { companyHistory, parseCitation, screenClaims, unresolvedPronoun } from "./screening/screen";
 export type { ScreenResult } from "./screening/screen";
-export { aboutTheSong, copiesExample, RESTATES_REQUEST, screenCaptions } from "./screening/captions";
-export type { Caption, CaptionCheck, DroppedCaption, DropStep, ScreenedCaptions } from "./screening/captions";
+export { aboutTheSong, copiesExample, RESTATES_REQUEST, screenAnswer, screenCaptions, screenRest } from "./screening/captions";
+export type { AnswerCheck, Caption, CaptionCheck, DroppedCaption, DropStep, ScreenedAnswer, ScreenedCaptions } from "./screening/captions";
 export { composerNames, isChartFact, isCleanSentence, keepsAttribution, receptionFilter, sectionExtract, sectionSelection, selectSections, seriesFilter, tieredExtract, tieredSelection, withoutSentences } from "./grounding/sections";
 export { italicSentences, loadWikitext, otherWorkSentences, requestedWork, wikitextOf, workOfPage, workScope } from "./grounding/work-scope";
 export type { ItalicSentence } from "./grounding/work-scope";

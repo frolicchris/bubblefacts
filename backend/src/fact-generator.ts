@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
-import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenCaptions, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
+import { aboutTheSong, articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, resolveGameAndTrack, restatesRequest, RESTATES_REQUEST, screenAnswer, screenCaptions, screenRest, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
 import type { Caption } from "./fact-verifier";
 import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
@@ -1034,21 +1034,9 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   }
   aiDone = true;
   const answerLines = answer.split("\n").map((l) => l.trim()).filter(Boolean);
-  // Every drop (screening/captions.ts): the answer's own logged now, the rest once the data lookups are in
-  const held: string[] = [];
-  const screened = screenCaptions({
-    lines: answerLines,
-    context,
-    song,
-    read,
-    otherParts: otherParts(context, track),
-    cited: Boolean(context) && citesSentences(),
-    examples: RETELL_EXAMPLES,
-    recent: recentList(),
-    writtenFor: shared?.track,
-    scored: config.match === "scored" && scored ? scored : undefined,
-    log: (line, step) => (step === "answer" ? console.log(line) : held.push(line)),
-  });
+  // Every drop is in screening/captions.ts: the checks on the whole answer now, the rest once the data lookups are in
+  const answerCheck = { lines: answerLines, context, read, examples: RETELL_EXAMPLES, writtenFor: shared?.track, log: (line: string) => console.log(line) };
+  const answered = screenAnswer(answerCheck);
   // Wikidata and MusicBrainz facts, read beside the AI
   const fromData = await dataFacts;
   // A cover on the original's article: only songwriter infobox facts hold
@@ -1060,7 +1048,18 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
   const boxFacts = (cover ? allBox.filter((b) => /^(?:writers?|songwriters?|composer|lyricists?):/.test(b.evidence)) : allBox).filter(
     (b) => onStandard([b.text], [read.title, read.artist ?? ""]).length > 0
   );
-  for (const line of held) console.log(line);
+  // Read now: another song may have been shown during the lookups
+  const screened = screenRest(
+    {
+      ...answerCheck,
+      song,
+      otherParts: otherParts(context, track),
+      cited: Boolean(context) && citesSentences(),
+      recent: recentList(),
+      scored: config.match === "scored" && scored ? scored : undefined,
+    },
+    answered
+  );
   const { kept: usable, sources: citedSentence } = screened;
   // Past the whole-answer checks; dropped by screenClaims
   const generated = answerLines.length - screened.dropped.filter((d) => d.step === "answer").length;
