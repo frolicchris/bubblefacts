@@ -21,7 +21,7 @@ import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
   BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsSaveProblem,
+  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsAreWhole, factsSaveProblem,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
@@ -1012,7 +1012,10 @@ handle("restore-backup", async () => {
   // Back up first, so a restore can be undone
   backUpNow();
   settings = sanitize({ ...settings, ...backup.settings });
+  // The backup's facts are the whole boxes: they replace the stored ones, even while they wait in settings.json (#193)
+  factsAreWhole();
   saveSettings(settings);
+  const factsProblem = factsSaveProblem();
   if (backup.songFacts) writeFileAtomic(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
   if (backup.wrongFacts) writeFileAtomic(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
   if (backup.wrongLog?.length) writeFileAtomic(path.join(DATA, "wrong-log.jsonl"), backup.wrongLog.map((l) => JSON.stringify(l)).join("\n") + "\n", { mode: 0o600 });
@@ -1022,6 +1025,8 @@ handle("restore-backup", async () => {
   // The server reads its files at start
   startServer(true);
   send("state", state());
+  // Said as a failed save is; the rest of the backup is restored
+  if (factsProblem) return { ok: false, message: `Restored. ${factsProblem}` };
   return { ok: true, message: "Restored." };
 });
 

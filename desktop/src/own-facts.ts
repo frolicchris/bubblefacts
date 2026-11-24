@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
@@ -223,11 +223,30 @@ export function readStore(dir: string): OwnFactsFile | null {
   }
 }
 
-/** The store couldn't be read at start (locked): nothing is saved over it this run */
+/** The store couldn't be read at start (locked): nothing is saved over it this run unless the lines are whole */
 let readFailed = false;
+/** The lines in memory are the whole boxes (the store was read, or a restore), not only what settings.json had */
+let whole = false;
+
+/** The lines in memory are the whole boxes now (a restored backup): a save may replace the stored ones */
+export function factsAreWhole(): void {
+  whole = true;
+}
+/** Whether a save that has to keep the lines in settings.json may mark them as the whole boxes */
+export const factsWhole = () => whole;
+
+/**
+ * The mark BubbleFacts puts beside lines it had to keep in settings.json: they're the whole boxes, so the
+ * next start puts them in place of the stored ones. An older version keeps the mark (it keeps keys it doesn't
+ * know) but not the lines it was made from, so an edit there no longer matches and is added instead
+ */
+export const fallbackMark = (myFacts: unknown, myOriginals: unknown): string =>
+  createHash("sha256").update(JSON.stringify([myFacts ?? [], myOriginals ?? []])).digest("hex");
 
 const stringList = (v: unknown): string[] | null => (Array.isArray(v) && v.every((l) => typeof l === "string") ? v : null);
 const why = (err: unknown) => (err as NodeJS.ErrnoException).code ?? String(err);
+/** What a line is, for telling whether it's stored already: its normalized text and scope */
+const identity = (line: string, list: List) => canonical(parseLine(line, list) as Parsed);
 
 /** A new backup in the backups folder, never over an earlier one; the oldest past BACKUPS_KEPT go */
 function writeBackup(dir: string, backup: unknown, now: string): void {
@@ -242,37 +261,44 @@ function writeBackup(dir: string, backup: unknown, now: string): void {
 }
 
 /**
- * The boxes' lines at start. Lines found in settings.json (saved before the store, or by an older version
- * after it) are brought in, with a new backup first: all of them when there's no store yet, else added after
- * the stored ones when they aren't there already, so nothing stored is ever replaced. Running it again changes
- * nothing. `moved`: the store now holds settings.json's lines, so settings.json can drop them; never after a
- * read or write that failed (a lock, a full disk), when settings.json keeps them for next time
+ * The boxes' lines at start; `overflow`: lines from settings.json past a full box; `rewriteSettings`: the store
+ * holds the rest, so settings.json can drop them (all but the overflow). Lines found in settings.json are brought in, with a new backup first. In place of the boxes when
+ * there's no store yet or BubbleFacts marked them as the whole boxes (fallbackMark); otherwise (saved by an
+ * older version) each one not stored yet (by its normalized text) is added after the stored ones. After a read
+ * or write that failed (a lock, a full disk), settings.json keeps all of them.
+ * Running it again changes nothing
  */
-export function loadOwnFacts(dir: string, fromSettings: { myFacts?: unknown; myOriginals?: unknown }, now = new Date().toISOString()): { lines: OwnFactLines; moved: boolean } {
+export function loadOwnFacts(dir: string, fromSettings: { myFacts?: unknown; myOriginals?: unknown; ownFactsFallback?: unknown }, now = new Date().toISOString()): { lines: OwnFactLines; overflow: OwnFactLines; rewriteSettings: boolean } {
   const legacy = { myFacts: stringList(fromSettings.myFacts), myOriginals: stringList(fromSettings.myOriginals) };
-  const settingsHadFacts = "myFacts" in fromSettings || "myOriginals" in fromSettings;
-  const fallback = { myFacts: normalizeLines(legacy.myFacts ?? []), myOriginals: normalizeLines(legacy.myOriginals ?? []) };
+  const typed = { myFacts: (legacy.myFacts ?? []).map((l) => l.trim()).filter(Boolean), myOriginals: (legacy.myOriginals ?? []).map((l) => l.trim()).filter(Boolean) };
+  const marked = typeof fromSettings.ownFactsFallback === "string" && fromSettings.ownFactsFallback === fallbackMark(fromSettings.myFacts, fromSettings.myOriginals);
   let store: OwnFactsFile | null;
   try {
     store = readStore(dir);
     readFailed = false;
+    whole = true;
   } catch (err) {
     // Locked, not broken: settings.json keeps its lines and nothing is written over either file
     readFailed = true;
+    whole = marked;
     console.error(`[App] Couldn't read ${OWN_FACTS_FILE} (${why(err)}); using the facts in settings.json and saving them there this time.`);
-    return { lines: fallback, moved: false };
+    return { lines: { myFacts: typed.myFacts.slice(0, MAX_LINES), myOriginals: typed.myOriginals.slice(0, MAX_LINES) }, overflow: { myFacts: typed.myFacts.slice(MAX_LINES), myOriginals: typed.myOriginals.slice(MAX_LINES) }, rewriteSettings: false };
   }
   const current = store ?? emptyStore();
-  const lines = store ? linesOf(store) : fallback;
-  if (store) {
+  const all: OwnFactLines = store && !marked ? linesOf(store) : typed;
+  if (store && !marked) {
     for (const list of LISTS) {
-      const have = new Set(lines[list]);
-      for (const line of fallback[list]) if (!have.has(line)) {
-        have.add(line);
-        lines[list].push(line);
+      const have = new Set(all[list].map((l) => identity(l, list)));
+      for (const line of typed[list]) {
+        const id = identity(line, list);
+        if (have.has(id)) continue;
+        have.add(id);
+        all[list].push(line);
       }
     }
   }
+  const lines = { myFacts: all.myFacts.slice(0, MAX_LINES), myOriginals: all.myOriginals.slice(0, MAX_LINES) };
+  const overflow = { myFacts: all.myFacts.slice(MAX_LINES), myOriginals: all.myOriginals.slice(MAX_LINES) };
   const next = withLines(current, lines, now);
   if (JSON.stringify(next) !== JSON.stringify(current)) {
     try {
@@ -281,15 +307,15 @@ export function loadOwnFacts(dir: string, fromSettings: { myFacts?: unknown; myO
       writeFileAtomic(path.join(dir, OWN_FACTS_FILE), JSON.stringify(next, null, 2));
     } catch (err) {
       console.error(`[App] Couldn't write ${OWN_FACTS_FILE} (${why(err)}); the facts stay in settings.json for now.`);
-      return { lines, moved: false };
+      return { lines, overflow, rewriteSettings: false };
     }
   }
-  return { lines: linesOf(next), moved: settingsHadFacts };
+  return { lines: linesOf(next), overflow, rewriteSettings: true };
 }
 
 /** Saves the boxes' lines, writing only when something changed; true when the store holds them now, false to keep them elsewhere */
 export function saveOwnFacts(dir: string, lines: OwnFactLines, now = new Date().toISOString()): boolean {
-  if (readFailed) return false;
+  if (readFailed && !whole) return false;
   let current: OwnFactsFile | null;
   try {
     current = readStore(dir);
@@ -303,6 +329,7 @@ export function saveOwnFacts(dir: string, lines: OwnFactLines, now = new Date().
   try {
     fs.mkdirSync(dir, { recursive: true });
     writeFileAtomic(path.join(dir, OWN_FACTS_FILE), JSON.stringify(next, null, 2));
+    readFailed = false;
     return true;
   } catch (err) {
     console.error(`[App] Couldn't write ${OWN_FACTS_FILE} (${why(err)}); facts saved in settings.json for now.`);

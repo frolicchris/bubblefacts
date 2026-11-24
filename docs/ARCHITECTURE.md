@@ -2165,20 +2165,28 @@ usability check and a GUI check with real streamers.
   new backup in `own-facts-backups/` first (what the store held and the
   lines brought in, no secrets; never written over, the newest 10 kept),
   then `own-facts.json`, then `settings.json` without them. With no store
-  yet, all of them; with one, each line not stored yet is added after the
-  stored ones, so a stored fact is never replaced or removed by it. Run
-  again, it changes nothing. A version from before the move shows empty
-  boxes; lines it saves are added on the next start (the empty boxes it
-  saves add nothing).
+  yet, all of them; with one, each line whose normalized text isn't stored
+  yet is added after the stored ones, so a stored fact is never replaced or
+  removed by it. Lines past a full box (500) stay in `settings.json` and are
+  added once there's room. Run again, it changes nothing. A version from
+  before the move shows empty boxes; lines it saves are added on the next
+  start (the empty boxes it saves add nothing).
 - **Can't be read or written:** `settings.json` drops the lines only once
-  `own-facts.json` holds them. A locked file is retried a few times; then
-  the boxes show the lines `settings.json` has, and saves keep them there
-  this run. A save that can't write the file keeps the lines in
-  `settings.json` and says so where Save reports; the next save or start
-  brings them in. A failure while moving the lines in at start is logged and
-  the app starts on `settings.json`'s lines. A file that reads but isn't a
-  store is renamed to `own-facts.json.unreadable`, and the boxes show what
-  `settings.json` has, if anything; the backups hold the lines too.
+  `own-facts.json` holds them. A save that can't write the file keeps the
+  boxes in `settings.json` and says so where Save (or Restore) reports. When
+  the boxes were whole (the file was read at start, or a backup was
+  restored), they're kept with `ownFactsFallback`, a SHA-256 of exactly
+  those lines, and the next start puts them in place of the stored ones, so
+  a removal or an edit sticks. An older version keeps that key (it keeps
+  keys it doesn't know) but changes the lines when it edits them, so the
+  mark no longer matches and its lines are added instead. A file locked at
+  start is retried a few times; then the boxes show only what
+  `settings.json` has, and lines saved then are added, never put in place of
+  the stored ones, and the message says a removal has to wait. A failure
+  while moving the lines in at start is logged and the app starts on
+  `settings.json`'s lines. A file that reads but isn't a store is renamed to
+  `own-facts.json.unreadable`, and the boxes show what `settings.json` has,
+  if anything; the backups hold the lines too.
 
 ### Licenses of the sources
 

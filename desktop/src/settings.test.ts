@@ -19,7 +19,7 @@ jest.mock("electron", () => ({
 }));
 
 import { checkStyleLook, readStyleFile } from "./style-file";
-import { customFactsProblem, factsSaveProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { customFactsProblem, factsAreWhole, factsSaveProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -641,6 +641,66 @@ describe("the musician's facts in their own file (issue #193)", () => {
     saveSettings(loadSettings());
     expect(factsSaveProblem()).toBeNull();
     expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+  });
+
+  it("keeps in settings.json the older version's lines that don't fit in a full box, until there's room", () => {
+    const full = Array.from({ length: 495 }, (_, i) => `Stored fact ${i + 1}.`);
+    const typed = Array.from({ length: 10 }, (_, i) => `Typed in the older version ${i + 1}.`);
+    saveSettings({ ...DEFAULTS, myFacts: full });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: typed }));
+    const s = loadSettings();
+    expect(s.myFacts).toEqual([...full, ...typed.slice(0, 5)]);
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(typed.slice(5));
+    saveSettings({ ...s, myFacts: s.myFacts.slice(10) });
+    expect(loadSettings().myFacts).toEqual([...full.slice(10), ...typed]);
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+  });
+
+  it("doesn't add an older version's line again when it differs from a stored one only in spaces or quotes", () => {
+    saveSettings({ ...DEFAULTS, myFacts: ["It's in \"two\" parts."] });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["It’s in  “two” parts."] }));
+    expect(loadSettings().myFacts).toEqual(["It's in \"two\" parts."]);
+  });
+
+  it("keeps a delete or an edit made while own-facts.json was locked: the lines BubbleFacts kept replace the stored ones", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const s = loadSettings();
+    const unlock = lock();
+    saveSettings({ ...s, myFacts: ["I play by ear, mostly."] });
+    expect(factsSaveProblem()).toMatch(/couldn't save your own facts/i);
+    unlock();
+    expect(loadSettings()).toMatchObject({ myFacts: ["I play by ear, mostly."], myOriginals: mine.myOriginals });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("ownFactsFallback");
+  });
+
+  it("adds, not replaces, when an older version changed those kept lines, or when the box couldn't show the stored facts", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    let unlock = lock();
+    saveSettings({ ...loadSettings(), myFacts: ["Kept while locked."] });
+    unlock();
+    // An older version edited the kept lines: it keeps unknown keys, so the mark is there but no longer matches
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    fs.writeFileSync(file, JSON.stringify({ ...saved, myFacts: ["Kept while locked.", "Older version."] }));
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "Kept while locked.", "Older version."]);
+    // Locked from the start: the box shows none of the stored facts, so a save there must not remove them
+    unlock = lock();
+    const blind = loadSettings();
+    expect(blind.myFacts).toEqual([]);
+    saveSettings({ ...blind, myFacts: ["Added while locked."] });
+    unlock();
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "Kept while locked.", "Older version.", "Added while locked."]);
+  });
+
+  it("a restored list replaces the stored one, even when own-facts.json can't be written", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    const unlock = lock();
+    const blind = loadSettings();
+    factsAreWhole();
+    saveSettings({ ...blind, myFacts: ["From the backup."], myOriginals: [] });
+    expect(factsSaveProblem()).not.toBeNull();
+    unlock();
+    expect(loadSettings()).toMatchObject({ myFacts: ["From the backup."], myOriginals: [] });
   });
 
   it("starts normally when the facts can't be moved, using the lines in settings.json", () => {

@@ -131,8 +131,8 @@ describe("moving today's lines in", () => {
   const backup = (name: string) => JSON.parse(fs.readFileSync(path.join(dir, OWN_FACTS_BACKUPS, name), "utf8"));
 
   it("backs up first, then writes the store", () => {
-    const { lines: got, moved } = loadOwnFacts(dir, lines, NOW);
-    expect(moved).toBe(true);
+    const { lines: got, rewriteSettings } = loadOwnFacts(dir, lines, NOW);
+    expect(rewriteSettings).toBe(true);
     expect(got).toEqual(lines);
     expect(backups()).toHaveLength(1);
     expect(backup(backups()[0])).toEqual({ savedAt: NOW, fromSettings: lines, store: null });
@@ -169,7 +169,7 @@ describe("moving today's lines in", () => {
   it("never throws when it can't write: the lines stay where they were", () => {
     fs.writeFileSync(path.join(dir, OWN_FACTS_BACKUPS), "not a folder");
     const result = loadOwnFacts(dir, lines, NOW);
-    expect(result).toEqual({ lines, moved: false });
+    expect(result).toEqual({ lines, overflow: { myFacts: [], myOriginals: [] }, rewriteSettings: false });
     expect(fs.existsSync(path.join(dir, OWN_FACTS_FILE))).toBe(false);
   });
 
