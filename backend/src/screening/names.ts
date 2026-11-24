@@ -9,6 +9,13 @@ import { mentionsName, normalizeTitle } from "../grounding/titles";
 export const hasWord = (needle: string, haystack: string, flags = "i") =>
   new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(needle)}([^\\p{L}\\p{N}]|$)`, flags + "u").test(haystack);
 
+// One capitalized word of a name, the pattern the name screens share: "Mara", "O'Neil", "St.", "Jean-Luc".
+// "Mc" changes nothing ("McCartney" matches without it); it stays for the reader. Some screens use a
+// narrower word on purpose (NAME_WORD: lowercase after the capital); changing one changes what it drops
+export const CAPITALIZED_WORD = String.raw`(?:Mc)?\p{Lu}[\p{L}'’.-]*`;
+// A name of one to four such words: "Dale Ortiz", "Ada Pell Quartet"
+export const SHORT_NAME = String.raw`${CAPITALIZED_WORD}(?:\s+${CAPITALIZED_WORD}){0,3}`;
+
 // Claims easy to get wrong and obvious when wrong
 export const RISKY_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /\b(won|winner|awarded|nominated)\b/i, label: "award claim" },
@@ -127,7 +134,7 @@ const ROLES: Array<{ fact: RegExp; source: RegExp; musicOnly?: boolean }> = [
 // What "wrote" needs nearby to mean composing
 const MUSIC_OBJECT = /^(music|musical|score|scores|soundtrack|soundtracks|theme|themes|songs?|melod\w*|tunes?|pieces?|instrumentals?)$/;
 // Name right before a credit verb: "Adele composed", "Mia Chen and Toby Fox wrote"
-const ACTIVE_NAME = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+|originally\s+)?(?:composed|wrote|produced|directed|performed|sang|recorded|designed|developed|scored|penned|illustrated)\b/gu;
+const ACTIVE_NAME = new RegExp(String.raw`(${SHORT_NAME})\s+(?:also\s+|later\s+|originally\s+)?(?:composed|wrote|produced|directed|performed|sang|recorded|designed|developed|scored|penned|illustrated)\b`, "gu");
 const ROLE_REACH = 6;  // most words between a name and its role word
 // Performing is stated loosely ("Coldplay are a British rock band"); a mix-up is harmless
 const LOOSE_ROLE = /perform/;
@@ -202,11 +209,11 @@ function statesRole(sentence: string, surname: string, role: { source: RegExp; m
 export const sourceSentences = (context: string) => context.split(/(?<!(?:^|[^\p{L}])\p{Lu}\.)(?<=[.!?])\s+|\n+/u);
 
 // "by Adele", "by Nobuo Uematsu"
-const BY_NAME = /\bby\s+((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|de|van|von|da|del|la|le))*)/gu;
+const BY_NAME = new RegExp(String.raw`\bby\s+(${CAPITALIZED_WORD}(?:\s+(?:${CAPITALIZED_WORD}|de|van|von|da|del|la|le))*)`, "gu");
 
 // A shared credit: "co-wrote the song with A and B"
 const WITH_NAMES =
-  /\b(?:co-?)?(?:wr[io]te|written|composed|produced|penned)\b[^.;]*?\b(?:with|alongside)\s+(?:(?:co-)?\p{Ll}[\p{Ll}-]*er\s+)?((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:(?:\s+|\s*,\s*)(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*|and|&|de|van|von))*)/gu;
+  new RegExp(String.raw`\b(?:co-?)?(?:wr[io]te|written|composed|produced|penned)\b[^.;]*?\b(?:with|alongside)\s+(?:(?:co-)?\p{Ll}[\p{Ll}-]*er\s+)?(${CAPITALIZED_WORD}(?:(?:\s+|\s*,\s*)(?:${CAPITALIZED_WORD}|and|&|de|van|von))*)`, "gu");
 
 /** Names a fact credits: after "by", before a credit verb, or sharing it "with" */
 function creditedNames(fact: string): string[] {
@@ -259,7 +266,7 @@ function sameGivenName(sentence: string, surname: string, given: string | undefi
 }
 
 // Name right before winning: "Audrey Hepburn won", "Mancini received"
-const WINNER = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+)?(?:won|received|earned|was awarded)\b/gu;
+const WINNER = new RegExp(String.raw`(${SHORT_NAME})\s+(?:also\s+|later\s+)?(?:won|received|earned|was awarded)\b`, "gu");
 const WON = { source: /^(won|wins|winning|awarded|received|earned|winner)$/i };
 
 /**

@@ -1,11 +1,14 @@
 import { escapeRe } from "../text";
 import { mentionsName, normalizeTitle } from "../grounding/titles";
-import { ABOUT_THE_VIDEO, hasWord, NAME_STOPWORDS, sourceSentences, YEAR } from "./names";
+import { ABOUT_THE_VIDEO, hasWord, NAME_STOPWORDS, SHORT_NAME, sourceSentences, YEAR } from "./names";
 import { bodySentences, lineSentences, MONTHS, retoldSentences, share } from "./sentences";
 import { speakers } from "./attribution";
 import { capitalsOf } from "./frames";
 
 // Wording a caption turns round: merged clauses, dropped hedges, misplaced years, wrong owners, reversed roles
+
+// A caption opening on a name and a past-tense verb: "Rob Lane confirmed"
+const NAME_THEN_VERB = new RegExp(String.raw`^(${SHORT_NAME})\s+(\p{Ll}+ed)\b`, "u");
 
 /**
  * Doer turned round, or the name: "Vale compared" for "compared Vale's vocals"; "worked on by Rob Lane"
@@ -14,7 +17,7 @@ import { capitalsOf } from "./frames";
 export function turnedRound(fact: string, context: string, cited?: string): string | null {
   const retold = retoldSentences(fact, context, cited);
   if (!retold.length) return null;
-  const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(\p{Ll}+ed)\b/u.exec(fact);
+  const lead = NAME_THEN_VERB.exec(fact);
   if (lead) {
     const name = lead[1].split(/\s+/).pop() as string;
     // "was developed by Rare" = "Rare developed"

@@ -1,6 +1,6 @@
 import { escapeRe } from "../text";
 import { withoutQualifier } from "../grounding/relevance";
-import { hasWord, NAME_STOPWORDS, sourceSentences } from "./names";
+import { CAPITALIZED_WORD, hasWord, NAME_STOPWORDS, sourceSentences } from "./names";
 import { contentTokens } from "./similarity";
 
 // The source's sentences and which one a caption retells (support); numbers, connectives, relations, lost qualifiers
@@ -82,7 +82,7 @@ export const CONNECTIVES: Array<{ label: string; fact: RegExp; source: RegExp }>
   // "originally from", "originally formed in" only say where someone comes from
   { label: "an origin", fact: /\boriginally\b(?!\s+(?:from|formed|based|born|hails?|titled|called|named|known|intended|meant|planned|supposed|going)\b)/i, source: /\b(original\w*|initial\w*|first|earlier|early|previously|formerly|began|before|pre-\w+|at the time)\b/i },
   // "inspiring Y to write Z" when the source only says Z resembles X's piece
-  { label: "a prompt", fact: /\binspir(?:ed|ing|es)\s+(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*\s+){1,3}to\b/u, source: /\b(inspir\w*|prompt\w*|led|motivat\w*|encourag\w*|persuad\w*|convinc\w*|urged)\b/i },
+  { label: "a prompt", fact: new RegExp(String.raw`\binspir(?:ed|ing|es)\s+(?:${CAPITALIZED_WORD}\s+){1,3}to\b`, "u"), source: /\b(inspir\w*|prompt\w*|led|motivat\w*|encourag\w*|persuad\w*|convinc\w*|urged)\b/i },
   // "inspired by X" when the source says it resembles X
   { label: "an influence", fact: /\b(inspir\w*|influenc\w*)\b/i, source: /\b(inspir\w*|influenc\w*|based on|model\w*|drew|draws?|drawn|borrow\w*|deriv\w*|homage|tribute|took reference|references?)\b/i },
   // "born on 17 December" for a baptism date
@@ -202,7 +202,7 @@ function afterFollowsSource(fact: string, context: string): boolean {
 // Needs a source sentence with the word, the caption's subject and the person next to the word
 const RELATION =
   /(?<![\p{L}-])(brothers?|sisters?|siblings?|sons?|daughters?|father|mother|parents?|wife|husband|spouse|married|girlfriend|boyfriend|fianc[eé]e?|cousins?|uncle|aunt|nephew|niece|grand(?:son|daughter|father|mother)|partners?|self-titled|eponymous|guitarist|keyboardist|keyboard player|drummer|bassist|pianist|violinist|saxophonist|trumpeter|voice actress|voice actor)\b/gu;
-export const NAME_RUN = /(?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*)*/gu;
+export const NAME_RUN = new RegExp(String.raw`${CAPITALIZED_WORD}(?:\s+${CAPITALIZED_WORD})*`, "gu");
 
 export function unsupportedRelation(fact: string, context: string): string | null {
   const sentences = sourceSentences(context);
