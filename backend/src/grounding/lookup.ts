@@ -7,7 +7,7 @@ import { linkedGrounding } from "../musicbrainz";
 import { clearClassicalCache, placeOrTeam } from "../wikidata";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { artistNames, type ClassicalTitle, mentionsName, normalizeTitle } from "./titles";
-import { editionNotInTitle, isRelevantArticle, looksLikeArtistName, NOT_A_PERFORMER, PERFORMER_LEAD, qualifierNamesAnotherArtist, qualifierOf, significantTokens } from "./relevance";
+import { editionNotInTitle, isRelevantArticle, looksLikeArtistName, NOT_A_PERFORMER, PERFORMER_LEAD, qualifierEndsIn, qualifierNamesAnotherArtist, qualifierOf, significantTokens } from "./relevance";
 import { olderVersionFailures, orderExtract, ownArticleExtract, RateLimited, searchTerms, wikiExtract, wikiResolveTitles, wikiSearch } from "./wikipedia";
 import { seriesFilter, withoutSentences } from "./sections";
 import { otherWorkScope, wikitextCache, workScopeCache } from "./work-scope";
@@ -21,6 +21,11 @@ import { isConcertFilm, performerArticle, performerPagesCache, trackOwnArticle }
 import { themeCache, themeGrounding } from "./theme";
 
 // Entry point: `fetchGrounding` finds a song's reference, trying each reading, its classical work, its theme
+
+// A track's own page: "Let It Be (song)", "Some Theme (composition)"
+const OWN_TRACK_PAGE = qualifierEndsIn("song|composition|instrumental|theme");
+// A record's or a show's page under the track's name: "Let It Be (album)"
+const RECORD_OR_SHOW_PAGE = qualifierEndsIn("album|EP|soundtrack|film|musical");
 
 /**
  * The song's reference text, or "". `skip`: misfits (`articleMisfit`), passed over like blocked ones.
@@ -254,8 +259,8 @@ async function groundReading(song: SSLSong, reading: Reading, blocked: Set<strin
       // "Undertale"), and the song's over the album's ("Let It Be (song)" over "Let It Be (album)")
       const ofTrack = titles.filter((t) => usable(t) && matchedTrack(t));
       let page =
-        ofTrack.find((t) => /\((?:[^)]*\b)?(song|composition|instrumental|theme)\)$/i.test(t)) ??
-        ofTrack.find((t) => !/\((?:[^)]*\b)?(album|EP|soundtrack|film|musical)\)$/i.test(t)) ??
+        ofTrack.find((t) => OWN_TRACK_PAGE.test(t)) ??
+        ofTrack.find((t) => !RECORD_OR_SHOW_PAGE.test(t)) ??
         ofTrack[0] ??
         // An edition's article over the original's ("Some Game Remake"); one of several same-name works last
         titles.find((t) => usable(t) && matchedGame(t) && !editionNotInTitle(game, t) && !oneOfSeveral(t, titles, game)) ??
