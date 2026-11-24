@@ -542,6 +542,8 @@ control.post("/style", (req, res) => {
   bubbleStyle = styleFrom(req.body?.style, req.body?.accent, req.body?.background, (line) => console.warn(`[Server] ${line}`), {
     scale: req.body?.scale,
     verticalScale: req.body?.verticalScale,
+    canvas: req.body?.canvas,
+    verticalCanvas: req.body?.verticalCanvas,
     icon: req.body?.icon,
     file: req.body?.file,
   });

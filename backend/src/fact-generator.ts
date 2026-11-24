@@ -21,20 +21,20 @@ import { factsOff, findSongFacts, hasOwnFacts, songFactLines, songIdentity } fro
 import { setCapped } from "./capped-map";
 import { blockArticle, blockedArticles, songKey, unblockArticle } from "./wrong-facts";
 import { logWrong } from "./wrong-log";
-import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
+import { Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, aboutIsMusicChannel, canAskAbout, forgetAbouts, loginForArtist, loginForHandle, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
-import { NO_TODAY_DATE } from "./builtin-chat";
-import { templateThinks } from "./thinking";
+import { askAI, builtinState, Obsolete, prepModelName, runningTurn, streamModelName } from "./ai-client";
+
+// Moved to ai-client.ts (issue #226); still exported here for the files and tests that import them from this one
+export { askOpenAICompatible, prepModelName, releasePrepModel, streamModelName, SYSTEM_PROMPT, useBuiltinSession, warmUpBuiltin } from "./ai-client";
 
 // Song -> timed fact bubbles: the streamer's own, data facts, or AI captions retold from an article
 // and screened. No article: data, a Twitch About, else entry facts + topic packs (ARCHITECTURE.md: The life of one song)
 
 const OVERGENERATE = 3;          // spare captions; screening drops some
-const MAX_TOKENS = 512;
-const HOSTED_MAX_TOKENS = 2048;  // hosted reasoning models (Groq's gpt-oss) spend part on thinking
 
 // Spots, % of 1920x1080, clear of a queue panel top-left, camera top-right, goals bottom-right, banner
 // bottom-center. `left` = left edge, under ~66% so a 560px bubble fits
@@ -209,21 +209,19 @@ export function resetPace(): void {
 const paced = () => config.aiProvider === "builtin" && !preparing();
 // To time facts as viewers wait for them
 let songStartedAt = 0;
-// Built-in model: last speed, GPU, making room for the stream, threads
-const builtinInfo: { wordsPerSecond: number | null; gpu: string | null; makingRoom: boolean; threads: number | null } = { wordsPerSecond: null, gpu: null, makingRoom: false, threads: null };
-const cpuWatch = new CpuWatch();
 
 /** /health's keeping-up report: the dashboard line and its measures */
 export function paceReport() {
   const pace: Pace = paced() ? pacer.pace() : "full";
   const average = pacer.averageMs();
+  const builtinInfo = builtinState();
   return {
     line: paceLine(pace),
     pace,
     averageWaitMs: average === null ? null : Math.round(average),
     wordsPerSecond: builtinInfo.wordsPerSecond,
     gpu: builtinInfo.gpu,
-    othersCpu: cpuWatch.latestShare === null ? null : Math.round(cpuWatch.latestShare * 100) / 100,
+    othersCpu: builtinInfo.othersCpu === null ? null : Math.round(builtinInfo.othersCpu * 100) / 100,
     freeMemoryMb: Math.round(os.freemem() / 1024 / 1024),
     makingRoom: builtinInfo.makingRoom,
     threads: builtinInfo.threads,
@@ -463,270 +461,17 @@ Follow every rule:
 9. No numbering, bullets, quotes, or headings. Output exactly ${want} lines and nothing else.`;
 }
 
-// --- Providers ---------------------------------------------------------
+// --- The AI ------------------------------------------------------------
+// The model clients are in ai-client.ts; this is what the stream adds around them
 
-/** Same for every provider; without one, node-llama-cpp adds its own (ARCHITECTURE.md: The life of one song) */
-export const SYSTEM_PROMPT =
-  "You write short trivia captions for a live music stream. You use only the reference text you are given, and you follow the instructions exactly.";
-
-let anthropic: import("@anthropic-ai/sdk").default | undefined;
-
-async function askAnthropic(prompt: string): Promise<string> {
-  if (!anthropic) {
-    const { default: Anthropic } = await import("@anthropic-ai/sdk");
-    anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
-  }
-  const res = await anthropic.messages.create({
-    model: config.anthropicModel,
-    max_tokens: MAX_TOKENS,
-    // No temperature: Anthropic's API (2026-10-21) rejects it
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: prompt }],
-  });
-  return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-}
-
-async function postJSON<T>(url: string, body: unknown, timeoutMs: number, headers = {}): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    signal: AbortSignal.timeout(timeoutMs),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`${url} returned ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return (await res.json()) as T;
-}
-
-const GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b";
-
-function isModelGone(err: unknown): boolean {
-  return err instanceof Error && /returned (404|400):/.test(err.message) && /model_not_found|model_decommissioned|decommissioned|does not exist/i.test(err.message);
-}
-
-/** Any chat-completions AI; on Groq a retired hand-set model falls back once, not failing every song */
-export async function askOpenAICompatible(prompt: string): Promise<string> {
-  const send = async (model: string) => {
-    const data = await postJSON<{ choices?: Array<{ message?: { content?: string } }> }>(
-      `${config.openaiBaseUrl}/chat/completions`,
-      {
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: prompt },
-        ],
-        temperature: config.temperature,
-        max_tokens: HOSTED_MAX_TOKENS,
-      },
-      config.openaiTimeoutMs,
-      { Authorization: `Bearer ${config.openaiApiKey}` }
-    );
-    return data.choices?.[0]?.message?.content ?? "";
-  };
-  try {
-    return await send(config.openaiModel);
-  } catch (err) {
-    if (!isGroqUrl(config.openaiBaseUrl) || config.openaiModel === GROQ_FALLBACK_MODEL || !isModelGone(err)) throw err;
-    console.warn(`Groq no longer has the model "${config.openaiModel}"; using ${GROQ_FALLBACK_MODEL} instead.`);
-    return send(GROQ_FALLBACK_MODEL);
-  }
-}
-
-// The host, not the name anywhere in the URL
-function isGroqUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname === "api.groq.com";
-  } catch {
-    return false;
-  }
-}
-
-// Main host, then the fallback; returns text and the host that answered
-async function askOllama(prompt: string): Promise<[string, string]> {
-  const hosts = [config.ollamaBaseUrl, config.ollamaFallbackUrl].filter(Boolean);
-  let lastError: unknown;
-  for (const host of hosts) {
-    try {
-      const data = await postJSON<{ response: string }>(
-        `${host}/api/generate`,
-        {
-          model: config.ollamaModel,
-          system: SYSTEM_PROMPT,
-          prompt,
-          stream: false,
-          keep_alive: config.ollamaKeepAlive,
-          options: { temperature: config.temperature, num_predict: MAX_TOKENS },
-        },
-        config.ollamaTimeoutMs
-      );
-      return [data.response, host];
-    } catch (err) {
-      lastError = err;
-      console.warn(`[FactGen] Ollama at ${host} failed: ${err instanceof Error ? err.message : err}`);
-    }
-  }
-  throw lastError;
-}
-
-// node-llama-cpp is ESM: tsc would turn a plain import() into a failing require()
-const importModule = new Function("specifier", "return import(specifier)") as (s: string) => Promise<any>;
-
-/** A loaded model and one reusable chat session. Loading takes a few seconds, so it happens once. */
-/** `thinks`: a thinking model, answered with reasoning off (see `thinking.ts`). Unset in tests. */
-type Loaded = { session: any; thinks?: boolean; dispose?: () => Promise<void> };
-let builtin: Promise<Loaded> | undefined;
-// Prep model, when not the stream's (config.prepareModelPath)
-let prepBuiltin: Promise<Loaded> | undefined;
-let llamaRuntime: Promise<any> | undefined;
-
-// On the one shared runtime. `stream`: sets builtinInfo and starts the CPU watch (#314); the prep model (#296) doesn't
-async function loadModelFile(modelPath: string, stream: boolean): Promise<Loaded> {
-  const { getLlama, LlamaChatSession, JinjaTemplateChatWrapper, resolveChatWrapper } = await importModule("node-llama-cpp");
-  // Shipped binaries only: never compile llama.cpp on a musician's computer
-  const runtime = (llamaRuntime ??= getLlama({ build: "never", ...(config.llamaGpu === "off" ? { gpu: false } : {}) }));
-  // Drop only a runtime that failed; a failed model load keeps it, so the CPU watch still governs both
-  const llama = await runtime.catch((err: unknown) => {
-    if (llamaRuntime === runtime) llamaRuntime = undefined;
-    throw err;
-  });
-  const model = await llama.loadModel({ modelPath });
-  const context = await model.createContext({ contextSize: 4096 });
-  const template = model.fileInfo?.metadata?.tokenizer?.chat_template;
-  const thinks = templateThinks(template);
-  const session = new LlamaChatSession({
-    contextSequence: context.getSequence(),
-    systemPrompt: SYSTEM_PROMPT,
-    // A thinking model answers through its own template with reasoning switched off (issue #198).
-    // Any other gets the template the library would pick, without today's date (issue #431, builtin-chat.ts).
-    chatWrapper: thinks ? new JinjaTemplateChatWrapper({ template, reasoning: false }) : resolveChatWrapper(model, { customWrapperSettings: NO_TODAY_DATE }),
-  });
-  console.log(`[FactGen] Built-in model loaded (${llama.gpu || "cpu"}${thinks ? ", thinking off" : ""})`);
-  if (stream) {
-    builtinInfo.gpu = llama.gpu || "cpu";
-    watchCpu(llama, context.idealThreads as number);
-  }
-  return {
-    session,
-    thinks,
-    dispose: async () => {
-      await context.dispose();
-      await model.dispose();
-    },
-  };
-}
-
-function loadBuiltin(): Promise<Loaded> {
-  builtin ??= loadModelFile(config.modelPath, true).catch((err) => {
-    builtin = undefined; // next song retries
-    throw err;
-  });
-  return builtin;
-}
-
-// Standard prepares while Larger AI is on stream (#296)
-const usesPrepModel = () => Boolean(config.prepareModelPath) && config.prepareModelPath !== config.modelPath;
-
-function loadPrepBuiltin(): Promise<Loaded> {
-  if (!usesPrepModel()) return loadBuiltin();
-  prepBuiltin ??= loadModelFile(config.prepareModelPath, false).catch((err) => {
-    prepBuiltin = undefined;
-    throw err;
-  });
-  return prepBuiltin;
-}
-
-/** Frees the prep-only model after its last turn. Never throws */
-export async function releasePrepModel(): Promise<void> {
-  const loaded = prepBuiltin;
-  prepBuiltin = undefined;
-  if (!loaded) return;
-  await builtinQueue.catch(() => undefined);
-  await loaded.then((l) => l.dispose?.()).catch(() => undefined);
-}
-
-/** The model preparing now, for the store; "" for no AI */
-export function prepModelName(): string {
-  if (config.aiProvider === "builtin") return path.basename((usesPrepModel() ? config.prepareModelPath : config.modelPath) ?? "");
-  if (config.aiProvider === "anthropic") return `anthropic:${config.anthropicModel}`;
-  if (config.aiProvider === "openai") return `openai:${config.openaiModel}`;
-  if (config.aiProvider === "ollama") return `ollama:${config.ollamaModel}`;
-  return "";
-}
-
-/** Same naming; it rewrites the prep model's songs, last (#296) */
-export const streamModelName = (): string => (config.aiProvider === "builtin" ? path.basename(config.modelPath ?? "") : prepModelName());
-
-let cpuTimer: NodeJS.Timeout | undefined;
-
-// Fewer threads and low priority while other programs fill the CPU (#314; ARCHITECTURE.md: A slow or busy computer)
-function watchCpu(llama: { maxThreads: number }, usualThreads: number): void {
-  if (cpuTimer) return;
-  const usualMax = llama.maxThreads;
-  let priority: number | null = null;
-  try {
-    priority = os.getPriority();
-  } catch {
-    // unknown: left as is
-  }
-  let before = cpuTimes();
-  let ownBefore = process.cpuUsage();
-  cpuTimer = setInterval(() => {
-    const after = cpuTimes();
-    const own = process.cpuUsage(ownBefore);
-    const share = othersCpuShare(before, after, (own.user + own.system) / 1000);
-    before = after;
-    ownBefore = process.cpuUsage();
-    const busy = cpuWatch.read(share);
-    if (busy === builtinInfo.makingRoom) return;
-    builtinInfo.makingRoom = busy;
-    builtinInfo.threads = busy ? busyThreads(usualThreads) : null;
-    // From the next evaluation on; 0 (GPU default) = no limit
-    llama.maxThreads = busy ? busyThreads(usualThreads) : usualMax;
-    try {
-      if (busy) os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
-      else if (priority !== null) os.setPriority(priority);
-    } catch {
-      // Raising it back needs rights on Linux and macOS: stays low
-    }
-    console.log(
-      busy
-        ? `[Pace] Other programs use ${Math.round(share * 100)}% of the CPU: the AI uses ${busyThreads(usualThreads)} threads at low priority`
-        : "[Pace] The CPU is calm again: the AI uses all its threads"
-    );
-  }, CPU_SAMPLE_MS);
-  cpuTimer.unref();
-}
-
-type FakeSession = { prompt: (text: string, options: { signal: AbortSignal }) => Promise<string>; resetChatHistory: () => void };
-
-/** Tests only: fake chat sessions for the stream and prep models */
-export function useBuiltinSession(session: FakeSession, prepSession?: FakeSession): void {
-  builtin = Promise.resolve({ session });
-  prepBuiltin = prepSession ? Promise.resolve({ session: prepSession }) : undefined;
-}
-
-/** Loads at start-up: first song not slowed, failure shown at once. The desktop app watches both log lines */
-export async function warmUpBuiltin(): Promise<void> {
-  if (config.aiProvider !== "builtin") return;
-  try {
-    await loadBuiltin();
-  } catch (err) {
-    console.error(`[FactGen] Built-in model failed to load: ${err instanceof Error ? err.message : err}`);
-  }
-}
-
-const BUILTIN_TIMEOUT_MS = 90_000; // ms per song before it's stopped
-let builtinQueue: Promise<unknown> = Promise.resolve();
-
-// Song off stream: its AI work is dropped
-class Obsolete extends Error {}
 // Set by the server; null when unknown (tests, self-test)
 let currentKey: string | null = null;
-let running: { key: string | null; stop: AbortController; prep: boolean } | null = null;
 
 /** The song on stream; others' AI work stops, so quick skips build no backlog */
 export function setCurrentSong(song: SSLSong | null): void {
   // Stream before prep: the prep turn gives way, prepared later
-  if (song && running?.prep) running.stop.abort();
+  const turn = runningTurn();
+  if (song && turn?.prep) turn.stop.abort();
   const key = song ? songKey(song) : null;
   if (key !== currentKey) {
     // Ended while the AI wrote: too late (#314)
@@ -739,70 +484,26 @@ export function setCurrentSong(song: SSLSong | null): void {
     if (key) pacer.songStarted();
   }
   currentKey = key;
-  if (running?.key && running.key !== currentKey) {
+  const writing = runningTurn();
+  if (writing?.key && writing.key !== currentKey) {
     // A quick return to the song starts afresh, not joining this
-    inFlight.delete(running.key);
-    running.stop.abort();
+    inFlight.delete(writing.key);
+    writing.stop.abort();
   }
 }
 const obsolete = (key: string | null) => key !== null && currentKey !== null && key !== currentKey;
 
-// One chat session, songs in turn (ARCHITECTURE.md); output cut off at the timeout is still screened
-function askBuiltin(prompt: string, key: string | null = null): Promise<string> {
-  // Preparing: stopping the run stops its turn; may use its own model
-  const prep = preparing();
-  const run = async () => {
-    if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
-    const loadStarted = Date.now();
-    const { session, thinks } = await (prep && !prep.streamModel ? loadPrepBuiltin() : loadBuiltin());
-    // Loading the model (a first load, or after a switch) says nothing about how fast the computer writes facts:
-    // the wait viewers are timed on starts after it, and a song that changed meanwhile isn't written for.
-    const loadedMs = Date.now() - loadStarted;
-    if (!prep && loadedMs > 2000) songStartedAt += loadedMs;
-    if (obsolete(key) || prep?.signal.aborted) throw new Obsolete();
-    session.resetChatHistory();
-    const stop = new AbortController();
-    running = { key, stop, prep: Boolean(prep) };
-    const writing = Date.now();
-    try {
-      const text = (await session.prompt(prompt, {
-        temperature: config.temperature,
-        maxTokens: MAX_TOKENS,
-        // No token goes to thinking: the 512 are for captions (issue #198). Only set for a thinking model.
-        ...(thinks ? { budgets: { thoughtTokens: 0 } } : {}),
-        signal: AbortSignal.any([AbortSignal.timeout(BUILTIN_TIMEOUT_MS), stop.signal, ...(prep ? [prep.signal] : [])]),
-        stopOnAbortSignal: true,
-      })) as string;
-      if (stop.signal.aborted || prep?.signal.aborted) throw new Obsolete();
-      // Stream model's speed only (#314)
-      if (!prep) builtinInfo.wordsPerSecond = wordsPerSecond(text, Date.now() - writing) ?? builtinInfo.wordsPerSecond;
-      return text;
-    } finally {
-      running = null;
-    }
-  };
-  const turn = builtinQueue.then(run, run);
-  builtinQueue = turn.catch(() => undefined);
-  return turn;
-}
-
 async function askModel(prompt: string, key: string | null = null): Promise<string> {
   const started = Date.now();
   if (key) aiAsked.add(key);
-  let text: string;
-  let endpoint: string;
-  if (config.aiProvider === "builtin") {
-    text = await askBuiltin(prompt, key);
-    endpoint = "built-in model";
-  } else if (config.aiProvider === "anthropic") {
-    text = await askAnthropic(prompt);
-    endpoint = `anthropic (${config.anthropicModel})`;
-  } else if (config.aiProvider === "openai") {
-    text = await askOpenAICompatible(prompt);
-    endpoint = `${config.openaiBaseUrl} (${config.openaiModel})`;
-  } else {
-    [text, endpoint] = await askOllama(prompt);
-  }
+  const { text, endpoint } = await askAI(prompt, {
+    key,
+    obsolete: () => obsolete(key),
+    // A model load over 2s isn't the viewers' wait for this song's facts (#314)
+    waitedForLoad: (ms) => {
+      if (ms > 2000) songStartedAt += ms;
+    },
+  });
   const ms = Date.now() - started;
   // Preparing: kept out of /health and the dashboard
   if (preparing()) console.log(`[Prepare] ${endpoint} answered in ${(ms / 1000).toFixed(1)}s`);

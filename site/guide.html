@@ -26,7 +26,7 @@
   <meta name="twitter:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Three game-style fact boxes about the Song of Storms and a gold Now Playing bubble.">
 
-  <link rel="stylesheet" href="assets/site.css?v=33f85c3636">
+  <link rel="stylesheet" href="assets/site.css?v=2edc2eb89e">
   <script src="assets/site.js?v=a8efb41114" defer></script>
 </head>
 <body>
@@ -180,6 +180,9 @@
             <p>The app shows which folder it reads (your OneDrive Documents folder, if that's where yours lives). The <span class="ui">Songs</span> light says <span class="ui">Following your file</span> while a song is in it, and <span class="ui">Watching your file</span> when there isn't one. An empty file means no song is playing, and so does a file that hasn't changed in 15 minutes. A file says nothing about who requested a song, so there are no live learns with it.</p>
             <p>A line with only a title, like "Song - Official Music Video", gets an artist only when exactly one artist has a recording with that title. Common titles stay without one. That song gets basic facts from the music databases, without written captions.</p>
 
+            <h3 id="song-list-next">When a song ends</h3>
+            <p>BubbleFacts follows your song list and never changes it, so your song list has to move on to the next song. Hands on your instrument? A mod or a stream bot can do it with your song list's own chat command, such as <code>!setPlayed</code> on StreamerSongList, <code>!skip</code> on StreamElements or <code>!songs skip</code> on Nightbot. See <a href="mark-played.html">Move your song list on without the mouse</a> for each song source and who can use it. If nobody does, BubbleFacts stops that song's bubbles after a while and starts again with your next song (see <a href="mark-played.html#forgot">If nobody moves it on</a>).</p>
+
             <div class="note">
               <p class="note-title">Your sign-in stays private</p>
               <p>BubbleFacts stores your sign-in, or your token, encrypted on your computer (on Linux, <a href="privacy.html">that needs a keyring</a>).</p>
@@ -224,7 +227,7 @@
                         <button type="button" class="btn btn-secondary btn-small" data-copy="1920" hidden>Copy</button></div>
                       <div class="copy-row">Height <code>1080</code>
                         <button type="button" class="btn btn-secondary btn-small" data-copy="1080" hidden>Copy</button></div>
-                      Not sure? In OBS, open <span class="ui">Settings</span>, then <span class="ui">Video</span>, and look at <span class="ui">Base (Canvas) Resolution</span>.
+                      Not sure? In OBS, open <span class="ui">Settings</span>, then <span class="ui">Video</span>, and look at <span class="ui">Base (Canvas) Resolution</span>. If yours is another size, like 1440 by 1080, use that here, and once setup is done type it in BubbleFacts too: <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, <span class="ui">Canvas size</span>. Bubbles then fit it.
                     </li>
                     <li>Click <span class="ui">OK</span>.</li>
                   </ol>
@@ -249,7 +252,7 @@
               <li>In the vertical <span class="ui">Sources</span> list, click <span class="ui">+</span> and choose <span class="ui">Browser</span>. Name it "BubbleFacts Vertical" and click <span class="ui">OK</span>.</li>
               <li>In BubbleFacts, open <span class="ui">Settings</span>, then <span class="ui">Vertical stream</span>, then <span class="ui">Using Aitum Vertical, or a second canvas?</span>, and click <span class="ui">Copy</span>.</li>
               <li>In OBS, check <span class="ui">Local file</span>, click <span class="ui">Browse</span> and choose the file at the location you copied.</li>
-              <li>Set <span class="ui">Width</span> to <span class="ui">1080</span> and <span class="ui">Height</span> to <span class="ui">1920</span>, and click <span class="ui">OK</span>.</li>
+              <li>Set <span class="ui">Width</span> to <span class="ui">1080</span> and <span class="ui">Height</span> to <span class="ui">1920</span>, and click <span class="ui">OK</span>. Is your vertical canvas another size, like 1080 by 1350? Use that, and type it in BubbleFacts under <span class="ui">Vertical stream</span>, <span class="ui">Vertical canvas size</span>: the steps there then show your numbers.</li>
             </ol>
             <p><strong>On Twitch, landscape and vertical at once</strong> (Twitch calls this Dual Format): people watching on a computer see your usual layout, and people holding a phone upright see the vertical one. You need OBS 32 or newer and the free Aitum Vertical plugin. Twitch's own steps are in <a href="https://help.twitch.tv/s/article/dual-format-vertical-video">Dual Format Streaming on Twitch</a>; in short:</p>
             <ol>
@@ -260,7 +263,7 @@
               <li>Click <span class="ui">Start Streaming</span> as usual. Both layouts go live together.</li>
             </ol>
             <p>To check, watch your stream in the Twitch app on your phone, held upright. Viewers can make Twitch's chat taller; bubbles stay clear of it either way.</p>
-            <p>Click <span class="ui">Show a test bubble</span> on the dashboard: it shows on both overlays. If the vertical one says to set the width and height, open the source's properties in OBS and set 1080 and 1920.</p>
+            <p>Click <span class="ui">Show a test bubble</span> on the dashboard: it shows on both overlays. If the vertical one says to set the width and height, open the source's properties in OBS and set the two numbers it shows (1080 and 1920, unless you typed another <span class="ui">Vertical canvas size</span>).</p>
             <p>Under <span class="ui">Vertical stream</span> you can also choose its own <span class="ui">Bubble size on the vertical stream</span>, and whether bubbles show <span class="ui">Near the top</span> or <span class="ui">Just above the chat</span>. On a phone screen there's room for one bubble at a time, so each new one replaces the last.</p>
           </div>
         </div>
@@ -380,7 +383,7 @@
             <h3 id="bubbles">Where bubbles go, and how they look</h3>
             <ul>
               <li><strong>Bubbles covering your camera or keyboard?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Where bubbles appear</span> to the top, bottom, left or right. To have every bubble show in the same place, choose one spot, like <span class="ui">Top right</span> or <span class="ui">Bottom center</span>: each new bubble replaces the last one there. For anything finer, resize and move the BubbleFacts source in OBS.</li>
-              <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>. The new size shows on stream as soon as you save.</li>
+              <li><strong>Bubble size.</strong> The bubbles grow and shrink with the source, so they look the same on a 720p, 1080p or 4K canvas. On a canvas of another shape, like 1440 by 1080 or a square one, type its size under <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, <span class="ui">Canvas size</span>, so no bubble runs off the edge. If viewers on phones find them small, open <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, and set <span class="ui">Bubble size</span> to <span class="ui">Large</span> or <span class="ui">Larger</span>. The new size shows on stream as soon as you save.</li>
               <li><strong>Want viewers to know where the facts come from?</strong> <span class="ui">Now and then, show where the facts come from</span> is on to start with. It adds one extra bubble when the first song's facts start, then about every 5 songs, for viewers who join later. To show it less often, uncheck it in <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>. It still shows when you click <span class="ui">Start Streaming</span> in OBS, and again after 20 minutes without facts, so your viewers know where the facts come from and that they can be wrong. Songs you play before you go live don't use it up.</li>
               <li><strong>More facts per song?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">Facts per song</span>. BubbleFacts finds up to 4 facts for a song, so a higher number only adds bubbles when you've <a href="#song-facts">written your own</a>. Your own facts can go past 4, up to the number you set.</li>
               <li><strong>Fewer facts but surer, or a few more?</strong> In <span class="ui">Settings</span>, then <span class="ui">Bubbles</span>, set <span class="ui">How sure a fact must be</span>. Some facts retell a sentence that's harder to check, like something a person said. <span class="ui">Standard (recommended)</span> shows those only when a song would have fewer than 3 facts without them. <span class="ui">Surest: fewer facts</span> never shows them, so some songs get fewer facts or none. <span class="ui">A few more facts, a little less sure</span> shows them up to 4 a song. Every fact from Wikipedia is still checked against the article, and a song no source knows gets no more facts either way.</li>
