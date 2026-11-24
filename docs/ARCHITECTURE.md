@@ -588,6 +588,8 @@ model is asked.
    matching no sentence at all).
 3. **Floor of three.** With fewer than three bubbles left, held-back captions
    come back, fewest flags first, after the others. Never one from step 1.
+   **How sure a fact must be** moves this floor (`FLOORS`, see "How sure a
+   fact must be" below): none come back at `surest`, up to four at `more`.
 4. **Interest** (`interest`): a number, an age or a place you can picture
    ("in one afternoon", "at 16", "in a stairwell") and how it was made (a
    sample, a borrowed instrument, what inspired it) count +2; a first or a
@@ -1189,6 +1191,37 @@ against the target: a caption that opens on a sister work of the article's
 is a data fact dated more than a year from the request's year tag
 (`dataFitsTarget`). It never picks another article and never adds facts.
 
+**How sure a fact must be (`FACT_CERTAINTY`, issue #542).** The streamer's one
+switch, with three levels. It moves two numbers only: the scored match's bars
+(`BARS` in `work-resolver.ts`; with `MATCH=rules` they don't run) and the
+floor of held-back captions in "Which bubbles a song shows" (`FLOORS` in
+`fact-ranking.ts`):
+
+| Level | Points for sure (`SURE`) | Lead over a same-name article (`MARGIN`) | Points for data facts (`DATA_ONLY`) | Held-back captions shown up to (`FLOOR`) |
+|---|---|---|---|---|
+| `surest`, "Fewer, surest facts" | 8 | 4 | 4 | 0 |
+| `standard`, the default | 6 | 3 | 3 | 3 |
+| `more`, "More facts" | 6 | 3 | 3 | 4 |
+
+`surest` asks for more points and a wider lead, so more songs get only who
+wrote them, or nothing from the article, and shows no caption from a risky
+sentence. `more` leaves the article match as it is: one point off `SURE` made
+a cover's original and another singer's song of the same name sure (cases in
+`backend/src/fixtures/certainty-levels.json`), the wrong work the score is
+for. Its extra facts are held-back captions, which still passed every screen,
+brought back to fill four bubbles. So `more` gives more bubbles on songs that
+already have some, not facts on songs that have none.
+
+Nothing else moves at any level: the rules' unsure cases above, the summary
+gate, `aboutAnotherWork` and `dataFitsTarget`, every caption's check against
+its sentence, the content standard and the link, @mention and chat command
+screen (`backend/src/certainty.test.ts` checks that none of them read it).
+`standard` is today's numbers, and the desktop app sends no `FACT_CERTAINTY`
+for it, so the default starts exactly as before. A prepared song is current
+only at the level it was prepared at (see "Prepared songs"). Settings
+backups leave the level out, so restoring someone else's backup never
+loosens it.
+
 ### Why is the game read from the artist field?
 
 Game-music song lists usually put the track in the title and the game in the
@@ -1717,7 +1750,10 @@ article and the revision it read (`settledRevision`: the newest version at
 least 72 hours old, which is what `wikiExtract` reads), the model that wrote
 it, and when. Raise `PREPARED_RULES_VERSION` with any change that would write
 different facts: entries from other rules are dropped when the file is read,
-and never shown. An entry over 30 days old is prepared again. The preparer
+and never shown. An entry prepared at another **How sure a fact must be**
+level (`certainty`, written only when it isn't `standard`) isn't current, so
+a switch to surer facts is never undone by facts prepared before it. An entry
+over 30 days old is prepared again. The preparer
 checks an entry's article for a newer settled revision once a week, one small
 request, and prepares the song again when it changed.
 

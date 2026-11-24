@@ -1,0 +1,204 @@
+{
+  "about": "How sure a fact must be (FACT_CERTAINTY, issue #542): what each level changes, with made-up songs. 'match' cases go through the scored match (work-resolver.ts BARS); each article's text is followed by ten filler sentences in the test. 'ranking' cases go through rankFacts (fact-ranking.ts FLOORS). 'standard' is today's result at every case.",
+  "match": [
+    {
+      "label": "far year, otherwise strong, not the top search hit",
+      "why": "The request says 1987, the article's song is from 2010. Today it is sure (7 points, one feature against). Surest asks for 8: only who wrote it.",
+      "request": {
+        "title": "Cold Engines (1987)",
+        "artist": "Rust Parade",
+        "credited": true
+      },
+      "article": {
+        "page": "Cold Engines (Rust Parade song)",
+        "text": "\"Cold Engines\" is a 2010 song by Rust Parade.",
+        "rank": -1
+      },
+      "expect": {
+        "surest": "data-only",
+        "standard": "sure",
+        "more": "sure"
+      }
+    },
+    {
+      "label": "far year, top search hit",
+      "why": "Same song as the top hit: 8 points, sure at every level.",
+      "request": {
+        "title": "Cold Engines (1987)",
+        "artist": "Rust Parade",
+        "credited": true
+      },
+      "article": {
+        "page": "Cold Engines (Rust Parade song)",
+        "text": "\"Cold Engines\" is a 2010 song by Rust Parade.",
+        "rank": 0
+      },
+      "expect": {
+        "surest": "sure",
+        "standard": "sure",
+        "more": "sure"
+      }
+    },
+    {
+      "label": "two games of one name, three points apart",
+      "why": "A same-name rival three points behind is enough today. Surest wants a four-point lead: only who wrote it.",
+      "request": {
+        "title": "Stage 1",
+        "artist": "Orbit Run"
+      },
+      "article": {
+        "page": "Orbit Run (1990 video game)",
+        "text": "Orbit Run is a 1990 arcade video game.",
+        "rank": 0
+      },
+      "sameName": [
+        "Orbit Run (1992 video game)"
+      ],
+      "expect": {
+        "surest": "data-only",
+        "standard": "sure",
+        "more": "sure"
+      }
+    },
+    {
+      "label": "another singer's song, spelled a little differently",
+      "why": "3 points: data facts today. Surest wants 4 for data facts: nothing from this article.",
+      "request": {
+        "title": "Starlight Avenu",
+        "artist": "Jo Pell",
+        "credited": true
+      },
+      "article": {
+        "page": "Starlight Avenue (song)",
+        "text": "\"Starlight Avenue\" is a song from the 1951 musical Night Train.",
+        "rank": -1
+      },
+      "expect": {
+        "surest": "abstain",
+        "standard": "data-only",
+        "more": "data-only"
+      }
+    },
+    {
+      "label": "the original's article for a cover (wrong work)",
+      "why": "5 points with another performer named. One point off SURE would make it sure and caption the original, so More facts keeps the article bars as they are.",
+      "request": {
+        "title": "Cherry Fields",
+        "artist": "Mira Vale",
+        "credited": true
+      },
+      "article": {
+        "page": "Cherry Fields (Tom Orchard song)",
+        "text": "\"Cherry Fields\" is a 2019 song by Tom Orchard.",
+        "rank": 0
+      },
+      "expect": {
+        "surest": "data-only",
+        "standard": "data-only",
+        "more": "data-only"
+      }
+    },
+    {
+      "label": "a musical's song of the same name as the singer's (wrong work)",
+      "why": "5 points, the requested singer not named. Also stays data-only at More facts.",
+      "request": {
+        "title": "Starlight Avenue",
+        "artist": "Jo Pell",
+        "credited": true
+      },
+      "article": {
+        "page": "Starlight Avenue (song)",
+        "text": "\"Starlight Avenue\" is a song from the 1951 musical Night Train, written by Al Brandt and Rue Moss.",
+        "rank": 0
+      },
+      "expect": {
+        "surest": "data-only",
+        "standard": "data-only",
+        "more": "data-only"
+      }
+    },
+    {
+      "label": "a remake's article for the original game's track (wrong work)",
+      "why": "Abstains at every level.",
+      "request": {
+        "title": "Hangar Bay",
+        "artist": "Orbit: First Light"
+      },
+      "article": {
+        "page": "Orbit: Reforged",
+        "text": "Orbit: Reforged is a 2025 shooter video game, a remake of Orbit: First Light.",
+        "rank": 0
+      },
+      "expect": {
+        "surest": "abstain",
+        "standard": "abstain",
+        "more": "abstain"
+      }
+    },
+    {
+      "label": "the song's own article",
+      "why": "Nothing against it: sure at every level.",
+      "request": {
+        "title": "Paper Lanterns",
+        "artist": "Dana Reyes",
+        "credited": true
+      },
+      "article": {
+        "page": "Paper Lanterns",
+        "text": "\"Paper Lanterns\" is a 1974 song by English singer Dana Reyes.",
+        "rank": 0
+      },
+      "expect": {
+        "surest": "sure",
+        "standard": "sure",
+        "more": "sure"
+      }
+    }
+  ],
+  "ranking": [
+    {
+      "label": "a data fact and three captions from risky sentences",
+      "why": "Every caption retells a risky sentence. Today the two least risky come back to reach three bubbles. Surest shows none from a risky sentence, only the data fact; More facts also brings back the third, from a long sentence, to reach four.",
+      "candidates": [
+        {
+          "text": "Lantern Hill came out in 2004.",
+          "kind": "data"
+        },
+        {
+          "text": "Quill hired a quartet.",
+          "kind": "caption",
+          "sentence": "Recording: Quill hired a quartet for two days to add strings in Lisbon, according to the liner notes.",
+          "lead": false
+        },
+        {
+          "text": "The song was recorded in a barn.",
+          "kind": "caption",
+          "sentence": "The song was mostly recorded in a barn.",
+          "lead": true
+        },
+        {
+          "text": "The chorus was rewritten.",
+          "kind": "caption",
+          "sentence": "Writing: After the first sessions at the old mill near the river, the band decided that the chorus they had brought in was too close to an earlier single, so the chorus was rewritten over two weekends with a new melody and a slower ending.",
+          "lead": false
+        }
+      ],
+      "expect": {
+        "surest": [
+          "Lantern Hill came out in 2004."
+        ],
+        "standard": [
+          "Lantern Hill came out in 2004.",
+          "The song was recorded in a barn.",
+          "Quill hired a quartet."
+        ],
+        "more": [
+          "Lantern Hill came out in 2004.",
+          "The song was recorded in a barn.",
+          "Quill hired a quartet.",
+          "The chorus was rewritten."
+        ]
+      }
+    }
+  ]
+}

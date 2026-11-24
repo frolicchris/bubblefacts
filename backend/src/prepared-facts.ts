@@ -42,6 +42,8 @@ export interface PreparedEntry {
   /** That article's settled revision read, or 0 when unknown */
   revision: number;
   rules: number;
+  /** How sure facts had to be (FACT_CERTAINTY, #542); absent when "standard", so a default entry is as before */
+  certainty?: string;
   /** Model that wrote the captions; "" when no AI was asked */
   model: string;
   /** When prepared, and when its article was last checked for a newer version (ISO dates) */
@@ -75,13 +77,16 @@ const isEntry = (e: unknown): e is PreparedEntry => {
   const x = e as PreparedEntry;
   return !!x && typeof x.title === "string" && typeof x.artist === "string" && OUTCOMES.has(x.outcome) && Array.isArray(x.facts) && x.facts.every(isFact)
     && typeof x.article === "string" && typeof x.revision === "number" && typeof x.rules === "number" && typeof x.model === "string"
-    && typeof x.preparedAt === "string" && typeof x.checkedAt === "string";
+    && typeof x.preparedAt === "string" && typeof x.checkedAt === "string" && (x.certainty === undefined || typeof x.certainty === "string");
 };
 
-/** Usable as is: today's rules, and not too old */
+/** The certainty level on stream: an entry prepared at another level is prepared again, so a switch is never undone by older facts */
+export const certaintyNow = (): string => config.factCertainty ?? "standard";
+
+/** Usable as is: today's rules and certainty level, and not too old */
 export function isCurrent(entry: PreparedEntry, now = Date.now()): boolean {
   const at = Date.parse(entry.preparedAt);
-  return entry.rules === PREPARED_RULES_VERSION && Number.isFinite(at) && now - at < PREPARED_MAX_AGE_MS && now >= at - 60_000;
+  return entry.rules === PREPARED_RULES_VERSION && (entry.certainty ?? "standard") === certaintyNow() && Number.isFinite(at) && now - at < PREPARED_MAX_AGE_MS && now >= at - 60_000;
 }
 
 export class PreparedStore {

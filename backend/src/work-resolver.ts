@@ -25,6 +25,7 @@ import {
   artistNames,
 } from "./fact-verifier";
 import { PLATFORM_TAG } from "./infobox";
+import type { Certainty } from "./fact-ranking";
 
 /** What the artist field names: who sings it, who wrote it, the work it's from, or unknown */
 export type ArtistKind = "performer" | "composer" | "work" | "unknown";
@@ -111,6 +112,24 @@ export const POINTS = {
 export const SURE = 6;      // points for sure
 export const MARGIN = 3;    // lead over a same-name article, also needed for sure
 export const DATA_ONLY = 3; // points for data facts only
+
+/** The bars the decision is held to: points for sure, lead over a same-name article, points for data facts only */
+export interface MatchBars {
+  sure: number;
+  margin: number;
+  dataOnly: number;
+}
+/**
+ * Bars per FACT_CERTAINTY level (issue #542). Only "surest" moves them: more points and a wider lead. "more" keeps
+ * today's bars: one point off SURE makes a cover's original ("another performer") or another singer's song of the
+ * same name sure (fixtures/certainty-levels.json), the wrong work the scored match is for. Its extra facts come from
+ * the ranking floor instead (fact-ranking.ts FLOORS)
+ */
+export const BARS: Readonly<Record<Certainty, Readonly<MatchBars>>> = {
+  surest: { sure: SURE + 2, margin: MARGIN + 1, dataOnly: DATA_ONLY + 1 },
+  standard: { sure: SURE, margin: MARGIN, dataOnly: DATA_ONLY },
+  more: { sure: SURE, margin: MARGIN, dataOnly: DATA_ONLY },
+};
 
 const YEAR = /\b(1[89]\d\d|20\d\d)\b/;
 const YEAR_TAG = /[([]\s*((?:19|20)\d\d)\s*[)\]]/;
@@ -396,7 +415,7 @@ export function sameName(a: CandidateProfile, b: CandidateProfile): boolean {
 }
 
 /** The decision on `pick`; only same-name articles compete (the artist's and their song's aren't rivals) */
-export function resolveWork(req: RequestProfile, pick: CandidateProfile, others: CandidateProfile[] = []): MatchResult {
+export function resolveWork(req: RequestProfile, pick: CandidateProfile, others: CandidateProfile[] = [], bars: Readonly<MatchBars> = BARS.standard): MatchResult {
   const top = scoreCandidate(req, pick);
   // A work's music article and its own article are one work, not rivals
   const work = (c: CandidateProfile) => normalizeTitle(c.kind === "music" ? musicOf(c.base) : c.base);
@@ -409,8 +428,8 @@ export function resolveWork(req: RequestProfile, pick: CandidateProfile, others:
   const ahead = runnerUp ? top.points - runnerUp.points : Infinity;
   // Facts held back on evidence only: a feature against the article, or a same-name rival too close behind.
   // An article words can't place (no kind word, its own spelling) stays as the rules found it
-  const against = top.parts.some(([, p]) => p < 0) || ahead < MARGIN;
-  const decision: Decision = (top.points >= SURE || !against) && ahead >= MARGIN ? "sure" : top.points >= DATA_ONLY ? "data-only" : "abstain";
+  const against = top.parts.some(([, p]) => p < 0) || ahead < bars.margin;
+  const decision: Decision = (top.points >= bars.sure || !against) && ahead >= bars.margin ? "sure" : top.points >= bars.dataOnly ? "data-only" : "abstain";
   return { decision, top, runnerUp, target: { page: pick.page, kind: pick.kind, year: pick.year }, request: req };
 }
 

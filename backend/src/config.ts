@@ -219,6 +219,8 @@ export const config = {
   abstain: oneOf("ABSTAIN", ["on", "off"] as const, "on") === "on",
   // Article match: "shadow" logs where score and rules disagree; "scored" may only hold back (#172)
   match: oneOf("MATCH", ["rules", "shadow", "scored"] as const, "scored"),
+  // How sure a fact must be (#542): moves the scored match's bars (work-resolver.ts BARS) and the risky-source floor (fact-ranking.ts FLOORS); screens never move
+  factCertainty: oneOf("FACT_CERTAINTY", ["surest", "standard", "more"] as const, "standard"),
   // Skip risky sentences, rank the rest (fact-ranking.ts)
   sourceRisk: oneOf("SOURCE_RISK", ["on", "off"] as const, "on") === "on",
   // Classical: find the work by composer, catalog number or nickname (#260)

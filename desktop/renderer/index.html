@@ -605,6 +605,13 @@
           </div>
           <p class="hint" id="s-facts-hint">BubbleFacts finds up to 4 facts for a song. A higher number makes room for your own, which can go past that.</p>
           <p class="hint" id="s-timing-hint"></p>
+          <label for="s-certainty">How sure a fact must be</label>
+          <select id="s-certainty" name="factCertainty" aria-describedby="s-certainty-hint">
+            <option value="surest">Fewer, surest facts</option>
+            <option value="standard">Standard (recommended)</option>
+            <option value="more">More facts</option>
+          </select>
+          <p class="hint" id="s-certainty-hint">Surest leaves out facts that are harder to check. More facts shows a few of them, all still checked.</p>
           <label for="s-stale">Take a song as over after (minutes) <span class="hint">from 5 to 60</span></label>
           <input id="s-stale" name="staleMinutes" type="number" min="5" max="60" aria-describedby="s-stale-hint">
           <p class="hint" id="s-stale-hint">If your song list still shows the same song after this long, BubbleFacts stops its bubbles and sharing until your next song. Play long medleys? Set it higher.</p>

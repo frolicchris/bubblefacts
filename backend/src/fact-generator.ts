@@ -4,7 +4,7 @@ import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
-import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
+import { Candidate, FLOORS, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -24,7 +24,7 @@ import { logWrong } from "./wrong-log";
 import { busyThreads, cpuTimes, CpuWatch, CPU_SAMPLE_MS, othersCpuShare, Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext, wordsPerSecond } from "./pace";
 import { ABOUT_CREDIT, aboutIsChannelTalk, aboutIsMusicChannel, canAskAbout, forgetAbouts, loginForArtist, loginForHandle, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
-import { MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
+import { BARS, MatchResult, aboutAnotherWork, candidateProfile, dataFitsTarget, holdsForEveryVersion, matchLine, requestProfile, resolveWork } from "./work-resolver";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
 import { NO_TODAY_DATE } from "./builtin-chat";
 import { templateThinks } from "./thinking";
@@ -1186,7 +1186,7 @@ async function scoreMatch(song: SSLSong, read: SSLSong, context: string): Promis
   const rank = searches.some((s) => s[0] === page) ? 0 : -1;
   const pick = candidateProfile(page, articleText(page) || context.slice(page.length + 1), summary?.description ?? "", rank);
   const others = [...new Set(searches.flat())].filter((t) => t !== page).map((t) => candidateProfile(t));
-  return resolveWork(requestProfile(song, read, credited), pick, others);
+  return resolveWork(requestProfile(song, read, credited), pick, others, BARS[config.factCertainty]);
 }
 
 // Article captions, screened; data facts if no article or unsure; else entry facts (unless `sourcedOnly`)
@@ -1575,7 +1575,7 @@ export async function prepareSong(
   }
 }
 
-// rankFacts: risky-sentence captions held back unless under three; by interest, data and lead first among equals
+// rankFacts: risky-sentence captions held back unless under three (FACT_CERTAINTY moves it: FLOORS); by interest, data and lead first among equals
 function rankedFromArticle(
   data: string[],
   captions: string[],
@@ -1595,7 +1595,7 @@ function rankedFromArticle(
   ];
   // Data facts lead (about the song; the article is its artist's or game's). Other songs' captions: low, one at most
   const artistArticle = isPerformerArticle(context.split("\n")[0], full || context);
-  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), floor: FLOORS[config.factCertainty], dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 // SOURCE_RISK=off: data facts, then the best-supported captions in order

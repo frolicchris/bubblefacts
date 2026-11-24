@@ -5,6 +5,15 @@ export const MAX_BUBBLES = 4;    // bubbles per song from a source
 export const FLOOR = 3;          // held-back captions come back up to this many
 export const MAX_OFF_MUSIC = 2;  // captions about the game, film or show, not the music (#189)
 
+/** How sure a fact must be (FACT_CERTAINTY, issue #542): the streamer's one switch, "standard" by default */
+export const CERTAINTIES = ["surest", "standard", "more"] as const;
+export type Certainty = (typeof CERTAINTIES)[number];
+/**
+ * FLOOR per level. "surest": no caption from a risky sentence; "more": risky ones fill up to MAX_BUBBLES, least risky
+ * first. Each is still checked against its sentence; the content standard and the link screen never move
+ */
+export const FLOORS: Readonly<Record<Certainty, number>> = { surest: 0, standard: FLOOR, more: MAX_BUBBLES };
+
 export interface Candidate {
   text: string;
   /** "data": fixed sentence from Wikidata or MusicBrainz; "caption": the AI's retelling */

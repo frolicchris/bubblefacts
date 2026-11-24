@@ -388,6 +388,30 @@ describe("toServerEnv", () => {
   });
 });
 
+describe("How sure a fact must be (#542)", () => {
+  it("defaults to standard and then starts the server exactly as before: no FACT_CERTAINTY at all", () => {
+    expect(DEFAULTS.factCertainty).toBe("standard");
+    expect(toServerEnv(DEFAULTS, paths)).not.toHaveProperty("FACT_CERTAINTY");
+  });
+
+  it("sends the other two levels", () => {
+    expect(toServerEnv({ ...DEFAULTS, factCertainty: "surest" }, paths).FACT_CERTAINTY).toBe("surest");
+    expect(toServerEnv({ ...DEFAULTS, factCertainty: "more" }, paths).FACT_CERTAINTY).toBe("more");
+    // A new level restarts the server, as any setting it reads does
+    const sig = (s: Settings) => serverSettingsSignature(toServerEnv(s, paths), s);
+    expect(sig({ ...DEFAULTS, factCertainty: "more" })).not.toBe(sig(DEFAULTS));
+  });
+
+  it("holds to the three levels, an unknown or missing one being standard", () => {
+    expect(sanitize({ ...DEFAULTS, factCertainty: "more" }).factCertainty).toBe("more");
+    expect(sanitize({ ...DEFAULTS, factCertainty: "most" as never }).factCertainty).toBe("standard");
+    expect(sanitize({ ...DEFAULTS, factCertainty: undefined as never }).factCertainty).toBe("standard");
+    expect(fromWindow({ factCertainty: "surest" })).toEqual({ factCertainty: "surest" });
+    expect(fromWindow({ factCertainty: 1 })).toEqual({});
+    expect(ENUM_KEYS).toContain("factCertainty");
+  });
+});
+
 describe("Now playing file", () => {
   const streamling = { ...DEFAULTS, songSource: "nowplaying" as const, nowPlayingPreset: "streamling" as const };
   const other = { ...DEFAULTS, songSource: "nowplaying" as const, nowPlayingPreset: "none" as const, nowPlayingFile: "/music/now-playing.txt", nowPlayingFormat: "title" as const };

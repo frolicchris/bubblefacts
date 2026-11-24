@@ -87,6 +87,8 @@ export interface Settings {
   customColors: boolean;
   accentColor: string;
   backgroundColor: string;
+  /** How sure a fact must be (#542): fewer and surest, the default, or more (the server's FACT_CERTAINTY) */
+  factCertainty: FactCertainty;
   /** Bubbles per song, 1 to 12 */
   factsPerSong: number;
   /** Seconds between bubbles, 3 to 300 */
@@ -116,6 +118,10 @@ export const WRONG_KEYS = {
   f13: "F13",
 } as const;
 export type WrongKey = keyof typeof WRONG_KEYS;
+
+/** Fact certainty levels, as the server's CERTAINTIES in work-resolver.ts; "standard" is today's behavior */
+export const FACT_CERTAINTIES = ["surest", "standard", "more"] as const;
+export type FactCertainty = (typeof FACT_CERTAINTIES)[number];
 
 /** Built-in Styles, as the overlay's CSS names them (server's bubble-style.ts); Classic is the dark blue */
 export const BUBBLE_STYLES = ["classic", "light", "minimal", "retro", "high-contrast"] as const;
@@ -160,6 +166,7 @@ export const DEFAULTS: Settings = {
   myOriginals: [],
   ai: "builtin",
   aiQuality: "standard",
+  factCertainty: "standard",
   groqKey: "",
   anthropicKey: "",
   ollamaUrl: "http://localhost:11434",
@@ -329,6 +336,7 @@ export function sanitize(s: Settings): Settings {
     tokenKind: oneOf(s.tokenKind, ["oauth", "streamer", "user", "bearer"] as const, "streamer"),
     ai: oneOf(s.ai, ["builtin", "groq", "anthropic", "ollama"] as const, "builtin"),
     aiQuality: oneOf(s.aiQuality, ["standard", "high"] as const, "standard"),
+    factCertainty: oneOf(s.factCertainty, FACT_CERTAINTIES, "standard"),
     bubbleSize: oneOf(s.bubbleSize, ["standard", "large", "larger"] as const, "standard"),
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
@@ -397,7 +405,7 @@ export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
   "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
-  "updateChannel",
+  "updateChannel", "factCertainty",
 ];
 
 /** The window's changes: editable keys with the right type only */
@@ -419,7 +427,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 /** Settings `sanitize` holds to a list of values */
-export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
+export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel", "factCertainty"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
@@ -486,6 +494,8 @@ export function toServerEnv(
   };
   // The system's Documents, for the presets (Streamling, Nightbot, What's Now Playing): tried before the home folder's
   if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
+  // Only off the default: at "standard" the server starts exactly as before (#542)
+  if (s.factCertainty !== "standard") env.FACT_CERTAINTY = s.factCertainty;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;

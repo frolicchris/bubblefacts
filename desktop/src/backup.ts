@@ -8,9 +8,10 @@ import { EDITABLE, fromWindow, Settings } from "./settings";
 export const BACKUP_FORMAT = "bubblefacts-backup";
 
 // Left out: secrets and sign-ins; the AI and sharing, so a shared backup can't send songs to someone's server;
-// AI quality (a 5 GB download on a smaller computer), Prepare my songs, the song source and file: this computer's
+// AI quality (a 5 GB download on a smaller computer), Prepare my songs, the song source and file: this computer's;
+// fact certainty, so restoring someone else's backup never gives fewer-checked facts than the default
 const NOT_BACKED_UP = new Set<keyof Settings>([
-  "token", "seJwt", "groqKey", "anthropicKey", "shareKey", "shareFacts", "shareUrl", "shareChannel", "songSource", "channel", "seChannel", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel", "prepareSongs",
+  "token", "seJwt", "groqKey", "anthropicKey", "shareKey", "shareFacts", "shareUrl", "shareChannel", "songSource", "channel", "seChannel", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "setupComplete", "ai", "aiQuality", "ollamaUrl", "ollamaModel", "prepareSongs", "factCertainty",
 ]);
 const BACKED_UP = EDITABLE.filter((k) => !NOT_BACKED_UP.has(k));
 
