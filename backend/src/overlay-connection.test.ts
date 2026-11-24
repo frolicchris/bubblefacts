@@ -546,7 +546,7 @@ describe("the overlay's sizes (issue #544)", () => {
   /** A length in the stylesheet, worked out in pixels for a page of this size */
   const px = (expr: string, page: { width: number; height: number }) =>
     Function(`"use strict"; return (${expr.replace(/([\d.]+)v([hw])/g, (_m, n, unit) => `(${n} * ${unit === "h" ? page.height : page.width} / 100)`)});`)() as number;
-  const unit = (selector: string, name: string) => new RegExp(`${selector.replace(/[[\]"]/g, "\\$&")} \\{\\s*${name}: ([\\d.]+v[hw]);`).exec(css)?.[1] ?? "";
+  const unit = (selector: string, name: string) => new RegExp(`${selector.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")} \\{\\s*${name}: ([\\d.]+v[hw]);`).exec(css)?.[1] ?? "";
 
   it("gives the same pixels on 1920x1080 and 1080x1920 whichever way it sizes", () => {
     expect(px(unit(":root", "--fit-unit"), { width: 1920, height: 1080 })).toBeCloseTo(px(unit('html[data-fit="width"]', "--fit-unit"), { width: 1920, height: 1080 }));
