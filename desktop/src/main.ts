@@ -1,4 +1,5 @@
-import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, restoresFacts, wrongLogLines } from "./backup";
+import { REMOVED_WITH_DATA } from "./backup";
+import { readDataJson, registerBackups } from "./backup-restore";
 import { answerAbout, channelForAbout, factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
@@ -21,7 +22,7 @@ import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
   BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, canvasProblem, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsAreWhole, factsSaveProblem, factsWhole,
+  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsSaveProblem,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
@@ -661,7 +662,7 @@ handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) =>
 handle("get-song-facts", (_e, song?: unknown) => control("song-facts/get", song ? { song } : {}));
 // From the file, so the list works before songs are connected
 handle("list-song-facts", () => {
-  const list = readJson("song-facts.json");
+  const list = readDataJson(DATA, "song-facts.json");
   return Array.isArray(list) ? list : [];
 });
 // "Add facts for another song": list songs matching what's typed, to pick rather than retype
@@ -957,82 +958,32 @@ handle("cancel-sign-in", () => signingIn?.abort());
 
 // --- Backup ---
 
-const readJson = (name: string): unknown => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(DATA, name), "utf8"));
-  } catch {
-    return null;
-  }
-};
-
-const readWrongLog = (): unknown[] => {
-  try {
-    return wrongLogLines(fs.readFileSync(path.join(DATA, "wrong-log.jsonl"), "utf8"));
-  } catch {
-    return [];
-  }
-};
-
-// Facts left out while own-facts.json couldn't be read: the boxes then aren't the streamer's facts (#193)
-const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json"), wrongLog: readWrongLog(), ...(factsWhole() ? {} : { facts: "unread" as const }) }, app.getVersion());
+/** Back up… and Restore… (backup-restore.ts), and the automatic copy after every change */
+const backups = registerBackups({
+  handle,
+  dataDir: DATA,
+  backupsDir: DIRS.backups,
+  documentsDir: () => app.getPath("documents"),
+  version: () => app.getVersion(),
+  settings: () => settings,
+  useSettings: (restored) => (settings = restored),
+  restored: () => {
+    applyStartAtLogin();
+    wrongKey.use(settings.wrongKey);
+    void checkForUpdate();
+    // The server reads its files at start
+    startServer(true);
+    send("state", state());
+  },
+  dialogs: {
+    save: (options) => (win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)),
+    open: (options) => (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)),
+    ask: (options) => (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)),
+  },
+  shown,
+});
 /** After any change to facts or settings: a copy the streamer never has to think about */
-const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
-
-handle("save-backup", async () => {
-  const options = { defaultPath: path.join(app.getPath("documents"), backupFileName()), filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
-  const { canceled, filePath } = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
-  if (canceled || !filePath) return { ok: false, message: "" };
-  try {
-    writeFileAtomic(filePath, JSON.stringify(currentBackup(), null, 2));
-  } catch (err) {
-    return { ok: false, message: shown("Back up", err, { fallback: "BubbleFacts couldn't save the backup there. Choose another folder, then try again." }) };
-  }
-  return { ok: true, message: `Saved to ${path.basename(filePath)}.` };
-});
-
-handle("restore-backup", async () => {
-  // Opens at the automatic backups, so the newest is a click away
-  const options = { defaultPath: DIRS.backups, properties: ["openFile" as const], filters: [{ name: "BubbleFacts backup", extensions: ["json"] }] };
-  const { canceled, filePaths } = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-  if (canceled || !filePaths[0]) return { ok: false, message: "" };
-  let backup;
-  try {
-    backup = readBackup(fs.readFileSync(filePaths[0], "utf8"));
-  } catch (err) {
-    return { ok: false, message: shown("Restore", err, { fallback: "That file couldn't be read." }) };
-  }
-  const when = backup.createdAt ? new Date(backup.createdAt).toLocaleDateString() : "an earlier day";
-  const confirm = {
-    type: "question" as const,
-    buttons: ["Restore", "Cancel"],
-    defaultId: 1,
-    cancelId: 1,
-    message: `Restore the backup from ${when}?`,
-    detail: "This replaces your settings, your facts, your facts for particular songs and the sources you marked Wrong on this computer. Your sign-in and your AI choice stay as they are.",
-  };
-  const { response } = win ? await dialog.showMessageBox(win, confirm) : await dialog.showMessageBox(confirm);
-  if (response !== 0) return { ok: false, message: "" };
-  // Back up first, so a restore can be undone
-  backUpNow();
-  settings = sanitize({ ...settings, ...backup.settings });
-  // The backup's facts are the whole boxes: they replace the stored ones, even while they wait in settings.json (#193).
-  // One taken while the facts couldn't be read has none, and leaves them as they are
-  if (restoresFacts(backup)) factsAreWhole();
-  saveSettings(settings);
-  const factsProblem = factsSaveProblem();
-  if (backup.songFacts) writeFileAtomic(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
-  if (backup.wrongFacts) writeFileAtomic(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
-  if (backup.wrongLog?.length) writeFileAtomic(path.join(DATA, "wrong-log.jsonl"), backup.wrongLog.map((l) => JSON.stringify(l)).join("\n") + "\n", { mode: 0o600 });
-  applyStartAtLogin();
-  wrongKey.use(settings.wrongKey);
-  void checkForUpdate();
-  // The server reads its files at start
-  startServer(true);
-  send("state", state());
-  // Said as a failed save is; the rest of the backup is restored
-  if (factsProblem) return { ok: false, message: `Restored. ${factsProblem}` };
-  return { ok: true, message: "Restored." };
-});
+const backUpNow = () => backups.now();
 
 /** The first half of uninstalling, without hunting for hidden folders */
 handle("remove-data", async () => {
