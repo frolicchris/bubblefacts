@@ -432,6 +432,14 @@
   function renderPaths() {
     for (const c of $$(".overlay-path")) c.textContent = state.overlayPath;
     for (const c of $$(".vertical-overlay-path")) c.textContent = state.verticalOverlayPath;
+    // The Width and Height to type in OBS: the saved canvas sizes (#544)
+    const sizes = {
+      width: state.settings.canvasWidth,
+      height: state.settings.canvasHeight,
+      "vertical-width": state.settings.verticalCanvasWidth,
+      "vertical-height": state.settings.verticalCanvasHeight,
+    };
+    for (const c of $$("[data-canvas-size]")) if (sizes[c.dataset.canvasSize]) c.textContent = String(sizes[c.dataset.canvasSize]);
     // A preset's folder shows as Documents\..., or the real one when Documents is elsewhere (OneDrive)
     for (const c of $$("[data-np-folder]")) {
       c.dataset.usual ??= c.textContent;
@@ -1397,6 +1405,8 @@
     $("#s-share-box").hidden = !form.elements.shareFacts.checked;
     $("#s-colors-box").hidden = !form.elements.customColors.checked;
     showLook();
+    // The sizes to type in OBS follow a saved canvas size
+    renderPaths();
     const signedIn = s.tokenKind === "oauth" && s.tokenSet;
     $("#s-np-file").title = s.nowPlayingFile;
     $("#s-signed-in").textContent = s.songSource === "streamelements"

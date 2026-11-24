@@ -2180,6 +2180,20 @@ BubbleFacts data** deletes all of them.
   than tall (dropped onto a landscape canvas, or a new Browser source left at
   800x600), it says how to fix the size instead of drawing bubbles off the
   phone's screen.
+- **The canvas size is the streamer's, not guessed from the source** (issue
+  #544). Text and bubbles scale with the source's height (landscape) or width
+  (vertical), and the spots are percentages, so any canvas of the usual shape
+  works. Another shape breaks the sums: the rightmost left spot (66%) plus the
+  widest bubble (51.85% of the height) is 95% of a 16:9 width but 105% of a
+  4:3 one. So the streamer types their canvas size (`CANVAS_SIZE`,
+  `VERTICAL_CANVAS_SIZE`), it goes to the overlay with the look, and on a
+  landscape canvas narrower than 16:9 the page sets `data-fit="width"`:
+  `--fit-unit` becomes 9/16 of 1% of the width, so every size is what it
+  would be on a 16:9 canvas of that width. A vertical canvas wider than 9:16
+  sets `data-fit="height"` the same way. It isn't read from the source's own
+  shape, for the reason above: OBS shares one source between canvases, and a
+  streamer may squeeze it on purpose. Without a size, or at 16:9 and 9:16,
+  nothing changes.
 - **Styles are custom properties, switched live** (issue #177). The look
   (colors, font, corners, the Now Playing bubble's) is a set of `--bf-*`
   properties in `obs-overlay.css`: Classic's on `:where(:root)`, each other

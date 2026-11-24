@@ -126,6 +126,9 @@ export const config = {
     icon: process.env.BUBBLE_ICON,
     scale: process.env.BUBBLE_SCALE,
     verticalScale: process.env.BUBBLE_VERTICAL_SCALE,
+    // The OBS canvas each overlay is on (#544), like 1440x1080; empty means 1920x1080 and 1080x1920
+    canvas: process.env.CANVAS_SIZE,
+    verticalCanvas: process.env.VERTICAL_CANVAS_SIZE,
     // An imported Style file (#402), as the app hands it over; checked again here
     file: process.env.BUBBLE_STYLE_FILE,
   }),
