@@ -102,8 +102,8 @@ const withoutHeading = (s: string) => s.replace(/^[^:.!?"“]{2,50}:\s+/, "");
 export const capitalsOf = (phrase: string) => (phrase.match(/\p{Lu}[\p{L}\d'’-]+/gu) ?? []).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
 
 /** Account, work or moment every retold sentence opens or ends on, gone from the caption, or null. Known `titles` need no naming */
-export function droppedFrame(fact: string, context: string, titles: string[] = []): string | null {
-  const retold = retoldSentences(fact, context).map(withoutHeading);
+export function droppedFrame(fact: string, context: string, titles: string[] = [], cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited).map(withoutHeading);
   if (!retold.length) return null;
   const known = titles.map(normalizeTitle).filter(Boolean);
   const account = retold.map((s) => OPENS_ON_ACCOUNT.exec(s) ?? ENDS_ON_ACCOUNT.exec(s));
@@ -130,8 +130,8 @@ export function droppedFrame(fact: string, context: string, titles: string[] = [
 }
 
 /** Limit lost from the retold sentence, so the claim reads wider ("on the format", "in the 2021 remake", a ranking's decade, "respectively"), or null */
-export function droppedLimit(fact: string, context: string, artists: string[] = []): string | null {
-  const retold = retoldSentences(fact, context);
+export function droppedLimit(fact: string, context: string, artists: string[] = [], cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   if (!retold.length) return null;
   const unquoted = retold.map((s) => s.replace(/["“][^"”]*["”]/g, ""));
   const lacks = (phrase: string) => !phrase.toLowerCase().split(/\s+/).some((w) => w.length > 3 && hasWord(w, fact, ""));
@@ -159,13 +159,13 @@ export function droppedLimit(fact: string, context: string, artists: string[] = 
 }
 
 /** Span of time moved to the other chart of two ("within three weeks" from the Soul chart to the Hot 100), or null */
-export function movedChartDetail(fact: string, context: string): string | null {
+export function movedChartDetail(fact: string, context: string, cited?: string): string | null {
   const charts = [...fact.matchAll(/\b(?:Hot 100|Billboard 200|[\p{Lu}][\p{L}\d&'’-]*(?: [\p{Lu}\d][\p{L}\d&'’-]*){0,4} (?:chart|Chart|Charts))\b/gu)].map((m) => m[0]);
   if (charts.length !== 1) return null;
   // "Hot" and "Singles" are in many chart names: the rest tells this one
   const chartWords = charts[0].split(" ").filter((w) => !/^(?:Billboard|Hot|Singles|Songs|Top|Chart|Charts|chart)$/.test(w));
   for (const m of fact.matchAll(SPAN)) {
-    for (const s of retoldSentences(fact, context)) {
+    for (const s of retoldSentences(fact, context, cited)) {
       if (!new RegExp(`\\b${escapeRe(m[0])}\\b`, "i").test(s)) continue;
       const parts = s.split(/,\s+(?:and\s+)?|;\s+/);
       const own = parts.find((p) => p.toLowerCase().includes(m[0].toLowerCase())) ?? "";

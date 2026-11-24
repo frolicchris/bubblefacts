@@ -6,7 +6,7 @@ import { significantTokens, withoutQualifier } from "../grounding/relevance";
 import { ABOUT_MUSIC, CRITIC_NAMES, OPINION } from "../grounding/wikipedia";
 import { ABOUT_THE_VIDEO, hasWord, META_PATTERNS, NOT_FOR_STREAM, PLATFORM_PATTERN, platformSupported, RISKY_PATTERNS, unsupportedCredit, unsupportedName, unsupportedWinner, YEAR } from "./names";
 import { alteredQuote, stripPrefix, tooSimilar } from "./similarity";
-import { lostQualifier, referenceSentences, retoldSentences, setCiting, share, support, unsupportedConnective, unsupportedRelation } from "./sentences";
+import { lostQualifier, referenceSentences, retoldSentences, share, support, unsupportedConnective, unsupportedRelation } from "./sentences";
 import { citedMismatch, droppedYear, misattributedWords, otherDoer, swappedSubject, unattributedView, unsupportedDay } from "./attribution";
 import { droppedFrame, droppedLimit, leftBehindReferent, movedChartDetail, namesSomeone, unnamedChart, unnamedReference } from "./frames";
 import { droppedHedge, mergedClauses, misplacedYear, otherRecordingSection, reversedRole, suppliedException, turnedRound, wrongOwner } from "./wording";
@@ -137,8 +137,8 @@ function captionReason(fact: string, titles: string[], otherParts: string[], nam
   return null;
 }
 
-/** Why the reference doesn't back a caption (risky claim, name, date, credit, quote, joining word), or null */
-function sourceReason(fact: string, context: string, track: string | undefined, titles: string[] = [], artists: string[] = []): string | null {
+/** Why the reference doesn't back a caption (risky claim, name, date, credit, quote, joining word), or null. `cited`: the sentence it cites */
+function sourceReason(fact: string, context: string, track: string | undefined, titles: string[] = [], artists: string[] = [], cited?: string): string | null {
   for (const { re, label } of RISKY_PATTERNS) {
     const m = fact.match(re);
     if (m && !hasWord(m[0].trim(), context)) return label;
@@ -158,48 +158,48 @@ function sourceReason(fact: string, context: string, track: string | undefined, 
   if (winner) return `award not given to "${winner}" in the source`;
   const quote = alteredQuote(fact, context);
   if (quote) return `quote not in the source: "${quote}"`;
-  const joined = unsupportedConnective(fact, context, track ? [track] : []);
+  const joined = unsupportedConnective(fact, context, track ? [track] : [], cited);
   if (joined) return joined.startsWith("after (") ? `"after" turns round the order of the sentence it retells` : `"${joined}" isn't in the sentence it retells`;
   const relation = unsupportedRelation(fact, context);
   if (relation) return `"${relation}" isn't stated for them in the source`;
-  const lost = lostQualifier(fact, context);
+  const lost = lostQualifier(fact, context, cited);
   if (lost) return lost;
-  const owner = wrongOwner(fact, context);
+  const owner = wrongOwner(fact, context, cited);
   if (owner) return `the source says this of ${owner}`;
-  const subject = swappedSubject(fact, context);
+  const subject = swappedSubject(fact, context, cited);
   if (subject) return `the sentence it retells isn't about "${subject}"`;
   const speaker = misattributedWords(fact, context);
   if (speaker) return `words the source doesn't give to ${speaker}`;
-  const doer = otherDoer(fact, context);
+  const doer = otherDoer(fact, context, cited);
   if (doer) return `the sentence it retells is about ${doer}`;
   const role = reversedRole(fact, context);
   if (role) return `the source names someone else's ${role}`;
-  const merged = mergedClauses(fact, context);
+  const merged = mergedClauses(fact, context, cited);
   if (merged) return `joins two statements: "${merged}" belongs to another clause`;
-  const hedge = droppedHedge(fact, context);
+  const hedge = droppedHedge(fact, context, cited);
   if (hedge) return `drops the source's "${hedge}"`;
-  const frame = droppedFrame(fact, context, titles);
+  const frame = droppedFrame(fact, context, titles, cited);
   if (frame) return `drops what the source opens with: "${frame}"`;
-  const limit = droppedLimit(fact, context, artists);
+  const limit = droppedLimit(fact, context, artists, cited);
   if (limit) return `drops the source's limit: "${limit}"`;
-  const moved = movedChartDetail(fact, context);
+  const moved = movedChartDetail(fact, context, cited);
   if (moved) return `"${moved}" belongs to another chart`;
-  const round = turnedRound(fact, context);
+  const round = turnedRound(fact, context, cited);
   if (round) return `the source doesn't have ${round} doing this`;
   const chart = unnamedChart(fact);
   if (chart) return `doesn't say which chart: "${chart}"`;
   const placed = misplacedYear(fact, context);
   if (placed) return `${placed} isn't the year of the sentence it retells`;
-  const cutOff = droppedYear(fact, context);
+  const cutOff = droppedYear(fact, context, cited);
   if (cutOff) return `says the month but not the year the source gives it with (${cutOff})`;
-  if (suppliedException(fact, context)) return "says what the exception is to; the source doesn't";
+  if (suppliedException(fact, context, cited)) return "says what the exception is to; the source doesn't";
   const unnamedOne = unnamedReference(fact, context);
   if (unnamedOne) return `doesn't say who or what "${unnamedOne}" is`;
-  const view = unattributedView(fact, context);
+  const view = unattributedView(fact, context, cited);
   if (view) return `a view the source gives to ${view}`;
   // "The musical won..." from an artist's article reads as the song playing
   const unnamed = UNNAMED_WORK.exec(fact);
-  if (unnamed && track && !namesTrack(context.split("\n")[0], track) && !retoldSentences(fact, context).some((s) => namesTrack(s, track)))
+  if (unnamed && track && !namesTrack(context.split("\n")[0], track) && !retoldSentences(fact, context, cited).some((s) => namesTrack(s, track)))
     return `doesn't say which ${unnamed[1].toLowerCase()}`;
   return null;
 }
@@ -216,10 +216,11 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
   const context = plainHyphens(rawContext);
 
   const titles = [withoutQualifier(context.split("\n")[0]), opts.track ?? ""].filter(Boolean);
-  const reasonToDrop = (fact: string): string | null =>
+  // `cited`: the sentence the caption cites, which the source checks take as the one it retells
+  const reasonToDrop = (fact: string, cited: string | undefined): string | null =>
     captionReason(fact, titles, opts.otherParts ?? [], opts.artists, context) ??
-    sourceReason(fact, context, opts.track, titles, opts.artists) ??
-    (context && otherRecordingSection(fact, context, opts.artists) ? "from a section about another recording" : null) ??
+    sourceReason(fact, context, opts.track, titles, opts.artists, cited) ??
+    (context && otherRecordingSection(fact, context, opts.artists, cited) ? "from a section about another recording" : null) ??
     (fact.length > MAX_FACT_CHARS ? `too long (${fact.length} chars)` : null);
 
   // Cited: that sentence replaces the guess by shared words, and the caption must match it
@@ -248,13 +249,7 @@ export function screenClaims(facts: string[], rawContext: string, opts: { otherP
     const fact = plainHyphens(stripPrefix(parsed.text));
     const line = { ...parsed, at: opts.cited ? nextTo(fact, parsed.at) : 0 };
     const sentence = opts.cited && line.at >= 1 ? sentences[line.at - 1] : undefined;
-    setCiting(sentence !== undefined ? { fact, sentence } : null);
-    let reason: string | null;
-    try {
-      reason = (opts.cited ? citedReason(fact, line.at) : null) ?? reasonToDrop(fact);
-    } finally {
-      setCiting(null);
-    }
+    const reason = (opts.cited ? citedReason(fact, line.at) : null) ?? reasonToDrop(fact, sentence);
     if (reason) {
       result.rejected.push({ text: fact, reason });
       continue;
