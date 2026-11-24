@@ -5,6 +5,8 @@ import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { shareAddress } from "./checks";
 import { AiQuality, modelFor, modelPath } from "./model";
+import { FACT_LENGTH, factsAreWhole as markWhole, factsWhole, fallbackMark, loadOwnFacts, OwnFactLines, saveOwnFacts } from "./own-facts";
+export { factsWhole };
 
 /** Everything the musician can change; secrets encrypted on disk with the system keychain */
 export interface Settings {
@@ -258,10 +260,10 @@ export function loadSettings(readSecrets = true): Settings {
     // Locked, not broken: defaults for now, file and sign-in left for the next load, not renamed away
     readFailed = true;
     console.error(`[App] Couldn't read settings.json (${(err as NodeJS.ErrnoException).code ?? err}); using defaults for now and not saving.`);
-    return { ...DEFAULTS, updateChannel: firstChannel() };
+    return withOwnFacts({ ...DEFAULTS, updateChannel: firstChannel() }, null);
   }
   readFailed = false;
-  if (text === null) return { ...DEFAULTS, updateChannel: firstChannel() };
+  if (text === null) return withOwnFacts({ ...DEFAULTS, updateChannel: firstChannel() }, null);
   try {
     raw = JSON.parse(text);
     if (!raw || typeof raw !== "object") throw new Error("not an object");
@@ -272,7 +274,7 @@ export function loadSettings(readSecrets = true): Settings {
     } catch {
       // Start from the defaults
     }
-    return { ...DEFAULTS, updateChannel: firstChannel() };
+    return withOwnFacts({ ...DEFAULTS, updateChannel: firstChannel() }, null);
   }
   const settings: Settings = { ...DEFAULTS };
   const target = settings as unknown as Record<string, unknown>;
@@ -286,8 +288,9 @@ export function loadSettings(readSecrets = true): Settings {
     // Saved before update channels: someone running a beta is a tester and stays on Beta
     settings.updateChannel = firstChannel();
     // Written now, so it survives updating to a full release before any save
+    raw = { ...raw, updateChannel: settings.updateChannel };
     try {
-      writeFileAtomic(file(), JSON.stringify({ ...raw, updateChannel: settings.updateChannel }, null, 2), { mode: 0o600 });
+      writeFileAtomic(file(), JSON.stringify(raw, null, 2), { mode: 0o600 });
     } catch {
       // Worked out again next time
     }
@@ -295,8 +298,38 @@ export function loadSettings(readSecrets = true): Settings {
   const saved = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
   secretsPending = !readSecrets && SECRET_KEYS.some((key) => saved(key).startsWith("enc:"));
   for (const key of SECRET_KEYS) settings[key] = secretsPending ? "" : decrypt(saved(key));
-  return sanitize(settings);
+  return sanitize(withOwnFacts(settings, raw));
 }
+
+/** The musician's facts, from own-facts.json (#193); lines settings.json still holds are moved there first */
+function withOwnFacts(settings: Settings, raw: Record<string, unknown> | null): Settings {
+  const { lines, overflow, rewriteSettings } = loadOwnFacts(path.dirname(file()), raw ?? {});
+  factsOverflow = overflow;
+  if (raw && rewriteSettings && ("myFacts" in raw || "myOriginals" in raw || "ownFactsFallback" in raw)) {
+    // Facts and secrets don't share a file: settings.json drops the lines once they're safely in their own,
+    // all but any past a full box, kept until there's room
+    const { myFacts: _facts, myOriginals: _originals, ownFactsFallback: _mark, ...rest } = raw;
+    try {
+      writeFileAtomic(file(), JSON.stringify({ ...rest, ...overflowKeys() }, null, 2), { mode: 0o600 });
+    } catch {
+      // Dropped on the next save; bringing the same lines in again changes nothing
+    }
+  }
+  return { ...settings, ...lines };
+}
+
+/** Lines from settings.json past a full box: kept there (never lost) and added when there's room */
+let factsOverflow: OwnFactLines = { myFacts: [], myOriginals: [] };
+
+/** The boxes in memory are the whole of the streamer's facts now (a restored backup): they replace the stored ones, and lines left waiting past a full box go */
+export function factsAreWhole(): void {
+  markWhole();
+  factsOverflow = { myFacts: [], myOriginals: [] };
+}
+const overflowKeys = () => ({
+  ...(factsOverflow.myFacts.length ? { myFacts: factsOverflow.myFacts } : {}),
+  ...(factsOverflow.myOriginals.length ? { myOriginals: factsOverflow.myOriginals } : {}),
+});
 
 /** Reads the secrets `loadSettings(false)` left; waits on macOS's keychain prompt */
 export function unlockSecrets(settings: Settings): Settings {
@@ -417,7 +450,7 @@ export function sanitize(s: Settings): Settings {
   };
 }
 
-export const CUSTOM_FACT_LENGTH = 300; // characters, as for song facts (SONG_FACT_LIMITS in song-facts.ts)
+export const CUSTOM_FACT_LENGTH = FACT_LENGTH; // characters, as for song facts (SONG_FACT_LIMITS in song-facts.ts)
 /** Only the text after a [tag] shows, so only it counts: "[Song of Storms] It plays in a windmill." */
 const bubbleText = (line: string) => line.trim().replace(/^\[[^\]]+\]\s*/, "");
 
@@ -480,6 +513,18 @@ const RETIRED_KEYS = new Set(["topics"]);
 /** Settings `sanitize` holds to a list of values */
 export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
 
+/** The last save had to keep the facts in settings.json: own-facts.json couldn't be read or written */
+let factsKeptHere = false;
+/** Why the last save couldn't put the facts in their own file, for the streamer, or null */
+export function factsSaveProblem(): string | null {
+  if (!factsKeptHere) return null;
+  const start = "BubbleFacts couldn't save your own facts to their file. Another program may have it open.";
+  return factsWhole()
+    ? `${start} Your facts as they are now are kept with your settings, and go back in their file with the next save that can write it or the next time BubbleFacts starts.`
+    // The box couldn't show the stored facts: what's added is kept, a removal or change can't be
+    : `${start} BubbleFacts couldn't read it when it started, so the facts saved before aren't shown. Facts you add are kept and added to them the next time BubbleFacts starts; removing or changing one has to wait until then.`;
+}
+
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
   // Keys a newer version saved are kept: back a version and forward again loses nothing
@@ -501,6 +546,18 @@ export function saveSettings(settings: Settings): void {
   const version = Math.max(SETTINGS_VERSION, typeof kept.settingsVersion === "number" ? kept.settingsVersion : 0);
   const stored: Record<string, unknown> = { ...settings, ...kept, settingsVersion: version };
   for (const key of SECRET_KEYS) stored[key] = encrypt(settings[key]);
+  // The musician's facts go in own-facts.json (#193), not beside the secrets; here only while that can't be written
+  factsKeptHere = !saveOwnFacts(path.dirname(file()), { myFacts: settings.myFacts, myOriginals: settings.myOriginals });
+  delete stored.myFacts;
+  delete stored.myOriginals;
+  delete stored.ownFactsFallback;
+  if (factsKeptHere) {
+    const myFacts = [...settings.myFacts, ...factsOverflow.myFacts];
+    const myOriginals = [...settings.myOriginals, ...factsOverflow.myOriginals];
+    Object.assign(stored, { myFacts, myOriginals });
+    // Marked as the whole boxes only when they are: a box that couldn't show the stored facts is added, not put in their place
+    if (factsWhole()) stored.ownFactsFallback = fallbackMark(myFacts, myOriginals);
+  } else Object.assign(stored, overflowKeys());
   fs.mkdirSync(path.dirname(file()), { recursive: true });
   writeFileAtomic(file(), JSON.stringify(stored, null, 2), { mode: 0o600 });
 }

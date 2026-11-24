@@ -1,4 +1,4 @@
-import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, wrongLogLines } from "./backup";
+import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, restoresFacts, wrongLogLines } from "./backup";
 import { answerAbout, channelForAbout, factsFromAbout, getChannel, TWITCH_CLIENT_ID, TwitchSession, twitchLoginFrom } from "./twitch";
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray } from "electron";
 import fs from "fs";
@@ -21,7 +21,7 @@ import { writeFileAtomic } from "./atomic-write";
 import { autostartEntry } from "./autostart";
 import {
   BUBBLE_SCALE, VERTICAL_BUBBLE_SCALE, canvasProblem, customFactsProblem, styleEnv, shareUrlProblem, DEFAULTS, fromWindow, loadSettings, sanitize, saveSettings, secretsWaiting, unlockSecrets, secretsOf, secretsUnprotected, Settings, songSourceReady,
-  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack,
+  serverSettingsSignature, styleFileName, styleFileOf, toServerEnv, writeMyPack, factsAreWhole, factsSaveProblem, factsWhole,
 } from "./settings";
 import { CLIENT_ID, refresh, revoke, signIn, SignInExpired } from "./signin";
 import { SignInCheck, validateToken } from "./sign-in-check";
@@ -856,6 +856,10 @@ handle("save-settings", (_e, raw: Record<string, unknown>) => {
     twitch.forgetEnded();
     supervisor.tell({ type: "twitch-about-off" });
   }
+  // Facts typed but not in their own file (#193): said plainly, as a failed save is; they're kept in settings.json
+  const factsChanged = JSON.stringify([previous.myFacts, previous.myOriginals]) !== JSON.stringify([settings.myFacts, settings.myOriginals]);
+  const factsProblem = factsSaveProblem();
+  if (factsChanged && factsProblem) return { error: factsProblem };
   return state();
 });
 
@@ -969,7 +973,8 @@ const readWrongLog = (): unknown[] => {
   }
 };
 
-const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json"), wrongLog: readWrongLog() }, app.getVersion());
+// Facts left out while own-facts.json couldn't be read: the boxes then aren't the streamer's facts (#193)
+const currentBackup = () => makeBackup(settings, { songFacts: readJson("song-facts.json"), wrongFacts: readJson("wrong-facts.json"), wrongLog: readWrongLog(), ...(factsWhole() ? {} : { facts: "unread" as const }) }, app.getVersion());
 /** After any change to facts or settings: a copy the streamer never has to think about */
 const backUpNow = () => void autoBackup(DIRS.backups, currentBackup());
 
@@ -1010,7 +1015,11 @@ handle("restore-backup", async () => {
   // Back up first, so a restore can be undone
   backUpNow();
   settings = sanitize({ ...settings, ...backup.settings });
+  // The backup's facts are the whole boxes: they replace the stored ones, even while they wait in settings.json (#193).
+  // One taken while the facts couldn't be read has none, and leaves them as they are
+  if (restoresFacts(backup)) factsAreWhole();
   saveSettings(settings);
+  const factsProblem = factsSaveProblem();
   if (backup.songFacts) writeFileAtomic(path.join(DATA, "song-facts.json"), JSON.stringify(backup.songFacts, null, 2));
   if (backup.wrongFacts) writeFileAtomic(path.join(DATA, "wrong-facts.json"), JSON.stringify(backup.wrongFacts, null, 2));
   if (backup.wrongLog?.length) writeFileAtomic(path.join(DATA, "wrong-log.jsonl"), backup.wrongLog.map((l) => JSON.stringify(l)).join("\n") + "\n", { mode: 0o600 });
@@ -1020,6 +1029,8 @@ handle("restore-backup", async () => {
   // The server reads its files at start
   startServer(true);
   send("state", state());
+  // Said as a failed save is; the rest of the backup is restored
+  if (factsProblem) return { ok: false, message: `Restored. ${factsProblem}` };
   return { ok: true, message: "Restored." };
 });
 
