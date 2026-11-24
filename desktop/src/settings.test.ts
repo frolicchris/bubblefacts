@@ -19,7 +19,7 @@ jest.mock("electron", () => ({
 }));
 
 import { checkStyleLook, readStyleFile } from "./style-file";
-import { customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { canvasProblem, customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE, MAX_CANVAS_RATIO, MAX_CANVAS_SIDE, MIN_CANVAS_SIDE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -586,7 +586,7 @@ describe("an imported look (issue #402)", () => {
 describe("bubble Styles and your own colors (issue #177)", () => {
   it("starts on the classic dark blue, with its own colors ready for the pickers", () => {
     expect(DEFAULTS).toMatchObject({ bubbleStyle: "classic", customColors: false, accentColor: "#5b6ee1", backgroundColor: "#0a0a3c" });
-    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ICON: "style", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "", BUBBLE_SCALE: "1", BUBBLE_VERTICAL_SCALE: "1", BUBBLE_STYLE_FILE: "" });
+    expect(styleEnv(DEFAULTS)).toEqual({ BUBBLE_STYLE: "classic", BUBBLE_ICON: "style", BUBBLE_ACCENT: "", BUBBLE_BACKGROUND: "", BUBBLE_SCALE: "1", BUBBLE_VERTICAL_SCALE: "1", CANVAS_SIZE: "1920x1080", VERTICAL_CANVAS_SIZE: "1080x1920", BUBBLE_STYLE_FILE: "" });
   });
 
   it("sends a new bubble size to the running server, never restarting it", () => {
@@ -813,5 +813,67 @@ describe("Save my Style as a file", () => {
     expect(styleFileName("Night Set!")).toBe("night-set.json");
     expect(styleFileName("../../etc/passwd")).toBe("etc-passwd.json");
     expect(styleFileName("夜")).toBe("my-style.json");
+  });
+});
+
+describe("canvas size (issue #544)", () => {
+  it("starts at the usual sizes, so nothing changes for anyone who never sets it", () => {
+    expect(DEFAULTS).toMatchObject({ canvasWidth: 1920, canvasHeight: 1080, verticalCanvasWidth: 1080, verticalCanvasHeight: 1920 });
+    expect(styleEnv(DEFAULTS)).toMatchObject({ CANVAS_SIZE: "1920x1080", VERTICAL_CANVAS_SIZE: "1080x1920" });
+    expect(EDITABLE).toEqual(expect.arrayContaining(["canvasWidth", "canvasHeight", "verticalCanvasWidth", "verticalCanvasHeight"]));
+  });
+
+  it("takes a typed size from the window and hands it to the server live, never restarting it", () => {
+    expect(fromWindow({ canvasWidth: 1440, canvasHeight: 1080, verticalCanvasHeight: "1350" })).toEqual({ canvasWidth: 1440, canvasHeight: 1080 });
+    const square = { ...DEFAULTS, canvasWidth: 1080, canvasHeight: 1080, verticalCanvasHeight: 1350 };
+    expect(styleEnv(square)).toMatchObject({ CANVAS_SIZE: "1080x1080", VERTICAL_CANVAS_SIZE: "1080x1350" });
+    expect(toServerEnv(square, { modelsDir: "m", logDir: "l", topicsDir: "t", clientId: "" })).toMatchObject({ CANVAS_SIZE: "1080x1080" });
+    const env = (s: typeof DEFAULTS) => ({ AI_PROVIDER: "none", ...styleEnv(s) });
+    expect(serverSettingsSignature(env(square), square)).toBe(serverSettingsSignature(env(DEFAULTS), DEFAULTS));
+  });
+
+  it("refuses a size it can't use, in plain words, rather than changing it", () => {
+    const problem = (changes: Partial<Settings>) => canvasProblem(changes, DEFAULTS);
+    expect(problem({ canvasWidth: 1440, canvasHeight: 1080 })).toBeNull();
+    expect(problem({ canvasWidth: 2560 })).toBeNull();
+    expect(problem({ verticalCanvasWidth: 1080, verticalCanvasHeight: 1350 })).toBeNull();
+    expect(problem({ canvasWidth: 1920.5 })).toBe("Bubbles, canvas size: type whole numbers of pixels, like 1920 and 1080.");
+    // An emptied box arrives as 0
+    expect(problem({ canvasHeight: 0 })).toBe("Bubbles, canvas size: the width and height must each be from 480 to 7680.");
+    expect(problem({ canvasWidth: 15360 })).toMatch(/from 480 to 7680/);
+    expect(problem({ canvasWidth: 1080, canvasHeight: 1920 })).toMatch(/at least as wide as tall\. For a tall canvas, use the vertical overlay/);
+    expect(problem({ verticalCanvasWidth: 1920, verticalCanvasHeight: 1080 })).toMatch(/^Vertical stream, canvas size: the vertical overlay is for a canvas taller than wide/);
+    expect(problem({ verticalCanvasWidth: 1080, verticalCanvasHeight: 1080 })).toMatch(/taller than wide/);
+    expect(problem({ canvasWidth: 7680, canvasHeight: 1080 })).toBe("Bubbles, canvas size: the long side can be at most 4 times the short one.");
+    // A side not sent is checked with the saved other side
+    expect(canvasProblem({ canvasHeight: 1200 }, { ...DEFAULTS, canvasWidth: 1000 })).toMatch(/at least as wide as tall/);
+    // Other settings aren't held up by a canvas the window didn't send
+    expect(canvasProblem({ factsPerSong: 3 }, { ...DEFAULTS, canvasWidth: 1 })).toBeNull();
+  });
+
+  it("puts a hand-edited size it can't use back to the usual one, both sides together", () => {
+    expect(sanitize({ ...DEFAULTS, canvasWidth: 1080, canvasHeight: 1920 })).toMatchObject({ canvasWidth: 1920, canvasHeight: 1080 });
+    expect(sanitize({ ...DEFAULTS, verticalCanvasWidth: 1080, verticalCanvasHeight: 99999 })).toMatchObject({ verticalCanvasWidth: 1080, verticalCanvasHeight: 1920 });
+    expect(sanitize({ ...DEFAULTS, canvasWidth: NaN })).toMatchObject({ canvasWidth: 1920, canvasHeight: 1080 });
+    expect(sanitize({ ...DEFAULTS, canvasWidth: 1440, canvasHeight: 1080 })).toMatchObject({ canvasWidth: 1440, canvasHeight: 1080 });
+  });
+
+  it("uses the same rules as the server, so a size Settings saves is never ignored there", () => {
+    const serverRules = jest.requireActual("../../backend/src/bubble-style") as {
+      MIN_CANVAS_SIDE: number;
+      MAX_CANVAS_SIDE: number;
+      MAX_CANVAS_RATIO: number;
+      canvasFrom: (value: unknown, layout: { vertical: boolean }) => unknown;
+    };
+    expect([MIN_CANVAS_SIDE, MAX_CANVAS_SIDE, MAX_CANVAS_RATIO]).toEqual([serverRules.MIN_CANVAS_SIDE, serverRules.MAX_CANVAS_SIDE, serverRules.MAX_CANVAS_RATIO]);
+    const sizes = [[1920, 1080], [1440, 1080], [1080, 1080], [1080, 1920], [1080, 1350], [479, 480], [480, 480], [7680, 1920], [7681, 2000], [1921, 480], [1920, 480], [1000.5, 800]];
+    for (const vertical of [false, true]) {
+      for (const [width, height] of sizes) {
+        const keys = vertical ? { verticalCanvasWidth: width, verticalCanvasHeight: height } : { canvasWidth: width, canvasHeight: height };
+        const app = canvasProblem(keys, DEFAULTS) === null;
+        const server = serverRules.canvasFrom({ width, height }, { vertical }) !== null;
+        expect([vertical, width, height, app]).toEqual([vertical, width, height, server]);
+      }
+    }
   });
 });

@@ -77,6 +77,11 @@ export interface Settings {
   /** Vertical overlay (phone-shaped streams): its own size and spots */
   verticalBubbleSize: "standard" | "large" | "larger";
   verticalArea: "top" | "above-chat";
+  /** OBS's canvas in pixels for each overlay (#544): what the window tells the streamer to type, and what bubbles fit */
+  canvasWidth: number;
+  canvasHeight: number;
+  verticalCanvasWidth: number;
+  verticalCanvasHeight: number;
   /** The look (#177), both overlays */
   bubbleStyle: BubbleStyle;
   /** Icon at each bubble's left; "style" = the Style's own */
@@ -168,6 +173,10 @@ export const DEFAULTS: Settings = {
   bubbleArea: "anywhere",
   verticalBubbleSize: "standard",
   verticalArea: "top",
+  canvasWidth: 1920,
+  canvasHeight: 1080,
+  verticalCanvasWidth: 1080,
+  verticalCanvasHeight: 1920,
   bubbleStyle: "classic",
   bubbleIcon: "style",
   styleLook: null,
@@ -310,6 +319,54 @@ const oneOf = <T>(value: T, allowed: readonly T[], fallback: T) => (allowed.incl
 /** #rrggbb (as a color picker gives it), lowercased, else fallback; same rule as hexColor in bubble-style.ts: keep alike */
 const hexColor = (value: string, fallback: string) => (/^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback);
 
+// Canvas sizes (#544): the same rules as canvasProblem in the server's bubble-style.ts: keep alike
+export const MIN_CANVAS_SIDE = 480;
+export const MAX_CANVAS_SIDE = 7680;
+export const MAX_CANVAS_RATIO = 4;
+
+type CanvasKeys = "canvasWidth" | "canvasHeight" | "verticalCanvasWidth" | "verticalCanvasHeight";
+/** The two settings that hold one overlay's canvas */
+const canvasKeys = (layout: { vertical: boolean }) =>
+  (layout.vertical ? ["verticalCanvasWidth", "verticalCanvasHeight"] : ["canvasWidth", "canvasHeight"]) as [CanvasKeys, CanvasKeys];
+
+/** Why one overlay's canvas size can't be used, or null; in the words Settings shows */
+function canvasSizeProblem(width: number, height: number, layout: { vertical: boolean }): string | null {
+  const name = layout.vertical ? "Vertical stream, canvas size" : "Bubbles, canvas size";
+  if (!Number.isInteger(width) || !Number.isInteger(height)) return `${name}: type whole numbers of pixels, like ${layout.vertical ? "1080 and 1920" : "1920 and 1080"}.`;
+  if ([width, height].some((n) => n < MIN_CANVAS_SIDE || n > MAX_CANVAS_SIDE)) return `${name}: the width and height must each be from ${MIN_CANVAS_SIDE} to ${MAX_CANVAS_SIDE}.`;
+  if (layout.vertical && height <= width) return `${name}: the vertical overlay is for a canvas taller than wide. For a wide canvas, use the size under Bubbles.`;
+  if (!layout.vertical && width < height) return `${name}: this is for a canvas at least as wide as tall. For a tall canvas, use the vertical overlay under Vertical stream.`;
+  if (Math.max(width, height) > MAX_CANVAS_RATIO * Math.min(width, height)) return `${name}: the long side can be at most ${MAX_CANVAS_RATIO} times the short one.`;
+  return null;
+}
+
+/** One overlay's canvas as saved, or both sides back to the default when the pair can't be used (a hand-edited file) */
+function canvasOrDefault(s: Settings, layout: { vertical: boolean }): Partial<Settings> {
+  const [w, h] = canvasKeys(layout);
+  const ok = canvasSizeProblem(s[w], s[h], layout) === null;
+  return { [w]: ok ? s[w] : DEFAULTS[w], [h]: ok ? s[h] : DEFAULTS[h] };
+}
+
+/**
+ * Why the canvas sizes can't be saved as typed (refused, never changed to the nearest size), or null.
+ * A side the window didn't send keeps its saved value
+ */
+export function canvasProblem(changes: Partial<Settings>, saved: Settings): string | null {
+  for (const layout of [{ vertical: false }, { vertical: true }]) {
+    const [w, h] = canvasKeys(layout);
+    if (!(w in changes) && !(h in changes)) continue;
+    const problem = canvasSizeProblem(changes[w] ?? saved[w], changes[h] ?? saved[h], layout);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+/** A canvas size as the server reads it (CANVAS_SIZE), like 1920x1080 */
+export const canvasText = (s: Settings, layout: { vertical: boolean }): string => {
+  const [w, h] = canvasKeys(layout);
+  return `${s[w]}x${s[h]}`;
+};
+
 /** A saved look that still passes every check (a hand-edited settings file is as untrusted as a shared one), else none */
 function lookOrNull(raw: unknown): StyleLook | null {
   if (!raw) return null;
@@ -333,6 +390,8 @@ export function sanitize(s: Settings): Settings {
     bubbleArea: oneOf(s.bubbleArea, ["anywhere", "top", "bottom", "left", "right", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"] as const, "anywhere"),
     verticalBubbleSize: oneOf(s.verticalBubbleSize, ["standard", "large", "larger"] as const, "standard"),
     verticalArea: oneOf(s.verticalArea, ["top", "above-chat"] as const, "top"),
+    ...canvasOrDefault(s, { vertical: false }),
+    ...canvasOrDefault(s, { vertical: true }),
     bubbleStyle: oneOf(s.bubbleStyle, BUBBLE_STYLES, "classic"),
     bubbleIcon: oneOf(s.bubbleIcon, BUBBLE_ICONS, "style"),
     styleLook: lookOrNull(s.styleLook),
@@ -396,7 +455,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "canvasWidth", "canvasHeight", "verticalCanvasWidth", "verticalCanvasHeight", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -562,7 +621,7 @@ export function styleFileName(name: string): string {
 }
 
 /** The look as the server reads it; colors blank when custom colors are off, so the server reverts to the Style's */
-export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string; BUBBLE_STYLE_FILE: string } {
+export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: string; BUBBLE_ACCENT: string; BUBBLE_BACKGROUND: string; BUBBLE_SCALE: string; BUBBLE_VERTICAL_SCALE: string; CANVAS_SIZE: string; VERTICAL_CANVAS_SIZE: string; BUBBLE_STYLE_FILE: string } {
   return {
     // The imported look, which the server checks again; blank for none
     BUBBLE_STYLE_FILE: s.styleLook ? JSON.stringify(s.styleLook) : "",
@@ -573,13 +632,16 @@ export function styleEnv(s: Settings): { BUBBLE_STYLE: string; BUBBLE_ICON: stri
     // Size goes live too: no Refresh in OBS
     BUBBLE_SCALE: String(BUBBLE_SCALE[s.bubbleSize]),
     BUBBLE_VERTICAL_SCALE: String(VERTICAL_BUBBLE_SCALE[s.verticalBubbleSize]),
+    // The canvas each overlay fits its bubbles to (#544), live like the size
+    CANVAS_SIZE: canvasText(s, { vertical: false }),
+    VERTICAL_CANVAS_SIZE: canvasText(s, { vertical: true }),
   };
 }
 
 /** All the server reads at start (environment, own facts pack) as one string; not the token, handed over live */
 export function serverSettingsSignature(env: Record<string, string>, s: Settings): string {
   // The look goes live (POST /control/style), so a new one never restarts the server
-  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, BUBBLE_STYLE_FILE: _styleFile, ...rest } = env;
+  const { SSL_ACCESS_TOKEN: _token, BUBBLE_STYLE: _style, BUBBLE_ICON: _icon, BUBBLE_ACCENT: _accent, BUBBLE_BACKGROUND: _background, BUBBLE_SCALE: _scale, BUBBLE_VERTICAL_SCALE: _verticalScale, CANVAS_SIZE: _canvas, VERTICAL_CANVAS_SIZE: _verticalCanvas, BUBBLE_STYLE_FILE: _styleFile, ...rest } = env;
   return JSON.stringify([Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)), s.myFacts, s.myOriginals]);
 }
 

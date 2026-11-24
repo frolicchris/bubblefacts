@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { autoTextColor, BUBBLE_STYLES, contrast, contrastOver, CUSTOM_ALPHA, customColors, MAX_SCALE, MIN_CONTRAST, MIN_SCALE, styleFrom } from "./bubble-style";
+import { autoTextColor, BUBBLE_STYLES, canvasFrom, canvasProblem, contrast, contrastOver, CUSTOM_ALPHA, customColors, DEFAULT_CANVAS, DEFAULT_VERTICAL_CANVAS, MAX_CANVAS_SIDE, MAX_SCALE, MIN_CANVAS_SIDE, MIN_CONTRAST, MIN_SCALE, styleFrom } from "./bubble-style";
 
 /** Bubble Styles (#177), checked against the overlay's real CSS */
 const OBS = path.resolve(__dirname, "../../frontend/obs");
@@ -215,5 +215,43 @@ describe("the bubble icon choice", () => {
       from("minimal", "", "", (l) => lines.push(l), { icon });
       expect(lines).toEqual([]);
     }
+  });
+});
+
+describe("canvas size (issue #544)", () => {
+  it("is left out when not set, so the overlay sizes as it always did", () => {
+    const style = styleFrom("classic", "", "");
+    expect(style.canvas).toBeUndefined();
+    expect(style.verticalCanvas).toBeUndefined();
+    expect([DEFAULT_CANVAS, DEFAULT_VERTICAL_CANVAS]).toEqual([{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }]);
+  });
+
+  it("reads width x height from the environment or a request", () => {
+    expect(styleFrom("classic", "", "", () => {}, { canvas: "1440x1080", verticalCanvas: " 1080 X 1350 " })).toMatchObject({ canvas: { width: 1440, height: 1080 }, verticalCanvas: { width: 1080, height: 1350 } });
+    expect(canvasFrom({ width: 2560, height: 1080 }, { vertical: false })).toEqual({ width: 2560, height: 1080 });
+    expect(canvasFrom("1080×1920", { vertical: true })).toEqual({ width: 1080, height: 1920 });
+  });
+
+  it("ignores a size it can't use, saying why, and never refuses to start", () => {
+    const warnings: string[] = [];
+    const warn = (line: string) => warnings.push(line);
+    for (const bad of ["1920", "1920x", "wide", "1920x1080px", "1920.5x1080", { width: "1920", height: 1080 }, { width: 1920.5, height: 1080 }]) {
+      expect(canvasFrom(bad, { vertical: false }, warn)).toBeNull();
+    }
+    expect(warnings).toHaveLength(7);
+    expect(warnings.every((w) => /^Canvas size ".*" not used: /.test(w))).toBe(true);
+    expect(canvasFrom("300x200", { vertical: false }, warn)).toBeNull();
+    expect(warnings.at(-1)).toContain(`from ${MIN_CANVAS_SIDE} to ${MAX_CANVAS_SIDE}`);
+    expect(canvasFrom("1080x1920", { vertical: false }, warn)).toBeNull();
+    expect(warnings.at(-1)).toContain("use the vertical overlay");
+    expect(canvasFrom("1920x1080", { vertical: true }, warn)).toBeNull();
+    expect(warnings.at(-1)).toContain("taller than wide");
+    expect(canvasFrom("7680x1080", { vertical: false }, warn)).toBeNull();
+    expect(warnings.at(-1)).toContain("at most 4 times");
+    const style = styleFrom("classic", "", "", warn, { canvas: "800x900" });
+    expect(style.canvas).toBeUndefined();
+    expect(style.style).toBe("classic");
+    for (const empty of [undefined, null, ""]) expect(canvasFrom(empty, { vertical: false })).toBeNull();
+    expect(canvasProblem(1920, 1080, { vertical: false })).toBeNull();
   });
 });
