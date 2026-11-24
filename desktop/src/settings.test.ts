@@ -139,7 +139,7 @@ describe("loadSettings", () => {
     saveSettings(s);
     const saved = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(saved).not.toHaveProperty("topics");
-    expect(saved.myFacts).toEqual(["I've played since I was six."]);
+    expect(loadSettings().myFacts).toEqual(["I've played since I was six."]);
   });
 
   it("never takes example packs from the window", () => {
@@ -535,9 +535,67 @@ describe("the musician's own facts", () => {
   it("saves settings.json for the musician only, replacing it whole", () => {
     saveSettings({ ...DEFAULTS, myFacts: ["One."] });
     saveSettings({ ...DEFAULTS, myFacts: ["Two."] });
-    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Two."]);
+    expect(loadSettings().myFacts).toEqual(["Two."]);
     if (process.platform !== "win32") expect(fs.statSync(file).mode & 0o777).toBe(0o600);
     expect(fs.readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+  });
+});
+
+describe("the musician's facts in their own file (issue #193)", () => {
+  const store = path.join(dir, "own-facts.json");
+  const mine = { myFacts: ["I play by ear.", "[Harbor Lights] I wrote it on a ferry."], myOriginals: ["Every song here is mine."] };
+
+  it("moves the lines from an older settings.json into own-facts.json, backup first, and the boxes show the same", () => {
+    fs.writeFileSync(file, JSON.stringify({ setupComplete: true, channel: "jane", token: "plain:secret-token", ...mine }));
+    const s = loadSettings();
+    expect(s).toMatchObject({ ...mine, channel: "jane", token: "secret-token" });
+    const disk = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(disk).not.toHaveProperty("myFacts");
+    expect(disk).not.toHaveProperty("myOriginals");
+    expect(disk).toMatchObject({ setupComplete: true, channel: "jane", token: "plain:secret-token" });
+    const facts = fs.readFileSync(store, "utf8");
+    expect(facts).toContain("I wrote it on a ferry.");
+    expect(facts).not.toContain("secret-token");
+    const backup = JSON.parse(fs.readFileSync(path.join(dir, "own-facts.before-import.json"), "utf8"));
+    expect(backup).toMatchObject({ fromSettings: mine, store: null });
+    expect(JSON.stringify(backup)).not.toContain("secret-token");
+  });
+
+  it("changes nothing when it starts again", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
+    const first = loadSettings();
+    const after = [fs.readFileSync(store, "utf8"), fs.readFileSync(file, "utf8")];
+    expect(loadSettings()).toEqual(first);
+    expect([fs.readFileSync(store, "utf8"), fs.readFileSync(file, "utf8")]).toEqual(after);
+  });
+
+  it("saves facts to own-facts.json, never to settings.json, and keeps a fact's id while it's unchanged", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+    const before = JSON.parse(fs.readFileSync(store, "utf8")).facts;
+    saveSettings({ ...DEFAULTS, ...mine, myFacts: [...mine.myFacts, "A new one."] });
+    const after = JSON.parse(fs.readFileSync(store, "utf8")).facts;
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+    expect(loadSettings().myFacts).toEqual([...mine.myFacts, "A new one."]);
+  });
+
+  it("takes in lines an older version saved after the move, and ignores the empty lists it writes", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    // Back a version: it saves settings.json with the boxes it saw (empty), or with an edit
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: [], myOriginals: [] }));
+    expect(loadSettings()).toMatchObject(mine);
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Typed in the older version."], myOriginals: [] }));
+    expect(loadSettings()).toMatchObject({ myFacts: ["Typed in the older version."], myOriginals: mine.myOriginals });
+  });
+
+  it("still has the facts when settings.json is unreadable", () => {
+    saveSettings({ ...DEFAULTS, ...mine });
+    fs.writeFileSync(file, "{not json");
+    expect(loadSettings()).toMatchObject(mine);
+  });
+
+  it("normalizes what's typed the way it's stored, so the box and the file agree", () => {
+    expect(sanitize({ ...DEFAULTS, myFacts: ["  Two  spaces\there. ", "", "[ Harbor Lights ]  Mine."] }).myFacts).toEqual(["Two spaces here.", "[Harbor Lights] Mine."]);
   });
 });
 

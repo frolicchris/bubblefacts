@@ -2065,7 +2065,9 @@ interface: a change that breaks one waits for 3.0 (SemVer).
   a few times, then the defaults stand in for this run and nothing is saved
   over it, so the sign-in survives.
 - **Facts files:** `song-facts.json`, `wrong-facts.json`, and the custom
-  facts in settings.
+  facts (`own-facts.json`; before 2.4, the `myFacts` and `myOriginals` lines
+  in `settings.json`, which a newer version moves over when it starts, see
+  "Files in the data folder").
 - **Backups:** `formatVersion` 1; a newer format is refused with a plain
   message, never half-read.
 - **The OBS source:** the overlay file's path in the data folder and the
@@ -2119,12 +2121,50 @@ server and one for the app), so a crash mid-write leaves the old file whole,
 never half of one.
 
 The app's own files sit beside them: `settings.json` (and
-`settings.json.unreadable`, see above), `models/`, `overlay/`, `facts/` (the
-streamer's custom facts, as a pack), `logs/`, `backups/` (automatic copies of
+`settings.json.unreadable`, see above), `own-facts.json` (below), `models/`,
+`overlay/`, `facts/` (the streamer's custom facts, as a pack the server reads,
+written again from `own-facts.json` at every start), `logs/`, `backups/` (automatic copies of
 the settings, facts, Wrong marks and Wrong log, never sign-ins, keys or which
 AI writes the facts), `updates/` (a downloaded update) and a copy of
 `THIRD-PARTY-NOTICES.md`. **Remove my
 BubbleFacts data** deletes all of them.
+
+#### The streamer's own facts (`own-facts.json`)
+
+The two boxes under Custom facts (**Your own facts** and **About your own
+compositions**) are stored as records in `own-facts.json` (`own-facts.ts`,
+issue #193), apart from `settings.json`, so facts and secrets never share a
+file. The boxes stay the way to edit them: their lines (`[Tag] text`) go in,
+records are stored, and the same lines come back out. Features that read or
+rewrite facts in bulk (a color per kind, expiry dates, finding duplicates)
+are built on these records; none is yet, and none goes live before a
+usability check and a GUI check with real streamers.
+
+- **A record:** `id` (`fct_` and 26 random letters and digits, never built
+  from the text, so an edit keeps it), `text`, `kind` (`yours` or `joke`),
+  `scope` (`all`, `originals`, a `tag`, or a `song` with title and artist),
+  an optional `expires` date (stored, not acted on yet), and `created` and
+  `modified` times. A field or scope this version doesn't know is kept as it
+  is when it saves, and a record the boxes can't show stays in the file.
+- **Saving:** text is normalized (NFC, control characters out, one space
+  between words), the way the box then shows it. Curly quotes stay as typed:
+  straightening them would change what shows on stream. A line that matches a
+  stored one keeps its record; a changed line in the same place keeps its id
+  with a new `modified`; any other line is a new record. The file is written
+  only when something changed, atomically.
+- **Limits:** 300 characters a fact (a `[Song]` tag doesn't count), refused
+  where it's typed, never trimmed; 500 lines a box. A longer fact saved
+  before the limit is kept whole.
+- **Moving the lines in:** at start, lines found in `settings.json` (saved by
+  2.3 or earlier) are brought in once: `own-facts.before-import.json` first
+  (what the store held and the lines brought in, no secrets), then
+  `own-facts.json`, then `settings.json` without them. Run again, it changes
+  nothing. A version from before the move shows empty boxes; if it saves
+  lines there, the next start brings them in (an empty box it saves is
+  ignored, so nothing is lost by going back and forward).
+- **Can't be read:** a locked file is retried a few times, then nothing is
+  saved over it this run; one that reads but isn't a store is renamed to
+  `own-facts.json.unreadable`. The automatic backups hold the lines too.
 
 ### Licenses of the sources
 
