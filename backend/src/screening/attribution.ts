@@ -28,8 +28,8 @@ export const speakers = (s: string): string[] =>
   [...s.matchAll(SPEAKER)].map((m) => m[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase())).pop() ?? "").filter(Boolean);
 
 /** Caption's subject when the retold sentence has another: "The band had" for "The company had", a speaker only in "an interview with" */
-export function swappedSubject(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function swappedSubject(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   if (!retold.length) return null;
   const agent = AGENT.exec(fact);
   if (agent) {
@@ -46,8 +46,8 @@ export function swappedSubject(fact: string, context: string): string | null {
 }
 
 /** Describer of a view told as fact ("as a compromise" for "Reyes described the cue as a compromise"), or null */
-export function unattributedView(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function unattributedView(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   for (const s of retold) {
     const by = /((?:Mc)?\p{Lu}[\p{L}'’.-]*)\s+(?:described|called|deemed|likened|characterized|characterised|considered)\b/u.exec(s);
     if (!by || NAME_STOPWORDS.has(by[1].toLowerCase()) || hasWord(by[1], fact) || /\b(describ|call|deem|liken|characteri[sz]|consider)\w*/i.test(fact)) continue;
@@ -110,14 +110,14 @@ export function misattributedWords(fact: string, context: string): string | null
 }
 
 /** Real doer when the caption opens on someone the retold sentence never names ("Dale Ortiz pitched" for "Mara Quill... pitched"), or null */
-export function otherDoer(fact: string, context: string): string | null {
+export function otherDoer(fact: string, context: string, cited?: string): string | null {
   const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s+\p{Ll})/u.exec(fact);
   // "Nadia's album": the album is the subject
   if (!lead || /['’]s?$/.test(lead[1])) return null;
   const words = lead[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
   // Full names only: one word is as often a game, band or place
   if (words.length < 2 || NAME_STOPWORDS.has(lead[1].split(/\s+/)[0].toLowerCase())) return null;
-  const retold = retoldSentences(fact, context);
+  const retold = retoldSentences(fact, context, cited);
   if (!retold.length || retold.some((s) => words.some((w) => hasWord(w, s)))) return null;
   const subjects = retold.map((s) => {
     // Skip a leading time or place: "In 1933, Ada Pell recorded"
@@ -240,8 +240,8 @@ const MONTH_YEAR = new RegExp(
 );
 
 /** Month and year when every retold sentence gives the year but the caption drops it ("regrouped in January" reads cut off), or null */
-export function droppedYear(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function droppedYear(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   const given = [...fact.matchAll(MONTH_YEAR)];
   const factYears: string[] = fact.match(YEAR) ?? [];
   for (const month of new Set([...fact.matchAll(new RegExp(`\\b(${MONTHS})\\b`, "g"))].map((m) => m[1]))) {

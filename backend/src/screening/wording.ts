@@ -11,8 +11,8 @@ import { capitalsOf } from "./frames";
  * Doer turned round, or the name: "Vale compared" for "compared Vale's vocals"; "worked on by Rob Lane"
  * for "Rob Lane confirmed it is worked on"; "at the Brit Awards" for "at the Mercury Prize"
  */
-export function turnedRound(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function turnedRound(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   if (!retold.length) return null;
   const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(\p{Ll}+ed)\b/u.exec(fact);
   if (lead) {
@@ -42,8 +42,8 @@ const CLAUSE_BREAK = /,\s+(?=(?:who|whom|whose|which|while|whereas|but|although|
  * Year or name joined on from another clause, or null: "formed a songwriting team in 1976" from
  * "It was formed in 1976 by Ann and Bo, who formed a songwriting team"
  */
-export function mergedClauses(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function mergedClauses(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   if (retold.length !== 1) return null;
   const clauses = retold[0].split(CLAUSE_BREAK).map((c) => c.trim()).filter(Boolean);
   if (clauses.length < 2) return null;
@@ -69,8 +69,8 @@ export function mergedClauses(fact: string, context: string): string | null {
 const OTHER_RECORDING_HEADING = /^(?:[^:\n]{2,40}\s(?:version|cover|rendition|remix)|cover versions?|other versions?|b-sides?|remixes)$/i;
 
 /** Heading of another recording's section the caption retells unsaid ("It was..." under "Nightjar version"), or null */
-export function otherRecordingSection(fact: string, context: string, artists: string[] = []): string | null {
-  const retold = retoldSentences(fact, context);
+export function otherRecordingSection(fact: string, context: string, artists: string[] = [], cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   if (!retold.length) return null;
   const seen: string[] = [];
   for (const line of context.split("\n").slice(1)) {
@@ -86,9 +86,9 @@ const HEDGE =
   /\b(?:may|might|could) have\b|\b(?:possibly|arguably|reportedly|allegedly|apparently|supposedly|purportedly|reputedly|rumou?red|probably|perhaps|presumably|unconfirmed|disputed)\b|\b(?:is|are|was|were) (?:said|believed|thought|reported|rumou?red|claimed) to\b|\bit is (?:said|believed|thought|claimed)\b|\b(?:legend|tradition) has it\b|\b(?:is|are|was|were) credited with\b|\bin part\b|\b(?:partly|partially)\b/i;
 
 /** Hedge in every retold sentence that the caption drops ("Ardent suggested" for "may have been suggested by Ardent"), or null */
-export function droppedHedge(fact: string, context: string): string | null {
+export function droppedHedge(fact: string, context: string, cited?: string): string | null {
   if (HEDGE.test(fact) || /\baccording to\b/i.test(fact)) return null;
-  const retold = retoldSentences(fact, context);
+  const retold = retoldSentences(fact, context, cited);
   // A hedge inside a quote is the speaker's ("called it "perhaps the first masterpiece"")
   const unquoted = retold.map((s) => s.replace(/["“][^"”]*["”]/g, ""));
   if (!unquoted.length || !unquoted.every((s) => HEDGE.test(s))) return null;
@@ -125,8 +125,8 @@ export function misplacedYear(fact: string, context: string): string | null {
 }
 
 /** Whose detail it really is, or null: the video's told of the song, the single's sales of the album, a radio date as a peak's */
-export function wrongOwner(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function wrongOwner(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   // Video as the retold sentence's subject: "The music video for X was...", "Its video was shot"
   const videoFirst = /^(?:[^,]{0,40},\s*)?(?:the|its|their|his|her|an?)\s+(?:(?:official|music|lyric|accompanying|original)\s+)*videos?\b(?!\s*games?\b)/i;
   if (retold.length && !ABOUT_THE_VIDEO.test(fact) && retold.every((s) => videoFirst.test(s))) return "the music video";
@@ -148,8 +148,8 @@ export function wrongOwner(fact: string, context: string): string | null {
 }
 
 /** "An exception to X" with no "exception to" in the source: the caption supplied X, and small models get it backwards */
-export function suppliedException(fact: string, context: string): boolean {
-  return /\bexception to\b/i.test(fact) && !retoldSentences(fact, context).some((s) => /\bexception to\b/i.test(s));
+export function suppliedException(fact: string, context: string, cited?: string): boolean {
+  return /\bexception to\b/i.test(fact) && !retoldSentences(fact, context, cited).some((s) => /\bexception to\b/i.test(s));
 }
 
 /** Role turned round, or null: "Kai Moreno's voice actor" for "Juno's voice actor Kai Moreno" */

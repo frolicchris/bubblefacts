@@ -39,14 +39,6 @@ export function bodySentences(context: string): string[] {
   return referenceSentences(context).filter((s) => s.length >= 20);
 }
 
-// The sentence cited for the caption being screened: while set, it is the retold one, no guessing
-let citing: { fact: string; sentence: string } | null = null;
-
-/** screenClaims sets this around each caption */
-export function setCiting(next: { fact: string; sentence: string } | null): void {
-  citing = next;
-}
-
 /** Share of a caption's content words a sentence holds */
 export function share(fact: string, sentence: string): number {
   const want = contentTokens(fact.replace(/\s*\([^)]*\)/g, ""));
@@ -57,9 +49,9 @@ export function share(fact: string, sentence: string): number {
   return shared / want.size;
 }
 
-/** Sentences a caption likely retells: the best match and any nearly as good; none under a quarter */
-export function retoldSentences(fact: string, context: string): string[] {
-  if (citing?.fact === fact) return [citing.sentence];
+/** Sentences a caption likely retells: the one it cites, else the best match and any nearly as good; none under a quarter */
+export function retoldSentences(fact: string, context: string, cited?: string): string[] {
+  if (cited !== undefined) return [cited];
   const scored = bodySentences(context).map((s) => ({ s, share: share(fact, s) }));
   const best = Math.max(0, ...scored.map((x) => x.share));
   return best < 0.25 ? [] : scored.filter((x) => x.share >= best - 0.1).map((x) => x.s);
@@ -123,8 +115,8 @@ function withoutTitles(fact: string, context: string, titles: string[]): string 
 }
 
 /** Joining word or number (not a year) the retold sentence lacks, or null: "twice", "three pieces" when it has five */
-export function unsupportedConnective(fact: string, context: string, titles: string[] = []): string | null {
-  const retold = retoldSentences(fact, context);
+export function unsupportedConnective(fact: string, context: string, titles: string[] = [], cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   const worded = withoutTitles(fact, context, titles);
   // "first" is too common to drop when nothing is retold; other checks judge that
   const used = CONNECTIVES.filter((c) => c.fact.test(worded) && (c.label !== "a first" || retold.length > 0));
@@ -239,8 +231,8 @@ const RELEASE_ORDINAL = `(?:first|lead|debut|second|third|fourth|fifth|sixth|sev
 const FROM_AN_ALBUM = /\b(?:from|off|of|on)\s+(?:(?:the|their|his|her|its|a|an)\s+)?(?:[\p{L}'’-]+\s+){0,5}(?:album|EP|LP)s?\b/giu;
 
 /** What a kept detail lost, so it lands on something else, or null: two charts' peaks on one, "her second single", a single's date as the album's */
-export function lostQualifier(fact: string, context: string): string | null {
-  const retold = retoldSentences(fact, context);
+export function lostQualifier(fact: string, context: string, cited?: string): string | null {
+  const retold = retoldSentences(fact, context, cited);
   // "jazz musicians" from "jazz and pop musicians"
   for (const [, first, noun] of fact.matchAll(/\b(\p{Ll}{3,}) (?=(\p{Ll}{4,})\b)/gu)) {
     const pair = new RegExp(`\\b${escapeRe(first)} and (\\p{L}+) ${escapeRe(noun)}\\b`, "iu").exec(retold.join(" "));
