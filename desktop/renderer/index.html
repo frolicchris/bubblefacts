@@ -191,8 +191,9 @@
             <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
               <div class="pathbox"><code class="overlay-path"></code><button class="ghost" data-copy-path>Copy</button></div>
             </li>
-            <li>Set <strong>Width</strong> and <strong>Height</strong> to your canvas size, usually 1920 and 1080. Click <strong>OK</strong>.</li>
+            <li>Set <strong>Width</strong> to <strong data-canvas-size="width">1920</strong> and <strong>Height</strong> to <strong data-canvas-size="height">1080</strong>. Click <strong>OK</strong>.</li>
           </ol>
+          <p class="fine">That's the usual canvas size. Yours is in OBS under <strong>Settings</strong>, then <strong>Video</strong>, <strong>Base (Canvas) Resolution</strong>. If it's different, type it under <strong>Settings</strong>, <strong>Bubbles</strong>, <strong>Canvas size</strong> once setup is done.</p>
           <p class="fine">Dropping the tile does nothing on Windows? OBS may be running as administrator. Open OBS the usual way, or use these steps.</p>
         </details>
         <div class="nav-buttons">
@@ -594,6 +595,12 @@
               <option value="bottom-right">Bottom right</option>
             </optgroup>
           </select>
+          <p class="label" id="s-canvas-label">Canvas size <span class="hint">in pixels, as in OBS under Settings, Video, Base (Canvas) Resolution</span></p>
+          <div class="grid2" role="group" aria-labelledby="s-canvas-label" aria-describedby="s-canvas-hint">
+            <label>Width <input name="canvasWidth" type="number" min="480" max="7680" step="1"></label>
+            <label>Height <input name="canvasHeight" type="number" min="480" max="7680" step="1"></label>
+          </div>
+          <p class="hint" id="s-canvas-hint">Most canvases are 1920 by 1080. On another shape, like 1440 by 1080, bubbles fit it so none run off the edge. Your BubbleFacts source in OBS should be this size too: if it isn't, open its <strong>Properties</strong> and set the same <strong>Width</strong> and <strong>Height</strong>.</p>
           <label class="inline"><input name="nowPlaying" type="checkbox"> Show a Now Playing bubble when a song starts</label>
           <label class="inline"><input name="creditBubble" type="checkbox" aria-describedby="s-credit-hint"> Now and then, show where the facts come from</label>
           <p class="hint indent" id="s-credit-hint">One extra bubble at the start and about every 5 songs, for viewers who join later. Unchecked, it still shows when you go live in OBS, and again after 20 minutes without facts.</p>
@@ -624,7 +631,7 @@
           <p class="fine">Streaming phone-shaped to Twitch (Dual Format), TikTok, YouTube Shorts or Instagram Live? Add the vertical overlay to that scene. Its bubbles stay clear of the buttons and chat those apps show over your video, and it runs beside the usual one.</p>
           <div class="drag-tile" draggable="true" data-drag-overlay="vertical" title="Drag onto the Sources list in OBS">
             <img src="../build/tray@2x.png" alt="" width="32" height="32">
-            <span><strong>Drag this into your vertical scene</strong><br><span class="hint">When OBS's canvas is vertical (1080 by 1920), OBS sizes it for you.</span></span>
+            <span><strong>Drag this into your vertical scene</strong><br><span class="hint">When OBS's canvas is vertical (<span data-canvas-size="vertical-width">1080</span> by <span data-canvas-size="vertical-height">1920</span>), OBS sizes it for you.</span></span>
           </div>
           <details class="help">
             <summary>Using Aitum Vertical, or a second canvas?</summary>
@@ -634,10 +641,16 @@
               <li>Check <strong>Local file</strong>, click <strong>Browse</strong>, and choose this file:
                 <div class="pathbox"><code class="vertical-overlay-path"></code><button class="ghost" type="button" data-copy-path="vertical">Copy</button></div>
               </li>
-              <li>Set <strong>Width</strong> to <strong>1080</strong> and <strong>Height</strong> to <strong>1920</strong>. Click <strong>OK</strong>.</li>
+              <li>Set <strong>Width</strong> to <strong data-canvas-size="vertical-width">1080</strong> and <strong>Height</strong> to <strong data-canvas-size="vertical-height">1920</strong>. Click <strong>OK</strong>.</li>
             </ol>
-            <p class="fine">If the overlay asks you to set the size, it's this step: open the source's properties and set 1080 and 1920.</p>
+            <p class="fine">If the overlay asks you to set the size, it's this step: open the source's properties and set <span data-canvas-size="vertical-width">1080</span> and <span data-canvas-size="vertical-height">1920</span>.</p>
           </details>
+          <p class="label" id="s-vcanvas-label">Vertical canvas size <span class="hint">in pixels, taller than wide</span></p>
+          <div class="grid2" role="group" aria-labelledby="s-vcanvas-label" aria-describedby="s-vcanvas-hint">
+            <label>Width <input name="verticalCanvasWidth" type="number" min="480" max="7680" step="1"></label>
+            <label>Height <input name="verticalCanvasHeight" type="number" min="480" max="7680" step="1"></label>
+          </div>
+          <p class="hint" id="s-vcanvas-hint">Most vertical canvases are 1080 by 1920. Using another, like 1080 by 1350? Type it here, and set the same size on the BubbleFacts Vertical source in OBS.</p>
           <label for="s-vsize">Bubble size on the vertical stream</label>
           <select id="s-vsize" name="verticalBubbleSize">
             <option value="standard">Standard</option>
