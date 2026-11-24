@@ -39,7 +39,7 @@ export interface SSLQueueSong {
   comment?: string | null;
   /** API shape, not read */
   duration?: number | null;
-  /** StreamElements: the video's length; now playing file: null. API shape, not read */
+  /** StreamElements: the video's length; now playing file: null. Read by `staleAfterMs` (stale-song.ts) */
   durationSeconds?: number | null;
   timesPlayed?: number;
   /** API shape, not read */

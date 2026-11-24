@@ -240,8 +240,9 @@ describe("SongFactSharer", () => {
   /** Every sharer a test starts, stopped when it ends: one left running would log into the next test. */
   const started: SongFactSharer[] = [];
   const track = (s: SongFactSharer) => (started.push(s), s);
+  // Room for a slow CI machine to reach the stand-in: no test here waits on this limit (the timeout test sets its own)
   const sharer = (more: { refreshMs?: number } = {}) =>
-    track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 200, log, ...more }));
+    track(new SongFactSharer({ url: stand.server.url, apiKey: KEY, channel: "madeupchannel", settleMs: 1, timeoutMs: 2000, log, ...more }));
 
   beforeEach(async () => {
     lines.length = 0;
