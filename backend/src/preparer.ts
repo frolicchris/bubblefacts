@@ -1,4 +1,4 @@
-import { isCurrent, PreparedEntry, PreparedOutcome, PreparedStore, PREPARED_RULES_VERSION } from "./prepared-facts";
+import { isCurrent, PreparedEntry, PreparedOutcome, PreparedStore, PREPARED_RULES_VERSION, surenessMark } from "./prepared-facts";
 import type { PreparedSong } from "./fact-generator";
 import { SSLSong } from "./types";
 
@@ -325,6 +325,7 @@ export class Preparer {
       article: result.article,
       revision: result.revision,
       rules: PREPARED_RULES_VERSION,
+      ...surenessMark(),
       model: result.model,
       preparedAt: at,
       checkedAt: at,

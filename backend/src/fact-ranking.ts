@@ -5,6 +5,37 @@ export const MAX_BUBBLES = 4;    // bubbles per song from a source
 export const FLOOR = 3;          // held-back captions come back up to this many
 export const MAX_OFF_MUSIC = 2;  // captions about the game, film or show, not the music (#189)
 
+// --- How sure a fact must be (#542): FACT_SURENESS, the app's "How sure a fact must be" ---
+// It moves one limit: how many held-back captions come back (step 3). Each of them passed every screen
+// against its reference; nothing else changes, at any position. Examples: fixtures/sureness.json
+
+/** "standard" is the default and changes nothing */
+export const SURENESS_LEVELS = ["strict", "standard", "more"] as const;
+export type Sureness = (typeof SURENESS_LEVELS)[number];
+
+export interface SurenessLimits {
+  /** Held-back captions come back until the song has this many bubbles */
+  heldBackFloor: number;
+}
+
+// Strict: none comes back. "Lantern Hill" with two safe captions and one retelling "Mara Quill said she
+// wrote the chorus on a ferry" shows the two, not the ferry
+export const STRICT_FLOOR = 0;
+// More facts: up to the four a song shows. "Harbor Lights" with three lead captions that each lost an
+// "about", a "mostly" or a "usually" shows a fourth too, from a 30-word body sentence about the second verse
+export const MORE_FACTS_FLOOR = MAX_BUBBLES;
+
+export const SURENESS: Readonly<Record<Sureness, Readonly<SurenessLimits>>> = {
+  strict: { heldBackFloor: STRICT_FLOOR },
+  standard: { heldBackFloor: FLOOR },
+  more: { heldBackFloor: MORE_FACTS_FLOOR },
+};
+
+/** The limits for a setting; anything unknown or missing is standard */
+export function surenessLimits(level: unknown): Readonly<SurenessLimits> {
+  return (SURENESS_LEVELS as readonly unknown[]).includes(level) ? SURENESS[level as Sureness] : SURENESS.standard;
+}
+
 export interface Candidate {
   text: string;
   /** "data": fixed sentence from Wikidata or MusicBrainz; "caption": the AI's retelling */
@@ -20,7 +51,7 @@ export type Hook = "picture" | "making" | "first" | "person" | "good" | "award" 
 export interface Ranked extends Candidate {
   /** Why the source is risky to retell; empty when safe */
   flags: string[];
-  /** Shown only to reach FLOOR */
+  /** Shown only to reach the held-back floor (FLOOR at the default sureness) */
   refill: boolean;
   score: number;
   /** About another quoted song, on the artist's article */
@@ -164,14 +195,15 @@ export function namesOtherSong(caption: string, title: string): boolean {
 
 /**
  * Bubbles to show, in order. `unsure`: maybe another work, no captions. `dataFirst`: artist's or game's
- * article, song data facts lead. `artistArticle` + `title`: one caption at most about another song
+ * article, song data facts lead. `artistArticle` + `title`: one caption at most about another song.
+ * `sureness`: how many held-back captions come back (SURENESS; standard when left out)
  */
 export function rankFacts(
   candidates: Candidate[],
-  opts: { max?: number; floor?: number; unsure?: boolean; dataFirst?: boolean; artistArticle?: boolean; title?: string; log?: (line: string) => void } = {}
+  opts: { max?: number; sureness?: Readonly<SurenessLimits>; unsure?: boolean; dataFirst?: boolean; artistArticle?: boolean; title?: string; log?: (line: string) => void } = {}
 ): Ranked[] {
   const max = Math.max(0, opts.max ?? MAX_BUBBLES);
-  const floor = Math.min(opts.floor ?? FLOOR, max);
+  const floor = Math.min((opts.sureness ?? SURENESS.standard).heldBackFloor, max);
   const log = opts.log ?? (() => undefined);
   const all = candidates.flatMap((c, order) => {
     if (c.kind === "caption" && opts.unsure) {
@@ -202,11 +234,13 @@ export function rankFacts(
   const held = pool.filter((c) => c.flags.length);
   // Too few safe: least risky held-back come back; a body sentence counts half a flag more
   const risk = (c: (typeof all)[number]) => c.flags.length + (c.lead ? 0 : 0.5);
-  const back = held
-    .slice()
-    .sort((a, b) => risk(a) - risk(b) || a.order - b.order)
-    .slice(0, Math.max(0, floor - safe.length))
-    .map((c) => ({ ...c, refill: true }));
+  // Past FLOOR (More facts only), one comes back only if it retells a sentence of its own
+  const back: typeof held = [];
+  for (const c of held.slice().sort((a, b) => risk(a) - risk(b) || a.order - b.order)) {
+    if (safe.length + back.length >= floor) break;
+    if (safe.length + back.length >= FLOOR && !c.sentence) continue;
+    back.push({ ...c, refill: true });
+  }
   for (const c of held) if (!back.some((b) => b.order === c.order)) log(`[Screen] DROP (risky source: ${c.flags.join(", ")})`);
   // Among equals: data facts and lead captions, then the writer's order
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);

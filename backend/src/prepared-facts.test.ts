@@ -3,7 +3,8 @@ jest.mock("./config", () => ({ config: { dataDir: process.env.BUBBLEFACTS_DATA_D
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { isCurrent, PreparedEntry, PreparedStore, PREPARED_MAX_AGE_MS, PREPARED_RULES_VERSION } from "./prepared-facts";
+import { config } from "./config";
+import { isCurrent, PreparedEntry, PreparedStore, PREPARED_MAX_AGE_MS, PREPARED_RULES_VERSION, surenessMark } from "./prepared-facts";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bubblefacts-prepared-"));
 const file = path.join(dir, "prepared-facts.json");
@@ -87,5 +88,32 @@ describe("PreparedStore (issue #292)", () => {
     expect(isCurrent(entry({ preparedAt: "2026-09-20T12:00:00Z" }), now)).toBe(false);
     expect(isCurrent(entry({ preparedAt: "not a date" }), now)).toBe(false);
     expect(isCurrent(entry({ preparedAt: "2026-10-20T12:00:00Z", rules: 0 }), now)).toBe(false);
+  });
+
+  describe("under How sure a fact must be (FACT_SURENESS, #542)", () => {
+    const cfg = config as { factSureness?: string };
+    afterEach(() => delete cfg.factSureness);
+
+    it("records nothing at standard, so the file is as before, and older entries count as standard", () => {
+      expect(surenessMark()).toEqual({});
+      cfg.factSureness = "standard";
+      expect(surenessMark()).toEqual({});
+      expect(isCurrent(entry())).toBe(true);
+      expect(isCurrent(entry({ sureness: "strict" }))).toBe(false);
+    });
+
+    it("shows an entry only under the sureness it was written for: another would show other captions", () => {
+      cfg.factSureness = "strict";
+      expect(surenessMark()).toEqual({ sureness: "strict" });
+      expect(isCurrent(entry({ ...surenessMark() }))).toBe(true);
+      expect(isCurrent(entry())).toBe(false);
+      expect(isCurrent(entry({ sureness: "more" }))).toBe(false);
+      store().put("ssl:1", entry({ sureness: "strict" }));
+      expect(store().get("ssl:1")).toBeDefined();
+      cfg.factSureness = "more";
+      expect(store().get("ssl:1")).toBeUndefined();
+      // Kept until the preparer writes it again under the new sureness
+      expect(store().saved("ssl:1")).toBeDefined();
+    });
   });
 });

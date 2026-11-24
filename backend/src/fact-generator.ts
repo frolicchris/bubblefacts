@@ -4,7 +4,7 @@ import * as path from "path";
 import { config } from "./config";
 import { Fact, SSLQueueItem, SSLSong } from "./types";
 import { articleMisfit, articleText, artistNames, companionOf, companionPages, curatedFacts, resetCuratedTurns, dropVersionTags, editionNotInTitle, explainMusicTerms, fetchGrounding, settledRevision, isCoverOf, isPerformerArticle, isPlaceholderRequest, keepsAttribution, mentionsName, notForStream, namesLoosely, normalizeTitle, numberedReference, otherParts, qualifierRepair, repairQualifier, repairScope, resolveGameAndTrack, restatesRequest, scopeRepair, screenClaims, splitGameAndTrack, summaryGate, support, supportingSentence, tooSimilar, workMatchConfidence, pageSummary, withSearches } from "./fact-verifier";
-import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts } from "./fact-ranking";
+import { Candidate, MAX_BUBBLES, isLeadSentence, rankFacts, surenessLimits } from "./fact-ranking";
 import { isNotMusic } from "./not-music";
 import { hasNoArtist, withoutArtistNote, withoutRequestCredit } from "./text";
 import { buildStatFacts, isOriginal, isOwnOriginal } from "./stat-facts";
@@ -1575,7 +1575,7 @@ export async function prepareSong(
   }
 }
 
-// rankFacts: risky-sentence captions held back unless under three; by interest, data and lead first among equals
+// rankFacts: risky-sentence captions held back unless under three (FACT_SURENESS); by interest, data and lead first among equals
 function rankedFromArticle(
   data: string[],
   captions: string[],
@@ -1595,7 +1595,9 @@ function rankedFromArticle(
   ];
   // Data facts lead (about the song; the article is its artist's or game's). Other songs' captions: low, one at most
   const artistArticle = isPerformerArticle(context.split("\n")[0], full || context);
-  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
+  // FACT_SURENESS moves only how many held-back captions come back (#542)
+  const sureness = surenessLimits(config.factSureness);
+  return rankFacts(candidates, { max: Math.min(want, MAX_BUBBLES), sureness, dataFirst: true, artistArticle, title, log: (line) => console.log(line) }).map((c) => c.text);
 }
 
 // SOURCE_RISK=off: data facts, then the best-supported captions in order

@@ -19,7 +19,7 @@ jest.mock("electron", () => ({
 }));
 
 import { checkStyleLook, readStyleFile } from "./style-file";
-import { customFactsProblem, EDITABLE, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
+import { customFactsProblem, EDITABLE, FACT_SURENESS, ENUM_KEYS, shareUrlProblem, DEFAULTS, Settings, fromWindow, loadSettings, secretsUnprotected, secretsWaiting, unlockSecrets, sanitize, saveSettings, secretsOf, songSourceReady, styleEnv, topicList, toServerEnv, writeMyPack, serverSettingsSignature, styleFileName, styleFileOf, VERTICAL_BUBBLE_SCALE } from "./settings";
 
 const file = path.join(dir, "settings.json");
 const paths = { modelsDir: "/models", logDir: "/logs", topicsDir: "/facts", clientId: "client-1" };
@@ -36,6 +36,31 @@ describe("toServerEnv documents folder", () => {
   it("passes the system's Documents folder to the server when the app knows it", () => {
     expect(toServerEnv(DEFAULTS, { ...paths, documentsDir: "/Redirected/Documents" }).BUBBLEFACTS_DOCUMENTS_DIR).toBe("/Redirected/Documents");
     expect(toServerEnv(DEFAULTS, paths)).not.toHaveProperty("BUBBLEFACTS_DOCUMENTS_DIR");
+  });
+});
+
+describe("How sure a fact must be (#542)", () => {
+  it("is Standard to start with, and passes nothing to the server then, so it starts as before", () => {
+    expect(DEFAULTS.factSureness).toBe("standard");
+    expect(toServerEnv(DEFAULTS, paths)).not.toHaveProperty("FACT_SURENESS");
+    expect(toServerEnv({ ...DEFAULTS, factSureness: "standard" }, paths)).toEqual(toServerEnv(DEFAULTS, paths));
+  });
+
+  it("passes Surest and A few more facts on, and a changed choice restarts the server", () => {
+    expect(toServerEnv({ ...DEFAULTS, factSureness: "strict" }, paths).FACT_SURENESS).toBe("strict");
+    expect(toServerEnv({ ...DEFAULTS, factSureness: "more" }, paths).FACT_SURENESS).toBe("more");
+    const signature = (s: Settings) => serverSettingsSignature(toServerEnv(s, paths), s);
+    expect(signature({ ...DEFAULTS, factSureness: "more" })).not.toBe(signature(DEFAULTS));
+  });
+
+  it("reads an unknown value as Standard, and offers the server's own choices", () => {
+    expect(sanitize({ ...DEFAULTS, factSureness: "loose" as Settings["factSureness"] }).factSureness).toBe("standard");
+    expect(EDITABLE).toContain("factSureness");
+    const server = jest.requireActual("../../backend/src/fact-ranking") as { SURENESS_LEVELS: readonly string[] };
+    expect([...FACT_SURENESS]).toEqual([...server.SURENESS_LEVELS]);
+    const page = fs.readFileSync(path.join(__dirname, "..", "renderer", "index.html"), "utf8");
+    const select = page.match(/<select id="s-sureness" name="factSureness"[^>]*>([\s\S]*?)<\/select>/)?.[1] ?? "";
+    expect([...select.matchAll(/value="([^"]+)"/g)].map((m) => m[1])).toEqual([...FACT_SURENESS]);
   });
 });
 

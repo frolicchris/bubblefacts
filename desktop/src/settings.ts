@@ -93,6 +93,8 @@ export interface Settings {
   intervalSeconds: number;
   /** Minimum seconds on screen, 2 to 120 */
   durationSeconds: number;
+  /** How sure a fact must be (#542): the server's FACT_SURENESS (fact-ranking.ts); "standard" changes nothing */
+  factSureness: FactSureness;
   /** Minutes one song may stay on the list before it's taken as over (#451), 5 to 60; the server's stale-song.ts */
   staleMinutes: number;
   /** Hands-free Wrong: a key from a foot pedal or Stream Deck, or "off" */
@@ -124,6 +126,10 @@ export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
 /** Bubble icons, as the server's BUBBLE_ICONS; "style" = each Style's own */
 export const BUBBLE_ICONS = ["style", "notes", "heart", "star", "moon", "diamond"] as const;
 export type BubbleIcon = (typeof BUBBLE_ICONS)[number];
+
+/** How sure a fact must be, as the server's SURENESS_LEVELS in fact-ranking.ts: keep alike */
+export const FACT_SURENESS = ["strict", "standard", "more"] as const;
+export type FactSureness = (typeof FACT_SURENESS)[number];
 
 export const DEFAULTS: Settings = {
   setupComplete: false,
@@ -178,6 +184,7 @@ export const DEFAULTS: Settings = {
   factsPerSong: 5,
   intervalSeconds: 15,
   durationSeconds: 8,
+  factSureness: "standard",
   staleMinutes: 10,
   wrongKey: "off",
   port: 3000,
@@ -343,6 +350,7 @@ export function sanitize(s: Settings): Settings {
     factsPerSong: clamp(s.factsPerSong, 1, 12, DEFAULTS.factsPerSong),
     intervalSeconds: clamp(s.intervalSeconds, 3, 300, DEFAULTS.intervalSeconds),
     durationSeconds: clamp(s.durationSeconds, 2, 120, DEFAULTS.durationSeconds),
+    factSureness: oneOf(s.factSureness, FACT_SURENESS, "standard"),
     // Out of range means the default, not the nearest end: a typo shouldn't become 60 minutes of a song that's over
     staleMinutes: Number.isFinite(s.staleMinutes) && Math.round(s.staleMinutes) >= 5 && Math.round(s.staleMinutes) <= 60 ? Math.round(s.staleMinutes) : DEFAULTS.staleMinutes,
     wrongKey: oneOf(s.wrongKey, Object.keys(WRONG_KEYS) as WrongKey[], "off"),
@@ -396,7 +404,7 @@ function webAddress(s: string): string | null {
 export const EDITABLE: ReadonlyArray<keyof Settings> = [
   "setupComplete", "songSource", "channel", "token", "seChannel", "seJwt", "nowPlayingPreset", "nowPlayingFile", "nowPlayingFormat", "displayName", "originals", "liveLearns", "prepareSongs", "twitchAbout", "nowPlaying", "creditBubble", "liveLearnBanner", "shareFacts", "shareUrl", "shareChannel", "shareKey",
   "myFacts", "myOriginals", "ai", "aiQuality", "groqKey", "anthropicKey", "ollamaUrl", "ollamaModel",
-  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "staleMinutes", "wrongKey", "port", "startAtLogin",
+  "bubbleSize", "bubbleArea", "verticalBubbleSize", "verticalArea", "bubbleStyle", "bubbleIcon", "customColors", "accentColor", "backgroundColor", "factsPerSong", "intervalSeconds", "durationSeconds", "factSureness", "staleMinutes", "wrongKey", "port", "startAtLogin",
   "updateChannel",
 ];
 
@@ -419,7 +427,7 @@ export const SETTINGS_VERSION = 1;
 const RETIRED_KEYS = new Set(["topics"]);
 
 /** Settings `sanitize` holds to a list of values */
-export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "wrongKey", "updateChannel"] as const;
+export const ENUM_KEYS = ["songSource", "nowPlayingPreset", "nowPlayingFormat", "tokenKind", "ai", "aiQuality", "bubbleSize", "bubbleArea", "bubbleStyle", "bubbleIcon", "verticalBubbleSize", "verticalArea", "factSureness", "wrongKey", "updateChannel"] as const;
 
 export function saveSettings(settings: Settings): void {
   if (secretsPending || readFailed) return;
@@ -486,6 +494,8 @@ export function toServerEnv(
   };
   // The system's Documents, for the presets (Streamling, Nightbot, What's Now Playing): tried before the home folder's
   if (paths.documentsDir) env.BUBBLEFACTS_DOCUMENTS_DIR = paths.documentsDir;
+  // Only when changed: at the default the server starts exactly as before
+  if (s.factSureness !== "standard") env.FACT_SURENESS = s.factSureness;
   if (s.songSource === "streamelements") {
     Object.assign(env, { SONG_SOURCE: "streamelements", SE_JWT: s.seJwt });
     if (s.seChannel) env.SE_CHANNEL = s.seChannel;

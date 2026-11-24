@@ -1719,3 +1719,34 @@ describe("a song whose captions all failed the screen (#203)", () => {
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("How sure a fact must be (FACT_SURENESS, #542)", () => {
+  const cfg = config as { factSureness?: string };
+  afterEach(() => delete cfg.factSureness);
+  // Ilse Varga, Prague and 1987 are in no sentence of the article: the screens drop it at every position
+  const unsupported = "The theme was composed by Ilse Varga in Prague in 1987.";
+  const shownAt = async (level: string | undefined) => {
+    if (level === undefined) delete cfg.factSureness;
+    else cfg.factSureness = level;
+    clearFactCache();
+    restoreRecent([]);
+    withArticle("Harbor Lights");
+    mockCreate.mockResolvedValue(reply(`${unsupported}\n${MODEL_LINES}`));
+    return (await generateFacts({ title: "Harbor Lights", artist: "Marlo Venn" })).map((f) => f.text);
+  };
+
+  it("drops a caption its article doesn't support at every position", async () => {
+    for (const level of ["strict", "standard", "more"]) {
+      const shown = await shownAt(level);
+      expect(shown.length).toBeGreaterThan(0);
+      expect(shown).not.toContain(unsupported);
+      expect(shown.join(" ")).not.toMatch(/Varga|Prague|1987/);
+    }
+  });
+
+  it("shows the same facts with the setting left out, standard or unknown", async () => {
+    const before = await shownAt(undefined);
+    expect(await shownAt("standard")).toEqual(before);
+    expect(await shownAt("loose")).toEqual(before);
+  });
+});

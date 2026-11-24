@@ -1,6 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, aboutTheMusic, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk } from "./fact-ranking";
+import {
+  Candidate, FLOOR, MAX_BUBBLES, MAX_OFF_MUSIC, MORE_FACTS_FLOOR, STRICT_FLOOR, SURENESS, SURENESS_LEVELS, Sureness,
+  aboutTheMusic, interest, isLeadSentence, namesOtherSong, rankFacts, sourceRisk, surenessLimits,
+} from "./fact-ranking";
 
 // Made-up songs and people throughout ("Lantern Hill" by the Marmalade Owls)
 const LONG_BODY =
@@ -227,5 +230,66 @@ describe("captions about the music before the game around it (#189)", () => {
     expect(shown.filter((c) => c.offMusic)).toHaveLength(MAX_OFF_MUSIC);
     expect(shown).toHaveLength(1 + MAX_OFF_MUSIC);
     expect(lines.filter((l) => l.includes("not about the music"))).toHaveLength(trivia.length - MAX_OFF_MUSIC);
+  });
+});
+
+describe("How sure a fact must be (FACT_SURENESS, #542)", () => {
+  interface SurenessCase {
+    name: string;
+    song: string;
+    candidates: Candidate[];
+    shown: Record<Sureness, string[]>;
+    from: string;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { cases } = require("./fixtures/sureness.json") as { cases: SurenessCase[] };
+  const show = (c: SurenessCase, level?: Sureness) => rankFacts(c.candidates, level ? { sureness: SURENESS[level] } : {});
+
+  it.each(cases.flatMap((c) => SURENESS_LEVELS.map((level) => [`${c.name}: ${level}`, c, level] as const)))("%s", (_name, c, level) => {
+    expect(show(c, level).map((r) => r.text)).toEqual(c.shown[level]);
+  });
+
+  it("has a caption standard shows and strict drops, and one standard drops and more facts shows", () => {
+    const dropped = (from: Sureness, to: Sureness) => cases.some((c) => c.shown[from].some((t) => !c.shown[to].includes(t)));
+    expect(dropped("standard", "strict")).toBe(true);
+    expect(dropped("more", "standard")).toBe(true);
+  });
+
+  it("changes nothing at the default: left out, standard and an unknown value rank alike", () => {
+    for (const c of cases) {
+      const before = show(c);
+      expect(show(c, "standard")).toEqual(before);
+      expect(rankFacts(c.candidates, { sureness: surenessLimits(undefined) })).toEqual(before);
+      expect(rankFacts(c.candidates, { sureness: surenessLimits("loose") })).toEqual(before);
+    }
+    expect(SURENESS.standard.heldBackFloor).toBe(FLOOR);
+  });
+
+  it("moves only the held-back floor: strict shows part of standard, more facts adds to it, only held-back captions", () => {
+    expect(Object.values(SURENESS).every((limits) => Object.keys(limits).join() === "heldBackFloor")).toBe(true);
+    expect(SURENESS.strict.heldBackFloor).toBe(STRICT_FLOOR);
+    expect(SURENESS.more.heldBackFloor).toBe(MORE_FACTS_FLOOR);
+    for (const c of cases) {
+      const [strict, standard, more] = (["strict", "standard", "more"] as const).map((level) => show(c, level));
+      const texts = (list: typeof standard) => list.map((r) => r.text);
+      // The same flags, score and kind at every position: only which held-back captions come back differs
+      const all = [...standard, ...strict, ...more];
+      for (const r of all) expect(new Set(all.filter((o) => o.text === r.text).map((o) => JSON.stringify([o.flags, o.score, o.hook]))).size).toBe(1);
+      expect(texts(strict).every((t) => texts(standard).includes(t))).toBe(true);
+      expect(texts(standard).every((t) => texts(more).includes(t))).toBe(true);
+      expect(strict.every((r) => !r.flags.length)).toBe(true);
+      const added = [...standard.filter((r) => !texts(strict).includes(r.text)), ...more.filter((r) => !texts(standard).includes(r.text))];
+      expect(added.every((r) => r.refill && r.flags.length > 0)).toBe(true);
+      expect(more.length).toBeLessThanOrEqual(MAX_BUBBLES);
+    }
+  });
+
+  it("never brings back a caption from an unsure article, or one with no sentence of its own past three", () => {
+    const unsure = [caption("The cowbell was borrowed from a farm next door."), caption("Quill wrote it on a ferry.", "Quill said she wrote it on a ferry.")];
+    const unsourced = [0, 1, 2, 3].map((i) => caption(`The organ part ${i} was played on tour by the drummer.`, "", false));
+    for (const level of SURENESS_LEVELS) {
+      expect(rankFacts(unsure, { unsure: true, sureness: SURENESS[level] })).toEqual([]);
+      expect(rankFacts(unsourced, { sureness: SURENESS[level] })).toHaveLength(Math.min(SURENESS[level].heldBackFloor, FLOOR));
+    }
   });
 });
