@@ -36,6 +36,7 @@ const BUILD = buildInfo(PACKAGE);
 const versionWithBuild = () => versionLabel(app.getVersion(), BUILD);
 import { OUTAGE_REASON, pruneLogs, Status, Supervisor } from "./supervisor";
 import { prepareEnv, registerPreparing } from "./preparing";
+import type { AskChannel, TellChannel, WindowChannel } from "./ipc-channels";
 
 // BubbleFacts desktop app: setup, the dashboard, and a supervised fact server
 
@@ -104,7 +105,7 @@ function shown(where: string, err: unknown, opts: PlainOptions = {}): string {
   supervisor.note(`[App] ${where}: ${errorDetail(err)}`);
   return plainError(err, opts);
 }
-const send = (channel: string, payload: unknown) => win?.webContents.send(channel, payload);
+const send = (channel: WindowChannel, payload: unknown) => win?.webContents.send(channel, payload);
 
 /** Runs once songs are connected, so the test bubble shows in setup; until the AI is downloaded, no-AI facts only */
 function canStart(): boolean {
@@ -508,7 +509,7 @@ function createWindow(): void {
 /** The About page in the window, the same on every system (Windows has no About panel here) */
 function showAbout(): void {
   showWindow();
-  const go = () => win?.webContents.send("show-view", "about");
+  const go = () => send("show-view", "about");
   if (win?.webContents.isLoading()) win.webContents.once("did-finish-load", go);
   else go();
 }
@@ -635,7 +636,7 @@ const fromOurPage = (e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): bo
   }
 };
 /** Register a message from the window: refused from any other page, failures in plain words */
-function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
+function handle(channel: AskChannel, listener: Parameters<typeof ipcMain.handle>[1]): void {
   ipcMain.handle(channel, (e, ...args) => {
     if (!fromOurPage(e)) throw new Error(`"${channel}" isn't available to this page`);
     return Promise.resolve()
@@ -646,13 +647,13 @@ function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1])
   });
 }
 
-handle("whats-new-seen", () => {
+handle("mark-whats-new-seen", () => {
   markWhatsNewSeen();
   return state();
 });
 
 handle("test-bubble", () => control("test"));
-handle("wrong-fact", async (_e, text: string, song?: unknown, live?: unknown) => {
+handle("mark-wrong", async (_e, text: string, song?: unknown, live?: unknown) => {
   // Only On stream now is live; Earlier songs never takes a bubble off
   const result = await control("wrong", { text: String(text), song, live: live === true });
   backUpNow();
@@ -677,7 +678,7 @@ handle("set-facts-off", async (_e, song: unknown, kind: unknown, on: unknown) =>
   backUpNow();
   return result;
 });
-handle("unwrong-fact", async (_e, article: string, song: unknown) => {
+handle("unmark-wrong", async (_e, article: string, song: unknown) => {
   const result = await control("unwrong", { article: String(article), song });
   backUpNow();
   return result;
@@ -768,7 +769,7 @@ handle("import-look", async () => {
 });
 
 /** One of the looks that come with the app, by its name in the list (never a path); previewed like an imported one */
-handle("ready-look", (_e, id: unknown) => {
+handle("read-ready-look", (_e, id: unknown) => {
   const result = readReadyLook(path.join(ROOT, "desktop/looks"), id, app.getVersion());
   if (!result.ok) console.warn(`[App] Ready-made look refused: ${result.reason}`);
   return result.ok ? { ok: true, look: result.look } : { ok: false, message: `${result.reason} ${LOOK_KEPT}` };
@@ -903,10 +904,10 @@ supervisor.on("server-message", (message: unknown) => {
 });
 
 /** The Twitch channel a song points to, for Fill: one rule, in twitch.ts */
-handle("twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
+handle("find-twitch-login", (_e, artist: unknown, link: unknown) => twitchLoginFrom(String(artist ?? ""), String(link ?? "")));
 
 /** Their Twitch About as fact boxes, for the streamer to review */
-handle("twitch-about", async (_e, artist: unknown, link: unknown) => {
+handle("read-twitch-about", async (_e, artist: unknown, link: unknown) => {
   const login = twitchLoginFrom(String(artist ?? ""), String(link ?? ""));
   if (!login) return { ok: false, message: "Put their Twitch link in \"Their link\" first, like twitch.tv/theirname." };
   try {
@@ -1069,7 +1070,7 @@ handle("download-model", () => {
 });
 handle("copy", (_e, text: string) => clipboard.writeText(text));
 // Dropping the overlay file on OBS's Sources makes a canvas-sized Browser source; `vertical`: the 1080x1920 one
-ipcMain.on("start-drag", (e, vertical?: unknown) =>
+ipcMain.on("start-drag" satisfies TellChannel, (e, vertical?: unknown) =>
   fromOurPage(e) && e.sender.startDrag({ file: overlayFile(vertical === true), icon: asset("tray@2x.png") }));
 handle("open-external", (_e, url: string) => openExternal(url));
 handle("test-overlay", (_e, vertical?: unknown) => shell.openExternal(`${pathToFileURL(overlayFile(vertical === true))}?test=1`));
@@ -1084,7 +1085,7 @@ handle("open-notices", () => {
   fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), copy);
   return shell.openPath(copy);
 });
-handle("recent", async () => {
+handle("get-recent", async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${supervisor.status.port}/recent`, { signal: AbortSignal.timeout(2000) });
     return await res.json();
@@ -1221,7 +1222,7 @@ function setAboutPanel(): void {
  */
 async function unlockSecretsOnceWindowIsUp(): Promise<void> {
   await new Promise<void>((resolve) => {
-    ipcMain.once("unlock-ready", () => resolve());
+    ipcMain.once("unlock-secrets" satisfies TellChannel, () => resolve());
     setTimeout(resolve, UNLOCK_WAIT_FALLBACK_MS);
   });
   settings = unlockSecrets(settings);
