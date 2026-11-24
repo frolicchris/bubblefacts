@@ -1736,7 +1736,7 @@ describe("How sure a fact must be (FACT_SURENESS, #542)", () => {
   };
 
   it("drops a caption its article doesn't support at every position", async () => {
-    for (const level of ["strict", "standard", "more"]) {
+    for (const level of ["strict", "standard"]) {
       const shown = await shownAt(level);
       expect(shown.length).toBeGreaterThan(0);
       expect(shown).not.toContain(unsupported);
@@ -1744,9 +1744,8 @@ describe("How sure a fact must be (FACT_SURENESS, #542)", () => {
     }
   });
 
-  it("shows the same facts with the setting left out, standard or unknown", async () => {
+  it("shows the same facts with the setting left out, standard, an older \"more\" or unknown", async () => {
     const before = await shownAt(undefined);
-    expect(await shownAt("standard")).toEqual(before);
-    expect(await shownAt("loose")).toEqual(before);
+    for (const level of ["standard", "more", "loose"]) expect(await shownAt(level)).toEqual(before);
   });
 });

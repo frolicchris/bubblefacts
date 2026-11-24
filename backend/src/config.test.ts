@@ -149,6 +149,18 @@ describe("config credit bubble", () => {
   });
 });
 
+describe("config How sure a fact must be (#542)", () => {
+  const base = { SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t" };
+  afterEach(() => delete process.env.FACT_SURENESS);
+
+  it("is standard unless FACT_SURENESS=strict, and an older or unknown value is standard, never a startup error", () => {
+    expect(load(base).factSureness).toBe("standard");
+    expect(load({ ...base, FACT_SURENESS: "strict" }).factSureness).toBe("strict");
+    expect(load({ ...base, FACT_SURENESS: " Strict " }).factSureness).toBe("strict");
+    for (const old of ["more", "loose", ""]) expect(load({ ...base, FACT_SURENESS: old }).factSureness).toBe("standard");
+  });
+});
+
 describe("config Anthropic model", () => {
   const base = { SSL_STREAMER_NAME: "jane", SSL_ACCESS_TOKEN: "t", AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "k" };
 

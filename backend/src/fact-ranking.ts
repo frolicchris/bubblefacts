@@ -6,11 +6,11 @@ export const FLOOR = 3;          // held-back captions come back up to this many
 export const MAX_OFF_MUSIC = 2;  // captions about the game, film or show, not the music (#189)
 
 // --- How sure a fact must be (#542): FACT_SURENESS, the app's "How sure a fact must be" ---
-// It moves one limit: how many held-back captions come back (step 3). Each of them passed every screen
-// against its reference; nothing else changes, at any position. Examples: fixtures/sureness.json
+// Strict moves one limit: no held-back caption comes back (step 3). Nothing else changes, and nothing is
+// ever loosened. Examples: fixtures/sureness.json
 
 /** "standard" is the default and changes nothing */
-export const SURENESS_LEVELS = ["strict", "standard", "more"] as const;
+export const SURENESS_LEVELS = ["strict", "standard"] as const;
 export type Sureness = (typeof SURENESS_LEVELS)[number];
 
 export interface SurenessLimits {
@@ -21,19 +21,21 @@ export interface SurenessLimits {
 // Strict: none comes back. "Lantern Hill" with two safe captions and one retelling "Mara Quill said she
 // wrote the chorus on a ferry" shows the two, not the ferry
 export const STRICT_FLOOR = 0;
-// More facts: up to the four a song shows. "Harbor Lights" with three lead captions that each lost an
-// "about", a "mostly" or a "usually" shows a fourth too, from a 30-word body sentence about the second verse
-export const MORE_FACTS_FLOOR = MAX_BUBBLES;
 
 export const SURENESS: Readonly<Record<Sureness, Readonly<SurenessLimits>>> = {
   strict: { heldBackFloor: STRICT_FLOOR },
   standard: { heldBackFloor: FLOOR },
-  more: { heldBackFloor: MORE_FACTS_FLOOR },
 };
+
+/** A setting as written ("Strict", " standard"); anything else, an older "more" included, is standard */
+export function surenessFrom(raw: unknown): Sureness {
+  const level = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return (SURENESS_LEVELS as readonly string[]).includes(level) ? (level as Sureness) : "standard";
+}
 
 /** The limits for a setting; anything unknown or missing is standard */
 export function surenessLimits(level: unknown): Readonly<SurenessLimits> {
-  return (SURENESS_LEVELS as readonly unknown[]).includes(level) ? SURENESS[level as Sureness] : SURENESS.standard;
+  return SURENESS[surenessFrom(level)];
 }
 
 export interface Candidate {
@@ -234,13 +236,11 @@ export function rankFacts(
   const held = pool.filter((c) => c.flags.length);
   // Too few safe: least risky held-back come back; a body sentence counts half a flag more
   const risk = (c: (typeof all)[number]) => c.flags.length + (c.lead ? 0 : 0.5);
-  // Past FLOOR (More facts only), one comes back only if it retells a sentence of its own
-  const back: typeof held = [];
-  for (const c of held.slice().sort((a, b) => risk(a) - risk(b) || a.order - b.order)) {
-    if (safe.length + back.length >= floor) break;
-    if (safe.length + back.length >= FLOOR && !c.sentence) continue;
-    back.push({ ...c, refill: true });
-  }
+  const back = held
+    .slice()
+    .sort((a, b) => risk(a) - risk(b) || a.order - b.order)
+    .slice(0, Math.max(0, floor - safe.length))
+    .map((c) => ({ ...c, refill: true }));
   for (const c of held) if (!back.some((b) => b.order === c.order)) log(`[Screen] DROP (risky source: ${c.flags.join(", ")})`);
   // Among equals: data facts and lead captions, then the writer's order
   const tier = (c: (typeof all)[number]) => (c.kind === "data" || c.lead ? 0 : 1);

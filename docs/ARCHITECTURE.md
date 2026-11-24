@@ -590,10 +590,8 @@ model is asked.
 3. **Floor of three.** With fewer than three bubbles left, held-back captions
    come back, fewest flags first, after the others. Never one from step 1.
    **How sure a fact must be** (`FACT_SURENESS`, issue #542) moves this floor
-   and nothing else (`SURENESS` in `fact-ranking.ts`): `strict` is 0 (none
-   comes back), `standard` 3 (the default, unchanged), `more` 4. Past three, a
-   caption comes back only if it retells a sentence of its own: one that
-   matches no sentence passed the screens but can't be pointed at.
+   and nothing else (`SURENESS` in `fact-ranking.ts`): `standard` is 3 (the
+   default, unchanged), `strict` 0, so no held-back caption comes back.
 4. **Interest** (`interest`): a number, an age or a place you can picture
    ("in one afternoon", "at 16", "in a stairwell") and how it was made (a
    sample, a borrowed instrument, what inspired it) count +2; a first or a
@@ -618,25 +616,17 @@ Why these: on judged runs, captions from the lead were about 5% wrong and
 those from the body about 13%, and release and sales sentences were both the
 dullest and the most often wrong, so accuracy and fun mostly pull the same way.
 
-**Why the sureness setting moves only the floor.** A tester found many songs
-with few or no facts and asked to trade a little certainty for more. Every
-other limit that drops a caption is a screen that finds the reference doesn't
-support it, or the work match saying the article may be about another work
-(where almost half the wrong bubbles came from); loosening either would let
-through a fact with nothing behind it, or about the wrong song. Held-back
-captions are different: each passed every screen against its reference, and
-only the kind of sentence it retells makes it wrong more often. So the one
-switch moves how many of those come back, and nothing about the reference,
-the prompt, the screens, the work match, the topic packs or the content
-standard changes at any position. What that means for the tester's songs:
-a song with any captions already gets up to three at the default, so `more`
-adds at most a fourth bubble, and a song with none (no article, an unsure
-match, or nothing that passed the screens) gets nothing more at any position.
-`strict` is the real lever: songs whose captions all come from risky
-sentences show fewer facts, or fall back as when nothing passed. Prepared
-entries record the sureness they were written under (`sureness`, left out for
-standard so older files are standard) and count as stale under another
-(`isCurrent`), since they hold the captions one floor chose.
+**Why the sureness setting moves only the floor.** Held-back captions passed
+every screen against their reference; only the kind of sentence they retell
+makes them wrong more often. So `strict` leaves them out, and nothing about
+the reference, the prompt, the screens, the work match, the topic packs or the
+content standard changes. A song whose captions all come from risky sentences
+then shows fewer facts, or falls back as when nothing passed. Loosening was
+looked at and left out, because nothing safe to loosen helps songs with no
+facts. Any other value, an older `more` included, is `standard`
+(`surenessFrom`). Prepared entries record a `strict` they were written under
+(`sureness`, left out for standard, so older files are standard) and count as
+stale under the other setting (`isCurrent`).
 
 ### The credit bubble
 

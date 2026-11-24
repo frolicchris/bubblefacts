@@ -107,13 +107,19 @@ describe("PreparedStore (issue #292)", () => {
       expect(surenessMark()).toEqual({ sureness: "strict" });
       expect(isCurrent(entry({ ...surenessMark() }))).toBe(true);
       expect(isCurrent(entry())).toBe(false);
-      expect(isCurrent(entry({ sureness: "more" }))).toBe(false);
       store().put("ssl:1", entry({ sureness: "strict" }));
       expect(store().get("ssl:1")).toBeDefined();
-      cfg.factSureness = "more";
+      cfg.factSureness = "standard";
       expect(store().get("ssl:1")).toBeUndefined();
       // Kept until the preparer writes it again under the new sureness
       expect(store().saved("ssl:1")).toBeDefined();
+    });
+
+    it("reads an older \"more\" setting as standard, and never shows an entry written under it", () => {
+      cfg.factSureness = "more";
+      expect(surenessMark()).toEqual({});
+      expect(isCurrent(entry())).toBe(true);
+      expect(isCurrent({ ...entry(), sureness: "more" } as unknown as PreparedEntry)).toBe(false);
     });
   });
 });

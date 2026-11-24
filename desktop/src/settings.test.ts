@@ -46,11 +46,17 @@ describe("How sure a fact must be (#542)", () => {
     expect(toServerEnv({ ...DEFAULTS, factSureness: "standard" }, paths)).toEqual(toServerEnv(DEFAULTS, paths));
   });
 
-  it("passes Surest and A few more facts on, and a changed choice restarts the server", () => {
+  it("passes Strict on, and a changed choice restarts the server", () => {
     expect(toServerEnv({ ...DEFAULTS, factSureness: "strict" }, paths).FACT_SURENESS).toBe("strict");
-    expect(toServerEnv({ ...DEFAULTS, factSureness: "more" }, paths).FACT_SURENESS).toBe("more");
     const signature = (s: Settings) => serverSettingsSignature(toServerEnv(s, paths), s);
-    expect(signature({ ...DEFAULTS, factSureness: "more" })).not.toBe(signature(DEFAULTS));
+    expect(signature({ ...DEFAULTS, factSureness: "strict" })).not.toBe(signature(DEFAULTS));
+  });
+
+  it("loads an older \"more\" from settings.json as Standard, and passes nothing to the server for it", () => {
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", factSureness: "more", settingsVersion: 1 }));
+    const loaded = loadSettings();
+    expect(loaded.factSureness).toBe("standard");
+    expect(toServerEnv(loaded, paths)).not.toHaveProperty("FACT_SURENESS");
   });
 
   it("reads an unknown value as Standard, and offers the server's own choices", () => {

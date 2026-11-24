@@ -1,5 +1,5 @@
 {
-  "about": "Songs' captions as rankFacts gets them after screening, with what each position of 'How sure a fact must be' (FACT_SURENESS, #542) shows, labeled by hand. Every caption here passed screenClaims against its reference; the setting only decides how many held-back ones (a risky source sentence, fact-ranking.ts sourceRisk) come back. 'sentence' is the article sentence the caption retells, '' when none holds half its words; 'lead' says it is in the article's lead. 'shown' lists the bubbles in order for each position. Made-up songs and people throughout.",
+  "about": "Songs' captions as rankFacts gets them after screening, with what each position of 'How sure a fact must be' (FACT_SURENESS, #542) shows, labeled by hand. Every caption here passed screenClaims against its reference; the setting only decides whether held-back ones (a risky source sentence, fact-ranking.ts sourceRisk) come back. 'sentence' is the article sentence the caption retells, '' when none holds half its words; 'lead' says it is in the article's lead. 'shown' lists the bubbles in order for each position. Made-up songs and people throughout.",
   "cases": [
     {
       "name": "kept at standard, dropped at strict",
@@ -18,23 +18,17 @@
           "Lantern Hill was recorded in a lighthouse in one weekend.",
           "The cowbell on Lantern Hill was borrowed from a farm next door.",
           "Mara Quill wrote the chorus of Lantern Hill on a ferry."
-        ],
-        "more": [
-          "Lantern Hill was recorded in a lighthouse in one weekend.",
-          "The cowbell on Lantern Hill was borrowed from a farm next door.",
-          "Mara Quill wrote the chorus of Lantern Hill on a ferry."
         ]
       },
       "from": "made up for #542: the ferry caption retells what Quill said, so it is held back, and only comes back to reach three"
     },
     {
-      "name": "dropped at standard, kept at more",
+      "name": "every caption held back: strict shows none",
       "song": "Harbor Lights by the Marmalade Owls",
       "candidates": [
         { "text": "Harbor Lights was recorded in a boathouse in Dayton.", "kind": "caption", "sentence": "Harbor Lights was mostly recorded in a boathouse in Dayton.", "lead": true },
         { "text": "The band used forty musicians on the final chorus.", "kind": "caption", "sentence": "The band used about forty musicians on the final chorus.", "lead": true },
-        { "text": "The organ part was played by the drummer on tour.", "kind": "caption", "sentence": "The organ part was usually played by the drummer on tour.", "lead": true },
-        { "text": "The band tried a borrowed harmonium on the second verse of Harbor Lights.", "kind": "caption", "sentence": "Writing: The second verse of Harbor Lights was rewritten many times during a cold winter in a rented farmhouse outside Dayton, where the band also tried a dozen tempos, two new keys and a borrowed harmonium before the label agreed.", "lead": false }
+        { "text": "The organ part was played by the drummer on tour.", "kind": "caption", "sentence": "The organ part was usually played by the drummer on tour.", "lead": true }
       ],
       "shown": {
         "strict": [],
@@ -42,42 +36,12 @@
           "Harbor Lights was recorded in a boathouse in Dayton.",
           "The organ part was played by the drummer on tour.",
           "The band used forty musicians on the final chorus."
-        ],
-        "more": [
-          "Harbor Lights was recorded in a boathouse in Dayton.",
-          "The organ part was played by the drummer on tour.",
-          "The band used forty musicians on the final chorus.",
-          "The band tried a borrowed harmonium on the second verse of Harbor Lights."
         ]
       },
-      "from": "made up for #542: every caption lost an 'about', a 'mostly' or a 'usually', or retells a long body sentence; standard brings back the three least risky, more facts the fourth too"
+      "from": "made up for #542: each caption lost a 'mostly', an 'about' or a 'usually' from its sentence, so strict shows none of them and the song falls back as when nothing passed"
     },
     {
-      "name": "no sentence of its own: never past three",
-      "song": "Harbor Lights by the Marmalade Owls",
-      "candidates": [
-        { "text": "Harbor Lights was recorded in a boathouse in Dayton.", "kind": "caption", "sentence": "Harbor Lights was mostly recorded in a boathouse in Dayton.", "lead": true },
-        { "text": "The band used forty musicians on the final chorus.", "kind": "caption", "sentence": "The band used about forty musicians on the final chorus.", "lead": true },
-        { "text": "The organ part was played by the drummer on tour.", "kind": "caption", "sentence": "The organ part was usually played by the drummer on tour.", "lead": true },
-        { "text": "The harmonium on the second verse came from a church in Dayton.", "kind": "caption", "sentence": "", "lead": false }
-      ],
-      "shown": {
-        "strict": [],
-        "standard": [
-          "Harbor Lights was recorded in a boathouse in Dayton.",
-          "The organ part was played by the drummer on tour.",
-          "The band used forty musicians on the final chorus."
-        ],
-        "more": [
-          "Harbor Lights was recorded in a boathouse in Dayton.",
-          "The organ part was played by the drummer on tour.",
-          "The band used forty musicians on the final chorus."
-        ]
-      },
-      "from": "made up for #542: a caption no sentence holds half of passed the screens but retells nothing you can point at, so more facts never brings it back past three"
-    },
-    {
-      "name": "enough safe bubbles: the same at every position",
+      "name": "enough safe bubbles: the same at both positions",
       "song": "Velvet Harbor by Ana Ferro",
       "candidates": [
         { "text": "Velvet Harbor came out in 2004.", "kind": "data" },
@@ -98,15 +62,9 @@
           "The bass line was sampled from a music box.",
           "The drums on Velvet Harbor were played in a stairwell.",
           "Velvet Harbor came out in 2004."
-        ],
-        "more": [
-          "Ana Ferro sang Velvet Harbor at age 16.",
-          "The bass line was sampled from a music box.",
-          "The drums on Velvet Harbor were played in a stairwell.",
-          "Velvet Harbor came out in 2004."
         ]
       },
-      "from": "made up for #542: four safe bubbles fill the song, so no held-back caption is needed at any position"
+      "from": "made up for #542: four safe bubbles fill the song, so no held-back caption is needed at either position"
     }
   ]
 }

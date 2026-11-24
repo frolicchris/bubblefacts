@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { config } from "./config";
-import { SURENESS_LEVELS, Sureness } from "./fact-ranking";
+import { Sureness, surenessFrom } from "./fact-ranking";
 
 // Prepared facts (#292): songs' facts written ahead by the stream's pipeline, kept private in the data folder.
 // Facts from a source only; own, song-list and custom facts are built on play (ARCHITECTURE.md: Prepared songs)
@@ -78,23 +78,19 @@ const isEntry = (e: unknown): e is PreparedEntry => {
   const x = e as PreparedEntry;
   return !!x && typeof x.title === "string" && typeof x.artist === "string" && OUTCOMES.has(x.outcome) && Array.isArray(x.facts) && x.facts.every(isFact)
     && typeof x.article === "string" && typeof x.revision === "number" && typeof x.rules === "number" && typeof x.model === "string"
-    && typeof x.preparedAt === "string" && typeof x.checkedAt === "string"
-    && (x.sureness === undefined || (SURENESS_LEVELS as readonly unknown[]).includes(x.sureness));
+    && typeof x.preparedAt === "string" && typeof x.checkedAt === "string";
 };
-
-/** The sureness facts are written under now; anything unknown is standard, as in fact-ranking.ts */
-const surenessNow = (): Sureness => ((SURENESS_LEVELS as readonly unknown[]).includes(config.factSureness) ? config.factSureness : "standard");
 
 /** What a new entry records about FACT_SURENESS: nothing for standard, so its file stays as before */
 export function surenessMark(): Pick<PreparedEntry, "sureness"> {
-  const level = surenessNow();
+  const level = surenessFrom(config.factSureness);
   return level === "standard" ? {} : { sureness: level };
 }
 
-/** Usable as is: today's rules and sureness (one written under another shows other captions), and not too old */
+/** Usable as is: today's rules and sureness (Strict holds fewer captions), and not too old */
 export function isCurrent(entry: PreparedEntry, now = Date.now()): boolean {
   const at = Date.parse(entry.preparedAt);
-  return entry.rules === PREPARED_RULES_VERSION && (entry.sureness ?? "standard") === surenessNow() && Number.isFinite(at) && now - at < PREPARED_MAX_AGE_MS && now >= at - 60_000;
+  return entry.rules === PREPARED_RULES_VERSION && (entry.sureness ?? "standard") === surenessFrom(config.factSureness) && Number.isFinite(at) && now - at < PREPARED_MAX_AGE_MS && now >= at - 60_000;
 }
 
 export class PreparedStore {

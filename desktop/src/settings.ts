@@ -132,8 +132,8 @@ export type BubbleStyle = (typeof BUBBLE_STYLES)[number];
 export const BUBBLE_ICONS = ["style", "notes", "heart", "star", "moon", "diamond"] as const;
 export type BubbleIcon = (typeof BUBBLE_ICONS)[number];
 
-/** How sure a fact must be, as the server's SURENESS_LEVELS in fact-ranking.ts: keep alike */
-export const FACT_SURENESS = ["strict", "standard", "more"] as const;
+/** How sure a fact must be, as the server's SURENESS_LEVELS in fact-ranking.ts: keep alike. Anything else is standard */
+export const FACT_SURENESS = ["strict", "standard"] as const;
 export type FactSureness = (typeof FACT_SURENESS)[number];
 
 export const DEFAULTS: Settings = {

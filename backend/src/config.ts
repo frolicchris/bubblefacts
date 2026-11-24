@@ -5,7 +5,7 @@ import { presetFolder } from "./now-playing-folder";
 import { shareAddress } from "./share-song-facts";
 import { staleMinutes } from "./stale-song";
 import { styleFrom } from "./bubble-style";
-import { SURENESS_LEVELS } from "./fact-ranking";
+import { surenessFrom } from "./fact-ranking";
 
 // Every setting, from .env or the environment; each explained in docs/CONFIG.md
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
@@ -225,8 +225,9 @@ export const config = {
   match: oneOf("MATCH", ["rules", "shadow", "scored"] as const, "scored"),
   // Skip risky sentences, rank the rest (fact-ranking.ts)
   sourceRisk: oneOf("SOURCE_RISK", ["on", "off"] as const, "on") === "on",
-  // How sure a fact must be (#542): how many held-back captions come back; standard changes nothing
-  factSureness: oneOf("FACT_SURENESS", SURENESS_LEVELS, "standard"),
+  // How sure a fact must be (#542): strict shows no held-back caption; standard changes nothing.
+  // Anything else (an older "more") is standard, never a startup error
+  factSureness: surenessFrom(process.env.FACT_SURENESS),
   // Classical: find the work by composer, catalog number or nickname (#260)
   classicalLookup: oneOf("CLASSICAL_LOOKUP", ["on", "off"] as const, "on") === "on",
 
