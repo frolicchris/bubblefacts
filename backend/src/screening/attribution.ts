@@ -1,5 +1,5 @@
 import { escapeRe } from "../text";
-import { hasWord, NAME, NAME_STOPWORDS, YEAR } from "./names";
+import { CAPITALIZED_WORD, hasWord, NAME, NAME_STOPWORDS, SHORT_NAME, YEAR } from "./names";
 import { contentTokens, plainQuotes } from "./similarity";
 import { bodySentences, CONNECTIVES, hasNumber, MONTHS, NAME_RUN, numbersIn, retoldSentences, share } from "./sentences";
 
@@ -8,7 +8,7 @@ import { bodySentences, CONNECTIVES, hasNumber, MONTHS, NAME_RUN, numbersIn, ret
 // Doer by noun alone: "the band", "the company"
 const AGENT = /^the (band|group|company|label|singer|duo|trio|orchestra|studio|developer|publisher|network|magazine|website|choir|producer|composer)\b/i;
 // Name before a word of saying: "Spinwheel said", "Chen recalled"
-const SPEAKER = /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s*,?\s+(?:who\s+)?(?:also\s+|later\s+|once\s+)?(?:said|says|stated|recalled|explained|claimed|admitted|told|noted|commented|remarked|revealed|confirmed|insisted|joked)\b/gu;
+const SPEAKER = new RegExp(String.raw`(${SHORT_NAME})\s*,?\s+(?:who\s+)?(?:also\s+|later\s+|once\s+)?(?:said|says|stated|recalled|explained|claimed|admitted|told|noted|commented|remarked|revealed|confirmed|insisted|joked)\b`, "gu");
 
 // Word of saying; the first name before it (not after "with", "to", "by"...) is the speaker
 const SAYS = /\b(?:said|says|stated|recalled|explained|claimed|admitted|told|noted|commented|remarked|revealed|confirmed|insisted|joked)\b/;
@@ -17,7 +17,7 @@ const SAYS = /\b(?:said|says|stated|recalled|explained|claimed|admitted|told|not
 function namedAsSpeaker(sentence: string, surname: string): boolean {
   const verb = SAYS.exec(sentence);
   if (!verb) return false;
-  const re = new RegExp(`(\\S+\\s+)?((?:(?:Mc)?\\p{Lu}[\\p{L}'’.-]*\\s+)*)${escapeRe(surname)}(?![\\p{L}])`, "gu");
+  const re = new RegExp(`(\\S+\\s+)?((?:${CAPITALIZED_WORD}\\s+)*)${escapeRe(surname)}(?![\\p{L}])`, "gu");
   for (const m of sentence.slice(0, verb.index).matchAll(re)) {
     if (!/^(?:with|to|by|of|from|for|about|on|and)\s*$/i.test((m[1] ?? "").trim())) return true;
   }
@@ -45,11 +45,14 @@ export function swappedSubject(fact: string, context: string): string | null {
   return null;
 }
 
+// A sentence's describer: "Reyes described"
+const DESCRIBER = new RegExp(String.raw`(${CAPITALIZED_WORD})\s+(?:described|called|deemed|likened|characterized|characterised|considered)\b`, "u");
+
 /** Describer of a view told as fact ("as a compromise" for "Reyes described the cue as a compromise"), or null */
 export function unattributedView(fact: string, context: string): string | null {
   const retold = retoldSentences(fact, context);
   for (const s of retold) {
-    const by = /((?:Mc)?\p{Lu}[\p{L}'’.-]*)\s+(?:described|called|deemed|likened|characterized|characterised|considered)\b/u.exec(s);
+    const by = DESCRIBER.exec(s);
     if (!by || NAME_STOPWORDS.has(by[1].toLowerCase()) || hasWord(by[1], fact) || /\b(describ|call|deem|liken|characteri[sz]|consider)\w*/i.test(fact)) continue;
     const others = retold.filter((o) => o !== s).map(contentTokens);
     const own = contentTokens(s);
@@ -61,7 +64,7 @@ export function unattributedView(fact: string, context: string): string | null {
 
 // In a caption: "Vela described", "Ruvo said"
 const SAID_BY =
-  /((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})\s+(?:also\s+|later\s+|once\s+)?(?:described|said|says|stated|recalled|explained|claimed|admitted|noted|commented|remarked|revealed|insisted|joked|praised|likened|characteri[sz]ed|acknowledged|recounted)\b/u;
+  new RegExp(String.raw`(${SHORT_NAME})\s+(?:also\s+|later\s+|once\s+)?(?:described|said|says|stated|recalled|explained|claimed|admitted|noted|commented|remarked|revealed|insisted|joked|praised|likened|characteri[sz]ed|acknowledged|recounted)\b`, "u");
 // Any way a source gives someone's words or view: "comments that", "defined by", "in an interview"
 export const ATTRIBUTION =
   /\b(?:said|says|say|stat(?:ed|es|ing)|recall\w*|explain\w*|claim\w*|admit\w*|told|tell\w*|not(?:ed|es|ing)|comment\w*|remark\w*|reveal\w*|confirm\w*|insist\w*|jok\w*|describ\w*|call(?:ed|s|ing)|prais\w*|liken\w*|characteri[sz]\w*|acknowledg\w*|recount\w*|defin\w*|summari[sz]\w*|wr(?:ote|ites?|iting) that|interview\w*|according|quot\w*|felt|feel\w*|believ\w*|consider\w*|deem\w*|refer\w*|compar\w*|express\w*|reflect\w*|label\w*|dubb\w*|thought|argu\w*|observ\w*|asked|answer\w*|speak\w*|spoke|mention\w*|announc\w*|cit(?:ed|es|ing)|credit\w*|views?|opinion|marked by)\b|:\s*["“]/i;
@@ -109,9 +112,14 @@ export function misattributedWords(fact: string, context: string): string | null
   return drawn.some(near) ? null : name;
 }
 
+// A sentence or caption opening on a name, then a lowercase word: "Dale Ortiz pitched"
+const LEAD_NAME = new RegExp(String.raw`^(${SHORT_NAME})(?=\s+\p{Ll})`, "u");
+// The same, or the name and a comma: "Ada Pell, the singer"
+const LEAD_NAME_OR_COMMA = new RegExp(String.raw`^(${SHORT_NAME})(?=\s*,|\s+\p{Ll})`, "u");
+
 /** Real doer when the caption opens on someone the retold sentence never names ("Dale Ortiz pitched" for "Mara Quill... pitched"), or null */
 export function otherDoer(fact: string, context: string): string | null {
-  const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s+\p{Ll})/u.exec(fact);
+  const lead = LEAD_NAME.exec(fact);
   // "Nadia's album": the album is the subject
   if (!lead || /['’]s?$/.test(lead[1])) return null;
   const words = lead[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
@@ -122,7 +130,7 @@ export function otherDoer(fact: string, context: string): string | null {
   const subjects = retold.map((s) => {
     // Skip a leading time or place: "In 1933, Ada Pell recorded"
     const body = s.replace(/^(?:(?:In|On|By|During|After|Before|Later|From|At|When|While)\b[^,]{0,80},\s*)+/i, "");
-    const m = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s*,|\s+\p{Ll})/u.exec(body);
+    const m = LEAD_NAME_OR_COMMA.exec(body);
     const who = (m?.[1] ?? "").split(/\s+/).filter((w) => w && !NAME_STOPWORDS.has(w.toLowerCase()));
     // "Released in 2021, ...": a verb, not a name
     if (who.length === 1 && /(?:ed|ing|ly)$/.test(who[0])) return "";
@@ -157,12 +165,15 @@ function firstNamed(sentence: string, title: string, reference = ""): string[] {
   return [];
 }
 
+// The capitalized words just before a name: "with Ada " before "Pell"
+const NAME_WORDS_BEFORE = new RegExp(String.raw`(?:${CAPITALIZED_WORD}\s+)*$`, "u");
+
 /** Name followed by a verb, and not after "with", "to", "by" or a possessive */
 function namedAsDoer(sentence: string, name: string): boolean {
   const last = name.split(/\s+/).pop() ?? name;
   for (const m of sentence.matchAll(new RegExp(`(?<![\\p{L}])${escapeRe(last)}(?![\\p{L}])`, "gu"))) {
     // From the name's start, so "with Ada Pell" is read before "Ada"
-    const before = sentence.slice(0, m.index).replace(/(?:(?:Mc)?\p{Lu}[\p{L}'’.-]*\s+)*$/u, "");
+    const before = sentence.slice(0, m.index).replace(NAME_WORDS_BEFORE, "");
     const next = /^\s+(\p{Ll}[\p{L}-]*)/u.exec(sentence.slice((m.index ?? 0) + m[0].length));
     if (next && !NOT_A_VERB.test(next[1]) && !NOT_THE_DOER.test(before)) return true;
   }
@@ -200,7 +211,7 @@ export function citedMismatch(fact: string, sentences: string[], at: number, tit
     const gives = (s: string | undefined) => Boolean(s) && ATTRIBUTION.test(s as string) && (hasWord(who, s as string) || PRONOUN_SAYS.test(s as string));
     if (who && !(gives(own) && [own, sentences[at - 1]].some((s) => s && hasWord(who, s)))) return `the sentence it cites doesn't give ${who}'s words`;
   }
-  const lead = /^((?:Mc)?\p{Lu}[\p{L}'’.-]*(?:\s+(?:Mc)?\p{Lu}[\p{L}'’.-]*){0,3})(?=\s+\p{Ll})/u.exec(fact);
+  const lead = LEAD_NAME.exec(fact);
   if (lead && !/['’]s?$/.test(lead[1])) {
     const words = lead[1].split(/\s+/).filter((w) => !NAME_STOPWORDS.has(w.toLowerCase()));
     const agent = firstNamed(own, title, sentences.join(" "));
