@@ -62,7 +62,7 @@ export async function themeGrounding(song: SSLSong, usable: (title: string) => b
     return "";
   };
   try {
-    if (artist && !hasNoArtist(artist) && (await performerPages(artist.replace(/\s*\([^)]*\)\s*$/, ""), song.title)).performer) return refuse(`a performer is called "${artist}"`);
+    if (artist && !hasNoArtist(artist) && (await performerPages(withoutQualifier(artist), song.title)).performer) return refuse(`a performer is called "${artist}"`);
     const found = (await wikiResolveTitles([name])).get(name);
     if (!found || found.fragment || !usable(found.page) || normalizeTitle(withoutQualifier(found.page)) !== normalizeTitle(name)) return refuse(`no article is called "${name}"`);
     const page = found.page;

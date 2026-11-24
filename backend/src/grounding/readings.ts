@@ -3,7 +3,7 @@ import { editDistance, escapeRe, hasNoArtist } from "../text";
 import { setCapped } from "../capped-map";
 import { MAX_CONTEXT_CHARS, MIN_CONTEXT_CHARS } from "../fact-limits";
 import { dropVersionTags, isVariantTag, mentionsName, normalizeTitle, resolveGameAndTrack } from "./titles";
-import { COMPANY, initialsDiffer, isInitials, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, significantTokens, withoutQualifier } from "./relevance";
+import { COMPANY, initialsDiffer, isInitials, isRelevantArticle, looksLikeArtistName, numeralStyleDiffers, qualifierEndsIn, qualifierOf, significantTokens, withoutQualifier } from "./relevance";
 import { ownArticleExtract, RateLimited, wikiExtract, wikiResolveTitles, wikiSearch, wikiSearchSuggestion } from "./wikipedia";
 import { writingText } from "./covers";
 import { GENERIC_TRACK } from "./summary";
@@ -52,6 +52,10 @@ const ARRANGER = /^\s*arr(?:\.|anged by)?\s+|\s+(?:arr(?:\.|anged by)?|arrangeme
 export const CREDIT_JOIN = /\s+[-–—]\s+|\s*\/\s*|\s+(?:[Ff]eat\.?|[Ff]t\.?|[Ff]eaturing)\s+|\s+x\s+/;
 // A list's own mark after the names ("Some Singer - AB"), never looked up
 const LIST_TAG = /^\p{Lu}{1,2}$/u;
+// A page about a record or a list, not the work itself: "Some Game (soundtrack)"
+const NOT_THE_WORK_ITSELF = qualifierEndsIn("album|soundtrack|EP|discography|filmography");
+// A song's own page: "Santa Lucia (song)"
+const SONG_PAGE = qualifierEndsIn("song");
 // A work's music, not the work: "Picard Season 1 Theme"
 const THEME_WORDS = /\s+((?:season\s+\d+\s+)?(?:(?:main|opening|ending|end|title|love)\s+)?theme)$/i;
 
@@ -105,7 +109,7 @@ function listedReadings(song: SSLSong): Reading[] {
     const sep = /^(.+?)\s*(?::|\s[-–—]\s)\s*(.+)$/.exec(title);
     const installment = !inTitle.length && sep ? [{ game: `${franchise}: ${sep[1]}`, track: sep[2], notGame }] : [];
     // A name in brackets may be its real game ("Aquatic Ambiance (Donkey Kong Country)"): no series article
-    const series = /\([^)]*\)\s*$/.test(title) ? [] : [{ game: `${franchise} series`, track: title, notGame }];
+    const series = qualifierOf(title) !== undefined ? [] : [{ game: `${franchise} series`, track: title, notGame }];
     return [...inTitle, ...installment, ...series];
   }
 
@@ -225,7 +229,7 @@ export function isRespelling(name: string, page: string): boolean {
  * number only inside the name ("Episode I"), never last: "Honkai Impact" isn't "Honkai Impact 3rd"
  */
 export function isSameWorkRedirect(from: string, to: string): boolean {
-  if (/^List of\b/i.test(to) || /\((?:[^)]*\b)?(album|soundtrack|EP|discography|filmography)\)$/i.test(to)) return false;
+  if (/^List of\b/i.test(to) || NOT_THE_WORK_ITSELF.test(to)) return false;
   // "FFVII" is "Final Fantasy VII": initials carry the installment number
   if (isInitials(from, to)) return true;
   // "Qumu" leads to "Qumu Corporation": a company isn't a musician or a work
@@ -328,7 +332,7 @@ export async function groundSongAlone(song: SSLSong, title: string, usable: (tit
     for (const term of [`${title} song`, title]) {
       const titles = (await wikiSearch(term)).filter((t) => usable(t) && !tried.has(t) && isRelevantArticle(title, t));
       // "Santa Lucia (song)" before "Santa Lucia"
-      for (const page of [...titles.filter((t) => /\((?:[^)]*\b)?song\)$/i.test(t)), ...titles.filter((t) => !/\((?:[^)]*\b)?song\)$/i.test(t))]) {
+      for (const page of [...titles.filter((t) => SONG_PAGE.test(t)), ...titles.filter((t) => !SONG_PAGE.test(t))]) {
         tried.add(page);
         const full = await wikiExtract(page);
         if (!full || !SONG_WORDS.test(full.slice(0, 300))) {

@@ -20,7 +20,7 @@ export function isCoverOf(page: string, full: string, artist: string, title: str
   if (!coverScope.on || !full || !artist.trim()) return false;
   if (/\bcover(?:ed)?\b/i.test(title)) return true;
   if (!isPieceArticle(page, full)) return false;
-  const names = artistNames(artist.replace(/\s*\([^)]*\)\s*$/, ""));
+  const names = artistNames(withoutQualifier(artist));
   const lead = normalizeTitle(full.split(/\n==/)[0]);
   return names.length > 0 && !mentionsName(lead, names) && mentionsName(normalizeTitle(full), names);
 }
@@ -55,7 +55,7 @@ function versionSections(full: string, names: string[]): Array<{ body: string; o
 
 /** Sentences on another performer's version that would read as this one's; plain "covered by" lines stay */
 export function otherVersionsRecord(full: string, artist: string): Set<string> {
-  const names = artistNames(artist.replace(/\s*\([^)]*\)\s*$/, ""));
+  const names = artistNames(withoutQualifier(artist));
   if (!coverScope.on || !names.length) return new Set();
   const own = (s: string) => mentionsName(normalizeTitle(s), names);
   const drop = versionSections(full, names).filter((v) => !v.own).flatMap((v) => sentencesOf(v.body).filter((s) => !own(s) && (!v.list || CHART_RECORD.test(s))));
@@ -65,7 +65,7 @@ export function otherVersionsRecord(full: string, artist: string): Set<string> {
 
 /** For a cover: the original's sentences that would read as the cover's; the artist's own version section stays */
 export function originalsRecord(full: string, artist = ""): Set<string> {
-  const names = artist ? artistNames(artist.replace(/\s*\([^)]*\)\s*$/, "")) : [];
+  const names = artist ? artistNames(withoutQualifier(artist)) : [];
   const own = new Set(versionSections(full, names).filter((v) => names.length && v.own).flatMap((v) => sentencesOf(v.body)));
   return new Set(sentencesOf(full).filter((s) => ORIGINALS_RECORD.test(s) && !own.has(s)));
 }

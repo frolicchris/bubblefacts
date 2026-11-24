@@ -47,7 +47,7 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   // As music: "Castlevania" names the "Vampire Killer" whip, "Punch-Out!!" a character's training
   const named = Boolean(piece) && (/^About this piece:/m.test(grounding) || namesPiece(full, piece));
   // A note the lookup dropped: after the artist ("Some Singer (Tribute)"), or a cover's in the title
-  const noted = /\([^)]*\)\s*$/.test(asked.artist ?? "") || /[([][^)\]]*\bcover\b[^)\]]*[)\]]/i.test(asked.title);
+  const noted = qualifierOf(asked.artist ?? "") !== undefined || /[([][^)\]]*\bcover\b[^)\]]*[)\]]/i.test(asked.title);
 
   if (/^About this piece: .* is originally by .*\bcover\b/m.test(grounding)) return unsure("the article is about the original of a cover");
   if (linkedPages.has(page) && isPerformerArticle(page, full)) return unsure("MusicBrainz's link led to the artist's article, not the song's");
