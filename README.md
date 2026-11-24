@@ -165,7 +165,7 @@ Larger AI chosen in Settings, it is Meta's Llama 3.1 8B, used under the
 
 The open source software BubbleFacts ships, and each license, is listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Thank you to our beta testers,
-DarkN8V, Epic Realms, izzyparadox, MacYoda and SaxDragon, to charliesbeats, the best mod ever, and to everyone who tried BubbleFacts,
+DarkN8V, Epic Realms, izzyparadox, MacYoda, Rx7man and SaxDragon, to charliesbeats, the best mod ever, and to everyone who tried BubbleFacts,
 asked a question or shared an idea.
 
 Made by Christopher Feyrer (@frolicchris) with Claude Code, Anthropic's AI
