@@ -5,8 +5,8 @@ import path from "path";
 import { writeFileAtomic } from "./atomic-write";
 import { shareAddress } from "./checks";
 import { AiQuality, modelFor, modelPath } from "./model";
-import { FACT_LENGTH, factsWhole, fallbackMark, loadOwnFacts, OwnFactLines, saveOwnFacts } from "./own-facts";
-export { factsAreWhole } from "./own-facts";
+import { FACT_LENGTH, factsAreWhole as markWhole, factsWhole, fallbackMark, loadOwnFacts, OwnFactLines, saveOwnFacts } from "./own-facts";
+export { factsWhole };
 
 /** Everything the musician can change; secrets encrypted on disk with the system keychain */
 export interface Settings {
@@ -320,6 +320,12 @@ function withOwnFacts(settings: Settings, raw: Record<string, unknown> | null): 
 
 /** Lines from settings.json past a full box: kept there (never lost) and added when there's room */
 let factsOverflow: OwnFactLines = { myFacts: [], myOriginals: [] };
+
+/** The boxes in memory are the whole of the streamer's facts now (a restored backup): they replace the stored ones, and lines left waiting past a full box go */
+export function factsAreWhole(): void {
+  markWhole();
+  factsOverflow = { myFacts: [], myOriginals: [] };
+}
 const overflowKeys = () => ({
   ...(factsOverflow.myFacts.length ? { myFacts: factsOverflow.myFacts } : {}),
   ...(factsOverflow.myOriginals.length ? { myOriginals: factsOverflow.myOriginals } : {}),

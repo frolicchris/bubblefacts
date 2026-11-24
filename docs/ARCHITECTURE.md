@@ -2180,10 +2180,18 @@ usability check and a GUI check with real streamers.
   those lines, and the next start puts them in place of the stored ones, so
   a removal or an edit sticks. An older version keeps that key (it keeps
   keys it doesn't know) but changes the lines when it edits them, so the
-  mark no longer matches and its lines are added instead. A file locked at
+  mark no longer matches and its lines are added instead. So a removal made
+  while the file was locked, followed by going back a version and editing
+  the facts there, comes back on the next start: accepted, since nothing is
+  lost. A file locked at
   start is retried a few times; then the boxes show only what
   `settings.json` has, and lines saved then are added, never put in place of
-  the stored ones, and the message says a removal has to wait. A failure
+  the stored ones, and the message says a removal has to wait. A backup
+  taken then (the automatic one at start, or **Back up…**) leaves the
+  custom facts out (`facts: "unread"` in `makeBackup`), and restoring a
+  backup without them leaves the stored facts as they are; any other
+  restore replaces the boxes whole and drops lines waiting past a full box.
+  A failure
   while moving the lines in at start is logged and the app starts on
   `settings.json`'s lines. A file that reads but isn't a store is renamed to
   `own-facts.json.unreadable`, and the boxes show what `settings.json` has,

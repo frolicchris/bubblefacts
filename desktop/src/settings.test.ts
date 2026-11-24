@@ -703,6 +703,17 @@ describe("the musician's facts in their own file (issue #193)", () => {
     expect(loadSettings()).toMatchObject({ myFacts: ["From the backup."], myOriginals: [] });
   });
 
+  it("a restore leaves behind the lines that waited past a full box", () => {
+    saveSettings({ ...DEFAULTS, myFacts: Array.from({ length: 500 }, (_, i) => `Stored fact ${i + 1}.`) });
+    fs.writeFileSync(file, JSON.stringify({ channel: "jane", myFacts: ["Waiting for room."] }));
+    const s = loadSettings();
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).myFacts).toEqual(["Waiting for room."]);
+    factsAreWhole();
+    saveSettings({ ...s, myFacts: ["From the backup."], myOriginals: [] });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("myFacts");
+    expect(loadSettings().myFacts).toEqual(["From the backup."]);
+  });
+
   it("starts normally when the facts can't be moved, using the lines in settings.json", () => {
     fs.writeFileSync(file, JSON.stringify({ channel: "jane", ...mine }));
     fs.writeFileSync(path.join(dir, "own-facts-backups"), "not a folder");

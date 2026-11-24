@@ -43,9 +43,16 @@ export function wrongLogLines(text: string): unknown[] {
   return lines.slice(-500);
 }
 
-export function makeBackup(settings: Settings, files: { songFacts: unknown; wrongFacts: unknown; wrongLog?: unknown[] | null }, appVersion: string, now = new Date()): Backup {
+/** Restoring this backup puts its custom facts in place of the stored ones: it has them (all but one taken while they couldn't be read) */
+export const restoresFacts = (b: Backup) => Array.isArray(b.settings.myFacts) || Array.isArray(b.settings.myOriginals);
+
+/**
+ * `files.facts` "unread": own-facts.json couldn't be read, so the boxes in memory aren't the streamer's facts;
+ * the backup leaves them out rather than keep an empty box a restore would put in their place (#193)
+ */
+export function makeBackup(settings: Settings, files: { songFacts: unknown; wrongFacts: unknown; wrongLog?: unknown[] | null; facts?: "unread" }, appVersion: string, now = new Date()): Backup {
   const picked: Record<string, unknown> = {};
-  for (const key of BACKED_UP) picked[key] = settings[key];
+  for (const key of BACKED_UP) if (!(files.facts === "unread" && (key === "myFacts" || key === "myOriginals"))) picked[key] = settings[key];
   return {
     format: BACKUP_FORMAT,
     formatVersion: 1,

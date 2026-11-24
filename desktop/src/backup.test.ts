@@ -3,7 +3,7 @@ jest.mock("electron", () => ({ app: { getPath: () => "/tmp" }, safeStorage: { is
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, wrongLogLines } from "./backup";
+import { autoBackup, backupFileName, makeBackup, readBackup, REMOVED_WITH_DATA, restoresFacts, wrongLogLines } from "./backup";
 import { DEFAULTS } from "./settings";
 
 const mine = {
@@ -25,6 +25,20 @@ const mine = {
   displayName: "Jane Composer",
   bubbleArea: "bottom" as const,
 };
+
+describe("a backup taken while the facts file couldn't be read (issue #193)", () => {
+  it("leaves the facts out, so restoring it never puts an empty box in place of the stored facts", () => {
+    const b = readBackup(JSON.stringify(makeBackup({ ...mine, myFacts: [], myOriginals: [] }, { songFacts: [], wrongFacts: {}, facts: "unread" }, "v")));
+    expect(b.settings).not.toHaveProperty("myFacts");
+    expect(b.settings).not.toHaveProperty("myOriginals");
+    expect(b.settings).toMatchObject({ displayName: "Jane Composer" });
+    expect(restoresFacts(b)).toBe(false);
+  });
+  it("restores the facts of any other backup, older ones too", () => {
+    expect(restoresFacts(readBackup(JSON.stringify(makeBackup(mine, { songFacts: [], wrongFacts: {} }, "v"))))).toBe(true);
+    expect(restoresFacts(readBackup(JSON.stringify(makeBackup({ ...mine, myFacts: [], myOriginals: [] }, { songFacts: [], wrongFacts: {} }, "v"))))).toBe(true);
+  });
+});
 
 describe("backups", () => {
   it("keep the streamer's settings and facts, and never a sign-in or key", () => {
