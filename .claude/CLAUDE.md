@@ -15,7 +15,7 @@ each holds one kind of change.
 ## Commands
 ```bash
 npm run check       # typecheck + lint + tests + script tests: run before every commit
-npm run typecheck   # tsc, including the tests
+npm run typecheck   # tsc, including the tests and the overlay and window scripts
 npm test            # jest, a few seconds (transpile-only; types come from tsc)
 npm run lint        # eslint on the overlay and the app's screens, shellcheck on the scripts
 npm run build       # compile to dist/
