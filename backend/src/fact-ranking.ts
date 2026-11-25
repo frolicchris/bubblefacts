@@ -51,6 +51,7 @@ const TITLE_SMALL = /^(a|an|the|of|in|on|and|or|to|for|at|by|with|from|de|la|le|
 // Section name before a body sentence ("Development: ...")
 const SECTION_LABEL = /^[A-Z][^:.!?"]{1,60}: /;
 const LONG_BODY_WORDS = 30;  // words: a body sentence this long is risky
+const OWN_WORDS_FROM_SOURCE = 0.6;  // share of a caption's own words that must come from its source sentence
 
 // A quoted title ("Cutie Mew Mew Magic") rather than someone's words
 const isTitle = (quote: string) => {
@@ -68,11 +69,11 @@ export function sourceRisk(caption: string, sentence: string, isLead: boolean): 
   const hedges = (s: string) => new Set((s.match(HEDGES) ?? []).map((h) => h.toLowerCase()));
   const kept = hedges(caption);
   if ([...hedges(source)].some((h) => !kept.has(h))) flags.push("hedge dropped");
-  if (!isLead) {
-    const have = words(source);
-    const shared = [...words(caption)].filter((w) => have.has(w)).length;
-    if (shared / Math.max(1, have.size) < 0.5) flags.push("compressed under half");
-  }
+  const have = words(source);
+  const said = words(caption);
+  const shared = [...said].filter((w) => have.has(w)).length;
+  if (!isLead && shared / Math.max(1, have.size) < 0.5) flags.push("compressed under half");
+  if (shared / Math.max(1, said.size) < OWN_WORDS_FROM_SOURCE) flags.push("under 60% of its words from the source");
   return flags;
 }
 
@@ -130,6 +131,13 @@ export function interest(text: string, sentence = text): { score: number; hook: 
   const hook = order.find((h) => kinds.includes(h)) ?? "plain";
   return { score, hook, reasons };
 }
+
+// Data facts viewers find dull: the year, the album, the label, the writing credit
+const DULL_DATA = /\b(?:came out in|appears on|is on the album|was released on|was (?:written|composed) by)\b/;
+
+// A data fact that says only dull things (one that also names the genres does not): left out when a song shows anything else
+export const dullData = (c: Pick<Candidate, "text" | "kind">) =>
+  c.kind === "data" && c.text.split(/(?<=[.!?])\s+/).every((sentence) => DULL_DATA.test(sentence));
 
 // --- About the music, or the work around it ---
 
@@ -213,7 +221,12 @@ export function rankFacts(
   const group = (c: (typeof all)[number]) => (c.refill ? 2 : opts.dataFirst && c.kind === "data" ? 0 : 1);
   const ranked = [...safe, ...back].sort((a, b) => group(a) - group(b) || Number(a.other) - Number(b.other) || Number(a.offMusic) - Number(b.offMusic) || b.score - a.score || tier(a) - tier(b) || a.order - b.order);
   for (const c of ranked.slice(max)) log(`[Rank] not shown (${max} at most, interest ${c.score})`);
-  const kept = ranked.slice(0, max);
+  const top = ranked.slice(0, max);
+  // Dull data facts go when anything else is left; a song with nothing else keeps them. Nothing takes
+  // their place: the captions next in line are the ones wrong most often (measured 2026-11-10)
+  const lively = top.filter((c) => !dullData(c));
+  const kept = lively.length ? lively : top;
+  for (let n = top.length - kept.length; n > 0; n--) log("[Rank] not shown (dull data fact)");
   // Kinds take turns within each group: leading data, the rest, brought-back captions
   return [0, 1, 2].flatMap((g) => rotate(kept.filter((c) => group(c) === g)));
 }
