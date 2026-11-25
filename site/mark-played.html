@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Move your song list on: BubbleFacts</title>
-  <meta name="description" content="How a mod or a stream bot moves your song list on to the next song, for StreamerSongList, StreamElements, Nightbot, Streamling and now playing files, so BubbleFacts follows without you reaching for the mouse.">
+  <meta name="description" content="Which song sources move on by themselves and which need a mod or a stream bot to mark a song played, for StreamerSongList, StreamElements, Nightbot, Streamling and now playing files, so BubbleFacts follows without you reaching for the mouse.">
   <link rel="canonical" href="https://bubblefacts.frolic.org/mark-played.html">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
@@ -14,7 +14,7 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="BubbleFacts">
   <meta property="og:title" content="Move your song list on without the mouse">
-  <meta property="og:description" content="How a mod or a stream bot moves your song list on to the next song, for StreamerSongList, StreamElements, Nightbot, Streamling and now playing files, so BubbleFacts follows without you reaching for the mouse.">
+  <meta property="og:description" content="Which song sources move on by themselves and which need a mod or a stream bot to mark a song played, for StreamerSongList, StreamElements, Nightbot, Streamling and now playing files, so BubbleFacts follows without you reaching for the mouse.">
   <meta property="og:url" content="https://bubblefacts.frolic.org/mark-played.html">
   <meta property="og:image" content="https://bubblefacts.frolic.org/assets/social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -45,12 +45,12 @@
       <div class="wrap narrow">
         <p class="eyebrow">Song sources</p>
         <h1 id="mark-played">Move your song list on without the mouse</h1>
-        <p class="section-intro">BubbleFacts follows your song list and never changes it. So when a song ends, your song list has to move on to the next song, and BubbleFacts follows. Hands on your instrument? Most song lists have a chat command, so a mod or a stream bot can do it for you.</p>
+        <p class="section-intro">BubbleFacts follows your song list and never changes it. The StreamElements and Nightbot players move on to the next request by themselves when a song ends, so there's nothing to do; their commands are only for skipping a song early. A StreamerSongList queue waits until someone marks the song played. Hands on your instrument? A mod or a stream bot can do it with a chat command.</p>
 
         <h2 id="by-source">The command for each song source</h2>
         <div class="table-wrap">
           <table class="stack-phone">
-            <caption class="visually-hidden">How to move on to the next song, for each song source</caption>
+            <caption class="visually-hidden">When a song needs moving on, for each song source</caption>
             <thead>
               <tr><th scope="col">Song source</th><th scope="col">Chat command</th><th scope="col">Who can use it</th><th scope="col">Or click</th></tr>
             </thead>
@@ -63,13 +63,13 @@
               </tr>
               <tr>
                 <th scope="row">StreamElements Media Request</th>
-                <td data-label="Chat command"><code>!skip</code>. It skips the song that's playing now.</td>
+                <td data-label="Chat command">None needed: the player moves on by itself when a song ends. <code>!skip</code> skips the song that's playing now, if you want to move on early.</td>
                 <td data-label="Who can use it">You and your mods, unless you changed it.</td>
                 <td data-label="Or click">The Media Request player on your StreamElements dashboard.</td>
               </tr>
               <tr>
                 <th scope="row">Nightbot song requests</th>
-                <td data-label="Chat command"><code>!songs skip</code>. It skips the song that's playing now.</td>
+                <td data-label="Chat command">None needed: the player moves on by itself when a song ends. <code>!songs skip</code> skips the song that's playing now, if you want to move on early.</td>
                 <td data-label="Who can use it">You and your mods, unless you changed it.</td>
                 <td data-label="Or click">The player on Nightbot's Song Requests page, or the Fast Forward media key while Nightbot's desktop app runs.</td>
               </tr>

@@ -64,8 +64,9 @@ Setup for your song source:
 [Nightbot](https://bubblefacts.frolic.org/nightbot.html),
 [Streamling](https://bubblefacts.frolic.org/streamling.html), or
 [a now playing file](https://bubblefacts.frolic.org/now-playing-file.html)
-(What's Now Playing and other music apps). Hands on your instrument when a
-song ends? [Move your song list on without the mouse](https://bubblefacts.frolic.org/mark-played.html)
+(What's Now Playing and other music apps). StreamElements and Nightbot move on
+by themselves when a song ends. On StreamerSongList, with your hands on your
+instrument? [Move your song list on without the mouse](https://bubblefacts.frolic.org/mark-played.html)
 with a chat command a mod or a stream bot can use.
 
 ## How the facts are checked
