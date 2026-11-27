@@ -52,6 +52,17 @@ describe("factsFromInfobox", () => {
     ]);
   });
 
+  it("says self-released instead of naming it as a label (#586)", () => {
+    expect(texts("Tide Pool (album)", `{{Infobox album\n| name = Tide Pool\n| type = soundtrack\n| artist = Mira Tal\n| label = Self-released\n}}`)).toEqual([
+      "The album Tide Pool is by Mira Tal.",
+      "The album Tide Pool was self-released.",
+    ]);
+    expect(texts("Paper Lantern (Moth Choir song)", `{{Infobox song\n| name = Paper Lantern\n| label = {{hlist|Self-released|Gullwing}}\n}}`)).toEqual([
+      '"Paper Lantern" was released on Gullwing.',
+    ]);
+    expect(texts("Paper Lantern (Moth Choir song)", `{{Infobox song\n| name = Paper Lantern\n| label = Independent\n}}`)).toEqual([]);
+  });
+
   it("writes a game's composers, makers, year and platforms, naming the game", () => {
     expect(
       texts("Star Orchard (video game)", `{{Infobox video game\n| title = Star Orchard\n| developer = Pinecone Works\n| publisher = Lumen Soft\n| composer = {{ubl|Mira Tal|Oren Fisk}}\n| platforms = [[Super Famicom]]\n| released = {{vgrelease|JP|April 1993|NA|1994}}\n}}`)
