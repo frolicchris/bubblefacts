@@ -1,6 +1,7 @@
 import { namesLoosely } from "./grounding/relevance";
 import { artistNames, mentionsName, normalizeTitle } from "./grounding/titles";
 import { loadWikitext, wikitextOf } from "./grounding/work-scope";
+import { realLabels } from "./labels";
 import { COMMENT, removeAll, withoutRefsAndComments } from "./text";
 
 // Facts from the article's infobox: a fixed sentence filled from one field, no AI, so wrong
@@ -155,6 +156,12 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
   const kind = SONG_BOX.test(box.type) ? "song" : GAME_BOX.test(box.type) ? "game" : "album";
   const about: BoxSubject = { kind, name, artists: kind === "game" ? [] : items(f.artist ?? "") };
   const add = (text: string, field: string, values: string[]) => out.push({ text, evidence: `${field}: ${items(f[field] ?? "").join(", ") || f[field]}`, values, about });
+  // "Self-released" is no label (#586): say so, and name only real labels
+  const addLabel = (q: string, listed: string[]) => {
+    const { labels, selfReleased } = realLabels(listed);
+    if (labels.length && labels.length <= 2) add(`${q} was released on ${joinNames(labels)}.`, "label", labels);
+    else if (!labels.length && selfReleased) add(`${q} was self-released.`, "label", []);
+  };
 
   if (SONG_BOX.test(box.type)) {
     const q = `"${name}"`;
@@ -168,8 +175,7 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
     if (album) add(`${q} appears on ${album}.`, "album", [album]);
     const year = earliestYear(f.released ?? f.published ?? f.composed ?? f.year);
     if (year) add(`${q} came out in ${year}.`, f.released ? "released" : f.published ? "published" : f.composed ? "composed" : "year", [year]);
-    const labels = nameList(f.label);
-    if (labels.length && labels.length <= 2) add(`${q} was released on ${joinNames(labels)}.`, "label", labels);
+    addLabel(q, nameList(f.label));
     // "Include", as listed: not "usually", and not two of three passed off as all
     const genres = nameList(f.genre).map((g) => (/^[A-Z][a-z]/.test(g) ? g[0].toLowerCase() + g.slice(1) : g)).slice(0, 3);
     if (genres.length) add(`The genres of ${q} include ${joinNames(genres)}.`, "genre", genres);
@@ -194,8 +200,7 @@ export function factsFromInfobox(page: string, box: Infobox): BoxFact[] {
     if (year) add(`${q} came out in ${year}.`, "released", [year]);
     const producers = nameList(f.producer ?? f.producers);
     if (producers.length) add(`${q} was produced by ${joinNames(producers)}.`, f.producer ? "producer" : "producers", producers);
-    const labels = nameList(f.label);
-    if (labels.length && labels.length <= 2) add(`${q} was released on ${joinNames(labels)}.`, "label", labels);
+    addLabel(q, nameList(f.label));
   }
   return out.filter((x) => x.text.length <= 160);
 }

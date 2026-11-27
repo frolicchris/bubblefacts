@@ -116,6 +116,12 @@ describe("artistFactsFromEntity (issue #255)", () => {
     expect(artistFactsFromEntity(singer, labels)).toEqual(["Dana Reyes was born in 1950. Record labels include Some Records."]);
   });
 
+  it("names no placeholder such as self-released as a record label (#586)", () => {
+    const withSelf = { ...labels, Q16: { id: "Q16", labels: { en: { value: "self-released" } } } };
+    const singer = { id: "Q2", labels: { mul: { value: "Dana Reyes" } }, descriptions: { en: { value: "English singer" } }, claims: { P31: ids("Q5"), P569: time("+1950-03-01T00:00:00Z"), P264: ids("Q16", "Q15") } };
+    expect(artistFactsFromEntity(singer, withSelf)).toEqual(["Dana Reyes was born in 1950. Record labels include Some Records."]);
+  });
+
   it("tells who scored and made a game, without doubling a name's final period", () => {
     const game = { id: "Q3", labels: { en: { value: "Starfall Saga" } }, descriptions: { en: { value: "1996 video game" } }, claims: { P86: ids("Q13"), P178: ids("Q14"), P577: time("+1996-05-01T00:00:00Z") } };
     expect(artistFactsFromEntity(game, labels)).toEqual(["The music of Starfall Saga is by Kenji Arata.", "Starfall Saga was developed by Hollow Pine Inc."]);

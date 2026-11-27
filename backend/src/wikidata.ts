@@ -6,6 +6,7 @@ import { USER_AGENT } from "./grounding/wikipedia";
 import { SSLSong } from "./types";
 import { escapeRe } from "./text";
 import { fitOrSplit, packFacts } from "./data-facts";
+import { isPlaceholderLabel } from "./labels";
 import { albumYear, anyBoxOf, boxBacksPlace, boxBacksYear, boxNeighbor, boxProducers, boxWriters, boxYear, Infobox, sameCredits, sameTitle, songBoxOf } from "./infobox";
 
 // Plain facts from Wikidata (CC0) for songs with no article (#23): each a template filled from one
@@ -325,7 +326,8 @@ export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>,
   const where = place && /^(United States|United Kingdom|United Arab Emirates|Netherlands|Philippines|Czech Republic|Dominican Republic|Bahamas|Gambia|Maldives)\b/.test(place) ? `the ${place}` : place;
   const verb = person ? "was born" : "formed";
   const genres = named("P136").slice(0, 2);
-  const labelsOf = named("P264").slice(0, 2);
+  // No placeholder such as "self-released" named as a label (#586)
+  const labelsOf = named("P264").filter((l) => !isPlaceholderLabel(l)).slice(0, 2);
   // As few bubbles as fit: the first sentence names the artist, the rest short
   const parts: Array<{ full: string; short: string }> = [];
   if (when || where) {
