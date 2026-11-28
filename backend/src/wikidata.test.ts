@@ -681,6 +681,19 @@ describe("pickArtistOrGame (#256)", () => {
     expect(pickArtistOrGame([band, { id: "Q3", label: "Glass Comet", description: "album" }], "glass comet")?.id).toBe("Q1");
     expect(pickArtistOrGame([band, game], "glass comet")).toBeNull();
   });
+
+  it("picks no tie-in game: a film by the same name came out first or the same year (#587)", () => {
+    const film = { id: "Q4", label: "Paper Kite", description: "2010 American animated film" };
+    const tieIn = { id: "Q5", label: "Paper Kite", description: "2010 video game" };
+    expect(pickArtistOrGame([film, tieIn], "paper kite")).toBeNull();
+    // The game first, a film years later: the game's name
+    const game = { id: "Q6", label: "Star Orchard", description: "1993 video game" };
+    const later = { id: "Q7", label: "Star Orchard", description: "2019 film directed by Sam Roe" };
+    expect(pickArtistOrGame([game, later], "star orchard")?.id).toBe("Q6");
+    // A band beside a film keeps its facts
+    const band = { id: "Q8", label: "Moth Choir", description: "American indie band" };
+    expect(pickArtistOrGame([band, { id: "Q9", label: "Moth Choir", description: "2001 film" }], "moth choir")?.id).toBe("Q8");
+  });
 });
 
 describe("a place's or a team's item: never a song's reference", () => {

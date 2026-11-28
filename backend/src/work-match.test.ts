@@ -3,6 +3,7 @@ jest.mock("./config", () => ({
 }));
 
 import { workMatchConfidence as rules, articleText } from "./fact-verifier";
+import { noteDropped } from "./grounding/work-match";
 import { referenceDecision, scoredLevel } from "./work-resolver";
 
 // MATCH=scored by default; the "rules match" test project reruns these with MATCH=rules (the score may hold an article back, never add one)
@@ -77,6 +78,29 @@ describe("workMatchConfidence (issue #255)", () => {
     expect(level("Area 3", "Rocket Drift", naming).level).toBe("sure");
     // A request for the series itself takes its article
     expect(level("Area 3", "Rocket Drift Series", series).level).toBe("sure");
+  });
+
+  it("is unsure of a tie-in game asked under the film's own name, sure of one named otherwise (#587)", () => {
+    const tieIn = ref("Paper Kite (video game)", "Paper Kite is a 2010 platform video game developed by Pellmore, based on the 2010 film Paper Kite.", "It came out for three consoles.");
+    expect(level("Lantern Song", "Paper Kite", tieIn)).toMatchObject({ level: "unsure", reason: expect.stringContaining("a game based on the film") });
+    const sameName = ref("Paper Kite (video game)", "Paper Kite is an action-adventure game based on the movie of the same name.", "It was developed by Pellmore.");
+    expect(level("Lantern Song", "Paper Kite", sameName)).toMatchObject({ level: "unsure", reason: expect.stringContaining("a game based on the movie") });
+    // A game named apart from its film ("Agent Orbit 64" from "Agent Orbit"): its own music
+    const named = ref("Agent Orbit 64", "Agent Orbit 64 is a 1997 first-person shooter video game developed by Pellmore, based on the 1995 film Agent Orbit.", "It sold well.");
+    expect(level("Facility", "Agent Orbit 64", named).level).toBe("sure");
+  });
+
+  it("is unsure of a game found only after dropping a name it never mentions (#587)", () => {
+    const game = ref("Moth Lantern (video game)", "Moth Lantern is a role-playing video game developed by Pellmore for a handheld console.", "Its music is by Mira Tal.");
+    expect(level("Primo", "Moth Lantern (Oren Fisk)", game)).toMatchObject({ level: "unsure", reason: expect.stringContaining("dropping a name") });
+    // As the stream asks: the note already off the artist, kept aside
+    expect(level("Primo", "Moth Lantern", game).level).toBe("sure");
+    noteDropped({ title: "Primo", artist: "Moth Lantern" }, "Oren Fisk");
+    expect(level("Primo", "Moth Lantern", game).level).toBe("unsure");
+    // A name the article does mention, or a version note, keeps it
+    expect(level("Primo", "Moth Lantern (Mira Tal)", game).level).toBe("sure");
+    expect(level("Primo", "Moth Lantern (SNES)", game).level).toBe("sure");
+    expect(level("Primo", "Moth Lantern (Piano Arrangement)", game).level).toBe("sure");
   });
 
   it("is unsure of a game's parent article for an edition or epilogue, unless its first sentence names it", () => {
