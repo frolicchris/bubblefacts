@@ -9,7 +9,7 @@ import { SongSource } from "./song-source";
 import { StreamElementsClient } from "./streamelements-client";
 import { NowPlayingFileSource } from "./now-playing-file";
 import { factsTookLine, listeningLine } from "./listening";
-import { prepareSong, prepModelName, releasePrepModel, streamModelName, aiTimeFor, paceReport, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
+import { factsForReplay, prepareSong, prepModelName, releasePrepModel, streamModelName, aiTimeFor, paceReport, allowedFacts, forgetTwitchAbout, pulledWithWrong, positionsFor, primeFacts, showsBanner, recentShown, restoreRecent, forgetSong, selfTest, setCurrentSong, generateFacts, factStats, markWrong, outcomeFor, ownFactKind, STRUCTURED, unmarkWrong, warmUpBuiltin, spotsForSong, verticalPositionsFor } from "./fact-generator";
 import { connectAboutAsker, onAboutAnswer } from "./twitch-about";
 import { factsOff, findSongFacts, saveSongFacts, setFactsOff, songFactsProblem } from "./song-facts";
 import { songSearchRoute } from "./song-search";
@@ -29,6 +29,7 @@ import { playHistory } from "./play-history";
 import { isNotMusic } from "./not-music";
 import { settledRevision } from "./fact-verifier";
 import { songKey } from "./wrong-facts";
+import { setCapped } from "./capped-map";
 import { styleFrom, StylePayload } from "./bubble-style";
 
 // HTTP + WebSocket server: follows the song source, writes facts on each song change, sends them to every overlay
@@ -116,7 +117,18 @@ const obsStreaming = new ObsStreaming(restored && Date.now() - restored.savedAt 
 // The [Shown] lines: once per play of a song, as facts go out to an overlay; also the aired facts record
 const aired = new AiredFacts();
 const shown = new ShownLog(aired);
+// What each song put on screen this stream, so a replay shows other facts (#588); the newest songs kept
+const shownThisStream = new Map<string, Set<string>>();
+const SHOWN_SONGS_KEPT = 500;
+function noteShown(song: SSLSong, facts: Fact[]): void {
+  const key = songKey(song);
+  const seen = shownThisStream.get(key) ?? new Set<string>();
+  for (const f of facts) seen.add(f.text);
+  setCapped(shownThisStream, key, seen, SHOWN_SONGS_KEPT);
+}
+
 const logShown = (song: SSLSong, facts: Fact[]) => {
+  noteShown(song, facts);
   shown.log(song, facts);
   // [Shown] says what went out, not that an overlay drew it: this says how many connections it went to.
   if (facts.length) console.log(`[WS] Sent ${facts.length} bubble${facts.length === 1 ? "" : "s"} to ${clients.size} overlay${clients.size === 1 ? "" : "s"}`);
@@ -445,15 +457,19 @@ async function onSongChange(current: SSLQueueItem | null): Promise<void> {
   }
   broadcast(newSong(song));
 
+  // Played before this stream: other facts this time (#588), so nothing goes out early
+  const seenBefore = shownThisStream.get(songKey(song));
+  const replay = Boolean(seenBefore?.size);
   // Facts from data go out as soon as they're ready, while the AI writes (#256)
   let early: Fact[] | null = null;
   const againAtStart = shownAgain;
-  const facts = await generateFacts(song, current, (data) => {
-    if (token !== generation) return;
+  const generated = await generateFacts(song, current, (data) => {
+    if (token !== generation || replay) return;
     early = data;
     const plan = planCredit(creditCount, data, { enabled: config.creditBubble, onAir: clients.size > 0 && !paused, testAt, now: Date.now(), ...spotsForSong(song)(0) });
     broadcast({ type: "facts_ready", song, facts: plan.facts }, plan.credit);
   });
+  const facts = replay && seenBefore ? await factsForReplay(song, generated, seenBefore) : generated;
   if (token !== generation) {
     console.log(`[Server] Discarding facts for "${song.title}": the song changed while generating`);
     return;

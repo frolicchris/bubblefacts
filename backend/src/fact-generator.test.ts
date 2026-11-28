@@ -52,7 +52,7 @@ jest.mock("./fact-verifier", () => ({
 }));
 
 import { config } from "./config";
-import { prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
+import { factsForReplay, prepareSong, recentShown, RETELL_EXAMPLES, SYSTEM_PROMPT, aiTimeFor, allowedFacts, pulledWithWrong, songsLogLine, blockFor, clearFactCache, factStats, forgetSong, generateFacts, markWrong, liveLearnLookup, ownFactKind, SOURCE, STRUCTURED, taggedFactsFor, outcomeFor, positionsFor, positionsForSong, restoreRecent, setCurrentSong, showsBanner, unmarkWrong, useBuiltinSession, ARTIST_SONG_RULE, VERTICAL_SAFE, verticalPositionsFor } from "./fact-generator";
 import { MAX_BUBBLES } from "./fact-ranking";
 import { blockArticle as blockArticleForTest, blockedArticles, resetWrongFacts, songKey } from "./wrong-facts";
 import { PreparedEntry, PreparedFact, preparedStore, PREPARED_RULES_VERSION } from "./prepared-facts";
@@ -1733,5 +1733,39 @@ describe("a song whose captions all failed the screen (#203)", () => {
     forgetSong(song);
     await generateFacts(song);
     expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a song played again in the same stream (#588)", () => {
+  const fact = (text: string, source: string, i: number) => ({ text, source, delaySeconds: i * 10, durationSeconds: 8, position: { left: "5%", top: "70%" } });
+  const song = { title: "Harbor Lights", artist: "Marlow Finch" };
+  const facts = [
+    fact("Harbor Lights came out in 1999.", SOURCE.wikidata, 0),
+    fact("Marlow Finch wrote it on a ferry.", "Wikipedia: Harbor Lights", 1),
+    fact("Requested by dana_k.", SOURCE.songList, 2),
+    fact("This one is for my cat.", SOURCE.custom, 3),
+  ];
+  const shown = new Set(facts.map((f) => f.text));
+
+  it("shows the facts not shown yet, then up to two about the artist, never the same one again", async () => {
+    (artistFacts as jest.Mock).mockResolvedValueOnce(["Marlow Finch was born in 1970.", "Harbor Lights came out in 1999.", "Marlow Finch formed a band in 1990.", "A third one."]);
+    const again = await factsForReplay(song, facts, shown);
+    expect(again.map((f) => f.text)).toEqual([
+      "Requested by dana_k.",
+      "This one is for my cat.",
+      "Marlow Finch was born in 1970.",
+      "Marlow Finch formed a band in 1990.",
+    ]);
+    expect(again.map((f) => f.delaySeconds)).toEqual([0, 1, 2, 3].map((i) => i * config.factIntervalSeconds));
+    expect(again[2].source).toBe(SOURCE.wikidata);
+  });
+
+  it("shows fewer bubbles when the artist has nothing new either", async () => {
+    (artistFacts as jest.Mock).mockResolvedValueOnce(["Harbor Lights came out in 1999."]);
+    expect((await factsForReplay(song, facts, shown)).map((f) => f.text)).toEqual(["Requested by dana_k.", "This one is for my cat."]);
+  });
+
+  it("changes nothing when none of the facts were shown before", async () => {
+    expect(await factsForReplay(song, facts, new Set(["Something else."]))).toBe(facts);
   });
 });

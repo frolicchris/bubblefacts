@@ -652,6 +652,42 @@ function takeTurns(pool: string[], n: number): string[] {
 // Not the streamer's or the song list's
 const fromASource = (f: Fact) => !WRITTEN_BY_STREAMER.has(f.source) && f.source !== SOURCE.songList;
 
+// Songs whose artist or game facts were left out (another act's, or the game may be another work): none on a replay either
+const noArtistFacts = new Set<string>();
+const REPLAY_ARTIST_FACTS = 2;
+
+/**
+ * A song played again this stream (#588): its facts not shown yet, then up to two about its artist or game,
+ * else fewer bubbles, never the same fact again. The streamer's own and the song list's always stay.
+ * `shown`: the texts this song's earlier plays put on screen (server.ts)
+ */
+export async function factsForReplay(song: SSLSong, facts: Fact[], shown: ReadonlySet<string>): Promise<Fact[]> {
+  const unseen = facts.filter((f) => !fromASource(f) || !shown.has(f.text));
+  const used = facts.length - unseen.length;
+  if (!used) return facts;
+  let extra: string[] = [];
+  const read = withoutNote(song);
+  if (!noArtistFacts.has(songKey(song)) && !hasNoArtist(read.artist ?? "")) {
+    const { game } = resolveGameAndTrack(read);
+    const about = game || read.artist;
+    const taken = new Set([...shown, ...unseen.map((f) => f.text), ...recentList()]);
+    extra = onStandard(await artistFacts(about), [about])
+      .filter((f) => !taken.has(f) && !restatesRequest(f, song) && !unseen.some((u) => tooSimilar(f, u.text)))
+      .slice(0, Math.min(used, REPLAY_ARTIST_FACTS));
+  }
+  console.log(`[FactGen] "${withoutRequestCredit(song.title)}": played again this stream, ${unseen.length} of ${facts.length} facts not shown yet, ${extra.length} about the artist`);
+  if (extra.length) remember(extra);
+  const spotFor = spotsForSong(song);
+  // Re-timed in order: the first bubble at the start, as on any play
+  const texts = [...unseen.map((f) => f.text), ...extra];
+  const added = new Map(unseen.map((f) => [f.text, f]));
+  return texts.map((text, i) => ({
+    ...(added.get(text) ?? { text, source: SOURCE.wikidata, durationSeconds: config.factDurationSeconds }),
+    delaySeconds: i * config.factIntervalSeconds,
+    ...spotFor(i),
+  }));
+}
+
 // Tagged facts first; pool facts take turns (one beside sourced facts, else every bubble); then the rest
 async function generate(song: SSLSong, entry: SSLQueueItem | null, onEarly?: EarlyFacts): Promise<{ facts: Fact[]; ttlMs: number }> {
   const want = config.factsPerSong;
@@ -861,6 +897,7 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     const about = isPerformerArticle(page, articleText(page) || context) ? page : titleGame(read.title, game) || game;
     // MusicBrainz says the article is another act's: no artist facts
     const sameName = /^MusicBrainz credits /.test(match?.reason ?? "");
+    if (sameName || dataOnly) noArtistFacts.add(songKey(song));
     const extra = !sameName && !dataOnly && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
@@ -1291,6 +1328,7 @@ const revisions = new Map<string, number>();
 /** Tests only. Keeps outcomes (true for /recent), structuredLabel (fixed) and Wrong blocks (Undo only) */
 export function clearFactCache(): void {
   factCache.clear();
+  noArtistFacts.clear();
   recentFacts.length = 0;
   poolTurns.clear();
   inFlight.clear();

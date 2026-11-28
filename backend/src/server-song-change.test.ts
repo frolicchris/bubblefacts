@@ -30,3 +30,13 @@ describe("preparing songs in the server (issues #293 and #295)", () => {
 
 // The stale song list (#451) and the next song (#448) are tested by behavior: stale-song.test.ts,
 // share-song-facts.test.ts (nextSongToShare) and, on the running server, scripts/server-stale.test.mjs
+
+describe("a song played again in the same stream (#588)", () => {
+  it("records what went on screen and gives a replay other facts, none sent early", () => {
+    const logShown = SOURCE.slice(SOURCE.indexOf("const logShown ="));
+    expect(logShown.slice(0, logShown.indexOf("};"))).toContain("noteShown(song, facts);");
+    const change = SOURCE.slice(SOURCE.indexOf("async function onSongChange("), SOURCE.indexOf("function sendLater("));
+    expect(change).toMatch(/if \(token !== generation \|\| replay\) return;/);
+    expect(change).toMatch(/replay && seenBefore \? await factsForReplay\(song, generated, seenBefore\) : generated/);
+  });
+});

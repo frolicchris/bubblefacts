@@ -1872,6 +1872,13 @@ list song that played is prepared sooner: its plays add to its count.
   neither cached nor returned, and its caller gets fresh facts.
 - **No repeats across songs.** The last 80 facts shown (`recentFacts`) are
   kept for the session; a near-duplicate (`tooSimilar`) is dropped.
+- **No repeats on a replay (#588).** A song played again in the same stream
+  gets its facts not shown yet, then up to two about its artist or game
+  (`factsForReplay`; none when the first play left those out), else fewer
+  bubbles. The streamer's own facts and the song list's lines (play count,
+  requester) always show. What each song put on screen is kept in memory
+  (`shownThisStream` in `server.ts`, the newest 500 songs), so a restart
+  forgets it. A replay's facts all go out together, none early.
 
 ### A slow or busy computer
 
