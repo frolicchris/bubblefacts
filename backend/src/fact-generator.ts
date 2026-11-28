@@ -25,6 +25,8 @@ import { Pace, PaceKeeper, paceLine, SHORT_CAPTIONS, shorterContext } from "./pa
 import { ABOUT_CREDIT, aboutIsChannelTalk, aboutIsMusicChannel, canAskAbout, forgetAbouts, loginForArtist, loginForHandle, twitchAbout } from "./twitch-about";
 import { PrepContext, prepContext, preparing, watchLookupTrouble } from "./prep-context";
 import { dataFitsTarget, holdsForEveryVersion } from "./work-resolver";
+import { NOT_THIS_GAME, noteDropped } from "./grounding/work-match";
+import { qualifierOf } from "./grounding/relevance";
 import { PreparedEntry, PreparedFact, PreparedOutcome, preparedStore } from "./prepared-facts";
 import { askAI, builtinState, Obsolete, prepModelName, runningTurn, streamModelName } from "./ai-client";
 
@@ -860,7 +862,8 @@ async function groundedFacts(song: SSLSong, entry: SSLQueueItem | null, want: nu
     // Series as artist, game in title: that game's facts, not the series' first
     const about = isPerformerArticle(page, articleText(page) || context) ? page : titleGame(read.title, game) || game;
     // MusicBrainz says the article is another act's: no artist facts
-    const sameName = /^MusicBrainz credits /.test(match?.reason ?? "");
+    // Or the game named is likely another work: a tie-in, or found after dropping a name (#587)
+    const sameName = /^MusicBrainz credits /.test(match?.reason ?? "") || NOT_THIS_GAME.test(match?.reason ?? "");
     const extra = !sameName && !dataOnly && data.length + taggedFor(song).pool.length < 2 ? fresh(onStandard(await artistFacts(about), [about])).slice(0, 2) : [];
     for (const f of extra) setCapped(structuredLabel, f, SOURCE.wikidata, MAX_KEPT);
     const shown = rankedData([...data, ...extra.filter((f) => !data.includes(f))], want);
@@ -1182,7 +1185,11 @@ function bestSupported(data: string[], captions: Caption[], context: string, wan
 export function withoutNote(song: SSLSong): SSLSong {
   const artist = withoutArtistNote(song.artist ?? "");
   const title = withoutRequestCredit(song.title) || song.title;
-  return artist === (song.artist ?? "").trim() && title === song.title ? song : { ...song, title, artist };
+  if (artist === (song.artist ?? "").trim() && title === song.title) return song;
+  const out = { ...song, title, artist };
+  // Kept aside to check an article against (#587); the request itself goes on without it
+  if (artist !== (song.artist ?? "").trim()) noteDropped(out, qualifierOf(song.artist ?? "") ?? "");
+  return out;
 }
 
 // Own facts, live learn, original, then groundedFacts. `sourcedOnly`: no entry facts. `asked`: the request;

@@ -1145,7 +1145,9 @@ a confidence (`workMatchConfidence`, issue #255; `ABSTAIN=off` skips it), and
 an `unsure` one gets no AI captions: only the song's Wikidata or MusicBrainz
 facts, the streamer's own facts, and, when that leaves fewer than two, up to
 two Wikidata facts about the artist or the game (`artistFacts`: an item named
-exactly so, described as a performer or one video game, never a series). The
+exactly so, described as a performer or one video game, never a series, and
+never a game named like a film or show from the same year or before: a
+tie-in, issue #587). The
 log says why (`[Grounding] unsure: ...`). Unsure is:
 
 - the original of a cover (MusicBrainz's note), or MusicBrainz's link to the artist;
@@ -1163,6 +1165,17 @@ log says why (`[Grounding] unsure: ...`). Unsure is:
   named after the artist ("Some Band: Live");
 - the artist's article that never names the song, found only after dropping a
   note ("Some Singer (Tribute)", "Song (Someone's cover)").
+- a game based on a film, show or book that has the requested game's own name
+  ("Shrek (video game)" for "Fairytale" by Shrek), for a track it never names:
+  the track is likely from the film (#587);
+- a game found only after dropping a name from the artist that the article
+  never mentions ("NOSTALGIA (Wac)" finding the DS game *Nostalgia*). The note
+  is kept aside only to compare (`noteDropped`), never searched or logged
+  (#262), and version notes such as "(SNES)" or "(Piano Arrangement)" don't
+  count (#587).
+
+For these last two, the game named is likely another work, so no Wikidata
+facts about it are added either.
 
 A `sure` article is then checked against Wikipedia's own page summary
 (`summaryGate`, the REST `page/summary` endpoint page previews use, cached

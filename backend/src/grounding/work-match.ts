@@ -1,5 +1,6 @@
 import type { SSLSong } from "../types";
 import { editDistance } from "../text";
+import { setCapped } from "../capped-map";
 import { artistNames, dropVersionTags, mentionsName, normalizeTitle, resolveGameAndTrack } from "./titles";
 import { namesLoosely, PERFORMER_QUALIFIER, qualifierOf, significantTokens, withoutQualifier } from "./relevance";
 import { articleText, isPieceArticle, openingSays } from "./covers";
@@ -18,6 +19,17 @@ export interface WorkMatch {
 
 // Reached through MusicBrainz's link, not a Wikipedia search (#245)
 export const linkedPages = new Set<string>();
+
+// The artist's bracket note `withoutNote` took off ("Wac" from "NOSTALGIA (Wac)"), by the request without it (#587):
+// only compared with an article's text, never searched, sent to the AI, shown or logged (#262)
+const droppedNotes = new Map<string, string>();
+const MAX_NOTES = 2000;
+const noteKey = (song: SSLSong) => `${normalizeTitle(song.title)}\0${normalizeTitle(song.artist ?? "")}`;
+
+/** Remember the note taken off `song`'s artist */
+export function noteDropped(song: SSLSong, note: string): void {
+  if (note.trim()) setCapped(droppedNotes, noteKey(song), note.trim(), MAX_NOTES);
+}
 
 const SERIES_WORD = /\b(series|franchise)\b/i;
 const AN_ALBUM = /\b(album|EP|mixtape|compilation)s?\b/i;
@@ -101,11 +113,45 @@ export function workMatchConfidence(song: SSLSong, grounding: string, asked: SSL
   // Another work named after the artist: "Depeche Mode: M" for a Depeche Mode song
   if (piece && !named && startsWith(title, work) && !SERIES_WORD.test(game)) return unsure(`"${page}" is another work named after ${game}`);
   if (piece && !named && SERIES_WORD.test(says) && !SERIES_WORD.test(asked.artist ?? "")) return unsure("a series' article for one game's track, which it never names");
+  // A tie-in game for a track asked under the film's own name: "Shrek (video game)" for "Fairytale" by Shrek (#587)
+  const tieIn = piece && !named ? tieInOf(full, base, game) : null;
+  if (tieIn) return unsure(`${NOT_THIS_GAME_TIE_IN} ${tieIn} of the same name, which the track is likely from`);
+  // A name dropped from the artist ("NOSTALGIA (Wac)") that the article never mentions: another work by that name (#587)
+  // The note itself never goes in the reason: reasons are logged (#262)
+  const note = qualifierOf(asked.artist ?? "") ?? droppedNotes.get(noteKey(asked)) ?? droppedNotes.get(noteKey(song));
+  if (piece && !named && note && isNameNote(note) && !mentionsName(normalizeTitle(full), [normalizeTitle(note)])) return unsure(`${NOT_THIS_GAME_NOTE} a name from the artist, which the article never mentions`);
   const kind = (SCREEN_OR_BOOK.exec(qualifier) ?? (/\bgames?\b/i.test(says) ? null : SCREEN_OR_BOOK.exec(says)))?.[0];
   if (piece && !named && kind && !SCREEN_OR_BOOK.test(asked.artist ?? "")) return unsure(`a ${kind.toLowerCase()}'s article that never names the song`);
   // A film that uses the name, even naming the song, is about the film: "Superstar: The Karen Carpenter Story"
   if (piece && kind && !title.every((t) => work.includes(t)) && (!work.every((t) => title.includes(t)) || startsWith(title, work))) return unsure(`"${page}" is a ${kind.toLowerCase()}'s article, not the song's`);
   return sure("the work's own article");
+}
+
+// Why a match is unsure when the game it names is likely another work: no Wikidata facts for that game either (#587)
+export const NOT_THIS_GAME_TIE_IN = "a game based on the";
+export const NOT_THIS_GAME_NOTE = "found only after dropping";
+export const NOT_THIS_GAME = new RegExp(`^(?:${NOT_THIS_GAME_TIE_IN}|${NOT_THIS_GAME_NOTE}) `);
+
+// "based on the 2001 film Shrek", "based on the movie of the same name"
+const BASED_ON = /\bbased on (?:the |a )?(?:\d{4} )?(?:[\w'-]+ ){0,3}?(film|movie|novel|book|television series|tv series|animated series|anime|manga|musical|play)\b(?: (of the same name)| ([^,.;(]+))?/i;
+
+/** The kind of work a game's article says it's based on, when that work has the requested game's name ("film"), else null */
+function tieInOf(full: string, base: string, game: string): string | null {
+  const lead = leadSentences(full, 2);
+  if (!/\bgames?\b/i.test(lead)) return null;
+  const m = BASED_ON.exec(lead);
+  const want = normalizeTitle(game);
+  if (!m || !want) return null;
+  const same = m[2] ? normalizeTitle(base) === want : Boolean(m[3]) && normalizeTitle(m[3]).startsWith(want);
+  return same ? m[1].toLowerCase() : null;
+}
+
+// Notes that say which version, platform or arrangement, not whose: "(OST)", "(SNES)", "(Piano Arrangement)", "(2018)"
+const VERSION_NOTE = /\b(ost|soundtrack|score|arr\.?|arrange(?:d|ment)?|version|ver\.?|remix|mix|edit|cover|piano|orchestra(?:l)?|instrumental|theme|medley|live|acoustic|original|official|remaster(?:ed)?|deluxe|japan(?:ese)?|english|jp|us|eu|nes|snes|n64|gba|gbc|ds|3ds|wii|wii u|switch|ps\d?|psp|vita|xbox|pc|arcade|genesis|mega drive|game ?boy|dreamcast|saturn|series|franchise|game|movie|film|tv|anime|vol(?:ume)?\.? ?\d+|part \d+|disc \d+|\d{4})\b/i;
+
+/** A note that reads as a name, a composer or arranger's: "Wac", not "SNES" or "Piano Version" */
+function isNameNote(note: string): boolean {
+  return /\p{L}/u.test(note) && note.length <= 40 && !VERSION_NOTE.test(note);
 }
 
 // A piece's own article under another spelling of its title

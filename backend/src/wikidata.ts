@@ -337,13 +337,27 @@ export function artistFactsFromEntity(e: Entity, labels: Record<string, Entity>,
   return packFacts(parts).slice(0, 2);
 }
 
-/** The one performer or game labeled exactly `want` (not an alias); two (a band and a game, a remake) give none */
+// A film, show or book: a game labeled like one that came out first is its tie-in (#587)
+const SCREEN_ITEM = /\b(film|movie|television series|tv series|animated series|anime|manga|novel|book|musical|media franchise)\b/i;
+const itemYear = (desc: string) => Number(/\b(1[89]\d\d|20\d\d)\b/.exec(desc)?.[1] ?? NaN);
+
+/** The one performer or game labeled exactly `want` (not an alias); two (a band and a game, a remake) give none, nor a tie-in game */
 export function pickArtistOrGame(hits: Array<{ id: string; label?: string; description?: string }>, want: string): { id: string; description?: string } | null {
-  const named = hits.filter((h) => {
+  const exact = hits.filter((h) => normalizeTitle(h.label ?? "") === want);
+  const named = exact.filter((h) => {
     const desc = h.description ?? "";
-    return normalizeTitle(h.label ?? "") === want && (PERFORMER_ITEM.test(desc) || (GAME_ITEM.test(desc) && !SERIES_ITEM.test(desc)));
+    return PERFORMER_ITEM.test(desc) || (GAME_ITEM.test(desc) && !SERIES_ITEM.test(desc));
   });
-  return named.length === 1 ? named[0] : null;
+  if (named.length !== 1) return null;
+  const pick = named[0];
+  const desc = pick.description ?? "";
+  if (!PERFORMER_ITEM.test(desc) && GAME_ITEM.test(desc)) {
+    // A film or show by the same name, from the same year or before (or a year unknown): the request is likely its music
+    const year = itemYear(desc);
+    const screen = exact.filter((h) => h !== pick && SCREEN_ITEM.test(h.description ?? "") && !GAME_ITEM.test(h.description ?? ""));
+    if (screen.some((h) => !(itemYear(h.description ?? "") > year))) return null;
+  }
+  return pick;
 }
 
 /** Facts about the artist or the artist field's game (#255), from an item named exactly so. Never throws */
